@@ -3,25 +3,45 @@ using Frog.Core.Models;
 using Frog.Core.Enums;
 using Xunit;
 
+namespace Frog.Tests;
+
 public class MapSerializerTests
 {
     [Fact]
-    public void SerializeDeserialize_RoundTrip_Works()
+    public void RoundtripSerializeDeserializePreservesContent()
     {
         var map = new Map { Width = 10, Height = 10, Name = "TestMap" };
-        var layer = new Layer { LayerType = LayerType.Ground };
-        layer.Tiles.Add(new Tile { X = 1, Y = 2, TilesetId = 3, SrcX = 32, SrcY = 64, Type = TileType.Ground });
-        map.Layers.Add(layer);
 
-        var ser = new MapSerializer();
-        var bytes = ser.Serialize(map);
-        var back = ser.Deserialize(bytes);
+        var ground = new Layer { LayerType = LayerType.Ground };
+        ground.Tiles.Add(new Tile
+        {
+            X = 1,
+            Y = 2,
+            TilesetId = 3,
+            SrcX = 32,
+            SrcY = 64,
+            Type = TileType.Ground
+        });
+        map.Layers.Add(ground);
 
-        Assert.Equal(map.Width, back.Width);
-        Assert.Equal(map.Height, back.Height);
-        Assert.Equal(map.Name, back.Name);
+        var serializer = new MapSerializer();
+        var data = serializer.Serialize(map);
+        var back = serializer.Deserialize(data);
+
+        Assert.Equal(10, back.Width);
+        Assert.Equal(10, back.Height);
+        Assert.Equal("TestMap", back.Name);
         Assert.Single(back.Layers);
+        Assert.Equal(LayerType.Ground, back.Layers[0].LayerType);
+
         Assert.Single(back.Layers[0].Tiles);
-        Assert.Equal(TileType.Ground, back.Layers[0].Tiles[0].Type);
+        var t = back.Layers[0].Tiles[0];
+        Assert.Equal(1, t.X);
+        Assert.Equal(2, t.Y);
+        Assert.Equal(3, t.TilesetId);
+        Assert.Equal(32, t.SrcX);
+        Assert.Equal(64, t.SrcY);
+        Assert.Equal(TileType.Ground, t.Type);
     }
 }
+
