@@ -1,9 +1,10 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
-
 using Frog.Core.Models;
+using Frog.Core.Enums;
 using Frog.Editor.Controls;
+using Frog.Editor.Assets;
 
 namespace Frog.Editor.Forms
 {
@@ -14,80 +15,51 @@ namespace Frog.Editor.Forms
         private readonly ToolStripStatusLabel _lblPos;
         private readonly SplitContainer _splitLeft;
         private readonly SplitContainer _splitRight;
-        private readonly Panel _tilesetPanel;
+        private readonly PaletteView _palette;
         private readonly ListBox _layersList;
         private readonly PropertyGrid _propGrid;
         private readonly MapCanvas _canvas;
 
         public MainForm()
         {
-            Text = "FROG Map Editor (v1 UI)";
-            MinimumSize = new Size(1000, 700);
+            Text = "FROG Map Editor";
+            MinimumSize = new Size(1100, 720);
             StartPosition = FormStartPosition.CenterScreen;
 
             // ToolStrip
-            _tool = new ToolStrip
-            {
-                GripStyle = ToolStripGripStyle.Hidden,
-                ImageScalingSize = new Size(20, 20),
-                Dock = DockStyle.Top
-            };
+            _tool = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, ImageScalingSize = new Size(20, 20), Dock = DockStyle.Top };
             var btnNewMap = new ToolStripButton("Nouvelle carte");
-            var btnOpenTileset = new ToolStripButton("Ouvrir tileset");
+            var btnOpenTileset = new ToolStripButton("Ouvrir tileset (PNG)");
             btnNewMap.Click += (s, e) => CreateNewMap();
-            btnOpenTileset.Click += (s, e) => MessageBox.Show("Palette/tileset arrive à l’étape suivante.");
+            btnOpenTileset.Click += (s, e) => OpenTileset();
             _tool.Items.AddRange(new ToolStripItem[] { btnNewMap, new ToolStripSeparator(), btnOpenTileset });
 
-            // StatusStrip
+            // Status
             _status = new StatusStrip();
             _lblPos = new ToolStripStatusLabel("x=0, y=0");
             _status.Items.Add(_lblPos);
 
-            // Split gauche (palette) / droite (canvas + props)
-            _splitLeft = new SplitContainer
+            // Split global
+            _splitLeft = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, SplitterDistance = 260, FixedPanel = FixedPanel.Panel1 };
+            _splitRight = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, SplitterDistance = 760, FixedPanel = FixedPanel.Panel2 };
+
+            // Palette (gauche)
+            _palette = new PaletteView { TileSize = 32 };
+            _palette.SelectedTileChanged += pt =>
             {
-                Dock = DockStyle.Fill,
-                Orientation = Orientation.Vertical,
-                SplitterDistance = 250,
-                FixedPanel = FixedPanel.Panel1
+                _canvas.SelectedSrc = pt;
             };
+            _splitLeft.Panel1.Controls.Add(_palette);
 
-            _tilesetPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(45, 45, 45)
-            };
-            _tilesetPanel.Controls.Add(new Label
-            {
-                Text = "Palette (à venir)",
-                Dock = DockStyle.Top,
-                ForeColor = Color.Gainsboro,
-                Padding = new Padding(8)
-            });
-
-            _splitLeft.Panel1.Controls.Add(_tilesetPanel);
-
-            _splitRight = new SplitContainer
-            {
-                Dock = DockStyle.Fill,
-                Orientation = Orientation.Vertical,
-                SplitterDistance = 700,
-                FixedPanel = FixedPanel.Panel2
-            };
-
+            // Canvas (centre)
             _canvas = new MapCanvas();
             _canvas.HoveredTileChanged += p => _lblPos.Text = $"x={p.X}, y={p.Y}";
             _splitRight.Panel1.Controls.Add(_canvas);
 
-            var rightPanel = new SplitContainer
-            {
-                Dock = DockStyle.Fill,
-                Orientation = Orientation.Horizontal,
-                SplitterDistance = 250
-            };
-
+            // Panneau droit : Layers + Propriétés
+            var rightPanel = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 280 };
             _layersList = new ListBox { Dock = DockStyle.Fill };
-            _layersList.Items.Add("Layers (à venir)");
+            _layersList.SelectedIndexChanged += (s, e) => _canvas.ActiveLayerIndex = _layersList.SelectedIndex;
             rightPanel.Panel1.Controls.Add(_layersList);
 
             _propGrid = new PropertyGrid { Dock = DockStyle.Fill };
@@ -98,9 +70,27 @@ namespace Frog.Editor.Forms
 
             Controls.AddRange(new Control[] { _splitLeft, _tool, _status });
 
-            // Map par défaut (10x10)
-            _canvas.Map = new Map { Width = 10, Height = 10, Name = "Nouvelle carte" };
+            // Map par défaut + couche Ground
+            var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
+            map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+            _canvas.Map = map;
             _propGrid.SelectedObject = _canvas.Map;
+            RefreshLayersUi();
+        }
+
+        private void RefreshLayersUi()
+        {
+            _layersList.Items.Clear();
+            if (_canvas.Map is null) return;
+            for (int i = 0; i < _canvas.Map.Layers.Count; i++)
+            {
+                var lt = _canvas.Map.Layers[i].LayerType;
+                _layersList.Items.Add($"{i}: {lt}");
+            }
+            if (_layersList.Items.Count > 0)
+            {
+                _layersList.SelectedIndex = Math.Clamp(_canvas.ActiveLayerIndex, 0, _layersList.Items.Count - 1);
+            }
         }
 
         private void CreateNewMap()
@@ -108,19 +98,32 @@ namespace Frog.Editor.Forms
             using var dlg = new NewMapDialog();
             if (dlg.ShowDialog(this) == DialogResult.OK)
             {
-                _canvas.Map = new Map
-                {
-                    Width = dlg.MapWidth,
-                    Height = dlg.MapHeight,
-                    Name = dlg.MapName
-                };
+                var map = new Map { Width = dlg.MapWidth, Height = dlg.MapHeight, Name = dlg.MapName };
+                map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+                _canvas.Map = map;
                 _propGrid.SelectedObject = _canvas.Map;
                 _canvas.Invalidate();
+                RefreshLayersUi();
             }
+        }
+
+        private void OpenTileset()
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Title = "Choisir un tileset (PNG/JPG)",
+                Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp",
+                Multiselect = false
+            };
+            if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+            int id = TilesetCache.LoadFromFile(ofd.FileName);
+            _canvas.ActiveTilesetId = id;
+            _palette.SetTileset(id);
         }
     }
 
-    /// <summary>Boîte de dialogue simple “Nouvelle carte”.</summary>
+    // même dialog que précédemment (inchangé)
     internal sealed class NewMapDialog : Form
     {
         private readonly NumericUpDown _numW;
