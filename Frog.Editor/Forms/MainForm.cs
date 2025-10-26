@@ -1,10 +1,12 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using Frog.Core.Models;
 using Frog.Core.Enums;
 using Frog.Editor.Controls;
 using Frog.Editor.Assets;
+using Frog.Core.IO;
 
 namespace Frog.Editor.Forms
 {
@@ -26,15 +28,26 @@ namespace Frog.Editor.Forms
             MinimumSize = new Size(1100, 720);
             StartPosition = FormStartPosition.CenterScreen;
 
-            // ToolStrip
-            _tool = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, ImageScalingSize = new Size(20, 20), Dock = DockStyle.Top };
+            // Barre d’outils principale
+            _tool = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Top };
             var btnNewMap = new ToolStripButton("Nouvelle carte");
-            var btnOpenTileset = new ToolStripButton("Ouvrir tileset (PNG)");
+            var btnOpenTileset = new ToolStripButton("Ouvrir tileset");
+            var btnSave = new ToolStripButton("Sauvegarder (.fmap)");
+            var btnLoad = new ToolStripButton("Charger (.fmap)");
+
             btnNewMap.Click += (s, e) => CreateNewMap();
             btnOpenTileset.Click += (s, e) => OpenTileset();
-            _tool.Items.AddRange(new ToolStripItem[] { btnNewMap, new ToolStripSeparator(), btnOpenTileset });
+            btnSave.Click += (s, e) => SaveMap();
+            btnLoad.Click += (s, e) => LoadMap();
 
-            // Status
+            _tool.Items.AddRange(new ToolStripItem[]
+            {
+                btnNewMap, new ToolStripSeparator(),
+                btnOpenTileset, new ToolStripSeparator(),
+                btnSave, btnLoad
+            });
+
+            // Barre de statut
             _status = new StatusStrip();
             _lblPos = new ToolStripStatusLabel("x=0, y=0");
             _status.Items.Add(_lblPos);
@@ -43,34 +56,37 @@ namespace Frog.Editor.Forms
             _splitLeft = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, SplitterDistance = 260, FixedPanel = FixedPanel.Panel1 };
             _splitRight = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, SplitterDistance = 760, FixedPanel = FixedPanel.Panel2 };
 
-            // Palette (gauche)
+            // Palette gauche
             _palette = new PaletteView { TileSize = 32 };
-            _palette.SelectedTileChanged += pt =>
-            {
-                _canvas.SelectedSrc = pt;
-            };
+            _palette.SelectedTileChanged += pt => _canvas.SelectedSrc = pt;
             _splitLeft.Panel1.Controls.Add(_palette);
 
-            // Canvas (centre)
+            // Canvas central
             _canvas = new MapCanvas();
             _canvas.HoveredTileChanged += p => _lblPos.Text = $"x={p.X}, y={p.Y}";
             _splitRight.Panel1.Controls.Add(_canvas);
 
-            // Panneau droit : Layers + Propriétés
+            // Côté droit : couches + propriétés
             var rightPanel = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 280 };
             _layersList = new ListBox { Dock = DockStyle.Fill };
             _layersList.SelectedIndexChanged += (s, e) => _canvas.ActiveLayerIndex = _layersList.SelectedIndex;
             rightPanel.Panel1.Controls.Add(_layersList);
+
+            // Menu contextuel des couches
+            var ctx = new ContextMenuStrip();
+            ctx.Items.Add("Ajouter couche", null, (s, e) => AddLayer());
+            ctx.Items.Add("Supprimer couche", null, (s, e) => RemoveLayer());
+            ctx.Items.Add("Renommer couche", null, (s, e) => RenameLayer());
+            _layersList.ContextMenuStrip = ctx;
 
             _propGrid = new PropertyGrid { Dock = DockStyle.Fill };
             rightPanel.Panel2.Controls.Add(_propGrid);
 
             _splitRight.Panel2.Controls.Add(rightPanel);
             _splitLeft.Panel2.Controls.Add(_splitRight);
-
             Controls.AddRange(new Control[] { _splitLeft, _tool, _status });
 
-            // Map par défaut + couche Ground
+            // Map de départ
             var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
             map.Layers.Add(new Layer { LayerType = LayerType.Ground });
             _canvas.Map = map;
@@ -81,49 +97,94 @@ namespace Frog.Editor.Forms
         private void RefreshLayersUi()
         {
             _layersList.Items.Clear();
-            if (_canvas.Map is null) return;
+            if (_canvas.Map == null) return;
             for (int i = 0; i < _canvas.Map.Layers.Count; i++)
             {
-                var lt = _canvas.Map.Layers[i].LayerType;
-                _layersList.Items.Add($"{i}: {lt}");
+                var l = _canvas.Map.Layers[i];
+                _layersList.Items.Add($"{i}: {l.LayerType}");
             }
             if (_layersList.Items.Count > 0)
-            {
                 _layersList.SelectedIndex = Math.Clamp(_canvas.ActiveLayerIndex, 0, _layersList.Items.Count - 1);
+        }
+
+        private void AddLayer()
+        {
+            if (_canvas.Map == null) return;
+            _canvas.Map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+            RefreshLayersUi();
+            _canvas.Invalidate();
+        }
+
+        private void RemoveLayer()
+        {
+            if (_canvas.Map == null) return;
+            if (_layersList.SelectedIndex < 0) return;
+            _canvas.Map.Layers.RemoveAt(_layersList.SelectedIndex);
+            _canvas.ActiveLayerIndex = Math.Clamp(_canvas.ActiveLayerIndex, 0, _canvas.Map.Layers.Count - 1);
+            RefreshLayersUi();
+            _canvas.Invalidate();
+        }
+
+        private void RenameLayer()
+        {
+            if (_layersList.SelectedIndex < 0 || _canvas.Map == null) return;
+            string? input = Microsoft.VisualBasic.Interaction.InputBox("Nom de la couche:", "Renommer", _canvas.Map.Layers[_layersList.SelectedIndex].LayerType.ToString());
+            if (!string.IsNullOrWhiteSpace(input))
+            {
+                _canvas.Map.Layers[_layersList.SelectedIndex].LayerType = Enum.TryParse(input, true, out LayerType type)
+                    ? type : LayerType.Ground;
+                RefreshLayersUi();
             }
         }
 
         private void CreateNewMap()
         {
             using var dlg = new NewMapDialog();
-            if (dlg.ShowDialog(this) == DialogResult.OK)
-            {
-                var map = new Map { Width = dlg.MapWidth, Height = dlg.MapHeight, Name = dlg.MapName };
-                map.Layers.Add(new Layer { LayerType = LayerType.Ground });
-                _canvas.Map = map;
-                _propGrid.SelectedObject = _canvas.Map;
-                _canvas.Invalidate();
-                RefreshLayersUi();
-            }
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            var map = new Map { Width = dlg.MapWidth, Height = dlg.MapHeight, Name = dlg.MapName };
+            map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+            _canvas.Map = map;
+            _propGrid.SelectedObject = map;
+            RefreshLayersUi();
+            _canvas.Invalidate();
         }
 
         private void OpenTileset()
         {
-            using var ofd = new OpenFileDialog
-            {
-                Title = "Choisir un tileset (PNG/JPG)",
-                Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp",
-                Multiselect = false
-            };
+            using var ofd = new OpenFileDialog { Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp" };
             if (ofd.ShowDialog(this) != DialogResult.OK) return;
-
             int id = TilesetCache.LoadFromFile(ofd.FileName);
             _canvas.ActiveTilesetId = id;
             _palette.SetTileset(id);
         }
-    }
 
-    // même dialog que précédemment (inchangé)
+        private void SaveMap()
+        {
+            if (_canvas.Map == null) return;
+            using var sfd = new SaveFileDialog { Filter = "Frog Map|*.fmap" };
+            if (sfd.ShowDialog(this) != DialogResult.OK) return;
+
+            var serializer = new MapSerializer();
+            var bytes = serializer.Serialize(_canvas.Map);
+            File.WriteAllBytes(sfd.FileName, bytes);
+            MessageBox.Show("Carte sauvegardée.", "Succès");
+        }
+
+        private void LoadMap()
+        {
+            using var ofd = new OpenFileDialog { Filter = "Frog Map|*.fmap" };
+            if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+            var data = File.ReadAllBytes(ofd.FileName);
+            var serializer = new MapSerializer();
+            var map = serializer.Deserialize(data);
+            _canvas.Map = map;
+            _propGrid.SelectedObject = map;
+            RefreshLayersUi();
+            _canvas.Invalidate();
+        }
+    }
     internal sealed class NewMapDialog : Form
     {
         private readonly NumericUpDown _numW;
@@ -160,3 +221,4 @@ namespace Frog.Editor.Forms
         }
     }
 }
+

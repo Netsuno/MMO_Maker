@@ -63,6 +63,24 @@ namespace Frog.Editor.Controls
                 foreach (var layer in Map.Layers)
                     DrawLayer(e.Graphics, layer);
             }
+
+            // aperçu du pinceau
+            if (Map is not null && ActiveTilesetId > 0 && TilesetCache.TryGet(ActiveTilesetId, out var bmp))
+            {
+                var mouse = PointToClient(Cursor.Position);
+                var world = ScreenToWorld(mouse);
+                int tx = (int)Math.Floor(world.X / TileSize);
+                int ty = (int)Math.Floor(world.Y / TileSize);
+                if (tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
+                {
+                    var src = new Rectangle(SelectedSrc.X, SelectedSrc.Y, TileSize, TileSize);
+                    var dst = new Rectangle(tx * TileSize, ty * TileSize, TileSize, TileSize);
+                    var colorMatrix = new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.5f };
+                    var attrs = new System.Drawing.Imaging.ImageAttributes();
+                    attrs.SetColorMatrix(colorMatrix, System.Drawing.Imaging.ColorMatrixFlag.Default, System.Drawing.Imaging.ColorAdjustType.Bitmap);
+                    e.Graphics.DrawImage(bmp, dst, src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, attrs);
+                }
+            }
         }
 
         private void DrawLayer(Graphics g, Layer layer)
