@@ -1,10 +1,11 @@
-namespace Frog.Core.Enums
+// #TODO (FR) : Confirmer le mapping réseau (valeurs stables pour sérialisation sur 1 octet).
+namespace Frog.Core.Enums;
+
+/// <summary>Directions cardinales utilisées pour l’affichage et le protocole.</summary>
+public enum Direction : byte
 {
-    public enum Direction : byte
-    {
-        Up = 0,
-        Right = 1,
-        Down = 2,
-        Left = 3
-    }
+    Down = 0,
+    Left = 1,
+    Right = 2,
+    Up = 3
 }

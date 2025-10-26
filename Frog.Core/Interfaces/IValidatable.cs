@@ -1,8 +1,9 @@
-namespace Frog.Core.Interfaces
+// #TODO (FR) : Étendre vers un résultat de validation riche (liste d’erreurs, codes).
+#nullable enable
+namespace Frog.Core.Interfaces;
+
+/// <summary>Contrat pour les objets pouvant se valider eux‑mêmes.</summary>
+public interface IValidatable
 {
-    public interface IValidatable
-    {
-        /// <summary>Throw InvalidDataException if invalid.</summary>
-        void Validate();
-    }
+    bool Validate(out string? error);
 }

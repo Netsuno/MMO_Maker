@@ -1,12 +1,13 @@
-namespace Frog.Core.Enums
+// #TODO (FR) : Aligner les valeurs avec les constantes VB6 historiques (walkable, block, warp, damage…).
+namespace Frog.Core.Enums;
+
+/// <summary>Typage logique d’une tuile (doit rester sérialisable sur 1 octet si possible).</summary>
+public enum TileType : byte
 {
-    public enum TileType : byte
-    {
-        None = 0,
-        Blocked = 1,
-        Warp = 2,
-        Resource = 3,
-        NpcSpawn = 4
-        // TODO: compléter depuis VB6
-    }
+    Unknown = 0,
+    Ground = 1,
+    Block = 2,
+    Warp = 3,
+    Attribute = 4,
+    // #TODO (FR) : Étendre (Water, Slide, Ladder, Door, Damage…).
 }

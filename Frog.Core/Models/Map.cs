@@ -1,42 +1,45 @@
-using System.Runtime.InteropServices;
+// #TODO (FR) : Définir la structure de données d’une carte selon l’héritage VB6
+// (largeur, hauteur, couches, tuiles, attributs, événements, métadonnées).
+#nullable enable
+namespace Frog.Core.Models;
+
 using Frog.Core.Interfaces;
-using Frog.Core.Enums;
+using System.Collections.Generic;
 
-namespace Frog.Core.Models
+/// <summary>
+/// Représente une carte (map) logique. Sert d’unité d’édition (Editor), d’affichage (Client)
+/// et d’instance côté serveur (Server). Les types numériques doivent rester compatibles
+/// avec le format binaire hérité du projet VB6.
+/// </summary>
+public sealed class Map : IValidatable
 {
-    public class Map : IValidatable
-    {
-        public ushort Width { get; set; }
-        public ushort Height { get; set; }
-        public ushort TilesetId { get; set; }
-        public ushort MusicId { get; set; }
-        public Tile[,] Tiles { get; set; } = new Tile[0,0];
+    /// <summary>Largeur de la carte en tuiles (doit être > 0).</summary>
+    public int Width { get; set; }
+    /// <summary>Hauteur de la carte en tuiles (doit être > 0).</summary>
+    public int Height { get; set; }
 
-        public void Validate()
+    /// <summary>
+    /// Couches de rendu/attributs. L’ordre et le nombre doivent rester cohérents avec l’éditeur VB6
+    /// (Ground/Mask/Mask2/Fringe/Fringe2/Attributes). Voir <see cref="Enums.LayerType"/>.
+    /// </summary>
+    public List<Layer> Layers { get; } = new();
+
+    /// <summary>Nom lisible par l’utilisateur (utile dans l’éditeur et pour le debug).</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Valide l’intégrité de base de la carte (dimensions, bornes, couches).
+    /// Étendra plus tard : cohérence des tuiles, warps, zones de collisions, etc.
+    /// </summary>
+    public bool Validate(out string? error)
+    {
+        // #TODO (FR) : Étendre les contrôles (bornes max, nombre de couches, contenu des tuiles).
+        if (Width <= 0 || Height <= 0)
         {
-            if (Width == 0 || Height == 0) throw new InvalidDataException("Map size must be > 0.");
-            if (Tiles.GetLength(0) != Height || Tiles.GetLength(1) != Width)
-                throw new InvalidDataException("Tiles array size mismatch.");
+            error = "Les dimensions de la carte doivent être > 0.";
+            return false;
         }
-    }
-
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Tile
-    {
-        public Layer Ground;
-        public Layer Mask;
-        public Layer Fringe;
-        public Layer Animation;
-        public TileType AttributeType;
-        public short Data1;
-        public short Data2;
-        public short Data3;
-    }
-
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Layer
-    {
-        public ushort TileNum;
-        public byte Flags; // bitfield; TODO: définir
+        error = null;
+        return true;
     }
 }
