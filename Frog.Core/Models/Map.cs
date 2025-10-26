@@ -31,15 +31,14 @@ public sealed class Map : IValidatable
     /// Valide l’intégrité de base de la carte (dimensions, bornes, couches).
     /// Étendra plus tard : cohérence des tuiles, warps, zones de collisions, etc.
     /// </summary>
-    public bool Validate(out string? error)
+    public bool Validate(out string? errorMessage)
     {
-        // #TODO (FR) : Étendre les contrôles (bornes max, nombre de couches, contenu des tuiles).
         if (Width <= 0 || Height <= 0)
         {
-            error = "Les dimensions de la carte doivent être > 0.";
+            errorMessage = "Les dimensions de la carte doivent être > 0.";
             return false;
         }
-        error = null;
+        errorMessage = null;
         return true;
     }
 }

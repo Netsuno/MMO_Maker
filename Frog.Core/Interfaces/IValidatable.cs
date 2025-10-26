@@ -2,8 +2,7 @@
 #nullable enable
 namespace Frog.Core.Interfaces;
 
-/// <summary>Contrat pour les objets pouvant se valider eux‑mêmes.</summary>
 public interface IValidatable
 {
-    bool Validate(out string? error);
+    bool Validate(out string? errorMessage);
 }
