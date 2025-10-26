@@ -1,0 +1,11 @@
+D:\Projet\Frog.Creator\Frog.Core\bin\Debug\net8.0\Frog.Core.deps.json
+D:\Projet\Frog.Creator\Frog.Core\bin\Debug\net8.0\Frog.Core.dll
+D:\Projet\Frog.Creator\Frog.Core\bin\Debug\net8.0\Frog.Core.pdb
+D:\Projet\Frog.Creator\Frog.Core\obj\Debug\net8.0\Frog.Core.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projet\Frog.Creator\Frog.Core\obj\Debug\net8.0\Frog.Core.AssemblyInfoInputs.cache
+D:\Projet\Frog.Creator\Frog.Core\obj\Debug\net8.0\Frog.Core.AssemblyInfo.cs
+D:\Projet\Frog.Creator\Frog.Core\obj\Debug\net8.0\Frog.Core.csproj.CoreCompileInputs.cache
+D:\Projet\Frog.Creator\Frog.Core\obj\Debug\net8.0\Frog.Core.dll
+D:\Projet\Frog.Creator\Frog.Core\obj\Debug\net8.0\refint\Frog.Core.dll
+D:\Projet\Frog.Creator\Frog.Core\obj\Debug\net8.0\Frog.Core.pdb
+D:\Projet\Frog.Creator\Frog.Core\obj\Debug\net8.0\ref\Frog.Core.dll

@@ -1,0 +1,16 @@
+D:\Projet\Frog.Creator\Frog.Editor\bin\Debug\net8.0-windows\Frog.Editor.exe
+D:\Projet\Frog.Creator\Frog.Editor\bin\Debug\net8.0-windows\Frog.Editor.deps.json
+D:\Projet\Frog.Creator\Frog.Editor\bin\Debug\net8.0-windows\Frog.Editor.runtimeconfig.json
+D:\Projet\Frog.Creator\Frog.Editor\bin\Debug\net8.0-windows\Frog.Editor.dll
+D:\Projet\Frog.Creator\Frog.Editor\bin\Debug\net8.0-windows\Frog.Editor.pdb
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.Form1.resources
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.csproj.GenerateResource.cache
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.AssemblyInfoInputs.cache
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.AssemblyInfo.cs
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.csproj.CoreCompileInputs.cache
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.dll
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\refint\Frog.Editor.dll
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.pdb
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\Frog.Editor.genruntimeconfig.cache
+D:\Projet\Frog.Creator\Frog.Editor\obj\Debug\net8.0-windows\ref\Frog.Editor.dll
