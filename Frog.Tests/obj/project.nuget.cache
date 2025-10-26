@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "ukPrOp3g/Ow=",
+  "dgSpecHash": "EEGp0BaYH+c=",
   "success": true,
-  "projectFilePath": "D:\\Projet\\Frog.Creator\\Frog.Tests\\Frog.Tests.csproj",
+  "projectFilePath": "D:\\Git\\MMO_Maker\\Frog.Tests\\Frog.Tests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\girou\\.nuget\\packages\\fluentassertions\\6.12.0\\fluentassertions.6.12.0.nupkg.sha512",
     "C:\\Users\\girou\\.nuget\\packages\\system.configuration.configurationmanager\\4.4.0\\system.configuration.configurationmanager.4.4.0.nupkg.sha512",

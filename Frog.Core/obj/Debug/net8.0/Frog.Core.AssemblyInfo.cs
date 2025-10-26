@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Frog.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6d9b9ca12df9c9cec7c6c18aacc28721aee6fe2e")]
 [assembly: System.Reflection.AssemblyProductAttribute("Frog.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Frog.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

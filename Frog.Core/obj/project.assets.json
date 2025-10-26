@@ -14,11 +14,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Projet\\Frog.Creator\\Frog.Core\\Frog.Core.csproj",
+      "projectUniqueName": "D:\\Git\\MMO_Maker\\Frog.Core\\Frog.Core.csproj",
       "projectName": "Frog.Core",
-      "projectPath": "D:\\Projet\\Frog.Creator\\Frog.Core\\Frog.Core.csproj",
+      "projectPath": "D:\\Git\\MMO_Maker\\Frog.Core\\Frog.Core.csproj",
       "packagesPath": "C:\\Users\\girou\\.nuget\\packages\\",
-      "outputPath": "D:\\Projet\\Frog.Creator\\Frog.Core\\obj\\",
+      "outputPath": "D:\\Git\\MMO_Maker\\Frog.Core\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
