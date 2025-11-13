@@ -37,15 +37,14 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 
 ---
 
-## 🚧 État d’avancement (actuel)
+| Module              | Statut                    | Détails (seulement ce qui existe vraiment)                                                                                                                                                                                                                                        |
+| ------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🧩 **Frog.Core**    | 🟢 **Structure en place** | - Architecture Core fonctionnelle<br>- Enum `TileType` mis à jour (`Resource = 7`)<br>- Interface `ITileAttribute` ajoutée<br>- Attributs implémentés : `BlockAttribute`, `WarpAttribute`, `ResourceAttribute`<br>- Mise à jour de `Tile.cs` pour supporter une liste d’attributs |
+| 🗺️ **Frog.Editor** | 🟠 **En cours**           | - Base de l’éditeur WinForms présente<br>- Début de l’intégration du système d’attributs                                                                                                                                                                                          |
+| 🎮 **Frog.Client**  | 🔵 **Base en place**      | - Projet client fonctionnel et compilable<br>- Initialisation de la structure WinForms<br>- Squelette du rendu des cartes préparé                                                                                                                                                 |
+| 🖥️ **Frog.Server** | 🔵 **Base en place**      | - Projet serveur fonctionnel<br>- Démarrage serveur déjà opérationnel<br>- Système de logs (`GameServerLogs.cs`) implémenté<br>- Première structure réseau créée                                                                                                                  |
+| 🧪 **Tests**        | ⚙️ **Structure prête**    | - Projet Tests présent (vide pour le moment)                                                                                                                                                                                                                                      |
 
-| Module | Statut | Détails |
-|--------|--------|----------|
-| 🧩 Frog.Core | ✅ *Structure en place* | Squelette complet avec commentaires et TODO en français |
-| 🗺️ Frog.Editor | 🕓 *À venir* | Interface et logique d’édition des cartes |
-| 🎮 Frog.Client | 🕓 *À venir* | Rendu carte, entités, HUD, chat |
-| 🖥️ Frog.Server | 🕓 *À venir* | Sockets, sessions, gestion DB |
-| 🧪 Tests | ⚙️ *Squelette prêt* | Un test initial sera ajouté après Map.Validate |
 
 ---
 
