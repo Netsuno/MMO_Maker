@@ -48,13 +48,46 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 
 ---
 
-## 🧠 Étapes à venir
+# 🧠 Étapes à venir (Roadmap)
 
-1. Implémenter `MapSerializer` selon le format VB6 (compatibilité ascendante).  
-2. Créer les classes de rendu GDI+ pour l’éditeur de carte.  
-3. Intégrer PostgreSQL au serveur.  
-4. Connecter le client au serveur via TCP asynchrone.  
-5. Refonte de l’interface d’édition (WinForms / DockPanel).  
+## 🧩 Frog.Core
+- [ ] Implémenter MapSerializerV2 (Block / Warp / Resource)
+- [ ] Ajouter Map.Validate()
+- [ ] Support futur pour d’autres attributs (Door, NpcSpawn, zones…)
+- [ ] Gestion améliorée des erreurs / validations
+
+## 🗺️ Frog.Editor
+- [ ] Compléter la palette d’attributs (Block / Warp / Resource)
+- [ ] Ajouter l’overlay visuel des attributs
+- [ ] Intégrer la sérialisation MapSerializerV2
+- [ ] Outil gomme pour retirer des attributs
+- [ ] Outils avancés : rectangle, copier/coller, bucket fill
+- [ ] Fenêtre “Propriétés de la carte”
+- [ ] Gestion des tilesets (sélection / multi-tilesets)
+- [ ] Système Undo/Redo
+
+## 🎮 Frog.Client
+- [ ] Lecture des maps via MapSerializerV2
+- [ ] Rendu visuel final des tiles
+- [ ] Prise en charge du Block (collision)
+- [ ] Support du Warp (téléportation)
+- [ ] Mise en place du moteur d’entités
+- [ ] HUD minimal (vie, mana, nom du joueur)
+
+## 🖥️ Frog.Server
+- [ ] Chargement/sauvegarde des maps dans PostgreSQL
+- [ ] Envoi d’une map au client
+- [ ] Gestion des sessions joueur
+- [ ] Mise en place du protocole TCP/UDP
+- [ ] Synchronisation joueur → client (position, actions)
+- [ ] Logging réseau complet
+
+## 🧪 Tests
+- [ ] Tests unitaires pour MapSerializerV2
+- [ ] Tests des attributs (Block / Warp / Resource)
+- [ ] Tests de validation des tiles
+- [ ] Tests de connexion client ↔ serveur minimal
+
 
 ---
 
