@@ -1,5 +1,6 @@
 // #TODO (FR) : Définir les attributs de tuile (animation, collisions, triggers, région, etc.).
 #nullable enable
+using System.Collections.Generic;
 namespace Frog.Core.Models;
 
 using Frog.Core.Enums;
@@ -23,5 +24,8 @@ public sealed class Tile
     /// <summary>Position Y source dans le tileset.</summary>
     public int SrcY { get; set; }
 
+    public List<ITileAttribute> Attributes { get; } = new();
+
     // #TODO (FR) : Drapeaux : collision, blocage NPC/joueur, zone/region id, identifiant d’attribut/script.
 }
+
