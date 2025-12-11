@@ -1,4 +1,4 @@
-# 🐸 FRoG Creator (Modern C# Edition)
+# 🐸 FRoG Creator (Modern C# Edition.)
 
 Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C# / .NET 8**, en conservant la logique d’origine tout en modernisant l’architecture, les outils et la base de données.
 
