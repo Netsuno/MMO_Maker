@@ -27,9 +27,14 @@ namespace Frog.Editor.Controls
 
         public int ActiveLayerIndex { get; set; } = 0; // 0 = Ground par défaut
         public event Action<Point>? HoveredTileChanged; // (x,y)
+        public TileType SelectedTileType { get; set; } = TileType.Ground;
 
         private bool _panning;
         private Point _lastMouse;
+
+        //Selection
+
+
 
         public MapCanvas()
         {
@@ -63,6 +68,9 @@ namespace Frog.Editor.Controls
                 foreach (var layer in Map.Layers)
                     DrawLayer(e.Graphics, layer);
             }
+
+            // overlay des types de tuile (Block / Warp / Resource)
+            DrawTileTypeOverlay(e.Graphics);
 
             // aperçu du pinceau
             if (Map is not null && ActiveTilesetId > 0 && TilesetCache.TryGet(ActiveTilesetId, out var bmp))
@@ -166,7 +174,7 @@ namespace Frog.Editor.Controls
                     TilesetId = ActiveTilesetId,
                     SrcX = SelectedSrc.X,
                     SrcY = SelectedSrc.Y,
-                    Type = TileType.Ground // TODO: selon la couche
+                    Type = SelectedTileType
                 });
                 Invalidate();
             }
@@ -216,5 +224,49 @@ namespace Frog.Editor.Controls
             float y = (p.Y - Pan.Y) / Zoom;
             return new PointF(x, y);
         }
+
+        private void DrawTileTypeOverlay(Graphics g)
+        {
+            if (Map is null) return;
+
+            foreach (var layer in Map.Layers)
+            {
+                foreach (var t in layer.Tiles)
+                {
+                    var rect = new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
+
+                    switch (t.Type)
+                    {
+                        case TileType.Block:
+                            // Case bloquante : overlay rouge semi-transparent
+                            using (var b = new SolidBrush(Color.FromArgb(80, Color.Red)))
+                            {
+                                g.FillRectangle(b, rect);
+                            }
+                            break;
+
+                        case TileType.Warp:
+                            // Warp : contour vert
+                            using (var p = new Pen(Color.Lime, 2))
+                            {
+                                g.DrawRectangle(p, rect);
+                            }
+                            break;
+
+                        case TileType.Resource:
+                            // Resource : rond doré au centre
+                            using (var b = new SolidBrush(Color.FromArgb(160, Color.Gold)))
+                            {
+                                int cx = rect.X + TileSize / 4;
+                                int cy = rect.Y + TileSize / 4;
+                                int d = TileSize / 2;
+                                g.FillEllipse(b, cx, cy, d, d);
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+
     }
 }

@@ -21,6 +21,7 @@ namespace Frog.Editor.Forms
         private readonly ListBox _layersList;
         private readonly PropertyGrid _propGrid;
         private readonly MapCanvas _canvas;
+        private readonly TileTypePalette _tileTypePalette;
 
         public MainForm()
         {
@@ -60,6 +61,22 @@ namespace Frog.Editor.Forms
             _palette = new PaletteView { TileSize = 32 };
             _palette.SelectedTileChanged += pt => _canvas.SelectedSrc = pt;
             _splitLeft.Panel1.Controls.Add(_palette);
+
+            // Palette de sélection du TileType
+            _tileTypePalette = new TileTypePalette
+            {
+                Dock = DockStyle.Top
+            };
+
+            // Quand on change Ground / Block / Warp / Resource,
+            // on met à jour directement le MapCanvas
+            _tileTypePalette.SelectedTileTypeChanged += type =>
+            {
+                _canvas.SelectedTileType = type;
+            };
+
+            // On place la palette SOUS la palette des tiles dans le panel de gauche
+            _splitLeft.Panel1.Controls.Add(_tileTypePalette);
 
             // Canvas central
             _canvas = new MapCanvas();
@@ -219,6 +236,9 @@ namespace Frog.Editor.Forms
             Controls.Add(btnOk); Controls.Add(btnCancel);
             AcceptButton = btnOk; CancelButton = btnCancel;
         }
+
+
     }
+
 }
 
