@@ -61,6 +61,13 @@ public sealed class MapSerializer : ISerializer<Map>
                 bw.Write(t.SrcX);
                 bw.Write(t.SrcY);
                 bw.Write((byte)t.Type);
+
+                if (t.Type == TileType.Warp)
+                {
+                    bw.Write(t.WarpTargetMapId);
+                    bw.Write(t.WarpTargetX);
+                    bw.Write(t.WarpTargetY);
+                }
             }
         }
 
@@ -121,6 +128,13 @@ public sealed class MapSerializer : ISerializer<Map>
                     SrcY = br.ReadInt32(),
                     Type = (TileType)br.ReadByte()
                 };
+                // Lecture des données Warp si nécessaire
+                if (tile.Type == TileType.Warp)
+                {
+                    tile.WarpTargetMapId = br.ReadInt32();
+                    tile.WarpTargetX = br.ReadInt32();
+                    tile.WarpTargetY = br.ReadInt32();
+                }
                 layer.Tiles.Add(tile);
             }
 

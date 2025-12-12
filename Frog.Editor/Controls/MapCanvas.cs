@@ -4,6 +4,8 @@ using System.Windows.Forms;
 using Frog.Core.Models;
 using Frog.Core.Enums;
 using Frog.Editor.Assets;
+using System.Linq;
+
 
 namespace Frog.Editor.Controls
 {
@@ -28,6 +30,7 @@ namespace Frog.Editor.Controls
         public int ActiveLayerIndex { get; set; } = 0; // 0 = Ground par défaut
         public event Action<Point>? HoveredTileChanged; // (x,y)
         public TileType SelectedTileType { get; set; } = TileType.Ground;
+        public event Action<Tile?>? TileClicked;
 
         private bool _panning;
         private Point _lastMouse;
@@ -188,6 +191,7 @@ namespace Frog.Editor.Controls
                     Invalidate();
                 }
             }
+            RaiseTileClicked(tx, ty);
         }
 
         private void EnsureLayerExists()
@@ -267,6 +271,25 @@ namespace Frog.Editor.Controls
                 }
             }
         }
+        private void RaiseTileClicked(int tileX, int tileY)
+        {
+            if (Map == null || Map.Layers == null || Map.Layers.Count == 0)
+            {
+                TileClicked?.Invoke(null);
+                return;
+            }
 
+            if (ActiveLayerIndex < 0 || ActiveLayerIndex >= Map.Layers.Count)
+            {
+                TileClicked?.Invoke(null);
+                return;
+            }
+
+            var layer = Map.Layers[ActiveLayerIndex];
+
+            var tile = layer.Tiles.FirstOrDefault(t => t.X == tileX && t.Y == tileY);
+            TileClicked?.Invoke(tile);
+        }
     }
+
 }

@@ -1,4 +1,4 @@
-# 🐸 FRoG Creator (Modern C# Edition)
+# 🐸 FRoG Creator (Modern C# Edition.)
 
 Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C# / .NET 8**, en conservant la logique d’origine tout en modernisant l’architecture, les outils et la base de données.
 
@@ -37,25 +37,57 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 
 ---
 
-## 🚧 État d’avancement (actuel)
+| Module              | Statut                    | Détails (seulement ce qui existe vraiment)                                                                                                                                                                                                                                        |
+| ------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🧩 **Frog.Core**    | 🟢 **Structure en place** | - Architecture Core fonctionnelle<br>- Enum `TileType` mis à jour (`Resource = 7`)<br>- Interface `ITileAttribute` ajoutée<br>- Attributs implémentés : `BlockAttribute`, `WarpAttribute`, `ResourceAttribute`<br>- Mise à jour de `Tile.cs` pour supporter une liste d’attributs |
+| 🗺️ **Frog.Editor** | 🟠 **En cours**           | - Base de l’éditeur WinForms présente<br>- Début de l’intégration du système d’attributs                                                                                                                                                                                          |
+| 🎮 **Frog.Client**  | 🔵 **Base en place**      | - Projet client fonctionnel et compilable<br>- Initialisation de la structure WinForms<br>- Squelette du rendu des cartes préparé                                                                                                                                                 |
+| 🖥️ **Frog.Server** | 🔵 **Base en place**      | - Projet serveur fonctionnel<br>- Démarrage serveur déjà opérationnel<br>- Système de logs (`GameServerLogs.cs`) implémenté<br>- Première structure réseau créée                                                                                                                  |
+| 🧪 **Tests**        | ⚙️ **Structure prête**    | - Projet Tests présent (vide pour le moment)                                                                                                                                                                                                                                      |
 
-| Module | Statut | Détails |
-|--------|--------|----------|
-| 🧩 Frog.Core | ✅ *Structure en place* | Squelette complet avec commentaires et TODO en français |
-| 🗺️ Frog.Editor | 🕓 *À venir* | Interface et logique d’édition des cartes |
-| 🎮 Frog.Client | 🕓 *À venir* | Rendu carte, entités, HUD, chat |
-| 🖥️ Frog.Server | 🕓 *À venir* | Sockets, sessions, gestion DB |
-| 🧪 Tests | ⚙️ *Squelette prêt* | Un test initial sera ajouté après Map.Validate |
 
 ---
 
-## 🧠 Étapes à venir
+# 🧠 Étapes à venir (Roadmap)
 
-1. Implémenter `MapSerializer` selon le format VB6 (compatibilité ascendante).  
-2. Créer les classes de rendu GDI+ pour l’éditeur de carte.  
-3. Intégrer PostgreSQL au serveur.  
-4. Connecter le client au serveur via TCP asynchrone.  
-5. Refonte de l’interface d’édition (WinForms / DockPanel).  
+## 🧩 Frog.Core
+- [ ] Implémenter MapSerializerV2 (Block / Warp / Resource)
+- [ ] Ajouter Map.Validate()
+- [ ] Support futur pour d’autres attributs (Door, NpcSpawn, zones…)
+- [ ] Gestion améliorée des erreurs / validations
+
+## 🗺️ Frog.Editor
+- [ ] Compléter la palette d’attributs (Block / Warp / Resource)
+- [ ] Ajouter l’overlay visuel des attributs
+- [ ] Intégrer la sérialisation MapSerializerV2
+- [ ] Outil gomme pour retirer des attributs
+- [ ] Outils avancés : rectangle, copier/coller, bucket fill
+- [ ] Fenêtre “Propriétés de la carte”
+- [ ] Gestion des tilesets (sélection / multi-tilesets)
+- [ ] Système Undo/Redo
+
+## 🎮 Frog.Client
+- [ ] Lecture des maps via MapSerializerV2
+- [ ] Rendu visuel final des tiles
+- [ ] Prise en charge du Block (collision)
+- [ ] Support du Warp (téléportation)
+- [ ] Mise en place du moteur d’entités
+- [ ] HUD minimal (vie, mana, nom du joueur)
+
+## 🖥️ Frog.Server
+- [ ] Chargement/sauvegarde des maps dans PostgreSQL
+- [ ] Envoi d’une map au client
+- [ ] Gestion des sessions joueur
+- [ ] Mise en place du protocole TCP/UDP
+- [ ] Synchronisation joueur → client (position, actions)
+- [ ] Logging réseau complet
+
+## 🧪 Tests
+- [ ] Tests unitaires pour MapSerializerV2
+- [ ] Tests des attributs (Block / Warp / Resource)
+- [ ] Tests de validation des tiles
+- [ ] Tests de connexion client ↔ serveur minimal
+
 
 ---
 

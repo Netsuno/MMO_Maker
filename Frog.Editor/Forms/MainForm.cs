@@ -81,6 +81,12 @@ namespace Frog.Editor.Forms
             // Canvas central
             _canvas = new MapCanvas();
             _canvas.HoveredTileChanged += p => _lblPos.Text = $"x={p.X}, y={p.Y}";
+            _canvas.TileClicked += tile =>
+            {
+                // Si on clique sur une tuile, on montre ses propriétés
+                // Si null (en dehors / rien trouvé), on revient à la map
+                _propGrid.SelectedObject = tile ?? (object?)_canvas.Map;
+            };
             _splitRight.Panel1.Controls.Add(_canvas);
 
             // Côté droit : couches + propriétés

@@ -16,6 +16,9 @@ public sealed class Tile
     public int Y { get; set; }
     /// <summary>Type logique de la tuile (ex. Ground, Block, Warp…)</summary>
     public TileType Type { get; set; }
+    public int WarpTargetMapId { get; set; }
+    public int WarpTargetX { get; set; }
+    public int WarpTargetY { get; set; }
 
     /// <summary>Identifiant du tileset source.</summary>
     public int TilesetId { get; set; }
