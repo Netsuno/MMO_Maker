@@ -8,6 +8,7 @@ using Frog.Editor.Controls;
 using Frog.Editor.Assets;
 using Frog.Core.IO;
 
+
 namespace Frog.Editor.Forms
 {
     public sealed class MainForm : Form
@@ -22,6 +23,7 @@ namespace Frog.Editor.Forms
         private readonly PropertyGrid _propGrid;
         private readonly MapCanvas _canvas;
         private readonly TileTypePalette _tileTypePalette;
+        private readonly ToolPalette _toolPalette;
 
         public MainForm()
         {
@@ -68,6 +70,22 @@ namespace Frog.Editor.Forms
                 Dock = DockStyle.Top
             };
 
+            _toolPalette = new ToolPalette
+            {
+                Dock = DockStyle.Top
+            };
+
+            _toolPalette.ToolChanged += tool =>
+            {
+                _canvas.ActiveTool = tool;
+            };
+
+            // Ajouter la palette des outils dans le panel gauche
+            _splitLeft.Panel1.Controls.Add(_toolPalette);
+
+
+            // On ajoute la palette des outils au panel gauche
+            _splitLeft.Panel1.Controls.Add(_toolPalette);
             // Quand on change Ground / Block / Warp / Resource,
             // on met à jour directement le MapCanvas
             _tileTypePalette.SelectedTileTypeChanged += type =>

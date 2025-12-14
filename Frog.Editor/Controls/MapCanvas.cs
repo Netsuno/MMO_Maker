@@ -5,6 +5,7 @@ using Frog.Core.Models;
 using Frog.Core.Enums;
 using Frog.Editor.Assets;
 using System.Linq;
+using Frog.Editor.Enums;
 
 
 namespace Frog.Editor.Controls
@@ -31,6 +32,8 @@ namespace Frog.Editor.Controls
         public event Action<Point>? HoveredTileChanged; // (x,y)
         public TileType SelectedTileType { get; set; } = TileType.Ground;
         public event Action<Tile?>? TileClicked;
+
+        public EditorTool ActiveTool { get; set; } = EditorTool.Brush;
 
         private bool _panning;
         private Point _lastMouse;
@@ -165,21 +168,40 @@ namespace Frog.Editor.Controls
 
             if (e.Button == MouseButtons.Left)
             {
-                // Peindre
-                EnsureLayerExists();
-                var layer = Map.Layers[ActiveLayerIndex];
-                // On remplace s’il existe déjà une tuile à ces coords dans cette couche
-                layer.Tiles.RemoveAll(t => t.X == tx && t.Y == ty);
-                layer.Tiles.Add(new Tile
+                switch (ActiveTool)
                 {
-                    X = tx,
-                    Y = ty,
-                    TilesetId = ActiveTilesetId,
-                    SrcX = SelectedSrc.X,
-                    SrcY = SelectedSrc.Y,
-                    Type = SelectedTileType
-                });
-                Invalidate();
+                    case EditorTool.Brush:
+                        // Pinceau : peindre la tuile sélectionnée
+                        EnsureLayerExists();
+                        var layer = Map.Layers[ActiveLayerIndex];
+                        layer.Tiles.RemoveAll(t => t.X == tx && t.Y == ty);
+                        layer.Tiles.Add(new Tile
+                        {
+                            X = tx,
+                            Y = ty,
+                            TilesetId = ActiveTilesetId,
+                            SrcX = SelectedSrc.X,
+                            SrcY = SelectedSrc.Y,
+                            Type = SelectedTileType
+                        });
+                        Invalidate();
+                        break;
+
+                    case EditorTool.Eraser:
+                        // Gomme : effacer la tuile sur le layer actif
+                        if (ActiveLayerIndex >= 0 && ActiveLayerIndex < Map.Layers.Count)
+                        {
+                            var eraseLayer = Map.Layers[ActiveLayerIndex];
+                            eraseLayer.Tiles.RemoveAll(t => t.X == tx && t.Y == ty);
+                            Invalidate();
+                        }
+                        break;
+
+                    case EditorTool.Cursor:
+                        // Curseur : sélectionner la tuile sans la modifier
+                        RaiseTileClicked(tx, ty);
+                        break;
+                }
             }
             else if (e.Button == MouseButtons.Right)
             {
