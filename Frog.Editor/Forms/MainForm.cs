@@ -30,6 +30,9 @@ namespace Frog.Editor.Forms
             Text = "FROG Map Editor";
             MinimumSize = new Size(1100, 720);
             StartPosition = FormStartPosition.CenterScreen;
+            WindowState = FormWindowState.Maximized;
+            Shown += (_, _) => ApplyLayoutPercentages();
+            ResizeEnd += (_, _) => ApplyLayoutPercentages();
 
             // Barre d’outils principale
             _tool = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Top };
@@ -60,9 +63,21 @@ namespace Frog.Editor.Forms
             _splitRight = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, SplitterDistance = 760, FixedPanel = FixedPanel.Panel2 };
 
             // Palette gauche
-            _palette = new PaletteView { TileSize = 32 };
+            _palette = new PaletteView { TileSize = 32, Dock = DockStyle.Fill };
             _palette.SelectedTileChanged += pt => _canvas.SelectedSrc = pt;
+
+            // Palette outils
+            _toolPalette = new ToolPalette { Dock = DockStyle.Top };
+            _toolPalette.ToolChanged += tool => _canvas.ActiveTool = tool;
+
+            // Palette type de tuile
+            _tileTypePalette = new TileTypePalette { Dock = DockStyle.Top };
+            _tileTypePalette.SelectedTileTypeChanged += type => _canvas.SelectedTileType = type;
+
+            // ORDRE IMPORTANT : Fill d'abord, puis Top
             _splitLeft.Panel1.Controls.Add(_palette);
+            _splitLeft.Panel1.Controls.Add(_toolPalette);
+            _splitLeft.Panel1.Controls.Add(_tileTypePalette);
 
             // Palette de sélection du TileType
             _tileTypePalette = new TileTypePalette
@@ -80,12 +95,8 @@ namespace Frog.Editor.Forms
                 _canvas.ActiveTool = tool;
             };
 
-            // Ajouter la palette des outils dans le panel gauche
-            _splitLeft.Panel1.Controls.Add(_toolPalette);
 
 
-            // On ajoute la palette des outils au panel gauche
-            _splitLeft.Panel1.Controls.Add(_toolPalette);
             // Quand on change Ground / Block / Warp / Resource,
             // on met à jour directement le MapCanvas
             _tileTypePalette.SelectedTileTypeChanged += type =>
@@ -98,6 +109,7 @@ namespace Frog.Editor.Forms
 
             // Canvas central
             _canvas = new MapCanvas();
+            _canvas.Dock = DockStyle.Fill;
             _canvas.HoveredTileChanged += p => _lblPos.Text = $"x={p.X}, y={p.Y}";
             _canvas.TileClicked += tile =>
             {
@@ -225,6 +237,29 @@ namespace Frog.Editor.Forms
             RefreshLayersUi();
             _canvas.Invalidate();
         }
+
+        private void ApplyLayoutPercentages()
+        {
+            var totalW = ClientSize.Width;
+            if (totalW <= 0) return;
+
+            // Gauche = 25% (ajuste ici)
+            var leftW = (int)(totalW * 0.20f);
+            leftW = Math.Max(300, leftW);
+            _splitLeft.SplitterDistance = leftW;
+
+            // Droite (propriétés) = 30% du "reste"
+            var rightContainerW = _splitRight.Width;
+            if (rightContainerW <= 0) rightContainerW = totalW - leftW;
+
+            var propsW = (int)(rightContainerW * 0.25f);
+            propsW = Math.Max(340, propsW);
+
+            // Panel1 = map, Panel2 = propriétés
+            _splitRight.SplitterDistance = Math.Max(200, _splitRight.Width - propsW);
+        }
+
+
     }
     internal sealed class NewMapDialog : Form
     {
@@ -260,6 +295,7 @@ namespace Frog.Editor.Forms
             Controls.Add(btnOk); Controls.Add(btnCancel);
             AcceptButton = btnOk; CancelButton = btnCancel;
         }
+
 
 
     }
