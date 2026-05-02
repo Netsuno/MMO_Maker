@@ -63,3 +63,6 @@ dkms.conf
 *.userosscache
 *.suo
 *.cache
+
+# Fichiers locaux accidentels
+nouveau 6.txt
