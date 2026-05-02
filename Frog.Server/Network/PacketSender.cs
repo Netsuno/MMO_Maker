@@ -1,16 +1,14 @@
 using System.Text;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Server.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace Frog.Server.Network;
 
-internal static class ChatProtocolLimits
+public sealed class PacketSender(ILogger<PacketSender> logger)
 {
-    public const int MaxMessageUtf8Bytes = 512;
-    public const int MaxUsernameUtf8Bytes = 64;
-}
-
-public sealed class PacketSender
-{
+    private readonly ILogger<PacketSender> _logger = logger;
     public Task SendHelloAsync(ClientSession session, CancellationToken cancellationToken)
         => SendUtf8MessageAsync(session, PacketId.Hello, "FROG SERVER READY", cancellationToken);
 
@@ -31,7 +29,11 @@ public sealed class PacketSender
     }
 
     public Task SendErrorAsync(ClientSession session, string message, CancellationToken cancellationToken)
-        => SendUtf8MessageAsync(session, PacketId.Error, message, cancellationToken);
+    {
+        var logMsg = message.Length <= 256 ? message : message[..256];
+        ServerNetworkLogs.ErrorSentToClient(_logger, logMsg);
+        return SendUtf8MessageAsync(session, PacketId.Error, message, cancellationToken);
+    }
 
     public Task SendPositionUpdateAsync(ClientSession session, string username, int positionX, int positionY, CancellationToken cancellationToken)
     {

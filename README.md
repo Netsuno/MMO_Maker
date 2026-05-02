@@ -34,7 +34,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | Projet | Description |
 |--------|--------------|
 | **Frog.Core** | Modèles partagés, enums, interfaces, sérialiseurs binaires (maps, items, NPCs…), IDs de paquets, `ChatChannel`, **`WorldMetrics`** (tuile ↔ pixels). |
-| **Frog.Client** | Client du jeu : affichage, entités, dialogues, HUD ; doc protocole dans `Frog.Client/Docs/protocol_login_map.md`. |
+| **Frog.Client** | Client WinForms : TCP, login, map (rendu tuile simplifié), flèches, chat, heartbeat, mêlée ; doc `Frog.Client/Docs/protocol_login_map.md`. |
 | **Frog.Editor** | Éditeur de cartes et de ressources, inspiré du FRoG Creator original. |
 | **Frog.Server** | Serveur TCP : sessions, **carte `.fmap` optionnelle** (`Maps:worldMapPath`), map monde unique, mouvements, **mêlée pixel**, chat, persistance PostgreSQL optionnelle, sauvegarde périodique joueur. |
 | **Frog.Tests** | Tests unitaires (sérialisation, protocole, persistance mémoire, mouvements…). |
@@ -57,7 +57,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 |--------|--------|----------------|
 | **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
 | **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, **warps** (monde unique), chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
-| **Frog.Client** | 🔵 Squelette | WinForms ; implémenter consommation du protocole selon la doc. |
+| **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `Form1` (connexion, map, déplacements, chat 3 canaux, heartbeat, mêlée). |
 | **Frog.Editor** | 🟠 En cours | Édition map / tiletypes / warps (base présente). |
 | **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
 
@@ -82,12 +82,12 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 - [x] Warps côté serveur (téléport **même carte** après `MoveRequest` ; cible hors monde ignorée jusqu’aux instances)
 - [x] Chargement carte monde depuis **fichier `.fmap`** (`Maps:worldMapPath`, relatif au dossier de l’exe ou chemin absolu)
 - [x] **Mêlée** : `MeleeAttackRequest` / `MeleeAttackResult`, portée en **pixels** (`Frog.Core/Constants/WorldMetrics.cs`)
-- [ ] Logs réseau structurés (niveaux / corrélation)
+- [x] Logs réseau structurés : **JSON console** (`Logging:Console:FormatterName`), scopes `ConnectionId` / `RemoteEndPoint` / `Username`, `ServerNetworkLogs` + `PacketDispatcher` / `PacketSender`
 
 ### 🎮 Frog.Client
-- [ ] Client réseau selon `protocol_login_map.md` (chat, heartbeat, logout)
-- [ ] Rendu map + collisions alignées serveur
-- [ ] HUD minimal
+- [x] Client réseau selon `protocol_login_map.md` (`FrogGameClient` : Hello, login/register, map, move, positions, chat, heartbeat, mêlée, erreurs)
+- [x] Rendu map tuile (couleurs par type + joueurs) — **pas** de tilesets PNG pour l’instant
+- [ ] Logout bouton + polish HUD
 - [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
 
 ### 🗺️ Frog.Editor
@@ -113,6 +113,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 ```bash
 dotnet build Frog.Creator.sln
 dotnet run --project Frog.Server/Frog.Server.csproj
+dotnet run --project Frog.Client/Frog.Client.csproj
 dotnet test Frog.Tests/Frog.Tests.csproj
 ```
 

@@ -47,8 +47,9 @@ internal sealed class Program
             .AddOptions<WorldMapOptions>()
             .Bind(builder.Configuration.GetSection("Maps"));
 
-        // Logging (console par défaut)
+        // Logs structurés : JSON + scopes (ConnectionId, RemoteEndPoint, Username) — niveaux via appsettings "Logging"
         builder.Logging.ClearProviders();
+        builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
         builder.Logging.AddConsole();
 
         // Services

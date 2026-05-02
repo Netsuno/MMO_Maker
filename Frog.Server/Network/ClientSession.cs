@@ -13,7 +13,11 @@ public sealed class ClientSession : IAsyncDisposable
     {
         _tcpClient = tcpClient;
         _stream = tcpClient.GetStream();
+        ConnectionId = Guid.NewGuid();
     }
+
+    /// <summary>Identifiant stable pour corrélation des logs sur la durée de la connexion TCP.</summary>
+    public Guid ConnectionId { get; }
 
     public string RemoteEndPoint => _tcpClient.Client.RemoteEndPoint?.ToString() ?? "<unknown>";
     public Session? AuthenticatedSession { get; set; }

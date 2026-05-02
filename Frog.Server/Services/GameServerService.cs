@@ -78,7 +78,7 @@ public sealed class GameServerService(
         {
             await using (clientSession)
             {
-                GameServerLogs.ClientConnected(_log, clientSession.RemoteEndPoint);
+                ServerNetworkLogs.TcpClientConnected(_log, clientSession.ConnectionId, clientSession.RemoteEndPoint);
                 await _packetSender.SendHelloAsync(clientSession, ct);
 
                 while (!ct.IsCancellationRequested)
@@ -93,6 +93,12 @@ public sealed class GameServerService(
                         break;
                     }
                 }
+
+                ServerNetworkLogs.TcpClientDisconnected(
+                    _log,
+                    clientSession.ConnectionId,
+                    clientSession.RemoteEndPoint,
+                    clientSession.Username ?? string.Empty);
 
                 if (clientSession.AuthenticatedSession is not null)
                 {

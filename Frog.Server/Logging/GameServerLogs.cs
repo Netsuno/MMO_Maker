@@ -12,7 +12,4 @@ internal static class GameServerLogs
 
     public static void BindAddressInvalid(ILogger logger, string BindAddress)
         => logger.LogError("BindAddress invalide: {BindAddress}", BindAddress);
-
-    public static void ClientConnected(ILogger logger, string RemoteEndPoint)
-        => logger.LogInformation("Client connecté: {RemoteEndPoint}", RemoteEndPoint);
 }

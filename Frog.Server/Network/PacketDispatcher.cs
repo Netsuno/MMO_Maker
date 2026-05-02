@@ -1,8 +1,12 @@
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Text;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Server.Logging;
 using Frog.Server.Persistence;
 using Frog.Server.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Frog.Server.Network;
 
@@ -14,7 +18,8 @@ public sealed class PacketDispatcher(
     MovementService movementService,
     PacketSender packetSender,
     PlayerLifecycleNotifier playerLifecycleNotifier,
-    IPlayerStateStore playerStateStore)
+    IPlayerStateStore playerStateStore,
+    ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
     private readonly ConnectionManager _connectionManager = connectionManager;
@@ -24,8 +29,24 @@ public sealed class PacketDispatcher(
     private readonly PacketSender _packetSender = packetSender;
     private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
     private readonly IPlayerStateStore _playerStateStore = playerStateStore;
+    private readonly ILogger<PacketDispatcher> _logger = logger;
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
+    {
+        using (_logger.BeginScope(BuildLogScope(clientSession)))
+        {
+            await DispatchCoreAsync(clientSession, framePayload, cancellationToken);
+        }
+    }
+
+    private static Dictionary<string, object?> BuildLogScope(ClientSession clientSession) => new()
+    {
+        ["ConnectionId"] = clientSession.ConnectionId,
+        ["RemoteEndPoint"] = clientSession.RemoteEndPoint,
+        ["Username"] = clientSession.Username ?? string.Empty
+    };
+
+    private async Task DispatchCoreAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
     {
         if (framePayload.Length == 0)
         {
@@ -35,6 +56,7 @@ public sealed class PacketDispatcher(
 
         var packetId = (PacketId)framePayload[0];
         var payload = framePayload.AsMemory(1);
+        ServerNetworkLogs.InboundPacket(_logger, packetId.ToString(), framePayload.Length - 1);
 
         switch (packetId)
         {
@@ -71,6 +93,7 @@ public sealed class PacketDispatcher(
                 break;
 
             default:
+                ServerNetworkLogs.UnknownPacket(_logger, (byte)packetId);
                 await _packetSender.SendErrorAsync(clientSession, $"Packet non supporte: {(byte)packetId}", cancellationToken);
                 break;
         }
@@ -80,18 +103,21 @@ public sealed class PacketDispatcher(
     {
         if (!TryParseLoginPayload(payload.Span, out var username, out var password))
         {
+            ServerNetworkLogs.LoginFailed(_logger, "invalid_payload");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Payload login invalide.", cancellationToken);
             return;
         }
 
         if (!_authService.ValidateCredentials(username, password))
         {
+            ServerNetworkLogs.LoginFailed(_logger, "invalid_credentials");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
             return;
         }
 
         if (!_connectionManager.TryCreateSession(username, out var session) || session is null)
         {
+            ServerNetworkLogs.LoginFailed(_logger, "already_connected");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Compte deja connecte.", cancellationToken);
             return;
         }
@@ -114,6 +140,7 @@ public sealed class PacketDispatcher(
         SessionPixelSync.SyncFromTileGrid(session);
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
+        ServerNetworkLogs.LoginSucceeded(_logger, username);
         await SyncPositionsOnJoinAsync(clientSession, session, cancellationToken);
     }
 
@@ -121,6 +148,7 @@ public sealed class PacketDispatcher(
     {
         if (!TryParseLoginPayload(payload.Span, out var username, out var password))
         {
+            ServerNetworkLogs.RegisterFailed(_logger, "invalid_payload");
             await _packetSender.SendRegisterResultAsync(clientSession, false, "Payload inscription invalide.", cancellationToken);
             return;
         }
@@ -128,11 +156,13 @@ public sealed class PacketDispatcher(
         var created = _authService.RegisterAccount(username, password);
         if (!created)
         {
+            ServerNetworkLogs.RegisterFailed(_logger, "duplicate_or_invalid");
             await _packetSender.SendRegisterResultAsync(clientSession, false, "Compte deja existant ou invalide.", cancellationToken);
             return;
         }
 
         await _packetSender.SendRegisterResultAsync(clientSession, true, "Compte cree.", cancellationToken);
+        ServerNetworkLogs.RegisterSucceeded(_logger, username);
     }
 
     private async Task HandleMapRequestAsync(ClientSession clientSession, CancellationToken cancellationToken)
@@ -147,6 +177,7 @@ public sealed class PacketDispatcher(
         session.CurrentMapId = MapService.DefaultWorldMapId;
         var mapData = _mapService.GetSerializedMapForSession(session.Id);
         await _packetSender.SendMapDataAsync(clientSession, MapService.DefaultWorldMapId, mapData, cancellationToken);
+        ServerNetworkLogs.MapDataSent(_logger, session.Username, MapService.DefaultWorldMapId, mapData.Length);
     }
 
     private async Task HandleMoveRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
@@ -171,6 +202,7 @@ public sealed class PacketDispatcher(
 
         _movementService.TryApplyWarpAfterMove(session);
         _connectionManager.TryTouchSession(session.Id);
+        ServerNetworkLogs.MoveApplied(_logger, session.Username, session.PositionX, session.PositionY);
         var clients = _clientRegistry.GetAllAuthenticatedClients();
         foreach (var targetClient in clients)
         {
@@ -266,6 +298,8 @@ public sealed class PacketDispatcher(
         {
             await _packetSender.SendMeleeAttackResultAsync(defenderClient, hit, attacker.Username, "Subi une attaque melee.", cancellationToken);
         }
+
+        ServerNetworkLogs.MeleeResolved(_logger, attacker.Username, targetName, hit);
     }
 
     public static bool TryParseMeleeTargetPayload(ReadOnlySpan<byte> payload, out string targetUsername)
@@ -313,6 +347,7 @@ public sealed class PacketDispatcher(
 
         _connectionManager.TryTouchSession(session.Id);
         var from = session.Username;
+        var delivered = 0;
 
         switch (channel)
         {
@@ -320,6 +355,7 @@ public sealed class PacketDispatcher(
                 foreach (var target in _clientRegistry.GetAllAuthenticatedClients())
                 {
                     await _packetSender.SendChatMessageAsync(target, channel, from, string.Empty, message, cancellationToken);
+                    delivered++;
                 }
 
                 break;
@@ -339,6 +375,7 @@ public sealed class PacketDispatcher(
                     }
 
                     await _packetSender.SendChatMessageAsync(mapClient, channel, from, string.Empty, message, cancellationToken);
+                    delivered++;
                 }
 
                 break;
@@ -358,12 +395,15 @@ public sealed class PacketDispatcher(
 
                 await _packetSender.SendChatMessageAsync(clientSession, channel, from, whisperTarget, message, cancellationToken);
                 await _packetSender.SendChatMessageAsync(targetClient, channel, from, whisperTarget, message, cancellationToken);
+                delivered = 2;
                 break;
 
             default:
                 await _packetSender.SendErrorAsync(clientSession, "Canal chat inconnu.", cancellationToken);
-                break;
+                return;
         }
+
+        ServerNetworkLogs.ChatBroadcast(_logger, channel.ToString(), from, delivered);
     }
 
     public static bool TryParseChatSendPayload(ReadOnlySpan<byte> payload, out ChatChannel channel, out string whisperTarget, out string message)
