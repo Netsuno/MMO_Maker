@@ -21,5 +21,7 @@ public enum PacketId : byte
     LogoutAck = 14,
     ChatSend = 15,
     ChatMessage = 16,
+    MeleeAttackRequest = 17,
+    MeleeAttackResult = 18,
     Error = 255
 }

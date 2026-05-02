@@ -63,7 +63,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MapService_ReturnsSerializableMapPayload()
     {
-        var mapService = new MapService();
+        var mapService = MapTestHelpers.CreateMapService();
         var bytes = mapService.GetSerializedMapForSession(Guid.NewGuid());
 
         Assert.NotEmpty(bytes);
@@ -109,7 +109,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MovementService_AppliesValidMove()
     {
-        var mapService = new MapService();
+        var mapService = MapTestHelpers.CreateMapService();
         var movement = new MovementService(mapService, new ConnectionManager());
         var session = new Frog.Server.Models.Session
         {
@@ -130,7 +130,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MovementService_RejectsOutOfBoundsMove()
     {
-        var mapService = new MapService();
+        var mapService = MapTestHelpers.CreateMapService();
         var movement = new MovementService(mapService, new ConnectionManager());
         var session = new Frog.Server.Models.Session
         {
@@ -151,7 +151,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MovementService_RejectsBlockedTileMove()
     {
-        var mapService = new MapService();
+        var mapService = MapTestHelpers.CreateMapService();
         var movement = new MovementService(mapService, new ConnectionManager());
         var session = new Frog.Server.Models.Session
         {
@@ -172,7 +172,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MapService_ReportsBlockedTiles()
     {
-        var mapService = new MapService();
+        var mapService = MapTestHelpers.CreateMapService();
 
         Assert.True(mapService.IsBlocked(5, 5));
         Assert.False(mapService.IsBlocked(1, 1));
@@ -233,7 +233,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MapService_IndexWarpAtDemoCell()
     {
-        var mapService = new MapService();
+        var mapService = MapTestHelpers.CreateMapService();
         Assert.True(mapService.TryGetWarpDestination(MapService.DefaultWorldMapId, 3, 3, out var mapId, out var x, out var y));
         Assert.Equal(MapService.DefaultWorldMapId, mapId);
         Assert.Equal(18, x);
@@ -243,7 +243,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MovementService_AppliesWarpAfterSteppingOnWarpTile()
     {
-        var mapService = new MapService();
+        var mapService = MapTestHelpers.CreateMapService();
         var connections = new ConnectionManager();
         Assert.True(connections.TryCreateSession("walker", out var session));
         session!.PositionX = 2;
@@ -264,7 +264,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MovementService_RejectsMoveOntoOtherPlayer()
     {
-        var mapService = new MapService();
+        var mapService = MapTestHelpers.CreateMapService();
         var connections = new ConnectionManager();
         Assert.True(connections.TryCreateSession("p1", out var s1));
         Assert.True(connections.TryCreateSession("p2", out var s2));

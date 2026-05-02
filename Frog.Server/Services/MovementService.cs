@@ -49,6 +49,7 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
 
         session.PositionX = targetX;
         session.PositionY = targetY;
+        SessionPixelSync.SyncFromTileGrid(session);
         return true;
     }
 
@@ -86,6 +87,7 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
         session.CurrentMapId = targetMapId;
         session.PositionX = tx;
         session.PositionY = ty;
+        SessionPixelSync.SyncFromTileGrid(session);
         return true;
     }
 

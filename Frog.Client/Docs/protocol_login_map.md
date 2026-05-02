@@ -38,7 +38,20 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `14` -> `LogoutAck`
 - `15` -> `ChatSend`
 - `16` -> `ChatMessage`
+- `17` -> `MeleeAttackRequest`
+- `18` -> `MeleeAttackResult`
 - `255` -> `Error`
+
+## Grille monde et pixels
+
+Le serveur aligne la position joueur sur une grille **tuiles** (voir `PositionUpdate`) et maintient en interne le **centre** de la tuile en **pixels monde** pour la mêlée. Constantes partagées dans `Frog.Core/Constants/WorldMetrics.cs` :
+
+- `DefaultTileSizePixels` = **16** (carré ; le client de rendu doit utiliser la même taille)
+- `MeleeRangePixels` = **28** (distance euclidienne max. centre → centre pour un coup au corps à corps)
+
+## Carte monde (.fmap)
+
+En production / dev local, le serveur peut charger la carte monde depuis un fichier **`.fmap`** (même format que `MapData` / `MapSerializer`) si `Maps:worldMapPath` est renseigné dans `Frog.Server/appsettings.json` (chemin absolu ou relatif au dossier de l’exécutable). Sinon une carte de secours intégrée est utilisée.
 
 ## Messages
 
@@ -109,7 +122,30 @@ Payload:
 - `MapLength` (Int32 little-endian)
 - `MapBytes` (`MapLength` octets)
 
-`MapBytes` est le blob serialise par `Frog.Core/IO/MapSerializer.cs`.
+`MapBytes` est le blob serialise par `Frog.Core/IO/MapSerializer.cs` (identique a un fichier `.fmap` exporte par l'editeur lorsque le serveur charge depuis disque).
+
+### MeleeAttackRequest (Client -> Serveur)
+
+Requiert une session authentifiee. Cible identifiee par **nom d'utilisateur** (meme convention longueur que le login).
+
+Payload :
+
+- `PacketId` (Byte) = `17`
+- `TargetUsernameLength` (Byte, > 0, max comme login)
+- `TargetUsernameUtf8` (`TargetUsernameLength` octets)
+
+Le serveur verifie que la cible est en ligne, sur la **meme carte**, et a une distance centre–centre <= `MeleeRangePixels` (voir section Grille). Il envoie un `MeleeAttackResult` a l'attaquant ; si touche, un second `MeleeAttackResult` a la victime.
+
+### MeleeAttackResult (Serveur -> Client)
+
+Payload :
+
+- `PacketId` (Byte) = `18`
+- `Hit` (Byte, `1` = touche, `0` = rate / refuse)
+- `TargetUsernameLength` (Byte)
+- `TargetUsernameUtf8` (`TargetUsernameLength` octets) — pour l'attaquant : nom de la cible ; pour la victime : nom de l'attaquant dans le cas envoye au defenseur
+- `MessageLength` (UInt16 little-endian)
+- `MessageUtf8` (`MessageLength` octets), texte explicatif court (ex. "Touche.", "Hors portee.", "Cible hors ligne.")
 
 ### MoveRequest (Client -> Serveur)
 

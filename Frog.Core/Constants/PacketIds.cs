@@ -21,5 +21,7 @@ public static class PacketIds
     public const byte LogoutAck = 14;
     public const byte ChatSend = 15;
     public const byte ChatMessage = 16;
+    public const byte MeleeAttackRequest = 17;
+    public const byte MeleeAttackResult = 18;
     public const byte Error = 255;
 }

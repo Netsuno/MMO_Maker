@@ -25,7 +25,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | **Cartes / warps** | **Phase 1 : une seule carte monde** pour tous les joueurs (`MapService.DefaultWorldMapId`). **Phase 2 :** instances / multi‑maps. |
 | **Transport (MMO)** | **TCP** pour tout le contrôle fiable (auth, chat, map, état synchrone actuel). **UDP** (snapshots position / combat) prévu en phase ultérieure pour réduire la latence — sans casser le flux TCP existant. |
 | **Version protocole** | Pas de numéro de version dans les paquets **pendant le développement actif** ; **à ajouter** avant compatibilité client multiple. |
-| **Combat** | Visée **Zelda / Graal Online** (action, timing). **Plus tard :** magie, niveaux, stats, éléments. |
+| **Combat** | Visée **Zelda / Graal Online** (action, timing). Portée mêlée en **pixels** (centre tuile → centre tuile, `WorldMetrics.MeleeRangePixels`). **Plus tard :** magie, niveaux, stats, éléments. |
 
 ---
 
@@ -33,10 +33,10 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 
 | Projet | Description |
 |--------|--------------|
-| **Frog.Core** | Modèles partagés, enums, interfaces, sérialiseurs binaires (maps, items, NPCs…), IDs de paquets, `ChatChannel`. |
+| **Frog.Core** | Modèles partagés, enums, interfaces, sérialiseurs binaires (maps, items, NPCs…), IDs de paquets, `ChatChannel`, **`WorldMetrics`** (tuile ↔ pixels). |
 | **Frog.Client** | Client du jeu : affichage, entités, dialogues, HUD ; doc protocole dans `Frog.Client/Docs/protocol_login_map.md`. |
 | **Frog.Editor** | Éditeur de cartes et de ressources, inspiré du FRoG Creator original. |
-| **Frog.Server** | Serveur TCP : sessions, map monde unique, mouvements, chat, persistance PostgreSQL optionnelle, sauvegarde périodique joueur. |
+| **Frog.Server** | Serveur TCP : sessions, **carte `.fmap` optionnelle** (`Maps:worldMapPath`), map monde unique, mouvements, **mêlée pixel**, chat, persistance PostgreSQL optionnelle, sauvegarde périodique joueur. |
 | **Frog.Tests** | Tests unitaires (sérialisation, protocole, persistance mémoire, mouvements…). |
 
 ---
@@ -80,13 +80,15 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 - [ ] **UDP** : canal snapshots (positions / combat) + reprise perte
 - [ ] **Instances** / changement de map serveur (hors map monde unique)
 - [x] Warps côté serveur (téléport **même carte** après `MoveRequest` ; cible hors monde ignorée jusqu’aux instances)
+- [x] Chargement carte monde depuis **fichier `.fmap`** (`Maps:worldMapPath`, relatif au dossier de l’exe ou chemin absolu)
+- [x] **Mêlée** : `MeleeAttackRequest` / `MeleeAttackResult`, portée en **pixels** (`Frog.Core/Constants/WorldMetrics.cs`)
 - [ ] Logs réseau structurés (niveaux / corrélation)
 
 ### 🎮 Frog.Client
 - [ ] Client réseau selon `protocol_login_map.md` (chat, heartbeat, logout)
 - [ ] Rendu map + collisions alignées serveur
 - [ ] HUD minimal
-- [ ] **(Plus tard)** Combat action type Zelda / Graal (intentions → serveur)
+- [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
 
 ### 🗺️ Frog.Editor
 - [ ] Palette / overlay attributs complet
@@ -100,7 +102,8 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 - [ ] Tests PostgreSQL (conteneur / fixture)
 
 ### ⚔️ Combat (vision)
-- [ ] Mêlée action, hitboxes simples, résolution serveur
+- [x] Mêlée **portée pixel** + paquets `MeleeAttackRequest` / `MeleeAttackResult` (résolution serveur)
+- [ ] Hitboxes / directions d’attaque, i-frames, armes
 - [ ] Magie, niveaux, stats, éléments (extensions)
 
 ---
@@ -113,7 +116,7 @@ dotnet run --project Frog.Server/Frog.Server.csproj
 dotnet test Frog.Tests/Frog.Tests.csproj
 ```
 
-Configurer `Frog.Server/appsettings.json` : `Server`, `Postgres`, `Sessions`, `Persistence`.
+Configurer `Frog.Server/appsettings.json` : `Server`, `Postgres`, `Sessions`, `Persistence`, **`Maps`** (`worldMapPath` vers un `.fmap` exporté par l’éditeur ; voir `Frog.Server/Maps/README.txt`).
 
 ---
 

@@ -43,6 +43,9 @@ internal sealed class Program
             .Bind(builder.Configuration.GetSection("Persistence"))
             .Validate(o => o.SaveIntervalSeconds >= 10, "Persistence.SaveIntervalSeconds invalide")
             .ValidateOnStart();
+        builder.Services
+            .AddOptions<WorldMapOptions>()
+            .Bind(builder.Configuration.GetSection("Maps"));
 
         // Logging (console par défaut)
         builder.Logging.ClearProviders();

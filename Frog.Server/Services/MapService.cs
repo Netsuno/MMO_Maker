@@ -1,6 +1,10 @@
+using System.IO;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
+using Frog.Server.Config;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Frog.Server.Services;
 
@@ -16,7 +20,51 @@ public sealed class MapService
     /// <summary>Warps indexés par (mapId, tuile X, tuile Y) → destination.</summary>
     private readonly Dictionary<(int MapId, int X, int Y), (int TargetMapId, int TargetX, int TargetY)> _warps = new();
 
-    public MapService()
+    public MapService(IOptions<WorldMapOptions> worldMapOptions, ILogger<MapService> logger)
+    {
+        var rawPath = worldMapOptions.Value.WorldMapPath;
+        var resolved = ResolveMapPath(rawPath);
+        if (resolved is not null && File.Exists(resolved))
+        {
+            try
+            {
+                var bytes = File.ReadAllBytes(resolved);
+                _defaultMap = _mapSerializer.Deserialize(bytes);
+                logger.LogInformation("Carte monde chargee depuis {Path}", resolved);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Echec de lecture de la carte {Path}, utilisation de la carte de secours.", resolved);
+                _defaultMap = BuildFallbackWorldMap();
+            }
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(rawPath))
+            {
+                logger.LogWarning("Fichier carte introuvable ({Raw}), carte de secours.", rawPath);
+            }
+
+            _defaultMap = BuildFallbackWorldMap();
+        }
+
+        RebuildBlockedFromMap();
+        RebuildWarpIndex();
+    }
+
+    private static string? ResolveMapPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        return Path.IsPathRooted(path)
+            ? path
+            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));
+    }
+
+    private static Map BuildFallbackWorldMap()
     {
         var map = new Map
         {
@@ -30,6 +78,12 @@ public sealed class MapService
         {
             for (var x = 0; x < map.Width; x++)
             {
+                var type = TileType.Ground;
+                if (x is >= 5 and <= 7 && y == 5)
+                {
+                    type = TileType.Block;
+                }
+
                 ground.Tiles.Add(new Tile
                 {
                     X = x,
@@ -37,18 +91,11 @@ public sealed class MapService
                     TilesetId = 1,
                     SrcX = 0,
                     SrcY = 0,
-                    Type = TileType.Ground
+                    Type = type
                 });
             }
         }
 
-        // Quelques obstacles minimaux pour valider les collisions serveur.
-        for (var x = 5; x <= 7; x++)
-        {
-            _blockedTiles.Add((x, 5));
-        }
-
-        // Warp de démo : (3,3) → centre (18,18), même carte (phase 1 monde unique).
         foreach (var t in ground.Tiles)
         {
             if (t.X == 3 && t.Y == 3)
@@ -62,8 +109,22 @@ public sealed class MapService
         }
 
         map.Layers.Add(ground);
-        _defaultMap = map;
-        RebuildWarpIndex();
+        return map;
+    }
+
+    private void RebuildBlockedFromMap()
+    {
+        _blockedTiles.Clear();
+        foreach (var layer in _defaultMap.Layers)
+        {
+            foreach (var tile in layer.Tiles)
+            {
+                if (tile.Type == TileType.Block)
+                {
+                    _blockedTiles.Add((tile.X, tile.Y));
+                }
+            }
+        }
     }
 
     private void RebuildWarpIndex()
@@ -84,7 +145,6 @@ public sealed class MapService
         }
     }
 
-    /// <summary>Tente de lire une destination de warp sur la carte monde pour la position donnée.</summary>
     public bool TryGetWarpDestination(int mapId, int tileX, int tileY, out int targetMapId, out int targetX, out int targetY)
     {
         if (!_warps.TryGetValue((mapId, tileX, tileY), out var dest))
@@ -113,7 +173,6 @@ public sealed class MapService
     public bool IsBlocked(int x, int y)
         => _blockedTiles.Contains((x, y));
 
-    /// <summary>Indique si la case est une tuile warp (même si le type logique est sur une couche).</summary>
     public bool IsWarpCell(int mapId, int x, int y)
         => _warps.ContainsKey((mapId, x, y));
 }

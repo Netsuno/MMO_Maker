@@ -122,6 +122,34 @@ public sealed class PacketSender
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendMeleeAttackResultAsync(
+        ClientSession session,
+        bool hit,
+        string targetUsername,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var targetBytes = Encoding.UTF8.GetBytes(targetUsername);
+        var messageBytes = Encoding.UTF8.GetBytes(message);
+        if (targetBytes.Length > ChatProtocolLimits.MaxUsernameUtf8Bytes ||
+            messageBytes.Length > ChatProtocolLimits.MaxMessageUtf8Bytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(message), "Taille melee result invalide.");
+        }
+
+        var payload = new byte[1 + 1 + 1 + targetBytes.Length + sizeof(ushort) + messageBytes.Length];
+        var o = 0;
+        payload[o++] = (byte)PacketId.MeleeAttackResult;
+        payload[o++] = hit ? (byte)1 : (byte)0;
+        payload[o++] = (byte)targetBytes.Length;
+        targetBytes.CopyTo(payload.AsSpan(o));
+        o += targetBytes.Length;
+        BitConverter.GetBytes((ushort)messageBytes.Length).CopyTo(payload.AsSpan(o));
+        o += sizeof(ushort);
+        messageBytes.CopyTo(payload.AsSpan(o));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
     private static Task SendStatusMessageAsync(ClientSession session, PacketId packetId, bool success, string message, CancellationToken cancellationToken)
     {
         var messageBytes = Encoding.UTF8.GetBytes(message);

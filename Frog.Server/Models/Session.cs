@@ -9,6 +9,11 @@ public sealed class Session
     public int PositionX { get; set; }
     public int PositionY { get; set; }
 
+    /// <summary>Centre joueur en pixels monde (voir Frog.Core.Constants.WorldMetrics, taille de tuile).</summary>
+    public int PixelX { get; set; }
+
+    public int PixelY { get; set; }
+
     /// <summary>Carte monde courante (monde unique au debut ; instances plus tard).</summary>
     public int CurrentMapId { get; set; } = 1;
 }

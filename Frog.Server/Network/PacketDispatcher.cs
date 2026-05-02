@@ -66,6 +66,10 @@ public sealed class PacketDispatcher(
                 await HandleChatSendAsync(clientSession, payload, cancellationToken);
                 break;
 
+            case PacketId.MeleeAttackRequest:
+                await HandleMeleeAttackRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
             default:
                 await _packetSender.SendErrorAsync(clientSession, $"Packet non supporte: {(byte)packetId}", cancellationToken);
                 break;
@@ -107,6 +111,7 @@ public sealed class PacketDispatcher(
         }
 
         _clientRegistry.Register(session.Id, clientSession);
+        SessionPixelSync.SyncFromTileGrid(session);
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
         await SyncPositionsOnJoinAsync(clientSession, session, cancellationToken);
@@ -202,6 +207,88 @@ public sealed class PacketDispatcher(
         clientSession.AuthenticatedSession = null;
         await _packetSender.SendLogoutAckAsync(clientSession, cancellationToken);
         clientSession.Disconnect();
+    }
+
+    private async Task HandleMeleeAttackRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var attacker))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (!TryParseMeleeTargetPayload(payload.Span, out var targetName))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Payload attaque melee invalide.", cancellationToken);
+            return;
+        }
+
+        if (!_connectionManager.TryGetSessionByUsername(targetName, out var defender) || defender is null)
+        {
+            await _packetSender.SendMeleeAttackResultAsync(
+                clientSession,
+                false,
+                targetName,
+                "Cible hors ligne.",
+                cancellationToken);
+            return;
+        }
+
+        if (defender.Id == attacker.Id)
+        {
+            await _packetSender.SendMeleeAttackResultAsync(
+                clientSession,
+                false,
+                targetName,
+                "Cible invalide.",
+                cancellationToken);
+            return;
+        }
+
+        if (defender.CurrentMapId != attacker.CurrentMapId)
+        {
+            await _packetSender.SendMeleeAttackResultAsync(
+                clientSession,
+                false,
+                targetName,
+                "Pas sur la meme carte.",
+                cancellationToken);
+            return;
+        }
+
+        SessionPixelSync.SyncFromTileGrid(attacker);
+        SessionPixelSync.SyncFromTileGrid(defender);
+        var hit = MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY);
+        var message = hit ? "Touche." : "Hors portee.";
+        _connectionManager.TryTouchSession(attacker.Id);
+        await _packetSender.SendMeleeAttackResultAsync(clientSession, hit, targetName, message, cancellationToken);
+        if (hit && _clientRegistry.TryGet(defender.Id, out var defenderClient) && defenderClient is not null)
+        {
+            await _packetSender.SendMeleeAttackResultAsync(defenderClient, hit, attacker.Username, "Subi une attaque melee.", cancellationToken);
+        }
+    }
+
+    public static bool TryParseMeleeTargetPayload(ReadOnlySpan<byte> payload, out string targetUsername)
+    {
+        targetUsername = string.Empty;
+        if (payload.Length < 1)
+        {
+            return false;
+        }
+
+        var len = payload[0];
+        if (len is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes)
+        {
+            return false;
+        }
+
+        if (payload.Length != 1 + len)
+        {
+            return false;
+        }
+
+        targetUsername = Encoding.UTF8.GetString(payload.Slice(1, len));
+        return !string.IsNullOrWhiteSpace(targetUsername);
     }
 
     private async Task HandleChatSendAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
