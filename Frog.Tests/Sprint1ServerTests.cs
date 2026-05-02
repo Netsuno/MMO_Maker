@@ -1,7 +1,9 @@
 using System;
 using System.Text;
+using Frog.Core.Enums;
 using Frog.Server.Database;
 using Frog.Server.Network;
+using Frog.Server.Persistence;
 using Frog.Server.Services;
 using Xunit;
 
@@ -174,6 +176,58 @@ public sealed class Sprint1ServerTests
 
         Assert.True(mapService.IsBlocked(5, 5));
         Assert.False(mapService.IsBlocked(1, 1));
+    }
+
+    [Fact]
+    public void PacketDispatcher_ParsesChatSendPayload_Global()
+    {
+        var message = "salut";
+        var msgBytes = Encoding.UTF8.GetBytes(message);
+        var payload = new byte[1 + sizeof(ushort) + msgBytes.Length];
+        payload[0] = (byte)ChatChannel.Global;
+        BitConverter.GetBytes((ushort)msgBytes.Length).CopyTo(payload, 1);
+        msgBytes.CopyTo(payload, 1 + sizeof(ushort));
+
+        var ok = PacketDispatcher.TryParseChatSendPayload(payload, out var ch, out var target, out var parsed);
+        Assert.True(ok);
+        Assert.Equal(ChatChannel.Global, ch);
+        Assert.Equal(string.Empty, target);
+        Assert.Equal(message, parsed);
+    }
+
+    [Fact]
+    public void PacketDispatcher_ParsesChatSendPayload_Whisper()
+    {
+        var target = "bob";
+        var message = "psst";
+        var tBytes = Encoding.UTF8.GetBytes(target);
+        var mBytes = Encoding.UTF8.GetBytes(message);
+        var payload = new byte[1 + 1 + tBytes.Length + sizeof(ushort) + mBytes.Length];
+        var o = 0;
+        payload[o++] = (byte)ChatChannel.Whisper;
+        payload[o++] = (byte)tBytes.Length;
+        tBytes.CopyTo(payload.AsSpan(o));
+        o += tBytes.Length;
+        BitConverter.GetBytes((ushort)mBytes.Length).CopyTo(payload.AsSpan(o));
+        o += sizeof(ushort);
+        mBytes.CopyTo(payload.AsSpan(o));
+
+        var ok = PacketDispatcher.TryParseChatSendPayload(payload, out var ch, out var whisperTo, out var parsed);
+        Assert.True(ok);
+        Assert.Equal(ChatChannel.Whisper, ch);
+        Assert.Equal(target, whisperTo);
+        Assert.Equal(message, parsed);
+    }
+
+    [Fact]
+    public void InMemoryPlayerStateStore_Roundtrip()
+    {
+        var store = new InMemoryPlayerStateStore();
+        store.Upsert("alice", 1, 3, 4);
+        Assert.True(store.TryGet("alice", out var st));
+        Assert.Equal(1, st.MapId);
+        Assert.Equal(3, st.X);
+        Assert.Equal(4, st.Y);
     }
 
     [Fact]

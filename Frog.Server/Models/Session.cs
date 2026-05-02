@@ -8,4 +8,7 @@ public sealed class Session
     public DateTime LastActivityUtc { get; set; } = DateTime.UtcNow;
     public int PositionX { get; set; }
     public int PositionY { get; set; }
+
+    /// <summary>Carte monde courante (monde unique au debut ; instances plus tard).</summary>
+    public int CurrentMapId { get; set; } = 1;
 }

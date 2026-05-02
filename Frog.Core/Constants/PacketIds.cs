@@ -19,5 +19,7 @@ public static class PacketIds
     public const byte HeartbeatAck = 12;
     public const byte LogoutRequest = 13;
     public const byte LogoutAck = 14;
+    public const byte ChatSend = 15;
+    public const byte ChatMessage = 16;
     public const byte Error = 255;
 }

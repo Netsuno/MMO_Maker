@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Frog.Server.Config;
 using Frog.Server.Database;
 using Frog.Server.Network;
+using Frog.Server.Persistence;
 using Frog.Server.Services;
 
 namespace Frog.Server;
@@ -37,6 +38,11 @@ internal sealed class Program
             .Bind(builder.Configuration.GetSection("Sessions"))
             .Validate(o => o.IdleTimeoutSeconds > 0 && o.CleanupIntervalSeconds > 0, "Configuration de session invalide")
             .ValidateOnStart();
+        builder.Services
+            .AddOptions<PersistenceOptions>()
+            .Bind(builder.Configuration.GetSection("Persistence"))
+            .Validate(o => o.SaveIntervalSeconds >= 10, "Persistence.SaveIntervalSeconds invalide")
+            .ValidateOnStart();
 
         // Logging (console par défaut)
         builder.Logging.ClearProviders();
@@ -56,6 +62,18 @@ internal sealed class Program
 
             return sp.GetRequiredService<AccountRepository>();
         });
+        builder.Services.AddSingleton<InMemoryPlayerStateStore>();
+        builder.Services.AddSingleton<IPlayerStateStore>(sp =>
+        {
+            var pg = sp.GetRequiredService<IOptions<PostgresOptions>>().Value;
+            pg.Validate();
+            if (pg.Enabled)
+            {
+                return new PostgresPlayerStateStore(pg.ConnectionString);
+            }
+
+            return sp.GetRequiredService<InMemoryPlayerStateStore>();
+        });
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<ConnectionManager>();
         builder.Services.AddSingleton<ClientRegistry>();
@@ -66,6 +84,7 @@ internal sealed class Program
         builder.Services.AddSingleton<PacketDispatcher>();
         builder.Services.AddHostedService<GameServerService>();
         builder.Services.AddHostedService<SessionCleanupService>();
+        builder.Services.AddHostedService<PlayerPersistenceService>();
 
         var app = builder.Build();
         app.Run();

@@ -90,4 +90,16 @@ public sealed class ConnectionManager
 
     public IReadOnlyCollection<Session> GetActiveSessions()
         => _sessionsById.Values.ToArray();
+
+    public bool TryGetSessionByUsername(string username, out Session? session)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        if (!_sessionIdByUsername.TryGetValue(username, out var id))
+        {
+            session = null;
+            return false;
+        }
+
+        return _sessionsById.TryGetValue(id, out session);
+    }
 }

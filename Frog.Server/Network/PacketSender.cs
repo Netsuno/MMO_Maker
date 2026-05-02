@@ -3,6 +3,12 @@ using Frog.Core.Enums;
 
 namespace Frog.Server.Network;
 
+internal static class ChatProtocolLimits
+{
+    public const int MaxMessageUtf8Bytes = 512;
+    public const int MaxUsernameUtf8Bytes = 64;
+}
+
 public sealed class PacketSender
 {
     public Task SendHelloAsync(ClientSession session, CancellationToken cancellationToken)
@@ -68,6 +74,51 @@ public sealed class PacketSender
     public Task SendLogoutAckAsync(ClientSession session, CancellationToken cancellationToken)
     {
         var payload = new byte[] { (byte)PacketId.LogoutAck };
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendChatMessageAsync(
+        ClientSession session,
+        ChatChannel channel,
+        string fromUsername,
+        string? toUsername,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        toUsername ??= string.Empty;
+        var fromBytes = Encoding.UTF8.GetBytes(fromUsername);
+        var toBytes = Encoding.UTF8.GetBytes(toUsername);
+        var messageBytes = Encoding.UTF8.GetBytes(message);
+        if (fromBytes.Length is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes ||
+            toBytes.Length > ChatProtocolLimits.MaxUsernameUtf8Bytes ||
+            messageBytes.Length is 0 or > ChatProtocolLimits.MaxMessageUtf8Bytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(message), "Taille chat invalide.");
+        }
+
+        var payload = new byte[
+            1 + 1 + 1 + fromBytes.Length + 1 + toBytes.Length + sizeof(ushort) + messageBytes.Length];
+        var o = 0;
+        payload[o++] = (byte)PacketId.ChatMessage;
+        payload[o++] = (byte)channel;
+        payload[o++] = (byte)fromBytes.Length;
+        fromBytes.CopyTo(payload.AsSpan(o));
+        o += fromBytes.Length;
+        payload[o++] = (byte)toBytes.Length;
+        if (toBytes.Length > 0)
+        {
+            toBytes.CopyTo(payload.AsSpan(o));
+            o += toBytes.Length;
+        }
+
+        if (messageBytes.Length > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(message), "Message trop long.");
+        }
+
+        BitConverter.GetBytes((ushort)messageBytes.Length).CopyTo(payload.AsSpan(o));
+        o += sizeof(ushort);
+        messageBytes.CopyTo(payload.AsSpan(o));
         return session.SendFrameAsync(payload, cancellationToken);
     }
 

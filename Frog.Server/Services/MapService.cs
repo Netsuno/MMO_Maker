@@ -6,6 +6,9 @@ namespace Frog.Server.Services;
 
 public sealed class MapService
 {
+    /// <summary>Identifiant de la carte monde unique (phase 1). Instances prevues plus tard.</summary>
+    public const int DefaultWorldMapId = 1;
+
     private readonly MapSerializer _mapSerializer = new();
     private readonly Map _defaultMap;
     private readonly HashSet<(int X, int Y)> _blockedTiles = new();

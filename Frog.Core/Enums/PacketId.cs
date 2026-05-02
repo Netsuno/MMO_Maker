@@ -19,5 +19,7 @@ public enum PacketId : byte
     HeartbeatAck = 12,
     LogoutRequest = 13,
     LogoutAck = 14,
+    ChatSend = 15,
+    ChatMessage = 16,
     Error = 255
 }

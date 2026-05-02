@@ -36,6 +36,8 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `12` -> `HeartbeatAck`
 - `13` -> `LogoutRequest`
 - `14` -> `LogoutAck`
+- `15` -> `ChatSend`
+- `16` -> `ChatMessage`
 - `255` -> `Error`
 
 ## Messages
@@ -177,6 +179,34 @@ Payload:
 
 - `PacketId` (Byte) = `14`
 
+### ChatSend (Client -> Serveur)
+
+Requiert une session authentifiee. Canaux (`ChatChannel` dans `Frog.Core/Enums/ChatChannel.cs`) :
+
+- `0` = Global — tous les joueurs connectes
+- `1` = Map — joueurs sur la meme `CurrentMapId` que l'emetteur
+- `2` = Whisper — message au joueur cible uniquement (+ echo a l'emetteur)
+
+Corps du paquet (octets apres le `PacketId` `15` dans la frame, comme pour les autres paquets client) :
+
+- `Channel` (Byte)
+- Si `Channel == 2` (Whisper) : `TargetUsernameLength` (Byte), `TargetUsernameUtf8`
+- `MessageLength` (UInt16 little-endian)
+- `MessageUtf8` (`MessageLength` octets, max 512 octets UTF-8)
+
+### ChatMessage (Serveur -> Client)
+
+Payload :
+
+- `PacketId` (Byte) = `16`
+- `Channel` (Byte) — meme encodage que `ChatSend`
+- `FromUsernameLength` (Byte)
+- `FromUsernameUtf8`
+- `ToUsernameLength` (Byte) — `0` si global/map
+- `ToUsernameUtf8` (optionnel)
+- `MessageLength` (UInt16 little-endian)
+- `MessageUtf8`
+
 ### Error (Serveur -> Client)
 
 Payload:
@@ -199,6 +229,9 @@ Payload:
 10. Traiter les `PositionUpdate` recus (soi + autres joueurs connectes).
 11. Retirer l'entite locale quand un `PlayerLeave` est recu.
 12. Envoyer periodiquement `HeartbeatRequest` si le joueur reste immobile longtemps (inferieur au timeout serveur).
+13. Envoyer `ChatSend` et traiter les `ChatMessage` recus (global / map / whisper).
 
 Note: apres un `LoginResult` reussi, le serveur peut immediatement envoyer des `PositionUpdate`
 pour fournir l'etat initial des joueurs deja connectes.
+
+Note: le serveur restaure `PositionX` / `PositionY` / `CurrentMapId` depuis la derniere sauvegarde si disponible (PostgreSQL ou memoire selon configuration).

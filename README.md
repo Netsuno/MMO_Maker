@@ -2,15 +2,30 @@
 
 Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C# / .NET 8**, en conservant la logique d’origine tout en modernisant l’architecture, les outils et la base de données.
 
+**Dépôt GitHub :** [https://github.com/Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
+
 ---
 
 ## 🎯 Objectifs
 
 - Migrer le moteur **VB6** (Client, Serveur, Éditeur) vers une base **C# .NET 8 (WinForms)**.
 - Unifier la logique commune dans un projet central `Frog.Core`.
-- Moderniser la communication réseau (TCP/UDP asynchrone).
-- Sauvegarder les données dans une **base PostgreSQL**.
+- Moderniser la communication réseau (voir **Décisions réseau** ci‑dessous).
+- Sauvegarder les données dans une **base PostgreSQL** (comptes + état monde joueur).
 - Rendre l’éditeur compatible avec les formats d’origine tout en préparant l’extension du moteur.
+
+---
+
+## 🧭 Décisions produit (référence)
+
+| Sujet | Choix |
+|--------|--------|
+| **Chat** | Trois canaux : **global**, **par carte (map)**, **chuchotement (whisper)**. |
+| **Persistance joueur** | Sauvegarde **périodique** (intervalle configurable, défaut 45 s) + sauvegarde à la **déconnexion** / **expiration session** / **logout** — limiter la charge serveur (pas de save à chaque paquet). |
+| **Cartes / warps** | **Phase 1 : une seule carte monde** pour tous les joueurs (`MapService.DefaultWorldMapId`). **Phase 2 :** instances / multi‑maps. |
+| **Transport (MMO)** | **TCP** pour tout le contrôle fiable (auth, chat, map, état synchrone actuel). **UDP** (snapshots position / combat) prévu en phase ultérieure pour réduire la latence — sans casser le flux TCP existant. |
+| **Version protocole** | Pas de numéro de version dans les paquets **pendant le développement actif** ; **à ajouter** avant compatibilité client multiple. |
+| **Combat** | Visée **Zelda / Graal Online** (action, timing). **Plus tard :** magie, niveaux, stats, éléments. |
 
 ---
 
@@ -18,76 +33,87 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 
 | Projet | Description |
 |--------|--------------|
-| **Frog.Core** | Contient les modèles partagés, les enums, les interfaces, et les sérialiseurs binaires (maps, items, NPCs…). |
-| **Frog.Client** | Client du jeu : affichage des cartes, entités, dialogues, HUD, etc. |
+| **Frog.Core** | Modèles partagés, enums, interfaces, sérialiseurs binaires (maps, items, NPCs…), IDs de paquets, `ChatChannel`. |
+| **Frog.Client** | Client du jeu : affichage, entités, dialogues, HUD ; doc protocole dans `Frog.Client/Docs/protocol_login_map.md`. |
 | **Frog.Editor** | Éditeur de cartes et de ressources, inspiré du FRoG Creator original. |
-| **Frog.Server** | Serveur multijoueur, gestion des sessions, des cartes et de la persistance PostgreSQL. |
-| **Frog.Tests** | Tests unitaires et validation de compatibilité entre les modules. |
+| **Frog.Server** | Serveur TCP : sessions, map monde unique, mouvements, chat, persistance PostgreSQL optionnelle, sauvegarde périodique joueur. |
+| **Frog.Tests** | Tests unitaires (sérialisation, protocole, persistance mémoire, mouvements…). |
 
 ---
 
 ## 🔧 Technologies principales
 
 - **.NET 8.0 / C# 12**
-- **WinForms** pour les outils Client et Éditeur
-- **PostgreSQL** pour la base de données
-- **Async TCP/UDP** pour le réseau
-- **Sérialisation binaire** (format compatible VB6)
-- **Arborescence claire** pour séparer logique, UI et données
+- **WinForms** pour Client et Éditeur
+- **PostgreSQL** + **Npgsql** (comptes + `player_world_state` quand `Postgres.enabled` est `true`)
+- **TCP** (état actuel) ; **UDP** prévu pour flux haute fréquence
+- **Sérialisation binaire** (format `.fmap` versionné dans `MapSerializer`)
 
 ---
 
-| Module              | Statut                    | Détails (seulement ce qui existe vraiment)                                                                                                                                                                                                                                        |
-| ------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🧩 **Frog.Core**    | 🟢 **Structure en place** | - Architecture Core fonctionnelle<br>- Enum `TileType` mis à jour (`Resource = 7`)<br>- Interface `ITileAttribute` ajoutée<br>- Attributs implémentés : `BlockAttribute`, `WarpAttribute`, `ResourceAttribute`<br>- Mise à jour de `Tile.cs` pour supporter une liste d’attributs |
-| 🗺️ **Frog.Editor** | 🟠 **En cours**           | - Base de l’éditeur WinForms présente<br>- Début de l’intégration du système d’attributs                                                                                                                                                                                          |
-| 🎮 **Frog.Client**  | 🔵 **Base en place**      | - Projet client fonctionnel et compilable<br>- Initialisation de la structure WinForms<br>- Squelette du rendu des cartes préparé                                                                                                                                                 |
-| 🖥️ **Frog.Server** | 🔵 **Base en place**      | - Projet serveur fonctionnel<br>- Démarrage serveur déjà opérationnel<br>- Système de logs (`GameServerLogs.cs`) implémenté<br>- Première structure réseau créée                                                                                                                  |
-| 🧪 **Tests**        | ⚙️ **Structure prête**    | - Projet Tests présent (vide pour le moment)                                                                                                                                                                                                                                      |
+## 📊 État des modules (réaliste)
 
+| Module | Statut | Détail court |
+|--------|--------|----------------|
+| **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
+| **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
+| **Frog.Client** | 🔵 Squelette | WinForms ; implémenter consommation du protocole selon la doc. |
+| **Frog.Editor** | 🟠 En cours | Édition map / tiletypes / warps (base présente). |
+| **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
 
 ---
 
-# 🧠 Étapes à venir (Roadmap)
+## 🧠 Roadmap
 
-## 🧩 Frog.Core
-- [ ] Implémenter MapSerializerV2 (Block / Warp / Resource)
-- [ ] Ajouter Map.Validate()
-- [ ] Support futur pour d’autres attributs (Door, NpcSpawn, zones…)
-- [ ] Gestion améliorée des erreurs / validations
+### 🧩 Frog.Core
+- [ ] MapSerializerV2 (Block / Warp / Resource) si évolution format
+- [ ] Enrichir `Map.Validate()` (bornes tuiles, warps, cohérence couches)
+- [ ] Attributs additionnels (Door, NpcSpawn, zones…)
+- [ ] **(Plus tard)** Champ / en-tête **version protocole** partagé client/serveur
 
-## 🗺️ Frog.Editor
-- [ ] Compléter la palette d’attributs (Block / Warp / Resource)
-- [ ] Ajouter l’overlay visuel des attributs
-- [ ] Intégrer la sérialisation MapSerializerV2
-- [ ] Outil gomme pour retirer des attributs
-- [ ] Outils avancés : rectangle, copier/coller, bucket fill
-- [ ] Fenêtre “Propriétés de la carte”
-- [ ] Gestion des tilesets (sélection / multi-tilesets)
-- [ ] Système Undo/Redo
+### 🖥️ Frog.Server
+- [x] Protocole TCP de base (frames, login, map, move, erreurs)
+- [x] Sessions + idle timeout + heartbeat
+- [x] Chat **global / map / whisper**
+- [x] Persistance position **périodique** + restauration au login (`Persistence:saveIntervalSeconds`)
+- [x] Tables PostgreSQL comptes + `player_world_state` (si PG activé)
+- [ ] **UDP** : canal snapshots (positions / combat) + reprise perte
+- [ ] **Instances** / changement de map serveur (hors map monde unique)
+- [ ] Warps côté serveur (téléport + validation)
+- [ ] Logs réseau structurés (niveaux / corrélation)
 
-## 🎮 Frog.Client
-- [ ] Lecture des maps via MapSerializerV2
-- [ ] Rendu visuel final des tiles
-- [ ] Prise en charge du Block (collision)
-- [ ] Support du Warp (téléportation)
-- [ ] Mise en place du moteur d’entités
-- [ ] HUD minimal (vie, mana, nom du joueur)
+### 🎮 Frog.Client
+- [ ] Client réseau selon `protocol_login_map.md` (chat, heartbeat, logout)
+- [ ] Rendu map + collisions alignées serveur
+- [ ] HUD minimal
+- [ ] **(Plus tard)** Combat action type Zelda / Graal (intentions → serveur)
 
-## 🖥️ Frog.Server
-- [ ] Chargement/sauvegarde des maps dans PostgreSQL
-- [ ] Envoi d’une map au client
-- [ ] Gestion des sessions joueur
-- [ ] Mise en place du protocole TCP/UDP
-- [ ] Synchronisation joueur → client (position, actions)
-- [ ] Logging réseau complet
+### 🗺️ Frog.Editor
+- [ ] Palette / overlay attributs complet
+- [ ] Outils avancés (rectangle, copier/coller, fill…)
+- [ ] Undo/Redo
+- [ ] Propriétés de carte, multi‑tilesets
 
-## 🧪 Tests
-- [ ] Tests unitaires pour MapSerializerV2
-- [ ] Tests des attributs (Block / Warp / Resource)
-- [ ] Tests de validation des tiles
-- [ ] Tests de connexion client ↔ serveur minimal
+### 🧪 Tests
+- [x] Tests `MapSerializer`, mouvement, chat parse, store mémoire
+- [ ] Tests intégration client ↔ serveur (TCP)
+- [ ] Tests PostgreSQL (conteneur / fixture)
 
+### ⚔️ Combat (vision)
+- [ ] Mêlée action, hitboxes simples, résolution serveur
+- [ ] Magie, niveaux, stats, éléments (extensions)
+
+---
+
+## 🚀 Exécution rapide
+
+```bash
+dotnet build Frog.Creator.sln
+dotnet run --project Frog.Server/Frog.Server.csproj
+dotnet test Frog.Tests/Frog.Tests.csproj
+```
+
+Configurer `Frog.Server/appsettings.json` : `Server`, `Postgres`, `Sessions`, `Persistence`.
 
 ---
 
@@ -96,8 +122,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 Basé sur le projet open-source **FRoG Creator OSE v0.6.3** :  
 👉 [https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3)
 
-Modernisé et réorganisé par **Netsun**,
-pour la planification, l’analyse et la migration technique.
+Modernisé et réorganisé par **Netsun**, pour la planification, l’analyse et la migration technique.
 
 ---
 

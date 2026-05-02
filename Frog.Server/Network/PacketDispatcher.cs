@@ -1,5 +1,7 @@
+using System.Buffers.Binary;
 using System.Text;
 using Frog.Core.Enums;
+using Frog.Server.Persistence;
 using Frog.Server.Services;
 
 namespace Frog.Server.Network;
@@ -11,7 +13,8 @@ public sealed class PacketDispatcher(
     MapService mapService,
     MovementService movementService,
     PacketSender packetSender,
-    PlayerLifecycleNotifier playerLifecycleNotifier)
+    PlayerLifecycleNotifier playerLifecycleNotifier,
+    IPlayerStateStore playerStateStore)
 {
     private readonly AuthService _authService = authService;
     private readonly ConnectionManager _connectionManager = connectionManager;
@@ -20,6 +23,7 @@ public sealed class PacketDispatcher(
     private readonly MovementService _movementService = movementService;
     private readonly PacketSender _packetSender = packetSender;
     private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
+    private readonly IPlayerStateStore _playerStateStore = playerStateStore;
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
     {
@@ -58,6 +62,10 @@ public sealed class PacketDispatcher(
                 await HandleLogoutRequestAsync(clientSession, cancellationToken);
                 break;
 
+            case PacketId.ChatSend:
+                await HandleChatSendAsync(clientSession, payload, cancellationToken);
+                break;
+
             default:
                 await _packetSender.SendErrorAsync(clientSession, $"Packet non supporte: {(byte)packetId}", cancellationToken);
                 break;
@@ -85,8 +93,19 @@ public sealed class PacketDispatcher(
         }
 
         clientSession.AuthenticatedSession = session;
-        session.PositionX = 0;
-        session.PositionY = 0;
+        if (_playerStateStore.TryGet(username, out var world))
+        {
+            session.PositionX = world.X;
+            session.PositionY = world.Y;
+            session.CurrentMapId = world.MapId;
+        }
+        else
+        {
+            session.PositionX = 0;
+            session.PositionY = 0;
+            session.CurrentMapId = MapService.DefaultWorldMapId;
+        }
+
         _clientRegistry.Register(session.Id, clientSession);
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
@@ -120,8 +139,9 @@ public sealed class PacketDispatcher(
         }
 
         _connectionManager.TryTouchSession(session.Id);
+        session.CurrentMapId = MapService.DefaultWorldMapId;
         var mapData = _mapService.GetSerializedMapForSession(session.Id);
-        await _packetSender.SendMapDataAsync(clientSession, 1, mapData, cancellationToken);
+        await _packetSender.SendMapDataAsync(clientSession, MapService.DefaultWorldMapId, mapData, cancellationToken);
     }
 
     private async Task HandleMoveRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
@@ -174,12 +194,148 @@ public sealed class PacketDispatcher(
 
         var sessionId = session.Id;
         var username = session.Username;
+        _playerStateStore.Upsert(username, session.CurrentMapId, session.PositionX, session.PositionY);
         _clientRegistry.Unregister(sessionId);
         await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, cancellationToken);
         _connectionManager.RemoveSession(sessionId);
         clientSession.AuthenticatedSession = null;
         await _packetSender.SendLogoutAckAsync(clientSession, cancellationToken);
         clientSession.Disconnect();
+    }
+
+    private async Task HandleChatSendAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (!TryParseChatSendPayload(payload.Span, out var channel, out var whisperTarget, out var message))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Payload chat invalide.", cancellationToken);
+            return;
+        }
+
+        if (channel == ChatChannel.Whisper && string.IsNullOrWhiteSpace(whisperTarget))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Cible du chuchotement invalide.", cancellationToken);
+            return;
+        }
+
+        _connectionManager.TryTouchSession(session.Id);
+        var from = session.Username;
+
+        switch (channel)
+        {
+            case ChatChannel.Global:
+                foreach (var target in _clientRegistry.GetAllAuthenticatedClients())
+                {
+                    await _packetSender.SendChatMessageAsync(target, channel, from, string.Empty, message, cancellationToken);
+                }
+
+                break;
+
+            case ChatChannel.Map:
+                var mapId = session.CurrentMapId;
+                foreach (var s in _connectionManager.GetActiveSessions())
+                {
+                    if (s.CurrentMapId != mapId)
+                    {
+                        continue;
+                    }
+
+                    if (!_clientRegistry.TryGet(s.Id, out var mapClient) || mapClient is null)
+                    {
+                        continue;
+                    }
+
+                    await _packetSender.SendChatMessageAsync(mapClient, channel, from, string.Empty, message, cancellationToken);
+                }
+
+                break;
+
+            case ChatChannel.Whisper:
+                if (!_connectionManager.TryGetSessionByUsername(whisperTarget, out var targetSession) || targetSession is null)
+                {
+                    await _packetSender.SendErrorAsync(clientSession, "Joueur hors ligne.", cancellationToken);
+                    return;
+                }
+
+                if (!_clientRegistry.TryGet(targetSession.Id, out var targetClient) || targetClient is null)
+                {
+                    await _packetSender.SendErrorAsync(clientSession, "Joueur hors ligne.", cancellationToken);
+                    return;
+                }
+
+                await _packetSender.SendChatMessageAsync(clientSession, channel, from, whisperTarget, message, cancellationToken);
+                await _packetSender.SendChatMessageAsync(targetClient, channel, from, whisperTarget, message, cancellationToken);
+                break;
+
+            default:
+                await _packetSender.SendErrorAsync(clientSession, "Canal chat inconnu.", cancellationToken);
+                break;
+        }
+    }
+
+    public static bool TryParseChatSendPayload(ReadOnlySpan<byte> payload, out ChatChannel channel, out string whisperTarget, out string message)
+    {
+        channel = default;
+        whisperTarget = string.Empty;
+        message = string.Empty;
+        if (payload.Length < 1 + sizeof(ushort))
+        {
+            return false;
+        }
+
+        channel = (ChatChannel)payload[0];
+        if (channel is not (ChatChannel.Global or ChatChannel.Map or ChatChannel.Whisper))
+        {
+            return false;
+        }
+
+        var o = 1;
+        if (channel == ChatChannel.Whisper)
+        {
+            if (payload.Length < o + 1)
+            {
+                return false;
+            }
+
+            var targetLen = payload[o++];
+            if (targetLen is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes)
+            {
+                return false;
+            }
+
+            if (payload.Length < o + targetLen + sizeof(ushort))
+            {
+                return false;
+            }
+
+            whisperTarget = Encoding.UTF8.GetString(payload.Slice(o, targetLen));
+            o += targetLen;
+        }
+
+        if (payload.Length < o + sizeof(ushort))
+        {
+            return false;
+        }
+
+        var msgLen = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(o, sizeof(ushort)));
+        o += sizeof(ushort);
+        if (msgLen is 0 or > ChatProtocolLimits.MaxMessageUtf8Bytes)
+        {
+            return false;
+        }
+
+        if (payload.Length != o + msgLen)
+        {
+            return false;
+        }
+
+        message = Encoding.UTF8.GetString(payload.Slice(o, msgLen));
+        return true;
     }
 
     public static bool TryParseLoginPayload(ReadOnlySpan<byte> payload, out string username, out string password)

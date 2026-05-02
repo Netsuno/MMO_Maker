@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Frog.Server.Config;
 using Frog.Server.Network;
+using Frog.Server.Persistence;
 
 namespace Frog.Server.Services;
 
@@ -10,12 +11,14 @@ public sealed class SessionCleanupService(
     ConnectionManager connectionManager,
     ClientRegistry clientRegistry,
     PlayerLifecycleNotifier playerLifecycleNotifier,
+    IPlayerStateStore playerStateStore,
     IOptions<SessionOptions> options,
     ILogger<SessionCleanupService> logger) : BackgroundService
 {
     private readonly ConnectionManager _connectionManager = connectionManager;
     private readonly ClientRegistry _clientRegistry = clientRegistry;
     private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
+    private readonly IPlayerStateStore _playerStateStore = playerStateStore;
     private readonly SessionOptions _options = options.Value;
     private readonly ILogger<SessionCleanupService> _logger = logger;
 
@@ -39,6 +42,7 @@ public sealed class SessionCleanupService(
 
                 foreach (var session in expiredSessions)
                 {
+                    _playerStateStore.Upsert(session.Username, session.CurrentMapId, session.PositionX, session.PositionY);
                     ClientSession? client = null;
                     if (_clientRegistry.TryGet(session.Id, out client))
                     {
