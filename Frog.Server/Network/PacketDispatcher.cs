@@ -164,6 +164,7 @@ public sealed class PacketDispatcher(
             return;
         }
 
+        _movementService.TryApplyWarpAfterMove(session);
         _connectionManager.TryTouchSession(session.Id);
         var clients = _clientRegistry.GetAllAuthenticatedClients();
         foreach (var targetClient in clients)

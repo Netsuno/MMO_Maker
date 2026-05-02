@@ -56,7 +56,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | Module | Statut | Détail court |
 |--------|--------|----------------|
 | **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
-| **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
+| **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, **warps** (monde unique), chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
 | **Frog.Client** | 🔵 Squelette | WinForms ; implémenter consommation du protocole selon la doc. |
 | **Frog.Editor** | 🟠 En cours | Édition map / tiletypes / warps (base présente). |
 | **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
@@ -79,7 +79,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 - [x] Tables PostgreSQL comptes + `player_world_state` (si PG activé)
 - [ ] **UDP** : canal snapshots (positions / combat) + reprise perte
 - [ ] **Instances** / changement de map serveur (hors map monde unique)
-- [ ] Warps côté serveur (téléport + validation)
+- [x] Warps côté serveur (téléport **même carte** après `MoveRequest` ; cible hors monde ignorée jusqu’aux instances)
 - [ ] Logs réseau structurés (niveaux / corrélation)
 
 ### 🎮 Frog.Client
@@ -95,7 +95,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 - [ ] Propriétés de carte, multi‑tilesets
 
 ### 🧪 Tests
-- [x] Tests `MapSerializer`, mouvement, chat parse, store mémoire
+- [x] Tests `MapSerializer`, mouvement, warps, chat parse, store mémoire
 - [ ] Tests intégration client ↔ serveur (TCP)
 - [ ] Tests PostgreSQL (conteneur / fixture)
 

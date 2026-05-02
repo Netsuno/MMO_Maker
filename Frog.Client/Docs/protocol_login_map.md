@@ -127,6 +127,8 @@ Regles serveur:
 - le mouvement est refuse sur les tuiles bloquees (`Block` / collision serveur)
 - le mouvement est refuse si un autre joueur occupe deja la case cible.
 
+**Warps (serveur, phase 1)** : apres un mouvement reussi, si la case d'arrivee est une tuile **Warp** sur la carte monde (`TileType.Warp` avec cible), le serveur peut **teleporter** le joueur dans la meme carte (`WarpTargetMapId` = monde ou `0`). Une seconde position est alors diffusee via `PositionUpdate` (meme paquet qu'apres un pas). Les warps vers une **autre** carte sont ignores tant que le systeme d'instances / multi-maps n'est pas en place. La case d'arrivee doit etre libre (pas bloc, pas autre joueur).
+
 ### PositionUpdate (Serveur -> Clients authentifies)
 
 Payload:

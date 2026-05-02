@@ -40,7 +40,7 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
                 continue;
             }
 
-            if (other.PositionX == targetX && other.PositionY == targetY)
+            if (other.CurrentMapId == session.CurrentMapId && other.PositionX == targetX && other.PositionY == targetY)
             {
                 errorMessage = "Case occupee par un autre joueur.";
                 return false;
@@ -50,5 +50,60 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
         session.PositionX = targetX;
         session.PositionY = targetY;
         return true;
+    }
+
+    /// <summary>
+    /// Si le joueur se tient sur une tuile warp (même carte monde uniquement), téléporte vers la cible si la case d'arrivée est libre.
+    /// </summary>
+    public bool TryApplyWarpAfterMove(Session session)
+    {
+        if (!_mapService.TryGetWarpDestination(session.CurrentMapId, session.PositionX, session.PositionY, out var targetMapId, out var tx, out var ty))
+        {
+            return false;
+        }
+
+        if (targetMapId != MapService.DefaultWorldMapId)
+        {
+            return false;
+        }
+
+        var (width, height) = _mapService.GetDefaultMapBounds();
+        if (tx < 0 || ty < 0 || tx >= width || ty >= height)
+        {
+            return false;
+        }
+
+        if (_mapService.IsBlocked(tx, ty))
+        {
+            return false;
+        }
+
+        if (IsCellOccupiedByOther(session, targetMapId, tx, ty))
+        {
+            return false;
+        }
+
+        session.CurrentMapId = targetMapId;
+        session.PositionX = tx;
+        session.PositionY = ty;
+        return true;
+    }
+
+    private bool IsCellOccupiedByOther(Session self, int mapId, int x, int y)
+    {
+        foreach (var other in _connectionManager.GetActiveSessions())
+        {
+            if (other.Id == self.Id)
+            {
+                continue;
+            }
+
+            if (other.CurrentMapId == mapId && other.PositionX == x && other.PositionY == y)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -231,6 +231,37 @@ public sealed class Sprint1ServerTests
     }
 
     [Fact]
+    public void MapService_IndexWarpAtDemoCell()
+    {
+        var mapService = new MapService();
+        Assert.True(mapService.TryGetWarpDestination(MapService.DefaultWorldMapId, 3, 3, out var mapId, out var x, out var y));
+        Assert.Equal(MapService.DefaultWorldMapId, mapId);
+        Assert.Equal(18, x);
+        Assert.Equal(18, y);
+    }
+
+    [Fact]
+    public void MovementService_AppliesWarpAfterSteppingOnWarpTile()
+    {
+        var mapService = new MapService();
+        var connections = new ConnectionManager();
+        Assert.True(connections.TryCreateSession("walker", out var session));
+        session!.PositionX = 2;
+        session.PositionY = 3;
+        session.CurrentMapId = MapService.DefaultWorldMapId;
+
+        var movement = new MovementService(mapService, connections);
+        Assert.True(movement.TryApplyMove(session, 1, 0, out _));
+        Assert.Equal(3, session.PositionX);
+        Assert.Equal(3, session.PositionY);
+
+        var warped = movement.TryApplyWarpAfterMove(session);
+        Assert.True(warped);
+        Assert.Equal(18, session.PositionX);
+        Assert.Equal(18, session.PositionY);
+    }
+
+    [Fact]
     public void MovementService_RejectsMoveOntoOtherPlayer()
     {
         var mapService = new MapService();
