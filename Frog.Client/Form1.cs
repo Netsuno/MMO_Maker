@@ -24,6 +24,7 @@ public partial class Form1 : Form
     private readonly Button _btnLogin = new() { Text = "Login", Enabled = false };
     private readonly Button _btnRegister = new() { Text = "Inscription", Enabled = false };
     private readonly Button _btnMap = new() { Text = "Demander map", Enabled = false };
+    private readonly Button _btnLogout = new() { Text = "Logout", Enabled = false };
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
     private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly PictureBox _picMap = new() { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.AutoSize };
@@ -91,6 +92,7 @@ public partial class Form1 : Form
             _btnLogin,
             _btnRegister,
             _btnMap,
+            _btnLogout,
             _txtMeleeTarget,
             _btnMelee
         });
@@ -138,6 +140,7 @@ public partial class Form1 : Form
         _btnLogin.Click += async (_, _) => await LoginAsync();
         _btnRegister.Click += async (_, _) => await RegisterAsync();
         _btnMap.Click += async (_, _) => await MapRequestAsync();
+        _btnLogout.Click += async (_, _) => await LogoutAsync();
         _btnSendChat.Click += async (_, _) => await SendChatAsync();
         _btnMelee.Click += async (_, _) => await MeleeAsync();
 
@@ -149,7 +152,7 @@ public partial class Form1 : Form
         _client.PlayerLeaveReceived += OnPlayerLeave;
         _client.ErrorReceived += err => AppendLog("Erreur: " + err);
         _client.HeartbeatAckReceived += () => { };
-        _client.LogoutAckReceived += () => AppendLog("Logout ACK");
+        _client.LogoutAckReceived += OnLogoutAck;
         _client.ChatMessageReceived += OnChatMessage;
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
             AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "rate")} — {msg}");
@@ -200,6 +203,7 @@ public partial class Form1 : Form
         _btnRegister.Enabled = false;
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
+        _btnLogout.Enabled = false;
         _map = null;
         _username = null;
         _others.Clear();
@@ -246,6 +250,7 @@ public partial class Form1 : Form
         _username = _txtUser.Text.Trim();
         _btnMap.Enabled = true;
         _btnMelee.Enabled = true;
+        _btnLogout.Enabled = true;
         _heartbeatTimer.Start();
         _ = MapRequestAsync();
     }
@@ -282,6 +287,43 @@ public partial class Form1 : Form
         {
             AppendLog("MapRequest: " + ex.Message);
         }
+    }
+
+    private async Task LogoutAsync()
+    {
+        if (_client is null || !_client.IsConnected || string.IsNullOrWhiteSpace(_username))
+        {
+            return;
+        }
+
+        try
+        {
+            AppendLog("Envoi LogoutRequest…");
+            await _client.SendLogoutAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Logout: " + ex.Message);
+        }
+    }
+
+    private void OnLogoutAck()
+    {
+        _heartbeatTimer.Stop();
+        ApplyLoggedOutSessionUi();
+        AppendLog("LogoutAck reçu — la session est terminée (le serveur ferme la connexion).");
+    }
+
+    /// <summary>Réinitialise l’état « en jeu » après logout serveur ; la socket se ferme ensuite.</summary>
+    private void ApplyLoggedOutSessionUi()
+    {
+        _username = null;
+        _map = null;
+        _others.Clear();
+        ClearMapImage();
+        _btnMap.Enabled = false;
+        _btnMelee.Enabled = false;
+        _btnLogout.Enabled = false;
     }
 
     private void OnMapData(int mapId, Map map)

@@ -87,7 +87,8 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 ### 🎮 Frog.Client
 - [x] Client réseau selon `protocol_login_map.md` (`FrogGameClient` : Hello, login/register, map, move, positions, chat, heartbeat, mêlée, erreurs)
 - [x] Rendu map tuile (couleurs par type + joueurs) — **pas** de tilesets PNG pour l’instant
-- [ ] Logout bouton + polish HUD
+- [x] Bouton **Logout** (`LogoutRequest` / `LogoutAck`, fermeture TCP côté serveur)
+- [ ] Polish HUD
 - [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
 
 ### 🗺️ Frog.Editor
