@@ -7,11 +7,48 @@
     <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#FF5C82FF" />
     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF465058" />
     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFEBEEF5" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF32353E" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFEBEEF5" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF32353E" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFEBEEF5" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#FF3A3E48" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightLightBrushKey}" Color="#FF32353E" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#FF282B32" />
 
     <Style TargetType="{x:Type StatusBar}">
         <Setter Property="Background" Value="#FF202228" />
         <Setter Property="Foreground" Value="#FF949BAA" />
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <!-- Ruban menu : fond barre + sous-menus lisibles (évite blanc sur blanc du thème Aero). -->
+    <Style x:Key="EditorMenuTopLevelItem" TargetType="{x:Type MenuItem}">
+        <Setter Property="Foreground" Value="#FFEBEEF5" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="10,6" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#FF32353E" />
+            </Trigger>
+            <Trigger Property="IsSubmenuOpen" Value="True">
+                <Setter Property="Background" Value="#FF32353E" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="EditorMenuDropdownItem" TargetType="{x:Type MenuItem}">
+        <Setter Property="Foreground" Value="#FFEBEEF5" />
+        <Setter Property="Background" Value="#FF32353E" />
+        <Setter Property="Padding" Value="10,6" />
+        <Style.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+                <Setter Property="Background" Value="#FF465058" />
+                <Setter Property="Foreground" Value="#FFEBEEF5" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="#FF5C82FF" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

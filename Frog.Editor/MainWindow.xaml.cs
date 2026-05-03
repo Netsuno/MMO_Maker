@@ -54,6 +54,18 @@ public partial class MainWindow : Window
         nameof(CmdResetView),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdZoomIn = new(
+        "Zoom avant",
+        nameof(CmdZoomIn),
+        typeof(MainWindow),
+        new InputGestureCollection { new KeyGesture(Key.Add, ModifierKeys.Control), new KeyGesture(Key.OemPlus, ModifierKeys.Control) });
+
+    public static readonly RoutedUICommand CmdZoomOut = new(
+        "Zoom arrière",
+        nameof(CmdZoomOut),
+        typeof(MainWindow),
+        new InputGestureCollection { new KeyGesture(Key.Subtract, ModifierKeys.Control), new KeyGesture(Key.OemMinus, ModifierKeys.Control) });
+
     private readonly MainForm _editor;
 
     public MainWindow()
@@ -86,6 +98,8 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdResetView, (_, _) => _editor.ResetMapView()));
+        CommandBindings.Add(new CommandBinding(CmdZoomIn, (_, _) => _editor.EditorZoomIn()));
+        CommandBindings.Add(new CommandBinding(CmdZoomOut, (_, _) => _editor.EditorZoomOut()));
 
         EditorHost.Child = _editor;
         Loaded += (_, _) => CommandManager.InvalidateRequerySuggested();

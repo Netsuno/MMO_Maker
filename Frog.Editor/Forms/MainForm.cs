@@ -148,6 +148,9 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
 
             var mView = new ToolStripMenuItem("Affichage");
+            mView.DropDownItems.Add("Zoom avant", null, (_, _) => _canvas!.ZoomInTowardCenter());
+            mView.DropDownItems.Add("Zoom arrière", null, (_, _) => _canvas!.ZoomOutTowardCenter());
+            mView.DropDownItems.Add(new ToolStripSeparator());
             mView.DropDownItems.Add("Réinitialiser la vue (zoom 100 %)", null, (_, _) => ResetMapView());
 
             menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mEdit, mResources, mMap, mView });
@@ -211,7 +214,7 @@ public sealed class MainForm : Form
         _minimap.Attach(_canvas);
 
         _palette = new PaletteView { TileSize = 32, Dock = DockStyle.Fill, Margin = new Padding(6, 2, 6, 8) };
-        _palette.SelectedTileChanged += pt => _canvas.SelectedSrc = pt;
+        _palette.StampSelectionChanged += OnPaletteStampChanged;
 
         _toolPalette = new ToolPalette { Dock = DockStyle.Top };
         _toolPalette.ToolChanged += tool =>
@@ -459,6 +462,15 @@ public sealed class MainForm : Form
         UpdateMapChromeLabels();
     }
 
+    private void OnPaletteStampChanged(Rectangle stampPixels)
+    {
+        _canvas.SelectedSrc = stampPixels.Location;
+        var ts = Math.Max(1, _canvas.TileSize);
+        _canvas.SelectedStampInTiles = new Size(
+            Math.Max(1, stampPixels.Width / ts),
+            Math.Max(1, stampPixels.Height / ts));
+    }
+
     private void OnHoveredTileChanged(Point p)
     {
         var text = $"Tuile · x = {p.X}, y = {p.Y}";
@@ -471,6 +483,10 @@ public sealed class MainForm : Form
     }
 
     internal void ResetMapView() => _canvas.ResetViewTransform();
+
+    internal void EditorZoomIn() => _canvas.ZoomInTowardCenter();
+
+    internal void EditorZoomOut() => _canvas.ZoomOutTowardCenter();
 
     private void TabTilesets_SelectedIndexChanged(object? sender, EventArgs e)
     {
@@ -650,6 +666,18 @@ public sealed class MainForm : Form
 
         if (_canvas.HandleEditorShortcuts(keyData))
         {
+            return true;
+        }
+
+        if (ctrl && (code == Keys.Oemplus || code == Keys.Add))
+        {
+            _canvas.ZoomInTowardCenter();
+            return true;
+        }
+
+        if (ctrl && (code == Keys.OemMinus || code == Keys.Subtract))
+        {
+            _canvas.ZoomOutTowardCenter();
             return true;
         }
 

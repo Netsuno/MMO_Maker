@@ -17,13 +17,18 @@
         <KeyBinding Key="S" Modifiers="Control" Command="{x:Static local:MainWindow.CmdSaveMap}" />
         <KeyBinding Key="Z" Modifiers="Control" Command="{x:Static local:MainWindow.CmdUndo}" />
         <KeyBinding Key="Y" Modifiers="Control" Command="{x:Static local:MainWindow.CmdRedo}" />
+        <KeyBinding Key="Add" Modifiers="Control" Command="{x:Static local:MainWindow.CmdZoomIn}" />
+        <KeyBinding Key="Subtract" Modifiers="Control" Command="{x:Static local:MainWindow.CmdZoomOut}" />
+        <KeyBinding Key="OemPlus" Modifiers="Control" Command="{x:Static local:MainWindow.CmdZoomIn}" />
+        <KeyBinding Key="OemMinus" Modifiers="Control" Command="{x:Static local:MainWindow.CmdZoomOut}" />
     </Window.InputBindings>
     <DockPanel>
         <Menu DockPanel.Dock="Top"
               Background="#FF202228"
               Foreground="#FFEBEEF5"
               FontFamily="Segoe UI"
-              FontSize="12">
+              FontSize="12"
+              ItemContainerStyle="{StaticResource EditorMenuTopLevelItem}">
             <Menu.Resources>
                 <Style TargetType="{x:Type Separator}">
                     <Setter Property="Height" Value="1" />
@@ -31,7 +36,7 @@
                     <Setter Property="Background" Value="#FF505666" />
                 </Style>
             </Menu.Resources>
-            <MenuItem Header="_Fichier">
+            <MenuItem Header="_Fichier" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Nouvelle carte…"
                           Command="{x:Static local:MainWindow.CmdNewMap}"
                           InputGestureText="Ctrl+N" />
@@ -45,7 +50,7 @@
                 <Separator />
                 <MenuItem Header="_Quitter" Command="{x:Static local:MainWindow.CmdQuit}" />
             </MenuItem>
-            <MenuItem Header="_Édition">
+            <MenuItem Header="_Édition" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="_Annuler"
                           Command="{x:Static local:MainWindow.CmdUndo}"
                           InputGestureText="Ctrl+Z" />
@@ -53,13 +58,20 @@
                           Command="{x:Static local:MainWindow.CmdRedo}"
                           InputGestureText="Ctrl+Y" />
             </MenuItem>
-            <MenuItem Header="_Ressources">
+            <MenuItem Header="_Ressources" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Charger une image tuiles…" Command="{x:Static local:MainWindow.CmdOpenTileset}" />
             </MenuItem>
-            <MenuItem Header="_Carte">
+            <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
             </MenuItem>
-            <MenuItem Header="_Affichage">
+            <MenuItem Header="_Affichage" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
+                <MenuItem Header="Zoom avant"
+                          Command="{x:Static local:MainWindow.CmdZoomIn}"
+                          InputGestureText="Ctrl++" />
+                <MenuItem Header="Zoom arrière"
+                          Command="{x:Static local:MainWindow.CmdZoomOut}"
+                          InputGestureText="Ctrl+-" />
+                <Separator />
                 <MenuItem Header="Réinitialiser la vue (zoom 100 %)" Command="{x:Static local:MainWindow.CmdResetView}" />
             </MenuItem>
         </Menu>
