@@ -9,6 +9,58 @@
         MinHeight="720"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
-        Background="#FF1E1E1E">
-    <wfi:WindowsFormsHost x:Name="EditorHost" />
+        Background="#FF202228">
+    <DockPanel>
+        <Menu DockPanel.Dock="Top"
+              Background="#FF202228"
+              Foreground="#FFEBEEF5"
+              FontFamily="Segoe UI"
+              FontSize="12">
+            <MenuItem Header="_Fichier">
+                <MenuItem Header="Nouvelle carte…"
+                          InputGestureText="Ctrl+N"
+                          Click="MenuNewMap_Click" />
+                <MenuItem Header="Ouvrir…"
+                          InputGestureText="Ctrl+O"
+                          Click="MenuOpenMap_Click" />
+                <Separator />
+                <MenuItem Header="Enregistrer"
+                          InputGestureText="Ctrl+S"
+                          Click="MenuSaveMap_Click" />
+                <Separator />
+                <MenuItem Header="_Quitter" Click="MenuQuit_Click" />
+            </MenuItem>
+            <MenuItem Header="_Édition">
+                <MenuItem x:Name="MnuUndo"
+                          Header="_Annuler"
+                          InputGestureText="Ctrl+Z"
+                          IsEnabled="False"
+                          Click="MenuUndo_Click" />
+                <MenuItem x:Name="MnuRedo"
+                          Header="_Rétablir"
+                          InputGestureText="Ctrl+Y"
+                          IsEnabled="False"
+                          Click="MenuRedo_Click" />
+            </MenuItem>
+            <MenuItem Header="_Ressources">
+                <MenuItem Header="Charger une image tuiles…" Click="MenuOpenTileset_Click" />
+            </MenuItem>
+            <MenuItem Header="_Carte">
+                <MenuItem Header="Valider la carte…" Click="MenuValidateMap_Click" />
+            </MenuItem>
+            <MenuItem Header="_Affichage">
+                <MenuItem Header="Réinitialiser la vue (zoom 100 %)" Click="MenuResetView_Click" />
+            </MenuItem>
+        </Menu>
+        <StatusBar DockPanel.Dock="Bottom"
+                   Background="#FF202228"
+                   Foreground="#FF949BAA"
+                   FontFamily="Segoe UI"
+                   FontSize="12">
+            <StatusBarItem>
+                <TextBlock x:Name="TileStatusText" Text="Tuile · x = 0, y = 0" />
+            </StatusBarItem>
+        </StatusBar>
+        <wfi:WindowsFormsHost x:Name="EditorHost" />
+    </DockPanel>
 </Window>

@@ -16,11 +16,12 @@ namespace Frog.Editor.Forms;
 
 public sealed class MainForm : Form
 {
-    private readonly MenuStrip _menuStrip;
-    private readonly ToolStripMenuItem _mnuUndo;
-    private readonly ToolStripMenuItem _mnuRedo;
-    private readonly StatusStrip _status;
-    private readonly ToolStripStatusLabel _lblPos;
+    private readonly MenuStrip? _menuStrip;
+    private readonly ToolStripMenuItem? _mnuUndo;
+    private readonly ToolStripMenuItem? _mnuRedo;
+    private readonly StatusStrip? _status;
+    private readonly ToolStripStatusLabel? _lblPos;
+    private readonly bool _embedAsWpfChild;
     private readonly SplitContainer _splitLeft;
     private readonly SplitContainer _splitRight;
     private readonly PaletteView _palette;
@@ -45,9 +46,16 @@ public sealed class MainForm : Form
     private bool _suspendTilesetTabSync;
     private bool _suspendTilesetListSync;
 
+    /// <summary>Coordonnées tuile sous le curseur (pour barre d’état WPF).</summary>
+    public event Action<string>? TileHoverStatusChanged;
+
+    /// <summary>État annuler / rétablir (pour menu WPF).</summary>
+    public event Action<bool, bool>? UndoRedoStateChanged;
+
     /// <param name="embedAsWpfChild">Si vrai, la fenêtre est hébergée dans un <c>WindowsFormsHost</c> WPF (pas de chrome fenêtre).</param>
     public MainForm(bool embedAsWpfChild = false)
     {
+        _embedAsWpfChild = embedAsWpfChild;
         Text = "Frog — Éditeur de cartes";
         MinimumSize = new Size(1100, 720);
         if (embedAsWpfChild)
@@ -75,73 +83,89 @@ public sealed class MainForm : Form
         };
         ResizeEnd += (_, _) => ApplyLayoutPercentages();
 
-        _menuStrip = new MenuStrip();
-        EditorChrome.StyleMainMenu(_menuStrip);
+        if (!embedAsWpfChild)
+        {
+            var menuStrip = new MenuStrip();
+            EditorChrome.StyleMainMenu(menuStrip);
 
-        var mFile = new ToolStripMenuItem("Fichier");
-        mFile.DropDownItems.Add(new ToolStripMenuItem("Nouvelle carte…", null, (_, _) => CreateNewMap())
-        {
-            ShortcutKeys = Keys.Control | Keys.N,
-            ShowShortcutKeys = true,
-        });
-        mFile.DropDownItems.Add(new ToolStripMenuItem("Ouvrir…", null, (_, _) => LoadMap())
-        {
-            ShortcutKeys = Keys.Control | Keys.O,
-            ShowShortcutKeys = true,
-        });
-        mFile.DropDownItems.Add(new ToolStripSeparator());
-        mFile.DropDownItems.Add(new ToolStripMenuItem("Enregistrer", null, (_, _) => SaveMap())
-        {
-            ShortcutKeys = Keys.Control | Keys.S,
-            ShowShortcutKeys = true,
-        });
-        mFile.DropDownItems.Add(new ToolStripSeparator());
-        mFile.DropDownItems.Add("Quitter", null, (_, _) =>
-        {
-            if (TopLevel)
+            var mFile = new ToolStripMenuItem("Fichier");
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Nouvelle carte…", null, (_, _) => CreateNewMap())
             {
-                Close();
-            }
-            else
+                ShortcutKeys = Keys.Control | Keys.N,
+                ShowShortcutKeys = true,
+            });
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Ouvrir…", null, (_, _) => LoadMap())
             {
-                System.Windows.Application.Current.Shutdown();
-            }
-        });
+                ShortcutKeys = Keys.Control | Keys.O,
+                ShowShortcutKeys = true,
+            });
+            mFile.DropDownItems.Add(new ToolStripSeparator());
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Enregistrer", null, (_, _) => SaveMap())
+            {
+                ShortcutKeys = Keys.Control | Keys.S,
+                ShowShortcutKeys = true,
+            });
+            mFile.DropDownItems.Add(new ToolStripSeparator());
+            mFile.DropDownItems.Add("Quitter", null, (_, _) =>
+            {
+                if (TopLevel)
+                {
+                    Close();
+                }
+                else
+                {
+                    System.Windows.Application.Current.Shutdown();
+                }
+            });
 
-        _mnuUndo = new ToolStripMenuItem("Annuler", null, (_, _) => DoUndo())
+            var mnuUndo = new ToolStripMenuItem("Annuler", null, (_, _) => DoUndo())
+            {
+                Enabled = false,
+                ShortcutKeys = Keys.Control | Keys.Z,
+                ShowShortcutKeys = true,
+            };
+            var mnuRedo = new ToolStripMenuItem("Rétablir", null, (_, _) => DoRedo())
+            {
+                Enabled = false,
+                ShortcutKeys = Keys.Control | Keys.Y,
+                ShowShortcutKeys = true,
+            };
+            var mEdit = new ToolStripMenuItem("Édition");
+            mEdit.DropDownItems.Add(mnuUndo);
+            mEdit.DropDownItems.Add(mnuRedo);
+
+            var mResources = new ToolStripMenuItem("Ressources");
+            mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
+
+            var mMap = new ToolStripMenuItem("Carte");
+            mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
+
+            var mView = new ToolStripMenuItem("Affichage");
+            mView.DropDownItems.Add("Réinitialiser la vue (zoom 100 %)", null, (_, _) => ResetMapView());
+
+            menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mEdit, mResources, mMap, mView });
+            MainMenuStrip = menuStrip;
+            _menuStrip = menuStrip;
+            _mnuUndo = mnuUndo;
+            _mnuRedo = mnuRedo;
+
+            var status = new StatusStrip { SizingGrip = false, GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Bottom };
+            status.BackColor = EditorChrome.RibbonBg;
+            status.Padding = new Padding(8, 4, 8, 4);
+            var lblPos = new ToolStripStatusLabel("Tuile · x = 0, y = 0") { BorderSides = ToolStripStatusLabelBorderSides.None };
+            lblPos.ForeColor = EditorChrome.LabelMuted;
+            status.Items.Add(lblPos);
+            _status = status;
+            _lblPos = lblPos;
+        }
+        else
         {
-            Enabled = false,
-            ShortcutKeys = Keys.Control | Keys.Z,
-            ShowShortcutKeys = true,
-        };
-        _mnuRedo = new ToolStripMenuItem("Rétablir", null, (_, _) => DoRedo())
-        {
-            Enabled = false,
-            ShortcutKeys = Keys.Control | Keys.Y,
-            ShowShortcutKeys = true,
-        };
-        var mEdit = new ToolStripMenuItem("Édition");
-        mEdit.DropDownItems.Add(_mnuUndo);
-        mEdit.DropDownItems.Add(_mnuRedo);
-
-        var mResources = new ToolStripMenuItem("Ressources");
-        mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
-
-        var mMap = new ToolStripMenuItem("Carte");
-        mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
-
-        var mView = new ToolStripMenuItem("Affichage");
-        mView.DropDownItems.Add("Réinitialiser la vue (zoom 100 %)", null, (_, _) => ResetMapView());
-
-        _menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mEdit, mResources, mMap, mView });
-        MainMenuStrip = _menuStrip;
-
-        _status = new StatusStrip { SizingGrip = false, GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Bottom };
-        _status.BackColor = EditorChrome.RibbonBg;
-        _status.Padding = new Padding(8, 4, 8, 4);
-        _lblPos = new ToolStripStatusLabel("x = 0, y = 0") { BorderSides = ToolStripStatusLabelBorderSides.None };
-        _lblPos.ForeColor = EditorChrome.LabelMuted;
-        _status.Items.Add(_lblPos);
+            _menuStrip = null;
+            _mnuUndo = null;
+            _mnuRedo = null;
+            _status = null;
+            _lblPos = null;
+        }
 
         _splitLeft = new SplitContainer
         {
@@ -168,7 +192,7 @@ public sealed class MainForm : Form
         _splitRight.Panel2.BackColor = EditorChrome.SidebarBg;
 
         _canvas = new MapCanvas { Dock = DockStyle.Fill };
-        _canvas.HoveredTileChanged += p => _lblPos.Text = $"Tuile · x = {p.X}, y = {p.Y}";
+        _canvas.HoveredTileChanged += OnHoveredTileChanged;
         _canvas.TileClicked += OnTileClicked;
         _canvas.MapReplaced += OnMapReplaced;
         _canvas.UndoHistoryChanged += UpdateUndoRedoButtons;
@@ -400,13 +424,20 @@ public sealed class MainForm : Form
         };
         _splitRight.Panel2.Controls.Add(_splitRightTileset);
         _splitLeft.Panel2.Controls.Add(_splitRight);
-        // Ordre d’ancrage WinForms : bas (status), milieu (fill), haut (menu) pour réserver correctement l’espace sous le MenuStrip.
-        _menuStrip.Dock = DockStyle.Top;
         _splitLeft.Dock = DockStyle.Fill;
-        _status.Dock = DockStyle.Bottom;
-        Controls.Add(_status);
-        Controls.Add(_splitLeft);
-        Controls.Add(_menuStrip);
+        if (!embedAsWpfChild && _menuStrip is not null && _status is not null)
+        {
+            // Ordre d’ancrage WinForms : bas (status), milieu (fill), haut (menu) pour réserver correctement l’espace sous le MenuStrip.
+            _menuStrip.Dock = DockStyle.Top;
+            _status.Dock = DockStyle.Bottom;
+            Controls.Add(_status);
+            Controls.Add(_splitLeft);
+            Controls.Add(_menuStrip);
+        }
+        else
+        {
+            Controls.Add(_splitLeft);
+        }
 
         var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
@@ -419,7 +450,18 @@ public sealed class MainForm : Form
         UpdateMapChromeLabels();
     }
 
-    private void ResetMapView() => _canvas.ResetViewTransform();
+    private void OnHoveredTileChanged(Point p)
+    {
+        var text = $"Tuile · x = {p.X}, y = {p.Y}";
+        if (_lblPos is not null)
+        {
+            _lblPos.Text = text;
+        }
+
+        TileHoverStatusChanged?.Invoke(text);
+    }
+
+    internal void ResetMapView() => _canvas.ResetViewTransform();
 
     private void TabTilesets_SelectedIndexChanged(object? sender, EventArgs e)
     {
@@ -627,7 +669,38 @@ public sealed class MainForm : Form
             return true;
         }
 
-        // Annuler / Rétablir : raccourcis gérés par le MenuStrip (Édition).
+        if (_embedAsWpfChild && ctrl)
+        {
+            if (code == Keys.Z)
+            {
+                DoUndo();
+                return true;
+            }
+
+            if (code == Keys.Y)
+            {
+                DoRedo();
+                return true;
+            }
+
+            if (code == Keys.N)
+            {
+                CreateNewMap();
+                return true;
+            }
+
+            if (code == Keys.O)
+            {
+                LoadMap();
+                return true;
+            }
+
+            if (code == Keys.S)
+            {
+                SaveMap();
+                return true;
+            }
+        }
 
         return base.ProcessCmdKey(ref msg, keyData);
     }
@@ -637,7 +710,7 @@ public sealed class MainForm : Form
         _propGrid.SelectedObject = tile ?? (object?)_canvas.Map;
     }
 
-    private void ValidateMap()
+    internal void ValidateMap()
     {
         if (_canvas.Map is null)
         {
@@ -663,13 +736,13 @@ public sealed class MainForm : Form
         UpdateMapChromeLabels();
     }
 
-    private void DoUndo()
+    internal void DoUndo()
     {
         _canvas.PerformUndo();
         UpdateUndoRedoButtons();
     }
 
-    private void DoRedo()
+    internal void DoRedo()
     {
         _canvas.PerformRedo();
         UpdateUndoRedoButtons();
@@ -677,8 +750,17 @@ public sealed class MainForm : Form
 
     private void UpdateUndoRedoButtons()
     {
-        _mnuUndo.Enabled = _canvas.History.CanUndo;
-        _mnuRedo.Enabled = _canvas.History.CanRedo;
+        if (_mnuUndo is not null)
+        {
+            _mnuUndo.Enabled = _canvas.History.CanUndo;
+        }
+
+        if (_mnuRedo is not null)
+        {
+            _mnuRedo.Enabled = _canvas.History.CanRedo;
+        }
+
+        UndoRedoStateChanged?.Invoke(_canvas.History.CanUndo, _canvas.History.CanRedo);
     }
 
     private void RefreshLayersUi()
@@ -812,7 +894,7 @@ public sealed class MainForm : Form
         _canvas.Invalidate();
     }
 
-    private void CreateNewMap()
+    internal void CreateNewMap()
     {
         using var dlg = new NewMapDialog();
         if (dlg.ShowDialog(this) != DialogResult.OK)
@@ -832,7 +914,7 @@ public sealed class MainForm : Form
         UpdateMapChromeLabels();
     }
 
-    private void OpenTileset()
+    internal void OpenTileset()
     {
         using var ofd = new OpenFileDialog { Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp" };
         if (ofd.ShowDialog(this) != DialogResult.OK)
@@ -846,7 +928,7 @@ public sealed class MainForm : Form
         RefreshTilesetList();
     }
 
-    private void SaveMap()
+    internal void SaveMap()
     {
         if (_canvas.Map is null)
         {
@@ -890,7 +972,7 @@ public sealed class MainForm : Form
         File.WriteAllBytes(manifestPath, TilesetManifestJson.Serialize(manifest));
     }
 
-    private void LoadMap()
+    internal void LoadMap()
     {
         using var ofd = new OpenFileDialog { Filter = "Frog Map|*.fmap" };
         if (ofd.ShowDialog(this) != DialogResult.OK)
