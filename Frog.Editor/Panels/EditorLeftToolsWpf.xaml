@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#FF282B32">
     <UserControl.Resources>
-        <!-- Le template ComboBox Aero lit surtout ControlLight* pour le champ fermé → fond clair par défaut. -->
         <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF32353E" />
         <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFEBEEF5" />
         <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF32353E" />
@@ -17,6 +16,7 @@
         <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FFEBEEF5" />
         <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#FF949BAA" />
 
+        <!-- Gabarit dédié : le champ fermé n’utilise plus le ToggleButton Aero (fond clair). -->
         <Style x:Key="EditorSidebarComboBox" TargetType="{x:Type ComboBox}">
             <Setter Property="Background" Value="#FF32353E" />
             <Setter Property="Foreground" Value="#FFEBEEF5" />
@@ -25,6 +25,8 @@
             <Setter Property="Padding" Value="8,4" />
             <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="12" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
             <Setter Property="ItemContainerStyle">
                 <Setter.Value>
                     <Style TargetType="{x:Type ComboBoxItem}">
@@ -42,6 +44,69 @@
                             </Trigger>
                         </Style.Triggers>
                     </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ComboBox}">
+                        <Grid SnapsToDevicePixels="True">
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                   Placement="Bottom"
+                                   PlacementTarget="{Binding ElementName=ClosedBorder}"
+                                   PopupAnimation="Fade">
+                                <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                        Background="#FF32353E"
+                                        BorderBrush="#FF585C68"
+                                        BorderThickness="1"
+                                        Margin="0,1,0,0">
+                                    <ScrollViewer Margin="0" SnapsToDevicePixels="True">
+                                        <ItemsPresenter x:Name="ItemsPresenter"
+                                                        KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                            <Border x:Name="ClosedBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    MinHeight="{TemplateBinding MinHeight}">
+                                <Grid>
+                                    <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                      HorizontalAlignment="Left"
+                                                      VerticalAlignment="Center"
+                                                      IsHitTestVisible="False"
+                                                      Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                      ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                      TextElement.Foreground="{TemplateBinding Foreground}" />
+                                    <Path HorizontalAlignment="Right"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,10,0"
+                                          Width="10"
+                                          Height="6"
+                                          Data="M 0 0 L 5 6 L 10 0 Z"
+                                          Fill="{TemplateBinding Foreground}"
+                                          IsHitTestVisible="False" />
+                                    <ToggleButton Background="Transparent"
+                                                  BorderThickness="0"
+                                                  HorizontalAlignment="Stretch"
+                                                  VerticalAlignment="Stretch"
+                                                  Focusable="False"
+                                                  ClickMode="Press"
+                                                  IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+                                </Grid>
+                            </Border>
+                            <TextBox x:Name="PART_EditableTextBox"
+                                     Width="0"
+                                     Height="0"
+                                     Visibility="Collapsed"
+                                     Margin="0" />
+                        </Grid>
+                    </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
