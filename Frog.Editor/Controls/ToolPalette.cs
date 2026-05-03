@@ -9,12 +9,8 @@ namespace Frog.Editor.Controls;
 
 public sealed class ToolPalette : UserControl
 {
-    private readonly RadioButton _rbBrush;
-    private readonly RadioButton _rbEraser;
-    private readonly RadioButton _rbCursor;
-    private readonly RadioButton _rbFill;
-    private readonly RadioButton _rbRectangle;
-    private readonly RadioButton _rbSelection;
+    private readonly ComboBox _combo;
+    private bool _suspendCombo;
 
     public event Action<EditorTool>? ToolChanged;
 
@@ -25,67 +21,115 @@ public sealed class ToolPalette : UserControl
         AutoSize = true;
         Dock = DockStyle.Top;
         BackColor = EditorChrome.SidebarBg;
-        Padding = new Padding(10, 14, 10, 8);
+        Padding = new Padding(10, 12, 10, 8);
 
-        var col = new FlowLayoutPanel
+        var root = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            FlowDirection = FlowDirection.TopDown,
             AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            WrapContents = false,
+            ColumnCount = 1,
+            RowCount = 2,
             BackColor = EditorChrome.SidebarBg,
         };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
 
         var title = EditorChrome.BuildSectionCaption("OUTIL");
-        title.Margin = new Padding(0, 0, 0, 8);
+        title.Margin = new Padding(0, 0, 0, 6);
 
-        var row = new FlowLayoutPanel
+        var row = new TableLayoutPanel
         {
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
             AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = EditorChrome.SidebarBg,
         };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52f));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
-        _rbBrush = new RadioButton { Text = "  Pinceau" };
-        _rbEraser = new RadioButton { Text = "  Gomme" };
-        _rbCursor = new RadioButton { Text = "  Curseur" };
-        _rbFill = new RadioButton { Text = "  Pot" };
-        _rbRectangle = new RadioButton { Text = "  Rectangle" };
-        _rbSelection = new RadioButton { Text = "  Sélection" };
-
-        foreach (RadioButton rb in new RadioButton[]
-                 { _rbBrush, _rbEraser, _rbCursor, _rbFill, _rbRectangle, _rbSelection })
+        var lbl = new Label
         {
-            EditorChrome.StyleSidebarRadio(rb);
-            rb.CheckedChanged += OnCheckedChanged;
-            row.Controls.Add(rb);
+            Text = "Outil",
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            ForeColor = EditorChrome.LabelMuted,
+            AutoSize = false,
+            Font = EditorChrome.BodyFont,
+        };
+
+        _combo = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            IntegralHeight = false,
+            Margin = new Padding(0, 2, 0, 2),
+        };
+        EditorChrome.StyleSidebarComboBox(_combo);
+        foreach (EditorTool t in Enum.GetValues<EditorTool>())
+        {
+            _combo.Items.Add(new ToolChoice(t, ToolLabel(t)));
         }
 
-        _rbBrush.Checked = true;
+        _combo.SelectedIndex = 0;
+        _combo.SelectedIndexChanged += OnComboSelectedIndexChanged;
 
-        col.Controls.Add(title);
-        col.Controls.Add(row);
-        Controls.Add(col);
+        row.Controls.Add(lbl, 0, 0);
+        row.Controls.Add(_combo, 1, 0);
+
+        root.Controls.Add(title, 0, 0);
+        root.Controls.Add(row, 0, 1);
+
+        Controls.Add(root);
     }
 
-    private void OnCheckedChanged(object? sender, EventArgs e)
+    private static string ToolLabel(EditorTool t) =>
+        t switch
+        {
+            EditorTool.Brush => "Pinceau",
+            EditorTool.Eraser => "Gomme",
+            EditorTool.Cursor => "Curseur",
+            EditorTool.Fill => "Pot (remplissage)",
+            EditorTool.Rectangle => "Rectangle",
+            EditorTool.Selection => "Sélection",
+            _ => t.ToString(),
+        };
+
+    private void OnComboSelectedIndexChanged(object? sender, EventArgs e)
     {
-        if (sender is not RadioButton { Checked: true } rb)
+        if (_suspendCombo || _combo.SelectedItem is not ToolChoice ch)
         {
             return;
         }
 
-        SelectedTool = rb == _rbBrush ? EditorTool.Brush
-            : rb == _rbEraser ? EditorTool.Eraser
-            : rb == _rbCursor ? EditorTool.Cursor
-            : rb == _rbFill ? EditorTool.Fill
-            : rb == _rbRectangle ? EditorTool.Rectangle
-            : rb == _rbSelection ? EditorTool.Selection
-            : SelectedTool;
-
+        SelectedTool = ch.Tool;
         ToolChanged?.Invoke(SelectedTool);
+    }
+
+    /// <summary>Synchronise la liste si l’outil actif change par ailleurs (raccourcis futurs).</summary>
+    public void SetSelectedTool(EditorTool tool)
+    {
+        for (var i = 0; i < _combo.Items.Count; i++)
+        {
+            if (_combo.Items[i] is ToolChoice ch && ch.Tool == tool)
+            {
+                _suspendCombo = true;
+                try
+                {
+                    _combo.SelectedIndex = i;
+                }
+                finally
+                {
+                    _suspendCombo = false;
+                }
+
+                SelectedTool = tool;
+                return;
+            }
+        }
+    }
+
+    private sealed record ToolChoice(EditorTool Tool, string Label)
+    {
+        public override string ToString() => Label;
     }
 }

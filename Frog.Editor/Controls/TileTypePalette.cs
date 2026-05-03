@@ -7,14 +7,11 @@ using Frog.Editor.Ui;
 
 namespace Frog.Editor.Controls;
 
-/// <summary>Palette TileType façon MZ : groupe compact lisible.</summary>
+/// <summary>Type de tuile logique : liste déroulante compacte pour colonnes étroites.</summary>
 public sealed class TileTypePalette : UserControl
 {
-    private readonly RadioButton _rbGround;
-    private readonly RadioButton _rbBlock;
-    private readonly RadioButton _rbWarp;
-    private readonly RadioButton _rbResource;
-    private readonly RadioButton _rbScript;
+    private readonly ComboBox _combo;
+    private bool _suspendCombo;
 
     public event Action<TileType>? SelectedTileTypeChanged;
 
@@ -25,64 +22,112 @@ public sealed class TileTypePalette : UserControl
         AutoSize = true;
         Dock = DockStyle.Top;
         BackColor = EditorChrome.SidebarBg;
-        Padding = new Padding(10, 0, 10, 8);
+        Padding = new Padding(10, 4, 10, 8);
 
-        var col = new FlowLayoutPanel
+        var root = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            FlowDirection = FlowDirection.TopDown,
             AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            WrapContents = false,
+            ColumnCount = 1,
+            RowCount = 2,
             BackColor = EditorChrome.SidebarBg,
         };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
 
         var title = EditorChrome.BuildSectionCaption("TYPE DE TUILE");
-        title.Margin = new Padding(0, 0, 0, 8);
+        title.Margin = new Padding(0, 0, 0, 6);
 
-        var row = new FlowLayoutPanel
+        var row = new TableLayoutPanel
         {
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
             AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = EditorChrome.SidebarBg,
         };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52f));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
-        _rbGround = new RadioButton { Text = "  Terrain" };
-        _rbBlock = new RadioButton { Text = "  Blocage" };
-        _rbWarp = new RadioButton { Text = "  Warp" };
-        _rbResource = new RadioButton { Text = "  Ressource" };
-        _rbScript = new RadioButton { Text = "  Script" };
-
-        foreach (RadioButton rb in new RadioButton[] { _rbGround, _rbBlock, _rbWarp, _rbResource, _rbScript })
+        var lbl = new Label
         {
-            EditorChrome.StyleSidebarRadio(rb);
-            rb.CheckedChanged += OnRadioCheckedChanged;
-            row.Controls.Add(rb);
+            Text = "Type",
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            ForeColor = EditorChrome.LabelMuted,
+            AutoSize = false,
+            Font = EditorChrome.BodyFont,
+        };
+
+        _combo = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            IntegralHeight = false,
+            Margin = new Padding(0, 2, 0, 2),
+        };
+        EditorChrome.StyleSidebarComboBox(_combo);
+
+        foreach (var (type, label) in TileChoices)
+        {
+            _combo.Items.Add(new TypeChoice(type, label));
         }
 
-        _rbGround.Checked = true;
+        _combo.SelectedIndex = 0;
+        _combo.SelectedIndexChanged += OnComboSelectedIndexChanged;
 
-        col.Controls.Add(title);
-        col.Controls.Add(row);
-        Controls.Add(col);
+        row.Controls.Add(lbl, 0, 0);
+        row.Controls.Add(_combo, 1, 0);
+
+        root.Controls.Add(title, 0, 0);
+        root.Controls.Add(row, 0, 1);
+
+        Controls.Add(root);
     }
 
-    private void OnRadioCheckedChanged(object? sender, EventArgs e)
+    private static readonly (TileType Type, string Label)[] TileChoices =
     {
-        if (sender is not RadioButton { Checked: true } rb)
+        (TileType.Ground, "Terrain"),
+        (TileType.Block, "Blocage"),
+        (TileType.Warp, "Warp"),
+        (TileType.Resource, "Ressource"),
+        (TileType.Script, "Script"),
+    };
+
+    private void OnComboSelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_suspendCombo || _combo.SelectedItem is not TypeChoice ch)
         {
             return;
         }
 
-        SelectedTileType = rb == _rbGround ? TileType.Ground
-            : rb == _rbBlock ? TileType.Block
-            : rb == _rbWarp ? TileType.Warp
-            : rb == _rbResource ? TileType.Resource
-            : rb == _rbScript ? TileType.Script
-            : SelectedTileType;
-
+        SelectedTileType = ch.Type;
         SelectedTileTypeChanged?.Invoke(SelectedTileType);
+    }
+
+    public void SetSelectedTileType(TileType type)
+    {
+        for (var i = 0; i < _combo.Items.Count; i++)
+        {
+            if (_combo.Items[i] is TypeChoice ch && ch.Type == type)
+            {
+                _suspendCombo = true;
+                try
+                {
+                    _combo.SelectedIndex = i;
+                }
+                finally
+                {
+                    _suspendCombo = false;
+                }
+
+                SelectedTileType = type;
+                return;
+            }
+        }
+    }
+
+    private sealed record TypeChoice(TileType Type, string Label)
+    {
+        public override string ToString() => Label;
     }
 }

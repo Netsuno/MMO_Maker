@@ -51,6 +51,53 @@ internal static class EditorChrome
         menu.BackColor = RibbonBg;
         menu.ForeColor = LabelPrimary;
         menu.Padding = new Padding(4, 2, 4, 2);
+        menu.RenderMode = ToolStripRenderMode.ManagerRenderMode;
+        menu.Renderer = new EditorMenuStripRenderer();
+        ApplyMenuForeColorRecursive(menu.Items);
+    }
+
+    public static void StyleSidebarComboBox(ComboBox cb)
+    {
+        cb.FlatStyle = FlatStyle.Flat;
+        cb.BackColor = SidebarElevated;
+        cb.ForeColor = LabelPrimary;
+        cb.Font = BodyFont;
+    }
+
+    private static void ApplyMenuForeColorRecursive(ToolStripItemCollection items)
+    {
+        foreach (ToolStripItem ti in items)
+        {
+            if (ti is ToolStripSeparator)
+            {
+                continue;
+            }
+
+            ti.ForeColor = ti.Enabled ? LabelPrimary : LabelMuted;
+            if (ti is ToolStripMenuItem mi && mi.HasDropDownItems)
+            {
+                ApplyMenuForeColorRecursive(mi.DropDownItems);
+            }
+        }
+    }
+
+    /// <summary>Forcer le texte clair sur MenuStrip / menus déroulants (thème sombre).</summary>
+    private sealed class EditorMenuStripRenderer : ToolStripProfessionalRenderer
+    {
+        public EditorMenuStripRenderer() : base(new EditorColorTable())
+        {
+            RoundedEdges = false;
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            if (e.Item is not ToolStripSeparator)
+            {
+                e.TextColor = e.Item.Enabled ? LabelPrimary : LabelMuted;
+            }
+
+            base.OnRenderItemText(e);
+        }
     }
 
     public static void StyleTabControlMaps(TabControl tabs)

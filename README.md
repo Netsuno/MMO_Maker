@@ -58,7 +58,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
 | **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, **warps** (monde unique), chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
 | **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `Form1` (connexion, map **PNG multi-couches**, déplacements, chat 3 canaux, heartbeat, mêlée). |
-| **Frog.Editor** | 🟢 En évolution | UI type **RPG Maker** (sombre, **menu seul** Fichier / Édition / Ressources / Carte / Affichage, tuiles A–D à droite, cartes à gauche, bandeaux de zone), outils et types en radios, undo/redo, couches, `.fmap` + manifeste tilesets. |
+| **Frog.Editor** | 🟢 En évolution | UI type **RPG Maker** (sombre, menu Fichier / Édition / …, texte menu clair, **outils & type de tuile en listes déroulantes** pour colonnes étroites, tuiles A–D, arbre cartes, `.fmap` + manifeste). |
 | **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
 
 ---

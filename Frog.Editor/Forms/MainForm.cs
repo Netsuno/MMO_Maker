@@ -377,7 +377,13 @@ public sealed class MainForm : Form
         };
         _splitRight.Panel2.Controls.Add(_splitRightTileset);
         _splitLeft.Panel2.Controls.Add(_splitRight);
-        Controls.AddRange(new Control[] { _menuStrip, _splitLeft, _status });
+        // Ordre d’ancrage WinForms : bas (status), milieu (fill), haut (menu) pour réserver correctement l’espace sous le MenuStrip.
+        _menuStrip.Dock = DockStyle.Top;
+        _splitLeft.Dock = DockStyle.Fill;
+        _status.Dock = DockStyle.Bottom;
+        Controls.Add(_status);
+        Controls.Add(_splitLeft);
+        Controls.Add(_menuStrip);
 
         var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
