@@ -1,7 +1,7 @@
 Carte monde serveur (.fmap)
 ===========================
 
-1. Exportez une carte depuis Frog.Editor au format .fmap (meme serialisation que MapData / Frog.Core).
+1. Exportez une carte depuis Frog.Editor au format .fmap (blob identique a MapData / MapSerializer ; voir MapSerializer.MapFileFormatVersion pour l'octet version apres magic FMAP).
 
 2. Copiez le fichier dans ce dossier (ou ailleurs sur le disque).
 

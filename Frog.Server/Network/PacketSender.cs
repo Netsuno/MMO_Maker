@@ -1,6 +1,7 @@
 using System.Text;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Protocol;
 using Frog.Server.Logging;
 using Microsoft.Extensions.Logging;
 
@@ -10,7 +11,7 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
 {
     private readonly ILogger<PacketSender> _logger = logger;
     public Task SendHelloAsync(ClientSession session, CancellationToken cancellationToken)
-        => SendUtf8MessageAsync(session, PacketId.Hello, "FROG SERVER READY", cancellationToken);
+        => session.SendFrameAsync(WireHello.BuildPayload(), cancellationToken);
 
     public Task SendLoginResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.LoginResult, success, message, cancellationToken);

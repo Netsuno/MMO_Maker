@@ -20,6 +20,9 @@ public sealed class MapSerializer : ISerializer<Map>
     /// <summary>Incrementer ce numéro des que le bloc binaire change (plus de compat. arrière).</summary>
     private const byte FileVersion = 3;
 
+    /// <summary>Octet de version dans le fichier .fmap et dans le blob <c>MapBytes</c> de <c>MapData</c>.</summary>
+    public static byte MapFileFormatVersion => FileVersion;
+
     /// <inheritdoc />
     public byte[] Serialize(Map value)
     {

@@ -24,7 +24,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | **Persistance joueur** | Sauvegarde **périodique** (intervalle configurable, défaut 45 s) + sauvegarde à la **déconnexion** / **expiration session** / **logout** — limiter la charge serveur (pas de save à chaque paquet). |
 | **Cartes / warps** | **Phase 1 : une seule carte monde** pour tous les joueurs (`MapService.DefaultWorldMapId`). **Phase 2 :** instances / multi‑maps. |
 | **Transport (MMO)** | **TCP** pour tout le contrôle fiable (auth, chat, map, état synchrone actuel). **UDP** (snapshots position / combat) prévu en phase ultérieure pour réduire la latence — sans casser le flux TCP existant. |
-| **Version protocole** | Pas de numéro de version dans les paquets **pendant le développement actif** ; **à ajouter** avant compatibilité client multiple. |
+| **Version protocole** | **`FrogWireProtocol.Version`** dans **Hello** après le message UTF‑8 (UInt16 LE) ; `Frog.Core/Constants/FrogWireProtocol.cs`. Incrémenter en cas de rupture binaire incompatible. |
 | **Combat** | Visée **Zelda / Graal Online** (action, timing). Portée mêlée en **pixels** (centre tuile → centre tuile, `WorldMetrics.MeleeRangePixels`). **Plus tard :** magie, niveaux, stats, éléments. |
 
 ---
@@ -68,11 +68,11 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (éditeur + serveur + client) jusqu’aux **éditeurs d’objets/armes** et aux **scripts intégrés**. Les phases se suivent de façon raisonnable : contrat réseau et fidélité de la carte en premier, puis serveur/client jouables, enfin données jeu, scripting et distribution.
 
 <details>
-<summary><strong>Phase 1 — Fondations et contrat produit</strong></summary>
+<summary><strong>Phase 1 — Fondations et contrat produit</strong> (fait)</summary>
 
-- [ ] Numéro de **version protocole** dans le handshake ou l’en-tête des frames (client ↔ serveur incompatibles détectés tôt).
-- [ ] Aligner **`Frog.Client/Docs/protocol_login_map.md`** avec le format **`.fmap` courant** et les paquets réels (`MapSerializer`, chargement serveur).
-- [ ] Guide **« premier monde en une session »** (PostgreSQL optionnel + lancer serveur / client / éditeur + où placer le `.fmap`).
+- [x] Numéro de **version protocole** dans **Hello** (`FrogWireProtocol.Version` + lecture côté client, déconnexion si mismatch).
+- [x] **`Frog.Client/Docs/protocol_login_map.md`** aligné avec Hello versionné et **`.fmap` / `MapSerializer.MapFileFormatVersion`**.
+- [x] Guide **« premier monde en une session »** : [`Docs/premier-monde.md`](Docs/premier-monde.md).
 
 </details>
 
@@ -151,7 +151,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [ ] MapSerializerV2 (Block / Warp / Resource) si évolution format
 - [ ] Enrichir `Map.Validate()` (bornes tuiles, warps, cohérence couches)
 - [ ] Attributs additionnels (Door, NpcSpawn, zones…)
-- [ ] **(Plus tard)** Champ / en-tête **version protocole** partagé client/serveur
+- [x] **`FrogWireProtocol.Version`** dans **Hello** (`Frog.Core/Protocol/WireHello.cs`) + carte documentée (**`MapSerializer.MapFileFormatVersion`**)
 
 ### 🖥️ Frog.Server
 - [x] Protocole TCP de base (frames, login, map, move, erreurs)
@@ -183,7 +183,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [ ] Propriétés de carte avancées, multi‑tilesets
 
 ### 🧪 Tests
-- [x] Tests `MapSerializer`, mouvement, warps, chat parse, store mémoire
+- [x] Tests `MapSerializer`, **Hello / `FrogWireProtocol.Version`** (`WireHelloTests`), mouvement, warps, chat parse, store mémoire
 - [ ] Tests intégration client ↔ serveur (TCP)
 - [ ] Tests PostgreSQL (conteneur / fixture)
 
@@ -205,6 +205,8 @@ dotnet test Frog.Tests/Frog.Tests.csproj
 ```
 
 Configurer `Frog.Server/appsettings.json` : `Server`, `Postgres`, `Sessions`, `Persistence`, **`Maps`** (`worldMapPath` vers un `.fmap` exporté par l’éditeur ; voir `Frog.Server/Maps/README.txt`).
+
+**Premier monde (guide pas à pas)** : [`Docs/premier-monde.md`](Docs/premier-monde.md). Protocole détaillé : [`Frog.Client/Docs/protocol_login_map.md`](Frog.Client/Docs/protocol_login_map.md).
 
 ---
 

@@ -5,6 +5,7 @@ using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 
 namespace Frog.Client.Network;
 
@@ -147,9 +148,30 @@ public sealed class FrogGameClient : IDisposable
         switch (id)
         {
             case PacketId.Hello:
-                if (TryReadUtf8PrefixedByteLength(body.Span, out var helloMsg))
+                if (WireHello.TryParse(payload, out var helloMsg, out var helloVer))
                 {
-                    Post(() => HelloReceived?.Invoke(helloMsg));
+                    if (helloVer != FrogWireProtocol.Version)
+                    {
+                        Post(() =>
+                        {
+                            ErrorReceived?.Invoke(
+                                $"Version protocole incompatible (serveur indique {helloVer}, ce client attend {FrogWireProtocol.Version}). Mettez à jour client et serveur ensemble.");
+                            _ = DisconnectAsync();
+                        });
+                    }
+                    else
+                    {
+                        Post(() => HelloReceived?.Invoke(helloMsg));
+                    }
+                }
+                else
+                {
+                    Post(() =>
+                    {
+                        ErrorReceived?.Invoke(
+                            "Hello serveur incomplet ou obsolète — mettez Frog.Server à jour (même dépôt que le client).");
+                        _ = DisconnectAsync();
+                    });
                 }
 
                 break;

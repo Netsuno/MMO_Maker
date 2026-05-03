@@ -3,11 +3,19 @@
 Ce document decrit le protocole reseau minimal utilise entre le client et le serveur pour le flux:
 
 1. connexion TCP
-2. login
-3. demande de map
-4. reception de map
+2. handshake `Hello` (avec version protocole)
+3. login
+4. demande de map
+5. reception de map
 
 Le transport est base sur des *frames* binaires.
+
+## Version protocole (Hello)
+
+La constante partagee **`FrogWireProtocol.Version`** (UInt16) est definie dans `Frog.Core/Constants/FrogWireProtocol.cs`.  
+Le serveur l’envoie dans le corps du paquet `Hello` (voir plus bas). Le client doit la lire avant tout autre et **ferme la TCP** avec un message d’erreur si la valeur differe du client reel.
+
+**Politique projet :** client et serveur deployes ensembles (meme depot / meme build). Toute rupture doit incrémenter `FrogWireProtocol.Version` ET mettre ce document a jour.
 
 ## Encapsulation des frames
 
@@ -17,6 +25,10 @@ Chaque message reseau est encode ainsi:
 - `Payload` (`Length` octets)
 
 Le `Payload` commence toujours par `PacketId` (Byte).
+
+Implementations :
+
+- Lecture / ecriture : `TcpFrameCodec` cote Client (`Frog.Client/Network/TcpFrameCodec.cs`) ; cote Serveur traitement analogue dans la session TCP.
 
 ## Packet IDs
 
@@ -49,21 +61,36 @@ Le serveur aligne la position joueur sur une grille **tuiles** (voir `PositionUp
 - `DefaultTileSizePixels` = **16** (carré ; le client de rendu doit utiliser la même taille)
 - `MeleeRangePixels` = **28** (distance euclidienne max. centre → centre pour un coup au corps à corps)
 
-## Carte monde (.fmap)
+## Carte monde (.fmap) et blob MapData
 
-En production / dev local, le serveur peut charger la carte monde depuis un fichier **`.fmap`** (même format que `MapData` / `MapSerializer`) si `Maps:worldMapPath` est renseigné dans `Frog.Server/appsettings.json` (chemin absolu ou relatif au dossier de l’exécutable). Sinon une carte de secours intégrée est utilisée.
+Le blob `MapBytes` du paquet **`MapData`** est **exactement** le meme contenu qu’un fichier **`.fmap`** écrit par l’éditeur (`Frog.Core/IO/MapSerializer.cs`) — meme suite d’octets.
+
+### Séquence fichier / blob
+
+Après les 4 octets magic ASCII `FMAP` :
+
+1. **`MapFileFormatVersion`** (`byte`), exposé dans le code sous `MapSerializer.MapFileFormatVersion` (aligné avec l’élément compilé dans le dépôt).
+2. `Width`, `Height` (`Int32` LE chaque).
+3. Nom de carte : longueur `Int32` + UTF‑8… (voir implémentation `MapSerializer` pour tous les détails par couche).
+
+Le serveur charge ce format depuis **`Maps:worldMapPath`** (`Frog.Server/appsettings.json`). Chemin vide ou fichier illisible → carte de secours intégrée.
+
+Guide utilisateur pas à pas : [`Docs/premier-monde.md`](../../Docs/premier-monde.md).
 
 ## Messages
 
 ### Hello (Serveur -> Client)
 
-Payload:
+Premier paquet après accept TCP. Construction : `Frog.Core/Protocol/WireHello.cs` (`WireHello.BuildPayload`).
+
+Payload :
 
 - `PacketId` (Byte) = `1`
 - `MessageLength` (Byte)
-- `MessageUtf8` (`MessageLength` octets)
+- `MessageUtf8` (`MessageLength` octets) — défaut **`FROG SERVER READY`** (`WireHello.DefaultMessage`)
+- **`ProtocolVersion`** (`UInt16` LE) — constante **`FrogWireProtocol.Version`** (`Frog.Core/Constants/FrogWireProtocol.cs`)
 
-Message actuel: `FROG SERVER READY`.
+Sans ces 2 octets finaux, le client Frog actuel doit refuser (`Hello serveur incomplet ou obsolète`).
 
 ### LoginRequest (Client -> Serveur)
 
@@ -122,7 +149,7 @@ Payload:
 - `MapLength` (Int32 little-endian)
 - `MapBytes` (`MapLength` octets)
 
-`MapBytes` est le blob serialise par `Frog.Core/IO/MapSerializer.cs` (identique a un fichier `.fmap` exporte par l'editeur lorsque le serveur charge depuis disque).
+`MapBytes` est le fichier `.fmap` complet (magic `FMAP` + `MapFileFormatVersion` + reste) : voir **Carte monde (.fmap) et blob MapData** ci-dessus ; désérialiser avec `MapSerializer`.
 
 ### MeleeAttackRequest (Client -> Serveur)
 
@@ -256,7 +283,7 @@ Payload:
 ## Sequence recommandee cote client
 
 1. Se connecter en TCP.
-2. Lire `Hello`.
+2. Lire une frame puis `Hello` ; vérifier **`ProtocolVersion` == client** ; sinon deconnecter.
 3. Si besoin, envoyer `RegisterRequest`.
 4. Attendre `RegisterResult`.
 5. Envoyer `LoginRequest`.
