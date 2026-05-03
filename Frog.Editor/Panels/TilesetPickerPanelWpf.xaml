@@ -1,0 +1,74 @@
+<UserControl x:Class="Frog.Editor.Panels.TilesetPickerPanelWpf"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Frog.Editor.Panels"
+             Background="#FF282B32">
+    <UserControl.Resources>
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF32353E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF32353E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF465058" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFEBEEF5" />
+    </UserControl.Resources>
+    <Grid Margin="0,0,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="38" />
+            <RowDefinition Height="*" MinHeight="48" />
+            <RowDefinition Height="152" />
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0"
+                Background="#FF32353E"
+                BorderBrush="#FF585C68"
+                BorderThickness="0,0,0,1"
+                Padding="12,10,12,8"
+                Margin="0,0,0,0">
+            <TextBlock Text="TUILES — sélection graphique"
+                       Foreground="#FFEBEEF5"
+                       FontFamily="Segoe UI"
+                       FontSize="11"
+                       FontWeight="SemiBold" />
+        </Border>
+        <TabControl x:Name="TabSlots"
+                    Grid.Row="1"
+                    Margin="6,4,6,0"
+                    Padding="0"
+                    Background="#FF32353E"
+                    BorderThickness="0"
+                    SelectionChanged="TabSlots_OnSelectionChanged">
+            <TabItem Header="A" Padding="12,4" />
+            <TabItem Header="B" Padding="12,4" />
+            <TabItem Header="C" Padding="12,4" />
+            <TabItem Header="D" Padding="12,4" />
+        </TabControl>
+        <local:PaletteViewWpf x:Name="Palette"
+                              Grid.Row="2"
+                              Margin="4,4,4,4" />
+        <Border Grid.Row="3"
+                Background="#FF32353E"
+                BorderBrush="#FF585C68"
+                BorderThickness="1"
+                Margin="6,12,6,4"
+                Padding="10,10,10,10"
+                CornerRadius="0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Button x:Name="BtnLoadTileset"
+                        Grid.Row="0"
+                        Content="Charger image tuiles…"
+                        Margin="0,2,0,4"
+                        Padding="12,6"
+                        Click="BtnLoadTileset_OnClick" />
+                <ListBox x:Name="ListTilesets"
+                         Grid.Row="1"
+                         FontFamily="Segoe UI"
+                         FontSize="12"
+                         SelectionChanged="ListTilesets_OnSelectionChanged" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

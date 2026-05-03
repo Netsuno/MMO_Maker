@@ -30,7 +30,10 @@ public sealed class MainForm : Form
     private readonly bool _embedAsWpfChild;
     private readonly SplitContainer? _splitLeft;
     private readonly SplitContainer? _splitRight;
-    private readonly PaletteView _palette;
+    private readonly ElementHost _leftToolsElementHost;
+    private readonly EditorLeftToolsWpf _leftToolsWpf;
+    private readonly ElementHost _tilesetPickerElementHost;
+    private readonly TilesetPickerPanelWpf _tilesetPickerWpf;
     private readonly LayersProjectPanel _layersProjectPanel;
     private readonly ElementHost _layersElementHost;
     private bool _suspendLayerListEvents;
@@ -38,23 +41,16 @@ public sealed class MainForm : Form
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
     private Point _lastHoverTile;
-    private readonly TileTypePalette _tileTypePalette;
-    private readonly ToolPalette _toolPalette;
     private readonly TableLayoutPanel _leftLayout;
-    private readonly ListBox _lstTilesets;
-    private readonly Button _btnAddTileset;
     /// <summary>Horizontal : panneau haut = couches, bas = PropertyGrid.</summary>
     private readonly SplitContainer _splitLayersProps;
     private readonly SplitContainer _splitRightTileset;
-    private readonly TabControl _tabTilesets;
     private readonly MapsProjectPanel _mapsProjectPanel;
     private readonly ElementHost _mapsElementHost;
     private readonly Panel _wfMapDockPanel;
     private readonly Panel _leftColumnPanel;
     private readonly Panel _mapHeader;
     private readonly Label _lblMapWorkspaceTitle;
-    private bool _suspendTilesetTabSync;
-    private bool _suspendTilesetListSync;
     private System.Windows.Window? _wpfOwnerWindow;
 
     /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
@@ -247,18 +243,21 @@ public sealed class MainForm : Form
         };
         _minimap.Attach(_canvas);
 
-        _palette = new PaletteView { TileSize = 32, Dock = DockStyle.Fill, Margin = new Padding(6, 2, 6, 8) };
-        _palette.StampSelectionChanged += OnPaletteStampChanged;
-
-        _toolPalette = new ToolPalette { Dock = DockStyle.Top };
-        _toolPalette.ToolChanged += tool =>
+        _leftToolsWpf = new EditorLeftToolsWpf();
+        _leftToolsWpf.ToolChanged += tool =>
         {
             _canvas.ActiveTool = tool;
             _canvas.Invalidate();
         };
-
-        _tileTypePalette = new TileTypePalette { Dock = DockStyle.Top };
-        _tileTypePalette.SelectedTileTypeChanged += type => _canvas.SelectedTileType = type;
+        _leftToolsWpf.TileTypeChanged += type => _canvas.SelectedTileType = type;
+        _leftToolsElementHost = new ElementHost
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            BackColor = EditorChrome.SidebarBg,
+            Margin = Padding.Empty,
+            Child = _leftToolsWpf,
+        };
 
         _mapsProjectPanel = new MapsProjectPanel();
         _mapsElementHost = new ElementHost
@@ -269,74 +268,37 @@ public sealed class MainForm : Form
             Child = _mapsProjectPanel,
         };
 
-        var tilesetBand = new TableLayoutPanel
+        _tilesetPickerWpf = new TilesetPickerPanelWpf();
+        _tilesetPickerWpf.SelectedTilesetChanged += id => _canvas.ActiveTilesetId = id;
+        _tilesetPickerWpf.LoadTilesetsRequested += OpenTileset;
+        _tilesetPickerWpf.StampSelectionChanged += OnPaletteStampChanged;
+        _tilesetPickerElementHost = new ElementHost
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            Padding = new Padding(10, 10, 10, 10),
-            Margin = new Padding(6, 12, 6, 4),
-            BackColor = EditorChrome.SidebarElevated,
-        };
-        tilesetBand.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
-        tilesetBand.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        _btnAddTileset = new Button { Text = "Charger image tuiles…", Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 4) };
-        EditorChrome.StylePrimaryButton(_btnAddTileset);
-        _btnAddTileset.Click += (_, _) => OpenTileset();
-        _lstTilesets = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false };
-        EditorChrome.StyleSidebarList(_lstTilesets);
-        _lstTilesets.Font = EditorChrome.CaptionFont;
-        _lstTilesets.SelectedIndexChanged += TilesetsList_SelectedIndexChanged;
-        tilesetBand.Controls.Add(_btnAddTileset, 0, 0);
-        tilesetBand.Controls.Add(_lstTilesets, 0, 1);
-
-        _tabTilesets = new TabControl { Dock = DockStyle.Top, Height = 34, Margin = new Padding(6, 4, 6, 0) };
-        EditorChrome.StyleTabControlMaps(_tabTilesets);
-        foreach (var letter in new[] { "A", "B", "C", "D" })
-        {
-            _tabTilesets.TabPages.Add(new TabPage(letter) { BackColor = EditorChrome.SidebarElevated });
-        }
-
-        _tabTilesets.SelectedIndexChanged += TabTilesets_SelectedIndexChanged;
-
-        var tilesetStack = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            Padding = new Padding(4, 4, 4, 6),
             BackColor = EditorChrome.SidebarBg,
+            Margin = Padding.Empty,
+            Child = _tilesetPickerWpf,
         };
-        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f));
-        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Absolute, 152f));
-        tilesetStack.Controls.Add(_tabTilesets, 0, 0);
-        tilesetStack.Controls.Add(_palette, 0, 1);
-        tilesetStack.Controls.Add(tilesetBand, 0, 2);
 
-        var tilesBanner = EditorChrome.BuildZoneBanner("TUILES — sélection graphique");
         var tilesHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg, Padding = new Padding(0) };
-        tilesHost.Controls.Add(tilesBanner);
-        tilesHost.Controls.Add(tilesetStack);
+        tilesHost.Controls.Add(_tilesetPickerElementHost);
 
         _leftLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 2,
             Padding = new Padding(2, 10, 2, 12),
             BackColor = EditorChrome.SidebarBg,
         };
-        _leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
         var mapsHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 4, 10, 10), BackColor = EditorChrome.SidebarBg };
         mapsHost.Controls.Add(_mapsElementHost);
 
-        _leftLayout.Controls.Add(_toolPalette, 0, 0);
-        _leftLayout.Controls.Add(_tileTypePalette, 0, 1);
-        _leftLayout.Controls.Add(mapsHost, 0, 2);
+        _leftLayout.Controls.Add(_leftToolsElementHost, 0, 0);
+        _leftLayout.Controls.Add(mapsHost, 0, 1);
 
         _leftColumnPanel = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
         _leftColumnPanel.Controls.Add(_leftLayout);
@@ -542,30 +504,6 @@ public sealed class MainForm : Form
 
     internal void EditorZoomOut() => _canvas.ZoomOutTowardCenter();
 
-    private void TabTilesets_SelectedIndexChanged(object? sender, EventArgs e)
-    {
-        if (_suspendTilesetTabSync)
-        {
-            return;
-        }
-
-        var ix = _tabTilesets.SelectedIndex;
-        if (ix < 0 || ix >= _lstTilesets.Items.Count)
-        {
-            return;
-        }
-
-        _suspendTilesetListSync = true;
-        try
-        {
-            _lstTilesets.SelectedIndex = ix;
-        }
-        finally
-        {
-            _suspendTilesetListSync = false;
-        }
-    }
-
     private void SyncMapsTree() => _mapsProjectPanel.RefreshFromMap(_canvas.Map?.Name);
 
     private void UpdateMapChromeLabels()
@@ -581,96 +519,22 @@ public sealed class MainForm : Form
         _mapsProjectPanel.UpdateCurrentMapDisplayName(_canvas.Map.Name);
     }
 
-    private void TilesetsList_SelectedIndexChanged(object? sender, EventArgs e)
-    {
-        if (_suspendTilesetListSync)
-        {
-            return;
-        }
-
-        if (_lstTilesets.SelectedItem is not TilesetEntry te)
-        {
-            return;
-        }
-
-        _canvas.ActiveTilesetId = te.Id;
-        _palette.SetTileset(te.Id);
-        SyncTilesetTabFromList();
-    }
-
     private int GetSelectedLayerIndex() => _layersProjectPanel.GetSelectedLayerIndex();
 
     private void RefreshTilesetList()
     {
         var selId = GetSelectedTilesetId();
-        _lstTilesets.BeginUpdate();
-        try
-        {
-            _lstTilesets.Items.Clear();
-            foreach (var (id, label) in TilesetCache.ListRegistered())
-            {
-                _lstTilesets.Items.Add(new TilesetEntry(id, label));
-            }
-
-            for (var i = 0; i < _lstTilesets.Items.Count; i++)
-            {
-                if (((TilesetEntry)_lstTilesets.Items[i]).Id == selId)
-                {
-                    _lstTilesets.SelectedIndex = i;
-                    SyncTilesetTabFromList();
-                    return;
-                }
-            }
-
-            if (_lstTilesets.Items.Count > 0)
-            {
-                _lstTilesets.SelectedIndex = _lstTilesets.Items.Count - 1;
-                var last = (TilesetEntry)_lstTilesets.SelectedItem!;
-                _canvas.ActiveTilesetId = last.Id;
-                _palette.SetTileset(last.Id);
-            }
-
-            SyncTilesetTabFromList();
-        }
-        finally
-        {
-            _lstTilesets.EndUpdate();
-        }
-    }
-
-    private void SyncTilesetTabFromList()
-    {
-        _suspendTilesetTabSync = true;
-        try
-        {
-            if (_lstTilesets.Items.Count == 0)
-            {
-                _tabTilesets.SelectedIndex = 0;
-                return;
-            }
-
-            var ix = Math.Max(0, _lstTilesets.SelectedIndex);
-            _tabTilesets.SelectedIndex = Math.Min(ix, _tabTilesets.TabCount - 1);
-        }
-        finally
-        {
-            _suspendTilesetTabSync = false;
-        }
+        _tilesetPickerWpf.ApplyEntries(TilesetCache.ListRegistered().ToList(), selId);
     }
 
     private int GetSelectedTilesetId()
     {
-        if (_lstTilesets.SelectedItem is TilesetEntry te)
+        if (_tilesetPickerWpf.TryGetSelectedTilesetId() is { } id)
         {
-            return te.Id;
+            return id;
         }
 
         return _canvas.ActiveTilesetId > 0 ? _canvas.ActiveTilesetId : 0;
-    }
-
-    private sealed record TilesetEntry(int Id, string Label)
-    {
-        public override string ToString() => $"{Id}: {Label}";
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -899,7 +763,7 @@ public sealed class MainForm : Form
 
         var layer = _canvas.Map.Layers[ix];
         var input = SimpleInputDialog.Show(
-            this,
+            GetDialogOwner(),
             "Type moteur",
             "LayerType (Ground, Mask, Mask2, Fringe, Fringe2, Attributes) :",
             layer.LayerType.ToString());
@@ -964,7 +828,6 @@ public sealed class MainForm : Form
 
         var id = TilesetCache.LoadFromFile(ofd.FileName);
         _canvas.ActiveTilesetId = id;
-        _palette.SetTileset(id);
         RefreshTilesetList();
     }
 
