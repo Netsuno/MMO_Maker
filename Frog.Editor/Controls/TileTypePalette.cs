@@ -22,7 +22,7 @@ public sealed class TileTypePalette : UserControl
         AutoSize = true;
         Dock = DockStyle.Top;
         BackColor = EditorChrome.SidebarBg;
-        Padding = new Padding(10, 4, 10, 8);
+        Padding = new Padding(12, 10, 14, 14);
 
         var root = new TableLayoutPanel
         {
@@ -31,12 +31,13 @@ public sealed class TileTypePalette : UserControl
             ColumnCount = 1,
             RowCount = 2,
             BackColor = EditorChrome.SidebarBg,
+            Padding = new Padding(2, 0, 2, 0),
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
 
         var title = EditorChrome.BuildSectionCaption("TYPE DE TUILE");
-        title.Margin = new Padding(0, 0, 0, 6);
+        title.Margin = new Padding(0, 0, 0, 10);
 
         var row = new TableLayoutPanel
         {
@@ -45,7 +46,7 @@ public sealed class TileTypePalette : UserControl
             AutoSize = true,
             BackColor = EditorChrome.SidebarBg,
         };
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52f));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86f));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
         var lbl = new Label
@@ -56,6 +57,7 @@ public sealed class TileTypePalette : UserControl
             ForeColor = EditorChrome.LabelMuted,
             AutoSize = false,
             Font = EditorChrome.BodyFont,
+            Margin = new Padding(6, 0, 4, 0),
         };
 
         _combo = new ComboBox
@@ -63,7 +65,6 @@ public sealed class TileTypePalette : UserControl
             Dock = DockStyle.Fill,
             DropDownStyle = ComboBoxStyle.DropDownList,
             IntegralHeight = false,
-            Margin = new Padding(0, 2, 0, 2),
         };
         EditorChrome.StyleSidebarComboBox(_combo);
 

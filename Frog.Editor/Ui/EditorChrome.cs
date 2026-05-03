@@ -62,6 +62,7 @@ internal static class EditorChrome
         cb.BackColor = SidebarElevated;
         cb.ForeColor = LabelPrimary;
         cb.Font = BodyFont;
+        cb.Margin = new Padding(4, 4, 8, 4);
     }
 
     private static void ApplyMenuForeColorRecursive(ToolStripItemCollection items)

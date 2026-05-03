@@ -157,7 +157,7 @@ public sealed class MainForm : Form
         };
         _minimap.Attach(_canvas);
 
-        _palette = new PaletteView { TileSize = 32, Dock = DockStyle.Fill };
+        _palette = new PaletteView { TileSize = 32, Dock = DockStyle.Fill, Margin = new Padding(6, 2, 6, 8) };
         _palette.SelectedTileChanged += pt => _canvas.SelectedSrc = pt;
 
         _toolPalette = new ToolPalette { Dock = DockStyle.Top };
@@ -178,12 +178,13 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            Padding = new Padding(8, 6, 8, 8),
+            Padding = new Padding(10, 10, 10, 10),
+            Margin = new Padding(6, 12, 6, 4),
             BackColor = EditorChrome.SidebarElevated,
         };
-        tilesetBand.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
+        tilesetBand.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
         tilesetBand.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        _btnAddTileset = new Button { Text = "Charger image tuiles…", Dock = DockStyle.Fill };
+        _btnAddTileset = new Button { Text = "Charger image tuiles…", Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 4) };
         EditorChrome.StylePrimaryButton(_btnAddTileset);
         _btnAddTileset.Click += (_, _) => OpenTileset();
         _lstTilesets = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false };
@@ -193,7 +194,7 @@ public sealed class MainForm : Form
         tilesetBand.Controls.Add(_btnAddTileset, 0, 0);
         tilesetBand.Controls.Add(_lstTilesets, 0, 1);
 
-        _tabTilesets = new TabControl { Dock = DockStyle.Top, Height = 30 };
+        _tabTilesets = new TabControl { Dock = DockStyle.Top, Height = 34, Margin = new Padding(6, 4, 6, 0) };
         EditorChrome.StyleTabControlMaps(_tabTilesets);
         foreach (var letter in new[] { "A", "B", "C", "D" })
         {
@@ -207,12 +208,12 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Padding = new Padding(0, 0, 0, 0),
+            Padding = new Padding(4, 4, 4, 6),
             BackColor = EditorChrome.SidebarBg,
         };
-        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
+        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f));
         tilesetStack.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Absolute, 132f));
+        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Absolute, 152f));
         tilesetStack.Controls.Add(_tabTilesets, 0, 0);
         tilesetStack.Controls.Add(_palette, 0, 1);
         tilesetStack.Controls.Add(tilesetBand, 0, 2);
@@ -227,7 +228,7 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Padding = new Padding(0, 6, 0, 10),
+            Padding = new Padding(2, 10, 2, 12),
             BackColor = EditorChrome.SidebarBg,
         };
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -235,7 +236,7 @@ public sealed class MainForm : Form
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
         var mapsBanner = EditorChrome.BuildZoneBanner("CARTES — projet");
-        var mapsHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 8, 8), BackColor = EditorChrome.SidebarBg };
+        var mapsHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 4, 10, 10), BackColor = EditorChrome.SidebarBg };
         mapsHost.Controls.Add(mapsBanner);
         mapsHost.Controls.Add(_mapsTree);
 
@@ -983,7 +984,7 @@ public sealed class MainForm : Form
         }
 
         var leftW = (int)(totalW * 0.20f);
-        leftW = Math.Max(300, leftW);
+        leftW = Math.Max(328, leftW);
         _splitLeft.SplitterDistance = leftW;
 
         var rightContainerW = _splitRight.Width;
