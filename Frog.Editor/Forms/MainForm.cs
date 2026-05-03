@@ -273,10 +273,10 @@ public sealed class MainForm : Form
             BackColor = EditorChrome.CanvasInset,
             Padding = new Padding(10, 0, 10, 12),
         };
+        // Ordre de docking : d’abord le bandeau (Top), puis le canevas (Fill), sinon le Fill « mange » tout et le bandeau bleu se superpose mal.
+        _mapWorkbench.Controls.Add(_mapHeader);
         _mapWorkbench.Controls.Add(_canvas);
         _mapWorkbench.Controls.Add(_minimap);
-        _mapWorkbench.Controls.Add(_mapHeader);
-        _mapHeader.BringToFront();
         _minimap.BringToFront();
         _mapWorkbench.Resize += (_, _) => PositionMinimap();
         _splitRight.Panel1.Controls.Add(_mapWorkbench);

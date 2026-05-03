@@ -163,14 +163,20 @@ internal static class EditorChrome
 
     public static void StyleSidebarRadio(RadioButton r)
     {
+        // Fond opaque : Flat + Transparent casse souvent la détection de clic sous WinForms sur fond sombre.
+        r.UseVisualStyleBackColor = false;
         r.FlatStyle = FlatStyle.Flat;
-        r.BackColor = Color.Transparent;
+        r.FlatAppearance.BorderSize = 0;
+        r.FlatAppearance.CheckedBackColor = Color.FromArgb(72, 98, 150);
+        r.FlatAppearance.MouseOverBackColor = Color.FromArgb(58, 62, 74);
+        r.FlatAppearance.MouseDownBackColor = Color.FromArgb(50, 54, 64);
+        r.BackColor = SidebarElevated;
         r.ForeColor = LabelPrimary;
-        r.Margin = new Padding(0, 3, 12, 0);
+        r.Margin = new Padding(0, 3, 10, 0);
         r.AutoSize = true;
         r.UseCompatibleTextRendering = false;
-        r.Cursor = Cursors.Default;
-        r.Padding = Padding.Empty;
+        r.Cursor = Cursors.Hand;
+        r.Padding = new Padding(2, 2, 6, 2);
     }
 
     public static Control BuildSectionCaption(string uppercaseTitle)

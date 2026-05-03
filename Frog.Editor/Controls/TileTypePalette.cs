@@ -29,11 +29,12 @@ public sealed class TileTypePalette : UserControl
 
         var col = new FlowLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             FlowDirection = FlowDirection.TopDown,
             AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             WrapContents = false,
-            BackColor = Color.Transparent,
+            BackColor = EditorChrome.SidebarBg,
         };
 
         var title = EditorChrome.BuildSectionCaption("TYPE DE TUILE");
@@ -44,7 +45,8 @@ public sealed class TileTypePalette : UserControl
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = true,
             AutoSize = true,
-            BackColor = Color.Transparent,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = EditorChrome.SidebarBg,
         };
 
         _rbGround = new RadioButton { Text = "  Terrain" };
@@ -69,26 +71,17 @@ public sealed class TileTypePalette : UserControl
 
     private void OnRadioCheckedChanged(object? sender, EventArgs e)
     {
-        if (_rbGround.Checked)
+        if (sender is not RadioButton { Checked: true } rb)
         {
-            SelectedTileType = TileType.Ground;
+            return;
         }
-        else if (_rbBlock.Checked)
-        {
-            SelectedTileType = TileType.Block;
-        }
-        else if (_rbWarp.Checked)
-        {
-            SelectedTileType = TileType.Warp;
-        }
-        else if (_rbResource.Checked)
-        {
-            SelectedTileType = TileType.Resource;
-        }
-        else if (_rbScript.Checked)
-        {
-            SelectedTileType = TileType.Script;
-        }
+
+        SelectedTileType = rb == _rbGround ? TileType.Ground
+            : rb == _rbBlock ? TileType.Block
+            : rb == _rbWarp ? TileType.Warp
+            : rb == _rbResource ? TileType.Resource
+            : rb == _rbScript ? TileType.Script
+            : SelectedTileType;
 
         SelectedTileTypeChanged?.Invoke(SelectedTileType);
     }

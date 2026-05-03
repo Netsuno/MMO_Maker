@@ -29,11 +29,12 @@ public sealed class ToolPalette : UserControl
 
         var col = new FlowLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             FlowDirection = FlowDirection.TopDown,
             AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             WrapContents = false,
-            BackColor = Color.Transparent,
+            BackColor = EditorChrome.SidebarBg,
         };
 
         var title = EditorChrome.BuildSectionCaption("OUTIL");
@@ -44,7 +45,8 @@ public sealed class ToolPalette : UserControl
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = true,
             AutoSize = true,
-            BackColor = Color.Transparent,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = EditorChrome.SidebarBg,
         };
 
         _rbBrush = new RadioButton { Text = "  Pinceau" };
@@ -71,30 +73,18 @@ public sealed class ToolPalette : UserControl
 
     private void OnCheckedChanged(object? sender, EventArgs e)
     {
-        if (_rbBrush.Checked)
+        if (sender is not RadioButton { Checked: true } rb)
         {
-            SelectedTool = EditorTool.Brush;
+            return;
         }
-        else if (_rbEraser.Checked)
-        {
-            SelectedTool = EditorTool.Eraser;
-        }
-        else if (_rbCursor.Checked)
-        {
-            SelectedTool = EditorTool.Cursor;
-        }
-        else if (_rbFill.Checked)
-        {
-            SelectedTool = EditorTool.Fill;
-        }
-        else if (_rbRectangle.Checked)
-        {
-            SelectedTool = EditorTool.Rectangle;
-        }
-        else if (_rbSelection.Checked)
-        {
-            SelectedTool = EditorTool.Selection;
-        }
+
+        SelectedTool = rb == _rbBrush ? EditorTool.Brush
+            : rb == _rbEraser ? EditorTool.Eraser
+            : rb == _rbCursor ? EditorTool.Cursor
+            : rb == _rbFill ? EditorTool.Fill
+            : rb == _rbRectangle ? EditorTool.Rectangle
+            : rb == _rbSelection ? EditorTool.Selection
+            : SelectedTool;
 
         ToolChanged?.Invoke(SelectedTool);
     }
