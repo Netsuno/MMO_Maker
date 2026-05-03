@@ -1,0 +1,10 @@
+<UserControl x:Class="Frog.Editor.Panels.MapWorkbenchWpf"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+             Background="#FF2E3238">
+    <!-- Conteneur WPF autour du bloc carte (canevas + mini-carte restent WinForms / GDI+). -->
+    <Border Padding="1" BorderBrush="#FF585C68" BorderThickness="1" CornerRadius="0">
+        <wfi:WindowsFormsHost x:Name="MapSurfaceHost" />
+    </Border>
+</UserControl>

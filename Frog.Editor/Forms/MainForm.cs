@@ -47,7 +47,9 @@ public sealed class MainForm : Form
     private readonly TabControl _tabTilesets;
     private readonly MapsProjectPanel _mapsProjectPanel;
     private readonly ElementHost _mapsElementHost;
-    private readonly Panel _mapWorkbench;
+    private readonly Panel _wfMapDockPanel;
+    private readonly MapWorkbenchWpf _mapWorkbenchWpf;
+    private readonly ElementHost _mapWorkbenchElementHost;
     private readonly Panel _mapHeader;
     private readonly Label _lblMapWorkspaceTitle;
     private bool _suspendTilesetTabSync;
@@ -322,19 +324,27 @@ public sealed class MainForm : Form
         var mapAccent = new Panel { Dock = DockStyle.Bottom, Height = 3, BackColor = EditorChrome.RibbonAccent };
         _mapHeader.Controls.Add(_lblMapWorkspaceTitle);
         _mapHeader.Controls.Add(mapAccent);
-        _mapWorkbench = new Panel
+        _wfMapDockPanel = new Panel
         {
             Dock = DockStyle.Fill,
             BackColor = EditorChrome.CanvasInset,
             Padding = new Padding(10, 0, 10, 12),
         };
         // Ordre de docking : d’abord le bandeau (Top), puis le canevas (Fill), sinon le Fill « mange » tout et le bandeau bleu se superpose mal.
-        _mapWorkbench.Controls.Add(_mapHeader);
-        _mapWorkbench.Controls.Add(_canvas);
-        _mapWorkbench.Controls.Add(_minimap);
+        _wfMapDockPanel.Controls.Add(_mapHeader);
+        _wfMapDockPanel.Controls.Add(_canvas);
+        _wfMapDockPanel.Controls.Add(_minimap);
         _minimap.BringToFront();
-        _mapWorkbench.Resize += (_, _) => PositionMinimap();
-        _splitRight.Panel1.Controls.Add(_mapWorkbench);
+        _wfMapDockPanel.Resize += (_, _) => PositionMinimap();
+        _mapWorkbenchWpf = new MapWorkbenchWpf();
+        _mapWorkbenchWpf.AttachWinFormsSurface(_wfMapDockPanel);
+        _mapWorkbenchElementHost = new ElementHost
+        {
+            Dock = DockStyle.Fill,
+            BackColor = EditorChrome.CanvasInset,
+            Child = _mapWorkbenchWpf,
+        };
+        _splitRight.Panel1.Controls.Add(_mapWorkbenchElementHost);
         PositionMinimap();
 
         _splitRightTileset = new SplitContainer
@@ -1072,9 +1082,9 @@ public sealed class MainForm : Form
 
     private void PositionMinimap()
     {
-        var pad = _mapWorkbench.Padding;
+        var pad = _wfMapDockPanel.Padding;
         _minimap.Location = new Point(
-            _mapWorkbench.ClientSize.Width - _minimap.Width - pad.Right,
+            _wfMapDockPanel.ClientSize.Width - _minimap.Width - pad.Right,
             pad.Top);
     }
 
