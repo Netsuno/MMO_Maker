@@ -1,0 +1,14 @@
+<Window x:Class="Frog.Editor.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+        Title="Frog — Éditeur de cartes"
+        Width="1200"
+        Height="780"
+        MinWidth="1100"
+        MinHeight="720"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterScreen"
+        Background="#FF1E1E1E">
+    <wfi:WindowsFormsHost x:Name="EditorHost" />
+</Window>

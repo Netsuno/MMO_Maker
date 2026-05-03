@@ -45,12 +45,24 @@ public sealed class MainForm : Form
     private bool _suspendTilesetTabSync;
     private bool _suspendTilesetListSync;
 
-    public MainForm()
+    /// <param name="embedAsWpfChild">Si vrai, la fenêtre est hébergée dans un <c>WindowsFormsHost</c> WPF (pas de chrome fenêtre).</param>
+    public MainForm(bool embedAsWpfChild = false)
     {
         Text = "Frog — Éditeur de cartes";
         MinimumSize = new Size(1100, 720);
-        StartPosition = FormStartPosition.CenterScreen;
-        WindowState = FormWindowState.Maximized;
+        if (embedAsWpfChild)
+        {
+            StartPosition = FormStartPosition.Manual;
+            WindowState = FormWindowState.Normal;
+            FormBorderStyle = FormBorderStyle.None;
+            TopLevel = false;
+        }
+        else
+        {
+            StartPosition = FormStartPosition.CenterScreen;
+            WindowState = FormWindowState.Maximized;
+        }
+
         KeyPreview = true;
         EditorChrome.ApplyFormChrome(this);
 
@@ -84,7 +96,17 @@ public sealed class MainForm : Form
             ShowShortcutKeys = true,
         });
         mFile.DropDownItems.Add(new ToolStripSeparator());
-        mFile.DropDownItems.Add("Quitter", null, (_, _) => Close());
+        mFile.DropDownItems.Add("Quitter", null, (_, _) =>
+        {
+            if (TopLevel)
+            {
+                Close();
+            }
+            else
+            {
+                System.Windows.Application.Current.Shutdown();
+            }
+        });
 
         _mnuUndo = new ToolStripMenuItem("Annuler", null, (_, _) => DoUndo())
         {
