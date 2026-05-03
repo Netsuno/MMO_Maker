@@ -21,13 +21,22 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
     private System.Drawing.Point _stampOrigin;
     private DSize _stampSizePixels = new(32, 32);
     private bool _dragSelect;
-    private System.Windows.Point _dragAnchorPixels;
-    private System.Windows.Point _dragCurrentPixels;
+    private System.Windows.Point _dragAnchorDip;
+    private System.Windows.Point _dragCurrentDip;
 
     public PaletteViewWpf()
     {
         InitializeComponent();
+        Loaded += (_, _) =>
+        {
+            if (TilesetId != 0 && TilesetCache.TryGet(TilesetId, out var b) && b is not null)
+            {
+                SetTileset(TilesetId);
+            }
+        };
     }
+
+    private double PixelsPerDip => VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
     public void SetTileset(int tilesetId)
     {
@@ -48,57 +57,77 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
             return;
         }
 
+        var ppd = PixelsPerDip;
+        var wDip = bmp.Width / ppd;
+        var hDip = bmp.Height / ppd;
+
         TilesetImg.Source = BitmapToWpf.ToFrozenPng(bmp);
-        TilesetImg.Width = bmp.Width;
-        TilesetImg.Height = bmp.Height;
+        TilesetImg.Width = wDip;
+        TilesetImg.Height = hDip;
         Canvas.SetLeft(TilesetImg, 0);
         Canvas.SetTop(TilesetImg, 0);
-        Sheet.Width = bmp.Width;
-        Sheet.Height = bmp.Height;
-        BuildGridLines(bmp.Width, bmp.Height, ts);
-        PositionOverlayRects();
+        Sheet.Width = wDip;
+        Sheet.Height = hDip;
+        BuildGridLines(bmp.Width, bmp.Height, ts, ppd);
+        PositionOverlayRects(ppd);
         SelectionRect.Visibility = Visibility.Visible;
         RaiseStampChanged();
     }
 
-    private void BuildGridLines(int bmpW, int bmpH, int ts)
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        if (TilesetId != 0 && TilesetCache.TryGet(TilesetId, out var b) && b is not null)
+        {
+            SetTileset(TilesetId);
+        }
+    }
+
+    private void BuildGridLines(int bmpW, int bmpH, int tilePx, double pxPerDip)
     {
         var pen = new SolidColorBrush(MediaColor.FromRgb(76, 80, 90));
         pen.Freeze();
-        for (var x = 0; x <= bmpW; x += ts)
+        var hDip = bmpH / pxPerDip;
+        var wDip = bmpW / pxPerDip;
+        for (var xPix = 0; xPix <= bmpW; xPix += tilePx)
         {
+            var xd = xPix / pxPerDip;
             GridOverlay.Children.Add(new Line
             {
-                X1 = x,
+                X1 = xd,
                 Y1 = 0,
-                X2 = x,
-                Y2 = bmpH,
+                X2 = xd,
+                Y2 = hDip,
                 Stroke = pen,
                 StrokeThickness = 1,
             });
         }
 
-        for (var y = 0; y <= bmpH; y += ts)
+        for (var yPix = 0; yPix <= bmpH; yPix += tilePx)
         {
+            var yd = yPix / pxPerDip;
             GridOverlay.Children.Add(new Line
             {
                 X1 = 0,
-                Y1 = y,
-                X2 = bmpW,
-                Y2 = y,
+                Y1 = yd,
+                X2 = wDip,
+                Y2 = yd,
                 Stroke = pen,
                 StrokeThickness = 1,
             });
         }
     }
 
-    private System.Windows.Point SnapToTileGrid(System.Windows.Point sheetPoint)
+    private static System.Windows.Point SnapSheetDipToTileGridDip(System.Windows.Point sheetDip, int tilePx, double pxPerDip)
     {
-        var ts = Math.Max(1, TileSize);
-        var sx = Math.Max(0, (int)(sheetPoint.X / ts) * ts);
-        var sy = Math.Max(0, (int)(sheetPoint.Y / ts) * ts);
+        var cellDip = tilePx / pxPerDip;
+        var sx = Math.Max(0, Math.Floor(sheetDip.X / cellDip) * cellDip);
+        var sy = Math.Max(0, Math.Floor(sheetDip.Y / cellDip) * cellDip);
         return new System.Windows.Point(sx, sy);
     }
+
+    private static int DipToPixelFloor(double dip, double pxPerDip) =>
+        (int)Math.Floor(dip * pxPerDip);
 
     private static System.Drawing.Rectangle NormalizeStampRect(System.Drawing.Point a, System.Drawing.Point b, int tileSize, int bmpW, int bmpH)
     {
@@ -113,6 +142,14 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
         return new System.Drawing.Rectangle(x0, y0, x1 - x0, y1 - y0);
     }
 
+    private static void ApplyPixelRectToElement(System.Drawing.Rectangle rect, FrameworkElement el, double pxPerDip)
+    {
+        Canvas.SetLeft(el, rect.X / pxPerDip);
+        Canvas.SetTop(el, rect.Y / pxPerDip);
+        el.Width = rect.Width / pxPerDip;
+        el.Height = rect.Height / pxPerDip;
+    }
+
     private void Sheet_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (!TilesetCache.TryGet(TilesetId, out var bmp) || bmp is null)
@@ -120,10 +157,11 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
             return;
         }
 
+        var ppd = PixelsPerDip;
         var sheetPt = e.GetPosition(Sheet);
         _dragSelect = true;
-        _dragAnchorPixels = SnapToTileGrid(sheetPt);
-        _dragCurrentPixels = _dragAnchorPixels;
+        _dragAnchorDip = SnapSheetDipToTileGridDip(sheetPt, Math.Max(1, TileSize), ppd);
+        _dragCurrentDip = _dragAnchorDip;
         Sheet.CaptureMouse();
         DragPreviewRect.Visibility = Visibility.Visible;
         e.Handled = true;
@@ -138,18 +176,13 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
 
         if (e.LeftButton == MouseButtonState.Pressed)
         {
-            _dragCurrentPixels = SnapToTileGrid(e.GetPosition(Sheet));
+            var ppd = PixelsPerDip;
             var ts = Math.Max(1, TileSize);
-            var dragRect = NormalizeStampRect(
-                new System.Drawing.Point((int)_dragAnchorPixels.X, (int)_dragAnchorPixels.Y),
-                new System.Drawing.Point((int)_dragCurrentPixels.X, (int)_dragCurrentPixels.Y),
-                ts,
-                bmp.Width,
-                bmp.Height);
-            Canvas.SetLeft(DragPreviewRect, dragRect.X);
-            Canvas.SetTop(DragPreviewRect, dragRect.Y);
-            DragPreviewRect.Width = dragRect.Width;
-            DragPreviewRect.Height = dragRect.Height;
+            _dragCurrentDip = SnapSheetDipToTileGridDip(e.GetPosition(Sheet), ts, ppd);
+            var aPix = new System.Drawing.Point(DipToPixelFloor(_dragAnchorDip.X, ppd), DipToPixelFloor(_dragAnchorDip.Y, ppd));
+            var bPix = new System.Drawing.Point(DipToPixelFloor(_dragCurrentDip.X, ppd), DipToPixelFloor(_dragCurrentDip.Y, ppd));
+            var dragRect = NormalizeStampRect(aPix, bPix, ts, bmp.Width, bmp.Height);
+            ApplyPixelRectToElement(dragRect, DragPreviewRect, ppd);
         }
     }
 
@@ -162,17 +195,15 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
 
         _dragSelect = false;
         Sheet.ReleaseMouseCapture();
-        _dragCurrentPixels = SnapToTileGrid(e.GetPosition(Sheet));
+        var ppd = PixelsPerDip;
         var ts = Math.Max(1, TileSize);
-        var rect = NormalizeStampRect(
-            new System.Drawing.Point((int)_dragAnchorPixels.X, (int)_dragAnchorPixels.Y),
-            new System.Drawing.Point((int)_dragCurrentPixels.X, (int)_dragCurrentPixels.Y),
-            ts,
-            bmp.Width,
-            bmp.Height);
+        _dragCurrentDip = SnapSheetDipToTileGridDip(e.GetPosition(Sheet), ts, ppd);
+        var aPix = new System.Drawing.Point(DipToPixelFloor(_dragAnchorDip.X, ppd), DipToPixelFloor(_dragAnchorDip.Y, ppd));
+        var bPix = new System.Drawing.Point(DipToPixelFloor(_dragCurrentDip.X, ppd), DipToPixelFloor(_dragCurrentDip.Y, ppd));
+        var rect = NormalizeStampRect(aPix, bPix, ts, bmp.Width, bmp.Height);
         _stampOrigin = rect.Location;
         _stampSizePixels = rect.Size;
-        PositionOverlayRects();
+        PositionOverlayRects(ppd);
         DragPreviewRect.Visibility = Visibility.Collapsed;
         RaiseStampChanged();
         e.Handled = true;
@@ -188,16 +219,14 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
         }
     }
 
-    private void PositionOverlayRects()
+    private void PositionOverlayRects(double pxPerDip)
     {
         Canvas.SetLeft(GridOverlay, 0);
         Canvas.SetTop(GridOverlay, 0);
         GridOverlay.Width = Sheet.Width;
         GridOverlay.Height = Sheet.Height;
-        Canvas.SetLeft(SelectionRect, _stampOrigin.X);
-        Canvas.SetTop(SelectionRect, _stampOrigin.Y);
-        SelectionRect.Width = _stampSizePixels.Width;
-        SelectionRect.Height = _stampSizePixels.Height;
+        var sel = new System.Drawing.Rectangle(_stampOrigin, _stampSizePixels);
+        ApplyPixelRectToElement(sel, SelectionRect, pxPerDip);
     }
 
     private void RaiseStampChanged()

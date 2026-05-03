@@ -23,6 +23,15 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
 
     public void SetPaletteTileset(int id) => Palette.SetTileset(id);
 
+    public void SyncPaletteTileSize(int tileSizePixels)
+    {
+        Palette.TileSize = Math.Max(1, tileSizePixels);
+        if (TilesetCache.TryGet(Palette.TilesetId, out var b) && b is not null)
+        {
+            Palette.SetTileset(Palette.TilesetId);
+        }
+    }
+
     public void ApplyEntries(IReadOnlyList<(int Id, string Label)> entries, int? preferredSelectId)
     {
         ListTilesets.Items.Clear();

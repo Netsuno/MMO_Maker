@@ -272,6 +272,7 @@ public sealed class MainForm : Form
         _tilesetPickerWpf.SelectedTilesetChanged += id => _canvas.ActiveTilesetId = id;
         _tilesetPickerWpf.LoadTilesetsRequested += OpenTileset;
         _tilesetPickerWpf.StampSelectionChanged += OnPaletteStampChanged;
+        _tilesetPickerWpf.SyncPaletteTileSize(_canvas.TileSize);
         _tilesetPickerElementHost = new ElementHost
         {
             Dock = DockStyle.Fill,

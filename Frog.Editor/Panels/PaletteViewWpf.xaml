@@ -24,7 +24,8 @@
                     MouseLeave="Sheet_OnMouseLeave">
                 <Image x:Name="TilesetImg"
                        Stretch="None"
-                       SnapsToDevicePixels="True" />
+                       SnapsToDevicePixels="True"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
                 <Canvas x:Name="GridOverlay" IsHitTestVisible="False" />
                 <Rectangle x:Name="SelectionRect"
                            Stroke="#FFFFB648"
