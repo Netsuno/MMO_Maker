@@ -1,6 +1,7 @@
 <Window x:Class="Frog.Editor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Frog.Editor"
         xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
         Title="Frog — Éditeur de cartes"
         Width="1200"
@@ -10,53 +11,59 @@
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
         Background="#FF202228">
+    <Window.InputBindings>
+        <KeyBinding Key="N" Modifiers="Control" Command="{x:Static local:MainWindow.CmdNewMap}" />
+        <KeyBinding Key="O" Modifiers="Control" Command="{x:Static local:MainWindow.CmdOpenMap}" />
+        <KeyBinding Key="S" Modifiers="Control" Command="{x:Static local:MainWindow.CmdSaveMap}" />
+        <KeyBinding Key="Z" Modifiers="Control" Command="{x:Static local:MainWindow.CmdUndo}" />
+        <KeyBinding Key="Y" Modifiers="Control" Command="{x:Static local:MainWindow.CmdRedo}" />
+    </Window.InputBindings>
     <DockPanel>
         <Menu DockPanel.Dock="Top"
               Background="#FF202228"
               Foreground="#FFEBEEF5"
               FontFamily="Segoe UI"
               FontSize="12">
+            <Menu.Resources>
+                <Style TargetType="{x:Type Separator}">
+                    <Setter Property="Height" Value="1" />
+                    <Setter Property="Margin" Value="6,4,6,4" />
+                    <Setter Property="Background" Value="#FF505666" />
+                </Style>
+            </Menu.Resources>
             <MenuItem Header="_Fichier">
                 <MenuItem Header="Nouvelle carte…"
-                          InputGestureText="Ctrl+N"
-                          Click="MenuNewMap_Click" />
+                          Command="{x:Static local:MainWindow.CmdNewMap}"
+                          InputGestureText="Ctrl+N" />
                 <MenuItem Header="Ouvrir…"
-                          InputGestureText="Ctrl+O"
-                          Click="MenuOpenMap_Click" />
+                          Command="{x:Static local:MainWindow.CmdOpenMap}"
+                          InputGestureText="Ctrl+O" />
                 <Separator />
                 <MenuItem Header="Enregistrer"
-                          InputGestureText="Ctrl+S"
-                          Click="MenuSaveMap_Click" />
+                          Command="{x:Static local:MainWindow.CmdSaveMap}"
+                          InputGestureText="Ctrl+S" />
                 <Separator />
-                <MenuItem Header="_Quitter" Click="MenuQuit_Click" />
+                <MenuItem Header="_Quitter" Command="{x:Static local:MainWindow.CmdQuit}" />
             </MenuItem>
             <MenuItem Header="_Édition">
-                <MenuItem x:Name="MnuUndo"
-                          Header="_Annuler"
-                          InputGestureText="Ctrl+Z"
-                          IsEnabled="False"
-                          Click="MenuUndo_Click" />
-                <MenuItem x:Name="MnuRedo"
-                          Header="_Rétablir"
-                          InputGestureText="Ctrl+Y"
-                          IsEnabled="False"
-                          Click="MenuRedo_Click" />
+                <MenuItem Header="_Annuler"
+                          Command="{x:Static local:MainWindow.CmdUndo}"
+                          InputGestureText="Ctrl+Z" />
+                <MenuItem Header="_Rétablir"
+                          Command="{x:Static local:MainWindow.CmdRedo}"
+                          InputGestureText="Ctrl+Y" />
             </MenuItem>
             <MenuItem Header="_Ressources">
-                <MenuItem Header="Charger une image tuiles…" Click="MenuOpenTileset_Click" />
+                <MenuItem Header="Charger une image tuiles…" Command="{x:Static local:MainWindow.CmdOpenTileset}" />
             </MenuItem>
             <MenuItem Header="_Carte">
-                <MenuItem Header="Valider la carte…" Click="MenuValidateMap_Click" />
+                <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
             </MenuItem>
             <MenuItem Header="_Affichage">
-                <MenuItem Header="Réinitialiser la vue (zoom 100 %)" Click="MenuResetView_Click" />
+                <MenuItem Header="Réinitialiser la vue (zoom 100 %)" Command="{x:Static local:MainWindow.CmdResetView}" />
             </MenuItem>
         </Menu>
-        <StatusBar DockPanel.Dock="Bottom"
-                   Background="#FF202228"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="12">
+        <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
                 <TextBlock x:Name="TileStatusText" Text="Tuile · x = 0, y = 0" />
             </StatusBarItem>

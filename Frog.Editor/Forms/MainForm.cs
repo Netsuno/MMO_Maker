@@ -12,6 +12,8 @@ using Frog.Editor.Controls;
 using Frog.Editor.Dialogs;
 using Frog.Editor.Ui;
 
+using Frog.Editor.Services;
+
 namespace Frog.Editor.Forms;
 
 public sealed class MainForm : Form
@@ -51,6 +53,8 @@ public sealed class MainForm : Form
 
     /// <summary>État annuler / rétablir (pour menu WPF).</summary>
     public event Action<bool, bool>? UndoRedoStateChanged;
+
+    public MapUndoController UndoHistory => _canvas.History;
 
     /// <param name="embedAsWpfChild">Si vrai, la fenêtre est hébergée dans un <c>WindowsFormsHost</c> WPF (pas de chrome fenêtre).</param>
     public MainForm(bool embedAsWpfChild = false)
