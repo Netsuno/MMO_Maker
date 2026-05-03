@@ -35,7 +35,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 |--------|--------------|
 | **Frog.Core** | Modèles partagés, enums, interfaces, sérialiseurs binaires (maps, items, NPCs…), IDs de paquets, `ChatChannel`, **`WorldMetrics`** (tuile ↔ pixels). |
 | **Frog.Client** | Client WinForms : TCP, login, map (rendu tuile simplifié), flèches, chat, heartbeat, mêlée ; doc `Frog.Client/Docs/protocol_login_map.md`. |
-| **Frog.Editor** | Éditeur de cartes et de ressources, inspiré du FRoG Creator original. |
+| **Frog.Editor** | Éditeur de cartes WinForms : outils brush/fill/rectangle, undo/redo, `.fmap`, tilesets. |
 | **Frog.Server** | Serveur TCP : sessions, **carte `.fmap` optionnelle** (`Maps:worldMapPath`), map monde unique, mouvements, **mêlée pixel**, chat, persistance PostgreSQL optionnelle, sauvegarde périodique joueur. |
 | **Frog.Tests** | Tests unitaires (sérialisation, protocole, persistance mémoire, mouvements…). |
 
@@ -58,7 +58,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
 | **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, **warps** (monde unique), chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
 | **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `Form1` (connexion, map, déplacements, chat 3 canaux, heartbeat, mêlée). |
-| **Frog.Editor** | 🟠 En cours | Édition map / tiletypes / warps (base présente). |
+| **Frog.Editor** | 🟢 En évolution | Carte : pinceau (traînée), gomme, **remplissage**, **rectangle**, undo/redo (Ctrl+Z/Y), couches, tileset PNG, sauvegarde `.fmap`. |
 | **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
 
 ---
@@ -92,10 +92,13 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 - [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
 
 ### 🗺️ Frog.Editor
-- [ ] Palette / overlay attributs complet
-- [ ] Outils avancés (rectangle, copier/coller, fill…)
-- [ ] Undo/Redo
-- [ ] Propriétés de carte, multi‑tilesets
+- [x] Outils **rectangle** + **pot de peinture** (flood fill 4-connexions sur la couche active)
+- [x] **Undo / redo** (snapshots `MapSerializer`, profondeur limitée) + barre d’outils + **Ctrl+Z** / **Ctrl+Y**
+- [x] **Pinceau en traînée** (clic maintenu) ; `MainForm` réorganisé (dock correct, plus de doublons de palettes)
+- [x] Dialogue renommer couche sans `Microsoft.VisualBasic` ; radio **Script** branchée dans la palette types
+- [ ] Palette / overlay attributs complet (métier)
+- [ ] Copier/coller sélection, multi‑sélection tuiles
+- [ ] Propriétés de carte avancées, multi‑tilesets
 
 ### 🧪 Tests
 - [x] Tests `MapSerializer`, mouvement, warps, chat parse, store mémoire
@@ -115,6 +118,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 dotnet build Frog.Creator.sln
 dotnet run --project Frog.Server/Frog.Server.csproj
 dotnet run --project Frog.Client/Frog.Client.csproj
+dotnet run --project Frog.Editor/Frog.Editor.csproj
 dotnet test Frog.Tests/Frog.Tests.csproj
 ```
 

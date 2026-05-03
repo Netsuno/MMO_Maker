@@ -10,6 +10,8 @@ namespace Frog.Editor.Controls
         private readonly RadioButton _rbBrush;
         private readonly RadioButton _rbEraser;
         private readonly RadioButton _rbCursor;
+        private readonly RadioButton _rbFill;
+        private readonly RadioButton _rbRectangle;
 
         public event Action<EditorTool>? ToolChanged;
 
@@ -34,18 +36,24 @@ namespace Frog.Editor.Controls
             };
 
             _rbBrush = new RadioButton { Text = "Pinceau", AutoSize = true };
-            _rbEraser = new RadioButton { Text = "Efface", AutoSize = true };
+            _rbEraser = new RadioButton { Text = "Gomme", AutoSize = true };
             _rbCursor = new RadioButton { Text = "Curseur", AutoSize = true };
+            _rbFill = new RadioButton { Text = "Pot de peinture", AutoSize = true };
+            _rbRectangle = new RadioButton { Text = "Rectangle", AutoSize = true };
 
             _rbBrush.CheckedChanged += OnCheckedChanged;
             _rbEraser.CheckedChanged += OnCheckedChanged;
             _rbCursor.CheckedChanged += OnCheckedChanged;
+            _rbFill.CheckedChanged += OnCheckedChanged;
+            _rbRectangle.CheckedChanged += OnCheckedChanged;
 
             _rbBrush.Checked = true;
 
             panel.Controls.Add(_rbBrush);
             panel.Controls.Add(_rbEraser);
             panel.Controls.Add(_rbCursor);
+            panel.Controls.Add(_rbFill);
+            panel.Controls.Add(_rbRectangle);
 
             group.Controls.Add(panel);
             Controls.Add(group);
@@ -59,6 +67,10 @@ namespace Frog.Editor.Controls
                 SelectedTool = EditorTool.Eraser;
             else if (_rbCursor.Checked)
                 SelectedTool = EditorTool.Cursor;
+            else if (_rbFill.Checked)
+                SelectedTool = EditorTool.Fill;
+            else if (_rbRectangle.Checked)
+                SelectedTool = EditorTool.Rectangle;
 
             ToolChanged?.Invoke(SelectedTool);
         }

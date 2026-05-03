@@ -48,6 +48,7 @@ namespace Frog.Editor.Controls
             _rbBlock.CheckedChanged += OnRadioCheckedChanged;
             _rbWarp.CheckedChanged += OnRadioCheckedChanged;
             _rbResource.CheckedChanged += OnRadioCheckedChanged;
+            _rbScript.CheckedChanged += OnRadioCheckedChanged;
 
             _rbGround.Checked = true;
 
@@ -55,6 +56,7 @@ namespace Frog.Editor.Controls
             panel.Controls.Add(_rbBlock);
             panel.Controls.Add(_rbWarp);
             panel.Controls.Add(_rbResource);
+            panel.Controls.Add(_rbScript);
 
             group.Controls.Add(panel);
             Controls.Add(group);
