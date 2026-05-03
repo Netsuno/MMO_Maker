@@ -31,6 +31,8 @@ public sealed class MainForm : Form
     private readonly TableLayoutPanel _leftLayout;
     private readonly ListBox _lstTilesets;
     private readonly Button _btnAddTileset;
+    /// <summary>Horizontal : panneau haut = couches, bas = PropertyGrid.</summary>
+    private readonly SplitContainer _splitLayersProps;
 
     public MainForm()
     {
@@ -176,16 +178,14 @@ public sealed class MainForm : Form
         mapWorkbench.Controls.Add(_canvas);
         _splitRight.Panel1.Controls.Add(mapWorkbench);
 
-        var rightPanel = new SplitContainer
+        _splitLayersProps = new SplitContainer
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Horizontal,
-            SplitterDistance = 280,
             SplitterWidth = 6,
             BackColor = EditorChrome.CanvasInset,
-            Panel2MinSize = 180,
         };
-        rightPanel.Panel2.BackColor = EditorChrome.SidebarBg;
+        _splitLayersProps.Panel2.BackColor = EditorChrome.SidebarBg;
         var layersHost = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -235,7 +235,7 @@ public sealed class MainForm : Form
 
         layersHost.Controls.Add(_layersList, 0, 1);
 
-        rightPanel.Panel1.Controls.Add(layersHost);
+        _splitLayersProps.Panel1.Controls.Add(layersHost);
 
         var ctx = new ContextMenuStrip();
         ctx.Items.Add("Ajouter couche", null, (_, _) => AddLayer());
@@ -248,9 +248,9 @@ public sealed class MainForm : Form
         _propGrid = new PropertyGrid { Dock = DockStyle.Fill, HelpVisible = false };
         EditorChrome.StylePropertyGrid(_propGrid);
         _propGrid.Font = EditorChrome.BodyFont;
-        rightPanel.Panel2.Controls.Add(_propGrid);
+        _splitLayersProps.Panel2.Controls.Add(_propGrid);
 
-        _splitRight.Panel2.Controls.Add(rightPanel);
+        _splitRight.Panel2.Controls.Add(_splitLayersProps);
         _splitLeft.Panel2.Controls.Add(_splitRight);
         Controls.AddRange(new Control[] { _splitLeft, _tool, _status });
 
@@ -643,6 +643,39 @@ public sealed class MainForm : Form
         var propsW = (int)(rightContainerW * 0.25f);
         propsW = Math.Max(340, propsW);
         _splitRight.SplitterDistance = Math.Max(200, _splitRight.Width - propsW);
+
+        ApplyLayersPropertySplitDistance();
+    }
+
+    /// <summary>
+    /// WinForms valide SplitterDistance dès l’assignation : au constructeur la hauteur du split est souvent 0,
+    /// d’où l’impossibilité de fixer 280 + Panel2MinSize ici. On applique après layout.
+    /// </summary>
+    private void ApplyLayersPropertySplitDistance()
+    {
+        var h = _splitLayersProps.ClientSize.Height;
+        if (h <= _splitLayersProps.SplitterWidth + 8)
+        {
+            return;
+        }
+
+        _splitLayersProps.Panel1MinSize = 100;
+        _splitLayersProps.Panel2MinSize = 160;
+        var sw = _splitLayersProps.SplitterWidth;
+        var max = h - _splitLayersProps.Panel2MinSize - sw;
+        var min = _splitLayersProps.Panel1MinSize;
+        if (max < min)
+        {
+            _splitLayersProps.Panel2MinSize = Math.Max(80, h - min - sw - 1);
+            max = h - _splitLayersProps.Panel2MinSize - sw;
+        }
+
+        if (max < min)
+        {
+            return;
+        }
+
+        _splitLayersProps.SplitterDistance = Math.Clamp(280, min, max);
     }
 
     internal sealed class NewMapDialog : Form
