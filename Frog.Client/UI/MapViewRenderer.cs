@@ -1,3 +1,4 @@
+#nullable enable
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using Frog.Core.Constants;
@@ -15,23 +16,24 @@ internal static class MapViewRenderer
     private static readonly Color OtherPlayer = Color.FromArgb(80, 140, 220);
     private static readonly Color SelfPlayer = Color.FromArgb(240, 200, 60);
 
+    /// <param name="tilesetBitmaps">Id tileset → image ; peut être vide (rendu couleur de secours).</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (int X, int Y)> playersByName,
         string? localUsername,
         int localTileX,
-        int localTileY)
+        int localTileY,
+        IReadOnlyDictionary<int, Bitmap>? tilesetBitmaps)
     {
         var tw = WorldMetrics.DefaultTileSizePixels;
         var w = map.Width * tw;
         var h = map.Height * tw;
         var bmp = new Bitmap(Math.Max(w, 1), Math.Max(h, 1));
         using var g = Graphics.FromImage(bmp);
-        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.SmoothingMode = SmoothingMode.None;
+        g.InterpolationMode = InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = PixelOffsetMode.Half;
         g.Clear(BaseWalkable);
-
-        var ground = map.Layers.FirstOrDefault(l => l.LayerType == LayerType.Ground);
-        var attrs = map.Layers.FirstOrDefault(l => l.LayerType == LayerType.Attributes);
 
         for (var ty = 0; ty < map.Height; ty++)
         {
@@ -40,28 +42,54 @@ internal static class MapViewRenderer
                 var px = tx * tw;
                 var py = ty * tw;
                 var rect = new Rectangle(px, py, tw, tw);
-                var t = FindTile(ground, tx, ty);
-                var color = t?.Type switch
-                {
-                    TileType.Block => BlockTile,
-                    TileType.Warp => WarpTile,
-                    TileType.Ground or TileType.Unknown => GroundTile,
-                    _ => GroundTile
-                };
-                using var brush = new SolidBrush(color);
-                g.FillRectangle(brush, rect);
 
-                var at = FindTile(attrs, tx, ty);
-                if (at is not null)
+                foreach (var layer in map.Layers)
                 {
+                    if (!layer.Visible)
+                    {
+                        continue;
+                    }
+
+                    if (layer.LayerType == LayerType.Attributes)
+                    {
+                        continue;
+                    }
+
+                    var t = FindTile(layer, tx, ty);
+                    if (t is null)
+                    {
+                        continue;
+                    }
+
+                    if (TryDrawGraphicTile(g, t, rect, tw, tilesetBitmaps))
+                    {
+                        continue;
+                    }
+
+                    FillFallbackType(g, rect, t.Type);
+                }
+
+                foreach (var layer in map.Layers)
+                {
+                    if (!layer.Visible || layer.LayerType != LayerType.Attributes)
+                    {
+                        continue;
+                    }
+
+                    var at = FindTile(layer, tx, ty);
+                    if (at is null)
+                    {
+                        continue;
+                    }
+
                     if (at.Type == TileType.Block)
                     {
-                        using var b2 = new SolidBrush(BlockTile);
+                        using var b2 = new SolidBrush(Color.FromArgb(110, BlockTile));
                         g.FillRectangle(b2, rect);
                     }
                     else if (at.Type == TileType.Warp)
                     {
-                        using var b2 = new SolidBrush(WarpTile);
+                        using var b2 = new SolidBrush(Color.FromArgb(110, WarpTile));
                         g.FillRectangle(b2, rect);
                     }
                 }
@@ -83,6 +111,42 @@ internal static class MapViewRenderer
 
         DrawPlayerDot(g, localTileX, localTileY, tw, SelfPlayer);
         return bmp;
+    }
+
+    private static bool TryDrawGraphicTile(
+        Graphics g,
+        Tile t,
+        Rectangle dst,
+        int tw,
+        IReadOnlyDictionary<int, Bitmap>? tilesetBitmaps)
+    {
+        if (tilesetBitmaps is null || t.TilesetId <= 0 || !tilesetBitmaps.TryGetValue(t.TilesetId, out var bmp) || bmp is null)
+        {
+            return false;
+        }
+
+        var src = new Rectangle(t.SrcX, t.SrcY, tw, tw);
+        if (src.Right > bmp.Width || src.Bottom > bmp.Height || src.X < 0 || src.Y < 0)
+        {
+            return false;
+        }
+
+        g.DrawImage(bmp, dst, src, GraphicsUnit.Pixel);
+        return true;
+    }
+
+    private static void FillFallbackType(Graphics g, Rectangle rect, TileType type)
+    {
+        var color = type switch
+        {
+            TileType.Block => BlockTile,
+            TileType.Warp => WarpTile,
+            TileType.Ground or TileType.Unknown => GroundTile,
+            _ => GroundTile,
+        };
+
+        using var brush = new SolidBrush(color);
+        g.FillRectangle(brush, rect);
     }
 
     private static Tile? FindTile(Layer? layer, int tx, int ty)

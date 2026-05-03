@@ -31,8 +31,19 @@ dotnet run --project Frog.Editor/Frog.Editor.csproj
 ```
 
 - Crée une carte, charge un tileset (PNG), puis **Enregistrer** au format `.fmap` (ex. `world.fmap`).
+- L’éditeur écrit aussi **`world.tilesets.json`** à côté (liste `id` → nom de fichier PNG). Copiez **ce JSON et les PNG** utilisés vers le client pour le même rendu qu’en édition.
 
-Sans fichier personnalisé, le serveur utilise une carte de secours intégrée (suffisant pour tester tout de suite).
+### Tilesets côté client (PNG)
+
+À côté de l’exe du client (`…/Frog.Client/bin/Debug/net8.0/` en dev) :
+
+1. Dossier **`Maps/`** : placez **`{NomDeLaCarte}.tilesets.json`** (le `Map.Name` de la carte, caractères invalides remplacés par `_`) + les fichiers PNG référencés dans le JSON (même dossier que le JSON en général).
+2. **Ou** dossier **`Tilesets/`** : fichier **`manifest.json`** (même schéma JSON que l’éditeur) + PNG à côté.
+3. **Ou** fichiers **`Tilesets/{id}.png`** pour chaque `TilesetId` utilisé sur la carte (si pas de manifeste).
+
+Sans PNG trouvé, le client affiche encore la carte en **couleurs de secours** par type de tuile.
+
+Sans fichier personnalisé côté **serveur**, la carte de secours intégrée suffit pour tester tout de suite.
 
 ## 3. Option A — PostgreSQL désactivée (léger)
 

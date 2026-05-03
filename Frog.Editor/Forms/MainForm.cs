@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using Frog.Core.Enums;
 using Frog.Core.IO;
@@ -26,6 +28,7 @@ public sealed class MainForm : Form
     private bool _suspendLayerListEvents;
     private readonly PropertyGrid _propGrid;
     private readonly MapCanvas _canvas;
+    private readonly MapMinimapControl _minimap;
     private readonly TileTypePalette _tileTypePalette;
     private readonly ToolPalette _toolPalette;
     private readonly TableLayoutPanel _leftLayout;
@@ -33,6 +36,7 @@ public sealed class MainForm : Form
     private readonly Button _btnAddTileset;
     /// <summary>Horizontal : panneau haut = couches, bas = PropertyGrid.</summary>
     private readonly SplitContainer _splitLayersProps;
+    private readonly Panel _mapWorkbench;
 
     public MainForm()
     {
@@ -45,7 +49,11 @@ public sealed class MainForm : Form
 
         FormClosed += (_, _) => TilesetCache.Clear();
 
-        Shown += (_, _) => ApplyLayoutPercentages();
+        Shown += (_, _) =>
+        {
+            ApplyLayoutPercentages();
+            PositionMinimap();
+        };
         ResizeEnd += (_, _) => ApplyLayoutPercentages();
 
         _tool = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Top };
@@ -53,6 +61,7 @@ public sealed class MainForm : Form
         var btnOpenTileset = new ToolStripButton("Tileset…");
         var btnSave = new ToolStripButton("Enregistrer");
         var btnLoad = new ToolStripButton("Ouvrir…");
+        var btnValidate = new ToolStripButton("Valider carte");
         _btnUndo = new ToolStripButton("Annuler") { Enabled = false };
         _btnRedo = new ToolStripButton("Rétablir") { Enabled = false };
 
@@ -60,6 +69,7 @@ public sealed class MainForm : Form
         btnOpenTileset.Click += (_, _) => OpenTileset();
         btnSave.Click += (_, _) => SaveMap();
         btnLoad.Click += (_, _) => LoadMap();
+        btnValidate.Click += (_, _) => ValidateMap();
         _btnUndo.Click += (_, _) => DoUndo();
         _btnRedo.Click += (_, _) => DoRedo();
 
@@ -68,6 +78,7 @@ public sealed class MainForm : Form
             btnNewMap, new ToolStripSeparator(),
             btnOpenTileset, new ToolStripSeparator(),
             btnSave, btnLoad, new ToolStripSeparator(),
+            btnValidate, new ToolStripSeparator(),
             _btnUndo, _btnRedo
         });
         EditorChrome.StripToolbar(_tool);
@@ -115,6 +126,12 @@ public sealed class MainForm : Form
         _canvas.TileClicked += OnTileClicked;
         _canvas.MapReplaced += OnMapReplaced;
         _canvas.UndoHistoryChanged += UpdateUndoRedoButtons;
+
+        _minimap = new MapMinimapControl
+        {
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+        };
+        _minimap.Attach(_canvas);
 
         _palette = new PaletteView { TileSize = 32, Dock = DockStyle.Fill };
         _palette.SelectedTileChanged += pt => _canvas.SelectedSrc = pt;
@@ -169,14 +186,18 @@ public sealed class MainForm : Form
         _palette.Dock = DockStyle.Fill;
 
         _splitLeft.Panel1.Controls.Add(_leftLayout);
-        var mapWorkbench = new Panel
+        _mapWorkbench = new Panel
         {
             Dock = DockStyle.Fill,
             BackColor = EditorChrome.CanvasInset,
             Padding = new Padding(10, 12, 10, 14),
         };
-        mapWorkbench.Controls.Add(_canvas);
-        _splitRight.Panel1.Controls.Add(mapWorkbench);
+        _mapWorkbench.Controls.Add(_canvas);
+        _mapWorkbench.Controls.Add(_minimap);
+        _minimap.BringToFront();
+        _mapWorkbench.Resize += (_, _) => PositionMinimap();
+        _splitRight.Panel1.Controls.Add(_mapWorkbench);
+        PositionMinimap();
 
         _splitLayersProps = new SplitContainer
         {
@@ -396,6 +417,24 @@ public sealed class MainForm : Form
         _propGrid.SelectedObject = tile ?? (object?)_canvas.Map;
     }
 
+    private void ValidateMap()
+    {
+        if (_canvas.Map is null)
+        {
+            MessageBox.Show(this, "Aucune carte chargée.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        if (_canvas.Map.Validate(out var err))
+        {
+            MessageBox.Show(this, "Carte valide (dimensions, couches, tuiles, warps).", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        else
+        {
+            MessageBox.Show(this, err ?? "Erreur inconnue.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
     private void OnMapReplaced()
     {
         RefreshLayersUi();
@@ -600,7 +639,32 @@ public sealed class MainForm : Form
         var serializer = new MapSerializer();
         var bytes = serializer.Serialize(_canvas.Map);
         File.WriteAllBytes(sfd.FileName, bytes);
-        MessageBox.Show(this, "Carte sauvegardée.", "Succès");
+        SaveTilesetManifestNextToMap(sfd.FileName);
+        MessageBox.Show(this, "Carte et manifeste tilesets (.tilesets.json) sauvegardés.", "Succès");
+    }
+
+    private static void SaveTilesetManifestNextToMap(string mapFilePath)
+    {
+        var dir = Path.GetDirectoryName(mapFilePath);
+        if (string.IsNullOrEmpty(dir))
+        {
+            return;
+        }
+
+        var stem = Path.GetFileNameWithoutExtension(mapFilePath);
+        if (string.IsNullOrEmpty(stem))
+        {
+            return;
+        }
+
+        var manifest = new TilesetManifest();
+        foreach (var (id, label) in TilesetCache.ListRegistered())
+        {
+            manifest.Entries.Add(new TilesetManifestEntry { Id = id, FileName = label });
+        }
+
+        var manifestPath = Path.Combine(dir, stem + ".tilesets.json");
+        File.WriteAllBytes(manifestPath, TilesetManifestJson.Serialize(manifest));
     }
 
     private void LoadMap()
@@ -611,15 +675,101 @@ public sealed class MainForm : Form
             return;
         }
 
-        var data = File.ReadAllBytes(ofd.FileName);
+        var mapPath = ofd.FileName;
+        var data = File.ReadAllBytes(mapPath);
         var serializer = new MapSerializer();
         var map = serializer.Deserialize(data);
+
+        TilesetCache.Clear();
+        var manifestOutcome = TryApplyTilesetManifestFromMapPath(mapPath);
+
         _canvas.ClearHistory();
         _canvas.Map = map;
+        _canvas.ActiveTilesetId = 0;
+        if (TilesetCache.ListRegistered().Count > 0)
+        {
+            _canvas.ActiveTilesetId = TilesetCache.ListRegistered()[0].Id;
+        }
+
         _propGrid.SelectedObject = map;
         RefreshLayersUi();
+        RefreshTilesetList();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+
+        if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
+        {
+            var list = string.Join(Environment.NewLine, manifestOutcome.MissingFiles.Take(12));
+            var tail = manifestOutcome.MissingFiles.Count > 12 ? Environment.NewLine + "…" : string.Empty;
+            MessageBox.Show(
+                this,
+                "Fichiers PNG introuvables ou illisibles (manifeste à côté du .fmap) :" + Environment.NewLine + list + tail,
+                "Tilesets",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Lit <c>{stem}.tilesets.json</c> à côté du fichier carte et réinjecte les bitmaps avec les mêmes <see cref="TilesetManifestEntry.Id"/> que lors de l’enregistrement.
+    /// </summary>
+    private static (bool HadManifest, List<string> MissingFiles) TryApplyTilesetManifestFromMapPath(string mapFilePath)
+    {
+        var missing = new List<string>();
+        var dir = Path.GetDirectoryName(mapFilePath);
+        var stem = Path.GetFileNameWithoutExtension(mapFilePath);
+        if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(stem))
+        {
+            return (false, missing);
+        }
+
+        var manifestPath = Path.Combine(dir, stem + ".tilesets.json");
+        var manifest = TilesetManifestJson.TryDeserializeFromFile(manifestPath);
+        if (manifest is null)
+        {
+            return (false, missing);
+        }
+
+        foreach (var entry in manifest.Entries.OrderBy(e => e.Id))
+        {
+            if (entry.Id < 1)
+            {
+                continue;
+            }
+
+            var nameOnly = Path.GetFileName(entry.FileName);
+            if (string.IsNullOrEmpty(nameOnly))
+            {
+                missing.Add($"id {entry.Id} (nom vide)");
+                continue;
+            }
+
+            var full = Path.Combine(dir, nameOnly);
+            if (!File.Exists(full))
+            {
+                missing.Add(nameOnly);
+                continue;
+            }
+
+            try
+            {
+                TilesetCache.LoadFromFileAtId(full, entry.Id);
+            }
+            catch
+            {
+                missing.Add(nameOnly);
+            }
+        }
+
+        return (true, missing);
+    }
+
+    private void PositionMinimap()
+    {
+        var pad = _mapWorkbench.Padding;
+        _minimap.Location = new Point(
+            _mapWorkbench.ClientSize.Width - _minimap.Width - pad.Right,
+            pad.Top);
     }
 
     private void ApplyLayoutPercentages()
@@ -645,6 +795,7 @@ public sealed class MainForm : Form
         _splitRight.SplitterDistance = Math.Max(200, _splitRight.Width - propsW);
 
         ApplyLayersPropertySplitDistance();
+        PositionMinimap();
     }
 
     /// <summary>

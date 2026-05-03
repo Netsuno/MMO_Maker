@@ -26,7 +26,28 @@ public sealed class MapCanvas : Control
     public int TileSize { get; set; } = 32;
     public float Zoom { get; private set; } = 1f;
     public PointF Pan { get; private set; } = new(0, 0);
-    public Map? Map { get; set; }
+
+    private Map? _map;
+
+    /// <summary>Carte affichée ; notifier les abonnés (mini-carte) lors d’un changement d’instance.</summary>
+    public Map? Map
+    {
+        get => _map;
+        set
+        {
+            if (ReferenceEquals(_map, value))
+            {
+                return;
+            }
+
+            _map = value;
+            NotifyViewTransformChanged();
+            Invalidate();
+        }
+    }
+
+    /// <summary>Pan, zoom ou carte changés — pour synchroniser la mini-carte.</summary>
+    public event Action? ViewTransformChanged;
 
     public int ActiveTilesetId { get; set; } = 0;
     public Point SelectedSrc { get; set; } = new(0, 0);
@@ -60,6 +81,45 @@ public sealed class MapCanvas : Control
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
+    }
+
+    /// <summary>Coin haut-gauche et coin bas-droit visibles, en coordonnées « monde » (pixels carte avant zoom).</summary>
+    public void GetViewportWorldBounds(out PointF topLeft, out PointF bottomRight)
+    {
+        var c = ClientSize;
+        topLeft = ScreenToWorld(Point.Empty);
+        bottomRight = ScreenToWorld(new Point(c.Width, c.Height));
+    }
+
+    /// <summary>Tuiles visibles (indices carte), avec marge <see cref="ViewportPadTiles"/>.</summary>
+    public void GetViewportTileBounds(out int tx0, out int ty0, out int tx1, out int ty1)
+        => ComputeVisibleTileRange(out tx0, out ty0, out tx1, out ty1);
+
+    /// <summary>Centre la vue sur le centre de la tuile (<paramref name="tileX"/>, <paramref name="tileY"/>).</summary>
+    public void CenterViewOnTile(int tileX, int tileY)
+    {
+        if (Map is null)
+        {
+            return;
+        }
+
+        tileX = Math.Clamp(tileX, 0, Map.Width - 1);
+        tileY = Math.Clamp(tileY, 0, Map.Height - 1);
+        var wx = tileX * TileSize + TileSize * 0.5f;
+        var wy = tileY * TileSize + TileSize * 0.5f;
+        var cx = ClientSize.Width * 0.5f;
+        var cy = ClientSize.Height * 0.5f;
+        Pan = new PointF(cx - wx * Zoom, cy - wy * Zoom);
+        NotifyViewTransformChanged();
+        Invalidate();
+    }
+
+    private void NotifyViewTransformChanged() => ViewTransformChanged?.Invoke();
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        NotifyViewTransformChanged();
     }
 
     public bool HasCommittedSelection => _committedSelectionTiles is { Width: > 0, Height: > 0 };
@@ -468,6 +528,7 @@ public sealed class MapCanvas : Control
         Zoom = newZoom;
         var after = ScreenToWorld(e.Location);
         Pan = new PointF(Pan.X + (e.Location.X - (after.X - before.X)), Pan.Y + (e.Location.Y - (after.Y - before.Y)));
+        NotifyViewTransformChanged();
         Invalidate();
     }
 
@@ -614,6 +675,7 @@ public sealed class MapCanvas : Control
         {
             Pan = new PointF(Pan.X + (e.Location.X - _lastMouse.X), Pan.Y + (e.Location.Y - _lastMouse.Y));
             _lastMouse = e.Location;
+            NotifyViewTransformChanged();
             Invalidate();
             return;
         }
@@ -661,6 +723,7 @@ public sealed class MapCanvas : Control
         {
             _panning = false;
             Cursor = Cursors.Cross;
+            NotifyViewTransformChanged();
         }
 
         if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)

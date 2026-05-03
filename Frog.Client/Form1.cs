@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Drawing;
+using System.IO;
+using Frog.Client.Assets;
 using Frog.Client.Network;
 using Frog.Client.UI;
 using Frog.Core.Enums;
@@ -14,6 +17,7 @@ public partial class Form1 : Form
     private int _tileX;
     private int _tileY;
     private readonly ConcurrentDictionary<string, (int X, int Y)> _others = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, Bitmap> _tilesetBitmaps = new();
     private DateTime _lastMoveUtc = DateTime.MinValue;
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
     private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Value = 6000, Width = 70 };
@@ -208,6 +212,7 @@ public partial class Form1 : Form
         _username = null;
         _others.Clear();
         ClearMapImage();
+        DisposeTilesetBitmaps();
     }
 
     private void OnConnectionClosed()
@@ -321,6 +326,7 @@ public partial class Form1 : Form
         _map = null;
         _others.Clear();
         ClearMapImage();
+        DisposeTilesetBitmaps();
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
         _btnLogout.Enabled = false;
@@ -330,6 +336,7 @@ public partial class Form1 : Form
     {
         AppendLog($"Map reçue id={mapId} {map.Name} {map.Width}x{map.Height}");
         _map = map;
+        ReloadTilesetBitmaps();
         RedrawMap();
     }
 
@@ -481,9 +488,39 @@ public partial class Form1 : Form
             return;
         }
 
-        var bmp = MapViewRenderer.Render(_map, _others, _username, _tileX, _tileY);
+        var bmp = MapViewRenderer.Render(_map, _others, _username, _tileX, _tileY, _tilesetBitmaps);
         ClearMapImage();
         _picMap.Image = bmp;
+    }
+
+    private void ReloadTilesetBitmaps()
+    {
+        DisposeTilesetBitmaps();
+        if (_map is null)
+        {
+            return;
+        }
+
+        var baseDir = AppContext.BaseDirectory;
+        foreach (var kv in ClientTilesetLoader.LoadForMap(_map, baseDir))
+        {
+            _tilesetBitmaps[kv.Key] = kv.Value;
+        }
+
+        if (_tilesetBitmaps.Count > 0)
+        {
+            AppendLog($"Tilesets chargés : {string.Join(", ", _tilesetBitmaps.Keys.OrderBy(k => k))} (dossiers Maps/ ou Tilesets/ — voir Docs/premier-monde.md).");
+        }
+    }
+
+    private void DisposeTilesetBitmaps()
+    {
+        foreach (var b in _tilesetBitmaps.Values)
+        {
+            b.Dispose();
+        }
+
+        _tilesetBitmaps.Clear();
     }
 
     private void ClearMapImage()

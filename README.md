@@ -57,7 +57,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 |--------|--------|----------------|
 | **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
 | **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, **warps** (monde unique), chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
-| **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `Form1` (connexion, map, déplacements, chat 3 canaux, heartbeat, mêlée). |
+| **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `Form1` (connexion, map **PNG multi-couches**, déplacements, chat 3 canaux, heartbeat, mêlée). |
 | **Frog.Editor** | 🟢 En évolution | Carte : pinceau (traînée), gomme, **remplissage**, **rectangle**, undo/redo (Ctrl+Z/Y), couches, tileset PNG, sauvegarde `.fmap`. |
 | **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
 
@@ -77,20 +77,20 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 <details>
-<summary><strong>Phase 2 — Même monde partout (fidélité carte / tiles)</strong></summary>
+<summary><strong>Phase 2 — Même monde partout (fidélité carte / tiles)</strong> (fait)</summary>
 
-- [ ] Décision et mise en œuvre : **échelle de tuile** cohérente entre `WorldMetrics`, **éditeur** et **rendu client**.
-- [ ] **Rendu client avec tilesets PNG** + ordre de dessin des **couches** (Ground / Mask / Fringe / attributs ou équivalent moteur).
-- [ ] Liste ou manifeste des **tilesets référencés** par une carte (copie/export monde + assets).
+- [x] **Taille de tuile 32 px** partagée : `WorldMetrics.DefaultTileSizePixels`, rendu client, découpe `SrcX`/`SrcY` (mêlée : `MeleeRangePixels` = 56).
+- [x] **Rendu client** : PNG par `TilesetId` si présents, **ordre des couches** = ordre `Map.Layers` ; couche **Attributes** en surcouche semi-transparente ; secours couleur si image absente.
+- [x] **Manifeste** : à l’enregistrement carte, `{nom}.tilesets.json` à côté du `.fmap` ; client lit `Maps/{nomCarte}.tilesets.json`, `Tilesets/manifest.json`, ou `Tilesets/{id}.png`.
 
 </details>
 
 <details>
-<summary><strong>Phase 3 — Éditeur de cartes (outil métier créateur)</strong></summary>
+<summary><strong>Phase 3 — Éditeur de cartes (outil métier créateur)</strong> (partiel)</summary>
 
-- [ ] **Mini‑carte** avec rectangle de vue et navigation (zoom / clic pour centrer).
-- [ ] Enrichir **`Map.Validate()`** : bornes, warps, cohérence couches / données critiques.
-- [ ] **`PropertyGrid` / palette** métier pour bloc / warp / ressource / attributs utilisables par le jeu.
+- [x] **Mini‑carte** (coin carte) : rectangle de vue, clic pour centrer ; pan / zoom Ctrl+molette notifient la mini-carte.
+- [x] **`Map.Validate()`** : au moins une couche, bornes tuiles, pas de doublon (x,y) par couche, warps (MapId ≥ 0, destination ≥ 0).
+- [x] **`PropertyGrid`** : catégories / descriptions sur les propriétés **Tuile** (Position, Jeu, Warp, Graphique) ; bouton barre d’outils **Valider carte**.
 - [ ] _[Option]_ **Marqueurs / événements** sur carte comme base pour le scripting futur.
 
 </details>
@@ -168,7 +168,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 
 ### 🎮 Frog.Client
 - [x] Client réseau selon `protocol_login_map.md` (`FrogGameClient` : Hello, login/register, map, move, positions, chat, heartbeat, mêlée, erreurs)
-- [x] Rendu map tuile (couleurs par type + joueurs) — **pas** de tilesets PNG pour l’instant
+- [x] Rendu map : **tilesets PNG** (dossiers `Maps/` + `Tilesets/`, manifeste `.tilesets.json`) + secours couleurs ; **tuiles 32 px** (`WorldMetrics`)
 - [x] Bouton **Logout** (`LogoutRequest` / `LogoutAck`, fermeture TCP côté serveur)
 - [ ] Polish HUD
 - [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)

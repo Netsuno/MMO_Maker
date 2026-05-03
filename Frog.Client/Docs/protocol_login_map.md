@@ -58,8 +58,8 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 
 Le serveur aligne la position joueur sur une grille **tuiles** (voir `PositionUpdate`) et maintient en interne le **centre** de la tuile en **pixels monde** pour la mêlée. Constantes partagées dans `Frog.Core/Constants/WorldMetrics.cs` :
 
-- `DefaultTileSizePixels` = **16** (carré ; le client de rendu doit utiliser la même taille)
-- `MeleeRangePixels` = **28** (distance euclidienne max. centre → centre pour un coup au corps à corps)
+- `DefaultTileSizePixels` = **32** (carré ; aligné avec l’éditeur de cartes et le découpage `SrcX`/`SrcY` des tuiles)
+- `MeleeRangePixels` = **56** (distance euclidienne max. centre → centre pour un coup au corps à corps ; ~1,75 tuile)
 
 ## Carte monde (.fmap) et blob MapData
 
@@ -76,6 +76,10 @@ Après les 4 octets magic ASCII `FMAP` :
 Le serveur charge ce format depuis **`Maps:worldMapPath`** (`Frog.Server/appsettings.json`). Chemin vide ou fichier illisible → carte de secours intégrée.
 
 Guide utilisateur pas à pas : [`Docs/premier-monde.md`](../../Docs/premier-monde.md).
+
+### Manifeste tilesets (export éditeur)
+
+À l’enregistrement d’un fichier `MaCarte.fmap`, l’éditeur écrit **`MaCarte.tilesets.json`** (UTF‑8 JSON) listant les paires `{ id, fileName }` (`fileName` = nom seul du PNG). Le client résout les chemins relativement au dossier du fichier manifest (voir guide `premier-monde.md`).
 
 ## Messages
 
