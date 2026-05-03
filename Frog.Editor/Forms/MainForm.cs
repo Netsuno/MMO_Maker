@@ -1197,28 +1197,40 @@ public sealed class MainForm : Form
     private void ApplyLayersPropertySplitDistance()
     {
         var h = _splitLayersProps.ClientSize.Height;
-        if (h <= _splitLayersProps.SplitterWidth + 8)
-        {
-            return;
-        }
-
-        _splitLayersProps.Panel1MinSize = 100;
-        _splitLayersProps.Panel2MinSize = 160;
         var sw = _splitLayersProps.SplitterWidth;
-        var max = h - _splitLayersProps.Panel2MinSize - sw;
-        var min = _splitLayersProps.Panel1MinSize;
-        if (max < min)
-        {
-            _splitLayersProps.Panel2MinSize = Math.Max(80, h - min - sw - 1);
-            max = h - _splitLayersProps.Panel2MinSize - sw;
-        }
-
-        if (max < min)
+        if (h <= sw + 8)
         {
             return;
         }
 
-        _splitLayersProps.SplitterDistance = Math.Clamp(280, min, max);
+        var panel1Min = 100;
+        var panel2Min = 160;
+        var maxDist = h - panel2Min - sw;
+        if (maxDist < panel1Min)
+        {
+            panel2Min = Math.Max(80, h - panel1Min - sw - 1);
+            maxDist = h - panel2Min - sw;
+        }
+
+        if (maxDist < panel1Min)
+        {
+            return;
+        }
+
+        // Il faut une SplitterDistance valide *avant* Panel1MinSize / Panel2MinSize, sinon WinForms lève
+        // InvalidOperationException (« doit se situer entre Panel1MinSize et … »).
+        _splitLayersProps.SplitterDistance = Math.Clamp(_splitLayersProps.SplitterDistance, panel1Min, maxDist);
+
+        _splitLayersProps.Panel1MinSize = panel1Min;
+        _splitLayersProps.Panel2MinSize = panel2Min;
+
+        maxDist = h - _splitLayersProps.Panel2MinSize - sw;
+        if (maxDist < panel1Min)
+        {
+            return;
+        }
+
+        _splitLayersProps.SplitterDistance = Math.Clamp(280, panel1Min, maxDist);
     }
 
     internal sealed class NewMapDialog : Form
