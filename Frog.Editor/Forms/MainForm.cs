@@ -29,7 +29,8 @@ public sealed class MainForm : Form
     private readonly SplitContainer _splitLeft;
     private readonly SplitContainer _splitRight;
     private readonly PaletteView _palette;
-    private readonly ListView _layersList;
+    private readonly LayersProjectPanel _layersProjectPanel;
+    private readonly ElementHost _layersElementHost;
     private bool _suspendLayerListEvents;
     private readonly PropertyGrid _propGrid;
     private readonly MapCanvas _canvas;
@@ -357,55 +358,52 @@ public sealed class MainForm : Form
             BackColor = EditorChrome.CanvasInset,
         };
         _splitLayersProps.Panel2.BackColor = EditorChrome.SidebarBg;
-        var layersHost = new TableLayoutPanel
+        var layersHost = new Panel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
             Padding = new Padding(8, 14, 10, 12),
             BackColor = EditorChrome.SidebarBg,
         };
-        layersHost.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
-        layersHost.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        var layersBanner = EditorChrome.BuildZoneBanner("COUCHES — ordre de dessin");
-        layersHost.Controls.Add(layersBanner, 0, 0);
+        _layersProjectPanel = new LayersProjectPanel();
+        _layersProjectPanel.LayerSelected += (_, ix) =>
+        {
+            if (_suspendLayerListEvents)
+            {
+                return;
+            }
 
-        _layersList = new ListView
+            _canvas.ActiveLayerIndex = ix;
+            _canvas.Invalidate();
+        };
+        _layersProjectPanel.LayerVisibilityChanged += (_, t) =>
+        {
+            if (_suspendLayerListEvents || _canvas.Map is null)
+            {
+                return;
+            }
+
+            if (t.index < 0 || t.index >= _canvas.Map.Layers.Count)
+            {
+                return;
+            }
+
+            _canvas.Map.Layers[t.index].Visible = t.visible;
+            _canvas.Invalidate();
+        };
+        _layersProjectPanel.RenameLayerRequested += (_, _) => RenameLayerDisplay();
+        _layersProjectPanel.AddLayerRequested = AddLayer;
+        _layersProjectPanel.RemoveLayerRequested = RemoveLayer;
+        _layersProjectPanel.ChangeEngineTypeRequested = ChangeLayerEngineType;
+        _layersProjectPanel.ToggleLockRequested = ToggleLayerLock;
+        _layersElementHost = new ElementHost
         {
             Dock = DockStyle.Fill,
-            View = View.Details,
-            FullRowSelect = true,
-            HideSelection = false,
-            CheckBoxes = true,
-            HeaderStyle = ColumnHeaderStyle.Nonclickable,
-            MultiSelect = false,
-            Font = EditorChrome.BodyFont,
+            BackColor = EditorChrome.SidebarBg,
+            Child = _layersProjectPanel,
         };
-        EditorChrome.StyleSidebarListView(_layersList);
-        _layersList.Columns.Add("Affichage", 130);
-        _layersList.Columns.Add("Type moteur", 95);
-        _layersList.Columns.Add("Verrou", 52);
-        _layersList.SelectedIndexChanged += LayersList_SelectedIndexChanged;
-        _layersList.ItemChecked += LayersList_ItemChecked;
-        _layersList.MouseDoubleClick += (_, _) =>
-        {
-            if (GetSelectedLayerIndex() >= 0)
-            {
-                RenameLayerDisplay();
-            }
-        };
-
-        layersHost.Controls.Add(_layersList, 0, 1);
+        layersHost.Controls.Add(_layersElementHost);
 
         _splitLayersProps.Panel1.Controls.Add(layersHost);
-
-        var ctx = new ContextMenuStrip();
-        ctx.Items.Add("Ajouter couche", null, (_, _) => AddLayer());
-        ctx.Items.Add("Supprimer couche", null, (_, _) => RemoveLayer());
-        ctx.Items.Add("Renommer l’affichage…", null, (_, _) => RenameLayerDisplay());
-        ctx.Items.Add("Type moteur (Ground, Mask…)…", null, (_, _) => ChangeLayerEngineType());
-        ctx.Items.Add("Verrouiller / déverrouiller", null, (_, _) => ToggleLayerLock());
-        _layersList.ContextMenuStrip = ctx;
 
         _propGrid = new PropertyGrid { Dock = DockStyle.Fill, HelpVisible = false };
         EditorChrome.StylePropertyGrid(_propGrid);
@@ -544,36 +542,7 @@ public sealed class MainForm : Form
         SyncTilesetTabFromList();
     }
 
-    private void LayersList_SelectedIndexChanged(object? sender, EventArgs e)
-    {
-        if (_layersList.SelectedIndices.Count == 0)
-        {
-            return;
-        }
-
-        _canvas.ActiveLayerIndex = _layersList.SelectedIndices[0];
-        _canvas.Invalidate();
-    }
-
-    private void LayersList_ItemChecked(object? sender, ItemCheckedEventArgs e)
-    {
-        if (_suspendLayerListEvents || _canvas.Map is null)
-        {
-            return;
-        }
-
-        var idx = e.Item.Index;
-        if (idx < 0 || idx >= _canvas.Map.Layers.Count)
-        {
-            return;
-        }
-
-        _canvas.Map.Layers[idx].Visible = e.Item.Checked;
-        _canvas.Invalidate();
-    }
-
-    private int GetSelectedLayerIndex() =>
-        _layersList.SelectedIndices.Count > 0 ? _layersList.SelectedIndices[0] : -1;
+    private int GetSelectedLayerIndex() => _layersProjectPanel.GetSelectedLayerIndex();
 
     private void RefreshTilesetList()
     {
@@ -780,27 +749,30 @@ public sealed class MainForm : Form
         _suspendLayerListEvents = true;
         try
         {
-            _layersList.Items.Clear();
+            var rows = new List<LayerListRow>();
             if (_canvas.Map is null)
             {
+                _layersProjectPanel.ApplyRows(rows, -1);
                 return;
             }
 
             for (var i = 0; i < _canvas.Map.Layers.Count; i++)
             {
                 var l = _canvas.Map.Layers[i];
-                var it = new ListViewItem(l.GetDisplayLabel()) { Tag = i, Checked = l.Visible };
-                it.SubItems.Add(l.LayerType.ToString());
-                it.SubItems.Add(l.Locked ? "Oui" : "—");
-                _layersList.Items.Add(it);
+                rows.Add(new LayerListRow
+                {
+                    Index = i,
+                    Visible = l.Visible,
+                    Display = l.GetDisplayLabel(),
+                    EngineType = l.LayerType.ToString(),
+                    LockLabel = l.Locked ? "Oui" : "—",
+                });
             }
 
-            if (_layersList.Items.Count > 0)
-            {
-                var want = Math.Clamp(_canvas.ActiveLayerIndex, 0, _layersList.Items.Count - 1);
-                _layersList.Items[want].Selected = true;
-                _layersList.Items[want].Focused = true;
-            }
+            var want = rows.Count > 0
+                ? Math.Clamp(_canvas.ActiveLayerIndex, 0, rows.Count - 1)
+                : -1;
+            _layersProjectPanel.ApplyRows(rows, want);
         }
         finally
         {
