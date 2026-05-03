@@ -35,6 +35,7 @@ public sealed class MainForm : Form
     private readonly PropertyGrid _propGrid;
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
+    private Point _lastHoverTile;
     private readonly TileTypePalette _tileTypePalette;
     private readonly ToolPalette _toolPalette;
     private readonly TableLayoutPanel _leftLayout;
@@ -204,6 +205,7 @@ public sealed class MainForm : Form
 
         _canvas = new MapCanvas { Dock = DockStyle.Fill };
         _canvas.HoveredTileChanged += OnHoveredTileChanged;
+        _canvas.ViewTransformChanged += OnCanvasViewTransformChanged;
         _canvas.TileClicked += OnTileClicked;
         _canvas.MapReplaced += OnMapReplaced;
         _canvas.UndoHistoryChanged += UpdateUndoRedoButtons;
@@ -458,6 +460,7 @@ public sealed class MainForm : Form
         RefreshTilesetList();
         SyncMapsTree();
         UpdateMapChromeLabels();
+        PushEditorStatusLine();
     }
 
     private void OnPaletteStampChanged(Rectangle stampPixels)
@@ -471,7 +474,19 @@ public sealed class MainForm : Form
 
     private void OnHoveredTileChanged(Point p)
     {
-        var text = $"Tuile · x = {p.X}, y = {p.Y}";
+        _lastHoverTile = p;
+        PushEditorStatusLine();
+    }
+
+    private void OnCanvasViewTransformChanged()
+    {
+        PushEditorStatusLine();
+    }
+
+    private void PushEditorStatusLine()
+    {
+        var zoomPct = (int)Math.Round(_canvas.Zoom * 100f);
+        var text = $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;

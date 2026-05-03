@@ -77,7 +77,7 @@
         </Menu>
         <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
-                <TextBlock x:Name="TileStatusText" Text="Tuile · x = 0, y = 0" />
+                <TextBlock x:Name="TileStatusText" Text="Tuile · x = 0, y = 0    ·    Zoom 100 %" />
             </StatusBarItem>
         </StatusBar>
         <wfi:WindowsFormsHost x:Name="EditorHost" />
