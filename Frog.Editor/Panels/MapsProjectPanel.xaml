@@ -1,0 +1,46 @@
+<UserControl x:Class="Frog.Editor.Panels.MapsProjectPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:panels="clr-namespace:Frog.Editor.Panels"
+             Background="#FF282B32">
+    <UserControl.Resources>
+        <Style TargetType="{x:Type TreeView}">
+            <Setter Property="Background" Value="#FF32353E" />
+            <Setter Property="Foreground" Value="#FFEBEEF5" />
+            <Setter Property="BorderBrush" Value="#FF585C68" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+        <Style TargetType="{x:Type TreeViewItem}">
+            <Setter Property="Foreground" Value="#FFEBEEF5" />
+            <Setter Property="Padding" Value="2,1" />
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0"
+                Background="#FF202228"
+                BorderThickness="0"
+                Padding="12,0,8,0">
+            <Grid>
+                <TextBlock VerticalAlignment="Center"
+                           FontFamily="Segoe UI"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           Foreground="#FFEBEEF5"
+                           Text="CARTES — projet" />
+                <Border Height="3"
+                        VerticalAlignment="Bottom"
+                        Background="#FF64BEFF" />
+            </Grid>
+        </Border>
+        <panels:MapsTreeView x:Name="ProjectTree"
+                             Grid.Row="1"
+                             Margin="0,6,0,0" />
+    </Grid>
+</UserControl>

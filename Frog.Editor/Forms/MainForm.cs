@@ -4,12 +4,14 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using System.Windows.Forms.Integration;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
 using Frog.Editor.Assets;
 using Frog.Editor.Controls;
 using Frog.Editor.Dialogs;
+using Frog.Editor.Panels;
 using Frog.Editor.Ui;
 
 using Frog.Editor.Services;
@@ -41,7 +43,8 @@ public sealed class MainForm : Form
     private readonly SplitContainer _splitLayersProps;
     private readonly SplitContainer _splitRightTileset;
     private readonly TabControl _tabTilesets;
-    private readonly TreeView _mapsTree;
+    private readonly MapsProjectPanel _mapsProjectPanel;
+    private readonly ElementHost _mapsElementHost;
     private readonly Panel _mapWorkbench;
     private readonly Panel _mapHeader;
     private readonly Label _lblMapWorkspaceTitle;
@@ -220,8 +223,14 @@ public sealed class MainForm : Form
         _tileTypePalette = new TileTypePalette { Dock = DockStyle.Top };
         _tileTypePalette.SelectedTileTypeChanged += type => _canvas.SelectedTileType = type;
 
-        _mapsTree = new TreeView { Dock = DockStyle.Fill };
-        EditorChrome.StyleMapsTree(_mapsTree);
+        _mapsProjectPanel = new MapsProjectPanel();
+        _mapsElementHost = new ElementHost
+        {
+            Dock = DockStyle.Fill,
+            BackColor = EditorChrome.SidebarBg,
+            Margin = Padding.Empty,
+            Child = _mapsProjectPanel,
+        };
 
         var tilesetBand = new TableLayoutPanel
         {
@@ -285,10 +294,8 @@ public sealed class MainForm : Form
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-        var mapsBanner = EditorChrome.BuildZoneBanner("CARTES — projet");
         var mapsHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 4, 10, 10), BackColor = EditorChrome.SidebarBg };
-        mapsHost.Controls.Add(mapsBanner);
-        mapsHost.Controls.Add(_mapsTree);
+        mapsHost.Controls.Add(_mapsElementHost);
 
         _leftLayout.Controls.Add(_toolPalette, 0, 0);
         _leftLayout.Controls.Add(_tileTypePalette, 0, 1);
@@ -407,11 +414,9 @@ public sealed class MainForm : Form
                 UpdateMapChromeLabels();
             }
         };
-        _mapsTree.AfterSelect += (_, _) =>
+        _mapsProjectPanel.CurrentMapNodeSelected += (_, _) =>
         {
-            if (_mapsTree.SelectedNode?.Tag as string == "current"
-                && _propGrid.SelectedObject is not Map
-                && _canvas.Map is not null)
+            if (_propGrid.SelectedObject is not Map && _canvas.Map is not null)
             {
                 _propGrid.SelectedObject = _canvas.Map;
             }
@@ -491,29 +496,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private void SyncMapsTree()
-    {
-        _mapsTree.BeginUpdate();
-        try
-        {
-            _mapsTree.Nodes.Clear();
-            var root = _mapsTree.Nodes.Add("Cartes du projet");
-            root.ForeColor = EditorChrome.LabelPrimary;
-            if (_canvas.Map is not null)
-            {
-                var n = root.Nodes.Add($"001  {_canvas.Map.Name}");
-                n.ForeColor = EditorChrome.RibbonAccent;
-                n.Tag = "current";
-            }
-
-            root.Expand();
-            _mapsTree.SelectedNode = root.Nodes.Count > 0 ? root.Nodes[0] : root;
-        }
-        finally
-        {
-            _mapsTree.EndUpdate();
-        }
-    }
+    private void SyncMapsTree() => _mapsProjectPanel.RefreshFromMap(_canvas.Map?.Name);
 
     private void UpdateMapChromeLabels()
     {
@@ -525,10 +508,7 @@ public sealed class MainForm : Form
 
         _lblMapWorkspaceTitle.Text =
             $"Carte : {_canvas.Map.Name}    ({_canvas.Map.Width} × {_canvas.Map.Height} tuiles)";
-        if (_mapsTree.Nodes.Count > 0 && _mapsTree.Nodes[0].Nodes.Count > 0)
-        {
-            _mapsTree.Nodes[0].Nodes[0].Text = $"001  {_canvas.Map.Name}";
-        }
+        _mapsProjectPanel.UpdateCurrentMapDisplayName(_canvas.Map.Name);
     }
 
     private void TilesetsList_SelectedIndexChanged(object? sender, EventArgs e)
