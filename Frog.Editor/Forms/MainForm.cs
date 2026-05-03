@@ -17,9 +17,8 @@ namespace Frog.Editor.Forms;
 public sealed class MainForm : Form
 {
     private readonly MenuStrip _menuStrip;
-    private readonly ToolStrip _tool;
-    private readonly ToolStripButton _btnUndo;
-    private readonly ToolStripButton _btnRedo;
+    private readonly ToolStripMenuItem _mnuUndo;
+    private readonly ToolStripMenuItem _mnuRedo;
     private readonly StatusStrip _status;
     private readonly ToolStripStatusLabel _lblPos;
     private readonly SplitContainer _splitLeft;
@@ -66,62 +65,54 @@ public sealed class MainForm : Form
 
         _menuStrip = new MenuStrip();
         EditorChrome.StyleMainMenu(_menuStrip);
+
         var mFile = new ToolStripMenuItem("Fichier");
-        mFile.DropDownItems.Add("Nouvelle carte…", null, (_, _) => CreateNewMap());
-        mFile.DropDownItems.Add("Ouvrir…", null, (_, _) => LoadMap());
+        mFile.DropDownItems.Add(new ToolStripMenuItem("Nouvelle carte…", null, (_, _) => CreateNewMap())
+        {
+            ShortcutKeys = Keys.Control | Keys.N,
+            ShowShortcutKeys = true,
+        });
+        mFile.DropDownItems.Add(new ToolStripMenuItem("Ouvrir…", null, (_, _) => LoadMap())
+        {
+            ShortcutKeys = Keys.Control | Keys.O,
+            ShowShortcutKeys = true,
+        });
         mFile.DropDownItems.Add(new ToolStripSeparator());
-        mFile.DropDownItems.Add("Enregistrer", null, (_, _) => SaveMap());
+        mFile.DropDownItems.Add(new ToolStripMenuItem("Enregistrer", null, (_, _) => SaveMap())
+        {
+            ShortcutKeys = Keys.Control | Keys.S,
+            ShowShortcutKeys = true,
+        });
         mFile.DropDownItems.Add(new ToolStripSeparator());
         mFile.DropDownItems.Add("Quitter", null, (_, _) => Close());
+
+        _mnuUndo = new ToolStripMenuItem("Annuler", null, (_, _) => DoUndo())
+        {
+            Enabled = false,
+            ShortcutKeys = Keys.Control | Keys.Z,
+            ShowShortcutKeys = true,
+        };
+        _mnuRedo = new ToolStripMenuItem("Rétablir", null, (_, _) => DoRedo())
+        {
+            Enabled = false,
+            ShortcutKeys = Keys.Control | Keys.Y,
+            ShowShortcutKeys = true,
+        };
+        var mEdit = new ToolStripMenuItem("Édition");
+        mEdit.DropDownItems.Add(_mnuUndo);
+        mEdit.DropDownItems.Add(_mnuRedo);
+
+        var mResources = new ToolStripMenuItem("Ressources");
+        mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
+
         var mMap = new ToolStripMenuItem("Carte");
-        mMap.DropDownItems.Add("Valider…", null, (_, _) => ValidateMap());
+        mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
+
         var mView = new ToolStripMenuItem("Affichage");
-        mView.DropDownItems.Add("Réinitialiser vue (zoom 100 %, centrage)", null, (_, _) => ResetMapView());
-        _menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mMap, mView });
+        mView.DropDownItems.Add("Réinitialiser la vue (zoom 100 %)", null, (_, _) => ResetMapView());
+
+        _menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mEdit, mResources, mMap, mView });
         MainMenuStrip = _menuStrip;
-
-        _tool = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Top };
-        var btnNewMap = new ToolStripButton("Nouvelle");
-        var btnOpenTileset = new ToolStripButton("Tileset");
-        var btnSave = new ToolStripButton("  Enregistrer  ") { Font = new Font(EditorChrome.CaptionFont, FontStyle.Bold) };
-        var btnLoad = new ToolStripButton("Ouvrir");
-        var btnValidate = new ToolStripButton("Valider");
-        _btnUndo = new ToolStripButton("Annuler") { Enabled = false };
-        _btnRedo = new ToolStripButton("Rétablir") { Enabled = false };
-
-        btnNewMap.Click += (_, _) => CreateNewMap();
-        btnOpenTileset.Click += (_, _) => OpenTileset();
-        btnSave.Click += (_, _) => SaveMap();
-        btnLoad.Click += (_, _) => LoadMap();
-        btnValidate.Click += (_, _) => ValidateMap();
-        _btnUndo.Click += (_, _) => DoUndo();
-        _btnRedo.Click += (_, _) => DoRedo();
-
-        btnSave.ForeColor = Color.White;
-        btnSave.BackColor = EditorChrome.SaveActionGreen;
-        btnSave.MouseEnter += (_, _) => btnSave.BackColor = EditorChrome.SaveActionGreenHover;
-        btnSave.MouseLeave += (_, _) => btnSave.BackColor = EditorChrome.SaveActionGreen;
-
-        _tool.Items.Add(new ToolStripLabel("Fichier") { ForeColor = EditorChrome.LabelMuted, Margin = new Padding(0, 0, 4, 0) });
-        _tool.Items.AddRange(new ToolStripItem[]
-        {
-            btnNewMap, btnLoad, new ToolStripSeparator(),
-            new ToolStripLabel("Ressources") { ForeColor = EditorChrome.LabelMuted, Margin = new Padding(8, 0, 4, 0) },
-            btnOpenTileset, new ToolStripSeparator(),
-            new ToolStripLabel("Publication") { ForeColor = EditorChrome.LabelMuted, Margin = new Padding(8, 0, 4, 0) },
-            btnSave, new ToolStripSeparator(),
-            btnValidate, new ToolStripSeparator(),
-            new ToolStripLabel("Historique") { ForeColor = EditorChrome.LabelMuted, Margin = new Padding(8, 0, 4, 0) },
-            _btnUndo, _btnRedo,
-        });
-        EditorChrome.StripToolbar(_tool);
-        foreach (ToolStripItem ti in _tool.Items)
-        {
-            if (ti is ToolStripButton tsb && !ReferenceEquals(tsb, btnSave))
-            {
-                tsb.ForeColor = EditorChrome.LabelPrimary;
-            }
-        }
 
         _status = new StatusStrip { SizingGrip = false, GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Bottom };
         _status.BackColor = EditorChrome.RibbonBg;
@@ -386,7 +377,7 @@ public sealed class MainForm : Form
         };
         _splitRight.Panel2.Controls.Add(_splitRightTileset);
         _splitLeft.Panel2.Controls.Add(_splitRight);
-        Controls.AddRange(new Control[] { _menuStrip, _tool, _splitLeft, _status });
+        Controls.AddRange(new Control[] { _menuStrip, _splitLeft, _status });
 
         var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
@@ -607,17 +598,7 @@ public sealed class MainForm : Form
             return true;
         }
 
-        if (ctrl && code == Keys.Z)
-        {
-            DoUndo();
-            return true;
-        }
-
-        if (ctrl && code == Keys.Y)
-        {
-            DoRedo();
-            return true;
-        }
+        // Annuler / Rétablir : raccourcis gérés par le MenuStrip (Édition).
 
         return base.ProcessCmdKey(ref msg, keyData);
     }
@@ -667,8 +648,8 @@ public sealed class MainForm : Form
 
     private void UpdateUndoRedoButtons()
     {
-        _btnUndo.Enabled = _canvas.History.CanUndo;
-        _btnRedo.Enabled = _canvas.History.CanRedo;
+        _mnuUndo.Enabled = _canvas.History.CanUndo;
+        _mnuRedo.Enabled = _canvas.History.CanRedo;
     }
 
     private void RefreshLayersUi()
@@ -1086,26 +1067,101 @@ public sealed class MainForm : Form
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(348, 168);
+            MinimumSize = new Size(440, 260);
+            ClientSize = new Size(480, 240);
+            AutoScaleMode = AutoScaleMode.Dpi;
+            Padding = new Padding(0);
             EditorChrome.ApplyFormChrome(this);
 
-            _numW = new NumericUpDown { Minimum = 1, Maximum = 512, Value = 20, Location = new Point(160, 24), Width = 120 };
-            _numH = new NumericUpDown { Minimum = 1, Maximum = 512, Value = 15, Location = new Point(160, 54), Width = 120 };
-            _txtName = new TextBox { Text = "Nouvelle carte", Location = new Point(160, 84), Width = 160 };
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 4,
+                Padding = new Padding(20, 18, 20, 16),
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 168f));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56f));
 
-            Controls.Add(new Label { Text = "Largeur (tuiles)", AutoSize = true, Location = new Point(22, 26), ForeColor = EditorChrome.LabelMuted });
-            Controls.Add(_numW);
-            Controls.Add(new Label { Text = "Hauteur (tuiles)", AutoSize = true, Location = new Point(22, 56), ForeColor = EditorChrome.LabelMuted });
-            Controls.Add(_numH);
-            Controls.Add(new Label { Text = "Nom de la carte", AutoSize = true, Location = new Point(22, 86), ForeColor = EditorChrome.LabelMuted });
-            Controls.Add(_txtName);
+            var lblW = new Label
+            {
+                Text = "Largeur (tuiles)",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = EditorChrome.LabelPrimary,
+                AutoSize = false,
+            };
+            _numW = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 512,
+                Value = 20,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(10, 6, 0, 6),
+                TextAlign = HorizontalAlignment.Right,
+            };
+            var lblH = new Label
+            {
+                Text = "Hauteur (tuiles)",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = EditorChrome.LabelPrimary,
+                AutoSize = false,
+            };
+            _numH = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 512,
+                Value = 15,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(10, 6, 0, 6),
+                TextAlign = HorizontalAlignment.Right,
+            };
+            var lblN = new Label
+            {
+                Text = "Nom de la carte",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = EditorChrome.LabelPrimary,
+                AutoSize = false,
+            };
+            _txtName = new TextBox
+            {
+                Text = "Nouvelle carte",
+                Dock = DockStyle.Fill,
+                Margin = new Padding(10, 6, 0, 6),
+            };
 
-            var btnOk = new Button { Text = "Créer", DialogResult = DialogResult.OK, Location = new Point(160, 122), Width = 88 };
-            var btnCancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, Location = new Point(256, 122), Width = 80 };
+            root.Controls.Add(lblW, 0, 0);
+            root.Controls.Add(_numW, 1, 0);
+            root.Controls.Add(lblH, 0, 1);
+            root.Controls.Add(_numH, 1, 1);
+            root.Controls.Add(lblN, 0, 2);
+            root.Controls.Add(_txtName, 1, 2);
+
+            var buttons = new FlowLayoutPanel
+            {
+                FlowDirection = FlowDirection.RightToLeft,
+                Dock = DockStyle.Fill,
+                WrapContents = false,
+                AutoSize = false,
+                Padding = new Padding(0, 8, 0, 0),
+                Margin = new Padding(0),
+            };
+            var btnOk = new Button { Text = "Créer", DialogResult = DialogResult.OK, AutoSize = true, MinimumSize = new Size(108, 34), Margin = new Padding(10, 0, 0, 0) };
+            var btnCancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, AutoSize = true, MinimumSize = new Size(108, 34) };
             EditorChrome.StyleDialogButton(btnOk, primary: true);
             EditorChrome.StyleDialogButton(btnCancel, primary: false);
-            Controls.Add(btnOk);
-            Controls.Add(btnCancel);
+            buttons.Controls.Add(btnOk);
+            buttons.Controls.Add(btnCancel);
+            root.SetColumnSpan(buttons, 2);
+            root.Controls.Add(buttons, 0, 3);
+
+            Controls.Add(root);
             AcceptButton = btnOk;
             CancelButton = btnCancel;
         }

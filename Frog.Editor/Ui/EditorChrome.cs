@@ -50,7 +50,7 @@ internal static class EditorChrome
     {
         menu.BackColor = RibbonBg;
         menu.ForeColor = LabelPrimary;
-        menu.Padding = new Padding(6, 2, 6, 2);
+        menu.Padding = new Padding(4, 2, 4, 2);
     }
 
     public static void StyleTabControlMaps(TabControl tabs)
