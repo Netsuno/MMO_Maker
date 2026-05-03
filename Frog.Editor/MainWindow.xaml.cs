@@ -75,17 +75,13 @@ public partial class MainWindow : Window
         {
             TopLevel = false,
             FormBorderStyle = FormBorderStyle.None,
-            Dock = DockStyle.Fill,
+            ShowInTaskbar = false,
         };
-        _editor.FormClosed += (_, _) =>
-        {
-            if (Dispatcher.HasShutdownStarted)
-            {
-                return;
-            }
+        _editor.SetWpfOwnerWindow(this);
+        HostLeft.Child = _editor.LeftShellForWpf;
+        HostCenter.Child = _editor.CenterShellForWpf;
+        HostRight.Child = _editor.RightShellForWpf;
 
-            System.Windows.Application.Current.Shutdown();
-        };
         _editor.TileHoverStatusChanged += OnTileHoverStatusChanged;
         _editor.UndoRedoStateChanged += (_, _) => Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
 
@@ -101,8 +97,15 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdZoomIn, (_, _) => _editor.EditorZoomIn()));
         CommandBindings.Add(new CommandBinding(CmdZoomOut, (_, _) => _editor.EditorZoomOut()));
 
-        EditorHost.Child = _editor;
-        Loaded += (_, _) => CommandManager.InvalidateRequerySuggested();
+        Loaded += OnMainWindowLoaded;
+        SizeChanged += (_, _) => _editor.NotifyWpfShellLayout();
+        Closed += (_, _) => _editor.Close();
+    }
+
+    private void OnMainWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        CommandManager.InvalidateRequerySuggested();
+        _editor.NotifyWpfShellLayout();
     }
 
     private void OnTileHoverStatusChanged(string text)

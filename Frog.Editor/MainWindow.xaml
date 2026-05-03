@@ -75,11 +75,46 @@
                 <MenuItem Header="Réinitialiser la vue (zoom 100 %)" Command="{x:Static local:MainWindow.CmdResetView}" />
             </MenuItem>
         </Menu>
-        <StatusBar DockPanel.Dock="Bottom">
+        <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">
             <StatusBarItem>
-                <TextBlock x:Name="TileStatusText" Text="Tuile · x = 0, y = 0    ·    Zoom 100 %" />
+                <TextBlock x:Name="TileStatusText" Text="Tuile · x = 0, y = 0    ·    Zoom 100 %" Foreground="#FFEBEEF5" />
             </StatusBarItem>
         </StatusBar>
-        <wfi:WindowsFormsHost x:Name="EditorHost" />
+        <!-- Coque WPF : colonnes et splitters ; îlots WinForms (canevas GDI+, palettes, PropertyGrid). -->
+        <Grid Background="#FF202228">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.1*" MinWidth="240" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="2.6*" MinWidth="360" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="1.2*" MinWidth="260" />
+            </Grid.ColumnDefinitions>
+            <wfi:WindowsFormsHost x:Name="HostLeft"
+                                  Grid.Column="0"
+                                  Margin="0,0,0,0" />
+            <GridSplitter Grid.Column="1"
+                          Width="6"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="#FF505666"
+                          ShowsPreview="False" />
+            <Border Grid.Column="2"
+                    Margin="2,4,2,6"
+                    BorderBrush="#FF585C68"
+                    BorderThickness="1"
+                    CornerRadius="0"
+                    Background="#FF2E3238">
+                <wfi:WindowsFormsHost x:Name="HostCenter" />
+            </Border>
+            <GridSplitter Grid.Column="3"
+                          Width="6"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="#FF505666"
+                          ShowsPreview="False" />
+            <wfi:WindowsFormsHost x:Name="HostRight"
+                                  Grid.Column="4"
+                                  Margin="0,0,0,0" />
+        </Grid>
     </DockPanel>
 </Window>

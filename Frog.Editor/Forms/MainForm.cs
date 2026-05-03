@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
+using System.Windows.Interop;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
@@ -14,6 +15,7 @@ using Frog.Editor.Dialogs;
 using Frog.Editor.Panels;
 using Frog.Editor.Ui;
 
+using Frog.Editor.Interop;
 using Frog.Editor.Services;
 
 namespace Frog.Editor.Forms;
@@ -26,8 +28,8 @@ public sealed class MainForm : Form
     private readonly StatusStrip? _status;
     private readonly ToolStripStatusLabel? _lblPos;
     private readonly bool _embedAsWpfChild;
-    private readonly SplitContainer _splitLeft;
-    private readonly SplitContainer _splitRight;
+    private readonly SplitContainer? _splitLeft;
+    private readonly SplitContainer? _splitRight;
     private readonly PaletteView _palette;
     private readonly LayersProjectPanel _layersProjectPanel;
     private readonly ElementHost _layersElementHost;
@@ -48,12 +50,31 @@ public sealed class MainForm : Form
     private readonly MapsProjectPanel _mapsProjectPanel;
     private readonly ElementHost _mapsElementHost;
     private readonly Panel _wfMapDockPanel;
-    private readonly MapWorkbenchWpf _mapWorkbenchWpf;
-    private readonly ElementHost _mapWorkbenchElementHost;
+    private readonly Panel _leftColumnPanel;
     private readonly Panel _mapHeader;
     private readonly Label _lblMapWorkspaceTitle;
     private bool _suspendTilesetTabSync;
     private bool _suspendTilesetListSync;
+    private System.Windows.Window? _wpfOwnerWindow;
+
+    /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
+    internal Control LeftShellForWpf => _leftColumnPanel;
+
+    /// <summary>Zone carte (bandeau + canevas + mini-carte).</summary>
+    internal Control CenterShellForWpf => _wfMapDockPanel;
+
+    /// <summary>Tuiles + couches + grille de propriétés.</summary>
+    internal Control RightShellForWpf => _splitRightTileset;
+
+    internal void SetWpfOwnerWindow(System.Windows.Window window) => _wpfOwnerWindow = window;
+
+    /// <summary>Réapplique les splits internes après redimensionnement de la coque WPF.</summary>
+    internal void NotifyWpfShellLayout()
+    {
+        ApplyLayersPropertySplitDistance();
+        ApplyRightTilesetSplitDistance();
+        PositionMinimap();
+    }
 
     /// <summary>Coordonnées tuile sous le curseur (pour barre d’état WPF).</summary>
     public event Action<string>? TileHoverStatusChanged;
@@ -86,13 +107,6 @@ public sealed class MainForm : Form
         EditorChrome.ApplyFormChrome(this);
 
         FormClosed += (_, _) => TilesetCache.Clear();
-
-        Shown += (_, _) =>
-        {
-            ApplyLayoutPercentages();
-            PositionMinimap();
-        };
-        ResizeEnd += (_, _) => ApplyLayoutPercentages();
 
         if (!embedAsWpfChild)
         {
@@ -171,6 +185,13 @@ public sealed class MainForm : Form
             status.Items.Add(lblPos);
             _status = status;
             _lblPos = lblPos;
+
+            Shown += (_, _) =>
+            {
+                ApplyLayoutPercentages();
+                PositionMinimap();
+            };
+            ResizeEnd += (_, _) => ApplyLayoutPercentages();
         }
         else
         {
@@ -181,29 +202,37 @@ public sealed class MainForm : Form
             _lblPos = null;
         }
 
-        _splitLeft = new SplitContainer
+        if (!embedAsWpfChild)
         {
-            Dock = DockStyle.Fill,
-            Orientation = Orientation.Vertical,
-            SplitterDistance = 260,
-            FixedPanel = FixedPanel.Panel1,
-            SplitterWidth = 6,
-            BackColor = EditorChrome.CanvasInset,
-        };
-        _splitLeft.Panel1.BackColor = EditorChrome.SidebarBg;
-        _splitLeft.Panel2.BackColor = EditorChrome.WorkspaceBg;
+            _splitLeft = new SplitContainer
+            {
+                Dock = DockStyle.Fill,
+                Orientation = Orientation.Vertical,
+                SplitterDistance = 260,
+                FixedPanel = FixedPanel.Panel1,
+                SplitterWidth = 6,
+                BackColor = EditorChrome.CanvasInset,
+            };
+            _splitLeft.Panel1.BackColor = EditorChrome.SidebarBg;
+            _splitLeft.Panel2.BackColor = EditorChrome.WorkspaceBg;
 
-        _splitRight = new SplitContainer
+            _splitRight = new SplitContainer
+            {
+                Dock = DockStyle.Fill,
+                Orientation = Orientation.Vertical,
+                SplitterDistance = 760,
+                FixedPanel = FixedPanel.Panel2,
+                SplitterWidth = 6,
+                BackColor = EditorChrome.CanvasInset,
+            };
+            _splitRight.Panel1.BackColor = EditorChrome.WorkspaceCenter;
+            _splitRight.Panel2.BackColor = EditorChrome.SidebarBg;
+        }
+        else
         {
-            Dock = DockStyle.Fill,
-            Orientation = Orientation.Vertical,
-            SplitterDistance = 760,
-            FixedPanel = FixedPanel.Panel2,
-            SplitterWidth = 6,
-            BackColor = EditorChrome.CanvasInset,
-        };
-        _splitRight.Panel1.BackColor = EditorChrome.WorkspaceCenter;
-        _splitRight.Panel2.BackColor = EditorChrome.SidebarBg;
+            _splitLeft = null;
+            _splitRight = null;
+        }
 
         _canvas = new MapCanvas { Dock = DockStyle.Fill };
         _canvas.HoveredTileChanged += OnHoveredTileChanged;
@@ -309,7 +338,9 @@ public sealed class MainForm : Form
         _leftLayout.Controls.Add(_tileTypePalette, 0, 1);
         _leftLayout.Controls.Add(mapsHost, 0, 2);
 
-        _splitLeft.Panel1.Controls.Add(_leftLayout);
+        _leftColumnPanel = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
+        _leftColumnPanel.Controls.Add(_leftLayout);
+        _splitLeft?.Panel1.Controls.Add(_leftColumnPanel);
 
         _mapHeader = new Panel { Dock = DockStyle.Top, Height = 33, BackColor = EditorChrome.RibbonBg };
         _lblMapWorkspaceTitle = new Label
@@ -336,15 +367,7 @@ public sealed class MainForm : Form
         _wfMapDockPanel.Controls.Add(_minimap);
         _minimap.BringToFront();
         _wfMapDockPanel.Resize += (_, _) => PositionMinimap();
-        _mapWorkbenchWpf = new MapWorkbenchWpf();
-        _mapWorkbenchWpf.AttachWinFormsSurface(_wfMapDockPanel);
-        _mapWorkbenchElementHost = new ElementHost
-        {
-            Dock = DockStyle.Fill,
-            BackColor = EditorChrome.CanvasInset,
-            Child = _mapWorkbenchWpf,
-        };
-        _splitRight.Panel1.Controls.Add(_mapWorkbenchElementHost);
+        _splitRight?.Panel1.Controls.Add(_wfMapDockPanel);
         PositionMinimap();
 
         _splitRightTileset = new SplitContainer
@@ -443,22 +466,30 @@ public sealed class MainForm : Form
             {
                 BeginInvoke(new Action(ApplyRightTilesetSplitDistance));
             }
+            else
+            {
+                ApplyRightTilesetSplitDistance();
+            }
         };
-        _splitRight.Panel2.Controls.Add(_splitRightTileset);
-        _splitLeft.Panel2.Controls.Add(_splitRight);
-        _splitLeft.Dock = DockStyle.Fill;
+        _splitRight?.Panel2.Controls.Add(_splitRightTileset);
+        if (_splitLeft is not null && _splitRight is not null)
+        {
+            _splitLeft.Panel2.Controls.Add(_splitRight);
+            _splitLeft.Dock = DockStyle.Fill;
+        }
+
         if (!embedAsWpfChild && _menuStrip is not null && _status is not null)
         {
             // Ordre d’ancrage WinForms : bas (status), milieu (fill), haut (menu) pour réserver correctement l’espace sous le MenuStrip.
             _menuStrip.Dock = DockStyle.Top;
             _status.Dock = DockStyle.Bottom;
             Controls.Add(_status);
-            Controls.Add(_splitLeft);
+            Controls.Add(_splitLeft!);
             Controls.Add(_menuStrip);
         }
-        else
+        else if (!embedAsWpfChild)
         {
-            Controls.Add(_splitLeft);
+            Controls.Add(_splitLeft!);
         }
 
         var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
@@ -720,17 +751,17 @@ public sealed class MainForm : Form
     {
         if (_canvas.Map is null)
         {
-            MessageBox.Show(this, "Aucune carte chargée.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(GetDialogOwner(), "Aucune carte chargée.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
         if (_canvas.Map.Validate(out var err))
         {
-            MessageBox.Show(this, "Carte valide (dimensions, couches, tuiles, warps).", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(GetDialogOwner(), "Carte valide (dimensions, couches, tuiles, warps).", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         else
         {
-            MessageBox.Show(this, err ?? "Erreur inconnue.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(GetDialogOwner(), err ?? "Erreur inconnue.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -845,7 +876,7 @@ public sealed class MainForm : Form
 
         var layer = _canvas.Map.Layers[ix];
         var current = string.IsNullOrWhiteSpace(layer.DisplayName) ? layer.GetDisplayLabel() : layer.DisplayName;
-        var input = SimpleInputDialog.Show(this, "Nom affiché", "Libellé dans la liste (vide = nom du type moteur) :", current);
+        var input = SimpleInputDialog.Show(GetDialogOwner(), "Nom affiché", "Libellé dans la liste (vide = nom du type moteur) :", current);
         if (input is null)
         {
             return;
@@ -879,7 +910,7 @@ public sealed class MainForm : Form
 
         if (!Enum.TryParse(input, true, out LayerType type))
         {
-            MessageBox.Show(this, "Valeur d’énumération non reconnue.", "Type moteur", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(GetDialogOwner(), "Valeur d’énumération non reconnue.", "Type moteur", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -906,7 +937,7 @@ public sealed class MainForm : Form
     internal void CreateNewMap()
     {
         using var dlg = new NewMapDialog();
-        if (dlg.ShowDialog(this) != DialogResult.OK)
+        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
             return;
         }
@@ -926,7 +957,7 @@ public sealed class MainForm : Form
     internal void OpenTileset()
     {
         using var ofd = new OpenFileDialog { Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp" };
-        if (ofd.ShowDialog(this) != DialogResult.OK)
+        if (ofd.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
             return;
         }
@@ -945,7 +976,7 @@ public sealed class MainForm : Form
         }
 
         using var sfd = new SaveFileDialog { Filter = "Frog Map|*.fmap" };
-        if (sfd.ShowDialog(this) != DialogResult.OK)
+        if (sfd.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
             return;
         }
@@ -954,7 +985,7 @@ public sealed class MainForm : Form
         var bytes = serializer.Serialize(_canvas.Map);
         File.WriteAllBytes(sfd.FileName, bytes);
         SaveTilesetManifestNextToMap(sfd.FileName);
-        MessageBox.Show(this, "Carte et manifeste tilesets (.tilesets.json) sauvegardés.", "Succès");
+        MessageBox.Show(GetDialogOwner(), "Carte et manifeste tilesets (.tilesets.json) sauvegardés.", "Succès", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private static void SaveTilesetManifestNextToMap(string mapFilePath)
@@ -984,7 +1015,7 @@ public sealed class MainForm : Form
     internal void LoadMap()
     {
         using var ofd = new OpenFileDialog { Filter = "Frog Map|*.fmap" };
-        if (ofd.ShowDialog(this) != DialogResult.OK)
+        if (ofd.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
             return;
         }
@@ -1018,7 +1049,7 @@ public sealed class MainForm : Form
             var list = string.Join(Environment.NewLine, manifestOutcome.MissingFiles.Take(12));
             var tail = manifestOutcome.MissingFiles.Count > 12 ? Environment.NewLine + "…" : string.Empty;
             MessageBox.Show(
-                this,
+                GetDialogOwner(),
                 "Fichiers PNG introuvables ou illisibles (manifeste à côté du .fmap) :" + Environment.NewLine + list + tail,
                 "Tilesets",
                 MessageBoxButtons.OK,
@@ -1090,6 +1121,14 @@ public sealed class MainForm : Form
 
     private void ApplyLayoutPercentages()
     {
+        if (_embedAsWpfChild || _splitLeft is null || _splitRight is null)
+        {
+            ApplyLayersPropertySplitDistance();
+            PositionMinimap();
+            ApplyRightTilesetSplitDistance();
+            return;
+        }
+
         var totalW = ClientSize.Width;
         if (totalW <= 0)
         {
@@ -1113,6 +1152,18 @@ public sealed class MainForm : Form
         ApplyLayersPropertySplitDistance();
         PositionMinimap();
         ApplyRightTilesetSplitDistance();
+    }
+
+    private System.Windows.Forms.IWin32Window GetDialogOwner()
+    {
+        if (_wpfOwnerWindow is not null)
+        {
+            var helper = new WindowInteropHelper(_wpfOwnerWindow);
+            helper.EnsureHandle();
+            return new Win32Window(helper.Handle);
+        }
+
+        return this;
     }
 
     /// <summary>
