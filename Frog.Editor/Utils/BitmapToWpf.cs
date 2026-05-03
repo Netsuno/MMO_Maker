@@ -9,13 +9,18 @@ internal static class BitmapToWpf
     /// <summary>Copie le bitmap en PNG mémoire puis décode en <see cref="BitmapImage"/> figé (indépendant du <see cref="Bitmap"/> source).</summary>
     public static BitmapImage ToFrozenPng(Bitmap bmp)
     {
-        using var ms = new MemoryStream();
-        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-        ms.Position = 0;
+        byte[] png;
+        using (var ms = new MemoryStream())
+        {
+            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            png = ms.ToArray();
+        }
+
+        using var decode = new MemoryStream(png, writable: false);
         var img = new BitmapImage();
         img.BeginInit();
         img.CacheOption = BitmapCacheOption.OnLoad;
-        img.StreamSource = ms;
+        img.StreamSource = decode;
         img.EndInit();
         img.Freeze();
         return img;

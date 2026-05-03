@@ -13,6 +13,51 @@
         <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFEBEEF5" />
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF465058" />
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FF3A3F4A" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FFEBEEF5" />
+
+        <Style x:Key="EditorDarkListBox" TargetType="{x:Type ListBox}">
+            <Setter Property="Background" Value="#FF2E3238" />
+            <Setter Property="Foreground" Value="#FFEBEEF5" />
+            <Setter Property="BorderBrush" Value="#FF585C68" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style x:Key="EditorDarkListBoxItem" TargetType="{x:Type ListBoxItem}">
+            <Setter Property="Background" Value="#FF32353E" />
+            <Setter Property="Foreground" Value="#FFEBEEF5" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF465058" />
+                    <Setter Property="Foreground" Value="#FFEBEEF5" />
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsSelected" Value="True" />
+                        <Condition Property="Selector.IsSelectionActive" Value="False" />
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#FF3A3F4A" />
+                </MultiTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="EditorDarkButton" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="#FF3A3E48" />
+            <Setter Property="Foreground" Value="#FFEBEEF5" />
+            <Setter Property="BorderBrush" Value="#FF585C68" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF465058" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#FF5C82FF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
     <!-- DockPanel : la palette (Fill) récupère tout l'espace entre onglets et bandeau liste (évite * = 0 dans ElementHost). -->
     <DockPanel LastChildFill="True" Margin="0">
@@ -33,7 +78,9 @@
                     Margin="6,4,6,0"
                     Padding="0"
                     Background="#FF32353E"
-                    BorderThickness="0"
+                    Foreground="#FFEBEEF5"
+                    BorderBrush="#FF585C68"
+                    BorderThickness="1"
                     SelectionChanged="TabSlots_OnSelectionChanged">
             <TabItem Header="A" Padding="12,4" />
             <TabItem Header="B" Padding="12,4" />
@@ -50,11 +97,14 @@
             <DockPanel LastChildFill="True">
                 <Button x:Name="BtnLoadTileset"
                         DockPanel.Dock="Top"
+                        Style="{StaticResource EditorDarkButton}"
                         Content="Charger image tuiles…"
                         Margin="0,2,0,4"
                         Padding="12,6"
                         Click="BtnLoadTileset_OnClick" />
                 <ListBox x:Name="ListTilesets"
+                         Style="{StaticResource EditorDarkListBox}"
+                         ItemContainerStyle="{StaticResource EditorDarkListBoxItem}"
                          MinHeight="72"
                          FontFamily="Segoe UI"
                          FontSize="12"

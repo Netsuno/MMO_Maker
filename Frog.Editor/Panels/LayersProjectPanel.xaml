@@ -10,6 +10,8 @@
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFEBEEF5" />
         <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FF3A3F4A" />
         <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF32353E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFEBEEF5" />
 
         <Style TargetType="{x:Type ListView}">
             <Setter Property="Background" Value="#FF32353E" />
@@ -20,9 +22,23 @@
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style TargetType="{x:Type ListViewItem}">
+            <Setter Property="Background" Value="#FF32353E" />
             <Setter Property="Foreground" Value="#FFEBEEF5" />
-            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Padding" Value="4,6" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF465058" />
+                    <Setter Property="Foreground" Value="#FFEBEEF5" />
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsSelected" Value="True" />
+                        <Condition Property="Selector.IsSelectionActive" Value="False" />
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#FF3A3F4A" />
+                </MultiTrigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="{x:Type GridViewColumnHeader}">
             <Setter Property="Background" Value="#FF202228" />
@@ -63,6 +79,11 @@
                       SelectionMode="Single"
                       MouseDoubleClick="LayersListView_OnMouseDoubleClick"
                       SelectionChanged="LayersListView_OnSelectionChanged">
+                <ListView.Resources>
+                    <Style TargetType="{x:Type TextBlock}">
+                        <Setter Property="Foreground" Value="#FFEBEEF5" />
+                    </Style>
+                </ListView.Resources>
                 <ListView.ContextMenu>
                     <ContextMenu Background="#FF32353E" Foreground="#FFEBEEF5">
                         <MenuItem Header="Ajouter couche" Click="MenuAddLayer_Click" />

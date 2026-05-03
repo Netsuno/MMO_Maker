@@ -34,6 +34,7 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
         if (entries.Count == 0)
         {
             SyncTabFromListIndex(-1);
+            Palette.SetTileset(0);
             return;
         }
 
@@ -43,7 +44,7 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
         {
             for (var i = 0; i < ListTilesets.Items.Count; i++)
             {
-                if (ListTilesets.Items[i] is TilesetRow row && row.Id == wantId)
+                if (ListTilesets.Items[i] is TilesetRow tr && tr.Id == wantId)
                 {
                     ix = i;
                     break;
@@ -67,6 +68,13 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
         }
 
         SyncTabFromListIndex(ix);
+
+        // La synchro ci-dessus bloque SelectionChanged : il faut quand même charger la palette.
+        if (ListTilesets.SelectedItem is TilesetRow row)
+        {
+            Palette.SetTileset(row.Id);
+            SelectedTilesetChanged?.Invoke(row.Id);
+        }
     }
 
     public int? TryGetSelectedTilesetId() =>
@@ -93,6 +101,12 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
         finally
         {
             _suspendListSync = false;
+        }
+
+        if (ListTilesets.SelectedItem is TilesetRow row)
+        {
+            Palette.SetTileset(row.Id);
+            SelectedTilesetChanged?.Invoke(row.Id);
         }
     }
 
