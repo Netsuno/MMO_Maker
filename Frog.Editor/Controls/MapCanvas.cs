@@ -116,6 +116,15 @@ public sealed class MapCanvas : Control
 
     private void NotifyViewTransformChanged() => ViewTransformChanged?.Invoke();
 
+    /// <summary>Zoom 100 % et coin haut-gauche de la carte aligné sur le coin haut-gauche du canevas.</summary>
+    public void ResetViewTransform()
+    {
+        Zoom = 1f;
+        Pan = new PointF(0f, 0f);
+        NotifyViewTransformChanged();
+        Invalidate();
+    }
+
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);

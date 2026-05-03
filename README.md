@@ -58,7 +58,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
 | **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, **warps** (monde unique), chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
 | **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `Form1` (connexion, map **PNG multi-couches**, déplacements, chat 3 canaux, heartbeat, mêlée). |
-| **Frog.Editor** | 🟢 En évolution | Carte : pinceau (traînée), gomme, **remplissage**, **rectangle**, undo/redo (Ctrl+Z/Y), couches, tileset PNG, sauvegarde `.fmap`. |
+| **Frog.Editor** | 🟢 En évolution | UI type **RPG Maker** (sombre, menu Fichier, tuiles à droite onglets A–D, cartes à gauche, bandeaux de zone), pinceau / gomme / pot / rectangle / sélection, undo/redo, couches, `.fmap` + manifeste tilesets. |
 | **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
 
 ---
@@ -89,6 +89,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 <summary><strong>Phase 3 — Éditeur de cartes (outil métier créateur)</strong> (partiel)</summary>
 
 - [x] **Mini‑carte** (coin carte) : rectangle de vue, clic pour centrer ; pan / zoom Ctrl+molette notifient la mini-carte.
+- [x] **Chrome RPG Maker** (approx.) : workspace sombre, barre de menus, tuiles + onglets A–D à droite, arbre « Cartes », bandeau titre carte, bouton Enregistrer mis en avant.
 - [x] **`Map.Validate()`** : au moins une couche, bornes tuiles, pas de doublon (x,y) par couche, warps (MapId ≥ 0, destination ≥ 0).
 - [x] **`PropertyGrid`** : catégories / descriptions sur les propriétés **Tuile** (Position, Jeu, Warp, Graphique) ; bouton barre d’outils **Valider carte**.
 - [ ] _[Option]_ **Marqueurs / événements** sur carte comme base pour le scripting futur.

@@ -16,6 +16,7 @@ namespace Frog.Editor.Forms;
 
 public sealed class MainForm : Form
 {
+    private readonly MenuStrip _menuStrip;
     private readonly ToolStrip _tool;
     private readonly ToolStripButton _btnUndo;
     private readonly ToolStripButton _btnRedo;
@@ -36,7 +37,14 @@ public sealed class MainForm : Form
     private readonly Button _btnAddTileset;
     /// <summary>Horizontal : panneau haut = couches, bas = PropertyGrid.</summary>
     private readonly SplitContainer _splitLayersProps;
+    private readonly SplitContainer _splitRightTileset;
+    private readonly TabControl _tabTilesets;
+    private readonly TreeView _mapsTree;
     private readonly Panel _mapWorkbench;
+    private readonly Panel _mapHeader;
+    private readonly Label _lblMapWorkspaceTitle;
+    private bool _suspendTilesetTabSync;
+    private bool _suspendTilesetListSync;
 
     public MainForm()
     {
@@ -56,12 +64,28 @@ public sealed class MainForm : Form
         };
         ResizeEnd += (_, _) => ApplyLayoutPercentages();
 
+        _menuStrip = new MenuStrip();
+        EditorChrome.StyleMainMenu(_menuStrip);
+        var mFile = new ToolStripMenuItem("Fichier");
+        mFile.DropDownItems.Add("Nouvelle carte…", null, (_, _) => CreateNewMap());
+        mFile.DropDownItems.Add("Ouvrir…", null, (_, _) => LoadMap());
+        mFile.DropDownItems.Add(new ToolStripSeparator());
+        mFile.DropDownItems.Add("Enregistrer", null, (_, _) => SaveMap());
+        mFile.DropDownItems.Add(new ToolStripSeparator());
+        mFile.DropDownItems.Add("Quitter", null, (_, _) => Close());
+        var mMap = new ToolStripMenuItem("Carte");
+        mMap.DropDownItems.Add("Valider…", null, (_, _) => ValidateMap());
+        var mView = new ToolStripMenuItem("Affichage");
+        mView.DropDownItems.Add("Réinitialiser vue (zoom 100 %, centrage)", null, (_, _) => ResetMapView());
+        _menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mMap, mView });
+        MainMenuStrip = _menuStrip;
+
         _tool = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Top };
-        var btnNewMap = new ToolStripButton("Nouvelle carte");
-        var btnOpenTileset = new ToolStripButton("Tileset…");
-        var btnSave = new ToolStripButton("Enregistrer");
-        var btnLoad = new ToolStripButton("Ouvrir…");
-        var btnValidate = new ToolStripButton("Valider carte");
+        var btnNewMap = new ToolStripButton("Nouvelle");
+        var btnOpenTileset = new ToolStripButton("Tileset");
+        var btnSave = new ToolStripButton("  Enregistrer  ") { Font = new Font(EditorChrome.CaptionFont, FontStyle.Bold) };
+        var btnLoad = new ToolStripButton("Ouvrir");
+        var btnValidate = new ToolStripButton("Valider");
         _btnUndo = new ToolStripButton("Annuler") { Enabled = false };
         _btnRedo = new ToolStripButton("Rétablir") { Enabled = false };
 
@@ -73,18 +97,27 @@ public sealed class MainForm : Form
         _btnUndo.Click += (_, _) => DoUndo();
         _btnRedo.Click += (_, _) => DoRedo();
 
+        btnSave.ForeColor = Color.White;
+        btnSave.BackColor = EditorChrome.SaveActionGreen;
+        btnSave.MouseEnter += (_, _) => btnSave.BackColor = EditorChrome.SaveActionGreenHover;
+        btnSave.MouseLeave += (_, _) => btnSave.BackColor = EditorChrome.SaveActionGreen;
+
+        _tool.Items.Add(new ToolStripLabel("Fichier") { ForeColor = EditorChrome.LabelMuted, Margin = new Padding(0, 0, 4, 0) });
         _tool.Items.AddRange(new ToolStripItem[]
         {
-            btnNewMap, new ToolStripSeparator(),
+            btnNewMap, btnLoad, new ToolStripSeparator(),
+            new ToolStripLabel("Ressources") { ForeColor = EditorChrome.LabelMuted, Margin = new Padding(8, 0, 4, 0) },
             btnOpenTileset, new ToolStripSeparator(),
-            btnSave, btnLoad, new ToolStripSeparator(),
+            new ToolStripLabel("Publication") { ForeColor = EditorChrome.LabelMuted, Margin = new Padding(8, 0, 4, 0) },
+            btnSave, new ToolStripSeparator(),
             btnValidate, new ToolStripSeparator(),
-            _btnUndo, _btnRedo
+            new ToolStripLabel("Historique") { ForeColor = EditorChrome.LabelMuted, Margin = new Padding(8, 0, 4, 0) },
+            _btnUndo, _btnRedo,
         });
         EditorChrome.StripToolbar(_tool);
         foreach (ToolStripItem ti in _tool.Items)
         {
-            if (ti is ToolStripButton tsb)
+            if (ti is ToolStripButton tsb && !ReferenceEquals(tsb, btnSave))
             {
                 tsb.ForeColor = EditorChrome.LabelPrimary;
             }
@@ -118,7 +151,7 @@ public sealed class MainForm : Form
             SplitterWidth = 6,
             BackColor = EditorChrome.CanvasInset,
         };
-        _splitRight.Panel1.BackColor = EditorChrome.WorkspaceBg;
+        _splitRight.Panel1.BackColor = EditorChrome.WorkspaceCenter;
         _splitRight.Panel2.BackColor = EditorChrome.SidebarBg;
 
         _canvas = new MapCanvas { Dock = DockStyle.Fill };
@@ -143,20 +176,23 @@ public sealed class MainForm : Form
             _canvas.Invalidate();
         };
 
-        _tileTypePalette = new TileTypePalette { Dock = DockStyle.Fill };
+        _tileTypePalette = new TileTypePalette { Dock = DockStyle.Top };
         _tileTypePalette.SelectedTileTypeChanged += type => _canvas.SelectedTileType = type;
+
+        _mapsTree = new TreeView { Dock = DockStyle.Fill };
+        EditorChrome.StyleMapsTree(_mapsTree);
 
         var tilesetBand = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            Padding = new Padding(10, 14, 10, 14),
+            Padding = new Padding(8, 6, 8, 8),
             BackColor = EditorChrome.SidebarElevated,
         };
-        tilesetBand.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+        tilesetBand.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
         tilesetBand.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        _btnAddTileset = new Button { Text = "Charger une image tuiles…", Dock = DockStyle.Fill };
+        _btnAddTileset = new Button { Text = "Charger image tuiles…", Dock = DockStyle.Fill };
         EditorChrome.StylePrimaryButton(_btnAddTileset);
         _btnAddTileset.Click += (_, _) => OpenTileset();
         _lstTilesets = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false };
@@ -166,38 +202,100 @@ public sealed class MainForm : Form
         tilesetBand.Controls.Add(_btnAddTileset, 0, 0);
         tilesetBand.Controls.Add(_lstTilesets, 0, 1);
 
+        _tabTilesets = new TabControl { Dock = DockStyle.Top, Height = 30 };
+        EditorChrome.StyleTabControlMaps(_tabTilesets);
+        foreach (var letter in new[] { "A", "B", "C", "D" })
+        {
+            _tabTilesets.TabPages.Add(new TabPage(letter) { BackColor = EditorChrome.SidebarElevated });
+        }
+
+        _tabTilesets.SelectedIndexChanged += TabTilesets_SelectedIndexChanged;
+
+        var tilesetStack = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(0, 0, 0, 0),
+            BackColor = EditorChrome.SidebarBg,
+        };
+        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
+        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        tilesetStack.RowStyles.Add(new RowStyle(SizeType.Absolute, 132f));
+        tilesetStack.Controls.Add(_tabTilesets, 0, 0);
+        tilesetStack.Controls.Add(_palette, 0, 1);
+        tilesetStack.Controls.Add(tilesetBand, 0, 2);
+
+        var tilesBanner = EditorChrome.BuildZoneBanner("TUILES — sélection graphique");
+        var tilesHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg, Padding = new Padding(0) };
+        tilesHost.Controls.Add(tilesBanner);
+        tilesHost.Controls.Add(tilesetStack);
+
         _leftLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 3,
             Padding = new Padding(0, 6, 0, 10),
             BackColor = EditorChrome.SidebarBg,
         };
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        _leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 148f));
+
+        var mapsBanner = EditorChrome.BuildZoneBanner("CARTES — projet");
+        var mapsHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 8, 8), BackColor = EditorChrome.SidebarBg };
+        mapsHost.Controls.Add(mapsBanner);
+        mapsHost.Controls.Add(_mapsTree);
 
         _leftLayout.Controls.Add(_toolPalette, 0, 0);
         _leftLayout.Controls.Add(_tileTypePalette, 0, 1);
-        _leftLayout.Controls.Add(_palette, 0, 2);
-        _leftLayout.Controls.Add(tilesetBand, 0, 3);
-        _palette.Dock = DockStyle.Fill;
+        _leftLayout.Controls.Add(mapsHost, 0, 2);
 
         _splitLeft.Panel1.Controls.Add(_leftLayout);
+
+        _mapHeader = new Panel { Dock = DockStyle.Top, Height = 33, BackColor = EditorChrome.RibbonBg };
+        _lblMapWorkspaceTitle = new Label
+        {
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(14, 0, 8, 0),
+            ForeColor = EditorChrome.LabelPrimary,
+            Font = EditorChrome.SectionFont,
+            BackColor = Color.Transparent,
+        };
+        var mapAccent = new Panel { Dock = DockStyle.Bottom, Height = 3, BackColor = EditorChrome.RibbonAccent };
+        _mapHeader.Controls.Add(_lblMapWorkspaceTitle);
+        _mapHeader.Controls.Add(mapAccent);
         _mapWorkbench = new Panel
         {
             Dock = DockStyle.Fill,
             BackColor = EditorChrome.CanvasInset,
-            Padding = new Padding(10, 12, 10, 14),
+            Padding = new Padding(10, 0, 10, 12),
         };
         _mapWorkbench.Controls.Add(_canvas);
         _mapWorkbench.Controls.Add(_minimap);
+        _mapWorkbench.Controls.Add(_mapHeader);
+        _mapHeader.BringToFront();
         _minimap.BringToFront();
         _mapWorkbench.Resize += (_, _) => PositionMinimap();
         _splitRight.Panel1.Controls.Add(_mapWorkbench);
         PositionMinimap();
+
+        _splitRightTileset = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+            SplitterWidth = 6,
+            FixedPanel = FixedPanel.None,
+            Panel1MinSize = 220,
+            Panel2MinSize = 200,
+            BackColor = EditorChrome.CanvasInset,
+        };
+        _splitRightTileset.Panel1.BackColor = EditorChrome.SidebarBg;
+        _splitRightTileset.Panel2.BackColor = EditorChrome.SidebarBg;
+        _splitRightTileset.Panel1.Controls.Add(tilesHost);
+        _splitRightTileset.SplitterDistance = 360;
 
         _splitLayersProps = new SplitContainer
         {
@@ -215,19 +313,10 @@ public sealed class MainForm : Form
             Padding = new Padding(8, 14, 10, 12),
             BackColor = EditorChrome.SidebarBg,
         };
-        layersHost.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layersHost.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
         layersHost.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        var lblLayersHint = new Label
-        {
-            Text = "COUCHES\r\n(case = visible comme dans RPG Maker)",
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 0, 8),
-            ForeColor = EditorChrome.LabelMuted,
-            Font = EditorChrome.CaptionFont,
-            BackColor = Color.Transparent,
-        };
-        layersHost.Controls.Add(lblLayersHint, 0, 0);
+        var layersBanner = EditorChrome.BuildZoneBanner("COUCHES — ordre de dessin");
+        layersHost.Controls.Add(layersBanner, 0, 0);
 
         _layersList = new ListView
         {
@@ -269,11 +358,28 @@ public sealed class MainForm : Form
         _propGrid = new PropertyGrid { Dock = DockStyle.Fill, HelpVisible = false };
         EditorChrome.StylePropertyGrid(_propGrid);
         _propGrid.Font = EditorChrome.BodyFont;
+        _propGrid.PropertyValueChanged += (_, _) =>
+        {
+            if (_propGrid.SelectedObject is Map)
+            {
+                UpdateMapChromeLabels();
+            }
+        };
+        _mapsTree.AfterSelect += (_, _) =>
+        {
+            if (_mapsTree.SelectedNode?.Tag as string == "current"
+                && _propGrid.SelectedObject is not Map
+                && _canvas.Map is not null)
+            {
+                _propGrid.SelectedObject = _canvas.Map;
+            }
+        };
         _splitLayersProps.Panel2.Controls.Add(_propGrid);
 
-        _splitRight.Panel2.Controls.Add(_splitLayersProps);
+        _splitRightTileset.Panel2.Controls.Add(_splitLayersProps);
+        _splitRight.Panel2.Controls.Add(_splitRightTileset);
         _splitLeft.Panel2.Controls.Add(_splitRight);
-        Controls.AddRange(new Control[] { _splitLeft, _tool, _status });
+        Controls.AddRange(new Control[] { _menuStrip, _tool, _splitLeft, _status });
 
         var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
@@ -282,10 +388,83 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         UpdateUndoRedoButtons();
         RefreshTilesetList();
+        SyncMapsTree();
+        UpdateMapChromeLabels();
+    }
+
+    private void ResetMapView() => _canvas.ResetViewTransform();
+
+    private void TabTilesets_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_suspendTilesetTabSync)
+        {
+            return;
+        }
+
+        var ix = _tabTilesets.SelectedIndex;
+        if (ix < 0 || ix >= _lstTilesets.Items.Count)
+        {
+            return;
+        }
+
+        _suspendTilesetListSync = true;
+        try
+        {
+            _lstTilesets.SelectedIndex = ix;
+        }
+        finally
+        {
+            _suspendTilesetListSync = false;
+        }
+    }
+
+    private void SyncMapsTree()
+    {
+        _mapsTree.BeginUpdate();
+        try
+        {
+            _mapsTree.Nodes.Clear();
+            var root = _mapsTree.Nodes.Add("Cartes du projet");
+            root.ForeColor = EditorChrome.LabelPrimary;
+            if (_canvas.Map is not null)
+            {
+                var n = root.Nodes.Add($"001  {_canvas.Map.Name}");
+                n.ForeColor = EditorChrome.RibbonAccent;
+                n.Tag = "current";
+            }
+
+            root.Expand();
+            _mapsTree.SelectedNode = root.Nodes.Count > 0 ? root.Nodes[0] : root;
+        }
+        finally
+        {
+            _mapsTree.EndUpdate();
+        }
+    }
+
+    private void UpdateMapChromeLabels()
+    {
+        if (_canvas.Map is null)
+        {
+            _lblMapWorkspaceTitle.Text = "Carte : —";
+            return;
+        }
+
+        _lblMapWorkspaceTitle.Text =
+            $"Carte : {_canvas.Map.Name}    ({_canvas.Map.Width} × {_canvas.Map.Height} tuiles)";
+        if (_mapsTree.Nodes.Count > 0 && _mapsTree.Nodes[0].Nodes.Count > 0)
+        {
+            _mapsTree.Nodes[0].Nodes[0].Text = $"001  {_canvas.Map.Name}";
+        }
     }
 
     private void TilesetsList_SelectedIndexChanged(object? sender, EventArgs e)
     {
+        if (_suspendTilesetListSync)
+        {
+            return;
+        }
+
         if (_lstTilesets.SelectedItem is not TilesetEntry te)
         {
             return;
@@ -293,6 +472,7 @@ public sealed class MainForm : Form
 
         _canvas.ActiveTilesetId = te.Id;
         _palette.SetTileset(te.Id);
+        SyncTilesetTabFromList();
     }
 
     private void LayersList_SelectedIndexChanged(object? sender, EventArgs e)
@@ -343,6 +523,7 @@ public sealed class MainForm : Form
                 if (((TilesetEntry)_lstTilesets.Items[i]).Id == selId)
                 {
                     _lstTilesets.SelectedIndex = i;
+                    SyncTilesetTabFromList();
                     return;
                 }
             }
@@ -354,10 +535,32 @@ public sealed class MainForm : Form
                 _canvas.ActiveTilesetId = last.Id;
                 _palette.SetTileset(last.Id);
             }
+
+            SyncTilesetTabFromList();
         }
         finally
         {
             _lstTilesets.EndUpdate();
+        }
+    }
+
+    private void SyncTilesetTabFromList()
+    {
+        _suspendTilesetTabSync = true;
+        try
+        {
+            if (_lstTilesets.Items.Count == 0)
+            {
+                _tabTilesets.SelectedIndex = 0;
+                return;
+            }
+
+            var ix = Math.Max(0, _lstTilesets.SelectedIndex);
+            _tabTilesets.SelectedIndex = Math.Min(ix, _tabTilesets.TabCount - 1);
+        }
+        finally
+        {
+            _suspendTilesetTabSync = false;
         }
     }
 
@@ -440,6 +643,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _propGrid.SelectedObject = _canvas.Map;
         UpdateUndoRedoButtons();
+        UpdateMapChromeLabels();
     }
 
     private void DoUndo()
@@ -607,6 +811,8 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        SyncMapsTree();
+        UpdateMapChromeLabels();
     }
 
     private void OpenTileset()
@@ -696,6 +902,8 @@ public sealed class MainForm : Form
         RefreshTilesetList();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        SyncMapsTree();
+        UpdateMapChromeLabels();
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
         {
@@ -796,6 +1004,12 @@ public sealed class MainForm : Form
 
         ApplyLayersPropertySplitDistance();
         PositionMinimap();
+        if (_splitRightTileset.Height > 120)
+        {
+            var want = (int)(_splitRightTileset.Height * 0.48f);
+            want = Math.Clamp(want, _splitRightTileset.Panel1MinSize + 40, _splitRightTileset.Height - _splitRightTileset.Panel2MinSize - 40);
+            _splitRightTileset.SplitterDistance = want;
+        }
     }
 
     /// <summary>
