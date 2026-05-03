@@ -63,6 +63,88 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 
 ---
 
+## ✅ Feuille de route créateur (ordre logique)
+
+Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (éditeur + serveur + client) jusqu’aux **éditeurs d’objets/armes** et aux **scripts intégrés**. Les phases se suivent de façon raisonnable : contrat réseau et fidélité de la carte en premier, puis serveur/client jouables, enfin données jeu, scripting et distribution.
+
+<details>
+<summary><strong>Phase 1 — Fondations et contrat produit</strong></summary>
+
+- [ ] Numéro de **version protocole** dans le handshake ou l’en-tête des frames (client ↔ serveur incompatibles détectés tôt).
+- [ ] Aligner **`Frog.Client/Docs/protocol_login_map.md`** avec le format **`.fmap` courant** et les paquets réels (`MapSerializer`, chargement serveur).
+- [ ] Guide **« premier monde en une session »** (PostgreSQL optionnel + lancer serveur / client / éditeur + où placer le `.fmap`).
+
+</details>
+
+<details>
+<summary><strong>Phase 2 — Même monde partout (fidélité carte / tiles)</strong></summary>
+
+- [ ] Décision et mise en œuvre : **échelle de tuile** cohérente entre `WorldMetrics`, **éditeur** et **rendu client**.
+- [ ] **Rendu client avec tilesets PNG** + ordre de dessin des **couches** (Ground / Mask / Fringe / attributs ou équivalent moteur).
+- [ ] Liste ou manifeste des **tilesets référencés** par une carte (copie/export monde + assets).
+
+</details>
+
+<details>
+<summary><strong>Phase 3 — Éditeur de cartes (outil métier créateur)</strong></summary>
+
+- [ ] **Mini‑carte** avec rectangle de vue et navigation (zoom / clic pour centrer).
+- [ ] Enrichir **`Map.Validate()`** : bornes, warps, cohérence couches / données critiques.
+- [ ] **`PropertyGrid` / palette** métier pour bloc / warp / ressource / attributs utilisables par le jeu.
+- [ ] _[Option]_ **Marqueurs / événements** sur carte comme base pour le scripting futur.
+
+</details>
+
+<details>
+<summary><strong>Phase 4 — Serveur : monde vivant</strong></summary>
+
+- [ ] **Changement de carte** et **multi‑maps** sous autorité serveur (paquets + état joueur).
+- [ ] Persistance **au‑delà de la position** (inventaire, flags monde, quêtes — MVP puis extension).
+- [ ] Alignement **collisions/règles** avec la carte servie ; anti‑abus minimal ; exploitation des **logs** pour hébergement.
+
+</details>
+
+<details>
+<summary><strong>Phase 5 — Client joueur présentable</strong></summary>
+
+- [ ] **HUD / UX** : connexion, chat lisible, retours combat basiques.
+- [ ] Combat **action** étendu (vision Zelda‑like : directions, hitbox, i‑frames, armes animées si souhaité).
+- [ ] **Options joueur** (plein écran, volume, résolution minimale).
+
+</details>
+
+<details>
+<summary><strong>Phase 6 — Données de jeu (objets, armes, autres)</strong></summary>
+
+- [ ] Modèles **`Frog.Core`** + fichier / chargement **serveur** pour items et équipements.
+- [ ] Premier **éditeur de données** (objets, armes ou table unifiée) avec IDs référençables par la carte.
+- [ ] Boucle **loot / équipement / utilisation d’objet** résolue côté **serveur** (effets jeu MVP).
+
+</details>
+
+<details>
+<summary><strong>Phase 7 — Scripts créateur</strong></summary>
+
+- [ ] Choix **runtime + sandbox** (Lua, C# isolé ou DSL ; limites CPU/mémoire ; pas de fichier/réseau arbitraire par défaut).
+- [ ] **API documentée et stable** : hooks (connexion joueur, entrée carte, interaction, objet, PNJ/combat selon périmètre).
+- [ ] Erreurs **lisibles créateur** (logs, fichier/ligne si possible) et stratégie de **rechargement** sans redémarrage total si faisable.
+
+</details>
+
+<details>
+<summary><strong>Phase 8 — Distribution et confiance</strong></summary>
+
+- [ ] **Packaging** (ZIP ou installateur léger) + **exemple jouable** (`.fmap` + tilesets dans le dépôt ou release).
+- [ ] **Admin minimal** : mute, kick ou ban (modération liée aux canaux chat).
+- [ ] Hygiène **sécurité** (secrets hors repo en prod ; comptes ; TLS éventuellement plus tard).
+- [ ] **CI** sur le dépôt : build + tests à chaque push (compléter les tests intégration / PG progressivement).
+
+</details>
+
+_La liste technique **par composant** (Core / Server / Client / Editor / Tests) est dans **Roadmap** juste après cette section._
+
+---
+
 ## 🧠 Roadmap
 
 ### 🧩 Frog.Core
