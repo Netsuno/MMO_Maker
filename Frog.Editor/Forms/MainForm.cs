@@ -288,14 +288,14 @@ public sealed class MainForm : Form
             Orientation = Orientation.Horizontal,
             SplitterWidth = 6,
             FixedPanel = FixedPanel.None,
-            Panel1MinSize = 220,
-            Panel2MinSize = 200,
+            // Minimums bas : au 1er layout la hauteur du split peut être petite ; SplitterDistance est appliquée plus tard.
+            Panel1MinSize = 48,
+            Panel2MinSize = 48,
             BackColor = EditorChrome.CanvasInset,
         };
         _splitRightTileset.Panel1.BackColor = EditorChrome.SidebarBg;
         _splitRightTileset.Panel2.BackColor = EditorChrome.SidebarBg;
         _splitRightTileset.Panel1.Controls.Add(tilesHost);
-        _splitRightTileset.SplitterDistance = 360;
 
         _splitLayersProps = new SplitContainer
         {
@@ -377,6 +377,13 @@ public sealed class MainForm : Form
         _splitLayersProps.Panel2.Controls.Add(_propGrid);
 
         _splitRightTileset.Panel2.Controls.Add(_splitLayersProps);
+        _splitRightTileset.HandleCreated += (_, _) =>
+        {
+            if (IsHandleCreated)
+            {
+                BeginInvoke(new Action(ApplyRightTilesetSplitDistance));
+            }
+        };
         _splitRight.Panel2.Controls.Add(_splitRightTileset);
         _splitLeft.Panel2.Controls.Add(_splitRight);
         Controls.AddRange(new Control[] { _menuStrip, _tool, _splitLeft, _status });
@@ -1004,12 +1011,31 @@ public sealed class MainForm : Form
 
         ApplyLayersPropertySplitDistance();
         PositionMinimap();
-        if (_splitRightTileset.Height > 120)
+        ApplyRightTilesetSplitDistance();
+    }
+
+    /// <summary>
+    /// Règle la barre tuiles / couches uniquement quand la hauteur du split le permet (évite InvalidOperationException au démarrage).
+    /// </summary>
+    private void ApplyRightTilesetSplitDistance()
+    {
+        var sc = _splitRightTileset;
+        var h = sc.Height;
+        var sw = sc.SplitterWidth;
+        if (h <= sw + 12)
         {
-            var want = (int)(_splitRightTileset.Height * 0.48f);
-            want = Math.Clamp(want, _splitRightTileset.Panel1MinSize + 40, _splitRightTileset.Height - _splitRightTileset.Panel2MinSize - 40);
-            _splitRightTileset.SplitterDistance = want;
+            return;
         }
+
+        var minD = sc.Panel1MinSize;
+        var maxD = h - sc.Panel2MinSize - sw;
+        if (maxD <= minD)
+        {
+            return;
+        }
+
+        var want = Math.Clamp((int)(h * 0.48f), minD, maxD);
+        sc.SplitterDistance = want;
     }
 
     /// <summary>
