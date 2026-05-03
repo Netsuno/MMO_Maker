@@ -3,10 +3,48 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#FF282B32">
     <UserControl.Resources>
+        <!-- Le template ComboBox Aero lit surtout ControlLight* pour le champ fermé → fond clair par défaut. -->
         <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF32353E" />
         <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFEBEEF5" />
         <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF32353E" />
         <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#FF32353E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightLightBrushKey}" Color="#FF32353E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#FF585C68" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF465058" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FF3A3F4A" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#FF949BAA" />
+
+        <Style x:Key="EditorSidebarComboBox" TargetType="{x:Type ComboBox}">
+            <Setter Property="Background" Value="#FF32353E" />
+            <Setter Property="Foreground" Value="#FFEBEEF5" />
+            <Setter Property="BorderBrush" Value="#FF585C68" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="{x:Type ComboBoxItem}">
+                        <Setter Property="Background" Value="#FF32353E" />
+                        <Setter Property="Foreground" Value="#FFEBEEF5" />
+                        <Setter Property="Padding" Value="8,6" />
+                        <Style.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter Property="Background" Value="#FF465058" />
+                                <Setter Property="Foreground" Value="#FFEBEEF5" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#FF465058" />
+                                <Setter Property="Foreground" Value="#FFEBEEF5" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
     <StackPanel Margin="12,14,14,10">
         <TextBlock Text="OUTIL"
@@ -29,6 +67,7 @@
                        Margin="6,0,4,0" />
             <ComboBox x:Name="ComboTool"
                       Grid.Column="1"
+                      Style="{StaticResource EditorSidebarComboBox}"
                       MinHeight="28"
                       SelectionChanged="ComboTool_OnSelectionChanged" />
         </Grid>
@@ -52,6 +91,7 @@
                        Margin="6,0,4,0" />
             <ComboBox x:Name="ComboTileType"
                       Grid.Column="1"
+                      Style="{StaticResource EditorSidebarComboBox}"
                       MinHeight="28"
                       SelectionChanged="ComboTileType_OnSelectionChanged" />
         </Grid>
