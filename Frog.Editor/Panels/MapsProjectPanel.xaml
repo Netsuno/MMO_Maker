@@ -3,7 +3,25 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:panels="clr-namespace:Frog.Editor.Panels"
              Background="#FF282B32">
+    <!--
+      Le TreeView WPF (surtout thème Aero2) tire WindowBrush / ControlBrush en DynamicResource :
+      sans surcharge locale, la zone liste reste blanche alors que le texte est clair.
+      Couleurs alignées sur EditorChrome (SidebarBg / SidebarElevated / LabelPrimary / sélection).
+    -->
     <UserControl.Resources>
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF32353E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF32353E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#FF3A3E48" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#FF3A3E48" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightLightBrushKey}" Color="#FF32353E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF465058" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FF3A3F4A" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FFEBEEF5" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#FF949BAA" />
+
         <Style TargetType="{x:Type TreeView}">
             <Setter Property="Background" Value="#FF32353E" />
             <Setter Property="Foreground" Value="#FFEBEEF5" />
@@ -12,13 +30,54 @@
             <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Padding" Value="4" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TreeView}">
+                        <Border x:Name="OuterBd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="0"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ScrollViewer"
+                                          Padding="{TemplateBinding Padding}"
+                                          Background="{TemplateBinding Background}"
+                                          CanContentScroll="False"
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                          SnapsToDevicePixels="True"
+                                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                <ItemsPresenter />
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
+
         <Style TargetType="{x:Type TreeViewItem}">
+            <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="#FFEBEEF5" />
-            <Setter Property="Padding" Value="2,1" />
+            <Setter Property="Padding" Value="2,2" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF465058" />
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsSelected" Value="True" />
+                        <Condition Property="IsSelectionActive" Value="False" />
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#FF3A3F4A" />
+                </MultiTrigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
-    <Grid>
+    <Grid Background="#FF282B32">
         <Grid.RowDefinitions>
             <RowDefinition Height="30" />
             <RowDefinition Height="*" />
@@ -39,8 +98,15 @@
                         Background="#FF64BEFF" />
             </Grid>
         </Border>
-        <panels:MapsTreeView x:Name="ProjectTree"
-                             Grid.Row="1"
-                             Margin="0,6,0,0" />
+        <Border Grid.Row="1"
+                Margin="0,6,0,0"
+                Background="#FF32353E"
+                BorderBrush="#FF585C68"
+                BorderThickness="1"
+                SnapsToDevicePixels="True">
+            <panels:MapsTreeView x:Name="ProjectTree"
+                                 Background="#FF32353E"
+                                 BorderThickness="0" />
+        </Border>
     </Grid>
 </UserControl>
