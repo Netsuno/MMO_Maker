@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 
 using Frog.Editor.Assets;
+using Frog.Editor.Ui;
 
 namespace Frog.Editor.Controls
 {
@@ -22,7 +23,7 @@ namespace Frog.Editor.Controls
         public PaletteView()
         {
             DoubleBuffered = true;
-            BackColor = Color.FromArgb(45, 45, 45);
+            BackColor = EditorChrome.PaletteStripBg;
             Dock = DockStyle.Fill;
 
             _scroll.Dock = DockStyle.Right;
@@ -75,14 +76,14 @@ namespace Frog.Editor.Controls
             e.Graphics.DrawImageUnscaled(bmp, 0, 0);
 
             // grille
-            using var pen = new Pen(Color.FromArgb(60, 60, 60));
+            using var pen = new Pen(Color.FromArgb(76, 80, 90));
             for (int x = 0; x <= bmp.Width; x += TileSize)
                 e.Graphics.DrawLine(pen, x, 0, x, bmp.Height);
             for (int y = 0; y <= bmp.Height; y += TileSize)
                 e.Graphics.DrawLine(pen, 0, y, bmp.Width, y);
 
             // sélection
-            using var penSel = new Pen(Color.Orange, 2);
+            using var penSel = new Pen(Color.FromArgb(255, 182, 72), 2);
             var r = new Rectangle(_selected.X, _selected.Y, TileSize, TileSize);
             e.Graphics.DrawRectangle(penSel, r);
         }

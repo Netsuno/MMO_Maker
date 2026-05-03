@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using Frog.Core.Enums;
@@ -8,18 +9,22 @@ using Frog.Core.Models;
 using Frog.Editor.Assets;
 using Frog.Editor.Enums;
 using Frog.Editor.Services;
+using Frog.Editor.Ui;
 
 namespace Frog.Editor.Controls;
 
 /// <summary>
-/// Canvas d’édition : grille, zoom/pan, pinceau avec traînée, gomme, pot de peinture, rectangle, undo interne.
+/// Canvas carte : vue culling pour grandes surfaces, sélection rectangle, Ctrl+C/X/V,
+/// undo intégré (objectifs type RPG Maker, par étapes).
 /// </summary>
 public sealed class MapCanvas : Control
 {
     public readonly MapUndoController History = new();
 
+    private const int ViewportPadTiles = 1;
+
     public int TileSize { get; set; } = 32;
-    public float Zoom { get; private set; } = 1.0f;
+    public float Zoom { get; private set; } = 1f;
     public PointF Pan { get; private set; } = new(0, 0);
     public Map? Map { get; set; }
 
@@ -38,13 +43,16 @@ public sealed class MapCanvas : Control
     private bool _panning;
     private Point _lastMouse;
     private bool _paintStroke;
-    private Point? _rectOrigin;
+    private Point? _rectPaintOrigin;
     private Point _hoverTile;
+    private Point? _selectionMarqueeAnchor;
+    private Rectangle? _committedSelectionTiles;
 
     public MapCanvas()
     {
+        TabStop = true;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-        BackColor = Color.FromArgb(34, 34, 34);
+        BackColor = EditorChrome.MapCanvasBg;
         Cursor = Cursors.Cross;
         Dock = DockStyle.Fill;
 
@@ -52,6 +60,91 @@ public sealed class MapCanvas : Control
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
+    }
+
+    public bool HasCommittedSelection => _committedSelectionTiles is { Width: > 0, Height: > 0 };
+
+    public void ClearSelection()
+    {
+        _selectionMarqueeAnchor = null;
+        _committedSelectionTiles = null;
+        Invalidate();
+    }
+
+    public bool TryCopyTileSelection()
+    {
+        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect))
+        {
+            return false;
+        }
+
+        EditorTileClipboard.CopyFromLayer(Map, ActiveLayerIndex, rect);
+        return EditorTileClipboard.HasContent;
+    }
+
+    public bool TryCutTileSelection()
+    {
+        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect) || !IsActiveLayerEditable())
+        {
+            return false;
+        }
+
+        EditorTileClipboard.CopyFromLayer(Map, ActiveLayerIndex, rect);
+        History.PushBeforeChange(Map);
+        UndoHistoryChanged?.Invoke();
+        DeleteTilesInRectangle(rect);
+        Invalidate();
+        return true;
+    }
+
+    public bool TryPasteAtHover()
+    {
+        if (Map is null || !EditorTileClipboard.HasContent || !IsActiveLayerEditable())
+        {
+            return false;
+        }
+
+        EnsureLayerExists();
+        History.PushBeforeChange(Map);
+        UndoHistoryChanged?.Invoke();
+        var n = EditorTileClipboard.PasteToLayer(Map, ActiveLayerIndex, _hoverTile.X, _hoverTile.Y, Map.Width, Map.Height);
+        Invalidate();
+        RaiseTileClicked(_hoverTile.X, _hoverTile.Y);
+        return n > 0;
+    }
+
+    public bool TryDeleteSelectedTiles()
+    {
+        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect) || !IsActiveLayerEditable())
+        {
+            return false;
+        }
+
+        History.PushBeforeChange(Map);
+        UndoHistoryChanged?.Invoke();
+        DeleteTilesInRectangle(rect);
+        Invalidate();
+        return true;
+    }
+
+    public bool HandleEditorShortcuts(Keys keyData)
+    {
+        var ctrl = (keyData & Keys.Control) == Keys.Control;
+        var code = keyData & Keys.KeyCode;
+
+        switch (code)
+        {
+            case Keys.C when ctrl:
+                return TryCopyTileSelection();
+            case Keys.X when ctrl:
+                return TryCutTileSelection();
+            case Keys.V when ctrl:
+                return TryPasteAtHover();
+            case Keys.Delete when !ctrl:
+                return TryDeleteSelectedTiles();
+            default:
+                return false;
+        }
     }
 
     public void PerformUndo()
@@ -95,65 +188,132 @@ public sealed class MapCanvas : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        e.Graphics.Clear(BackColor);
-        e.Graphics.TranslateTransform(Pan.X, Pan.Y);
-        e.Graphics.ScaleTransform(Zoom, Zoom);
+        var g = e.Graphics;
+        g.Clear(BackColor);
 
-        var w = 20;
-        var h = 15;
-        if (Map is not null)
+        ComputeVisibleTileRange(out var tx0, out var ty0, out var tx1, out var ty1);
+
+        var mw = Math.Max(1, Map?.Width ?? 20);
+        var mh = Math.Max(1, Map?.Height ?? 15);
+
+        var state = g.Save();
+        try
         {
-            w = Math.Max(1, Map.Width);
-            h = Math.Max(1, Map.Height);
-        }
+            g.TranslateTransform(Pan.X, Pan.Y);
+            g.ScaleTransform(Zoom, Zoom);
 
-        DrawGrid(e.Graphics, w, h);
+            DrawGridCells(g, mw, mh, tx0, ty0, tx1, ty1);
 
-        if (Map is not null)
-        {
-            foreach (var layer in Map.Layers)
+            if (Map is not null)
             {
-                DrawLayer(e.Graphics, layer);
+                foreach (var layer in Map.Layers)
+                {
+                    if (!layer.Visible)
+                    {
+                        continue;
+                    }
+
+                    DrawLayer(g, layer, tx0, ty0, tx1, ty1);
+                }
+
+                DrawTileTypeOverlay(g, tx0, ty0, tx1, ty1);
+            }
+
+            if (ActiveTool == EditorTool.Selection && Map is not null && _selectionMarqueeAnchor is { } sa)
+            {
+                var xa = Math.Min(sa.X, _hoverTile.X);
+                var ya = Math.Min(sa.Y, _hoverTile.Y);
+                var xb = Math.Max(sa.X, _hoverTile.X);
+                var yb = Math.Max(sa.Y, _hoverTile.Y);
+                DrawTileRectPixels(g, xa, ya, xb, yb, Color.LimeGreen, dash: true);
+            }
+
+            if (Map is not null && _committedSelectionTiles is { Width: > 0, Height: > 0 } sel)
+            {
+                DrawTileRectPixels(g,
+                    sel.Left,
+                    sel.Top,
+                    sel.Left + sel.Width - 1,
+                    sel.Top + sel.Height - 1,
+                    Color.LightGreen,
+                    dash: true);
+            }
+
+            if (Map is not null && ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } ro)
+            {
+                DrawTileRectPixels(g, ro.X, ro.Y, _hoverTile.X, _hoverTile.Y, Color.Cyan, dash: false);
+            }
+
+            if (BrushGhostVisible() && TilesetCache.TryGet(ActiveTilesetId, out var bmpG) && bmpG is not null)
+            {
+                var tx = _hoverTile.X;
+                var ty = _hoverTile.Y;
+                if (tx >= 0 && ty >= 0 && tx < mw && ty < mh)
+                {
+                    var src = new Rectangle(SelectedSrc.X, SelectedSrc.Y, TileSize, TileSize);
+                    var dst = new Rectangle(tx * TileSize, ty * TileSize, TileSize, TileSize);
+                    using var attrs = new System.Drawing.Imaging.ImageAttributes();
+                    attrs.SetColorMatrix(new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.45f }, System.Drawing.Imaging.ColorMatrixFlag.Default, System.Drawing.Imaging.ColorAdjustType.Bitmap);
+                    g.DrawImage(bmpG, dst, src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, attrs);
+                }
             }
         }
-
-        DrawTileTypeOverlay(e.Graphics);
-
-        if (Map is not null && ActiveTool == EditorTool.Rectangle && _rectOrigin is { } o)
+        finally
         {
-            var x0 = Math.Min(o.X, _hoverTile.X);
-            var y0 = Math.Min(o.Y, _hoverTile.Y);
-            var x1 = Math.Max(o.X, _hoverTile.X);
-            var y1 = Math.Max(o.Y, _hoverTile.Y);
-            var pr = new Rectangle(x0 * TileSize, y0 * TileSize, (x1 - x0 + 1) * TileSize, (y1 - y0 + 1) * TileSize);
-            using var b = new SolidBrush(Color.FromArgb(60, Color.Cyan));
-            using var p = new Pen(Color.Cyan, 2);
-            e.Graphics.FillRectangle(b, pr);
-            e.Graphics.DrawRectangle(p, pr);
-        }
-
-        if (Map is not null && ActiveTilesetId > 0 && TilesetCache.TryGet(ActiveTilesetId, out var bmp) && bmp is not null)
-        {
-            var mouse = PointToClient(Cursor.Position);
-            var world = ScreenToWorld(mouse);
-            var tx = (int)Math.Floor(world.X / TileSize);
-            var ty = (int)Math.Floor(world.Y / TileSize);
-            if (tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
-            {
-                var src = new Rectangle(SelectedSrc.X, SelectedSrc.Y, TileSize, TileSize);
-                var dst = new Rectangle(tx * TileSize, ty * TileSize, TileSize, TileSize);
-                var colorMatrix = new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.5f };
-                using var attrs = new System.Drawing.Imaging.ImageAttributes();
-                attrs.SetColorMatrix(colorMatrix, System.Drawing.Imaging.ColorMatrixFlag.Default, System.Drawing.Imaging.ColorAdjustType.Bitmap);
-                e.Graphics.DrawImage(bmp, dst, src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, attrs);
-            }
+            g.Restore(state);
         }
     }
 
-    private void DrawLayer(Graphics g, Layer layer)
+    private bool BrushGhostVisible() =>
+        Map is not null && ActiveTilesetId > 0 && IsActiveLayerEditable() &&
+        ActiveTool is EditorTool.Brush or EditorTool.Rectangle or EditorTool.Fill;
+
+    private void DrawGridCells(Graphics g, int mapW, int mapH, int tx0, int ty0, int tx1, int ty1)
+    {
+        var ts = TileSize;
+        using var penMajor = new Pen(Color.FromArgb(92, 98, 108), 1f);
+        using var penMinor = new Pen(Color.FromArgb(58, 62, 74), 1f);
+        using var light = new SolidBrush(Color.FromArgb(48, 52, 60));
+        using var dark = new SolidBrush(Color.FromArgb(54, 58, 66));
+
+        var yTop = ty0 * ts;
+        var yBot = Math.Min(mapH * ts, (ty1 + 1) * ts);
+        var xLeft = tx0 * ts;
+        var xRight = Math.Min(mapW * ts, (tx1 + 1) * ts);
+
+        for (var y = ty0; y <= ty1 && y < mapH; y++)
+        {
+            for (var x = tx0; x <= tx1 && x < mapW; x++)
+            {
+                var r = new Rectangle(x * ts, y * ts, ts, ts);
+                g.FillRectangle(((x + y) % 2 == 0) ? light : dark, r);
+            }
+        }
+
+        for (var x = tx0; x <= mapW && x <= tx1 + 1; x++)
+        {
+            var px = x * ts;
+            g.DrawLine(penMinor, px, yTop, px, yBot);
+        }
+
+        for (var y = ty0; y <= mapH && y <= ty1 + 1; y++)
+        {
+            var py = y * ts;
+            g.DrawLine(penMinor, xLeft, py, xRight, py);
+        }
+
+        g.DrawRectangle(penMajor, 0, 0, mapW * ts, mapH * ts);
+    }
+
+    private void DrawLayer(Graphics g, Layer layer, int tx0, int ty0, int tx1, int ty1)
     {
         foreach (var t in layer.Tiles)
         {
+            if (t.X < tx0 || t.X > tx1 || t.Y < ty0 || t.Y > ty1)
+            {
+                continue;
+            }
+
             if (!TilesetCache.TryGet(t.TilesetId, out var bmp) || bmp is null)
             {
                 continue;
@@ -170,33 +330,124 @@ public sealed class MapCanvas : Control
         }
     }
 
-    private void DrawGrid(Graphics g, int widthTiles, int heightTiles)
+    private void DrawTileTypeOverlay(Graphics g, int tx0, int ty0, int tx1, int ty1)
     {
-        using var penMajor = new Pen(Color.FromArgb(70, 70, 70), 1f);
-        using var penMinor = new Pen(Color.FromArgb(55, 55, 55), 1f);
-        using var light = new SolidBrush(Color.FromArgb(38, 38, 38));
-        using var dark = new SolidBrush(Color.FromArgb(42, 42, 42));
-
-        for (var y = 0; y < heightTiles; y++)
+        if (Map is null)
         {
-            for (var x = 0; x < widthTiles; x++)
+            return;
+        }
+
+        foreach (var layer in Map.Layers)
+        {
+            if (!layer.Visible)
             {
-                var r = new Rectangle(x * TileSize, y * TileSize, TileSize, TileSize);
-                g.FillRectangle(((x + y) % 2 == 0) ? light : dark, r);
+                continue;
+            }
+
+            foreach (var t in layer.Tiles)
+            {
+                if (t.X < tx0 || t.X > tx1 || t.Y < ty0 || t.Y > ty1)
+                {
+                    continue;
+                }
+
+                var rect = new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
+                switch (t.Type)
+                {
+                    case TileType.Block:
+                        using (var b = new SolidBrush(Color.FromArgb(80, Color.Red)))
+                        {
+                            g.FillRectangle(b, rect);
+                        }
+
+                        break;
+
+                    case TileType.Warp:
+                    {
+                        using var p = new Pen(Color.Lime, 2);
+                        g.DrawRectangle(p, rect);
+                        break;
+                    }
+
+                    case TileType.Resource:
+                        using (var br = new SolidBrush(Color.FromArgb(160, Color.Gold)))
+                        {
+                            var cx = rect.X + TileSize / 4;
+                            var cy = rect.Y + TileSize / 4;
+                            var d = TileSize / 2;
+                            g.FillEllipse(br, cx, cy, d, d);
+                        }
+
+                        break;
+                }
             }
         }
+    }
 
-        for (var x = 0; x <= widthTiles; x++)
+    private void DrawTileRectPixels(Graphics g, int ax, int ay, int bx, int by, Color color, bool dash)
+    {
+        var x0 = Math.Min(ax, bx);
+        var y0 = Math.Min(ay, by);
+        var x1 = Math.Max(ax, bx);
+        var y1 = Math.Max(ay, by);
+        var ts = TileSize;
+        var r = new Rectangle(x0 * ts, y0 * ts, (x1 - x0 + 1) * ts, (y1 - y0 + 1) * ts);
+        using var b = new SolidBrush(Color.FromArgb(dash ? 50 : 55, color));
+        using var p = new Pen(color, 2) { DashStyle = dash ? DashStyle.Dash : DashStyle.Solid };
+        g.FillRectangle(b, r);
+        g.DrawRectangle(p, r);
+    }
+
+    private void ComputeVisibleTileRange(out int tx0, out int ty0, out int tx1, out int ty1)
+    {
+        tx0 = ty0 = 0;
+        tx1 = Math.Max(0, (Map?.Width ?? 20) - 1);
+        ty1 = Math.Max(0, (Map?.Height ?? 15) - 1);
+        var mw = Map?.Width ?? 20;
+        var mh = Map?.Height ?? 15;
+
+        var c = ClientSize;
+        if (mw <= 0 || mh <= 0 || c.Width <= 0 || c.Height <= 0 || Zoom <= 0 || TileSize <= 0)
         {
-            g.DrawLine(penMinor, x * TileSize, 0, x * TileSize, heightTiles * TileSize);
+            return;
         }
 
-        for (var y = 0; y <= heightTiles; y++)
+        var corners = new[]
         {
-            g.DrawLine(penMinor, 0, y * TileSize, widthTiles * TileSize, y * TileSize);
+            ScreenToWorld(Point.Empty),
+            ScreenToWorld(new Point(c.Width, 0)),
+            ScreenToWorld(new Point(0, c.Height)),
+            ScreenToWorld(new Point(c.Width, c.Height)),
+        };
+
+        float minWx = corners[0].X, maxWx = corners[0].X;
+        float minWy = corners[0].Y, maxWy = corners[0].Y;
+        foreach (var p in corners)
+        {
+            minWx = Math.Min(minWx, p.X);
+            maxWx = Math.Max(maxWx, p.X);
+            minWy = Math.Min(minWy, p.Y);
+            maxWy = Math.Max(maxWy, p.Y);
         }
 
-        g.DrawRectangle(penMajor, 0, 0, widthTiles * TileSize, heightTiles * TileSize);
+        var ts = TileSize;
+        tx0 = (int)Math.Floor(minWx / ts) - ViewportPadTiles;
+        ty0 = (int)Math.Floor(minWy / ts) - ViewportPadTiles;
+        tx1 = (int)Math.Floor(maxWx / ts) + ViewportPadTiles;
+        ty1 = (int)Math.Floor(maxWy / ts) + ViewportPadTiles;
+        tx0 = Math.Clamp(tx0, 0, mw - 1);
+        ty0 = Math.Clamp(ty0, 0, mh - 1);
+        tx1 = Math.Clamp(tx1, 0, mw - 1);
+        ty1 = Math.Clamp(ty1, 0, mh - 1);
+        if (tx1 < tx0)
+        {
+            (tx0, tx1) = (tx1, tx0);
+        }
+
+        if (ty1 < ty0)
+        {
+            (ty0, ty1) = (ty1, ty0);
+        }
     }
 
     private void OnMouseWheelZoom(object? sender, MouseEventArgs e)
@@ -222,6 +473,11 @@ public sealed class MapCanvas : Control
 
     private void OnMouseDown(object? sender, MouseEventArgs e)
     {
+        if (e.Button != MouseButtons.Middle)
+        {
+            Focus();
+        }
+
         if (e.Button == MouseButtons.Middle)
         {
             _panning = true;
@@ -243,10 +499,31 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        if (e.Button == MouseButtons.Right && ActiveTool == EditorTool.Rectangle)
+        if (e.Button == MouseButtons.Right)
         {
-            _rectOrigin = null;
+            if (ActiveTool == EditorTool.Rectangle)
+            {
+                _rectPaintOrigin = null;
+                Invalidate();
+                return;
+            }
+
+            if (ActiveTool == EditorTool.Selection)
+            {
+                ClearSelection();
+                return;
+            }
+
+            if (!IsActiveLayerEditable())
+            {
+                return;
+            }
+
+            BeginPaintStroke();
+            EraseAt(tx, ty);
+            Capture = true;
             Invalidate();
+            RaiseTileClicked(tx, ty);
             return;
         }
 
@@ -255,6 +532,11 @@ public sealed class MapCanvas : Control
             switch (ActiveTool)
             {
                 case EditorTool.Brush:
+                    if (!IsActiveLayerEditable())
+                    {
+                        break;
+                    }
+
                     BeginPaintStroke();
                     ApplyBrush(tx, ty);
                     Capture = true;
@@ -263,6 +545,11 @@ public sealed class MapCanvas : Control
                     break;
 
                 case EditorTool.Eraser:
+                    if (!IsActiveLayerEditable())
+                    {
+                        break;
+                    }
+
                     BeginPaintStroke();
                     EraseAt(tx, ty);
                     Capture = true;
@@ -275,6 +562,11 @@ public sealed class MapCanvas : Control
                     break;
 
                 case EditorTool.Fill:
+                    if (!IsActiveLayerEditable())
+                    {
+                        break;
+                    }
+
                     History.PushBeforeChange(Map);
                     UndoHistoryChanged?.Invoke();
                     FloodFill(tx, ty);
@@ -283,20 +575,24 @@ public sealed class MapCanvas : Control
                     break;
 
                 case EditorTool.Rectangle:
-                    _rectOrigin = new Point(tx, ty);
+                    if (!IsActiveLayerEditable())
+                    {
+                        break;
+                    }
+
+                    _rectPaintOrigin = new Point(tx, ty);
+                    _hoverTile = new Point(tx, ty);
+                    Capture = true;
+                    Invalidate();
+                    break;
+
+                case EditorTool.Selection:
+                    _selectionMarqueeAnchor = new Point(tx, ty);
                     _hoverTile = new Point(tx, ty);
                     Capture = true;
                     Invalidate();
                     break;
             }
-        }
-        else if (e.Button == MouseButtons.Right)
-        {
-            BeginPaintStroke();
-            EraseAt(tx, ty);
-            Capture = true;
-            Invalidate();
-            RaiseTileClicked(tx, ty);
         }
     }
 
@@ -324,6 +620,7 @@ public sealed class MapCanvas : Control
 
         if (Map is null)
         {
+            Cursor = Cursors.Cross;
             return;
         }
 
@@ -336,20 +633,22 @@ public sealed class MapCanvas : Control
             _hoverTile = new Point(tx, ty);
         }
 
+        UpdateEditCursorForHover();
+
         if ((e.Button & MouseButtons.Left) != 0)
         {
-            if (ActiveTool == EditorTool.Brush && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
+            if (ActiveTool == EditorTool.Brush && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height && IsActiveLayerEditable())
             {
                 ApplyBrush(tx, ty);
                 Invalidate();
             }
-            else if (ActiveTool == EditorTool.Rectangle && _rectOrigin is not null)
+            else if (ActiveTool is EditorTool.Rectangle or EditorTool.Selection && (_rectPaintOrigin is not null || _selectionMarqueeAnchor is not null))
             {
                 Invalidate();
             }
         }
 
-        if ((e.Button & MouseButtons.Right) != 0 && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
+        if ((e.Button & MouseButtons.Right) != 0 && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height && IsActiveLayerEditable())
         {
             EraseAt(tx, ty);
             Invalidate();
@@ -372,17 +671,44 @@ public sealed class MapCanvas : Control
                 Capture = false;
             }
 
-            if (ActiveTool == EditorTool.Rectangle && e.Button == MouseButtons.Left && _rectOrigin is { } o && Map is not null)
+            if (Map is null)
+            {
+                return;
+            }
+
+            if (ActiveTool == EditorTool.Rectangle && e.Button == MouseButtons.Left && _rectPaintOrigin is { } ro)
             {
                 var world = ScreenToWorld(e.Location);
                 var ex = (int)Math.Floor(world.X / TileSize);
                 var ey = (int)Math.Floor(world.Y / TileSize);
                 ex = Math.Clamp(ex, 0, Map.Width - 1);
                 ey = Math.Clamp(ey, 0, Map.Height - 1);
-                History.PushBeforeChange(Map);
-                UndoHistoryChanged?.Invoke();
-                ApplyRectangle(o.X, o.Y, ex, ey);
-                _rectOrigin = null;
+                if (IsActiveLayerEditable())
+                {
+                    History.PushBeforeChange(Map);
+                    UndoHistoryChanged?.Invoke();
+                    ApplyRectangle(ro.X, ro.Y, ex, ey);
+                    RaiseTileClicked(ex, ey);
+                }
+
+                _rectPaintOrigin = null;
+                Capture = false;
+                Invalidate();
+            }
+
+            if (ActiveTool == EditorTool.Selection && e.Button == MouseButtons.Left && _selectionMarqueeAnchor is { } sa)
+            {
+                var world = ScreenToWorld(e.Location);
+                var ex = (int)Math.Floor(world.X / TileSize);
+                var ey = (int)Math.Floor(world.Y / TileSize);
+                ex = Math.Clamp(ex, 0, Map.Width - 1);
+                ey = Math.Clamp(ey, 0, Map.Height - 1);
+                var x0 = Math.Min(sa.X, ex);
+                var y0 = Math.Min(sa.Y, ey);
+                var x1 = Math.Max(sa.X, ex);
+                var y1 = Math.Max(sa.Y, ey);
+                _committedSelectionTiles = new Rectangle(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+                _selectionMarqueeAnchor = null;
                 Capture = false;
                 Invalidate();
                 RaiseTileClicked(ex, ey);
@@ -390,9 +716,41 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private bool IsActiveLayerEditable()
+    {
+        if (Map is null || ActiveLayerIndex < 0 || ActiveLayerIndex >= Map.Layers.Count)
+        {
+            return false;
+        }
+
+        return !Map.Layers[ActiveLayerIndex].Locked;
+    }
+
+    private void UpdateEditCursorForHover()
+    {
+        if (_panning)
+        {
+            return;
+        }
+
+        if (Map is null)
+        {
+            Cursor = Cursors.Cross;
+            return;
+        }
+
+        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection)
+        {
+            Cursor = Cursors.Cross;
+            return;
+        }
+
+        Cursor = !IsActiveLayerEditable() ? Cursors.No : Cursors.Cross;
+    }
+
     private void ApplyBrush(int tx, int ty)
     {
-        if (Map is null)
+        if (Map is null || !IsActiveLayerEditable())
         {
             return;
         }
@@ -431,7 +789,7 @@ public sealed class MapCanvas : Control
 
     private void EraseAt(int tx, int ty)
     {
-        if (Map is null || ActiveLayerIndex < 0 || ActiveLayerIndex >= Map.Layers.Count)
+        if (Map is null || ActiveLayerIndex < 0 || ActiveLayerIndex >= Map.Layers.Count || !IsActiveLayerEditable())
         {
             return;
         }
@@ -441,7 +799,7 @@ public sealed class MapCanvas : Control
 
     private void ApplyRectangle(int x0, int y0, int x1, int y1)
     {
-        if (Map is null)
+        if (Map is null || !IsActiveLayerEditable())
         {
             return;
         }
@@ -464,7 +822,7 @@ public sealed class MapCanvas : Control
 
     private void FloodFill(int sx, int sy)
     {
-        if (Map is null)
+        if (Map is null || !IsActiveLayerEditable())
         {
             return;
         }
@@ -500,7 +858,7 @@ public sealed class MapCanvas : Control
                     continue;
                 }
             }
-            else if (!SameVisualTile(start!, here))
+            else if (start is null || !SameVisualTile(start, here))
             {
                 continue;
             }
@@ -548,47 +906,31 @@ public sealed class MapCanvas : Control
         }
     }
 
-    private void DrawTileTypeOverlay(Graphics g)
+    private bool TryGetCommittedSelectionNormalized(out Rectangle rect)
     {
-        if (Map is null)
+        rect = default;
+        if (_committedSelectionTiles is not { Width: > 0, Height: > 0 } r)
+        {
+            return false;
+        }
+
+        rect = r;
+        return true;
+    }
+
+    private void DeleteTilesInRectangle(Rectangle tileRect)
+    {
+        if (Map is null || ActiveLayerIndex < 0 || ActiveLayerIndex >= Map.Layers.Count || !IsActiveLayerEditable())
         {
             return;
         }
 
-        foreach (var layer in Map.Layers)
+        var layer = Map.Layers[ActiveLayerIndex];
+        for (var y = tileRect.Top; y < tileRect.Top + tileRect.Height; y++)
         {
-            foreach (var t in layer.Tiles)
+            for (var x = tileRect.Left; x < tileRect.Left + tileRect.Width; x++)
             {
-                var rect = new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
-
-                switch (t.Type)
-                {
-                    case TileType.Block:
-                        using (var b = new SolidBrush(Color.FromArgb(80, Color.Red)))
-                        {
-                            g.FillRectangle(b, rect);
-                        }
-
-                        break;
-
-                    case TileType.Warp:
-                    {
-                        using var p = new Pen(Color.Lime, 2);
-                        g.DrawRectangle(p, rect);
-                        break;
-                    }
-
-                    case TileType.Resource:
-                        using (var br = new SolidBrush(Color.FromArgb(160, Color.Gold)))
-                        {
-                            var cx = rect.X + TileSize / 4;
-                            var cy = rect.Y + TileSize / 4;
-                            var d = TileSize / 2;
-                            g.FillEllipse(br, cx, cy, d, d);
-                        }
-
-                        break;
-                }
+                layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
             }
         }
     }
@@ -619,3 +961,4 @@ public sealed class MapCanvas : Control
         return new PointF(x, y);
     }
 }
+

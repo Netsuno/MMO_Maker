@@ -1,81 +1,95 @@
 using System;
+using System.Drawing;
 using System.Windows.Forms;
 
 using Frog.Core.Enums;
+using Frog.Editor.Ui;
 
-namespace Frog.Editor.Controls
+namespace Frog.Editor.Controls;
+
+/// <summary>Palette TileType façon MZ : groupe compact lisible.</summary>
+public sealed class TileTypePalette : UserControl
 {
-    /// <summary>
-    /// Palette de sélection du TileType (Ground, Block, Warp, Resource).
-    /// </summary>
-    public sealed class TileTypePalette : UserControl
+    private readonly RadioButton _rbGround;
+    private readonly RadioButton _rbBlock;
+    private readonly RadioButton _rbWarp;
+    private readonly RadioButton _rbResource;
+    private readonly RadioButton _rbScript;
+
+    public event Action<TileType>? SelectedTileTypeChanged;
+
+    public TileType SelectedTileType { get; private set; } = TileType.Ground;
+
+    public TileTypePalette()
     {
-        private readonly RadioButton _rbGround;
-        private readonly RadioButton _rbBlock;
-        private readonly RadioButton _rbWarp;
-        private readonly RadioButton _rbResource;
-        private readonly RadioButton _rbScript;
+        AutoSize = true;
+        Dock = DockStyle.Top;
+        BackColor = EditorChrome.SidebarBg;
+        Padding = new Padding(10, 0, 10, 8);
 
-        public event Action<TileType>? SelectedTileTypeChanged;
-
-        public TileType SelectedTileType { get; private set; } = TileType.Ground;
-
-        public TileTypePalette()
+        var col = new FlowLayoutPanel
         {
-            AutoSize = true;
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            AutoSize = true,
+            WrapContents = false,
+            BackColor = Color.Transparent,
+        };
 
-            var group = new GroupBox
-            {
-                Text = "Type de tuile",
-                AutoSize = true,
-                Dock = DockStyle.Top
-            };
+        var title = EditorChrome.BuildSectionCaption("TYPE DE TUILE");
+        title.Margin = new Padding(0, 0, 0, 8);
 
-            var panel = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                AutoSize = true,
-                FlowDirection = FlowDirection.TopDown
-            };
+        var row = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            AutoSize = true,
+            BackColor = Color.Transparent,
+        };
 
-            _rbGround = new RadioButton { Text = "Ground", AutoSize = true };
-            _rbBlock = new RadioButton { Text = "Block", AutoSize = true };
-            _rbWarp = new RadioButton { Text = "Warp", AutoSize = true };
-            _rbResource = new RadioButton { Text = "Resource", AutoSize = true };
-            _rbScript = new RadioButton { Text = "Script", AutoSize = true };
+        _rbGround = new RadioButton { Text = "  Terrain" };
+        _rbBlock = new RadioButton { Text = "  Blocage" };
+        _rbWarp = new RadioButton { Text = "  Warp" };
+        _rbResource = new RadioButton { Text = "  Ressource" };
+        _rbScript = new RadioButton { Text = "  Script" };
 
-            _rbGround.CheckedChanged += OnRadioCheckedChanged;
-            _rbBlock.CheckedChanged += OnRadioCheckedChanged;
-            _rbWarp.CheckedChanged += OnRadioCheckedChanged;
-            _rbResource.CheckedChanged += OnRadioCheckedChanged;
-            _rbScript.CheckedChanged += OnRadioCheckedChanged;
-
-            _rbGround.Checked = true;
-
-            panel.Controls.Add(_rbGround);
-            panel.Controls.Add(_rbBlock);
-            panel.Controls.Add(_rbWarp);
-            panel.Controls.Add(_rbResource);
-            panel.Controls.Add(_rbScript);
-
-            group.Controls.Add(panel);
-            Controls.Add(group);
+        foreach (RadioButton rb in new RadioButton[] { _rbGround, _rbBlock, _rbWarp, _rbResource, _rbScript })
+        {
+            EditorChrome.StyleSidebarRadio(rb);
+            rb.CheckedChanged += OnRadioCheckedChanged;
+            row.Controls.Add(rb);
         }
 
-        private void OnRadioCheckedChanged(object? sender, EventArgs e)
-        {
-            if (_rbGround.Checked)
-                SelectedTileType = TileType.Ground;
-            else if (_rbBlock.Checked)
-                SelectedTileType = TileType.Block;
-            else if (_rbWarp.Checked)
-                SelectedTileType = TileType.Warp;
-            else if (_rbResource.Checked)
-                SelectedTileType = TileType.Resource;
-            else if (_rbScript.Checked)
-                SelectedTileType = TileType.Script;
+        _rbGround.Checked = true;
 
-            SelectedTileTypeChanged?.Invoke(SelectedTileType);
+        col.Controls.Add(title);
+        col.Controls.Add(row);
+        Controls.Add(col);
+    }
+
+    private void OnRadioCheckedChanged(object? sender, EventArgs e)
+    {
+        if (_rbGround.Checked)
+        {
+            SelectedTileType = TileType.Ground;
         }
+        else if (_rbBlock.Checked)
+        {
+            SelectedTileType = TileType.Block;
+        }
+        else if (_rbWarp.Checked)
+        {
+            SelectedTileType = TileType.Warp;
+        }
+        else if (_rbResource.Checked)
+        {
+            SelectedTileType = TileType.Resource;
+        }
+        else if (_rbScript.Checked)
+        {
+            SelectedTileType = TileType.Script;
+        }
+
+        SelectedTileTypeChanged?.Invoke(SelectedTileType);
     }
 }

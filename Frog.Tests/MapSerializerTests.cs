@@ -36,6 +36,9 @@ namespace Frog.Tests
             // IMPORTANT: Assert.Single retourne l’élément → on le capture pour éviter IDE0058
             var onlyLayer = Assert.Single(back.Layers);
             Assert.Equal(LayerType.Ground, onlyLayer.LayerType);
+            Assert.True(onlyLayer.Visible);
+            Assert.False(onlyLayer.Locked);
+            Assert.Equal(string.Empty, onlyLayer.DisplayName);
 
             var onlyTile = Assert.Single(onlyLayer.Tiles);
             Assert.Equal(1, onlyTile.X);
@@ -45,5 +48,27 @@ namespace Frog.Tests
             Assert.Equal(64, onlyTile.SrcY);
             Assert.Equal(TileType.Ground, onlyTile.Type);
         }
+
+        [Fact]
+        public void Roundtrip_PreservesLayerVisibilityLockAndDisplayName()
+        {
+            var map = new Map { Width = 4, Height = 4, Name = "L" };
+            map.Layers.Add(new Layer
+            {
+                LayerType = LayerType.Mask,
+                DisplayName = "  Décor  ",
+                Visible = false,
+                Locked = true
+            });
+
+            var serializer = new MapSerializer();
+            var back = serializer.Deserialize(serializer.Serialize(map));
+            var layer = Assert.Single(back.Layers);
+            Assert.Equal(LayerType.Mask, layer.LayerType);
+            Assert.False(layer.Visible);
+            Assert.True(layer.Locked);
+            Assert.Equal("  Décor  ", layer.DisplayName);
+        }
+
     }
 }

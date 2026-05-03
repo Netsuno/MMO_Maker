@@ -8,6 +8,8 @@ namespace Frog.Editor.Enums
         /// <summary>Remplissage (même tuile / case vide connectés en 4-directions).</summary>
         Fill = 3,
         /// <summary>Rectangle plein entre deux cases (clic départ, clic fin).</summary>
-        Rectangle = 4
+        Rectangle = 4,
+        /// <summary>Sélection rectangulaire (copier / coller tuiles sur la couche active).</summary>
+        Selection = 5
     }
 }
