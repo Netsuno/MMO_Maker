@@ -55,7 +55,7 @@ internal sealed class Program
             .AddOptions<WorldMapOptions>()
             .Bind(builder.Configuration.GetSection("Maps"));
 
-        // Logs structurés : JSON + scopes (ConnectionId, RemoteEndPoint, Username) — niveaux via appsettings "Logging"
+        // Logs console : format « simple » par défaut (lisible) ; passer Console:FormatterName = json pour agrégateurs (scopes via appsettings)
         builder.Logging.ClearProviders();
         builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
         builder.Logging.AddConsole();
