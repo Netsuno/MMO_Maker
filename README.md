@@ -18,14 +18,59 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 
 ## 🧭 Décisions produit (référence)
 
+Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal / Zelda SNES‑like** ; [FRoG Creator OSE 0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3) comme inspiration fonctionnelle, pas comme stack).
+
 | Sujet | Choix |
 |--------|--------|
-| **Chat** | Trois canaux : **global**, **par carte (map)**, **chuchotement (whisper)**. |
-| **Persistance joueur** | Sauvegarde **périodique** (intervalle configurable, défaut 45 s) + sauvegarde à la **déconnexion** / **expiration session** / **logout** — limiter la charge serveur (pas de save à chaque paquet). |
-| **Cartes / warps** | **Phase 1 : une seule carte monde** pour tous les joueurs (`MapService.DefaultWorldMapId`). **Phase 2 :** instances / multi‑maps. |
-| **Transport (MMO)** | **TCP** pour tout le contrôle fiable (auth, chat, map, état synchrone actuel). **UDP** (snapshots position / combat) prévu en phase ultérieure pour réduire la latence — sans casser le flux TCP existant. |
-| **Version protocole** | **`FrogWireProtocol.Version`** dans **Hello** après le message UTF‑8 (UInt16 LE) ; `Frog.Core/Constants/FrogWireProtocol.cs`. Incrémenter en cas de rupture binaire incompatible. |
-| **Combat** | Visée **Zelda / Graal Online** (action, timing). Portée mêlée en **pixels** (centre tuile → centre tuile, `WorldMetrics.MeleeRangePixels`). **Plus tard :** magie, niveaux, stats, éléments. |
+| **Hébergement & éditeur public** | **Un seul monde hébergé par vous** au début ; équipe comme auteurs. Plus tard : joueurs peuvent créer du contenu depuis l’éditeur, **toujours rattaché à votre monde / votre serveur** ; monétisation = **fonctionnalités**, pas court terme. |
+| **Licence / compte** | **Liée au compte** (serveur uniquement vous). |
+| **Plateformes** | **Windows seulement** pour l’instant. |
+| **Rendu** | Vue **Zelda SNES / Graal Online**. Tuiles **32×32 px** pour l’instant (évolutif). |
+| **Mouvement** | **Pixels** (autoritaire **serveur**). |
+| **Combat mêlée** | **8 directions** ; **PvE only** au début ; timing **simple pour l’instant** (à affiner ensuite). Knockback **+ courte invulnérabilité** (style Zelda). **Joueurs :** pas traverser les uns les autres sauf maps avec **flag éditeur** (collision joueur désactivée / traversée). |
+| **NPC ennemis** | **Statiques ou patrouille simple** ; **scripts comportement rapidement après** (+ **Lua** pour événements côté map **créateur**, hors logique compilée dans le serveur core — pas priorité tout de suite mais prévu pour les « joueurs‑auteurs »). |
+| **Cartes** | Objectif **plusieurs maps vite** (+ warps) ; pas d’**instances** pour l’instant ; plus tard : instances normales **+ procédurales**. |
+| **Téléchargement carte** | **HEAD révision / hash puis blob** tant que ça reste fiable ; cache client acceptable. |
+| **Événements (RPG Maker)** | **À faire bientôt** : événements sur cases, **liste en DB réutilisable** entre maps/cases, association sauvegardée avec la carte ou la tuile. |
+| **Personnages** | **Plusieurs slots** prévus ; **stats tôt** : **STR, AGI, DEX, INT, VIT, LUCK**. |
+| **Objets / inventaire** | **Priorité importante** : au début chaque « type » d’objet prend **1 place**. **Serveur :** effets / règles en **DB**. **Client :** mise en cache des infos « affichage / ambiance » pour ne pas surcharger la DB. |
+| **Mode offline jeu** | **Pas tranché** pour l’instant. |
+| **Réseau** | **Contrôle autoritaire serveur**. **TCP** pour flux fiables ; ajouter ou basculer **UDP** lorsque jugé meilleur compromis **sécurité / lag** à plus grande échelle (voir protocole, sans tout casser d’un coup). Cible volume **≤100 joueurs / carte au début**, architecture **scalable** si carton. |
+| **Chat** | Actuel : global / map / whisper. **Guilde → chat guilde**, **groupe → chat groupe** lorsque ces systèmes existeront. **Logs chat** oui ; **kick modérateur plus tard**, **ban en DB** dès besoin plausible. |
+| **Archi dépôt** | Conserver **Client / Serveur / Éditeur / Core** séparés. |
+| **Publier en DB depuis l’éditeur** | **Oui** (priorité après socle maps / données). |
+| **Conflit multi‑auteur carte** | **Plus tard**, pas problème actuel. |
+| **Auth** | **Votre serveur seulement** pour l’instant. **RGPD** à préciser selon exposition publique. |
+| **Audio** | **Qualité**, contenu livré avec le client (zip bêta). |
+| **Distribution** | **Zip bêta testeurs** au début, pas storefront imposée. |
+| **Héritage FRoG** | Conserver **l’idée d’un MMO éditable** comme base éducative / produit. **Rompre** : problèmes VB6 ; données **en clair peu sécurisées** tout en texte comme à l’époque. |
+
+### Jalons technique proposés (ordre pour travailler en autonomie)
+
+1. **Multi‑maps** stables + **flag carte** collisions joueurs + sync **revision/hash** carte côté client.  
+2. **Stats persistées + multi‑slots perso** (DB + protocole login/sélection).  
+3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter.  
+4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.  
+5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.  
+6. **Publication éditeur → MariaDB** (cartes puis événements / définitions progressives).  
+7. Pipeline **Lua** événements auteur‑carte sandboxé (après métadonnées stables).  
+8. Observabilité + **charges** : mesurer broadcasts par carte puis décisions **UDP / AOI**.
+
+### Succès utilisateur minimal (vous l’avez défini)
+
+**Deux joueurs à distance**, **chat fonctionnel**, **dialogue NPC**, **combattre un monstre**.
+
+---
+
+<details>
+<summary><strong>Références historiques précédentes (table courte d’origine)</strong></summary>
+
+| Élément | Détail conservé comme rappel |
+|--------|-----------------------------|
+| **Persistance joueur** | Sauvegarde **périodique** (défaut 45 s) + déco / logout / session expirée ; pas une save à chaque paquet. |
+| **Version protocole** | `FrogWireProtocol.Version` dans **Hello** ; incrémenter si rupture binaire incompatible. |
+
+</details>
 
 ---
 
@@ -36,7 +81,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | **Frog.Core** | Modèles partagés, enums, interfaces, sérialiseurs binaires (maps, items, NPCs…), IDs de paquets, `ChatChannel`, **`WorldMetrics`** (tuile ↔ pixels). |
 | **Frog.Client** | Client WinForms : TCP, login, map (rendu tuile simplifié), flèches, chat, heartbeat, mêlée ; doc `Frog.Client/Docs/protocol_login_map.md`. |
 | **Frog.Editor** | Éditeur de cartes WinForms : outils brush/fill/rectangle, undo/redo, `.fmap`, tilesets. |
-| **Frog.Server** | Serveur TCP : sessions, **carte `.fmap` ou `frog_map`** (`Maps:worldMapPath` / `Maps:databaseFallbackMapId`), map monde unique, mouvements, **mêlée pixel**, chat, persistance MariaDB optionnelle, sauvegarde périodique joueur. |
+| **Frog.Server** | Serveur TCP : sessions, **carte `.fmap` ou `frog_map`**, mouvements **pixels**, **mêlée** (réseau évolutif UDP si besoin), chat, persistance MariaDB optionnelle, sauvegarde périodique joueur. |
 | **Frog.Tests** | Tests unitaires (sérialisation, protocole, persistance mémoire, mouvements…). |
 
 ---
@@ -56,7 +101,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | Module | Statut | Détail court |
 |--------|--------|----------------|
 | **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
-| **Frog.Server** | 🟢 En évolution | TCP, login/register, map, mouvement, collisions, **warps** (monde unique), chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou PG), nettoyage sessions. |
+| **Frog.Server** | 🟢 En évolution | TCP, login/register, map(s), mouvement, collisions, **warps**, chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou MariaDB), nettoyage sessions. |
 | **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `Form1` (connexion, map **PNG multi-couches**, déplacements, chat 3 canaux, heartbeat, mêlée). |
 | **Frog.Editor** | 🟢 En évolution | UI type **RPG Maker** (sombre, menu Fichier / Édition / …, texte menu clair, **outils & type de tuile en listes déroulantes** pour colonnes étroites, tuiles A–D, arbre cartes, `.fmap` + manifeste). |
 | **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
@@ -92,7 +137,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 - [x] **Chrome RPG Maker** (approx.) : workspace sombre, **une seule barre de menus** (actions + raccourcis), tuiles + onglets A–D à droite, arbre « Cartes », bandeau titre carte.
 - [x] **`Map.Validate()`** : au moins une couche, bornes tuiles, pas de doublon (x,y) par couche, warps (MapId ≥ 0, destination ≥ 0).
 - [x] **`PropertyGrid`** : catégories / descriptions sur les propriétés **Tuile** ; validation via menu **Carte**.
-- [ ] _[Option]_ **Marqueurs / événements** sur carte comme base pour le scripting futur.
+- [ ] **Marqueurs / événements** sur carte (**priorité équipe**) + liste d’événements persistée (**DB**) pour réutilisation multi‑cases / multi‑maps.
 
 </details>
 
