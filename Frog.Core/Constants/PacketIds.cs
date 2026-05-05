@@ -23,5 +23,7 @@ public static class PacketIds
     public const byte ChatMessage = 16;
     public const byte MeleeAttackRequest = 17;
     public const byte MeleeAttackResult = 18;
+    public const byte MapAlreadySynced = 19;
+    public const byte CharacterPayload = 20;
     public const byte Error = 255;
 }

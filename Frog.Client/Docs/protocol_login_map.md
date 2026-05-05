@@ -52,6 +52,8 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `16` -> `ChatMessage`
 - `17` -> `MeleeAttackRequest`
 - `18` -> `MeleeAttackResult`
+- `19` -> `MapAlreadySynced`
+- `20` -> `CharacterPayload`
 - `255` -> `Error`
 
 ## Grille monde et pixels
@@ -69,11 +71,17 @@ Le blob `MapBytes` du paquet **`MapData`** est **exactement** le meme contenu qu
 
 Après les 4 octets magic ASCII `FMAP` :
 
-1. **`MapFileFormatVersion`** (`byte`), exposé dans le code sous `MapSerializer.MapFileFormatVersion` (aligné avec l’élément compilé dans le dépôt).
+1. **`MapFileFormatVersion`** (`byte`), exposé dans le code sous `MapSerializer.MapFileFormatVersion` (aligné avec l’élément compilé dans le dépôt ; **valeur attendue : 4**, avec compatibilité de **lecture** pour les blobs **v3** déjà distribués).
 2. `Width`, `Height` (`Int32` LE chaque).
-3. Nom de carte : longueur `Int32` + UTF‑8… (voir implémentation `MapSerializer` pour tous les détails par couche).
+3. Nom de carte : longueur `Int32` + UTF‑8…
+4. **à partir du format v4 uniquement :** octet d’options (bit 0 = « chevauchement joueurs autorisé », flag carte `AllowPlayerOverlap` côté `Frog.Core.Models.Map`).
+5. Par la suite : `LayerCount` puis couches (voir `MapSerializer` pour tous les détails par couche).
 
-Le serveur charge ce format depuis **`Maps:worldMapPath`** (`Frog.Server/appsettings.json`). Chemin vide ou fichier illisible → carte de secours intégrée.
+Les fichiers `.fmap` **v3** n’avaient pas l’octet d’options : la valeur par défaut côté modèle après désérialisation est « overlap désactivé ».
+
+Le serveur charge la carte **primaire** (identifiant de session monde par défaut `MapService.DefaultWorldMapId`) depuis **`Maps:worldMapPath`** puis, si nécessaire, **`frog_map`** (`DatabaseFallbackMapId`). Les **autres cartes** ne sont téléchargées qu’après téléchargement des blobs **`frog_map`** correspondants : lorsqu’un joueur doit déjà être sur une autre carte (persistance joueur ou warp réussi vers un `frog_map.id` disponible).
+
+Chemin fichier vide ou illisible → carte de secours intégrée (puis autres cartes via MariaDB comme ci‑dessus).
 
 Guide utilisateur pas à pas : [`Docs/premier-monde.md`](../../Docs/premier-monde.md).
 
@@ -127,6 +135,8 @@ Payload:
 - `MessageLength` (Byte)
 - `MessageUtf8` (`MessageLength` octets)
 
+Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`CharacterPayload`** (`FrogWireProtocol.Version` **≥ 3**) avec le JSON DB du perso courant.
+
 ### RegisterResult (Serveur -> Client)
 
 Payload:
@@ -138,22 +148,44 @@ Payload:
 
 ### MapRequest (Client -> Serveur)
 
-Payload:
+Charge utile :
 
 - `PacketId` (Byte) = `4`
+- **Optionnel (**`FrogWireProtocol.Version` **≥ 2**, inchangé en v3) :** `FingerprintRevision` (`Int64` LE) puis `FingerprintSha256` (**32 octets**, identique au hash utilisé dans `MapData` / réponse `frog_map`)
 
-Note: le serveur exige une session authentifiee.
+Si le corps après l’opcode est vide, le serveur renvoie le blob complet **de la carte courante de la session** (`Session.CurrentMapId`) avec empreinte.  
+Si une empreinte de **40 octets** est envoyée **et** qu’elle correspond exactement à **cette** carte chargée, le serveur peut répondre par **`MapAlreadySynced`** sans renvoyer le blob.
+
+Une longueur de payload autre que `0` ou `40` est **erreur**.
+
+Note : une session **authentifiée** reste obligatoire.
 
 ### MapData (Serveur -> Client)
 
-Payload:
+Payload :
 
 - `PacketId` (Byte) = `5`
 - `MapId` (Int32 little-endian)
 - `MapLength` (Int32 little-endian)
 - `MapBytes` (`MapLength` octets)
+- **(`FrogWireProtocol.Version` ≥ 2)** `FingerprintRevision` (`Int64` LE)
+- puis `FingerprintSha256` (**32 octets**).
 
-`MapBytes` est le fichier `.fmap` complet (magic `FMAP` + `MapFileFormatVersion` + reste) : voir **Carte monde (.fmap) et blob MapData** ci-dessus ; désérialiser avec `MapSerializer`.
+`MapBytes` est toujours le fichier `.fmap` complet pour ce `MapId` : désérialiser uniquement cette tranche avec `MapSerializer`. Le client doit conserver **`FingerprintRevision`** + **`FingerprintSha256`** pour pouvoir envoyer un `MapRequest` « HEAD » suivant.
+
+
+### MapAlreadySynced (Serveur -> Client)
+
+Réponse lorsque la demande carte porte déjà les bons métadonnées.
+
+Payload :
+
+- `PacketId` (Byte) = `19`
+- `MapId` (`Int32` LE)
+- `FingerprintRevision` (`Int64` LE)
+- `FingerprintSha256` (**32 octets**)
+
+Pas de blob carte. Le client met à jour son cache d’empreinte pour les requêtes suivantes.
 
 ### MeleeAttackRequest (Client -> Serveur)
 
@@ -192,9 +224,9 @@ Regles serveur:
 - chaque delta doit etre dans `[-1, 1]`
 - le mouvement doit rester dans les limites de map
 - le mouvement est refuse sur les tuiles bloquees (`Block` / collision serveur)
-- le mouvement est refuse si un autre joueur occupe deja la case cible.
+- le mouvement est refuse si un autre joueur occupe deja la case cible (**sauf** si la carte a le flag `AllowPlayerOverlap` — plusieurs joueurs peuvent partager une tuile **sans** ignorer collisions solides / bloc).
 
-**Warps (serveur, phase 1)** : apres un mouvement reussi, si la case d'arrivee est une tuile **Warp** sur la carte monde (`TileType.Warp` avec cible), le serveur peut **teleporter** le joueur dans la meme carte (`WarpTargetMapId` = monde ou `0`). Une seconde position est alors diffusee via `PositionUpdate` (meme paquet qu'apres un pas). Les warps vers une **autre** carte sont ignores tant que le systeme d'instances / multi-maps n'est pas en place. La case d'arrivee doit etre libre (pas bloc, pas autre joueur).
+**Warps** : après un mouvement réussi, si la case d’arrivée est une tuile **Warp** (`TileType.Warp`), le serveur téléporte vers la **carte cible** (`WarpTargetMapId`, `0` = carte monde par défaut) si le blob `frog_map` pour cette cible est **chargé** (présent en base et désérialisable). Sinon le joueur reste sur la case warp. La case d’arrivée doit être libre (pas bloc ; même règle **joueur** que pour les pas si `AllowPlayerOverlap` est absent sur la carte **d’arrivée**).
 
 ### PositionUpdate (Serveur -> Clients authentifies)
 
@@ -203,8 +235,23 @@ Payload:
 - `PacketId` (Byte) = `9`
 - `UsernameLength` (Byte)
 - `UsernameUtf8` (`UsernameLength` octets)
+- **`MapId` (Int32 LE)** — carte logique du joueur (`FrogWireProtocol.Version` **≥ 3** ; clients obsolètes ne peuvent pas parser ce flux)
 - `PositionX` (Int32 little-endian)
 - `PositionY` (Int32 little-endian)
+
+Les clients doivent **ignorer** les mises à jour dont le `MapId` ne correspond pas à la carte actuellement affichée (sinon superposition d’AOI entre cartes).
+
+### CharacterPayload (Serveur -> Client)
+
+Payload (protocole **≥ 3**) :
+
+- `PacketId` (Byte) = `20`
+- `CharacterIdUtf8Length` (Byte, > 0, même borne pratique que login)
+- `CharacterIdUtf8` (longueur ci‑dessus)
+- `JsonLength` (`UInt16` LE)
+- `JsonUtf8` (`JsonLength` octets) — contenu typique : `frog_character.payload` (ex. stats JSON)
+
+Envoyé après login réussi lorsque le lecteur perso connaît l’UUID (`Session.CharacterId`).
 
 ### PlayerLeave (Serveur -> Clients authentifies)
 

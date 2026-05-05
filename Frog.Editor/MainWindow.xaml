@@ -47,6 +47,8 @@
                 <MenuItem Header="Enregistrer"
                           Command="{x:Static local:MainWindow.CmdSaveMap}"
                           InputGestureText="Ctrl+S" />
+                <MenuItem Header="Publier vers MariaDB…"
+                          Command="{x:Static local:MainWindow.CmdPublishMap}" />
                 <Separator />
                 <MenuItem Header="_Quitter" Command="{x:Static local:MainWindow.CmdQuit}" />
             </MenuItem>

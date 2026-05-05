@@ -267,6 +267,15 @@ L’utilisateur peut :
 
 ---
 
+## Implémentation C# — Publication MariaDB (`frog_map`)
+
+- Menu **Fichier → Publier vers MariaDB…** (commande WPF équivalente dans `MainWindow.xaml`).
+- Configuration : `appsettings.json` et/ou `appsettings.Local.json` **à côté de l’exécutable** `Frog.Editor` (`MariaDb.Enabled`, `MariaDb.ConnectionString` — mêmes clés que `Frog.Server`).
+- Flux : validation de la carte → dialogue (`frog_map.id`, `map_key` unique, `display_name`) → sérialisation `.fmap` → upsert SQL aligné sur `Frog.Server.Database.MariaDbMapBlobStore.UpsertMap` (`Frog.Editor/Services/MariaMapBlobPublisher.cs`).
+- Modèle local : `Frog.Editor/appsettings.Local.json.example` (copié en sortie de build ; le vrai `appsettings.Local.json` reste ignoré par Git comme pour le serveur).
+
+---
+
 ## Analyse Fonctionnelle : Sauvegarde / Chargement de carte
 
 ### 1. Nom de la fonctionnalité

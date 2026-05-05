@@ -50,6 +50,26 @@ namespace Frog.Tests
         }
 
         [Fact]
+        public void Roundtrip_PreservesAllowPlayerOverlap()
+        {
+            var map = new Map { Width = 2, Height = 2, Name = "Ov", AllowPlayerOverlap = true };
+            map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+            map.Layers[0].Tiles.Add(new Tile
+            {
+                X = 0,
+                Y = 0,
+                TilesetId = 1,
+                SrcX = 0,
+                SrcY = 0,
+                Type = TileType.Ground
+            });
+
+            var serializer = new MapSerializer();
+            var back = serializer.Deserialize(serializer.Serialize(map));
+            Assert.True(back.AllowPlayerOverlap);
+        }
+
+        [Fact]
         public void Roundtrip_PreservesLayerVisibilityLockAndDisplayName()
         {
             var map = new Map { Width = 4, Height = 4, Name = "L" };

@@ -23,5 +23,9 @@ public enum PacketId : byte
     ChatMessage = 16,
     MeleeAttackRequest = 17,
     MeleeAttackResult = 18,
+    /// <summary>La carte monde demandée correspond déjà à la révision + empreinte en cache du client (<see cref="MapRequest"/> avec hint).</summary>
+    MapAlreadySynced = 19,
+    /// <summary>Données perso JSON (<c>frog_character.payload</c>) après connexion réussie.</summary>
+    CharacterPayload = 20,
     Error = 255
 }

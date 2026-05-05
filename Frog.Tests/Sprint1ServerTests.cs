@@ -1,6 +1,10 @@
 using System;
+using System.IO;
 using System.Text;
 using Frog.Core.Enums;
+using Frog.Core.IO;
+using Frog.Core.Maps;
+using Frog.Core.Models;
 using Frog.Server.Database;
 using Frog.Server.Network;
 using Frog.Server.Persistence;
@@ -174,8 +178,8 @@ public sealed class Sprint1ServerTests
     {
         var mapService = MapTestHelpers.CreateMapService();
 
-        Assert.True(mapService.IsBlocked(5, 5));
-        Assert.False(mapService.IsBlocked(1, 1));
+        Assert.True(mapService.IsBlocked(MapService.DefaultWorldMapId, 5, 5));
+        Assert.False(mapService.IsBlocked(MapService.DefaultWorldMapId, 1, 1));
     }
 
     [Fact]
@@ -246,6 +250,65 @@ public sealed class Sprint1ServerTests
     }
 
     [Fact]
+    public void MovementService_WarpsAcrossMaps_WhenSecondaryBlobExists()
+    {
+        var serializer = new MapSerializer();
+        var interior = new Map { Width = 22, Height = 22, Name = "Interior" };
+        var ground = new Layer { LayerType = LayerType.Ground };
+        for (var y = 0; y < interior.Height; y++)
+        {
+            for (var x = 0; x < interior.Width; x++)
+            {
+                ground.Tiles.Add(new Tile
+                {
+                    X = x,
+                    Y = y,
+                    TilesetId = 1,
+                    SrcX = 0,
+                    SrcY = 0,
+                    Type = TileType.Ground
+                });
+            }
+        }
+
+        interior.Layers.Add(ground);
+
+        var store = new MemoryMapBlobStore();
+        store.Seed(42, serializer.Serialize(interior), revision: 7);
+
+        var outdoor = MapSamples.StarterMeadow(42);
+        var tmp = Path.Combine(Path.GetTempPath(), $"frog-outdoor-{Guid.NewGuid():N}.fmap");
+        File.WriteAllBytes(tmp, serializer.Serialize(outdoor));
+
+        try
+        {
+            var mapService = MapTestHelpers.CreateMapService(tmp, store);
+            var connections = new ConnectionManager();
+            Assert.True(connections.TryCreateSession("warp-x", out var session));
+            session!.CurrentMapId = MapService.DefaultWorldMapId;
+            session.PositionX = 2;
+            session.PositionY = 3;
+            var movement = new MovementService(mapService, connections);
+            Assert.True(movement.TryApplyMove(session, 1, 0, out _));
+            Assert.True(movement.TryApplyWarpAfterMove(session));
+            Assert.Equal(42, session.CurrentMapId);
+            Assert.Equal(18, session.PositionX);
+            Assert.Equal(18, session.PositionY);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(tmp);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+    }
+
+    [Fact]
     public void MovementService_AppliesWarpAfterSteppingOnWarpTile()
     {
         var mapService = MapTestHelpers.CreateMapService();
@@ -264,6 +327,29 @@ public sealed class Sprint1ServerTests
         Assert.True(warped);
         Assert.Equal(18, session.PositionX);
         Assert.Equal(18, session.PositionY);
+    }
+
+    [Fact]
+    public void MovementService_AllowsMoveOntoOtherPlayerWhenMapFlagEnabled()
+    {
+        var map = MapSamples.StarterMeadow(MapService.DefaultWorldMapId);
+        map.AllowPlayerOverlap = true;
+        var mapService = MapTestHelpers.CreateMapServiceFromMap(map);
+        var connections = new ConnectionManager();
+        Assert.True(connections.TryCreateSession("p1", out var s1));
+        Assert.True(connections.TryCreateSession("p2", out var s2));
+        s1!.PositionX = 1;
+        s1.PositionY = 1;
+        s2!.PositionX = 2;
+        s2.PositionY = 1;
+
+        var movement = new MovementService(mapService, connections);
+        var moved = movement.TryApplyMove(s2, -1, 0, out var error);
+
+        Assert.True(moved);
+        Assert.Equal(string.Empty, error);
+        Assert.Equal(1, s2.PositionX);
+        Assert.Equal(1, s2.PositionY);
     }
 
     [Fact]

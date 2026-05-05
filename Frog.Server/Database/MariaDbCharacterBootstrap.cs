@@ -1,3 +1,4 @@
+using Frog.Core;
 using MySqlConnector;
 
 namespace Frog.Server.Database;
@@ -38,7 +39,7 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
         var id = Guid.NewGuid().ToString();
         const string insertSql = """
             INSERT INTO frog_character(id, account_id, account_username, display_name, payload)
-            SELECT @id, a.id, @username, 'Hero', CAST('{}' AS JSON)
+            SELECT @id, a.id, @username, 'Hero', CAST(@payload AS JSON)
             FROM accounts a
             WHERE a.username = @username
             LIMIT 1;
@@ -47,6 +48,7 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
         using var insert = new MySqlCommand(insertSql, connection);
         insert.Parameters.AddWithValue("@id", id);
         insert.Parameters.AddWithValue("@username", username);
+        insert.Parameters.AddWithValue("@payload", CharacterPayloadDefaults.NewHeroJson);
         var n = insert.ExecuteNonQuery();
         if (n != 1)
         {

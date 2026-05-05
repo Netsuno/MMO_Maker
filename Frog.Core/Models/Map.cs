@@ -5,6 +5,7 @@ namespace Frog.Core.Models;
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using Frog.Core.Enums;
 using Frog.Core.Interfaces;
 
@@ -28,6 +29,13 @@ public sealed class Map : IValidatable
 
     /// <summary>Nom lisible par l’utilisateur (utile dans l’éditeur et pour le debug).</summary>
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Si activé sur la carte, les joueurs ne se bloquent pas mutuellement (même tuile ou passage).
+    /// Les collisions bloc / limites carte restent appliquées.
+    /// </summary>
+    [Description("Autoriser plusieurs joueurs sur la même tuile (pas de collision joueur joueur).")]
+    public bool AllowPlayerOverlap { get; set; }
 
     /// <summary>
     /// Valide l’intégrité de la carte : dimensions, couches, tuiles dans les bornes, doublons par couche, warps.

@@ -1,0 +1,6 @@
+{
+  "MariaDb": {
+    "Enabled": true,
+    "ConnectionString": "Server=127.0.0.1;Port=3306;Database=frog;User Id=frog;Password=CHANGE_ME;"
+  }
+}

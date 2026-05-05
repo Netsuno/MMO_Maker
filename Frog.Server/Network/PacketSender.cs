@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
@@ -19,13 +20,49 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
     public Task SendRegisterResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.RegisterResult, success, message, cancellationToken);
 
-    public Task SendMapDataAsync(ClientSession session, int mapId, byte[] mapData, CancellationToken cancellationToken)
+    public Task SendMapDataAsync(
+        ClientSession session,
+        int mapId,
+        byte[] mapData,
+        long fingerprintRevision,
+        ReadOnlySpan<byte> fingerprintSha256,
+        CancellationToken cancellationToken)
     {
-        var payload = new byte[1 + sizeof(int) + sizeof(int) + mapData.Length];
+        ArgumentNullException.ThrowIfNull(mapData);
+        if (fingerprintSha256.Length != 32)
+        {
+            throw new ArgumentException("SHA-256 carte attendu (32 octets).", nameof(fingerprintSha256));
+        }
+
+        const int footerSize = sizeof(long) + 32;
+        var payload = new byte[1 + sizeof(int) + sizeof(int) + mapData.Length + footerSize];
         payload[0] = (byte)PacketId.MapData;
-        BitConverter.GetBytes(mapId).CopyTo(payload, 1);
-        BitConverter.GetBytes(mapData.Length).CopyTo(payload, 1 + sizeof(int));
-        mapData.CopyTo(payload, 1 + sizeof(int) + sizeof(int));
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), mapId);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1 + sizeof(int)), mapData.Length);
+        mapData.CopyTo(payload.AsSpan(1 + sizeof(int) + sizeof(int)));
+        var footer = 1 + sizeof(int) + sizeof(int) + mapData.Length;
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(footer), fingerprintRevision);
+        fingerprintSha256.CopyTo(payload.AsSpan(footer + sizeof(long)));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendMapAlreadySyncedAsync(
+        ClientSession session,
+        int mapId,
+        long fingerprintRevision,
+        ReadOnlySpan<byte> fingerprintSha256,
+        CancellationToken cancellationToken)
+    {
+        if (fingerprintSha256.Length != 32)
+        {
+            throw new ArgumentException("SHA-256 carte attendu (32 octets).", nameof(fingerprintSha256));
+        }
+
+        var payload = new byte[1 + sizeof(int) + sizeof(long) + 32];
+        payload[0] = (byte)PacketId.MapAlreadySynced;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), mapId);
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(1 + sizeof(int)), fingerprintRevision);
+        fingerprintSha256.CopyTo(payload.AsSpan(1 + sizeof(int) + sizeof(long)));
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
@@ -36,7 +73,13 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return SendUtf8MessageAsync(session, PacketId.Error, message, cancellationToken);
     }
 
-    public Task SendPositionUpdateAsync(ClientSession session, string username, int positionX, int positionY, CancellationToken cancellationToken)
+    public Task SendPositionUpdateAsync(
+        ClientSession session,
+        string username,
+        int mapId,
+        int positionX,
+        int positionY,
+        CancellationToken cancellationToken)
     {
         var usernameBytes = Encoding.UTF8.GetBytes(username);
         if (usernameBytes.Length > byte.MaxValue)
@@ -44,12 +87,43 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
             throw new ArgumentOutOfRangeException(nameof(username), "Le nom utilisateur est trop long.");
         }
 
-        var payload = new byte[2 + usernameBytes.Length + sizeof(int) + sizeof(int)];
+        var payload = new byte[2 + usernameBytes.Length + sizeof(int) + sizeof(int) + sizeof(int)];
         payload[0] = (byte)PacketId.PositionUpdate;
         payload[1] = (byte)usernameBytes.Length;
         usernameBytes.CopyTo(payload, 2);
-        BitConverter.GetBytes(positionX).CopyTo(payload, 2 + usernameBytes.Length);
-        BitConverter.GetBytes(positionY).CopyTo(payload, 2 + usernameBytes.Length + sizeof(int));
+        var o = 2 + usernameBytes.Length;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), mapId);
+        o += sizeof(int);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), positionX);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o + sizeof(int)), positionY);
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendCharacterPayloadAsync(
+        ClientSession session,
+        string characterId,
+        string jsonPayload,
+        CancellationToken cancellationToken)
+    {
+        var idUtf8 = Encoding.UTF8.GetBytes(characterId);
+        if (idUtf8.Length is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(characterId), "Identifiant perso trop long ou vide.");
+        }
+
+        var jsonUtf8 = Encoding.UTF8.GetBytes(jsonPayload ?? string.Empty);
+        if (jsonUtf8.Length > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(jsonPayload), "Payload JSON trop grand.");
+        }
+
+        var payload = new byte[1 + 1 + idUtf8.Length + sizeof(ushort) + jsonUtf8.Length];
+        payload[0] = (byte)PacketId.CharacterPayload;
+        payload[1] = (byte)idUtf8.Length;
+        idUtf8.CopyTo(payload.AsSpan(2));
+        var jo = 2 + idUtf8.Length;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(jo), (ushort)jsonUtf8.Length);
+        jsonUtf8.CopyTo(payload.AsSpan(jo + sizeof(ushort)));
         return session.SendFrameAsync(payload, cancellationToken);
     }
 

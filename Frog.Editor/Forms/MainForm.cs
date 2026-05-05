@@ -15,6 +15,7 @@ using Frog.Editor.Dialogs;
 using Frog.Editor.Panels;
 using Frog.Editor.Ui;
 
+using Frog.Editor.Config;
 using Frog.Editor.Interop;
 using Frog.Editor.Services;
 
@@ -126,6 +127,7 @@ public sealed class MainForm : Form
                 ShortcutKeys = Keys.Control | Keys.S,
                 ShowShortcutKeys = true,
             });
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB…", null, (_, _) => PublishMapToMariaDb()));
             mFile.DropDownItems.Add(new ToolStripSeparator());
             mFile.DropDownItems.Add("Quitter", null, (_, _) =>
             {
@@ -850,6 +852,68 @@ public sealed class MainForm : Form
         File.WriteAllBytes(sfd.FileName, bytes);
         SaveTilesetManifestNextToMap(sfd.FileName);
         MessageBox.Show(GetDialogOwner(), "Carte et manifeste tilesets (.tilesets.json) sauvegardés.", "Succès", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    internal void PublishMapToMariaDb()
+    {
+        if (_canvas.Map is null)
+        {
+            MessageBox.Show(GetDialogOwner(), "Aucune carte chargée.", "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        if (!_canvas.Map.Validate(out var err))
+        {
+            MessageBox.Show(GetDialogOwner(), err ?? "Carte invalide.", "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (!EditorMariaDbConfig.TryGetEnabledConnection(out var connectionString, out var hint))
+        {
+            MessageBox.Show(GetDialogOwner(), hint, "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var display = MapPublishNaming.ClampDisplayName(_canvas.Map.Name);
+        var key = MapPublishNaming.SlugFromName(_canvas.Map.Name);
+        using var dlg = new PublishMapDialog(display, key);
+        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (!dlg.TryValidate(out var verr))
+        {
+            MessageBox.Show(GetDialogOwner(), verr, "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        try
+        {
+            var serializer = new MapSerializer();
+            var bytes = serializer.Serialize(_canvas.Map);
+            MariaMapBlobPublisher.UpsertMap(
+                connectionString,
+                dlg.PublishedMapId,
+                dlg.PublishedMapKey,
+                dlg.PublishedDisplayName,
+                bytes);
+            MessageBox.Show(
+                GetDialogOwner(),
+                $"Carte publiée : frog_map id={dlg.PublishedMapId}, clé « {dlg.PublishedMapKey} ».",
+                "Publication MariaDB",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                "Publication échouée : " + ex.Message,
+                "Publication MariaDB",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 
     private static void SaveTilesetManifestNextToMap(string mapFilePath)

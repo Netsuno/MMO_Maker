@@ -109,6 +109,17 @@ internal sealed class Program
 
             return sp.GetRequiredService<InMemoryCharacterBootstrap>();
         });
+        builder.Services.AddSingleton<ICharacterPayloadReader>(sp =>
+        {
+            var db = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
+            db.Validate();
+            if (db.Enabled)
+            {
+                return new MariaDbCharacterPayloadReader(db.ConnectionString);
+            }
+
+            return new InMemoryCharacterPayloadReader();
+        });
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<ConnectionManager>();
         builder.Services.AddSingleton<ClientRegistry>();

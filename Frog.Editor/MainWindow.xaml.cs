@@ -25,6 +25,11 @@ public partial class MainWindow : Window
         typeof(MainWindow),
         new InputGestureCollection { new KeyGesture(Key.S, ModifierKeys.Control) });
 
+    public static readonly RoutedUICommand CmdPublishMap = new(
+        "Publier vers MariaDB…",
+        nameof(CmdPublishMap),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdQuit = new("_Quitter", nameof(CmdQuit), typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdUndo = new(
@@ -88,6 +93,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdNewMap, (_, _) => _editor.CreateNewMap()));
         CommandBindings.Add(new CommandBinding(CmdOpenMap, (_, _) => _editor.LoadMap()));
         CommandBindings.Add(new CommandBinding(CmdSaveMap, (_, _) => _editor.SaveMap()));
+        CommandBindings.Add(new CommandBinding(CmdPublishMap, (_, _) => _editor.PublishMapToMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdQuit, (_, _) => System.Windows.Application.Current.Shutdown()));
         CommandBindings.Add(new CommandBinding(CmdUndo, (_, _) => _editor.DoUndo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanUndo));
         CommandBindings.Add(new CommandBinding(CmdRedo, (_, _) => _editor.DoRedo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanRedo));

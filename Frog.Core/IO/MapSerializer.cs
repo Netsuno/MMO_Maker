@@ -10,18 +10,21 @@ using Frog.Core.Enums;
 /// <summary>
 /// Format binaire « .fmap » courant uniquement ; le client/serveur sont mis à jour avec le projet.
 /// Magic « FMAP » (4), Version (octet unique),
-/// puis Width (Int32), Height (Int32), Name UTF-8, LayerCount,
+/// puis Width (Int32), Height (Int32), Name UTF-8 ; à partir du format v4 : octet d’options (<c>AllowPlayerOverlap</c> dans <see cref="Map"/> au bit 0), puis LayerCount ; le format legacy v3 omet cet octet.
 /// pour chaque couche : LayerType (byte), Visible/Locked (byte×2), DisplayName UTF-8, TileCount, tuiles.
 /// </summary>
 public sealed class MapSerializer : ISerializer<Map>
 {
     private const string Magic = "FMAP";
 
-    /// <summary>Incrementer ce numéro des que le bloc binaire change (plus de compat. arrière).</summary>
-    private const byte FileVersion = 3;
+    /// <summary>Version courante des fichiers / blobs écrits (.fmap, <c>MapData</c>).</summary>
+    private const byte FileVersionCurrent = 4;
+
+    /// <summary>Compatibilité lecture seule avec les anciens blobs déjà livrés.</summary>
+    private const byte FileVersionLegacy = 3;
 
     /// <summary>Octet de version dans le fichier .fmap et dans le blob <c>MapBytes</c> de <c>MapData</c>.</summary>
-    public static byte MapFileFormatVersion => FileVersion;
+    public static byte MapFileFormatVersion => FileVersionCurrent;
 
     /// <inheritdoc />
     public byte[] Serialize(Map value)
@@ -33,11 +36,12 @@ public sealed class MapSerializer : ISerializer<Map>
         using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
 
         WriteAscii(bw, Magic);
-        bw.Write(FileVersion);
+        bw.Write(FileVersionCurrent);
 
         bw.Write(value.Width);
         bw.Write(value.Height);
         WriteUtf8(bw, value.Name);
+        bw.Write((byte)(value.AllowPlayerOverlap ? 1 : 0));
 
         var layers = value.Layers ?? throw new InvalidDataException("Layers null.");
         bw.Write(layers.Count);
@@ -73,8 +77,9 @@ public sealed class MapSerializer : ISerializer<Map>
             throw new InvalidDataException($"Magic invalide: '{magic}' (attendu '{Magic}').");
 
         var version = br.ReadByte();
-        if (version != FileVersion)
-            throw new InvalidDataException($"Version .fmap non supportée: {version}. Mettre à jour le client/serveur (version attendue: {FileVersion}).");
+        if (version is not (FileVersionLegacy or FileVersionCurrent))
+            throw new InvalidDataException(
+                $"Version .fmap non supportée: {version}. Mettre à jour le client/serveur (versions attendues: {FileVersionLegacy} ou {FileVersionCurrent}).");
 
         var map = new Map
         {
@@ -82,6 +87,12 @@ public sealed class MapSerializer : ISerializer<Map>
             Height = br.ReadInt32(),
             Name = ReadUtf8(br)
         };
+
+        if (version == FileVersionCurrent)
+        {
+            var flags = br.ReadByte();
+            map.AllowPlayerOverlap = (flags & 1) != 0;
+        }
 
         var layerCount = br.ReadInt32();
         if (layerCount < 0 || layerCount > 1024)

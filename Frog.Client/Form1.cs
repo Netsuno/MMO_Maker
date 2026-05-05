@@ -17,6 +17,7 @@ public partial class Form1 : Form
     private int _tileX;
     private int _tileY;
     private readonly ConcurrentDictionary<string, (int X, int Y)> _others = new(StringComparer.OrdinalIgnoreCase);
+    private int _sessionDisplayedMapId;
     private readonly Dictionary<int, Bitmap> _tilesetBitmaps = new();
     private DateTime _lastMoveUtc = DateTime.MinValue;
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
@@ -152,6 +153,8 @@ public partial class Form1 : Form
         _client.LoginResultReceived += OnLoginResult;
         _client.RegisterResultReceived += (ok, msg) => AppendLog(ok ? "Inscription OK: " + msg : "Inscription: " + msg);
         _client.MapDataReceived += OnMapData;
+        _client.MapAlreadySyncedReceived += (id, rev) => AppendLog($"Carte id={id} déjà à jour (révision serveur {rev}).");
+        _client.CharacterPayloadReceived += OnCharacterPayload;
         _client.PositionUpdateReceived += OnPositionUpdate;
         _client.PlayerLeaveReceived += OnPlayerLeave;
         _client.ErrorReceived += err => AppendLog("Erreur: " + err);
@@ -210,6 +213,7 @@ public partial class Form1 : Form
         _btnLogout.Enabled = false;
         _map = null;
         _username = null;
+        _sessionDisplayedMapId = 0;
         _others.Clear();
         ClearMapImage();
         DisposeTilesetBitmaps();
@@ -324,6 +328,7 @@ public partial class Form1 : Form
     {
         _username = null;
         _map = null;
+        _sessionDisplayedMapId = 0;
         _others.Clear();
         ClearMapImage();
         DisposeTilesetBitmaps();
@@ -335,13 +340,27 @@ public partial class Form1 : Form
     private void OnMapData(int mapId, Map map)
     {
         AppendLog($"Map reçue id={mapId} {map.Name} {map.Width}x{map.Height}");
+        _sessionDisplayedMapId = mapId;
         _map = map;
+        _others.Clear();
         ReloadTilesetBitmaps();
         RedrawMap();
     }
 
-    private void OnPositionUpdate(string user, int x, int y)
+    private void OnCharacterPayload(string characterId, string payloadJson)
     {
+        var cid = characterId.Length <= 12 ? characterId : characterId[..12] + "…";
+        var j = payloadJson.Length <= 200 ? payloadJson : payloadJson[..200] + "…";
+        AppendLog($"Perso {cid} : {j}");
+    }
+
+    private void OnPositionUpdate(string user, int mapId, int x, int y)
+    {
+        if (_sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
+        {
+            return;
+        }
+
         if (_username is not null && string.Equals(user, _username, StringComparison.OrdinalIgnoreCase))
         {
             _tileX = x;

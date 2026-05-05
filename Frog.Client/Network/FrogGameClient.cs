@@ -18,6 +18,8 @@ public sealed class FrogGameClient : IDisposable
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveTask;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private long _worldMapFingerprintRevision;
+    private byte[]? _worldMapFingerprintSha256;
     private volatile bool _intentionalDisconnect;
     private readonly MapSerializer _mapSerializer = new();
 
@@ -32,7 +34,10 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? LoginResultReceived;
     public event Action<bool, string>? RegisterResultReceived;
     public event Action<int, Map>? MapDataReceived;
-    public event Action<string, int, int>? PositionUpdateReceived;
+    /// <summary>Émis lorsque le serveur répond que le blob carte est déjà à jour (hint <see cref="PacketId.MapRequest"/>).</summary>
+    public event Action<int, long>? MapAlreadySyncedReceived;
+    public event Action<string, int, int, int>? PositionUpdateReceived;
+    public event Action<string, string>? CharacterPayloadReceived;
     public event Action<string>? PlayerLeaveReceived;
     public event Action<string>? ErrorReceived;
     public event Action? HeartbeatAckReceived;
@@ -100,8 +105,27 @@ public sealed class FrogGameClient : IDisposable
         }
         finally
         {
+            ClearWorldMapFingerprint();
             _intentionalDisconnect = false;
         }
+    }
+
+    private void ClearWorldMapFingerprint()
+    {
+        _worldMapFingerprintRevision = 0;
+        _worldMapFingerprintSha256 = null;
+    }
+
+    private void CaptureWorldMapFingerprint(long revision, ReadOnlySpan<byte> sha256)
+    {
+        if (sha256.Length != 32)
+        {
+            return;
+        }
+
+        _worldMapFingerprintRevision = revision;
+        _worldMapFingerprintSha256 = new byte[32];
+        sha256.CopyTo(_worldMapFingerprintSha256);
     }
 
     private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
@@ -193,11 +217,21 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.MapData:
-                if (TryReadMapData(body.Span, out var mapId, out var mapBytes))
+                if (!TryReadMapDataWithSyncFooter(
+                        body.Span,
+                        out var mapId,
+                        out var mapBytes,
+                        out var mapRev,
+                        out var mapSha))
+                {
+                    Post(() => ErrorReceived?.Invoke("MapData: format protocole invalide (empreinte carte attendue)."));
+                }
+                else
                 {
                     try
                     {
                         var map = _mapSerializer.Deserialize(mapBytes);
+                        CaptureWorldMapFingerprint(mapRev, mapSha);
                         Post(() => MapDataReceived?.Invoke(mapId, map));
                     }
                     catch (Exception ex)
@@ -208,10 +242,31 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
-            case PacketId.PositionUpdate:
-                if (TryReadPositionUpdate(body.Span, out var user, out var px, out var py))
+            case PacketId.MapAlreadySynced:
+                if (!TryReadMapAlreadySynced(body.Span, out var unchangedId, out var unchangedRev, out var unchangedSha))
                 {
-                    Post(() => PositionUpdateReceived?.Invoke(user, px, py));
+                    Post(() => ErrorReceived?.Invoke("MapAlreadySynced: payload invalide."));
+                }
+                else
+                {
+                    CaptureWorldMapFingerprint(unchangedRev, unchangedSha);
+                    Post(() => MapAlreadySyncedReceived?.Invoke(unchangedId, unchangedRev));
+                }
+
+                break;
+
+            case PacketId.PositionUpdate:
+                if (TryReadPositionUpdate(body.Span, out var user, out var mapIdPu, out var px, out var py))
+                {
+                    Post(() => PositionUpdateReceived?.Invoke(user, mapIdPu, px, py));
+                }
+
+                break;
+
+            case PacketId.CharacterPayload:
+                if (TryReadCharacterPayload(body.Span, out var charIdUtf, out var jsonUtf))
+                {
+                    Post(() => CharacterPayloadReceived?.Invoke(charIdUtf, jsonUtf));
                 }
 
                 break;
@@ -310,7 +365,18 @@ public sealed class FrogGameClient : IDisposable
     }
 
     public Task SendMapRequestAsync(CancellationToken cancellationToken = default)
-        => SendRawAsync(new[] { (byte)PacketId.MapRequest }, cancellationToken);
+    {
+        if (_worldMapFingerprintSha256 is null || _worldMapFingerprintSha256.Length != 32)
+        {
+            return SendRawAsync([(byte)PacketId.MapRequest], cancellationToken);
+        }
+
+        var payload = new byte[1 + sizeof(long) + 32];
+        payload[0] = (byte)PacketId.MapRequest;
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(1), _worldMapFingerprintRevision);
+        _worldMapFingerprintSha256.CopyTo(payload.AsSpan(1 + sizeof(long)));
+        return SendRawAsync(payload, cancellationToken);
+    }
 
     public Task SendMoveAsync(sbyte dx, sbyte dy, CancellationToken cancellationToken = default)
     {
@@ -425,10 +491,17 @@ public sealed class FrogGameClient : IDisposable
         return TryReadUtf8PrefixedByteLength(span.Slice(1), out message);
     }
 
-    private static bool TryReadMapData(ReadOnlySpan<byte> span, out int mapId, out ReadOnlySpan<byte> mapBytes)
+    private static bool TryReadMapDataWithSyncFooter(
+        ReadOnlySpan<byte> span,
+        out int mapId,
+        out ReadOnlySpan<byte> mapBytes,
+        out long fingerprintRevision,
+        out ReadOnlySpan<byte> fingerprintSha256)
     {
         mapId = 0;
         mapBytes = ReadOnlySpan<byte>.Empty;
+        fingerprintRevision = 0;
+        fingerprintSha256 = ReadOnlySpan<byte>.Empty;
         if (span.Length < sizeof(int) * 2)
         {
             return false;
@@ -441,7 +514,35 @@ public sealed class FrogGameClient : IDisposable
             return false;
         }
 
+        var footerStart = sizeof(int) * 2 + len;
+        if (span.Length != footerStart + sizeof(long) + 32)
+        {
+            return false;
+        }
+
         mapBytes = span.Slice(sizeof(int) * 2, len);
+        fingerprintRevision = BinaryPrimitives.ReadInt64LittleEndian(span.Slice(footerStart));
+        fingerprintSha256 = span.Slice(footerStart + sizeof(long), 32);
+        return true;
+    }
+
+    private static bool TryReadMapAlreadySynced(
+        ReadOnlySpan<byte> span,
+        out int mapId,
+        out long fingerprintRevision,
+        out ReadOnlySpan<byte> fingerprintSha256)
+    {
+        mapId = 0;
+        fingerprintRevision = 0;
+        fingerprintSha256 = ReadOnlySpan<byte>.Empty;
+        if (span.Length != sizeof(int) + sizeof(long) + 32)
+        {
+            return false;
+        }
+
+        mapId = BinaryPrimitives.ReadInt32LittleEndian(span);
+        fingerprintRevision = BinaryPrimitives.ReadInt64LittleEndian(span.Slice(sizeof(int)));
+        fingerprintSha256 = span.Slice(sizeof(int) + sizeof(long), 32);
         return true;
     }
 
@@ -451,25 +552,59 @@ public sealed class FrogGameClient : IDisposable
         return TryReadUtf8PrefixedByteLength(span, out username);
     }
 
-    private static bool TryReadPositionUpdate(ReadOnlySpan<byte> span, out string username, out int x, out int y)
+    private static bool TryReadPositionUpdate(ReadOnlySpan<byte> span, out string username, out int mapId, out int x, out int y)
     {
         username = string.Empty;
-        x = y = 0;
+        mapId = x = y = 0;
         if (span.Length < 1)
         {
             return false;
         }
 
         var ulen = span[0];
-        if (ulen is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes || span.Length < 1 + ulen + sizeof(int) * 2)
+        var need = 1 + ulen + sizeof(int) * 3;
+        if (ulen is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes || span.Length < need)
         {
             return false;
         }
 
         username = Encoding.UTF8.GetString(span.Slice(1, ulen));
         var o = 1 + ulen;
-        x = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(o));
-        y = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(o + sizeof(int)));
+        mapId = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(o));
+        x = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(o + sizeof(int)));
+        y = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(o + sizeof(int) * 2));
+        return true;
+    }
+
+    private static bool TryReadCharacterPayload(ReadOnlySpan<byte> span, out string characterId, out string jsonPayload)
+    {
+        characterId = jsonPayload = string.Empty;
+        if (span.Length < 3)
+        {
+            return false;
+        }
+
+        var idLen = span[0];
+        if (idLen is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes)
+        {
+            return false;
+        }
+
+        var jsonOffset = 1 + idLen;
+        if (span.Length < jsonOffset + sizeof(ushort))
+        {
+            return false;
+        }
+
+        characterId = Encoding.UTF8.GetString(span.Slice(1, idLen));
+        var jl = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(jsonOffset));
+        jsonOffset += sizeof(ushort);
+        if (jl is 0 || span.Length < jsonOffset + jl)
+        {
+            return false;
+        }
+
+        jsonPayload = Encoding.UTF8.GetString(span.Slice(jsonOffset, jl));
         return true;
     }
 

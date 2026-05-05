@@ -20,6 +20,7 @@ public sealed class PacketDispatcher(
     PacketSender packetSender,
     PlayerLifecycleNotifier playerLifecycleNotifier,
     ICharacterBootstrap characterBootstrap,
+    ICharacterPayloadReader characterPayloadReader,
     IPlayerStateStore playerStateStore,
     ILogger<PacketDispatcher> logger)
 {
@@ -31,6 +32,7 @@ public sealed class PacketDispatcher(
     private readonly PacketSender _packetSender = packetSender;
     private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
     private readonly ICharacterBootstrap _characterBootstrap = characterBootstrap;
+    private readonly ICharacterPayloadReader _characterPayloadReader = characterPayloadReader;
     private readonly IPlayerStateStore _playerStateStore = playerStateStore;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
@@ -72,7 +74,7 @@ public sealed class PacketDispatcher(
                 break;
 
             case PacketId.MapRequest:
-                await HandleMapRequestAsync(clientSession, cancellationToken);
+                await HandleMapRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             case PacketId.MoveRequest:
@@ -140,11 +142,33 @@ public sealed class PacketDispatcher(
             session.CurrentMapId = MapService.DefaultWorldMapId;
         }
 
+        if (!_mapService.TryEnsureMapLoaded(session.CurrentMapId))
+        {
+            session.CurrentMapId = MapService.DefaultWorldMapId;
+            session.PositionX = 0;
+            session.PositionY = 0;
+            _mapService.TryEnsureMapLoaded(session.CurrentMapId);
+        }
+
         _clientRegistry.Register(session.Id, clientSession);
         SessionPixelSync.SyncFromTileGrid(session);
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
         ServerNetworkLogs.LoginSucceeded(_logger, username);
+
+        if (!string.IsNullOrWhiteSpace(session.CharacterId) &&
+            _characterPayloadReader.TryGetPayloadJson(session.CharacterId!, out var payloadJson))
+        {
+            try
+            {
+                await _packetSender.SendCharacterPayloadAsync(clientSession, session.CharacterId!, payloadJson, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Impossible d'envoyer CharacterPayload pour {CharacterId}", session.CharacterId);
+            }
+        }
+
         await SyncPositionsOnJoinAsync(clientSession, session, cancellationToken);
     }
 
@@ -169,7 +193,10 @@ public sealed class PacketDispatcher(
         ServerNetworkLogs.RegisterSucceeded(_logger, username);
     }
 
-    private async Task HandleMapRequestAsync(ClientSession clientSession, CancellationToken cancellationToken)
+    private async Task HandleMapRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActiveSession(clientSession, out var session))
         {
@@ -177,11 +204,50 @@ public sealed class PacketDispatcher(
             return;
         }
 
+        var span = payload.Span;
+        if (!(span.IsEmpty || span.Length == 40))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "MapRequest: payload attendu (vide ou 40 octets).", cancellationToken);
+            return;
+        }
+
         _connectionManager.TryTouchSession(session.Id);
-        session.CurrentMapId = MapService.DefaultWorldMapId;
-        var mapData = _mapService.GetSerializedMapForSession(session.Id);
-        await _packetSender.SendMapDataAsync(clientSession, MapService.DefaultWorldMapId, mapData, cancellationToken);
-        ServerNetworkLogs.MapDataSent(_logger, session.Username, MapService.DefaultWorldMapId, mapData.Length);
+
+        var requestedMapId = session.CurrentMapId;
+        if (!_mapService.TryEnsureMapLoaded(requestedMapId))
+        {
+            await _packetSender.SendErrorAsync(
+                clientSession,
+                $"Carte {requestedMapId} introuvable ou blob illisible.",
+                cancellationToken);
+            return;
+        }
+
+        if (span.Length == 40)
+        {
+            var rev = BinaryPrimitives.ReadInt64LittleEndian(span);
+            var hintSha = span.Slice(sizeof(long), 32);
+            if (_mapService.TryMatchMapFingerprint(requestedMapId, rev, hintSha))
+            {
+                await _packetSender.SendMapAlreadySyncedAsync(
+                    clientSession,
+                    requestedMapId,
+                    _mapService.GetFingerprintRevision(requestedMapId),
+                    _mapService.GetFingerprintSha256(requestedMapId),
+                    cancellationToken);
+                return;
+            }
+        }
+
+        var mapData = _mapService.GetSerializedMapForSession(session.Id, requestedMapId);
+        await _packetSender.SendMapDataAsync(
+            clientSession,
+            requestedMapId,
+            mapData,
+            _mapService.GetFingerprintRevision(requestedMapId),
+            _mapService.GetFingerprintSha256(requestedMapId),
+            cancellationToken);
+        ServerNetworkLogs.MapDataSent(_logger, session.Username, requestedMapId, mapData.Length);
     }
 
     private async Task HandleMoveRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
@@ -210,7 +276,13 @@ public sealed class PacketDispatcher(
         var clients = _clientRegistry.GetAllAuthenticatedClients();
         foreach (var targetClient in clients)
         {
-            await _packetSender.SendPositionUpdateAsync(targetClient, session.Username, session.PositionX, session.PositionY, cancellationToken);
+            await _packetSender.SendPositionUpdateAsync(
+                targetClient,
+                session.Username,
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY,
+                cancellationToken);
         }
     }
 
@@ -546,9 +618,15 @@ public sealed class PacketDispatcher(
                 continue;
             }
 
+            if (existingSession.CurrentMapId != joiningSession.CurrentMapId)
+            {
+                continue;
+            }
+
             await _packetSender.SendPositionUpdateAsync(
                 joiningClient,
                 existingSession.Username,
+                existingSession.CurrentMapId,
                 existingSession.PositionX,
                 existingSession.PositionY,
                 cancellationToken);
@@ -561,9 +639,16 @@ public sealed class PacketDispatcher(
                 continue;
             }
 
+            var peer = targetClient.AuthenticatedSession;
+            if (peer is null || peer.CurrentMapId != joiningSession.CurrentMapId)
+            {
+                continue;
+            }
+
             await _packetSender.SendPositionUpdateAsync(
                 targetClient,
                 joiningSession.Username,
+                joiningSession.CurrentMapId,
                 joiningSession.PositionX,
                 joiningSession.PositionY,
                 cancellationToken);

@@ -17,7 +17,19 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
             return false;
         }
 
-        var (width, height) = _mapService.GetDefaultMapBounds();
+        var mapId = session.CurrentMapId;
+        if (!_mapService.TryEnsureMapLoaded(mapId))
+        {
+            errorMessage = "Carte monde indisponible.";
+            return false;
+        }
+
+        if (!_mapService.TryGetMapBounds(mapId, out var width, out var height))
+        {
+            errorMessage = "Carte monde invalide.";
+            return false;
+        }
+
         var targetX = session.PositionX + deltaX;
         var targetY = session.PositionY + deltaY;
 
@@ -27,23 +39,26 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
             return false;
         }
 
-        if (_mapService.IsBlocked(targetX, targetY))
+        if (_mapService.IsBlocked(mapId, targetX, targetY))
         {
             errorMessage = "Mouvement bloque par collision.";
             return false;
         }
 
-        foreach (var other in _connectionManager.GetActiveSessions())
+        if (!_mapService.AllowsPlayerOverlapOnMap(mapId))
         {
-            if (other.Id == session.Id)
+            foreach (var other in _connectionManager.GetActiveSessions())
             {
-                continue;
-            }
+                if (other.Id == session.Id)
+                {
+                    continue;
+                }
 
-            if (other.CurrentMapId == session.CurrentMapId && other.PositionX == targetX && other.PositionY == targetY)
-            {
-                errorMessage = "Case occupee par un autre joueur.";
-                return false;
+                if (other.CurrentMapId == mapId && other.PositionX == targetX && other.PositionY == targetY)
+                {
+                    errorMessage = "Case occupee par un autre joueur.";
+                    return false;
+                }
             }
         }
 
@@ -54,32 +69,43 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
     }
 
     /// <summary>
-    /// Si le joueur se tient sur une tuile warp (même carte monde uniquement), téléporte vers la cible si la case d'arrivée est libre.
+    /// Warp sur la carte courante : téléporte vers la cible si la carte d'arrivée est chargée depuis <c>frog_map</c> ou déjà présente,
+    /// et si la tuile destination est jouable (bloc occupant joueur résolu selon le flag carte).
     /// </summary>
     public bool TryApplyWarpAfterMove(Session session)
     {
+        if (!_mapService.TryEnsureMapLoaded(session.CurrentMapId))
+        {
+            return false;
+        }
+
         if (!_mapService.TryGetWarpDestination(session.CurrentMapId, session.PositionX, session.PositionY, out var targetMapId, out var tx, out var ty))
         {
             return false;
         }
 
-        if (targetMapId != MapService.DefaultWorldMapId)
+        if (!_mapService.TryEnsureMapLoaded(targetMapId))
         {
             return false;
         }
 
-        var (width, height) = _mapService.GetDefaultMapBounds();
-        if (tx < 0 || ty < 0 || tx >= width || ty >= height)
+        if (!_mapService.TryGetMapBounds(targetMapId, out var dw, out var dh))
         {
             return false;
         }
 
-        if (_mapService.IsBlocked(tx, ty))
+        if (tx < 0 || ty < 0 || tx >= dw || ty >= dh)
         {
             return false;
         }
 
-        if (IsCellOccupiedByOther(session, targetMapId, tx, ty))
+        if (_mapService.IsBlocked(targetMapId, tx, ty))
+        {
+            return false;
+        }
+
+        if (!_mapService.AllowsPlayerOverlapOnMap(targetMapId) &&
+            IsCellOccupiedByOther(session, targetMapId, tx, ty))
         {
             return false;
         }
