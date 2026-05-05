@@ -1,6 +1,13 @@
 -- Frog persistence v1 — MariaDB / InnoDB (idempotent).
 -- Exécuté au démarrage du serveur si MariaDb.enabled = true.
 -- Ne contient aucun secret. MariaDB 10.5+ recommandé (ADD COLUMN IF NOT EXISTS, CREATE INDEX IF NOT EXISTS).
+--
+-- Application manuelle (exemple) :
+--   1) Créer la base si besoin : CREATE DATABASE votre_base CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+--   2) Choisir la base : USE votre_base;
+--   3) Exécuter tout ce fichier (client mysql/mariadb, DBeaver, HeidiSQL, etc.).
+-- La contrainte fk_pws_character (player_world_state → frog_character) est ajoutée par le serveur
+-- au premier démarrage (MariaDbSchemaBootstrap) si elle n’existe pas encore.
 
 CREATE TABLE IF NOT EXISTS accounts(
     username VARCHAR(255) NOT NULL PRIMARY KEY,

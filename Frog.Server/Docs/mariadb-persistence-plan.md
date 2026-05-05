@@ -4,6 +4,8 @@ Le serveur utilise le **protocole MySQL** via **[MySqlConnector](https://mysqlco
 
 **Secrets :** ne jamais committer les mots de passe. Utiliser `Frog.Server/appsettings.Local.json` (ignoré par Git) d’après `appsettings.Local.json.example`, ou les variables d’environnement (`MariaDb__ConnectionString`, etc.).
 
+**Créer les tables à la main :** voir [`Frog.Server/Database/README.md`](../Database/README.md) et le script `scripts/apply-frog-mariadb-schema.ps1`.
+
 ---
 
 ## 1. Configuration locale
