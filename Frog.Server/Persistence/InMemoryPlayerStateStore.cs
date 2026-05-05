@@ -12,9 +12,9 @@ public sealed class InMemoryPlayerStateStore : IPlayerStateStore
         return _byUser.TryGetValue(username, out state);
     }
 
-    public void Upsert(string username, int mapId, int x, int y)
+    public void Upsert(string username, int mapId, int x, int y, string? characterId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
-        _byUser[username] = new PlayerWorldState(mapId, x, y);
+        _byUser[username] = new PlayerWorldState(mapId, x, y, characterId);
     }
 }

@@ -186,6 +186,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 ### 🧪 Tests
 - [x] Tests `MapSerializer`, **Hello / `FrogWireProtocol.Version`** (`WireHelloTests`), mouvement, warps, chat parse, store mémoire
 - [ ] Tests intégration client ↔ serveur (TCP)
+- [x] Seed `frog_map` + perso `Hero` + `character_uuid` sur sauvegardes (MariaDb activé)
 - [ ] Tests MariaDB (conteneur / `MARIADB_TEST_CONNECTION_STRING`)
 
 ### ⚔️ Combat (vision)

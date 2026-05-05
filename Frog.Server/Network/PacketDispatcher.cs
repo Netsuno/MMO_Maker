@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Server.Database;
 using Frog.Server.Logging;
 using Frog.Server.Persistence;
 using Frog.Server.Services;
@@ -18,6 +19,7 @@ public sealed class PacketDispatcher(
     MovementService movementService,
     PacketSender packetSender,
     PlayerLifecycleNotifier playerLifecycleNotifier,
+    ICharacterBootstrap characterBootstrap,
     IPlayerStateStore playerStateStore,
     ILogger<PacketDispatcher> logger)
 {
@@ -28,6 +30,7 @@ public sealed class PacketDispatcher(
     private readonly MovementService _movementService = movementService;
     private readonly PacketSender _packetSender = packetSender;
     private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
+    private readonly ICharacterBootstrap _characterBootstrap = characterBootstrap;
     private readonly IPlayerStateStore _playerStateStore = playerStateStore;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
@@ -123,6 +126,7 @@ public sealed class PacketDispatcher(
         }
 
         clientSession.AuthenticatedSession = session;
+        session.CharacterId = _characterBootstrap.EnsureDefaultHero(username);
         if (_playerStateStore.TryGet(username, out var world))
         {
             session.PositionX = world.X;
@@ -232,7 +236,7 @@ public sealed class PacketDispatcher(
 
         var sessionId = session.Id;
         var username = session.Username;
-        _playerStateStore.Upsert(username, session.CurrentMapId, session.PositionX, session.PositionY);
+        _playerStateStore.Upsert(username, session.CurrentMapId, session.PositionX, session.PositionY, session.CharacterId);
         _clientRegistry.Unregister(sessionId);
         await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, cancellationToken);
         _connectionManager.RemoveSession(sessionId);

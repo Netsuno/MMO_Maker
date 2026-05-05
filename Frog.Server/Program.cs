@@ -97,6 +97,18 @@ internal sealed class Program
 
             return NullMapBlobStore.Instance;
         });
+        builder.Services.AddSingleton<InMemoryCharacterBootstrap>();
+        builder.Services.AddSingleton<ICharacterBootstrap>(sp =>
+        {
+            var db = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
+            db.Validate();
+            if (db.Enabled)
+            {
+                return new MariaDbCharacterBootstrap(db.ConnectionString);
+            }
+
+            return sp.GetRequiredService<InMemoryCharacterBootstrap>();
+        });
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<ConnectionManager>();
         builder.Services.AddSingleton<ClientRegistry>();
@@ -105,6 +117,7 @@ internal sealed class Program
         builder.Services.AddSingleton<PacketSender>();
         builder.Services.AddSingleton<PlayerLifecycleNotifier>();
         builder.Services.AddSingleton<PacketDispatcher>();
+        builder.Services.AddHostedService<MariaDbWorldMapSeeder>();
         builder.Services.AddHostedService<GameServerService>();
         builder.Services.AddHostedService<SessionCleanupService>();
         builder.Services.AddHostedService<PlayerPersistenceService>();

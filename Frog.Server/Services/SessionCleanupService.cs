@@ -42,7 +42,12 @@ public sealed class SessionCleanupService(
 
                 foreach (var session in expiredSessions)
                 {
-                    _playerStateStore.Upsert(session.Username, session.CurrentMapId, session.PositionX, session.PositionY);
+                    _playerStateStore.Upsert(
+                        session.Username,
+                        session.CurrentMapId,
+                        session.PositionX,
+                        session.PositionY,
+                        session.CharacterId);
                     ClientSession? client = null;
                     if (_clientRegistry.TryGet(session.Id, out client))
                     {

@@ -1,6 +1,7 @@
 using System.IO;
 using Frog.Core.Enums;
 using Frog.Core.IO;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Server.Config;
 using Frog.Server.Database;
@@ -80,7 +81,7 @@ public sealed class MapService
             }
         }
 
-        return BuildFallbackWorldMap();
+        return MapSamples.StarterMeadow(DefaultWorldMapId);
     }
 
     private static string? ResolveMapPath(string? path)
@@ -93,54 +94,6 @@ public sealed class MapService
         return Path.IsPathRooted(path)
             ? path
             : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));
-    }
-
-    private static Map BuildFallbackWorldMap()
-    {
-        var map = new Map
-        {
-            Name = "Starter Meadow",
-            Width = 20,
-            Height = 20
-        };
-
-        var ground = new Layer { LayerType = LayerType.Ground };
-        for (var y = 0; y < map.Height; y++)
-        {
-            for (var x = 0; x < map.Width; x++)
-            {
-                var type = TileType.Ground;
-                if (x is >= 5 and <= 7 && y == 5)
-                {
-                    type = TileType.Block;
-                }
-
-                ground.Tiles.Add(new Tile
-                {
-                    X = x,
-                    Y = y,
-                    TilesetId = 1,
-                    SrcX = 0,
-                    SrcY = 0,
-                    Type = type
-                });
-            }
-        }
-
-        foreach (var t in ground.Tiles)
-        {
-            if (t.X == 3 && t.Y == 3)
-            {
-                t.Type = TileType.Warp;
-                t.WarpTargetMapId = DefaultWorldMapId;
-                t.WarpTargetX = 18;
-                t.WarpTargetY = 18;
-                break;
-            }
-        }
-
-        map.Layers.Add(ground);
-        return map;
     }
 
     private void RebuildBlockedFromMap()

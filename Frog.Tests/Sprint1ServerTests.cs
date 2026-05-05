@@ -228,6 +228,11 @@ public sealed class Sprint1ServerTests
         Assert.Equal(1, st.MapId);
         Assert.Equal(3, st.X);
         Assert.Equal(4, st.Y);
+        Assert.Null(st.CharacterId);
+
+        store.Upsert("alice", 1, 5, 6, "char-uuid-1");
+        Assert.True(store.TryGet("alice", out st));
+        Assert.Equal("char-uuid-1", st.CharacterId);
     }
 
     [Fact]

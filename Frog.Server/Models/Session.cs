@@ -16,4 +16,7 @@ public sealed class Session
 
     /// <summary>Carte monde courante (monde unique au debut ; instances plus tard).</summary>
     public int CurrentMapId { get; set; } = 1;
+
+    /// <summary><c>frog_character.id</c> (UUID texte) du perso par défaut, rempli après login.</summary>
+    public string? CharacterId { get; set; }
 }

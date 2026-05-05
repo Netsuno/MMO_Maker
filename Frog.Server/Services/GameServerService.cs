@@ -105,7 +105,7 @@ public sealed class GameServerService(
                     var sessionId = clientSession.AuthenticatedSession.Id;
                     var username = clientSession.AuthenticatedSession.Username;
                     var s = clientSession.AuthenticatedSession;
-                    _playerStateStore.Upsert(username, s.CurrentMapId, s.PositionX, s.PositionY);
+                    _playerStateStore.Upsert(username, s.CurrentMapId, s.PositionX, s.PositionY, s.CharacterId);
                     _clientRegistry.Unregister(sessionId);
                     await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, ct);
                     _connectionManager.RemoveSession(sessionId);

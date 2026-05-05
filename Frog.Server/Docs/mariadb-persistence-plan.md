@@ -38,6 +38,14 @@ Contrainte **fk_pws_character** : ajoutée en C# après le script si elle n’ex
 
 **Version moteur :** MariaDB **10.5+** recommandé (`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `JSON`).
 
+### 2.1 Seed automatique `frog_map`
+
+`MariaDbWorldMapSeeder` (hosted service, démarré avant le serveur TCP) : si `MariaDb.enabled`, `Maps:databaseFallbackMapId` &gt; 0 et aucune ligne `frog_map` pour cet id, insertion de **Starter Meadow** (même carte que `Frog.Core.Maps.MapSamples`).
+
+### 2.2 Personnage par défaut
+
+À chaque login, `ICharacterBootstrap.EnsureDefaultHero(username)` crée au besoin une ligne **frog_character** (`display_name = 'Hero'`). `player_world_state.character_uuid` est rempli lors des sauvegardes (`Upsert` avec `Session.CharacterId`).
+
 ---
 
 ## 3. Synchro client (cache carte)
@@ -61,9 +69,12 @@ Publication : `MariaDbMapBlobStore.UpsertMap(...)`.
 | `Database/schema_frog_mariadb_v1.sql` | DDL v1 |
 | `Database/MariaDbSchemaBootstrap.cs` | Script + FK optionnelle + seed `demo` |
 | `Database/MariaDbMapBlobStore.cs` | Lecture / `UpsertMap` |
-| `Persistence/MariaDbPlayerStateStore.cs` | État monde joueur |
+| `Services/MariaDbWorldMapSeeder.cs` | Seed `frog_map` si ligne absente |
+| `Database/MariaDbCharacterBootstrap.cs` | Perso « Hero » par compte |
+| `Persistence/MariaDbPlayerStateStore.cs` | État monde + `character_uuid` |
 | `Database/MariaDbAccountRepository.cs` | Comptes |
 | `Config/MariaDbOptions.cs` | Options `MariaDb` |
+| `Frog.Core/Maps/MapSamples.cs` | Carte Starter Meadow partagée |
 
 ---
 
