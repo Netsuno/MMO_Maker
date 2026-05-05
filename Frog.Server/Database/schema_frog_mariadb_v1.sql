@@ -32,8 +32,8 @@ CREATE TABLE IF NOT EXISTS frog_map(
     revision BIGINT NOT NULL DEFAULT 1,
     content_sha256 CHAR(64) NOT NULL,
     fmap_blob LONGBLOB NOT NULL,
-    created_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
-    updated_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)) ON UPDATE UTC_TIMESTAMP(6),
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     UNIQUE KEY uq_frog_map_map_key(map_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS frog_character(
     account_username VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
     payload JSON NOT NULL,
-    created_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
-    updated_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)) ON UPDATE UTC_TIMESTAMP(6),
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     UNIQUE KEY uq_frog_character_account_name(account_username, display_name),
     CONSTRAINT fk_fc_account FOREIGN KEY (account_username) REFERENCES accounts(username) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS frog_asset_blob(
     content_sha256 CHAR(64) NOT NULL PRIMARY KEY,
     mime_type VARCHAR(128) NOT NULL,
     bytes LONGBLOB NOT NULL,
-    created_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6))
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS frog_map_editor_save(
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS frog_map_editor_save(
     account_username VARCHAR(255) NULL,
     saved_revision BIGINT NOT NULL,
     client_comment VARCHAR(512) NULL,
-    saved_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
+    saved_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_fmes_map FOREIGN KEY (map_id) REFERENCES frog_map(id) ON DELETE CASCADE,
     CONSTRAINT fk_fmes_account FOREIGN KEY (account_username) REFERENCES accounts(username) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -86,14 +86,14 @@ public sealed class MariaDbMapBlobStore : IMapBlobStore
 
         const string sql = """
             INSERT INTO frog_map(id, map_key, display_name, revision, content_sha256, fmap_blob, created_at, updated_at)
-            VALUES (@id, @map_key, @display_name, 1, @sha, @blob, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+            VALUES (@id, @map_key, @display_name, 1, @sha, @blob, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))
             ON DUPLICATE KEY UPDATE
                 map_key = VALUES(map_key),
                 display_name = VALUES(display_name),
                 revision = revision + 1,
                 content_sha256 = VALUES(content_sha256),
                 fmap_blob = VALUES(fmap_blob),
-                updated_at = UTC_TIMESTAMP(6);
+                updated_at = CURRENT_TIMESTAMP(6);
             """;
 
         using var command = new MySqlCommand(sql, connection);
