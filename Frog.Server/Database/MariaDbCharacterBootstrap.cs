@@ -37,14 +37,22 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
 
         var id = Guid.NewGuid().ToString();
         const string insertSql = """
-            INSERT INTO frog_character(id, account_username, display_name, payload)
-            VALUES (@id, @username, 'Hero', CAST('{}' AS JSON));
+            INSERT INTO frog_character(id, account_id, account_username, display_name, payload)
+            SELECT @id, a.id, @username, 'Hero', CAST('{}' AS JSON)
+            FROM accounts a
+            WHERE a.username = @username
+            LIMIT 1;
             """;
 
         using var insert = new MySqlCommand(insertSql, connection);
         insert.Parameters.AddWithValue("@id", id);
         insert.Parameters.AddWithValue("@username", username);
-        insert.ExecuteNonQuery();
+        var n = insert.ExecuteNonQuery();
+        if (n != 1)
+        {
+            throw new InvalidOperationException($"Compte introuvable pour créer le perso : {username}");
+        }
+
         return id;
     }
 }

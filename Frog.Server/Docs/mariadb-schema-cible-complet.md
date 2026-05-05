@@ -33,9 +33,9 @@ Tu peux migrer progressivement depuis `frog_*` vers ces noms dans des scripts ve
 
 ## 2. Cartographie v1 → cible
 
-| Actuel (v1) | Évolution prévue |
+| Actuel (v1 / v2 en cours) | Évolution prévue |
 |-------------|------------------|
-| `accounts` (PK username) | Ajouter **`account_id` BIGINT AUTO_INCREMENT UNIQUE** puis migrer FK vers cet id ; conserver username login. Colonnes futures : email, statut suspension, dernier login, région. |
+| `accounts` (**PK username** ; **v2 :** colonne **`id` BIGINT UNSIGNED** AUTO_INCREMENT UNIQUE) | À terme : PK = `id`, `username` unique ; migrer FK (`player_world_state`, etc.). **v2 appliquée en runtime** (`MariaDbMigrationV2`). |
 | `player_world_state` (PK username) | Migrer PK vers **`character_id`** (perso comme unité monde) ou doublon `accountusername` résiduel jusqu’à fin de mig ; position = **par perso**. |
 | `frog_character` | Renomme conceptuel **`character`** : stats de base typed + `extras` JSON pour le reste. |
 | `frog_map` | Reste carte **révisionnée blob** ; liens vers **spawn**, **warp** en données tabulaires ou dans blob selon stratégie. |

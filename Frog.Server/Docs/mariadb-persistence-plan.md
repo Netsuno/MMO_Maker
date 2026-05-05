@@ -32,7 +32,7 @@ Exécuté au démarrage si `MariaDb.enabled` est `true` (`MariaDbSchemaBootstrap
 | **accounts** | Compte (login, hash, sel, `created_utc`). |
 | **player_world_state** | Position / carte ; `character_uuid` optionnel → `frog_character`. |
 | **frog_map** | Carte : `id`, `map_key`, `revision`, `content_sha256`, `fmap_blob` (LONGBLOB). |
-| **frog_character** | Perso : `id` CHAR(36), `account_username`, `display_name`, `payload` JSON. |
+| **frog_character** | Perso : `id` CHAR(36), `account_username`, `account_id` → `accounts.id` (migration v2), `display_name`, `payload` JSON. |
 | **frog_asset_blob** | Binaires dédupliqués (SHA-256). |
 | **frog_map_editor_save** | Historique des sauvegardes éditeur. |
 
@@ -40,11 +40,20 @@ Contrainte **fk_pws_character** : ajoutée en C# après le script si elle n’ex
 
 **Version moteur :** MariaDB **10.5+** recommandé (`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `JSON`).
 
-### 2.1 Seed automatique `frog_map`
+### 2.1 Migration « v2 » (`MariaDbMigrationV2`)
+
+Idempotent, après v1 et `fk_pws_character` :
+
+- Colonne **`accounts.id`** (`BIGINT UNSIGNED` AUTO_INCREMENT `UNIQUE`) — identifiant numérique stable ; **`username`** reste la **PK** pour les anciennes FK (`player_world_state`, `frog_map_editor_save`).
+- **`frog_character.account_id`** NOT NULL → FK `fk_frog_character_account_id` vers `accounts(id)` ; **backfill** depuis `account_username` ; **`fk_fc_account`** (FK sur username) **supprimée** pour éviter le double rattachement.
+
+Si des persos ont un `account_username` sans compte correspondant, le bootstrap lève une **exception** jusqu’à correction des données.
+
+### 2.2 Seed automatique `frog_map`
 
 `MariaDbWorldMapSeeder` (hosted service, démarré avant le serveur TCP) : si `MariaDb.enabled`, `Maps:databaseFallbackMapId` &gt; 0 et aucune ligne `frog_map` pour cet id, insertion de **Starter Meadow** (même carte que `Frog.Core.Maps.MapSamples`).
 
-### 2.2 Personnage par défaut
+### 2.3 Personnage par défaut
 
 À chaque login, `ICharacterBootstrap.EnsureDefaultHero(username)` crée au besoin une ligne **frog_character** (`display_name = 'Hero'`). `player_world_state.character_uuid` est rempli lors des sauvegardes (`Upsert` avec `Session.CharacterId`).
 
@@ -69,7 +78,8 @@ Publication : `MariaDbMapBlobStore.UpsertMap(...)`.
 | Fichier | Rôle |
 |---------|------|
 | `Database/schema_frog_mariadb_v1.sql` | DDL v1 |
-| `Database/MariaDbSchemaBootstrap.cs` | Script + FK optionnelle + seed `demo` |
+| `Database/MariaDbSchemaBootstrap.cs` | Script + FK optionnelle + migration v2 + seed `demo` |
+| `Database/MariaDbMigrationV2.cs` | `accounts.id` + `frog_character.account_id` |
 | `Database/MariaDbMapBlobStore.cs` | Lecture / `UpsertMap` |
 | `Services/MariaDbWorldMapSeeder.cs` | Seed `frog_map` si ligne absente |
 | `Database/MariaDbCharacterBootstrap.cs` | Perso « Hero » par compte |

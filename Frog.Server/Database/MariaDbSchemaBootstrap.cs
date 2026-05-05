@@ -31,6 +31,7 @@ public static class MariaDbSchemaBootstrap
         }
 
         EnsurePlayerCharacterForeignKey(connection);
+        MariaDbMigrationV2.Apply(connection);
         SeedDemoAccountIfMissing(connection);
     }
 

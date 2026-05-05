@@ -10,11 +10,13 @@ Tables : `accounts`, `player_world_state`, `frog_map`, `frog_character`, `frog_a
 
 Les colonnes temporelles utilisent **`CURRENT_TIMESTAMP(6)`** (compatible MariaDB / MySQL) ; pour des horodatages alignés sur UTC, configure le serveur SQL en **`time_zone = '+00:00'`** (ou équivalent).
 
+Après le DDL v1, le serveur applique aussi **`MariaDbMigrationV2`** (C#) : `accounts.id` + `frog_character.account_id` ; voir **`Frog.Server/Docs/mariadb-persistence-plan.md` §2.1**.
+
 ## Option A — Automatique (recommandé)
 
 1. Crée une base vide (ex. `mmo_test`) dans MariaDB.
 2. Dans `Frog.Server/appsettings.Local.json`, mets `MariaDb.enabled` à `true` et une `connectionString` valide.
-3. Lance le serveur une fois : **`MariaDbSchemaBootstrap`** exécute ce script au démarrage, puis ajoute la FK `fk_pws_character` si besoin, et peut créer le compte `demo` / seed carte selon ta config.
+3. Lance le serveur une fois : **`MariaDbSchemaBootstrap`** exécute ce script au démarrage, puis FK `fk_pws_character`, puis **migration v2**, puis seed `demo` / carte selon ta config.
 
 ## Option B — À la main (client SQL)
 
