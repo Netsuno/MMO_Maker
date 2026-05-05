@@ -11,7 +11,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 - Migrer le moteur **VB6** (Client, Serveur, Éditeur) vers une base **C# .NET 8 (WinForms)**.
 - Unifier la logique commune dans un projet central `Frog.Core`.
 - Moderniser la communication réseau (voir **Décisions réseau** ci‑dessous).
-- Sauvegarder les données dans une **base PostgreSQL** (comptes + état monde joueur).
+- Sauvegarder les données dans une **base PostgreSQL** (comptes, état monde, cartes `frog_map`, personnages `frog_character`, etc. — voir `Frog.Server/Docs/postgresql-persistence-plan.md`).
 - Rendre l’éditeur compatible avec les formats d’origine tout en préparant l’extension du moteur.
 
 ---
@@ -36,7 +36,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 | **Frog.Core** | Modèles partagés, enums, interfaces, sérialiseurs binaires (maps, items, NPCs…), IDs de paquets, `ChatChannel`, **`WorldMetrics`** (tuile ↔ pixels). |
 | **Frog.Client** | Client WinForms : TCP, login, map (rendu tuile simplifié), flèches, chat, heartbeat, mêlée ; doc `Frog.Client/Docs/protocol_login_map.md`. |
 | **Frog.Editor** | Éditeur de cartes WinForms : outils brush/fill/rectangle, undo/redo, `.fmap`, tilesets. |
-| **Frog.Server** | Serveur TCP : sessions, **carte `.fmap` optionnelle** (`Maps:worldMapPath`), map monde unique, mouvements, **mêlée pixel**, chat, persistance PostgreSQL optionnelle, sauvegarde périodique joueur. |
+| **Frog.Server** | Serveur TCP : sessions, **carte `.fmap` ou `frog_map`** (`Maps:worldMapPath` / `Maps:databaseFallbackMapId`), map monde unique, mouvements, **mêlée pixel**, chat, persistance PostgreSQL optionnelle, sauvegarde périodique joueur. |
 | **Frog.Tests** | Tests unitaires (sérialisation, protocole, persistance mémoire, mouvements…). |
 
 ---
@@ -45,7 +45,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 
 - **.NET 8.0 / C# 12**
 - **WinForms** pour Client et Éditeur
-- **PostgreSQL** + **Npgsql** (comptes + `player_world_state` quand `Postgres.enabled` est `true`)
+- **PostgreSQL** + **Npgsql** (schéma v1 : comptes, `player_world_state`, `frog_map`, persos, assets — activer avec `Postgres.enabled` + `appsettings.Local.json` ; ne pas committer les secrets)
 - **TCP** (état actuel) ; **UDP** prévu pour flux haute fréquence
 - **Sérialisation binaire** (format `.fmap` versionné dans `MapSerializer`)
 
@@ -204,6 +204,9 @@ dotnet run --project Frog.Client/Frog.Client.csproj
 dotnet run --project Frog.Editor/Frog.Editor.csproj
 dotnet test Frog.Tests/Frog.Tests.csproj
 ```
+
+Test PostgreSQL réel (schéma + idempotence) : définir `POSTGRES_TEST_CONNECTION_STRING` puis  
+`dotnet test Frog.Tests/Frog.Tests.csproj --filter "FullyQualifiedName~PostgresSchemaIntegration"` (voir `Frog.Server/Docs/postgresql-persistence-plan.md`).
 
 Configurer `Frog.Server/appsettings.json` : `Server`, `Postgres`, `Sessions`, `Persistence`, **`Maps`** (`worldMapPath` vers un `.fmap` exporté par l’éditeur ; voir `Frog.Server/Maps/README.txt`).
 

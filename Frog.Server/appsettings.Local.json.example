@@ -1,0 +1,10 @@
+{
+  "Postgres": {
+    "enabled": true,
+    "connectionString": "Host=VOTRE_HOTE;Port=5432;Database=VOTRE_BASE;Username=VOTRE_UTILISATEUR;Password=VOTRE_MOT_DE_PASSE;SSL Mode=Disable"
+  },
+  "Maps": {
+    "worldMapPath": "",
+    "databaseFallbackMapId": 1
+  }
+}

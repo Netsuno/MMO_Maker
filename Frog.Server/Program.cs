@@ -1,11 +1,11 @@
 #nullable enable
+using Frog.Server.Database;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Frog.Server.Config;
-using Frog.Server.Database;
 using Frog.Server.Network;
 using Frog.Server.Persistence;
 using Frog.Server.Services;
@@ -18,9 +18,17 @@ internal sealed class Program
     {
         var builder = Host.CreateApplicationBuilder();
 
-        // Charger appsettings.json (copié à la sortie)
+        // appsettings.json + overrides locaux (non versionnés — voir appsettings.Local.json.example)
         builder.Configuration
-               .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+               .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+               .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
+        var pgEnabled = builder.Configuration.GetValue("Postgres:Enabled", false);
+        var pgConnectionString = builder.Configuration["Postgres:ConnectionString"];
+        if (pgEnabled && !string.IsNullOrWhiteSpace(pgConnectionString))
+        {
+            PostgresSchemaBootstrap.Apply(pgConnectionString);
+        }
 
         // Options
         builder.Services
@@ -77,6 +85,17 @@ internal sealed class Program
             }
 
             return sp.GetRequiredService<InMemoryPlayerStateStore>();
+        });
+        builder.Services.AddSingleton<IMapBlobStore>(sp =>
+        {
+            var pg = sp.GetRequiredService<IOptions<PostgresOptions>>().Value;
+            pg.Validate();
+            if (pg.Enabled)
+            {
+                return new PostgresMapBlobStore(pg.ConnectionString);
+            }
+
+            return NullMapBlobStore.Instance;
         });
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<ConnectionManager>();

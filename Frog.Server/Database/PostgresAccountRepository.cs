@@ -12,7 +12,6 @@ public sealed class PostgresAccountRepository : IAccountRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         _connectionString = connectionString;
-        EnsureSchemaAndSeed();
     }
 
     public bool TryGetByUsername(string username, out Account account)
@@ -72,34 +71,5 @@ public sealed class PostgresAccountRepository : IAccountRepository
         command.Parameters.AddWithValue("created_utc", DateTime.UtcNow);
 
         return command.ExecuteNonQuery() == 1;
-    }
-
-    private void EnsureSchemaAndSeed()
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Open();
-
-        const string createTableSql = """
-            CREATE TABLE IF NOT EXISTS accounts(
-                username TEXT PRIMARY KEY,
-                password_hash TEXT NOT NULL,
-                password_salt TEXT NOT NULL,
-                created_utc TIMESTAMPTZ NOT NULL
-            );
-            """;
-
-        using (var createTable = new NpgsqlCommand(createTableSql, connection))
-        {
-            createTable.ExecuteNonQuery();
-        }
-
-        // Seed minimal pour garder le même bootstrap que Sprint 1.
-        const string existsSql = "SELECT 1 FROM accounts WHERE username = 'demo' LIMIT 1;";
-        using var existsCommand = new NpgsqlCommand(existsSql, connection);
-        var exists = existsCommand.ExecuteScalar() is not null;
-        if (!exists)
-        {
-            _ = Create("demo", "demo");
-        }
     }
 }

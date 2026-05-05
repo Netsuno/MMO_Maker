@@ -3,6 +3,7 @@ using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
 using Frog.Server.Config;
+using Frog.Server.Database;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -15,14 +16,20 @@ public sealed class MapService
 
     private readonly MapSerializer _mapSerializer = new();
     private readonly Map _defaultMap;
+    private readonly IMapBlobStore _mapBlobStore;
     private readonly HashSet<(int X, int Y)> _blockedTiles = new();
 
     /// <summary>Warps indexés par (mapId, tuile X, tuile Y) → destination.</summary>
     private readonly Dictionary<(int MapId, int X, int Y), (int TargetMapId, int TargetX, int TargetY)> _warps = new();
 
-    public MapService(IOptions<WorldMapOptions> worldMapOptions, ILogger<MapService> logger)
+    public MapService(
+        IOptions<WorldMapOptions> worldMapOptions,
+        IMapBlobStore mapBlobStore,
+        ILogger<MapService> logger)
     {
-        var rawPath = worldMapOptions.Value.WorldMapPath;
+        _mapBlobStore = mapBlobStore;
+        var options = worldMapOptions.Value;
+        var rawPath = options.WorldMapPath;
         var resolved = ResolveMapPath(rawPath);
         if (resolved is not null && File.Exists(resolved))
         {
@@ -34,22 +41,46 @@ public sealed class MapService
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Echec de lecture de la carte {Path}, utilisation de la carte de secours.", resolved);
-                _defaultMap = BuildFallbackWorldMap();
+                logger.LogError(ex, "Echec de lecture de la carte {Path}, tentative base puis secours.", resolved);
+                _defaultMap = TryLoadFromDatabaseOrFallback(options, logger);
             }
         }
         else
         {
             if (!string.IsNullOrWhiteSpace(rawPath))
             {
-                logger.LogWarning("Fichier carte introuvable ({Raw}), carte de secours.", rawPath);
+                logger.LogWarning("Fichier carte introuvable ({Raw}), tentative base puis secours.", rawPath);
             }
 
-            _defaultMap = BuildFallbackWorldMap();
+            _defaultMap = TryLoadFromDatabaseOrFallback(options, logger);
         }
 
         RebuildBlockedFromMap();
         RebuildWarpIndex();
+    }
+
+    private Map TryLoadFromDatabaseOrFallback(WorldMapOptions options, ILogger<MapService> logger)
+    {
+        var mapId = options.DatabaseFallbackMapId;
+        if (mapId > 0 && _mapBlobStore.TryGet(mapId, out var bytes, out var revision, out var sha))
+        {
+            try
+            {
+                var map = _mapSerializer.Deserialize(bytes);
+                logger.LogInformation(
+                    "Carte monde chargee depuis PostgreSQL frog_map id={MapId} revision={Revision} sha256={Sha}",
+                    mapId,
+                    revision,
+                    sha);
+                return map;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "frog_map id={MapId} illisible, carte de secours.", mapId);
+            }
+        }
+
+        return BuildFallbackWorldMap();
     }
 
     private static string? ResolveMapPath(string? path)

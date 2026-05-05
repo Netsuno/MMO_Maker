@@ -10,7 +10,6 @@ public sealed class PostgresPlayerStateStore : IPlayerStateStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         _connectionString = connectionString;
-        EnsureSchema();
     }
 
     public bool TryGet(string username, out PlayerWorldState state)
@@ -63,25 +62,6 @@ public sealed class PostgresPlayerStateStore : IPlayerStateStore
         command.Parameters.AddWithValue("pos_x", x);
         command.Parameters.AddWithValue("pos_y", y);
         command.Parameters.AddWithValue("updated_utc", DateTime.UtcNow);
-        command.ExecuteNonQuery();
-    }
-
-    private void EnsureSchema()
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Open();
-
-        const string sql = """
-            CREATE TABLE IF NOT EXISTS player_world_state(
-                username TEXT PRIMARY KEY,
-                map_id INT NOT NULL,
-                pos_x INT NOT NULL,
-                pos_y INT NOT NULL,
-                updated_utc TIMESTAMPTZ NOT NULL
-            );
-            """;
-
-        using var command = new NpgsqlCommand(sql, connection);
         command.ExecuteNonQuery();
     }
 }
