@@ -23,11 +23,11 @@ internal sealed class Program
                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
-        var pgEnabled = builder.Configuration.GetValue("Postgres:Enabled", false);
-        var pgConnectionString = builder.Configuration["Postgres:ConnectionString"];
-        if (pgEnabled && !string.IsNullOrWhiteSpace(pgConnectionString))
+        var mariaEnabled = builder.Configuration.GetValue("MariaDb:Enabled", false);
+        var mariaConnectionString = builder.Configuration["MariaDb:ConnectionString"];
+        if (mariaEnabled && !string.IsNullOrWhiteSpace(mariaConnectionString))
         {
-            PostgresSchemaBootstrap.Apply(pgConnectionString);
+            MariaDbSchemaBootstrap.Apply(mariaConnectionString);
         }
 
         // Options
@@ -37,9 +37,9 @@ internal sealed class Program
             .Validate(o => o.Port is > 0 and <= 65535, "Port invalide")
             .ValidateOnStart();
         builder.Services
-            .AddOptions<PostgresOptions>()
-            .Bind(builder.Configuration.GetSection("Postgres"))
-            .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.ConnectionString), "ConnectionString Postgres manquante")
+            .AddOptions<MariaDbOptions>()
+            .Bind(builder.Configuration.GetSection("MariaDb"))
+            .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.ConnectionString), "ConnectionString MariaDb manquante")
             .ValidateOnStart();
         builder.Services
             .AddOptions<SessionOptions>()
@@ -64,12 +64,12 @@ internal sealed class Program
         builder.Services.AddSingleton<AccountRepository>();
         builder.Services.AddSingleton<IAccountRepository>(sp =>
         {
-            var options = sp.GetRequiredService<IOptions<PostgresOptions>>().Value;
+            var options = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
             options.Validate();
 
             if (options.Enabled)
             {
-                return new PostgresAccountRepository(options.ConnectionString);
+                return new MariaDbAccountRepository(options.ConnectionString);
             }
 
             return sp.GetRequiredService<AccountRepository>();
@@ -77,22 +77,22 @@ internal sealed class Program
         builder.Services.AddSingleton<InMemoryPlayerStateStore>();
         builder.Services.AddSingleton<IPlayerStateStore>(sp =>
         {
-            var pg = sp.GetRequiredService<IOptions<PostgresOptions>>().Value;
-            pg.Validate();
-            if (pg.Enabled)
+            var db = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
+            db.Validate();
+            if (db.Enabled)
             {
-                return new PostgresPlayerStateStore(pg.ConnectionString);
+                return new MariaDbPlayerStateStore(db.ConnectionString);
             }
 
             return sp.GetRequiredService<InMemoryPlayerStateStore>();
         });
         builder.Services.AddSingleton<IMapBlobStore>(sp =>
         {
-            var pg = sp.GetRequiredService<IOptions<PostgresOptions>>().Value;
-            pg.Validate();
-            if (pg.Enabled)
+            var db = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
+            db.Validate();
+            if (db.Enabled)
             {
-                return new PostgresMapBlobStore(pg.ConnectionString);
+                return new MariaDbMapBlobStore(db.ConnectionString);
             }
 
             return NullMapBlobStore.Instance;

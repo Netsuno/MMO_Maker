@@ -1,7 +1,7 @@
 namespace Frog.Server.Database;
 
 /// <summary>
-/// Stockage des cartes sérialisées (.fmap) côté PostgreSQL, avec révision et empreinte pour la synchro client.
+/// Stockage des cartes sérialisées (.fmap) côté MariaDB, avec révision et empreinte pour la synchro client.
 /// </summary>
 public interface IMapBlobStore
 {

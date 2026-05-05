@@ -1,6 +1,6 @@
 namespace Frog.Server.Config;
 
-public sealed class PostgresOptions
+public sealed class MariaDbOptions
 {
     public bool Enabled { get; init; }
     public string ConnectionString { get; init; } = string.Empty;
@@ -14,7 +14,7 @@ public sealed class PostgresOptions
 
         if (string.IsNullOrWhiteSpace(ConnectionString))
         {
-            throw new ArgumentException("Postgres.ConnectionString est requis quand Postgres.Enabled=true.");
+            throw new ArgumentException("MariaDb.ConnectionString est requis quand MariaDb.Enabled=true.");
         }
     }
 }

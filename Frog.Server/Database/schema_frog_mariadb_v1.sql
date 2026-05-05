@@ -1,0 +1,69 @@
+-- Frog persistence v1 — MariaDB / InnoDB (idempotent).
+-- Exécuté au démarrage du serveur si MariaDb.enabled = true.
+-- Ne contient aucun secret. MariaDB 10.5+ recommandé (ADD COLUMN IF NOT EXISTS, CREATE INDEX IF NOT EXISTS).
+
+CREATE TABLE IF NOT EXISTS accounts(
+    username VARCHAR(255) NOT NULL PRIMARY KEY,
+    password_hash VARCHAR(512) NOT NULL,
+    password_salt VARCHAR(512) NOT NULL,
+    created_utc DATETIME(6) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS player_world_state(
+    username VARCHAR(255) NOT NULL PRIMARY KEY,
+    map_id INT NOT NULL,
+    pos_x INT NOT NULL,
+    pos_y INT NOT NULL,
+    updated_utc DATETIME(6) NOT NULL,
+    CONSTRAINT fk_pws_account FOREIGN KEY (username) REFERENCES accounts(username) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS frog_map(
+    id INT NOT NULL PRIMARY KEY,
+    map_key VARCHAR(255) NOT NULL,
+    display_name VARCHAR(512) NOT NULL,
+    revision BIGINT NOT NULL DEFAULT 1,
+    content_sha256 CHAR(64) NOT NULL,
+    fmap_blob LONGBLOB NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
+    updated_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)) ON UPDATE UTC_TIMESTAMP(6),
+    UNIQUE KEY uq_frog_map_map_key(map_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX IF NOT EXISTS idx_frog_map_updated_at ON frog_map(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS frog_character(
+    id CHAR(36) NOT NULL PRIMARY KEY,
+    account_username VARCHAR(255) NOT NULL,
+    display_name VARCHAR(255) NOT NULL,
+    payload JSON NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
+    updated_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)) ON UPDATE UTC_TIMESTAMP(6),
+    UNIQUE KEY uq_frog_character_account_name(account_username, display_name),
+    CONSTRAINT fk_fc_account FOREIGN KEY (account_username) REFERENCES accounts(username) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX IF NOT EXISTS idx_frog_character_account ON frog_character(account_username);
+
+ALTER TABLE player_world_state
+    ADD COLUMN IF NOT EXISTS character_uuid CHAR(36) NULL;
+
+CREATE TABLE IF NOT EXISTS frog_asset_blob(
+    content_sha256 CHAR(64) NOT NULL PRIMARY KEY,
+    mime_type VARCHAR(128) NOT NULL,
+    bytes LONGBLOB NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS frog_map_editor_save(
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    map_id INT NOT NULL,
+    account_username VARCHAR(255) NULL,
+    saved_revision BIGINT NOT NULL,
+    client_comment VARCHAR(512) NULL,
+    saved_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
+    CONSTRAINT fk_fmes_map FOREIGN KEY (map_id) REFERENCES frog_map(id) ON DELETE CASCADE,
+    CONSTRAINT fk_fmes_account FOREIGN KEY (account_username) REFERENCES accounts(username) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX IF NOT EXISTS idx_frog_map_editor_save_map ON frog_map_editor_save(map_id, saved_at DESC);

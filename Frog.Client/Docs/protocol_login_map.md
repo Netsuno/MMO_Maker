@@ -303,4 +303,4 @@ Payload:
 Note: apres un `LoginResult` reussi, le serveur peut immediatement envoyer des `PositionUpdate`
 pour fournir l'etat initial des joueurs deja connectes.
 
-Note: le serveur restaure `PositionX` / `PositionY` / `CurrentMapId` depuis la derniere sauvegarde si disponible (PostgreSQL ou memoire selon configuration).
+Note: le serveur restaure `PositionX` / `PositionY` / `CurrentMapId` depuis la derniere sauvegarde si disponible (MariaDB ou memoire selon configuration).

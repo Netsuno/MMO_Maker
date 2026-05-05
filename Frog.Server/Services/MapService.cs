@@ -68,7 +68,7 @@ public sealed class MapService
             {
                 var map = _mapSerializer.Deserialize(bytes);
                 logger.LogInformation(
-                    "Carte monde chargee depuis PostgreSQL frog_map id={MapId} revision={Revision} sha256={Sha}",
+                    "Carte monde chargee depuis MariaDB frog_map id={MapId} revision={Revision} sha256={Sha}",
                     mapId,
                     revision,
                     sha);

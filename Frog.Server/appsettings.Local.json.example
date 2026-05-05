@@ -1,7 +1,7 @@
 {
-  "Postgres": {
+  "MariaDb": {
     "enabled": true,
-    "connectionString": "Host=VOTRE_HOTE;Port=5432;Database=VOTRE_BASE;Username=VOTRE_UTILISATEUR;Password=VOTRE_MOT_DE_PASSE;SSL Mode=Disable"
+    "connectionString": "Server=VOTRE_HOTE;Port=3306;Database=VOTRE_BASE;User Id=VOTRE_UTILISATEUR;Password=VOTRE_MOT_DE_PASSE"
   },
   "Maps": {
     "worldMapPath": "",

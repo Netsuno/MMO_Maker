@@ -67,5 +67,5 @@ dkms.conf
 # Fichiers locaux accidentels
 nouveau 6.txt
 
-# Secrets / overrides PostgreSQL (ne pas versionner)
+# Secrets / overrides MariaDB (ne pas versionner)
 **/appsettings.Local.json

@@ -45,12 +45,12 @@ Sans PNG trouvé, le client affiche encore la carte en **couleurs de secours** p
 
 Sans fichier personnalisé côté **serveur**, la carte de secours intégrée suffit pour tester tout de suite.
 
-## 3. Option A — PostgreSQL désactivée (léger)
+## 3. Option A — MariaDB désactivée (léger)
 
 Dans [`Frog.Server/appsettings.json`](../Frog.Server/appsettings.json) :
 
 ```json
-"Postgres": { "enabled": false },
+"MariaDb": { "enabled": false },
 "Maps": { "worldMapPath": "Maps\\\\world.fmap" }
 ```
 
@@ -58,13 +58,13 @@ Ou laisse `"worldMapPath": ""` pour la carte interne.
 
 Compte **mémoire** inclus : utilisez **`demo`** / **`demo`** (créés côté serveur en développement). Vous pouvez aussi **Créer un compte** depuis le formulaire du client puis vous connecter.
 
-## 4. Option B — PostgreSQL
+## 4. Option B — MariaDB (MySQL)
 
-1. Lancez PostgreSQL avec une base vide (locale ou Docker).
-2. `Postgres.enabled` → `true` et `connectionString` valide dans `appsettings.json`.
-3. Au premier démarrage serveur avec le dépôt, un compte `demo`/`demo` peut être créé automatiquement par le registre Postgres (voir `PostgresAccountRepository`).
+1. Lancez MariaDB (ou MySQL) avec une base vide (locale ou Docker).
+2. `MariaDb.enabled` → `true` et `connectionString` valide dans `appsettings.json` ou `appsettings.Local.json`.
+3. Au premier démarrage serveur, un compte `demo`/`demo` peut être créé automatiquement si absent (voir `MariaDbAccountRepository` / `MariaDbSchemaBootstrap`).
 
-Sans Docker : installez PostgreSQL Desktop, créez une base `frog`, ajustez le mot de passe dans la chaîne de connexion.
+Sans Docker : installez MariaDB, créez une base `frog`, accordez les droits à l’utilisateur et mettez la chaîne de connexion au format `Server=...;Port=3306;Database=...;User Id=...;Password=...`.
 
 ## 5. Lancer dans l’ordre
 

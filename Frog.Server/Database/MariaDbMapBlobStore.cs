@@ -1,14 +1,13 @@
 using System.Security.Cryptography;
-using System.Text;
-using Npgsql;
+using MySqlConnector;
 
 namespace Frog.Server.Database;
 
-public sealed class PostgresMapBlobStore : IMapBlobStore
+public sealed class MariaDbMapBlobStore : IMapBlobStore
 {
     private readonly string _connectionString;
 
-    public PostgresMapBlobStore(string connectionString)
+    public MariaDbMapBlobStore(string connectionString)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         _connectionString = connectionString;
@@ -19,7 +18,7 @@ public sealed class PostgresMapBlobStore : IMapBlobStore
         revision = 0;
         contentSha256Hex = string.Empty;
 
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         const string sql = """
@@ -28,8 +27,8 @@ public sealed class PostgresMapBlobStore : IMapBlobStore
             WHERE id = @id;
             """;
 
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("id", mapId);
+        using var command = new MySqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", mapId);
 
         using var reader = command.ExecuteReader();
         if (!reader.Read())
@@ -48,7 +47,7 @@ public sealed class PostgresMapBlobStore : IMapBlobStore
         revision = 0;
         contentSha256Hex = string.Empty;
 
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         const string sql = """
@@ -57,8 +56,8 @@ public sealed class PostgresMapBlobStore : IMapBlobStore
             WHERE id = @id;
             """;
 
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("id", mapId);
+        using var command = new MySqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", mapId);
 
         using var reader = command.ExecuteReader();
         if (!reader.Read())
@@ -82,27 +81,27 @@ public sealed class PostgresMapBlobStore : IMapBlobStore
 
         var hex = Convert.ToHexString(SHA256.HashData(fmapBytes)).ToLowerInvariant();
 
-        using var connection = new NpgsqlConnection(connectionString);
+        using var connection = new MySqlConnection(connectionString);
         connection.Open();
 
         const string sql = """
             INSERT INTO frog_map(id, map_key, display_name, revision, content_sha256, fmap_blob, created_at, updated_at)
-            VALUES (@id, @map_key, @display_name, 1, @sha, @blob, now(), now())
-            ON CONFLICT (id) DO UPDATE SET
-                map_key = EXCLUDED.map_key,
-                display_name = EXCLUDED.display_name,
-                revision = frog_map.revision + 1,
-                content_sha256 = EXCLUDED.content_sha256,
-                fmap_blob = EXCLUDED.fmap_blob,
-                updated_at = now();
+            VALUES (@id, @map_key, @display_name, 1, @sha, @blob, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+            ON DUPLICATE KEY UPDATE
+                map_key = VALUES(map_key),
+                display_name = VALUES(display_name),
+                revision = revision + 1,
+                content_sha256 = VALUES(content_sha256),
+                fmap_blob = VALUES(fmap_blob),
+                updated_at = UTC_TIMESTAMP(6);
             """;
 
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("id", mapId);
-        command.Parameters.AddWithValue("map_key", mapKey);
-        command.Parameters.AddWithValue("display_name", displayName);
-        command.Parameters.AddWithValue("sha", hex);
-        command.Parameters.Add("blob", NpgsqlTypes.NpgsqlDbType.Bytea).Value = fmapBytes;
+        using var command = new MySqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", mapId);
+        command.Parameters.AddWithValue("@map_key", mapKey);
+        command.Parameters.AddWithValue("@display_name", displayName);
+        command.Parameters.AddWithValue("@sha", hex);
+        command.Parameters.Add("@blob", MySqlDbType.LongBlob).Value = fmapBytes;
         command.ExecuteNonQuery();
     }
 }

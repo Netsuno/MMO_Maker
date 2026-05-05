@@ -1,12 +1,12 @@
-using Npgsql;
+using MySqlConnector;
 
 namespace Frog.Server.Persistence;
 
-public sealed class PostgresPlayerStateStore : IPlayerStateStore
+public sealed class MariaDbPlayerStateStore : IPlayerStateStore
 {
     private readonly string _connectionString;
 
-    public PostgresPlayerStateStore(string connectionString)
+    public MariaDbPlayerStateStore(string connectionString)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         _connectionString = connectionString;
@@ -17,7 +17,7 @@ public sealed class PostgresPlayerStateStore : IPlayerStateStore
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
         state = default;
 
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         const string sql = """
@@ -26,8 +26,8 @@ public sealed class PostgresPlayerStateStore : IPlayerStateStore
             WHERE username = @username;
             """;
 
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("username", username);
+        using var command = new MySqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@username", username);
 
         using var reader = command.ExecuteReader();
         if (!reader.Read())
@@ -43,25 +43,25 @@ public sealed class PostgresPlayerStateStore : IPlayerStateStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
 
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         const string sql = """
             INSERT INTO player_world_state(username, map_id, pos_x, pos_y, updated_utc)
             VALUES (@username, @map_id, @pos_x, @pos_y, @updated_utc)
-            ON CONFLICT (username) DO UPDATE SET
-                map_id = EXCLUDED.map_id,
-                pos_x = EXCLUDED.pos_x,
-                pos_y = EXCLUDED.pos_y,
-                updated_utc = EXCLUDED.updated_utc;
+            ON DUPLICATE KEY UPDATE
+                map_id = VALUES(map_id),
+                pos_x = VALUES(pos_x),
+                pos_y = VALUES(pos_y),
+                updated_utc = VALUES(updated_utc);
             """;
 
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("username", username);
-        command.Parameters.AddWithValue("map_id", mapId);
-        command.Parameters.AddWithValue("pos_x", x);
-        command.Parameters.AddWithValue("pos_y", y);
-        command.Parameters.AddWithValue("updated_utc", DateTime.UtcNow);
+        using var command = new MySqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@username", username);
+        command.Parameters.AddWithValue("@map_id", mapId);
+        command.Parameters.AddWithValue("@pos_x", x);
+        command.Parameters.AddWithValue("@pos_y", y);
+        command.Parameters.AddWithValue("@updated_utc", DateTime.UtcNow);
         command.ExecuteNonQuery();
     }
 }
