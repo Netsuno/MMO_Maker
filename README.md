@@ -11,7 +11,7 @@ Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C#
 - Migrer le moteur **VB6** (Client, Serveur, Éditeur) vers une base **C# .NET 8 (WinForms)**.
 - Unifier la logique commune dans un projet central `Frog.Core`.
 - Moderniser la communication réseau (voir **Décisions réseau** ci‑dessous).
-- Sauvegarder les données dans une **base MariaDB** (protocole MySQL ; comptes, état monde, cartes `frog_map`, personnages `frog_character`, etc. — voir `Frog.Server/Docs/mariadb-persistence-plan.md`).
+- Sauvegarder les données dans une **base MariaDB** (protocole MySQL ; comptes, état monde, cartes `frog_map`, personnages `frog_character`, etc. — voir `Frog.Server/Docs/mariadb-persistence-plan.md` et la **vision schéma complet** objet/quêtes/économie : `Frog.Server/Docs/mariadb-schema-cible-complet.md`).
 - Rendre l’éditeur compatible avec les formats d’origine tout en préparant l’extension du moteur.
 
 ---

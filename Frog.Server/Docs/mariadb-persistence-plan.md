@@ -84,6 +84,10 @@ Publication : `MariaDbMapBlobStore.UpsertMap(...)`.
 
 Protocole client (HEAD puis blob), CRUD persos, éditeur « Publier », migrations versionnées (Flyway / scripts numérotés), pool et observabilité.
 
+## 7. Schéma MariaDB — vision long terme (complet)
+
+Liste cible ER (compte, perso, objets inventaire définitions/instance, quêtes, monde, NPC, économie, social, audit, assets, etc.) et stratégie d’extension depuis la v1 : **[`mariadb-schema-cible-complet.md`](mariadb-schema-cible-complet.md)**.
+
 ---
 
 *Document vivant.*
