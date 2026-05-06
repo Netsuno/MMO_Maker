@@ -30,12 +30,16 @@ public sealed class PlayerPersistenceService(
                 var n = 0;
                 foreach (var session in _connectionManager.GetActiveSessions())
                 {
-                    _playerStateStore.Upsert(
-                        session.Username,
+                    if (string.IsNullOrWhiteSpace(session.CharacterId))
+                    {
+                        continue;
+                    }
+
+                    _playerStateStore.UpsertForCharacter(
+                        session.CharacterId,
                         session.CurrentMapId,
                         session.PositionX,
-                        session.PositionY,
-                        session.CharacterId);
+                        session.PositionY);
                     n++;
                 }
 

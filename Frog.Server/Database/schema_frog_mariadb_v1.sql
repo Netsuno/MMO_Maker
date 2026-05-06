@@ -52,6 +52,16 @@ CREATE TABLE IF NOT EXISTS frog_character(
 
 CREATE INDEX IF NOT EXISTS idx_frog_character_account ON frog_character(account_username);
 
+-- Position monde par personnage (multi-slots : une ligne par frog_character.id).
+CREATE TABLE IF NOT EXISTS character_world_state(
+    character_uuid CHAR(36) NOT NULL PRIMARY KEY,
+    map_id INT NOT NULL,
+    pos_x INT NOT NULL,
+    pos_y INT NOT NULL,
+    updated_utc DATETIME(6) NOT NULL,
+    CONSTRAINT fk_cws_character FOREIGN KEY (character_uuid) REFERENCES frog_character(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 ALTER TABLE player_world_state
     ADD COLUMN IF NOT EXISTS character_uuid CHAR(36) NULL;
 

@@ -6,7 +6,7 @@
 |---------|------|
 | **`schema_frog_mariadb_v1.sql`** | Crée toutes les tables et index (idempotent : `IF NOT EXISTS`). |
 
-Tables : `accounts`, `player_world_state`, `frog_map`, `frog_character`, `frog_asset_blob`, `frog_map_editor_save`.
+Tables : `accounts`, `player_world_state` (héritage), **`character_world_state`** (position par perso), `frog_map`, `frog_character`, `frog_asset_blob`, `frog_map_editor_save`.
 
 Les colonnes temporelles utilisent **`CURRENT_TIMESTAMP(6)`** (compatible MariaDB / MySQL) ; pour des horodatages alignés sur UTC, configure le serveur SQL en **`time_zone = '+00:00'`** (ou équivalent).
 

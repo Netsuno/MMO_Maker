@@ -103,9 +103,17 @@ public sealed class GameServerService(
                 if (clientSession.AuthenticatedSession is not null)
                 {
                     var sessionId = clientSession.AuthenticatedSession.Id;
-                    var username = clientSession.AuthenticatedSession.Username;
                     var s = clientSession.AuthenticatedSession;
-                    _playerStateStore.Upsert(username, s.CurrentMapId, s.PositionX, s.PositionY, s.CharacterId);
+                    var username = s.Username;
+                    if (!string.IsNullOrWhiteSpace(s.CharacterId))
+                    {
+                        _playerStateStore.UpsertForCharacter(
+                            s.CharacterId,
+                            s.CurrentMapId,
+                            s.PositionX,
+                            s.PositionY);
+                    }
+
                     _clientRegistry.Unregister(sessionId);
                     await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, ct);
                     _connectionManager.RemoveSession(sessionId);

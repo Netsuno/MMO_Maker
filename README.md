@@ -48,7 +48,7 @@ Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal
 ### Jalons technique proposés (ordre pour travailler en autonomie)
 
 1. [x] **Multi‑maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).  
-2. **Stats persistées + multi‑slots perso** (DB + protocole login/sélection).  
+2. **Stats persistées + multi‑slots perso** (position **`character_world_state`** par perso + stats JSON **Hero** ; reste **sélection perso** protocole/UI).  
 3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter.  
 4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.  
 5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.  
@@ -145,7 +145,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 <summary><strong>Phase 4 — Serveur : monde vivant</strong></summary>
 
 - [x] **Changement de carte / multi‑maps** : warps inter-cartes, `CurrentMapId` session, `PositionUpdate` avec `MapId`, `MapRequest` + empreintes par carte ; client WinForms recharge la carte affichée après warp.
-- [ ] Persistance **au‑delà de la position** (inventaire, flags monde, quêtes — MVP puis extension).
+- [ ] Persistance **au‑delà de la position** (inventaire, flags monde, quêtes — MVP ; la position est déjà **par personnage** en MariaDB).
 - [ ] Alignement **collisions/règles** avec la carte servie ; anti‑abus minimal ; exploitation des **logs** pour hébergement.
 
 </details>
@@ -204,7 +204,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [x] Sessions + idle timeout + heartbeat
 - [x] Chat **global / map / whisper**
 - [x] Persistance position **périodique** + restauration au login (`Persistence:saveIntervalSeconds`)
-- [x] Tables MariaDB comptes + `player_world_state` (si MariaDb activé)
+- [x] Tables MariaDB comptes + **`character_world_state`** (position par `frog_character`) + héritage `player_world_state` (si MariaDb activé)
 - [ ] **UDP** : canal snapshots (positions / combat) + reprise perte
 - [ ] **Instances** (donjons / zones isolées) — hors périmètre actuel (monde partagé multi-cartes uniquement)
 - [x] Warps après `MoveRequest` : téléport **inter-cartes** si le blob cible est disponible ; **empreinte SHA** par `mapId` (`TryMatchMapFingerprint` / `MapRequest` corps 40 octets vs carte **courante** session)

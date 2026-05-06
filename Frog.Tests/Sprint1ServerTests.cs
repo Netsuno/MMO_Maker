@@ -227,16 +227,18 @@ public sealed class Sprint1ServerTests
     public void InMemoryPlayerStateStore_Roundtrip()
     {
         var store = new InMemoryPlayerStateStore();
-        store.Upsert("alice", 1, 3, 4);
-        Assert.True(store.TryGet("alice", out var st));
+        store.UpsertForCharacter("char-uuid-a", 1, 3, 4);
+        Assert.True(store.TryGetForCharacter("char-uuid-a", out var st));
         Assert.Equal(1, st.MapId);
         Assert.Equal(3, st.X);
         Assert.Equal(4, st.Y);
-        Assert.Null(st.CharacterId);
+        Assert.Equal("char-uuid-a", st.CharacterId);
 
-        store.Upsert("alice", 1, 5, 6, "char-uuid-1");
-        Assert.True(store.TryGet("alice", out st));
-        Assert.Equal("char-uuid-1", st.CharacterId);
+        store.UpsertForCharacter("char-uuid-a", 2, 5, 6);
+        Assert.True(store.TryGetForCharacter("char-uuid-a", out st));
+        Assert.Equal(2, st.MapId);
+        Assert.Equal(5, st.X);
+        Assert.Equal(6, st.Y);
     }
 
     [Fact]

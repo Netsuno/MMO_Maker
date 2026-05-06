@@ -129,7 +129,8 @@ public sealed class PacketDispatcher(
 
         clientSession.AuthenticatedSession = session;
         session.CharacterId = _characterBootstrap.EnsureDefaultHero(username);
-        if (_playerStateStore.TryGet(username, out var world))
+        if (!string.IsNullOrWhiteSpace(session.CharacterId) &&
+            _playerStateStore.TryGetForCharacter(session.CharacterId, out var world))
         {
             session.PositionX = world.X;
             session.PositionY = world.Y;
@@ -308,7 +309,14 @@ public sealed class PacketDispatcher(
 
         var sessionId = session.Id;
         var username = session.Username;
-        _playerStateStore.Upsert(username, session.CurrentMapId, session.PositionX, session.PositionY, session.CharacterId);
+        if (!string.IsNullOrWhiteSpace(session.CharacterId))
+        {
+            _playerStateStore.UpsertForCharacter(
+                session.CharacterId,
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY);
+        }
         _clientRegistry.Unregister(sessionId);
         await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, cancellationToken);
         _connectionManager.RemoveSession(sessionId);

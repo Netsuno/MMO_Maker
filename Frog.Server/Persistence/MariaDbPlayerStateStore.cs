@@ -12,22 +12,22 @@ public sealed class MariaDbPlayerStateStore : IPlayerStateStore
         _connectionString = connectionString;
     }
 
-    public bool TryGet(string username, out PlayerWorldState state)
+    public bool TryGetForCharacter(string characterId, out PlayerWorldState state)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        ArgumentException.ThrowIfNullOrWhiteSpace(characterId);
         state = default;
 
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         const string sql = """
-            SELECT map_id, pos_x, pos_y, character_uuid
-            FROM player_world_state
-            WHERE username = @username;
+            SELECT map_id, pos_x, pos_y
+            FROM character_world_state
+            WHERE character_uuid = @character_uuid;
             """;
 
         using var command = new MySqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@username", username);
+        command.Parameters.AddWithValue("@character_uuid", characterId);
 
         using var reader = command.ExecuteReader();
         if (!reader.Read())
@@ -35,40 +35,33 @@ public sealed class MariaDbPlayerStateStore : IPlayerStateStore
             return false;
         }
 
-        var charId = reader.IsDBNull(3) ? null : reader.GetString(3);
-        state = new PlayerWorldState(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), charId);
+        state = new PlayerWorldState(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), characterId);
         return true;
     }
 
-    public void Upsert(string username, int mapId, int x, int y, string? characterId = null)
+    public void UpsertForCharacter(string characterId, int mapId, int x, int y)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        ArgumentException.ThrowIfNullOrWhiteSpace(characterId);
 
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         const string sql = """
-            INSERT INTO player_world_state(username, map_id, pos_x, pos_y, updated_utc, character_uuid)
-            VALUES (@username, @map_id, @pos_x, @pos_y, @updated_utc, @character_uuid)
+            INSERT INTO character_world_state(character_uuid, map_id, pos_x, pos_y, updated_utc)
+            VALUES (@character_uuid, @map_id, @pos_x, @pos_y, @updated_utc)
             ON DUPLICATE KEY UPDATE
                 map_id = VALUES(map_id),
                 pos_x = VALUES(pos_x),
                 pos_y = VALUES(pos_y),
-                updated_utc = VALUES(updated_utc),
-                character_uuid = COALESCE(VALUES(character_uuid), character_uuid);
+                updated_utc = VALUES(updated_utc);
             """;
 
         using var command = new MySqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@username", username);
+        command.Parameters.AddWithValue("@character_uuid", characterId);
         command.Parameters.AddWithValue("@map_id", mapId);
         command.Parameters.AddWithValue("@pos_x", x);
         command.Parameters.AddWithValue("@pos_y", y);
         command.Parameters.AddWithValue("@updated_utc", DateTime.UtcNow);
-        command.Parameters.Add(
-            new MySqlParameter("@character_uuid", MySqlDbType.String, 36)
-            {
-                Value = characterId is null ? DBNull.Value : characterId
-            });
         command.ExecuteNonQuery();
     }
 }

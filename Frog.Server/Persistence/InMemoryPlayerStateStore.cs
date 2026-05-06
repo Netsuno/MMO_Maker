@@ -4,17 +4,18 @@ namespace Frog.Server.Persistence;
 
 public sealed class InMemoryPlayerStateStore : IPlayerStateStore
 {
-    private readonly ConcurrentDictionary<string, PlayerWorldState> _byUser = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, PlayerWorldState> _byCharacter =
+        new(StringComparer.OrdinalIgnoreCase);
 
-    public bool TryGet(string username, out PlayerWorldState state)
+    public bool TryGetForCharacter(string characterId, out PlayerWorldState state)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(username);
-        return _byUser.TryGetValue(username, out state);
+        ArgumentException.ThrowIfNullOrWhiteSpace(characterId);
+        return _byCharacter.TryGetValue(characterId, out state);
     }
 
-    public void Upsert(string username, int mapId, int x, int y, string? characterId = null)
+    public void UpsertForCharacter(string characterId, int mapId, int x, int y)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(username);
-        _byUser[username] = new PlayerWorldState(mapId, x, y, characterId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(characterId);
+        _byCharacter[characterId] = new PlayerWorldState(mapId, x, y, characterId);
     }
 }

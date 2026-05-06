@@ -30,7 +30,8 @@ Exécuté au démarrage si `MariaDb.enabled` est `true` (`MariaDbSchemaBootstrap
 | Table | Rôle |
 |--------|------|
 | **accounts** | Compte (login, hash, sel, `created_utc`). |
-| **player_world_state** | Position / carte ; `character_uuid` optionnel → `frog_character`. |
+| **player_world_state** | (Héritage) position par compte ; `character_uuid` optionnel. Le serveur lit/écrit désormais **`character_world_state`**. |
+| **character_world_state** | Position / carte **par personnage** (`character_uuid` PK → `frog_character`) ; base des **multi-slots**. |
 | **frog_map** | Carte : `id`, `map_key`, `revision`, `content_sha256`, `fmap_blob` (LONGBLOB). |
 | **frog_character** | Perso : `id` CHAR(36), `account_username`, `account_id` → `accounts.id` (migration v2), `display_name`, `payload` JSON. |
 | **frog_asset_blob** | Binaires dédupliqués (SHA-256). |
@@ -49,13 +50,22 @@ Idempotent, après v1 et `fk_pws_character` :
 
 Si des persos ont un `account_username` sans compte correspondant, le bootstrap lève une **exception** jusqu’à correction des données.
 
-### 2.2 Seed automatique `frog_map`
+### 2.2 Migration « v3 » (`MariaDbMigrationV3`)
+
+Idempotent, après v2 :
+
+- Crée **`character_world_state`** si absent (même DDL que dans `schema_frog_mariadb_v1.sql` pour les installs neuves).
+- **`INSERT IGNORE`…** depuis `player_world_state` : résout `character_uuid` ou le perso **Hero** du compte ; n’insère que si l’UUID existe dans **`frog_character`** (pas d’erreur FK).
+
+Le serveur utilise **`IPlayerStateStore.TryGetForCharacter` / `UpsertForCharacter`** (plus d’écriture sur `player_world_state`).
+
+### 2.3 Seed automatique `frog_map`
 
 `MariaDbWorldMapSeeder` (hosted service, démarré avant le serveur TCP) : si `MariaDb.enabled`, `Maps:databaseFallbackMapId` &gt; 0 et aucune ligne `frog_map` pour cet id, insertion de **Starter Meadow** (même carte que `Frog.Core.Maps.MapSamples`).
 
-### 2.3 Personnage par défaut
+### 2.4 Personnage par défaut
 
-À chaque login, `ICharacterBootstrap.EnsureDefaultHero(username)` crée au besoin une ligne **frog_character** (`display_name = 'Hero'`). `player_world_state.character_uuid` est rempli lors des sauvegardes (`Upsert` avec `Session.CharacterId`).
+À chaque login, `ICharacterBootstrap.EnsureDefaultHero(username)` crée au besoin une ligne **frog_character** (`display_name = 'Hero'`). La position est lue/écrite dans **`character_world_state`** pour `Session.CharacterId`.
 
 ---
 
