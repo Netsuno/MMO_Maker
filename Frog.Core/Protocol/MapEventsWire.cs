@@ -1,0 +1,25 @@
+using System.Text.Json.Serialization;
+
+namespace Frog.Core.Protocol;
+
+/// <summary>Élément JSON pour <see cref="Frog.Core.Enums.PacketId.MapEventsResult"/>.</summary>
+public sealed class MapEventWireEntry
+{
+    [JsonPropertyName("placementId")]
+    public long PlacementId { get; set; }
+
+    [JsonPropertyName("catalogId")]
+    public int CatalogId { get; set; }
+
+    [JsonPropertyName("slug")]
+    public string Slug { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    [JsonPropertyName("tileX")]
+    public int TileX { get; set; }
+
+    [JsonPropertyName("tileY")]
+    public int TileY { get; set; }
+}

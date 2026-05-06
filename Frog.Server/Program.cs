@@ -122,6 +122,17 @@ internal sealed class Program
         });
         builder.Services.AddSingleton<ICharacterPayloadWriter>(sp =>
             (ICharacterPayloadWriter)sp.GetRequiredService<ICharacterPayloadReader>());
+        builder.Services.AddSingleton<IMapEventStore>(sp =>
+        {
+            var db = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
+            db.Validate();
+            if (db.Enabled)
+            {
+                return new MariaDbMapEventStore(db.ConnectionString);
+            }
+
+            return NullMapEventStore.Instance;
+        });
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<ConnectionManager>();
         builder.Services.AddSingleton<ClientRegistry>();

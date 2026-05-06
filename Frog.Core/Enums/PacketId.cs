@@ -43,5 +43,9 @@ public enum PacketId : byte
     CharacterStatsUpdateRequest = 27,
     /// <summary>Résultat mise à jour stats (même forme que <see cref="LoginResult"/>).</summary>
     CharacterStatsUpdateResult = 28,
+    /// <summary>Demande les événements carte du <c>CurrentMapId</c> session (corps vide ; MariaDB facultatif).</summary>
+    MapEventsRequest = 29,
+    /// <summary>Réponse JSON tableau <see cref="Frog.Core.Protocol.MapEventWireEntry"/> + <c>mapId</c> dans l’en-tête corps.</summary>
+    MapEventsResult = 30,
     Error = 255
 }

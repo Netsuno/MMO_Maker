@@ -188,7 +188,7 @@ public partial class Form1 : Form
         _client.LoginResultReceived += OnLoginResult;
         _client.RegisterResultReceived += (ok, msg) => AppendLog(ok ? "Inscription OK: " + msg : "Inscription: " + msg);
         _client.MapDataReceived += OnMapData;
-        _client.MapAlreadySyncedReceived += (id, rev) => AppendLog($"Carte id={id} déjà à jour (révision serveur {rev}).");
+        _client.MapAlreadySyncedReceived += OnMapAlreadySynced;
         _client.CharacterPayloadReceived += OnCharacterPayload;
         _client.PositionUpdateReceived += OnPositionUpdate;
         _client.PlayerLeaveReceived += OnPlayerLeave;
@@ -202,6 +202,7 @@ public partial class Form1 : Form
         _client.CharacterSelectResultReceived += OnCharacterSelectResult;
         _client.CharacterCreateResultReceived += OnCharacterCreateResult;
         _client.CharacterStatsUpdateResultReceived += OnCharacterStatsUpdateResult;
+        _client.MapEventsResultReceived += OnMapEventsResult;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
         _btnCharApply.Click += async (_, _) => await ApplySelectedCharacterAsync();
@@ -417,6 +418,44 @@ public partial class Form1 : Form
         _others.Clear();
         ReloadTilesetBitmaps();
         RedrawMap();
+        _ = RequestMapEventsFromServerAsync();
+    }
+
+    private void OnMapAlreadySynced(int mapId, long revision)
+    {
+        AppendLog($"Carte id={mapId} déjà à jour (révision serveur {revision}).");
+        _ = RequestMapEventsFromServerAsync();
+    }
+
+    private async Task RequestMapEventsFromServerAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendMapEventsRequestAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("MapEventsRequest: " + ex.Message);
+        }
+    }
+
+    private void OnMapEventsResult(int mapId, string json)
+    {
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<MapEventWireEntry>>(json);
+            var n = list?.Count ?? 0;
+            AppendLog($"Événements carte id={mapId}: {n} placement(s)");
+        }
+        catch
+        {
+            AppendLog($"Événements carte id={mapId}: réponse JSON non analysée.");
+        }
     }
 
     private void OnCharacterPayload(string characterId, string payloadJson)

@@ -123,6 +123,22 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendMapEventsResultAsync(ClientSession session, int mapId, string json, CancellationToken cancellationToken)
+    {
+        var jsonUtf8 = Encoding.UTF8.GetBytes(json ?? "[]");
+        if (jsonUtf8.Length > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(json), "JSON événements carte trop grand.");
+        }
+
+        var payload = new byte[1 + sizeof(int) + sizeof(ushort) + jsonUtf8.Length];
+        payload[0] = (byte)PacketId.MapEventsResult;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), mapId);
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1 + sizeof(int)), (ushort)jsonUtf8.Length);
+        jsonUtf8.CopyTo(payload.AsSpan(1 + sizeof(int) + sizeof(ushort)));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
     public Task SendCharacterPayloadAsync(
         ClientSession session,
         string characterId,

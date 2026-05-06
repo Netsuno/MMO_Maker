@@ -33,5 +33,7 @@ public static class PacketIds
     public const byte CharacterCreateResult = 26;
     public const byte CharacterStatsUpdateRequest = 27;
     public const byte CharacterStatsUpdateResult = 28;
+    public const byte MapEventsRequest = 29;
+    public const byte MapEventsResult = 30;
     public const byte Error = 255;
 }

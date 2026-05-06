@@ -278,7 +278,7 @@ L’utilisateur peut :
 
 - Menu **Carte → Événements carte (MariaDB)…** (WPF équivalent dans `MainWindow.xaml`).
 - Lecture catalogue + placements ; **Placer sur carte** (INSERT IGNORE, clé unique tuile/type) ; **Supprimer ligne** avec confirmation (`MapEventsMariaDbReader`, `MapEventsMariaDbWriter`, `MapEventsBrowseDialog`).
-- Tuiles X/Y par défaut : dernière position survolée sur le canevas ; **`frog_map.id`** encore saisi manuellement (aligner avec l’ID utilisé lors de la publication de la carte).
+- Tuiles X/Y par défaut : dernière position survolée sur le canevas ; **`frog_map.id`** prérempli depuis `editor-workstate.json` (« dernier id publié » via **Fichier → Publier vers MariaDB**), encore modifiable manuellement.
 
 ---
 

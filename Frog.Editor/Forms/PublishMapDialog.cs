@@ -13,7 +13,7 @@ internal sealed class PublishMapDialog : Form
     public string PublishedMapKey => _txtKey.Text.Trim();
     public string PublishedDisplayName => _txtDisplay.Text.Trim();
 
-    public PublishMapDialog(string defaultDisplayName, string defaultMapKey)
+    public PublishMapDialog(string defaultDisplayName, string defaultMapKey, int initialFrogMapId = 1)
     {
         Text = "Publier la carte vers MariaDB";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -25,6 +25,7 @@ internal sealed class PublishMapDialog : Form
 
         _txtDisplay.Text = defaultDisplayName;
         _txtKey.Text = defaultMapKey;
+        _numId.Value = Math.Clamp(initialFrogMapId, 1, int.MaxValue);
 
         var lblIntro = new Label
         {

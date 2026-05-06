@@ -69,3 +69,6 @@ nouveau 6.txt
 
 # Secrets / overrides MariaDB (ne pas versionner)
 **/appsettings.Local.json
+
+# Mémo locale éditeur (dernier frog_map.id publié)
+**/editor-workstate.json

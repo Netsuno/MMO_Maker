@@ -54,6 +54,8 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? CharacterCreateResultReceived;
     /// <summary>Réponse serveur après <see cref="PacketId.CharacterStatsUpdateRequest"/> (même forme que <see cref="LoginResult"/>).</summary>
     public event Action<bool, string>? CharacterStatsUpdateResultReceived;
+    /// <summary>JSON tableau <see cref="Frog.Core.Protocol.MapEventWireEntry"/> pour une carte.</summary>
+    public event Action<int, string>? MapEventsResultReceived;
     public event Action? ConnectionClosed;
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -369,6 +371,14 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.MapEventsResult:
+                if (TryReadMapEventsResult(body.Span, out var evtMapId, out var evtJson))
+                {
+                    Post(() => MapEventsResultReceived?.Invoke(evtMapId, evtJson));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -532,6 +542,9 @@ public sealed class FrogGameClient : IDisposable
         packedSixStats.CopyTo(payload.AsSpan(1));
         return SendRawAsync(payload, cancellationToken);
     }
+
+    public Task SendMapEventsRequestAsync(CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.MapEventsRequest], cancellationToken);
 
     public async Task SendChatAsync(ChatChannel channel, string whisperTarget, string message, CancellationToken cancellationToken = default)
     {
@@ -766,6 +779,27 @@ public sealed class FrogGameClient : IDisposable
         }
 
         json = Encoding.UTF8.GetString(span.Slice(sizeof(ushort), len));
+        return true;
+    }
+
+    private static bool TryReadMapEventsResult(ReadOnlySpan<byte> span, out int mapId, out string json)
+    {
+        mapId = 0;
+        json = string.Empty;
+        var header = sizeof(int) + sizeof(ushort);
+        if (span.Length < header)
+        {
+            return false;
+        }
+
+        mapId = BinaryPrimitives.ReadInt32LittleEndian(span);
+        var len = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(sizeof(int)));
+        if (len > span.Length - header || span.Length != header + len)
+        {
+            return false;
+        }
+
+        json = Encoding.UTF8.GetString(span.Slice(header, len));
         return true;
     }
 

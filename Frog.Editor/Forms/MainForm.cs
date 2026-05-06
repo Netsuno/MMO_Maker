@@ -42,6 +42,7 @@ public sealed class MainForm : Form
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
     private Point _lastHoverTile;
+    private int _lastPublishedFrogMapId = 1;
     private readonly TableLayoutPanel _leftLayout;
     /// <summary>Horizontal : panneau haut = couches, bas = PropertyGrid.</summary>
     private readonly SplitContainer _splitLayersProps;
@@ -85,6 +86,7 @@ public sealed class MainForm : Form
     public MainForm(bool embedAsWpfChild = false)
     {
         _embedAsWpfChild = embedAsWpfChild;
+        _lastPublishedFrogMapId = EditorLocalWorkstate.ReadLastPublishedFrogMapId();
         Text = "Frog — Éditeur de cartes";
         MinimumSize = new Size(1100, 720);
         if (embedAsWpfChild)
@@ -877,7 +879,7 @@ public sealed class MainForm : Form
 
         var display = MapPublishNaming.ClampDisplayName(_canvas.Map.Name);
         var key = MapPublishNaming.SlugFromName(_canvas.Map.Name);
-        using var dlg = new PublishMapDialog(display, key);
+        using var dlg = new PublishMapDialog(display, key, _lastPublishedFrogMapId);
         if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
             return;
@@ -899,6 +901,8 @@ public sealed class MainForm : Form
                 dlg.PublishedMapKey,
                 dlg.PublishedDisplayName,
                 bytes);
+            _lastPublishedFrogMapId = dlg.PublishedMapId;
+            EditorLocalWorkstate.WriteLastPublishedFrogMapId(_lastPublishedFrogMapId);
             MessageBox.Show(
                 GetDialogOwner(),
                 $"Carte publiée : frog_map id={dlg.PublishedMapId}, clé « {dlg.PublishedMapKey} ».",
@@ -925,7 +929,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        using var dlg = new MapEventsBrowseDialog(connectionString, initialMapId: 1, defaultTileX: _lastHoverTile.X, defaultTileY: _lastHoverTile.Y);
+        using var dlg = new MapEventsBrowseDialog(connectionString, initialMapId: _lastPublishedFrogMapId, defaultTileX: _lastHoverTile.X, defaultTileY: _lastHoverTile.Y);
         dlg.ShowDialog(GetDialogOwner());
     }
 

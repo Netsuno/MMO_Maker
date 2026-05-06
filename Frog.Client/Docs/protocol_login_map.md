@@ -62,6 +62,8 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `26` -> `CharacterCreateResult`
 - `27` -> `CharacterStatsUpdateRequest`
 - `28` -> `CharacterStatsUpdateResult`
+- `29` -> `MapEventsRequest`
+- `30` -> `MapEventsResult`
 - `255` -> `Error`
 
 ## Grille monde et pixels
@@ -150,6 +152,8 @@ Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`C
 À partir de **`FrogWireProtocol.Version` ≥ 5**, le client peut **créer** un perso additionnel (`CharacterCreateRequest` / `CharacterCreateResult`) : nom affichage validé côté serveur (lettres/chiffres/espaces/tiret/souligné, longueur max 32), max **8** persos par compte, payload stats par défaut comme **Hero**.
 
 À partir de **`FrogWireProtocol.Version` ≥ 6**, le client peut mettre à jour les **six stats** du perso actif (`CharacterStatsUpdateRequest` / `CharacterStatsUpdateResult`) : le corps est **6 octets** dans l’ordre **STR, AGI, DEX, INT, VIT, LUCK**, chaque octet entre **1** et **99**. En cas de succès, le serveur persiste dans `frog_character.payload` (objet JSON `stats`) et peut renvoyer un **`CharacterPayload`** à jour.
+
+Additive **après wire v6** : **`MapEventsRequest`** (**29**) corps **vide** après l’opcode (session authentifiée). Le serveur répond **`MapEventsResult`** (**30**) avec **`CurrentMapId`**, puis longueur **UInt16 LE** puis JSON UTF‑8 : tableau d’objets `MapEventWireEntry` (`placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`). Si MariaDB est désactivée ou sans lignes, la réponse est un tableau vide. Le client peut renvoyer cette requête après **`MapData`** / **`MapAlreadySynced`** ou un changement de carte.
 
 ### RegisterResult (Serveur -> Client)
 
@@ -340,6 +344,22 @@ Même forme que **`LoginResult`** :
 - `Success` (Byte)
 - `MessageLength` (Byte)
 - `MessageUtf8`
+
+### MapEventsRequest (Client -> Serveur)
+
+Additive post **v6**. Session authentifiée.
+
+Payload :
+
+- `PacketId` (Byte) = `29`
+- **aucun octet** suivant (corps vide après l’opcode dans la frame).
+
+### MapEventsResult (Serveur -> Client)
+
+- `PacketId` (Byte) = `30`
+- `MapId` (**Int32** LE) — valeur `Session.CurrentMapId` au moment de la requête
+- `JsonUtf8Length` (**UInt16** LE)
+- `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`)
 
 ### PlayerLeave (Serveur -> Clients authentifies)
 

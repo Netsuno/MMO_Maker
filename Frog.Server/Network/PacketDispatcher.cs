@@ -29,6 +29,7 @@ public sealed class PacketDispatcher(
     ICharacterPayloadReader characterPayloadReader,
     ICharacterPayloadWriter characterPayloadWriter,
     IPlayerStateStore playerStateStore,
+    IMapEventStore mapEventStore,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -42,6 +43,7 @@ public sealed class PacketDispatcher(
     private readonly ICharacterPayloadReader _characterPayloadReader = characterPayloadReader;
     private readonly ICharacterPayloadWriter _characterPayloadWriter = characterPayloadWriter;
     private readonly IPlayerStateStore _playerStateStore = playerStateStore;
+    private readonly IMapEventStore _mapEventStore = mapEventStore;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
@@ -119,6 +121,10 @@ public sealed class PacketDispatcher(
 
             case PacketId.CharacterStatsUpdateRequest:
                 await HandleCharacterStatsUpdateRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.MapEventsRequest:
+                await HandleMapEventsRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             default:
@@ -262,6 +268,33 @@ public sealed class PacketDispatcher(
             _mapService.GetFingerprintSha256(requestedMapId),
             cancellationToken);
         ServerNetworkLogs.MapDataSent(_logger, session.Username, requestedMapId, mapData.Length);
+    }
+
+    private async Task HandleMapEventsRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!payload.IsEmpty)
+        {
+            await _packetSender.SendErrorAsync(clientSession, "MapEventsRequest: corps vide attendu.", cancellationToken);
+            return;
+        }
+
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        _connectionManager.TryTouchSession(session.Id);
+        var mapId = session.CurrentMapId;
+        if (!_mapEventStore.TryGetEventsWireJson(mapId, out var json) || string.IsNullOrWhiteSpace(json))
+        {
+            json = "[]";
+        }
+
+        await _packetSender.SendMapEventsResultAsync(clientSession, mapId, json, cancellationToken);
     }
 
     private async Task HandleMoveRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
