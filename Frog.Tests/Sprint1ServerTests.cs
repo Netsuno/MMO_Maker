@@ -257,6 +257,22 @@ public sealed class Sprint1ServerTests
     }
 
     [Fact]
+    public void InMemoryCharacterBootstrap_TryCreateCharacter_adds_slot()
+    {
+        var b = new InMemoryCharacterBootstrap();
+        _ = b.EnsureDefaultHero("multi");
+        Assert.True(b.TryCreateCharacter("multi", "Rogue", out var rid, out var err));
+        Assert.NotEmpty(rid);
+        Assert.Empty(err);
+        var list = b.ListCharacters("multi");
+        Assert.Equal(2, list.Count);
+        Assert.Contains(list, x => x.DisplayName == "Hero");
+        Assert.Contains(list, x => x.Id == rid && x.DisplayName == "Rogue");
+        Assert.False(b.TryCreateCharacter("multi", "Rogue", out _, out var dup));
+        Assert.Contains("deja", dup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void PacketDispatcher_TryParseCharacterSelectRequest_Roundtrip()
     {
         var id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
