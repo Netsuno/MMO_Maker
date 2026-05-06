@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Text.Json;
@@ -25,6 +26,8 @@ public partial class Form1 : Form
     private static readonly TimeSpan AutoMapRequestDebounce = TimeSpan.FromMilliseconds(300);
     private readonly Dictionary<int, Bitmap> _tilesetBitmaps = new();
     private DateTime _lastMoveUtc = DateTime.MinValue;
+    private DateTime _lastInteractUtc = DateTime.MinValue;
+    private readonly List<MapEventWireEntry> _mapEvents = new();
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
     private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Value = 6000, Width = 70 };
     private readonly TextBox _txtUser = new() { Text = "demo", Width = 100 };
@@ -203,6 +206,7 @@ public partial class Form1 : Form
         _client.CharacterCreateResultReceived += OnCharacterCreateResult;
         _client.CharacterStatsUpdateResultReceived += OnCharacterStatsUpdateResult;
         _client.MapEventsResultReceived += OnMapEventsResult;
+        _client.InteractResultReceived += OnInteractResult;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
         _btnCharApply.Click += async (_, _) => await ApplySelectedCharacterAsync();
@@ -262,6 +266,7 @@ public partial class Form1 : Form
         _others.Clear();
         ClearMapImage();
         DisposeTilesetBitmaps();
+        _mapEvents.Clear();
     }
 
     private void OnConnectionClosed()
@@ -384,6 +389,7 @@ public partial class Form1 : Form
         _others.Clear();
         ClearMapImage();
         DisposeTilesetBitmaps();
+        _mapEvents.Clear();
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
         _btnLogout.Enabled = false;
@@ -413,6 +419,7 @@ public partial class Form1 : Form
     private void OnMapData(int mapId, Map map)
     {
         AppendLog($"Map reçue id={mapId} {map.Name} {map.Width}x{map.Height}");
+        _mapEvents.Clear();
         _sessionDisplayedMapId = mapId;
         _map = map;
         _others.Clear();
@@ -446,15 +453,49 @@ public partial class Form1 : Form
 
     private void OnMapEventsResult(int mapId, string json)
     {
+        if (mapId != _sessionDisplayedMapId)
+        {
+            return;
+        }
+
         try
         {
             var list = JsonSerializer.Deserialize<List<MapEventWireEntry>>(json);
             var n = list?.Count ?? 0;
             AppendLog($"Événements carte id={mapId}: {n} placement(s)");
+            _mapEvents.Clear();
+            if (list is { Count: > 0 })
+            {
+                _mapEvents.AddRange(list);
+            }
+
+            RedrawMap();
         }
         catch
         {
             AppendLog($"Événements carte id={mapId}: réponse JSON non analysée.");
+        }
+    }
+
+    private void OnInteractResult(bool ok, string message)
+    {
+        AppendLog(ok ? "Interaction: " + message : "Interaction refusée: " + message);
+    }
+
+    private async Task SendInteractAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendInteractRequestAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Interaction: " + ex.Message);
         }
     }
 
@@ -808,6 +849,20 @@ public partial class Form1 : Form
             return;
         }
 
+        if (e.KeyCode == Keys.E)
+        {
+            e.Handled = true;
+            var nowE = DateTime.UtcNow;
+            if ((nowE - _lastInteractUtc).TotalMilliseconds < 400)
+            {
+                return;
+            }
+
+            _lastInteractUtc = nowE;
+            _ = SendInteractAsync();
+            return;
+        }
+
         sbyte dx = 0, dy = 0;
         switch (e.KeyCode)
         {
@@ -843,7 +898,7 @@ public partial class Form1 : Form
             return;
         }
 
-        var bmp = MapViewRenderer.Render(_map, _others, _username, _tileX, _tileY, _tilesetBitmaps);
+        var bmp = MapViewRenderer.Render(_map, _others, _username, _tileX, _tileY, _tilesetBitmaps, _mapEvents);
         ClearMapImage();
         _picMap.Image = bmp;
     }

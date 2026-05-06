@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 
 namespace Frog.Client.UI;
 
@@ -16,6 +17,7 @@ internal static class MapViewRenderer
     private static readonly Color OtherPlayer = Color.FromArgb(80, 140, 220);
     private static readonly Color SelfPlayer = Color.FromArgb(240, 200, 60);
 
+    /// <param name="mapEvents">Tuiles avec événements serveur (léger surlignage).</param>
     /// <param name="tilesetBitmaps">Id tileset → image ; peut être vide (rendu couleur de secours).</param>
     public static Bitmap Render(
         Map map,
@@ -23,7 +25,8 @@ internal static class MapViewRenderer
         string? localUsername,
         int localTileX,
         int localTileY,
-        IReadOnlyDictionary<int, Bitmap>? tilesetBitmaps)
+        IReadOnlyDictionary<int, Bitmap>? tilesetBitmaps,
+        IReadOnlyList<MapEventWireEntry>? mapEvents = null)
     {
         var tw = WorldMetrics.DefaultTileSizePixels;
         var w = map.Width * tw;
@@ -99,6 +102,22 @@ internal static class MapViewRenderer
             }
         }
 
+        if (mapEvents is { Count: > 0 })
+        {
+            foreach (var ev in mapEvents)
+            {
+                if (ev.TileX < 0 || ev.TileY < 0 || ev.TileX >= map.Width || ev.TileY >= map.Height)
+                {
+                    continue;
+                }
+
+                var accent = string.Equals(ev.Slug, MapEventSlugs.DemoInteract, StringComparison.Ordinal)
+                    ? Color.FromArgb(230, 255, 210, 72)
+                    : Color.FromArgb(200, 96, 212, 255);
+                DrawEventTileOutline(g, ev.TileX, ev.TileY, tw, accent);
+            }
+        }
+
         foreach (var kv in playersByName)
         {
             if (localUsername is not null && string.Equals(kv.Key, localUsername, StringComparison.OrdinalIgnoreCase))
@@ -165,6 +184,13 @@ internal static class MapViewRenderer
         }
 
         return null;
+    }
+
+    private static void DrawEventTileOutline(Graphics g, int tileX, int tileY, int tw, Color stroke)
+    {
+        var rect = new Rectangle(tileX * tw + 2, tileY * tw + 2, tw - 4, tw - 4);
+        using var pen = new Pen(stroke, 3f);
+        g.DrawRectangle(pen, rect);
     }
 
     private static void DrawPlayerDot(Graphics g, int tileX, int tileY, int tw, Color fill)

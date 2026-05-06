@@ -56,6 +56,7 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? CharacterStatsUpdateResultReceived;
     /// <summary>JSON tableau <see cref="Frog.Core.Protocol.MapEventWireEntry"/> pour une carte.</summary>
     public event Action<int, string>? MapEventsResultReceived;
+    public event Action<bool, string>? InteractResultReceived;
     public event Action? ConnectionClosed;
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -379,6 +380,14 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.InteractResult:
+                if (TryReadStatusMessage(body.Span, out var intOk, out var intMsg))
+                {
+                    Post(() => InteractResultReceived?.Invoke(intOk, intMsg));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -545,6 +554,9 @@ public sealed class FrogGameClient : IDisposable
 
     public Task SendMapEventsRequestAsync(CancellationToken cancellationToken = default)
         => SendRawAsync([(byte)PacketId.MapEventsRequest], cancellationToken);
+
+    public Task SendInteractRequestAsync(CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.InteractRequest], cancellationToken);
 
     public async Task SendChatAsync(ChatChannel channel, string whisperTarget, string message, CancellationToken cancellationToken = default)
     {

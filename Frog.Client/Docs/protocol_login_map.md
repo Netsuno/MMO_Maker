@@ -64,6 +64,8 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `28` -> `CharacterStatsUpdateResult`
 - `29` -> `MapEventsRequest`
 - `30` -> `MapEventsResult`
+- `31` -> `InteractRequest`
+- `32` -> `InteractResult`
 - `255` -> `Error`
 
 ## Grille monde et pixels
@@ -154,6 +156,8 @@ Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`C
 À partir de **`FrogWireProtocol.Version` ≥ 6**, le client peut mettre à jour les **six stats** du perso actif (`CharacterStatsUpdateRequest` / `CharacterStatsUpdateResult`) : le corps est **6 octets** dans l’ordre **STR, AGI, DEX, INT, VIT, LUCK**, chaque octet entre **1** et **99**. En cas de succès, le serveur persiste dans `frog_character.payload` (objet JSON `stats`) et peut renvoyer un **`CharacterPayload`** à jour.
 
 Additive **après wire v6** : **`MapEventsRequest`** (**29**) corps **vide** après l’opcode (session authentifiée). Le serveur répond **`MapEventsResult`** (**30**) avec **`CurrentMapId`**, puis longueur **UInt16 LE** puis JSON UTF‑8 : tableau d’objets `MapEventWireEntry` (`placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`). Si MariaDB est désactivée ou sans lignes, la réponse est un tableau vide. Le client peut renvoyer cette requête après **`MapData`** / **`MapAlreadySynced`** ou un changement de carte.
+
+**`InteractRequest`** (**31**), corps vide : interaction sur la **tuile courante** du joueur (`PositionX` / `PositionY` grille). Réponse **`InteractResult`** (**32**), même forme que **`LoginResult`**. MVP : si un placement `frog_map_event` sur cette tuile a le slug catalogue **`demo_interact`**, succès avec message ; autres slugs → échec explicite. Côté serveur MariaDB, les placements sont mis en cache par carte et invalidés quand `COUNT(*)` ou `MAX(id)` sur `frog_map_event` pour cette carte diffère (éditeur ou script SQL peut ainsi pousser des changements visibles sans redémarrage).
 
 ### RegisterResult (Serveur -> Client)
 
@@ -360,6 +364,24 @@ Payload :
 - `MapId` (**Int32** LE) — valeur `Session.CurrentMapId` au moment de la requête
 - `JsonUtf8Length` (**UInt16** LE)
 - `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`)
+
+### InteractRequest (Client -> Serveur)
+
+Session authentifiée.
+
+Payload :
+
+- `PacketId` (Byte) = `31`
+- **aucun octet** suivant.
+
+### InteractResult (Serveur -> Client)
+
+Même forme que **`LoginResult`** :
+
+- `PacketId` (Byte) = `32`
+- `Success` (Byte)
+- `MessageLength` (Byte)
+- `MessageUtf8`
 
 ### PlayerLeave (Serveur -> Clients authentifies)
 

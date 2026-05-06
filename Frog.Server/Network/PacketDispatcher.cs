@@ -127,6 +127,10 @@ public sealed class PacketDispatcher(
                 await HandleMapEventsRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
+            case PacketId.InteractRequest:
+                await HandleInteractRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
             default:
                 ServerNetworkLogs.UnknownPacket(_logger, (byte)packetId);
                 await _packetSender.SendErrorAsync(clientSession, $"Packet non supporte: {(byte)packetId}", cancellationToken);
@@ -295,6 +299,56 @@ public sealed class PacketDispatcher(
         }
 
         await _packetSender.SendMapEventsResultAsync(clientSession, mapId, json, cancellationToken);
+    }
+
+    private async Task HandleInteractRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!payload.IsEmpty)
+        {
+            await _packetSender.SendErrorAsync(clientSession, "InteractRequest: corps vide attendu.", cancellationToken);
+            return;
+        }
+
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        _connectionManager.TryTouchSession(session.Id);
+
+        if (!_mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        {
+            placements = Array.Empty<MapEventWireEntry>();
+        }
+
+        var here = placements.Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY).ToList();
+        if (here.Count == 0)
+        {
+            await _packetSender.SendInteractResultAsync(clientSession, false, "Rien a interagir ici.", cancellationToken);
+            return;
+        }
+
+        var demo = here.FirstOrDefault(p => string.Equals(p.Slug, MapEventSlugs.DemoInteract, StringComparison.Ordinal));
+        if (demo is not null)
+        {
+            await _packetSender.SendInteractResultAsync(
+                clientSession,
+                true,
+                $"{demo.DisplayName} : interaction reussie.",
+                cancellationToken);
+            return;
+        }
+
+        var first = here[0];
+        await _packetSender.SendInteractResultAsync(
+            clientSession,
+            false,
+            $"Rien d'implemente pour « {first.Slug} » ({first.DisplayName}).",
+            cancellationToken);
     }
 
     private async Task HandleMoveRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
