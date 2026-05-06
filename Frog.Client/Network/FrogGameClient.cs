@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
 using Frog.Core.Constants;
@@ -18,8 +19,10 @@ public sealed class FrogGameClient : IDisposable
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveTask;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
-    private long _worldMapFingerprintRevision;
-    private byte[]? _worldMapFingerprintSha256;
+    private readonly object _mapFingerprintLock = new();
+    private readonly Dictionary<int, (long Revision, byte[] Sha32)> _mapFingerprints = new();
+    /// <summary>Carte dont on enverra l’empreinte avec le prochain <see cref="PacketId.MapRequest"/> (défaut 1).</summary>
+    private int _mapRequestHintMapId = 1;
     private volatile bool _intentionalDisconnect;
     private readonly MapSerializer _mapSerializer = new();
 
@@ -112,20 +115,36 @@ public sealed class FrogGameClient : IDisposable
 
     private void ClearWorldMapFingerprint()
     {
-        _worldMapFingerprintRevision = 0;
-        _worldMapFingerprintSha256 = null;
+        lock (_mapFingerprintLock)
+        {
+            _mapFingerprints.Clear();
+            _mapRequestHintMapId = 1;
+        }
     }
 
-    private void CaptureWorldMapFingerprint(long revision, ReadOnlySpan<byte> sha256)
+    private void CaptureMapFingerprint(int mapId, long revision, ReadOnlySpan<byte> sha256)
     {
         if (sha256.Length != 32)
         {
             return;
         }
 
-        _worldMapFingerprintRevision = revision;
-        _worldMapFingerprintSha256 = new byte[32];
-        sha256.CopyTo(_worldMapFingerprintSha256);
+        var copy = new byte[32];
+        sha256.CopyTo(copy);
+        lock (_mapFingerprintLock)
+        {
+            _mapFingerprints[mapId] = (revision, copy);
+            _mapRequestHintMapId = mapId;
+        }
+    }
+
+    /// <summary>Indique quelle entrée d’empreinte utiliser pour le prochain <c>MapRequest</c> (ex. après warp avant réception du blob).</summary>
+    public void SetMapRequestHintMapId(int mapId)
+    {
+        lock (_mapFingerprintLock)
+        {
+            _mapRequestHintMapId = mapId;
+        }
     }
 
     private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
@@ -231,7 +250,7 @@ public sealed class FrogGameClient : IDisposable
                     try
                     {
                         var map = _mapSerializer.Deserialize(mapBytes);
-                        CaptureWorldMapFingerprint(mapRev, mapSha);
+                        CaptureMapFingerprint(mapId, mapRev, mapSha);
                         Post(() => MapDataReceived?.Invoke(mapId, map));
                     }
                     catch (Exception ex)
@@ -249,7 +268,7 @@ public sealed class FrogGameClient : IDisposable
                 }
                 else
                 {
-                    CaptureWorldMapFingerprint(unchangedRev, unchangedSha);
+                    CaptureMapFingerprint(unchangedId, unchangedRev, unchangedSha);
                     Post(() => MapAlreadySyncedReceived?.Invoke(unchangedId, unchangedRev));
                 }
 
@@ -365,16 +384,40 @@ public sealed class FrogGameClient : IDisposable
     }
 
     public Task SendMapRequestAsync(CancellationToken cancellationToken = default)
+        => SendMapRequestAsync(null, cancellationToken);
+
+    /// <param name="hintMapId">Si non null, cherche l’empreinte pour cette carte ; sinon utilise la dernière carte connue pour les hints.</param>
+    public Task SendMapRequestAsync(int? hintMapId, CancellationToken cancellationToken = default)
     {
-        if (_worldMapFingerprintSha256 is null || _worldMapFingerprintSha256.Length != 32)
+        int mapIdForHint;
+        long revision;
+        byte[]? sha;
+        lock (_mapFingerprintLock)
+        {
+            if (hintMapId is { } hid)
+            {
+                _mapRequestHintMapId = hid;
+            }
+
+            mapIdForHint = hintMapId ?? _mapRequestHintMapId;
+            if (!_mapFingerprints.TryGetValue(mapIdForHint, out var entry))
+            {
+                return SendRawAsync([(byte)PacketId.MapRequest], cancellationToken);
+            }
+
+            revision = entry.Revision;
+            sha = entry.Sha32;
+        }
+
+        if (sha is null || sha.Length != 32)
         {
             return SendRawAsync([(byte)PacketId.MapRequest], cancellationToken);
         }
 
         var payload = new byte[1 + sizeof(long) + 32];
         payload[0] = (byte)PacketId.MapRequest;
-        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(1), _worldMapFingerprintRevision);
-        _worldMapFingerprintSha256.CopyTo(payload.AsSpan(1 + sizeof(long)));
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(1), revision);
+        sha.CopyTo(payload.AsSpan(1 + sizeof(long)));
         return SendRawAsync(payload, cancellationToken);
     }
 

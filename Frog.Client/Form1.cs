@@ -18,6 +18,8 @@ public partial class Form1 : Form
     private int _tileY;
     private readonly ConcurrentDictionary<string, (int X, int Y)> _others = new(StringComparer.OrdinalIgnoreCase);
     private int _sessionDisplayedMapId;
+    private DateTime _lastAutoMapRequestUtc = DateTime.MinValue;
+    private static readonly TimeSpan AutoMapRequestDebounce = TimeSpan.FromMilliseconds(300);
     private readonly Dictionary<int, Bitmap> _tilesetBitmaps = new();
     private DateTime _lastMoveUtc = DateTime.MinValue;
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
@@ -356,15 +358,20 @@ public partial class Form1 : Form
 
     private void OnPositionUpdate(string user, int mapId, int x, int y)
     {
-        if (_sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
+        var isLocal = _username is not null && string.Equals(user, _username, StringComparison.OrdinalIgnoreCase);
+        if (!isLocal && _sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
         {
             return;
         }
 
-        if (_username is not null && string.Equals(user, _username, StringComparison.OrdinalIgnoreCase))
+        if (isLocal)
         {
             _tileX = x;
             _tileY = y;
+            if (_sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
+            {
+                TryScheduleMapRequestAfterWarp(mapId);
+            }
         }
         else
         {
@@ -372,6 +379,45 @@ public partial class Form1 : Form
         }
 
         RedrawMap();
+    }
+
+    private void TryScheduleMapRequestAfterWarp(int serverMapId)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        if (_sessionDisplayedMapId == 0 || serverMapId == _sessionDisplayedMapId)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (now - _lastAutoMapRequestUtc < AutoMapRequestDebounce)
+        {
+            return;
+        }
+
+        _lastAutoMapRequestUtc = now;
+        _ = MapRequestForMapAsync(serverMapId);
+    }
+
+    private async Task MapRequestForMapAsync(int mapId)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendMapRequestAsync(mapId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("MapRequest (changement de carte): " + ex.Message);
+        }
     }
 
     private void OnPlayerLeave(string user)

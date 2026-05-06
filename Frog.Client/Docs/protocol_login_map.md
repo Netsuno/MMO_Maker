@@ -160,6 +160,8 @@ Une longueur de payload autre que `0` ou `40` est **erreur**.
 
 Note : une session **authentifiée** reste obligatoire.
 
+Après un **warp** (changement de carte côté serveur), le joueur local reçoit un `PositionUpdate` dont le `MapId` reflète la carte courante de la session. Le client graphique doit continuer à appliquer `x,y` pour soi même si l’UI affiche encore l’ancienne carte, puis déclencher un `MapRequest` (corps vide si aucune empreinte n’est encore connue pour cette carte) pour recevoir `MapData` / `MapAlreadySynced` et rafraîchir l’affichage — en pratique avec un léger debounce pour éviter les rafales réseau.
+
 ### MapData (Serveur -> Client)
 
 Payload :
