@@ -84,3 +84,26 @@ CREATE TABLE IF NOT EXISTS frog_map_editor_save(
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX IF NOT EXISTS idx_frog_map_editor_save_map ON frog_map_editor_save(map_id, saved_at DESC);
+
+-- Catalogue d’événements réutilisables + placement sur carte (Phase 3 MVP).
+CREATE TABLE IF NOT EXISTS frog_event_catalog(
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    slug VARCHAR(64) NOT NULL,
+    display_name VARCHAR(255) NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    UNIQUE KEY uq_frog_event_catalog_slug(slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS frog_map_event(
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    map_id INT NOT NULL,
+    event_catalog_id INT NOT NULL,
+    tile_x INT NOT NULL,
+    tile_y INT NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT fk_fme_map FOREIGN KEY (map_id) REFERENCES frog_map(id) ON DELETE CASCADE,
+    CONSTRAINT fk_fme_cat FOREIGN KEY (event_catalog_id) REFERENCES frog_event_catalog(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_frog_map_event_cell(map_id, tile_x, tile_y, event_catalog_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX IF NOT EXISTS idx_frog_map_event_map ON frog_map_event(map_id);

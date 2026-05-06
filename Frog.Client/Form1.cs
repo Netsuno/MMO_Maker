@@ -5,6 +5,7 @@ using System.Text.Json;
 using Frog.Client.Assets;
 using Frog.Client.Network;
 using Frog.Client.UI;
+using Frog.Core.Character;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -48,6 +49,8 @@ public partial class Form1 : Form
     private readonly TextBox _txtWhisperTo = new() { PlaceholderText = "Cible whisper", Width = 120 };
     private readonly TextBox _txtMeleeTarget = new() { PlaceholderText = "Cible mêlée", Width = 100 };
     private readonly Button _btnMelee = new() { Text = "Mêlée", Enabled = false };
+    private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
+    private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _heartbeatTimer = new() { Interval = 45_000 };
 
     public Form1()
@@ -117,6 +120,23 @@ public partial class Form1 : Form
             _btnMelee
         });
 
+        var statLabels = new[] { "STR", "AGI", "DEX", "INT", "VIT", "LUCK" };
+        for (var i = 0; i < _numStats.Length; i++)
+        {
+            _numStats[i] = new NumericUpDown
+            {
+                Minimum = CharacterStatsWire.MinStat,
+                Maximum = CharacterStatsWire.MaxStat,
+                Value = 10,
+                Width = 44,
+                Enabled = false,
+            };
+            top.Controls.Add(new Label { Text = statLabels[i], AutoSize = true, Margin = new Padding(8, 8, 0, 0) });
+            top.Controls.Add(_numStats[i]);
+        }
+
+        top.Controls.Add(_btnStatsApply);
+
         _mapScroll.Controls.Add(_picMap);
         var rightChat = new TableLayoutPanel
         {
@@ -181,10 +201,12 @@ public partial class Form1 : Form
         _client.CharacterListReceived += OnCharacterListJson;
         _client.CharacterSelectResultReceived += OnCharacterSelectResult;
         _client.CharacterCreateResultReceived += OnCharacterCreateResult;
+        _client.CharacterStatsUpdateResultReceived += OnCharacterStatsUpdateResult;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
         _btnCharApply.Click += async (_, _) => await ApplySelectedCharacterAsync();
         _btnCharCreate.Click += async (_, _) => await CreateCharacterAsync();
+        _btnStatsApply.Click += async (_, _) => await ApplyCharacterStatsAsync();
     }
 
     private async Task ConnectAsync()
@@ -287,6 +309,7 @@ public partial class Form1 : Form
         _btnCharApply.Enabled = true;
         _txtNewCharName.Enabled = true;
         _btnCharCreate.Enabled = true;
+        SetStatsControlsEnabled(true);
         _heartbeatTimer.Start();
         _ = RefreshCharacterListAsync();
         _ = MapRequestAsync();
@@ -374,6 +397,16 @@ public partial class Form1 : Form
         _btnCharApply.Enabled = false;
         _txtNewCharName.Enabled = false;
         _btnCharCreate.Enabled = false;
+        SetStatsControlsEnabled(false);
+    }
+
+    private void SetStatsControlsEnabled(bool enabled)
+    {
+        _btnStatsApply.Enabled = enabled;
+        foreach (var n in _numStats)
+        {
+            n.Enabled = enabled;
+        }
     }
 
     private void OnMapData(int mapId, Map map)
@@ -397,11 +430,58 @@ public partial class Form1 : Form
             if (doc.RootElement.TryGetProperty("stats", out var stats) && stats.ValueKind == JsonValueKind.Object)
             {
                 AppendLog("Stats: " + stats.ToString());
+                ApplyStatsUiFromJson(stats);
             }
         }
         catch
         {
             // JSON optionnel / évolutif
+        }
+    }
+
+    private void ApplyStatsUiFromJson(JsonElement stats)
+    {
+        var keys = new[] { "STR", "AGI", "DEX", "INT", "VIT", "LUCK" };
+        for (var i = 0; i < keys.Length && i < _numStats.Length; i++)
+        {
+            if (!stats.TryGetProperty(keys[i], out var el))
+            {
+                continue;
+            }
+
+            if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var v))
+            {
+                v = Math.Clamp(v, (int)CharacterStatsWire.MinStat, (int)CharacterStatsWire.MaxStat);
+                _numStats[i].Value = v;
+            }
+        }
+    }
+
+    private void OnCharacterStatsUpdateResult(bool ok, string message)
+    {
+        AppendLog(ok ? "Stats: " + message : "Stats refusées: " + message);
+    }
+
+    private async Task ApplyCharacterStatsAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        var buf = new byte[CharacterStatsWire.PackedByteCount];
+        for (var i = 0; i < buf.Length; i++)
+        {
+            buf[i] = (byte)_numStats[i].Value;
+        }
+
+        try
+        {
+            await _client.SendCharacterStatsUpdateAsync(buf).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("CharacterStatsUpdate: " + ex.Message);
         }
     }
 

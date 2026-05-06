@@ -65,6 +65,7 @@
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
+                <MenuItem Header="Événements carte (MariaDB)…" Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
             </MenuItem>
             <MenuItem Header="_Affichage" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Zoom avant"

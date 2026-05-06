@@ -162,6 +162,7 @@ public sealed class MainForm : Form
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
+            mMap.DropDownItems.Add("Événements carte (MariaDB)…", null, (_, _) => BrowseMapEventsFromMariaDb());
 
             var mView = new ToolStripMenuItem("Affichage");
             mView.DropDownItems.Add("Zoom avant", null, (_, _) => _canvas!.ZoomInTowardCenter());
@@ -914,6 +915,18 @@ public sealed class MainForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
+    }
+
+    internal void BrowseMapEventsFromMariaDb()
+    {
+        if (!EditorMariaDbConfig.TryGetEnabledConnection(out var connectionString, out var hint))
+        {
+            MessageBox.Show(GetDialogOwner(), hint, "Événements carte", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        using var dlg = new MapEventsBrowseDialog(connectionString);
+        dlg.ShowDialog(GetDialogOwner());
     }
 
     private static void SaveTilesetManifestNextToMap(string mapFilePath)

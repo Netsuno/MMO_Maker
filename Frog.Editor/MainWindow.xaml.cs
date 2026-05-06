@@ -54,6 +54,11 @@ public partial class MainWindow : Window
         nameof(CmdValidateMap),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdBrowseMapEvents = new(
+        "Événements carte (MariaDB)…",
+        nameof(CmdBrowseMapEvents),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdResetView = new(
         "Réinitialiser la vue (zoom 100 %)",
         nameof(CmdResetView),
@@ -99,6 +104,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdRedo, (_, _) => _editor.DoRedo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanRedo));
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
+        CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEventsFromMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdResetView, (_, _) => _editor.ResetMapView()));
         CommandBindings.Add(new CommandBinding(CmdZoomIn, (_, _) => _editor.EditorZoomIn()));
         CommandBindings.Add(new CommandBinding(CmdZoomOut, (_, _) => _editor.EditorZoomOut()));

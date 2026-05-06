@@ -7,5 +7,5 @@ namespace Frog.Core.Constants;
 public static class FrogWireProtocol
 {
     /// <summary>Valeur émise par le serveur dans <c>Hello</c> après le message UTF‑8 (<see cref="Protocol.WireHello"/>).</summary>
-    public const ushort Version = 5;
+    public const ushort Version = 6;
 }

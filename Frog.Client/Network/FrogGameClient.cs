@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
+using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.IO;
@@ -51,6 +52,8 @@ public sealed class FrogGameClient : IDisposable
     public event Action<string>? CharacterListReceived;
     public event Action<bool, string>? CharacterSelectResultReceived;
     public event Action<bool, string>? CharacterCreateResultReceived;
+    /// <summary>Réponse serveur après <see cref="PacketId.CharacterStatsUpdateRequest"/> (même forme que <see cref="LoginResult"/>).</summary>
+    public event Action<bool, string>? CharacterStatsUpdateResultReceived;
     public event Action? ConnectionClosed;
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -358,6 +361,14 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.CharacterStatsUpdateResult:
+                if (TryReadStatusMessage(body.Span, out var statsOk, out var statsMsg))
+                {
+                    Post(() => CharacterStatsUpdateResultReceived?.Invoke(statsOk, statsMsg));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -500,6 +511,25 @@ public sealed class FrogGameClient : IDisposable
         payload[0] = (byte)PacketId.CharacterCreateRequest;
         payload[1] = (byte)nameBytes.Length;
         nameBytes.CopyTo(payload.AsSpan(2));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    /// <summary>6 octets STR…LUCK dans <see cref="CharacterStatsWire.MinStat"/>..<see cref="CharacterStatsWire.MaxStat"/>.</summary>
+    public Task SendCharacterStatsUpdateAsync(ReadOnlySpan<byte> packedSixStats, CancellationToken cancellationToken = default)
+    {
+        if (packedSixStats.Length != CharacterStatsWire.PackedByteCount)
+        {
+            throw new ArgumentException($"Attendu {CharacterStatsWire.PackedByteCount} octets stats.", nameof(packedSixStats));
+        }
+
+        if (!CharacterStatsWire.TryValidatePacked(packedSixStats, out var err))
+        {
+            throw new ArgumentException(err);
+        }
+
+        var payload = new byte[1 + CharacterStatsWire.PackedByteCount];
+        payload[0] = (byte)PacketId.CharacterStatsUpdateRequest;
+        packedSixStats.CopyTo(payload.AsSpan(1));
         return SendRawAsync(payload, cancellationToken);
     }
 

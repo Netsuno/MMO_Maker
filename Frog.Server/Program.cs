@@ -120,6 +120,8 @@ internal sealed class Program
 
             return new InMemoryCharacterPayloadReader();
         });
+        builder.Services.AddSingleton<ICharacterPayloadWriter>(sp =>
+            (ICharacterPayloadWriter)sp.GetRequiredService<ICharacterPayloadReader>());
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<ConnectionManager>();
         builder.Services.AddSingleton<ClientRegistry>();

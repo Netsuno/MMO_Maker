@@ -60,6 +60,8 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `24` -> `CharacterSelectResult`
 - `25` -> `CharacterCreateRequest`
 - `26` -> `CharacterCreateResult`
+- `27` -> `CharacterStatsUpdateRequest`
+- `28` -> `CharacterStatsUpdateResult`
 - `255` -> `Error`
 
 ## Grille monde et pixels
@@ -146,6 +148,8 @@ Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`C
 À partir de **`FrogWireProtocol.Version` ≥ 4**, le client peut demander la **liste des personnages** du compte (`CharacterListRequest` / `CharacterListResult`) puis activer un autre slot (`CharacterSelectRequest` / `CharacterSelectResult`) ; le serveur renvoie alors un **`CharacterPayload`** pour le nouvel UUID et diffuse des **`PositionUpdate`** à tous les clients connectés.
 
 À partir de **`FrogWireProtocol.Version` ≥ 5**, le client peut **créer** un perso additionnel (`CharacterCreateRequest` / `CharacterCreateResult`) : nom affichage validé côté serveur (lettres/chiffres/espaces/tiret/souligné, longueur max 32), max **8** persos par compte, payload stats par défaut comme **Hero**.
+
+À partir de **`FrogWireProtocol.Version` ≥ 6**, le client peut mettre à jour les **six stats** du perso actif (`CharacterStatsUpdateRequest` / `CharacterStatsUpdateResult`) : le corps est **6 octets** dans l’ordre **STR, AGI, DEX, INT, VIT, LUCK**, chaque octet entre **1** et **99**. En cas de succès, le serveur persiste dans `frog_character.payload` (objet JSON `stats`) et peut renvoyer un **`CharacterPayload`** à jour.
 
 ### RegisterResult (Serveur -> Client)
 
@@ -318,6 +322,24 @@ Même forme que **`LoginResult`** :
 - `Success` (Byte)
 - `MessageLength` (Byte)
 - `MessageUtf8` — en cas de succès : **UUID** texte du nouveau `frog_character.id` (≤ 36 caractères ASCII)
+
+### CharacterStatsUpdateRequest (Client -> Serveur)
+
+`FrogWireProtocol.Version` **≥ 6**. Session authentifiée, personnage actif.
+
+Payload :
+
+- `PacketId` (Byte) = `27`
+- **6 octets** : STR, AGI, DEX, INT, VIT, LUCK — chaque octet dans **1**…**99**
+
+### CharacterStatsUpdateResult (Serveur -> Client)
+
+Même forme que **`LoginResult`** :
+
+- `PacketId` (Byte) = `28`
+- `Success` (Byte)
+- `MessageLength` (Byte)
+- `MessageUtf8`
 
 ### PlayerLeave (Serveur -> Clients authentifies)
 

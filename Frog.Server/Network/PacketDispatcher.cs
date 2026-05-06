@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Frog.Core;
+using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Models;
@@ -25,6 +27,7 @@ public sealed class PacketDispatcher(
     PlayerLifecycleNotifier playerLifecycleNotifier,
     ICharacterBootstrap characterBootstrap,
     ICharacterPayloadReader characterPayloadReader,
+    ICharacterPayloadWriter characterPayloadWriter,
     IPlayerStateStore playerStateStore,
     ILogger<PacketDispatcher> logger)
 {
@@ -37,6 +40,7 @@ public sealed class PacketDispatcher(
     private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
     private readonly ICharacterBootstrap _characterBootstrap = characterBootstrap;
     private readonly ICharacterPayloadReader _characterPayloadReader = characterPayloadReader;
+    private readonly ICharacterPayloadWriter _characterPayloadWriter = characterPayloadWriter;
     private readonly IPlayerStateStore _playerStateStore = playerStateStore;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
@@ -111,6 +115,10 @@ public sealed class PacketDispatcher(
 
             case PacketId.CharacterCreateRequest:
                 await HandleCharacterCreateRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.CharacterStatsUpdateRequest:
+                await HandleCharacterStatsUpdateRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             default:
@@ -806,6 +814,91 @@ public sealed class PacketDispatcher(
         }
 
         await _packetSender.SendCharacterCreateResultAsync(clientSession, true, newId, cancellationToken);
+    }
+
+    private async Task HandleCharacterStatsUpdateRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(session.CharacterId))
+        {
+            await _packetSender.SendCharacterStatsUpdateResultAsync(
+                clientSession,
+                false,
+                "Aucun personnage actif.",
+                cancellationToken);
+            return;
+        }
+
+        if (!TryParseCharacterStatsUpdateRequest(payload.Span, out var packed))
+        {
+            await _packetSender.SendCharacterStatsUpdateResultAsync(
+                clientSession,
+                false,
+                "CharacterStatsUpdateRequest: 6 octets STR..LUCK (1-99) attendus.",
+                cancellationToken);
+            return;
+        }
+
+        if (!_characterBootstrap.IsCharacterOwned(session.Username, session.CharacterId))
+        {
+            await _packetSender.SendCharacterStatsUpdateResultAsync(
+                clientSession,
+                false,
+                "Personnage non autorise.",
+                cancellationToken);
+            return;
+        }
+
+        if (!_characterPayloadReader.TryGetPayloadJson(session.CharacterId!, out var currentJson))
+        {
+            currentJson = CharacterPayloadDefaults.NewHeroJson;
+        }
+
+        if (!CharacterStatsWire.TryMergeIntoPayload(currentJson, packed, out var newJson, out var mergeErr))
+        {
+            await _packetSender.SendCharacterStatsUpdateResultAsync(clientSession, false, mergeErr, cancellationToken);
+            return;
+        }
+
+        if (!_characterPayloadWriter.TryUpdatePayloadJson(session.CharacterId!, newJson))
+        {
+            await _packetSender.SendCharacterStatsUpdateResultAsync(
+                clientSession,
+                false,
+                "Sauvegarde stats refusee.",
+                cancellationToken);
+            return;
+        }
+
+        _connectionManager.TryTouchSession(session.Id);
+        await _packetSender.SendCharacterStatsUpdateResultAsync(clientSession, true, "Stats mises a jour.", cancellationToken);
+        await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
+    }
+
+    /// <summary>Corps : exactement 6 octets STR, AGI, DEX, INT, VIT, LUCK (valeurs 1–99).</summary>
+    public static bool TryParseCharacterStatsUpdateRequest(ReadOnlySpan<byte> payload, out ReadOnlySpan<byte> packedStats)
+    {
+        packedStats = ReadOnlySpan<byte>.Empty;
+        if (payload.Length != CharacterStatsWire.PackedByteCount)
+        {
+            return false;
+        }
+
+        if (!CharacterStatsWire.TryValidatePacked(payload, out _))
+        {
+            return false;
+        }
+
+        packedStats = payload;
+        return true;
     }
 
     /// <summary>Corps : longueur nom UTF‑8 (1 octet) + nom (≤ <see cref="CharacterDisplayNameRules.MaxWireUtf8Bytes"/>).</summary>

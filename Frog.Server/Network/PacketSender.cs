@@ -23,6 +23,9 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
     public Task SendCharacterCreateResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.CharacterCreateResult, success, message, cancellationToken);
 
+    public Task SendCharacterStatsUpdateResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.CharacterStatsUpdateResult, success, message, cancellationToken);
+
     public Task SendRegisterResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.RegisterResult, success, message, cancellationToken);
 
