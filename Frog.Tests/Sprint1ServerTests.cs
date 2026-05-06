@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Maps;
@@ -239,6 +240,38 @@ public sealed class Sprint1ServerTests
         Assert.Equal(2, st.MapId);
         Assert.Equal(5, st.X);
         Assert.Equal(6, st.Y);
+    }
+
+    [Fact]
+    public void InMemoryCharacterBootstrap_ListAndOwnsHero()
+    {
+        var b = new InMemoryCharacterBootstrap();
+        var id = b.EnsureDefaultHero("zoe");
+        var list = b.ListCharacters("zoe");
+        Assert.Single(list);
+        Assert.Equal(id, list[0].Id);
+        Assert.Equal("Hero", list[0].DisplayName);
+        Assert.True(b.IsCharacterOwned("zoe", id));
+        Assert.False(b.IsCharacterOwned("zoe", "not-a-real-uuid"));
+        Assert.False(b.IsCharacterOwned("other", id));
+    }
+
+    [Fact]
+    public void PacketDispatcher_TryParseCharacterSelectRequest_Roundtrip()
+    {
+        var id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        var idBytes = Encoding.UTF8.GetBytes(id);
+        var payload = new byte[1 + idBytes.Length];
+        payload[0] = (byte)idBytes.Length;
+        idBytes.CopyTo(payload.AsSpan(1));
+        Assert.True(PacketDispatcher.TryParseCharacterSelectRequest(payload, out var parsed));
+        Assert.Equal(id, parsed);
+        Assert.False(PacketDispatcher.TryParseCharacterSelectRequest(ReadOnlySpan<byte>.Empty, out _));
+        payload[0] = (byte)(idBytes.Length + 1);
+        Assert.False(PacketDispatcher.TryParseCharacterSelectRequest(payload, out _));
+        var tooLong = new byte[2 + ChatProtocolLimits.MaxUsernameUtf8Bytes];
+        tooLong[0] = (byte)(ChatProtocolLimits.MaxUsernameUtf8Bytes + 1);
+        Assert.False(PacketDispatcher.TryParseCharacterSelectRequest(tooLong, out _));
     }
 
     [Fact]

@@ -1,8 +1,12 @@
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Text.Json;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Models;
+using Frog.Core.Protocol;
 using Frog.Server.Database;
 using Frog.Server.Logging;
 using Frog.Server.Persistence;
@@ -97,6 +101,14 @@ public sealed class PacketDispatcher(
                 await HandleMeleeAttackRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
+            case PacketId.CharacterListRequest:
+                await HandleCharacterListRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.CharacterSelectRequest:
+                await HandleCharacterSelectRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
             default:
                 ServerNetworkLogs.UnknownPacket(_logger, (byte)packetId);
                 await _packetSender.SendErrorAsync(clientSession, $"Packet non supporte: {(byte)packetId}", cancellationToken);
@@ -157,18 +169,7 @@ public sealed class PacketDispatcher(
         await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
         ServerNetworkLogs.LoginSucceeded(_logger, username);
 
-        if (!string.IsNullOrWhiteSpace(session.CharacterId) &&
-            _characterPayloadReader.TryGetPayloadJson(session.CharacterId!, out var payloadJson))
-        {
-            try
-            {
-                await _packetSender.SendCharacterPayloadAsync(clientSession, session.CharacterId!, payloadJson, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Impossible d'envoyer CharacterPayload pour {CharacterId}", session.CharacterId);
-            }
-        }
+        await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
 
         await SyncPositionsOnJoinAsync(clientSession, session, cancellationToken);
     }
@@ -612,6 +613,164 @@ public sealed class PacketDispatcher(
 
         session = clientSession.AuthenticatedSession;
         return true;
+    }
+
+    private async Task TrySendCharacterPayloadAsync(
+        ClientSession clientSession,
+        Frog.Server.Models.Session session,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(session.CharacterId))
+        {
+            return;
+        }
+
+        if (!_characterPayloadReader.TryGetPayloadJson(session.CharacterId!, out var payloadJson))
+        {
+            return;
+        }
+
+        try
+        {
+            await _packetSender.SendCharacterPayloadAsync(clientSession, session.CharacterId!, payloadJson, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Impossible d'envoyer CharacterPayload pour {CharacterId}", session.CharacterId);
+        }
+    }
+
+    private async Task HandleCharacterListRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (!payload.IsEmpty)
+        {
+            await _packetSender.SendErrorAsync(clientSession, "CharacterListRequest: corps vide attendu.", cancellationToken);
+            return;
+        }
+
+        _connectionManager.TryTouchSession(session.Id);
+        var list = _characterBootstrap.ListCharacters(session.Username);
+        var wire = list.Select(static c => new CharacterListWireEntry { Id = c.Id, Name = c.DisplayName }).ToArray();
+        var json = JsonSerializer.Serialize(wire);
+        await _packetSender.SendCharacterListResultAsync(clientSession, json, cancellationToken);
+    }
+
+    private async Task HandleCharacterSelectRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (!TryParseCharacterSelectRequest(payload.Span, out var newCharacterId))
+        {
+            await _packetSender.SendCharacterSelectResultAsync(
+                clientSession,
+                false,
+                "CharacterSelectRequest: UUID perso invalide.",
+                cancellationToken);
+            return;
+        }
+
+        if (!_characterBootstrap.IsCharacterOwned(session.Username, newCharacterId))
+        {
+            await _packetSender.SendCharacterSelectResultAsync(
+                clientSession,
+                false,
+                "Personnage inconnu pour ce compte.",
+                cancellationToken);
+            return;
+        }
+
+        if (string.Equals(session.CharacterId, newCharacterId, StringComparison.OrdinalIgnoreCase))
+        {
+            await _packetSender.SendCharacterSelectResultAsync(
+                clientSession,
+                true,
+                "Personnage deja actif.",
+                cancellationToken);
+            await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.CharacterId))
+        {
+            _playerStateStore.UpsertForCharacter(
+                session.CharacterId,
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY);
+        }
+
+        session.CharacterId = newCharacterId;
+        if (_playerStateStore.TryGetForCharacter(newCharacterId, out var world))
+        {
+            session.PositionX = world.X;
+            session.PositionY = world.Y;
+            session.CurrentMapId = world.MapId;
+        }
+        else
+        {
+            session.PositionX = 0;
+            session.PositionY = 0;
+            session.CurrentMapId = MapService.DefaultWorldMapId;
+        }
+
+        if (!_mapService.TryEnsureMapLoaded(session.CurrentMapId))
+        {
+            session.CurrentMapId = MapService.DefaultWorldMapId;
+            session.PositionX = 0;
+            session.PositionY = 0;
+            _mapService.TryEnsureMapLoaded(session.CurrentMapId);
+        }
+
+        SessionPixelSync.SyncFromTileGrid(session);
+        _connectionManager.TryTouchSession(session.Id);
+        await _packetSender.SendCharacterSelectResultAsync(clientSession, true, "Personnage actif.", cancellationToken);
+        await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
+
+        foreach (var targetClient in _clientRegistry.GetAllAuthenticatedClients())
+        {
+            await _packetSender.SendPositionUpdateAsync(
+                targetClient,
+                session.Username,
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY,
+                cancellationToken);
+        }
+    }
+
+    /// <summary>Corps : longueur UUID UTF‑8 (1 octet) + identifiant (≤ <see cref="ChatProtocolLimits.MaxUsernameUtf8Bytes"/>).</summary>
+    public static bool TryParseCharacterSelectRequest(ReadOnlySpan<byte> payload, out string characterId)
+    {
+        characterId = string.Empty;
+        if (payload.Length < 2)
+        {
+            return false;
+        }
+
+        var len = payload[0];
+        if (len is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes || payload.Length != 1 + len)
+        {
+            return false;
+        }
+
+        characterId = Encoding.UTF8.GetString(payload.Slice(1, len));
+        return !string.IsNullOrWhiteSpace(characterId);
     }
 
     private async Task SyncPositionsOnJoinAsync(ClientSession joiningClient, Frog.Server.Models.Session joiningSession, CancellationToken cancellationToken)

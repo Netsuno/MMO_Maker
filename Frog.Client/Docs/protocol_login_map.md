@@ -54,6 +54,10 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `18` -> `MeleeAttackResult`
 - `19` -> `MapAlreadySynced`
 - `20` -> `CharacterPayload`
+- `21` -> `CharacterListRequest`
+- `22` -> `CharacterListResult`
+- `23` -> `CharacterSelectRequest`
+- `24` -> `CharacterSelectResult`
 - `255` -> `Error`
 
 ## Grille monde et pixels
@@ -135,7 +139,9 @@ Payload:
 - `MessageLength` (Byte)
 - `MessageUtf8` (`MessageLength` octets)
 
-Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`CharacterPayload`** (`FrogWireProtocol.Version` **≥ 3**) avec le JSON DB du perso courant.
+Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`CharacterPayload`** (`FrogWireProtocol.Version` **≥ 3**) avec le JSON DB du perso courant (perso actif après bootstrap, ex. **Hero**).
+
+À partir de **`FrogWireProtocol.Version` ≥ 4**, le client peut demander la **liste des personnages** du compte (`CharacterListRequest` / `CharacterListResult`) puis activer un autre slot (`CharacterSelectRequest` / `CharacterSelectResult`) ; le serveur renvoie alors un **`CharacterPayload`** pour le nouvel UUID et diffuse des **`PositionUpdate`** à tous les clients connectés.
 
 ### RegisterResult (Serveur -> Client)
 
@@ -253,7 +259,42 @@ Payload (protocole **≥ 3**) :
 - `JsonLength` (`UInt16` LE)
 - `JsonUtf8` (`JsonLength` octets) — contenu typique : `frog_character.payload` (ex. stats JSON)
 
-Envoyé après login réussi lorsque le lecteur perso connaît l’UUID (`Session.CharacterId`).
+Envoyé après login réussi lorsque le lecteur perso connaît l’UUID (`Session.CharacterId`), et à nouveau après un **`CharacterSelectRequest`** réussi.
+
+### CharacterListRequest (Client -> Serveur)
+
+`FrogWireProtocol.Version` **≥ 4**. Session authentifiée.
+
+Payload : uniquement `PacketId` (Byte) = `21` (corps vide après l’opcode dans la frame).
+
+### CharacterListResult (Serveur -> Client)
+
+Payload :
+
+- `PacketId` (Byte) = `22`
+- `JsonLength` (`UInt16` LE)
+- `JsonUtf8` (`JsonLength` octets) — tableau JSON d’objets `{ "id": "<uuid frog_character>", "name": "<display_name>" }` (voir `Frog.Core.Protocol.CharacterListWireEntry`).
+
+### CharacterSelectRequest (Client -> Serveur)
+
+`FrogWireProtocol.Version` **≥ 4**. Session authentifiée.
+
+Payload :
+
+- `PacketId` (Byte) = `23`
+- `CharacterIdUtf8Length` (Byte, > 0, max **64** comme borne pratique login / `ChatProtocolLimits.MaxUsernameUtf8Bytes`)
+- `CharacterIdUtf8` (longueur ci‑dessus) — UUID texte `frog_character.id`
+
+Le serveur sauvegarde la position du perso **précédent**, charge carte / tuiles pour le perso choisi (`character_world_state` ou défaut monde), puis répond **`CharacterSelectResult`** et **`CharacterPayload`**.
+
+### CharacterSelectResult (Serveur -> Client)
+
+Même forme que **`LoginResult`** :
+
+- `PacketId` (Byte) = `24`
+- `Success` (Byte)
+- `MessageLength` (Byte)
+- `MessageUtf8`
 
 ### PlayerLeave (Serveur -> Clients authentifies)
 

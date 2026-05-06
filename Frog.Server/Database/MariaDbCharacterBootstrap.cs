@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Frog.Core;
+using Frog.Core.Models;
 using MySqlConnector;
 
 namespace Frog.Server.Database;
@@ -56,5 +58,54 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
         }
 
         return id;
+    }
+
+    public IReadOnlyList<CharacterSlotInfo> ListCharacters(string username)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+
+        using var connection = new MySqlConnection(_connectionString);
+        connection.Open();
+
+        const string sql = """
+            SELECT id, display_name
+            FROM frog_character
+            WHERE account_username = @username
+            ORDER BY created_at ASC, id ASC;
+            """;
+
+        using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@username", username);
+        using var reader = cmd.ExecuteReader();
+        var list = new List<CharacterSlotInfo>();
+        while (reader.Read())
+        {
+            list.Add(new CharacterSlotInfo(reader.GetString(0), reader.GetString(1)));
+        }
+
+        return list;
+    }
+
+    public bool IsCharacterOwned(string username, string characterId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        if (string.IsNullOrWhiteSpace(characterId))
+        {
+            return false;
+        }
+
+        using var connection = new MySqlConnection(_connectionString);
+        connection.Open();
+
+        const string sql = """
+            SELECT 1 FROM frog_character
+            WHERE account_username = @username AND id = @id
+            LIMIT 1;
+            """;
+
+        using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@username", username);
+        cmd.Parameters.AddWithValue("@id", characterId);
+        return cmd.ExecuteScalar() is not null;
     }
 }

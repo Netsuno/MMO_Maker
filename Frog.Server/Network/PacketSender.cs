@@ -17,6 +17,9 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
     public Task SendLoginResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.LoginResult, success, message, cancellationToken);
 
+    public Task SendCharacterSelectResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.CharacterSelectResult, success, message, cancellationToken);
+
     public Task SendRegisterResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.RegisterResult, success, message, cancellationToken);
 
@@ -96,6 +99,21 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         o += sizeof(int);
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), positionX);
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o + sizeof(int)), positionY);
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendCharacterListResultAsync(ClientSession session, string json, CancellationToken cancellationToken)
+    {
+        var jsonUtf8 = Encoding.UTF8.GetBytes(json ?? "[]");
+        if (jsonUtf8.Length > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(json), "JSON liste persos trop grand.");
+        }
+
+        var payload = new byte[1 + sizeof(ushort) + jsonUtf8.Length];
+        payload[0] = (byte)PacketId.CharacterListResult;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1), (ushort)jsonUtf8.Length);
+        jsonUtf8.CopyTo(payload.AsSpan(1 + sizeof(ushort)));
         return session.SendFrameAsync(payload, cancellationToken);
     }
 

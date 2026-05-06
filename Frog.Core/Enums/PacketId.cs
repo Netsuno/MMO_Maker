@@ -27,5 +27,13 @@ public enum PacketId : byte
     MapAlreadySynced = 19,
     /// <summary>Données perso JSON (<c>frog_character.payload</c>) après connexion réussie.</summary>
     CharacterPayload = 20,
+    /// <summary>Demande la liste des personnages du compte (session authentifiée).</summary>
+    CharacterListRequest = 21,
+    /// <summary>Réponse JSON : tableau d’objets { id, name } (<see cref="Frog.Core.Protocol.CharacterListWireEntry"/>).</summary>
+    CharacterListResult = 22,
+    /// <summary>Choisir le personnage actif (UUID <c>frog_character.id</c>).</summary>
+    CharacterSelectRequest = 23,
+    /// <summary>Résultat sélection perso (même forme courte que <see cref="LoginResult"/>).</summary>
+    CharacterSelectResult = 24,
     Error = 255
 }

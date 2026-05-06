@@ -25,5 +25,9 @@ public static class PacketIds
     public const byte MeleeAttackResult = 18;
     public const byte MapAlreadySynced = 19;
     public const byte CharacterPayload = 20;
+    public const byte CharacterListRequest = 21;
+    public const byte CharacterListResult = 22;
+    public const byte CharacterSelectRequest = 23;
+    public const byte CharacterSelectResult = 24;
     public const byte Error = 255;
 }

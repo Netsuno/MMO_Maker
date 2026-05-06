@@ -47,6 +47,9 @@ public sealed class FrogGameClient : IDisposable
     public event Action? LogoutAckReceived;
     public event Action<ChatChannel, string, string, string>? ChatMessageReceived;
     public event Action<bool, string, string>? MeleeAttackResultReceived;
+    /// <summary>JSON : tableau d’objets { id, name } (protocole wire ≥ 4).</summary>
+    public event Action<string>? CharacterListReceived;
+    public event Action<bool, string>? CharacterSelectResultReceived;
     public event Action? ConnectionClosed;
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -330,6 +333,22 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.CharacterListResult:
+                if (TryReadCharacterListResult(body.Span, out var listJson))
+                {
+                    Post(() => CharacterListReceived?.Invoke(listJson));
+                }
+
+                break;
+
+            case PacketId.CharacterSelectResult:
+                if (TryReadStatusMessage(body.Span, out var selOk, out var selMsg))
+                {
+                    Post(() => CharacterSelectResultReceived?.Invoke(selOk, selMsg));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -432,6 +451,25 @@ public sealed class FrogGameClient : IDisposable
 
     public Task SendLogoutAsync(CancellationToken cancellationToken = default)
         => SendRawAsync(new[] { (byte)PacketId.LogoutRequest }, cancellationToken);
+
+    public Task SendCharacterListRequestAsync(CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.CharacterListRequest], cancellationToken);
+
+    public Task SendCharacterSelectAsync(string characterId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(characterId);
+        var id = Encoding.UTF8.GetBytes(characterId);
+        if (id.Length > ChatProtocolLimits.MaxUsernameUtf8Bytes)
+        {
+            throw new ArgumentException("Identifiant perso trop long.");
+        }
+
+        var payload = new byte[1 + 1 + id.Length];
+        payload[0] = (byte)PacketId.CharacterSelectRequest;
+        payload[1] = (byte)id.Length;
+        id.CopyTo(payload.AsSpan(2));
+        return SendRawAsync(payload, cancellationToken);
+    }
 
     public async Task SendChatAsync(ChatChannel channel, string whisperTarget, string message, CancellationToken cancellationToken = default)
     {
@@ -648,6 +686,24 @@ public sealed class FrogGameClient : IDisposable
         }
 
         jsonPayload = Encoding.UTF8.GetString(span.Slice(jsonOffset, jl));
+        return true;
+    }
+
+    private static bool TryReadCharacterListResult(ReadOnlySpan<byte> span, out string json)
+    {
+        json = string.Empty;
+        if (span.Length < sizeof(ushort))
+        {
+            return false;
+        }
+
+        var len = BinaryPrimitives.ReadUInt16LittleEndian(span);
+        if (len > span.Length - sizeof(ushort) || span.Length != sizeof(ushort) + len)
+        {
+            return false;
+        }
+
+        json = Encoding.UTF8.GetString(span.Slice(sizeof(ushort), len));
         return true;
     }
 

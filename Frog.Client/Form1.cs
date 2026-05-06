@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Drawing;
 using System.IO;
+using System.Text.Json;
 using Frog.Client.Assets;
 using Frog.Client.Network;
 using Frog.Client.UI;
 using Frog.Core.Enums;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 
 namespace Frog.Client;
 
@@ -32,6 +34,9 @@ public partial class Form1 : Form
     private readonly Button _btnRegister = new() { Text = "Inscription", Enabled = false };
     private readonly Button _btnMap = new() { Text = "Demander map", Enabled = false };
     private readonly Button _btnLogout = new() { Text = "Logout", Enabled = false };
+    private readonly ComboBox _cmbCharacters = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Enabled = false };
+    private readonly Button _btnCharRefresh = new() { Text = "Liste persos", Width = 95, Enabled = false };
+    private readonly Button _btnCharApply = new() { Text = "Activer", Width = 72, Enabled = false };
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
     private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly PictureBox _picMap = new() { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.AutoSize };
@@ -100,6 +105,10 @@ public partial class Form1 : Form
             _btnRegister,
             _btnMap,
             _btnLogout,
+            new Label { Text = "Perso", AutoSize = true, Margin = new Padding(0, 8, 0, 0) },
+            _cmbCharacters,
+            _btnCharRefresh,
+            _btnCharApply,
             _txtMeleeTarget,
             _btnMelee
         });
@@ -165,7 +174,11 @@ public partial class Form1 : Form
         _client.ChatMessageReceived += OnChatMessage;
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
             AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "rate")} — {msg}");
+        _client.CharacterListReceived += OnCharacterListJson;
+        _client.CharacterSelectResultReceived += OnCharacterSelectResult;
         _client.ConnectionClosed += OnConnectionClosed;
+        _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
+        _btnCharApply.Click += async (_, _) => await ApplySelectedCharacterAsync();
     }
 
     private async Task ConnectAsync()
@@ -213,6 +226,7 @@ public partial class Form1 : Form
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
         _btnLogout.Enabled = false;
+        ResetCharacterPickUi();
         _map = null;
         _username = null;
         _sessionDisplayedMapId = 0;
@@ -262,7 +276,11 @@ public partial class Form1 : Form
         _btnMap.Enabled = true;
         _btnMelee.Enabled = true;
         _btnLogout.Enabled = true;
+        _cmbCharacters.Enabled = true;
+        _btnCharRefresh.Enabled = true;
+        _btnCharApply.Enabled = true;
         _heartbeatTimer.Start();
+        _ = RefreshCharacterListAsync();
         _ = MapRequestAsync();
     }
 
@@ -337,6 +355,15 @@ public partial class Form1 : Form
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
         _btnLogout.Enabled = false;
+        ResetCharacterPickUi();
+    }
+
+    private void ResetCharacterPickUi()
+    {
+        _cmbCharacters.Items.Clear();
+        _cmbCharacters.Enabled = false;
+        _btnCharRefresh.Enabled = false;
+        _btnCharApply.Enabled = false;
     }
 
     private void OnMapData(int mapId, Map map)
@@ -354,6 +381,91 @@ public partial class Form1 : Form
         var cid = characterId.Length <= 12 ? characterId : characterId[..12] + "…";
         var j = payloadJson.Length <= 200 ? payloadJson : payloadJson[..200] + "…";
         AppendLog($"Perso {cid} : {j}");
+    }
+
+    private async Task RefreshCharacterListAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendCharacterListRequestAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("CharacterListRequest: " + ex.Message);
+        }
+    }
+
+    private void OnCharacterListJson(string json)
+    {
+        _cmbCharacters.Items.Clear();
+        try
+        {
+            var entries = JsonSerializer.Deserialize<List<CharacterListWireEntry>>(json);
+            if (entries is null || entries.Count == 0)
+            {
+                AppendLog("Liste persos vide.");
+                return;
+            }
+
+            foreach (var e in entries)
+            {
+                if (string.IsNullOrWhiteSpace(e.Id))
+                {
+                    continue;
+                }
+
+                var name = string.IsNullOrEmpty(e.Name) ? e.Id : e.Name;
+                _cmbCharacters.Items.Add(new CharacterPickRow(e.Id, name));
+            }
+
+            if (_cmbCharacters.Items.Count > 0)
+            {
+                _cmbCharacters.SelectedIndex = 0;
+            }
+
+            AppendLog($"{_cmbCharacters.Items.Count} perso(s) listé(s).");
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Liste persos JSON: " + ex.Message);
+        }
+    }
+
+    private void OnCharacterSelectResult(bool ok, string message)
+    {
+        AppendLog(ok ? "Perso: " + message : "Perso refusé: " + message);
+        if (ok)
+        {
+            _ = MapRequestAsync();
+        }
+    }
+
+    private async Task ApplySelectedCharacterAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        if (_cmbCharacters.SelectedItem is not CharacterPickRow row)
+        {
+            AppendLog("Choisir un personnage dans la liste.");
+            return;
+        }
+
+        try
+        {
+            await _client.SendCharacterSelectAsync(row.Id).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("CharacterSelect: " + ex.Message);
+        }
     }
 
     private void OnPositionUpdate(string user, int mapId, int x, int y)
@@ -605,5 +717,14 @@ public partial class Form1 : Form
 
         var t = DateTime.Now.ToString("HH:mm:ss");
         _txtLog.AppendText($"[{t}] {line}{Environment.NewLine}");
+    }
+
+    private sealed class CharacterPickRow(string id, string displayName)
+    {
+        public string Id { get; } = id;
+
+        public string DisplayName { get; } = displayName;
+
+        public override string ToString() => $"{DisplayName} — {Id}";
     }
 }

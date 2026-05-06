@@ -48,7 +48,7 @@ Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal
 ### Jalons technique proposés (ordre pour travailler en autonomie)
 
 1. [x] **Multi‑maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).  
-2. **Stats persistées + multi‑slots perso** (position **`character_world_state`** par perso + stats JSON **Hero** ; reste **sélection perso** protocole/UI).  
+2. **Stats persistées + multi‑slots perso** (position **`character_world_state`**, stats JSON **Hero**, **`CharacterListRequest` / `CharacterSelectRequest`** + UI client liste / activer).  
 3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter.  
 4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.  
 5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.  
@@ -217,6 +217,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [x] Rendu map : **tilesets PNG** (dossiers `Maps/` + `Tilesets/`, manifeste `.tilesets.json`) + secours couleurs ; **tuiles 32 px** (`WorldMetrics`)
 - [x] Bouton **Logout** (`LogoutRequest` / `LogoutAck`, fermeture TCP côté serveur)
 - [x] **Warp inter-cartes** : `PositionUpdate` local toujours appliqué ; `MapRequest` auto debouncé + empreintes par `mapId` dans `FrogGameClient`
+- [x] **Multi-slots (MVP)** : `FrogWireProtocol` v4, liste persos + changement de perso actif (`Form1` + `FrogGameClient`)
 - [ ] Polish HUD
 - [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
 
