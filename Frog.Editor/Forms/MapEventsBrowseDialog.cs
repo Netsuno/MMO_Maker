@@ -2,12 +2,16 @@ using Frog.Editor.Services;
 
 namespace Frog.Editor.Forms;
 
-/// <summary>Consultation lecture seule du catalogue d’événements et des placements sur une <c>frog_map</c>.</summary>
+/// <summary>Consultation et écriture MVP des événements <c>frog_map_event</c> / catalogue.</summary>
 internal sealed class MapEventsBrowseDialog : Form
 {
     private readonly string _connectionString;
     private readonly NumericUpDown _numMapId = new() { Minimum = 1, Maximum = int.MaxValue, Value = 1, Width = 100 };
+    private readonly NumericUpDown _numTileX = new() { Minimum = int.MinValue, Maximum = int.MaxValue, Width = 90 };
+    private readonly NumericUpDown _numTileY = new() { Minimum = int.MinValue, Maximum = int.MaxValue, Width = 90 };
     private readonly Button _btnReload = new() { Text = "Charger", AutoSize = true };
+    private readonly Button _btnPlace = new() { Text = "Placer sur carte", AutoSize = true };
+    private readonly Button _btnDeleteSelected = new() { Text = "Supprimer ligne", AutoSize = true };
     private readonly ListView _lvCatalog = new()
     {
         View = View.Details,
@@ -22,7 +26,7 @@ internal sealed class MapEventsBrowseDialog : Form
         Dock = DockStyle.Fill,
     };
 
-    public MapEventsBrowseDialog(string connectionString, int initialMapId = 1)
+    public MapEventsBrowseDialog(string connectionString, int initialMapId = 1, int defaultTileX = 0, int defaultTileY = 0)
     {
         _connectionString = connectionString;
         Text = "Événements carte (MariaDB)";
@@ -30,8 +34,10 @@ internal sealed class MapEventsBrowseDialog : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(880, 520);
+        ClientSize = new Size(880, 560);
         _numMapId.Value = Math.Clamp(initialMapId, 1, int.MaxValue);
+        _numTileX.Value = defaultTileX;
+        _numTileY.Value = defaultTileY;
 
         _lvCatalog.Columns.Add("id", 50);
         _lvCatalog.Columns.Add("slug", 160);
@@ -66,16 +72,30 @@ internal sealed class MapEventsBrowseDialog : Form
         var catPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
         catPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         catPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        catPanel.Controls.Add(new Label { Text = "frog_event_catalog", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
+        catPanel.Controls.Add(new Label { Text = "frog_event_catalog (sélection = type à placer)", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
         catPanel.Controls.Add(_lvCatalog, 0, 1);
         split.Panel1.Controls.Add(catPanel);
 
-        var placePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
-        placePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        placePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        placePanel.Controls.Add(new Label { Text = "frog_map_event (filtre map_id)", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
-        placePanel.Controls.Add(_lvPlacements, 0, 1);
-        split.Panel2.Controls.Add(placePanel);
+        var placeOuter = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+        placeOuter.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        placeOuter.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        placeOuter.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var placeToolbar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            WrapContents = false,
+            Padding = new Padding(0, 4, 0, 0),
+        };
+        placeToolbar.Controls.Add(new Label { Text = "Tuile X", AutoSize = true, Margin = new Padding(0, 8, 0, 0) });
+        placeToolbar.Controls.Add(_numTileX);
+        placeToolbar.Controls.Add(new Label { Text = "Y", AutoSize = true, Margin = new Padding(8, 8, 0, 0) });
+        placeToolbar.Controls.Add(_numTileY);
+        placeToolbar.Controls.Add(_btnPlace);
+        placeToolbar.Controls.Add(_btnDeleteSelected);
+        placeOuter.Controls.Add(placeToolbar, 0, 0);
+        placeOuter.Controls.Add(new Label { Text = "frog_map_event (filtre frog_map.id)", Dock = DockStyle.Fill, AutoSize = true }, 0, 1);
+        placeOuter.Controls.Add(_lvPlacements, 0, 2);
+        split.Panel2.Controls.Add(placeOuter);
 
         var bottom = new FlowLayoutPanel
         {
@@ -93,7 +113,72 @@ internal sealed class MapEventsBrowseDialog : Form
         CancelButton = btnClose;
 
         _btnReload.Click += (_, _) => ReloadSafe();
+        _btnPlace.Click += (_, _) => PlaceSafe();
+        _btnDeleteSelected.Click += (_, _) => DeleteSelectedSafe();
         Shown += (_, _) => ReloadSafe();
+    }
+
+    private void PlaceSafe()
+    {
+        try
+        {
+            if (!TryGetSingleSelectedFirstColumnInt(_lvCatalog, out var catalogId))
+            {
+                MessageBox.Show(this, "Sélectionnez une ligne dans le catalogue (slug/type).", "Placer événement", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var mapId = (int)_numMapId.Value;
+            var tx = (int)_numTileX.Value;
+            var ty = (int)_numTileY.Value;
+            if (!MapEventsMariaDbWriter.TryInsertPlacement(_connectionString, mapId, catalogId, tx, ty, out var err))
+            {
+                MessageBox.Show(this, string.IsNullOrEmpty(err) ? "Placement déjà présent pour cette carte, tuile et type (INSERT IGNORE)." : err, "Placer événement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            Reload();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void DeleteSelectedSafe()
+    {
+        try
+        {
+            if (!TryGetSingleSelectedFirstColumnLong(_lvPlacements, out var rowId))
+            {
+                MessageBox.Show(this, "Sélectionnez une ligne de placement.", "Supprimer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var mapId = (int)_numMapId.Value;
+            var ok = MessageBox.Show(
+                this,
+                $"Supprimer l’événement placement id={rowId} sur frog_map.id={mapId} ?",
+                "Confirmer",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            if (ok != DialogResult.Yes)
+            {
+                return;
+            }
+
+            if (!MapEventsMariaDbWriter.TryDeletePlacement(_connectionString, rowId, mapId, out var err))
+            {
+                MessageBox.Show(this, err, "Supprimer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            Reload();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void ReloadSafe()
@@ -142,5 +227,29 @@ internal sealed class MapEventsBrowseDialog : Form
             _lvCatalog.EndUpdate();
             _lvPlacements.EndUpdate();
         }
+    }
+
+    private static bool TryGetSingleSelectedFirstColumnInt(ListView lv, out int value)
+    {
+        value = 0;
+        if (lv.SelectedItems.Count != 1)
+        {
+            return false;
+        }
+
+        var t = lv.SelectedItems[0].Text;
+        return int.TryParse(t, out value) && value > 0;
+    }
+
+    private static bool TryGetSingleSelectedFirstColumnLong(ListView lv, out long value)
+    {
+        value = 0;
+        if (lv.SelectedItems.Count != 1)
+        {
+            return false;
+        }
+
+        var t = lv.SelectedItems[0].Text;
+        return long.TryParse(t, out value) && value > 0;
     }
 }

@@ -274,6 +274,12 @@ L’utilisateur peut :
 - Flux : validation de la carte → dialogue (`frog_map.id`, `map_key` unique, `display_name`) → sérialisation `.fmap` → upsert SQL aligné sur `Frog.Server.Database.MariaDbMapBlobStore.UpsertMap` (`Frog.Editor/Services/MariaMapBlobPublisher.cs`).
 - Modèle local : `Frog.Editor/appsettings.Local.json.example` (copié en sortie de build ; le vrai `appsettings.Local.json` reste ignoré par Git comme pour le serveur).
 
+### Événements carte (`frog_event_catalog`, `frog_map_event`)
+
+- Menu **Carte → Événements carte (MariaDB)…** (WPF équivalent dans `MainWindow.xaml`).
+- Lecture catalogue + placements ; **Placer sur carte** (INSERT IGNORE, clé unique tuile/type) ; **Supprimer ligne** avec confirmation (`MapEventsMariaDbReader`, `MapEventsMariaDbWriter`, `MapEventsBrowseDialog`).
+- Tuiles X/Y par défaut : dernière position survolée sur le canevas ; **`frog_map.id`** encore saisi manuellement (aligner avec l’ID utilisé lors de la publication de la carte).
+
 ---
 
 ## Analyse Fonctionnelle : Sauvegarde / Chargement de carte

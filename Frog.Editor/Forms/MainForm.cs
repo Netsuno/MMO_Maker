@@ -925,7 +925,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        using var dlg = new MapEventsBrowseDialog(connectionString);
+        using var dlg = new MapEventsBrowseDialog(connectionString, initialMapId: 1, defaultTileX: _lastHoverTile.X, defaultTileY: _lastHoverTile.Y);
         dlg.ShowDialog(GetDialogOwner());
     }
 
