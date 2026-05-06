@@ -47,7 +47,7 @@ Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal
 
 ### Jalons technique proposés (ordre pour travailler en autonomie)
 
-1. **Multi‑maps** stables + **flag carte** collisions joueurs + sync **revision/hash** carte côté client.  
+1. [x] **Multi‑maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).  
 2. **Stats persistées + multi‑slots perso** (DB + protocole login/sélection).  
 3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter.  
 4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.  
@@ -144,7 +144,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 <details>
 <summary><strong>Phase 4 — Serveur : monde vivant</strong></summary>
 
-- [ ] **Changement de carte** et **multi‑maps** sous autorité serveur (paquets + état joueur).
+- [x] **Changement de carte / multi‑maps** : warps inter-cartes, `CurrentMapId` session, `PositionUpdate` avec `MapId`, `MapRequest` + empreintes par carte ; client WinForms recharge la carte affichée après warp.
 - [ ] Persistance **au‑delà de la position** (inventaire, flags monde, quêtes — MVP puis extension).
 - [ ] Alignement **collisions/règles** avec la carte servie ; anti‑abus minimal ; exploitation des **logs** pour hébergement.
 
@@ -206,8 +206,8 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [x] Persistance position **périodique** + restauration au login (`Persistence:saveIntervalSeconds`)
 - [x] Tables MariaDB comptes + `player_world_state` (si MariaDb activé)
 - [ ] **UDP** : canal snapshots (positions / combat) + reprise perte
-- [ ] **Instances** / changement de map serveur (hors map monde unique)
-- [x] Warps côté serveur (téléport **même carte** après `MoveRequest` ; cible hors monde ignorée jusqu’aux instances)
+- [ ] **Instances** (donjons / zones isolées) — hors périmètre actuel (monde partagé multi-cartes uniquement)
+- [x] Warps après `MoveRequest` : téléport **inter-cartes** si le blob cible est disponible ; **empreinte SHA** par `mapId` (`TryMatchMapFingerprint` / `MapRequest` corps 40 octets vs carte **courante** session)
 - [x] Chargement carte monde depuis **fichier `.fmap`** (`Maps:worldMapPath`, relatif au dossier de l’exe ou chemin absolu)
 - [x] **Mêlée** : `MeleeAttackRequest` / `MeleeAttackResult`, portée en **pixels** (`Frog.Core/Constants/WorldMetrics.cs`)
 - [x] Logs réseau structurés : **JSON console** (`Logging:Console:FormatterName`), scopes `ConnectionId` / `RemoteEndPoint` / `Username`, `ServerNetworkLogs` + `PacketDispatcher` / `PacketSender`
@@ -216,6 +216,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [x] Client réseau selon `protocol_login_map.md` (`FrogGameClient` : Hello, login/register, map, move, positions, chat, heartbeat, mêlée, erreurs)
 - [x] Rendu map : **tilesets PNG** (dossiers `Maps/` + `Tilesets/`, manifeste `.tilesets.json`) + secours couleurs ; **tuiles 32 px** (`WorldMetrics`)
 - [x] Bouton **Logout** (`LogoutRequest` / `LogoutAck`, fermeture TCP côté serveur)
+- [x] **Warp inter-cartes** : `PositionUpdate` local toujours appliqué ; `MapRequest` auto debouncé + empreintes par `mapId` dans `FrogGameClient`
 - [ ] Polish HUD
 - [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
 
@@ -229,7 +230,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [ ] Propriétés de carte avancées, multi‑tilesets
 
 ### 🧪 Tests
-- [x] Tests `MapSerializer`, **Hello / `FrogWireProtocol.Version`** (`WireHelloTests`), mouvement, warps, chat parse, store mémoire
+- [x] Tests `MapSerializer`, **Hello / `FrogWireProtocol.Version`** (`WireHelloTests`), mouvement, warps, empreintes par carte (`TryMatchMapFingerprint`), chat parse, store mémoire
 - [ ] Tests intégration client ↔ serveur (TCP)
 - [x] Seed `frog_map` + perso `Hero` + `character_uuid` sur sauvegardes (MariaDb activé)
 - [ ] Tests MariaDB (conteneur / `MARIADB_TEST_CONNECTION_STRING`)

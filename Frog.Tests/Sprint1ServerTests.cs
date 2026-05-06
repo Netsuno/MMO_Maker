@@ -309,6 +309,66 @@ public sealed class Sprint1ServerTests
     }
 
     [Fact]
+    public void MapService_TryMatchMapFingerprint_IsScopedToMapId()
+    {
+        var serializer = new MapSerializer();
+        var interior = new Map { Width = 8, Height = 8, Name = "Interior" };
+        var ground = new Layer { LayerType = LayerType.Ground };
+        for (var y = 0; y < interior.Height; y++)
+        {
+            for (var x = 0; x < interior.Width; x++)
+            {
+                ground.Tiles.Add(new Tile
+                {
+                    X = x,
+                    Y = y,
+                    TilesetId = 1,
+                    SrcX = 0,
+                    SrcY = 0,
+                    Type = TileType.Ground
+                });
+            }
+        }
+
+        interior.Layers.Add(ground);
+
+        var store = new MemoryMapBlobStore();
+        store.Seed(42, serializer.Serialize(interior), revision: 11);
+
+        var outdoor = MapSamples.StarterMeadow(42);
+        var tmp = Path.Combine(Path.GetTempPath(), $"frog-fp-test-{Guid.NewGuid():N}.fmap");
+        File.WriteAllBytes(tmp, serializer.Serialize(outdoor));
+
+        try
+        {
+            var mapService = MapTestHelpers.CreateMapService(tmp, store);
+            Assert.True(mapService.TryEnsureMapLoaded(MapService.DefaultWorldMapId));
+            Assert.True(mapService.TryEnsureMapLoaded(42));
+
+            var revWorld = mapService.GetFingerprintRevision(MapService.DefaultWorldMapId);
+            var shaWorld = mapService.GetFingerprintSha256(MapService.DefaultWorldMapId).ToArray();
+            var rev42 = mapService.GetFingerprintRevision(42);
+            var sha42 = mapService.GetFingerprintSha256(42).ToArray();
+
+            Assert.True(mapService.TryMatchMapFingerprint(MapService.DefaultWorldMapId, revWorld, shaWorld));
+            Assert.True(mapService.TryMatchMapFingerprint(42, rev42, sha42));
+            Assert.False(mapService.TryMatchMapFingerprint(42, revWorld, shaWorld));
+            Assert.False(mapService.TryMatchMapFingerprint(MapService.DefaultWorldMapId, rev42, sha42));
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(tmp);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+    }
+
+    [Fact]
     public void MovementService_AppliesWarpAfterSteppingOnWarpTile()
     {
         var mapService = MapTestHelpers.CreateMapService();
