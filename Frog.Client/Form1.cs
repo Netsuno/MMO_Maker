@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Text.Json;
+using System.Windows.Forms;
 using Frog.Client.Assets;
 using Frog.Client.Network;
 using Frog.Client.UI;
@@ -88,42 +89,92 @@ public partial class Form1 : Form
         }
     }
 
+    private static void StyleToolbarButton(Button b)
+    {
+        b.AutoSize = true;
+        b.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        b.MinimumSize = new Size(96, 30);
+        b.Padding = new Padding(10, 4, 10, 4);
+        b.Margin = new Padding(4, 4, 4, 4);
+    }
+
+    private static FlowLayoutPanel CreateToolbarRow()
+    {
+        return new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            Margin = new Padding(0, 0, 0, 2),
+            Padding = new Padding(0),
+        };
+    }
+
+    private static Label Lbl(string text, int topPad = 8)
+        => new()
+        {
+            Text = text,
+            AutoSize = true,
+            Margin = new Padding(4, topPad, 4, 4),
+        };
+
     private void BuildLayout()
     {
-        var top = new FlowLayoutPanel
+        StyleToolbarButton(_btnConnect);
+        StyleToolbarButton(_btnDisconnect);
+        StyleToolbarButton(_btnLogin);
+        StyleToolbarButton(_btnRegister);
+        StyleToolbarButton(_btnMap);
+        StyleToolbarButton(_btnLogout);
+        StyleToolbarButton(_btnCharRefresh);
+        StyleToolbarButton(_btnCharApply);
+        StyleToolbarButton(_btnCharCreate);
+        StyleToolbarButton(_btnMelee);
+        StyleToolbarButton(_btnStatsApply);
+        _cmbCharacters.MinimumSize = new Size(220, 0);
+        _cmbCharacters.Width = Math.Max(_cmbCharacters.Width, 280);
+        _txtNewCharName.MinimumSize = new Size(120, 0);
+        _txtNewCharName.Width = Math.Max(_txtNewCharName.Width, 140);
+        foreach (Control c in new Control[] { _txtHost, _txtUser, _txtPass })
         {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            WrapContents = false,
-            Padding = new Padding(6)
-        };
-        top.Controls.AddRange(new Control[]
-        {
-            new Label { Text = "Hôte", AutoSize = true, Margin = new Padding(0, 8, 0, 0) },
-            _txtHost,
-            new Label { Text = "Port", AutoSize = true, Margin = new Padding(0, 8, 0, 0) },
-            _numPort,
-            new Label { Text = "User", AutoSize = true, Margin = new Padding(0, 8, 0, 0) },
-            _txtUser,
-            new Label { Text = "Pass", AutoSize = true, Margin = new Padding(0, 8, 0, 0) },
-            _txtPass,
-            _btnConnect,
-            _btnDisconnect,
-            _btnLogin,
-            _btnRegister,
-            _btnMap,
-            _btnLogout,
-            new Label { Text = "Perso", AutoSize = true, Margin = new Padding(0, 8, 0, 0) },
-            _cmbCharacters,
-            _btnCharRefresh,
-            _btnCharApply,
-            _txtNewCharName,
-            _btnCharCreate,
-            _txtMeleeTarget,
-            _btnMelee
-        });
+            c.Margin = new Padding(2, 4, 12, 4);
+        }
 
+        _numPort.Margin = new Padding(2, 4, 12, 4);
+        _txtMeleeTarget.Margin = new Padding(2, 4, 8, 4);
+
+        var rowConn = CreateToolbarRow();
+        rowConn.Controls.Add(Lbl("Hôte"));
+        rowConn.Controls.Add(_txtHost);
+        rowConn.Controls.Add(Lbl("Port"));
+        rowConn.Controls.Add(_numPort);
+        rowConn.Controls.Add(Lbl("User"));
+        rowConn.Controls.Add(_txtUser);
+        rowConn.Controls.Add(Lbl("Pass"));
+        rowConn.Controls.Add(_txtPass);
+        rowConn.Controls.Add(_btnConnect);
+        rowConn.Controls.Add(_btnDisconnect);
+        rowConn.Controls.Add(_btnLogin);
+        rowConn.Controls.Add(_btnRegister);
+        rowConn.Controls.Add(_btnMap);
+        rowConn.Controls.Add(_btnLogout);
+
+        var rowChar = CreateToolbarRow();
+        rowChar.Controls.Add(Lbl("Perso"));
+        rowChar.Controls.Add(_cmbCharacters);
+        rowChar.Controls.Add(_btnCharRefresh);
+        rowChar.Controls.Add(_btnCharApply);
+        rowChar.Controls.Add(Lbl("Nouveau"));
+        rowChar.Controls.Add(_txtNewCharName);
+        rowChar.Controls.Add(_btnCharCreate);
+        rowChar.Controls.Add(Lbl("Mêlée"));
+        rowChar.Controls.Add(_txtMeleeTarget);
+        rowChar.Controls.Add(_btnMelee);
+
+        var rowStats = CreateToolbarRow();
         var statLabels = new[] { "STR", "AGI", "DEX", "INT", "VIT", "LUCK" };
+        rowStats.Controls.Add(Lbl("Stats"));
         for (var i = 0; i < _numStats.Length; i++)
         {
             _numStats[i] = new NumericUpDown
@@ -131,44 +182,83 @@ public partial class Form1 : Form
                 Minimum = CharacterStatsWire.MinStat,
                 Maximum = CharacterStatsWire.MaxStat,
                 Value = 10,
-                Width = 44,
+                Width = 48,
                 Enabled = false,
+                Margin = new Padding(2, 4, 8, 4),
             };
-            top.Controls.Add(new Label { Text = statLabels[i], AutoSize = true, Margin = new Padding(8, 8, 0, 0) });
-            top.Controls.Add(_numStats[i]);
+            rowStats.Controls.Add(Lbl(statLabels[i], topPad: 8));
+            rowStats.Controls.Add(_numStats[i]);
         }
 
-        top.Controls.Add(_btnStatsApply);
+        rowStats.Controls.Add(_btnStatsApply);
+        rowStats.Controls.Add(Lbl("(flèches = bouger · E = interagir)", topPad: 10));
+
+        var toolbar = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(8, 8, 8, 6),
+            BackColor = SystemColors.Control,
+        };
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        toolbar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        toolbar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        toolbar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        toolbar.Controls.Add(rowConn, 0, 0);
+        toolbar.Controls.Add(rowChar, 0, 1);
+        toolbar.Controls.Add(rowStats, 0, 2);
 
         _mapScroll.Controls.Add(_picMap);
         var rightChat = new TableLayoutPanel
         {
-            Dock = DockStyle.Right,
-            Width = 320,
+            Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Padding = new Padding(4)
+            Padding = new Padding(6),
+            MinimumSize = new Size(300, 0),
         };
-        rightChat.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        rightChat.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rightChat.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        rightChat.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        var chatTop = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
+        rightChat.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        var chatTop = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            AutoSize = true,
+        };
         chatTop.Controls.Add(_cmbChannel);
+        _txtWhisperTo.MinimumSize = new Size(140, 0);
         chatTop.Controls.Add(_txtWhisperTo);
         rightChat.Controls.Add(chatTop, 0, 0);
         _txtChat.Dock = DockStyle.Fill;
+        _txtChat.MinimumSize = new Size(160, 60);
         rightChat.Controls.Add(_txtChat, 0, 1);
+        _btnSendChat.AutoSize = false;
+        _btnSendChat.Dock = DockStyle.Fill;
+        _btnSendChat.MinimumSize = new Size(160, 32);
+        _btnSendChat.Padding = new Padding(12, 6, 12, 6);
+        _btnSendChat.Margin = new Padding(0, 4, 0, 0);
         rightChat.Controls.Add(_btnSendChat, 0, 2);
 
         var center = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         center.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        center.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 320));
+        center.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340));
         center.Controls.Add(_mapScroll, 0, 0);
         center.Controls.Add(rightChat, 1, 0);
 
+        _txtLog.MinimumSize = new Size(120, 88);
+        _txtLog.Height = 100;
+
+        MinimumSize = new Size(980, 640);
+        ClientSize = new Size(Math.Max(ClientSize.Width, 1040), Math.Max(ClientSize.Height, 720));
+
         Controls.Add(center);
         Controls.Add(_txtLog);
-        Controls.Add(top);
+        Controls.Add(toolbar);
     }
 
     private void WireClient()
