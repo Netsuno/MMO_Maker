@@ -8,6 +8,7 @@ using Frog.Client.Assets;
 using Frog.Client.Network;
 using Frog.Client.UI;
 using Frog.Core.Character;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -21,7 +22,45 @@ public partial class Form1 : Form
     private string? _username;
     private int _tileX;
     private int _tileY;
-    private readonly ConcurrentDictionary<string, (int X, int Y)> _others = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, OtherPlayerView> _others = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Interpolation visuelle (clients) entre positions tuile ; autorité jeu reste grillaire serveur.</summary>
+    private float _visLocalCx;
+
+    private float _visLocalCy;
+
+    private bool _localTweening;
+
+    private bool _localVisualInitialized;
+
+    private DateTime _localTweenStartUtc;
+
+    private float _localFromCx;
+
+    private float _localFromCy;
+
+    private readonly System.Windows.Forms.Timer _smoothTimer = new() { Interval = 16 };
+
+    private sealed class OtherPlayerView
+    {
+        public int TileX;
+
+        public int TileY;
+
+        public float VisCx;
+
+        public float VisCy;
+
+        public float FromCx;
+
+        public float FromCy;
+
+        public DateTime TweenStartUtc;
+
+        public bool Tweening;
+
+        public bool Initialized;
+    }
     private int _sessionDisplayedMapId;
     private DateTime _lastAutoMapRequestUtc = DateTime.MinValue;
     private static readonly TimeSpan AutoMapRequestDebounce = TimeSpan.FromMilliseconds(300);
@@ -64,6 +103,8 @@ public partial class Form1 : Form
         ClientSize = new Size(1024, 720);
         KeyPreview = true;
         BuildLayout();
+        _smoothTimer.Tick += SmoothTimer_OnTick;
+        _smoothTimer.Start();
         _cmbChannel.Items.AddRange(new object[] { "Global", "Map", "Whisper" });
         _cmbChannel.SelectedIndex = 1;
         _heartbeatTimer.Tick += async (_, _) => await SendHeartbeatSafeAsync();
@@ -81,12 +122,117 @@ public partial class Form1 : Form
 
     private async Task Form1_FormClosingAsync()
     {
+        _smoothTimer.Stop();
         _heartbeatTimer.Stop();
         if (_client is not null)
         {
             await _client.DisconnectAsync().ConfigureAwait(true);
             _client.Dispose();
         }
+
+        _smoothTimer.Dispose();
+    }
+
+    private void SmoothTimer_OnTick(object? sender, EventArgs e)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => SmoothTimer_OnTick(sender, e));
+            return;
+        }
+
+        if (_map is null)
+        {
+            return;
+        }
+
+        if (AdvanceMovementSmoothing())
+        {
+            RedrawMap();
+        }
+    }
+
+    private void ResetLocalMotionState()
+    {
+        _localVisualInitialized = false;
+        _localTweening = false;
+    }
+
+    private static float SmoothStep(float t) => t * t * (3f - 2f * t);
+
+    private static void StepMovementTween(
+        ref float vx,
+        ref float vy,
+        float targetX,
+        float targetY,
+        ref bool tweening,
+        DateTime startUtc,
+        float fromX,
+        float fromY)
+    {
+        const float durationMs = 118f;
+        var elapsed = (float)(DateTime.UtcNow - startUtc).TotalMilliseconds;
+        var u = Math.Min(1f, elapsed / durationMs);
+        u = SmoothStep(u);
+        vx = fromX + (targetX - fromX) * u;
+        vy = fromY + (targetY - fromY) * u;
+        if (elapsed >= durationMs - 0.001f || u >= 0.999f)
+        {
+            vx = targetX;
+            vy = targetY;
+            tweening = false;
+        }
+    }
+
+    private bool AdvanceMovementSmoothing()
+    {
+        if (_map is null || string.IsNullOrEmpty(_username))
+        {
+            return false;
+        }
+
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var tgtLocalX = (_tileX + 0.5f) * tw;
+        var tgtLocalY = (_tileY + 0.5f) * tw;
+        var dirty = false;
+
+        if (_localTweening)
+        {
+            StepMovementTween(
+                ref _visLocalCx,
+                ref _visLocalCy,
+                tgtLocalX,
+                tgtLocalY,
+                ref _localTweening,
+                _localTweenStartUtc,
+                _localFromCx,
+                _localFromCy);
+            dirty = true;
+        }
+
+        foreach (var kv in _others.ToArray())
+        {
+            var o = kv.Value;
+            if (!o.Tweening)
+            {
+                continue;
+            }
+
+            var tx = (o.TileX + 0.5f) * tw;
+            var ty = (o.TileY + 0.5f) * tw;
+            StepMovementTween(
+                ref o.VisCx,
+                ref o.VisCy,
+                tx,
+                ty,
+                ref o.Tweening,
+                o.TweenStartUtc,
+                o.FromCx,
+                o.FromCy);
+            dirty = true;
+        }
+
+        return dirty;
     }
 
     private static void StyleToolbarButton(Button b)
@@ -354,6 +500,7 @@ public partial class Form1 : Form
         _username = null;
         _sessionDisplayedMapId = 0;
         _others.Clear();
+        ResetLocalMotionState();
         ClearMapImage();
         DisposeTilesetBitmaps();
         _mapEvents.Clear();
@@ -477,6 +624,7 @@ public partial class Form1 : Form
         _map = null;
         _sessionDisplayedMapId = 0;
         _others.Clear();
+        ResetLocalMotionState();
         ClearMapImage();
         DisposeTilesetBitmaps();
         _mapEvents.Clear();
@@ -513,6 +661,7 @@ public partial class Form1 : Form
         _sessionDisplayedMapId = mapId;
         _map = map;
         _others.Clear();
+        ResetLocalMotionState();
         ReloadTilesetBitmaps();
         RedrawMap();
         _ = RequestMapEventsFromServerAsync();
@@ -785,18 +934,54 @@ public partial class Form1 : Form
             return;
         }
 
+        var tw = WorldMetrics.DefaultTileSizePixels;
         if (isLocal)
         {
-            _tileX = x;
-            _tileY = y;
             if (_sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
             {
                 TryScheduleMapRequestAfterWarp(mapId);
             }
+
+            if (!_localVisualInitialized)
+            {
+                _tileX = x;
+                _tileY = y;
+                _visLocalCx = (x + 0.5f) * tw;
+                _visLocalCy = (y + 0.5f) * tw;
+                _localTweening = false;
+                _localVisualInitialized = true;
+            }
+            else if (x != _tileX || y != _tileY)
+            {
+                _localFromCx = _visLocalCx;
+                _localFromCy = _visLocalCy;
+                _tileX = x;
+                _tileY = y;
+                _localTweenStartUtc = DateTime.UtcNow;
+                _localTweening = true;
+            }
         }
         else
         {
-            _others[user] = (x, y);
+            var ov = _others.GetOrAdd(user, _ => new OtherPlayerView());
+            if (!ov.Initialized)
+            {
+                ov.TileX = x;
+                ov.TileY = y;
+                ov.VisCx = (x + 0.5f) * tw;
+                ov.VisCy = (y + 0.5f) * tw;
+                ov.Tweening = false;
+                ov.Initialized = true;
+            }
+            else if (ov.TileX != x || ov.TileY != y)
+            {
+                ov.FromCx = ov.VisCx;
+                ov.FromCy = ov.VisCy;
+                ov.TileX = x;
+                ov.TileY = y;
+                ov.TweenStartUtc = DateTime.UtcNow;
+                ov.Tweening = true;
+            }
         }
 
         RedrawMap();
@@ -988,7 +1173,22 @@ public partial class Form1 : Form
             return;
         }
 
-        var bmp = MapViewRenderer.Render(_map, _others, _username, _tileX, _tileY, _tilesetBitmaps, _mapEvents);
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var lcx = (_tileX + 0.5f) * tw;
+        var lcy = (_tileY + 0.5f) * tw;
+        if (_localVisualInitialized)
+        {
+            lcx = _visLocalCx;
+            lcy = _visLocalCy;
+        }
+
+        var otherPx = new Dictionary<string, (float CxPx, float CyPx)>(_others.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in _others)
+        {
+            otherPx[kv.Key] = (kv.Value.VisCx, kv.Value.VisCy);
+        }
+
+        var bmp = MapViewRenderer.Render(_map, otherPx, _username, lcx, lcy, _tilesetBitmaps, _mapEvents);
         ClearMapImage();
         _picMap.Image = bmp;
     }

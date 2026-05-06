@@ -17,14 +17,15 @@ internal static class MapViewRenderer
     private static readonly Color OtherPlayer = Color.FromArgb(80, 140, 220);
     private static readonly Color SelfPlayer = Color.FromArgb(240, 200, 60);
 
+    /// <param name="otherPlayerCentersPx">Centre joueur autres en pixels monde (coins carte = grille × taille tuile).</param>
     /// <param name="mapEvents">Tuiles avec événements serveur (léger surlignage).</param>
     /// <param name="tilesetBitmaps">Id tileset → image ; peut être vide (rendu couleur de secours).</param>
     public static Bitmap Render(
         Map map,
-        IReadOnlyDictionary<string, (int X, int Y)> playersByName,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
         string? localUsername,
-        int localTileX,
-        int localTileY,
+        float localCenterXPx,
+        float localCenterYPx,
         IReadOnlyDictionary<int, Bitmap>? tilesetBitmaps,
         IReadOnlyList<MapEventWireEntry>? mapEvents = null)
     {
@@ -118,17 +119,20 @@ internal static class MapViewRenderer
             }
         }
 
-        foreach (var kv in playersByName)
+        var prevSmooth = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        foreach (var kv in otherPlayerCentersPx)
         {
             if (localUsername is not null && string.Equals(kv.Key, localUsername, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            DrawPlayerDot(g, kv.Value.X, kv.Value.Y, tw, OtherPlayer);
+            DrawPlayerDotAtPixelCenter(g, kv.Value.CxPx, kv.Value.CyPx, tw, OtherPlayer);
         }
 
-        DrawPlayerDot(g, localTileX, localTileY, tw, SelfPlayer);
+        DrawPlayerDotAtPixelCenter(g, localCenterXPx, localCenterYPx, tw, SelfPlayer);
+        g.SmoothingMode = prevSmooth;
         return bmp;
     }
 
@@ -193,14 +197,13 @@ internal static class MapViewRenderer
         g.DrawRectangle(pen, rect);
     }
 
-    private static void DrawPlayerDot(Graphics g, int tileX, int tileY, int tw, Color fill)
+    /// <summary>Centre du sprite en coordonnées pixel (fractionnaire autorisé pour interpolation).</summary>
+    private static void DrawPlayerDotAtPixelCenter(Graphics g, float centerXPx, float centerYPx, float tw, Color fill)
     {
-        var cx = tileX * tw + tw / 2f;
-        var cy = tileY * tw + tw / 2f;
         var r = tw * 0.35f;
         using var brush = new SolidBrush(fill);
-        g.FillEllipse(brush, cx - r, cy - r, r * 2, r * 2);
-        using var edge = new Pen(Color.FromArgb(200, 255, 255, 255), 1);
-        g.DrawEllipse(edge, cx - r, cy - r, r * 2, r * 2);
+        g.FillEllipse(brush, centerXPx - r, centerYPx - r, r * 2, r * 2);
+        using var edge = new Pen(Color.FromArgb(200, 255, 255, 255), 1f);
+        g.DrawEllipse(edge, centerXPx - r, centerYPx - r, r * 2, r * 2);
     }
 }
