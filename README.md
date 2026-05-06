@@ -217,7 +217,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [x] Rendu map : **tilesets PNG** (dossiers `Maps/` + `Tilesets/`, manifeste `.tilesets.json`) + secours couleurs ; **tuiles 32 px** (`WorldMetrics`)
 - [x] Bouton **Logout** (`LogoutRequest` / `LogoutAck`, fermeture TCP côté serveur)
 - [x] **Warp inter-cartes** : `PositionUpdate` local toujours appliqué ; `MapRequest` auto debouncé + empreintes par `mapId` dans `FrogGameClient`
-- [x] **Multi-slots (MVP)** : `FrogWireProtocol` v4, liste persos + changement de perso actif (`Form1` + `FrogGameClient`)
+- [x] **Multi-slots (MVP)** : `FrogWireProtocol` v4–v5, liste persos, **création** perso (`CharacterCreate*`), changement de perso actif (`Form1` + `FrogGameClient`)
 - [ ] Polish HUD
 - [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
 

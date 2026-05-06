@@ -108,4 +108,66 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
         cmd.Parameters.AddWithValue("@id", characterId);
         return cmd.ExecuteScalar() is not null;
     }
+
+    public bool TryCreateCharacter(string username, string displayName, out string characterId, out string errorMessage)
+    {
+        characterId = string.Empty;
+        errorMessage = string.Empty;
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        if (!CharacterDisplayNameRules.TryNormalize(displayName, out var name, out errorMessage))
+        {
+            return false;
+        }
+
+        using var connection = new MySqlConnection(_connectionString);
+        connection.Open();
+
+        const string countSql = """
+            SELECT COUNT(*) FROM frog_character
+            WHERE account_username = @username;
+            """;
+
+        using (var countCmd = new MySqlCommand(countSql, connection))
+        {
+            countCmd.Parameters.AddWithValue("@username", username);
+            var n = Convert.ToInt32(countCmd.ExecuteScalar());
+            if (n >= 8)
+            {
+                errorMessage = "Nombre max. de persos atteint (8).";
+                return false;
+            }
+        }
+
+        var id = Guid.NewGuid().ToString();
+        const string insertSql = """
+            INSERT INTO frog_character(id, account_id, account_username, display_name, payload)
+            SELECT @id, a.id, @username, @display_name, CAST(@payload AS JSON)
+            FROM accounts a
+            WHERE a.username = @username
+            LIMIT 1;
+            """;
+
+        try
+        {
+            using var insert = new MySqlCommand(insertSql, connection);
+            insert.Parameters.AddWithValue("@id", id);
+            insert.Parameters.AddWithValue("@username", username);
+            insert.Parameters.AddWithValue("@display_name", name);
+            insert.Parameters.AddWithValue("@payload", CharacterPayloadDefaults.NewHeroJson);
+            var rows = insert.ExecuteNonQuery();
+            if (rows != 1)
+            {
+                errorMessage = "Compte introuvable.";
+                return false;
+            }
+
+            characterId = id;
+            return true;
+        }
+        catch (MySqlException ex) when (ex.Number == 1062)
+        {
+            errorMessage = "Ce nom de perso est deja utilise.";
+            return false;
+        }
+    }
 }

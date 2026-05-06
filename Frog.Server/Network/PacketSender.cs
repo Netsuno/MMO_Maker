@@ -20,6 +20,9 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
     public Task SendCharacterSelectResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.CharacterSelectResult, success, message, cancellationToken);
 
+    public Task SendCharacterCreateResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.CharacterCreateResult, success, message, cancellationToken);
+
     public Task SendRegisterResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.RegisterResult, success, message, cancellationToken);
 

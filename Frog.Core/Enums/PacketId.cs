@@ -35,5 +35,9 @@ public enum PacketId : byte
     CharacterSelectRequest = 23,
     /// <summary>Résultat sélection perso (même forme courte que <see cref="LoginResult"/>).</summary>
     CharacterSelectResult = 24,
+    /// <summary>Créer un personnage additionnel (nom affichage).</summary>
+    CharacterCreateRequest = 25,
+    /// <summary>Résultat création perso (même forme que <see cref="LoginResult"/> ; message = UUID si succès).</summary>
+    CharacterCreateResult = 26,
     Error = 255
 }

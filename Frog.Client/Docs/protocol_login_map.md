@@ -58,6 +58,8 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `22` -> `CharacterListResult`
 - `23` -> `CharacterSelectRequest`
 - `24` -> `CharacterSelectResult`
+- `25` -> `CharacterCreateRequest`
+- `26` -> `CharacterCreateResult`
 - `255` -> `Error`
 
 ## Grille monde et pixels
@@ -142,6 +144,8 @@ Payload:
 Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`CharacterPayload`** (`FrogWireProtocol.Version` **≥ 3**) avec le JSON DB du perso courant (perso actif après bootstrap, ex. **Hero**).
 
 À partir de **`FrogWireProtocol.Version` ≥ 4**, le client peut demander la **liste des personnages** du compte (`CharacterListRequest` / `CharacterListResult`) puis activer un autre slot (`CharacterSelectRequest` / `CharacterSelectResult`) ; le serveur renvoie alors un **`CharacterPayload`** pour le nouvel UUID et diffuse des **`PositionUpdate`** à tous les clients connectés.
+
+À partir de **`FrogWireProtocol.Version` ≥ 5**, le client peut **créer** un perso additionnel (`CharacterCreateRequest` / `CharacterCreateResult`) : nom affichage validé côté serveur (lettres/chiffres/espaces/tiret/souligné, longueur max 32), max **8** persos par compte, payload stats par défaut comme **Hero**.
 
 ### RegisterResult (Serveur -> Client)
 
@@ -295,6 +299,25 @@ Même forme que **`LoginResult`** :
 - `Success` (Byte)
 - `MessageLength` (Byte)
 - `MessageUtf8`
+
+### CharacterCreateRequest (Client -> Serveur)
+
+`FrogWireProtocol.Version` **≥ 5**. Session authentifiée.
+
+Payload :
+
+- `PacketId` (Byte) = `25`
+- `DisplayNameUtf8Length` (Byte, > 0, max **128** octets UTF‑8 ; côté serveur le nom affichage est limité à **32** caractères après trim)
+- `DisplayNameUtf8` (longueur ci‑dessus)
+
+### CharacterCreateResult (Serveur -> Client)
+
+Même forme que **`LoginResult`** :
+
+- `PacketId` (Byte) = `26`
+- `Success` (Byte)
+- `MessageLength` (Byte)
+- `MessageUtf8` — en cas de succès : **UUID** texte du nouveau `frog_character.id` (≤ 36 caractères ASCII)
 
 ### PlayerLeave (Serveur -> Clients authentifies)
 

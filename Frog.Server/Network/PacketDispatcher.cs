@@ -109,6 +109,10 @@ public sealed class PacketDispatcher(
                 await HandleCharacterSelectRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
+            case PacketId.CharacterCreateRequest:
+                await HandleCharacterCreateRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
             default:
                 ServerNetworkLogs.UnknownPacket(_logger, (byte)packetId);
                 await _packetSender.SendErrorAsync(clientSession, $"Packet non supporte: {(byte)packetId}", cancellationToken);
@@ -771,6 +775,56 @@ public sealed class PacketDispatcher(
 
         characterId = Encoding.UTF8.GetString(payload.Slice(1, len));
         return !string.IsNullOrWhiteSpace(characterId);
+    }
+
+    private async Task HandleCharacterCreateRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (!TryParseCharacterCreateRequest(payload.Span, out var rawDisplayName))
+        {
+            await _packetSender.SendCharacterCreateResultAsync(
+                clientSession,
+                false,
+                "CharacterCreateRequest: nom invalide.",
+                cancellationToken);
+            return;
+        }
+
+        _connectionManager.TryTouchSession(session.Id);
+        if (!_characterBootstrap.TryCreateCharacter(session.Username, rawDisplayName, out var newId, out var err))
+        {
+            await _packetSender.SendCharacterCreateResultAsync(clientSession, false, err, cancellationToken);
+            return;
+        }
+
+        await _packetSender.SendCharacterCreateResultAsync(clientSession, true, newId, cancellationToken);
+    }
+
+    /// <summary>Corps : longueur nom UTF‑8 (1 octet) + nom (≤ <see cref="CharacterDisplayNameRules.MaxWireUtf8Bytes"/>).</summary>
+    public static bool TryParseCharacterCreateRequest(ReadOnlySpan<byte> payload, out string displayName)
+    {
+        displayName = string.Empty;
+        if (payload.Length < 2)
+        {
+            return false;
+        }
+
+        var len = payload[0];
+        if (len is 0 or > CharacterDisplayNameRules.MaxWireUtf8Bytes || payload.Length != 1 + len)
+        {
+            return false;
+        }
+
+        displayName = Encoding.UTF8.GetString(payload.Slice(1, len));
+        return !string.IsNullOrWhiteSpace(displayName);
     }
 
     private async Task SyncPositionsOnJoinAsync(ClientSession joiningClient, Frog.Server.Models.Session joiningSession, CancellationToken cancellationToken)

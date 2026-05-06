@@ -65,7 +65,7 @@ Le serveur utilise **`IPlayerStateStore.TryGetForCharacter` / `UpsertForCharacte
 
 ### 2.4 Personnage par défaut
 
-À chaque login, `ICharacterBootstrap.EnsureDefaultHero(username)` crée au besoin une ligne **frog_character** (`display_name = 'Hero'`). La position est lue/écrite dans **`character_world_state`** pour `Session.CharacterId`.
+À chaque login, `ICharacterBootstrap.EnsureDefaultHero(username)` crée au besoin une ligne **frog_character** (`display_name = 'Hero'`). La position est lue/écrite dans **`character_world_state`** pour `Session.CharacterId`. Des persos supplémentaires sont créés via **`ICharacterBootstrap.TryCreateCharacter`** (protocole `CharacterCreateRequest`, max 8 par compte, nom validé côté serveur).
 
 ---
 

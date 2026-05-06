@@ -50,6 +50,7 @@ public sealed class FrogGameClient : IDisposable
     /// <summary>JSON : tableau d’objets { id, name } (protocole wire ≥ 4).</summary>
     public event Action<string>? CharacterListReceived;
     public event Action<bool, string>? CharacterSelectResultReceived;
+    public event Action<bool, string>? CharacterCreateResultReceived;
     public event Action? ConnectionClosed;
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -349,6 +350,14 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.CharacterCreateResult:
+                if (TryReadStatusMessage(body.Span, out var createOk, out var createMsg))
+                {
+                    Post(() => CharacterCreateResultReceived?.Invoke(createOk, createMsg));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -468,6 +477,29 @@ public sealed class FrogGameClient : IDisposable
         payload[0] = (byte)PacketId.CharacterSelectRequest;
         payload[1] = (byte)id.Length;
         id.CopyTo(payload.AsSpan(2));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    /// <summary>Nom affichage : max 32 caractères Unicode, UTF‑8 max 128 octets (aligné serveur).</summary>
+    public Task SendCharacterCreateAsync(string displayName, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        var trimmed = displayName.Trim();
+        if (trimmed.Length > 32)
+        {
+            throw new ArgumentException("Nom trop long (32 caractères max).");
+        }
+
+        var nameBytes = Encoding.UTF8.GetBytes(trimmed);
+        if (nameBytes.Length is 0 or > 128)
+        {
+            throw new ArgumentException("Nom UTF-8 trop long.");
+        }
+
+        var payload = new byte[1 + 1 + nameBytes.Length];
+        payload[0] = (byte)PacketId.CharacterCreateRequest;
+        payload[1] = (byte)nameBytes.Length;
+        nameBytes.CopyTo(payload.AsSpan(2));
         return SendRawAsync(payload, cancellationToken);
     }
 

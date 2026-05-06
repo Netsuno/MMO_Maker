@@ -37,6 +37,8 @@ public partial class Form1 : Form
     private readonly ComboBox _cmbCharacters = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Enabled = false };
     private readonly Button _btnCharRefresh = new() { Text = "Liste persos", Width = 95, Enabled = false };
     private readonly Button _btnCharApply = new() { Text = "Activer", Width = 72, Enabled = false };
+    private readonly TextBox _txtNewCharName = new() { Width = 100, PlaceholderText = "Nouveau perso" };
+    private readonly Button _btnCharCreate = new() { Text = "Créer perso", Width = 95, Enabled = false };
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
     private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly PictureBox _picMap = new() { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.AutoSize };
@@ -109,6 +111,8 @@ public partial class Form1 : Form
             _cmbCharacters,
             _btnCharRefresh,
             _btnCharApply,
+            _txtNewCharName,
+            _btnCharCreate,
             _txtMeleeTarget,
             _btnMelee
         });
@@ -176,9 +180,11 @@ public partial class Form1 : Form
             AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "rate")} — {msg}");
         _client.CharacterListReceived += OnCharacterListJson;
         _client.CharacterSelectResultReceived += OnCharacterSelectResult;
+        _client.CharacterCreateResultReceived += OnCharacterCreateResult;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
         _btnCharApply.Click += async (_, _) => await ApplySelectedCharacterAsync();
+        _btnCharCreate.Click += async (_, _) => await CreateCharacterAsync();
     }
 
     private async Task ConnectAsync()
@@ -279,6 +285,8 @@ public partial class Form1 : Form
         _cmbCharacters.Enabled = true;
         _btnCharRefresh.Enabled = true;
         _btnCharApply.Enabled = true;
+        _txtNewCharName.Enabled = true;
+        _btnCharCreate.Enabled = true;
         _heartbeatTimer.Start();
         _ = RefreshCharacterListAsync();
         _ = MapRequestAsync();
@@ -364,6 +372,8 @@ public partial class Form1 : Form
         _cmbCharacters.Enabled = false;
         _btnCharRefresh.Enabled = false;
         _btnCharApply.Enabled = false;
+        _txtNewCharName.Enabled = false;
+        _btnCharCreate.Enabled = false;
     }
 
     private void OnMapData(int mapId, Map map)
@@ -381,6 +391,18 @@ public partial class Form1 : Form
         var cid = characterId.Length <= 12 ? characterId : characterId[..12] + "…";
         var j = payloadJson.Length <= 200 ? payloadJson : payloadJson[..200] + "…";
         AppendLog($"Perso {cid} : {j}");
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            if (doc.RootElement.TryGetProperty("stats", out var stats) && stats.ValueKind == JsonValueKind.Object)
+            {
+                AppendLog("Stats: " + stats.ToString());
+            }
+        }
+        catch
+        {
+            // JSON optionnel / évolutif
+        }
     }
 
     private async Task RefreshCharacterListAsync()
@@ -442,6 +464,43 @@ public partial class Form1 : Form
         if (ok)
         {
             _ = MapRequestAsync();
+        }
+    }
+
+    private void OnCharacterCreateResult(bool ok, string message)
+    {
+        if (ok)
+        {
+            AppendLog("Perso créé — id: " + message);
+            _ = RefreshCharacterListAsync();
+        }
+        else
+        {
+            AppendLog("Création perso refusée: " + message);
+        }
+    }
+
+    private async Task CreateCharacterAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        var name = _txtNewCharName.Text.Trim();
+        if (name.Length == 0)
+        {
+            AppendLog("Saisir un nom pour le nouveau perso.");
+            return;
+        }
+
+        try
+        {
+            await _client.SendCharacterCreateAsync(name).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("CharacterCreate: " + ex.Message);
         }
     }
 

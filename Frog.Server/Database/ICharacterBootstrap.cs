@@ -15,4 +15,10 @@ public interface ICharacterBootstrap
 
     /// <summary><c>true</c> si <paramref name="characterId"/> appartient au compte.</summary>
     bool IsCharacterOwned(string username, string characterId);
+
+    /// <summary>
+    /// Crée un perso additionnel (stats JSON par défaut). <paramref name="errorMessage"/> : texte court pour le client.
+    /// En succès, <paramref name="characterId"/> = nouvel UUID <c>frog_character.id</c>.
+    /// </summary>
+    bool TryCreateCharacter(string username, string displayName, out string characterId, out string errorMessage);
 }

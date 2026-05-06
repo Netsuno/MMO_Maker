@@ -85,4 +85,40 @@ public sealed class InMemoryCharacterBootstrap : ICharacterBootstrap
             return false;
         }
     }
+
+    public bool TryCreateCharacter(string username, string displayName, out string characterId, out string errorMessage)
+    {
+        characterId = string.Empty;
+        errorMessage = string.Empty;
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        if (!CharacterDisplayNameRules.TryNormalize(displayName, out var name, out errorMessage))
+        {
+            return false;
+        }
+
+        lock (Gate(username))
+        {
+            EnsureDefaultHeroCore(username);
+            var list = _chars[username];
+            if (list.Count >= 8)
+            {
+                errorMessage = "Nombre max. de persos atteint (8).";
+                return false;
+            }
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (string.Equals(list[i].Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    errorMessage = "Ce nom de perso est deja utilise.";
+                    return false;
+                }
+            }
+
+            var id = Guid.NewGuid().ToString();
+            list.Add((id, name));
+            characterId = id;
+            return true;
+        }
+    }
 }
