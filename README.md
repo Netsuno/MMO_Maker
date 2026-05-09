@@ -183,7 +183,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 - [ ] **Packaging** (ZIP ou installateur léger) + **exemple jouable** (`.fmap` + tilesets dans le dépôt ou release).
 - [ ] **Admin minimal** : mute, kick ou ban (modération liée aux canaux chat).
 - [ ] Hygiène **sécurité** (secrets hors repo en prod ; comptes ; TLS éventuellement plus tard).
-- [ ] **CI** sur le dépôt : build + tests à chaque push (compléter les tests intégration / PG progressivement).
+- [x] **CI** sur le dépôt : [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — build **Release** de `Frog.Creator.sln` + tests sur **windows-latest** (WinForms / WPF). Compléter ensuite tests intégration / PG.
 
 </details>
 
@@ -232,7 +232,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 
 ### 🧪 Tests
 - [x] Tests `MapSerializer`, **Hello / `FrogWireProtocol.Version`** (`WireHelloTests`), mouvement, warps, empreintes par carte (`TryMatchMapFingerprint`), chat parse, store mémoire
-- [ ] Tests intégration client ↔ serveur (TCP)
+- [ ] Tests intégration client ↔ serveur (TCP) ; CI GitHub : voir `.github/workflows/ci.yml`
 - [x] Seed `frog_map` + perso `Hero` + `character_uuid` sur sauvegardes (MariaDb activé)
 - [ ] Tests MariaDB (conteneur / `MARIADB_TEST_CONNECTION_STRING`)
 
