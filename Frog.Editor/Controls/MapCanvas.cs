@@ -578,41 +578,74 @@ public sealed class MapCanvas : Control
                 var pad = Math.Max(1, ts / 14);
                 var badge = new Rectangle(rect.Right - badgeD - pad, rect.Y + pad, badgeD, badgeD);
                 var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
-                using (var brush = new SolidBrush(Color.FromArgb(150, fill)))
+                var page = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
+                if (page)
                 {
-                    if (stepOn)
+                    var rDot = Math.Max(3f, ts * 0.17f);
+                    var cx = rect.Left + pad + rDot;
+                    var cy = rect.Bottom - pad - rDot;
+                    using (var brush = new SolidBrush(Color.FromArgb(155, fill)))
                     {
-                        FillDiamond(g, brush, badge);
+                        g.FillEllipse(brush, cx - rDot, cy - rDot, rDot * 2f, rDot * 2f);
                     }
-                    else
+
+                    using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
                     {
-                        g.FillEllipse(brush, badge);
+                        g.DrawEllipse(edge, cx - rDot, cy - rDot, rDot * 2f, rDot * 2f);
+                    }
+
+                    if (m.PlacementCount > 1)
+                    {
+                        var countRect = new RectangleF(cx - rDot, cy - rDot, rDot * 2f, rDot * 2f);
+                        var label = m.PlacementCount > 9 ? "9+" : m.PlacementCount.ToString();
+                        using var f = new Font(Font.FontFamily, Math.Max(5f, ts * 0.16f), FontStyle.Bold, GraphicsUnit.Pixel);
+                        using var tb = new SolidBrush(Color.White);
+                        using var sf = new StringFormat
+                        {
+                            Alignment = StringAlignment.Center,
+                            LineAlignment = StringAlignment.Center,
+                        };
+                        g.DrawString(label, f, tb, countRect, sf);
                     }
                 }
-
-                using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
+                else
                 {
-                    if (stepOn)
+                    using (var brush = new SolidBrush(Color.FromArgb(150, fill)))
                     {
-                        DrawDiamond(g, edge, badge);
+                        if (stepOn)
+                        {
+                            FillDiamond(g, brush, badge);
+                        }
+                        else
+                        {
+                            g.FillEllipse(brush, badge);
+                        }
                     }
-                    else
-                    {
-                        g.DrawEllipse(edge, badge);
-                    }
-                }
 
-                if (m.PlacementCount > 1)
-                {
-                    var label = m.PlacementCount > 9 ? "9+" : m.PlacementCount.ToString();
-                    using var f = new Font(Font.FontFamily, Math.Max(6f, ts * 0.21f), FontStyle.Bold, GraphicsUnit.Pixel);
-                    using var tb = new SolidBrush(Color.White);
-                    using var sf = new StringFormat
+                    using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
                     {
-                        Alignment = StringAlignment.Center,
-                        LineAlignment = StringAlignment.Center,
-                    };
-                    g.DrawString(label, f, tb, badge, sf);
+                        if (stepOn)
+                        {
+                            DrawDiamond(g, edge, badge);
+                        }
+                        else
+                        {
+                            g.DrawEllipse(edge, badge);
+                        }
+                    }
+
+                    if (m.PlacementCount > 1)
+                    {
+                        var label = m.PlacementCount > 9 ? "9+" : m.PlacementCount.ToString();
+                        using var f = new Font(Font.FontFamily, Math.Max(6f, ts * 0.21f), FontStyle.Bold, GraphicsUnit.Pixel);
+                        using var tb = new SolidBrush(Color.White);
+                        using var sf = new StringFormat
+                        {
+                            Alignment = StringAlignment.Center,
+                            LineAlignment = StringAlignment.Center,
+                        };
+                        g.DrawString(label, f, tb, badge, sf);
+                    }
                 }
             }
         }

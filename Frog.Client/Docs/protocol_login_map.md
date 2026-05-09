@@ -164,11 +164,13 @@ Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`C
 
 À partir de **`FrogWireProtocol.Version` ≥ 7**, les coordonnées **`PositionUpdate`** et la persistance monde sont en **pixels centre** (voir section *Grille monde et pixels*).
 
-Additive **après wire v6** : **`MapEventsRequest`** (**29**) corps **vide** après l’opcode (session authentifiée). Le serveur répond **`MapEventsResult`** (**30**) avec **`CurrentMapId`**, puis longueur **UInt16 LE** puis JSON UTF‑8 : tableau d’objets `MapEventWireEntry` (`placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, **`triggerKind`**). **`triggerKind`** vaut `interact` (défaut si absent du JSON) ou `step_on` (déclenché à l’**arrivée** sur la tuile, voir ci‑dessous). Si MariaDB est désactivée ou sans lignes, la réponse est un tableau vide. Le client peut renvoyer cette requête après **`MapData`** / **`MapAlreadySynced`** ou un changement de carte.
+Additive **après wire v6** : **`MapEventsRequest`** (**29**) corps **vide** après l’opcode (session authentifiée). Le serveur répond **`MapEventsResult`** (**30**) avec **`CurrentMapId`**, puis longueur **UInt16 LE** puis JSON UTF‑8 : tableau d’objets `MapEventWireEntry` (`placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, **`triggerKind`**). **`triggerKind`** vaut `interact` (défaut si absent du JSON), `step_on` (à l’**arrivée** sur la tuile) ou **`page`** (une fois par **entrée sur la carte** sur la tuile d’arrivée, voir ci‑dessous). Si MariaDB est désactivée ou sans lignes, la réponse est un tableau vide. Le client peut renvoyer cette requête après **`MapData`** / **`MapAlreadySynced`** ou un changement de carte.
 
 **`InteractRequest`** (**31**), corps vide : interaction sur la **tuile courante** du joueur (`PositionX` / `PositionY` grille). Réponse **`InteractResult`** (**32**), même forme que **`LoginResult`**. Seuls les placements dont **`triggerKind`** est **`interact`** sont pris en compte : s’il en existe au moins un sur cette tuile, **succès** avec message `"{displayName} ({slug})"` pour l’entrée **la plus petite** (`catalogId`, puis `placementId`) ; sinon échec « Rien a interagir ici. ».
 
 Placements **`step_on`** : après un **`MoveRequest`** ou **`PositionSyncRequest`** réussi **et** si le couple **(carte, tuile)** du joueur a **changé** par rapport à l’état avant la requête (mouvement ou warp inclus), le serveur peut envoyer au client concerné un **`InteractResult`** réussi avec le message préfixé **`[Marche]`** (même tri `catalogId`, puis `placementId` sur les `step_on` de la tuile d’arrivée). Ainsi pas de spam si le client renvoie la même position sans changer de case.
+
+Placements **`page`** : quand **`CurrentMapId`** change (connexion, sélection de perso avec autre carte, warp), après positionnement sur la nouvelle carte le serveur peut envoyer un **`InteractResult`** réussi avec **`[Page]`** pour au plus un placement `page` sur la **tuile courante**, **une fois par visite** de cette carte (réarmé en quittant la carte). Si aucun `page` sur la tuile d’arrivée, aucun message ; la visite est tout de même marquée pour ne pas répéter.
 
 Côté serveur MariaDB, les placements sont mis en cache par carte ; l’empreinte de cache inclut notamment `COUNT(*)`, `MAX(id)` et un agrégat sur le contenu des lignes (dont `trigger_kind`) pour refléter les mises à jour sans redémarrage.
 
@@ -375,9 +377,9 @@ Payload :
 - `PacketId` (Byte) = `30`
 - `MapId` (**Int32** LE) — valeur `Session.CurrentMapId` au moment de la requête
 - `JsonUtf8Length` (**UInt16** LE)
-- `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`) — champs notamment `placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, `triggerKind` (`interact` ou `step_on`).
+- `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`) — champs notamment `placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, `triggerKind` (`interact`, `step_on` ou `page`).
 
-**Client (`MapViewRenderer`)** : sur la vue carte monde, surbrillance **rectangle** pour `triggerKind` **`interact`**, **losange** pour **`step_on`** (couleurs d’accent inchangées par slug, ex. démo).
+**Client (`MapViewRenderer`)** : sur la vue carte monde, surbrillance **rectangle** pour **`interact`**, **losange** pour **`step_on`**, **cercle** (coin bas-gauche de la tuile) pour **`page`** (couleurs d’accent inchangées par slug, ex. démo).
 
 ### InteractRequest (Client -> Serveur)
 

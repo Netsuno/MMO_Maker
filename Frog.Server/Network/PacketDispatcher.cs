@@ -169,6 +169,8 @@ public sealed class PacketDispatcher(
         clientSession.AuthenticatedSession = session;
         session.CharacterId = _characterBootstrap.EnsureDefaultHero(username);
 
+        var mapAtLoginStart = session.CurrentMapId;
+
         PlayerWorldState world = default;
         var persistOk = !string.IsNullOrWhiteSpace(session.CharacterId) &&
             _playerStateStore.TryGetForCharacter(session.CharacterId, out world);
@@ -203,6 +205,13 @@ public sealed class PacketDispatcher(
         await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
 
         await SyncPositionsOnJoinAsync(clientSession, session, cancellationToken);
+
+        if (session.CurrentMapId != mapAtLoginStart)
+        {
+            ReleasePageTriggerForPreviousMap(session, mapAtLoginStart);
+        }
+
+        await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
     }
 
     private async Task HandleRegisterRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
@@ -390,6 +399,12 @@ public sealed class PacketDispatcher(
         }
 
         var cellAfter = (session.CurrentMapId, session.PositionX, session.PositionY);
+        if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
+        {
+            ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
+            await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
+        }
+
         if (cellAfter != cellBefore)
         {
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
@@ -433,6 +448,12 @@ public sealed class PacketDispatcher(
         }
 
         var cellAfter = (session.CurrentMapId, session.PositionX, session.PositionY);
+        if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
+        {
+            ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
+            await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
+        }
+
         if (cellAfter != cellBefore)
         {
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
@@ -461,6 +482,47 @@ public sealed class PacketDispatcher(
             true,
             $"[Marche] {ev.DisplayName} ({ev.Slug})",
             cancellationToken);
+    }
+
+    private static void ReleasePageTriggerForPreviousMap(Session session, int previousMapId)
+    {
+        if (previousMapId == session.CurrentMapId)
+        {
+            return;
+        }
+
+        session.PageTriggerSatisfiedMapIds.Remove(previousMapId);
+    }
+
+    private async Task TryFirePageMapEventsAsync(ClientSession clientSession, Session session, CancellationToken cancellationToken)
+    {
+        if (session.PageTriggerSatisfiedMapIds.Contains(session.CurrentMapId))
+        {
+            return;
+        }
+
+        if (!_mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        {
+            placements = Array.Empty<MapEventWireEntry>();
+        }
+
+        var here = placements
+            .Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY)
+            .Where(p => MapEventTriggerNormalization.NormalizeTriggerKind(p.TriggerKind) == MapEventTriggerKinds.Page)
+            .ToList();
+        if (here.Count == 0)
+        {
+            session.PageTriggerSatisfiedMapIds.Add(session.CurrentMapId);
+            return;
+        }
+
+        var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
+        await _packetSender.SendInteractResultAsync(
+            clientSession,
+            true,
+            $"[Page] {ev.DisplayName} ({ev.Slug})",
+            cancellationToken);
+        session.PageTriggerSatisfiedMapIds.Add(session.CurrentMapId);
     }
 
     private async Task HandleHeartbeatRequestAsync(ClientSession clientSession, CancellationToken cancellationToken)
@@ -862,6 +924,8 @@ public sealed class PacketDispatcher(
             return;
         }
 
+        var mapIdBeforeSelect = session.CurrentMapId;
+
         if (!TryParseCharacterSelectRequest(payload.Span, out var newCharacterId))
         {
             await _packetSender.SendCharacterSelectResultAsync(
@@ -940,6 +1004,13 @@ public sealed class PacketDispatcher(
                 session.PixelY,
                 cancellationToken);
         }
+
+        if (session.CurrentMapId != mapIdBeforeSelect)
+        {
+            ReleasePageTriggerForPreviousMap(session, mapIdBeforeSelect);
+        }
+
+        await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
     }
 
     /// <summary>Corps : longueur UUID UTF‑8 (1 octet) + identifiant (≤ <see cref="ChatProtocolLimits.MaxUsernameUtf8Bytes"/>).</summary>

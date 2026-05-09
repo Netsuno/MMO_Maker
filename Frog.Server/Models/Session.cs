@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Frog.Server.Models;
 
 public sealed class Session
@@ -26,4 +28,7 @@ public sealed class Session
 
     /// <summary><c>frog_character.id</c> (UUID texte) du perso par défaut, rempli après login.</summary>
     public string? CharacterId { get; set; }
+
+    /// <summary>Cartes pour lesquelles un événement <c>page</c> a déjà été joué cette session (réarmé en quittant la carte).</summary>
+    public HashSet<int> PageTriggerSatisfiedMapIds { get; } = new();
 }

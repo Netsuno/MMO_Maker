@@ -119,11 +119,14 @@ internal static class MapViewRenderer
                     var accent = string.Equals(ev.Slug, MapEventSlugs.DemoInteract, StringComparison.Ordinal)
                         ? Color.FromArgb(230, 255, 210, 72)
                         : Color.FromArgb(200, 96, 212, 255);
-                    var stepOn = string.Equals(
-                        MapEventTriggerNormalization.NormalizeTriggerKind(ev.TriggerKind),
-                        MapEventTriggerKinds.StepOn,
-                        StringComparison.Ordinal);
-                    if (stepOn)
+                    var kind = MapEventTriggerNormalization.NormalizeTriggerKind(ev.TriggerKind);
+                    var stepOn = string.Equals(kind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
+                    var page = string.Equals(kind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
+                    if (page)
+                    {
+                        DrawEventTilePageDotOutline(g, ev.TileX, ev.TileY, tw, accent);
+                    }
+                    else if (stepOn)
                     {
                         DrawEventTileDiamondOutline(g, ev.TileX, ev.TileY, tw, accent);
                     }
@@ -215,6 +218,16 @@ internal static class MapViewRenderer
         var rect = new Rectangle(tileX * tw + 2, tileY * tw + 2, tw - 4, tw - 4);
         using var pen = new Pen(stroke, 3f);
         g.DrawRectangle(pen, rect);
+    }
+
+    private static void DrawEventTilePageDotOutline(Graphics g, int tileX, int tileY, int tw, Color stroke)
+    {
+        var pad = 5f;
+        var r = Math.Max(2.5f, tw * 0.14f);
+        var cx = tileX * tw + pad + r;
+        var cy = tileY * tw + tw - pad - r;
+        using var pen = new Pen(stroke, 2.6f);
+        g.DrawEllipse(pen, cx - r, cy - r, r * 2f, r * 2f);
     }
 
     /// <summary>Marqueur visuel aligné éditeur : <c>step_on</c> = losange sur la tuile.</summary>

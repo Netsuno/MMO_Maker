@@ -15,7 +15,7 @@ public static class MariaDbMigrationV5
         const string sql = """
             ALTER TABLE frog_map_event
             ADD COLUMN trigger_kind VARCHAR(32) NOT NULL DEFAULT 'interact'
-            COMMENT 'interact=InteractRequest ; step_on=arrivee sur tuile';
+            COMMENT 'interact | step_on | page';
             """;
 
         using var cmd = new MySqlCommand(sql, connection);

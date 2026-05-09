@@ -183,38 +183,60 @@ public sealed class MapMinimapControl : Control
                         continue;
                     }
 
-                    var cx = ox + (m.TileX + 0.5f) * ts * scale;
-                    var cy = oy + (m.TileY + 0.5f) * ts * scale;
-                    var r = Math.Max(1.25f, 2.2f * scale);
-                    if (m.PlacementCount > 1)
-                    {
-                        r *= 1.2f;
-                    }
-
                     var tint = MapEventMarkerColors.TintFromSlug(m.PrimarySlug);
                     var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
-                    var rect = new RectangleF(cx - r, cy - r, r * 2f, r * 2f);
-                    using (var b = new SolidBrush(Color.FromArgb(228, tint)))
+                    var page = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
+                    var tileL = ox + m.TileX * ts * scale;
+                    var tileT = oy + m.TileY * ts * scale;
+                    var twm = ts * scale;
+                    if (page)
                     {
-                        if (stepOn)
+                        var rDot = Math.Max(1.1f, 1.7f * scale);
+                        var cpx = tileL + rDot + 0.5f;
+                        var cpy = tileT + twm - rDot - 0.5f;
+                        using (var b = new SolidBrush(Color.FromArgb(228, tint)))
                         {
-                            FillMinimapDiamond(g, b, rect);
+                            g.FillEllipse(b, cpx - rDot, cpy - rDot, rDot * 2f, rDot * 2f);
                         }
-                        else
+
+                        using (var edge = new Pen(Color.FromArgb(200, Color.White), 1f))
                         {
-                            g.FillEllipse(b, rect);
+                            g.DrawEllipse(edge, cpx - rDot, cpy - rDot, rDot * 2f, rDot * 2f);
                         }
                     }
-
-                    using (var edge = new Pen(Color.FromArgb(200, Color.White), 1f))
+                    else
                     {
-                        if (stepOn)
+                        var cx = ox + (m.TileX + 0.5f) * ts * scale;
+                        var cy = oy + (m.TileY + 0.5f) * ts * scale;
+                        var r = Math.Max(1.25f, 2.2f * scale);
+                        if (m.PlacementCount > 1)
                         {
-                            DrawMinimapDiamond(g, edge, rect);
+                            r *= 1.2f;
                         }
-                        else
+
+                        var rect = new RectangleF(cx - r, cy - r, r * 2f, r * 2f);
+                        using (var b = new SolidBrush(Color.FromArgb(228, tint)))
                         {
-                            g.DrawEllipse(edge, rect);
+                            if (stepOn)
+                            {
+                                FillMinimapDiamond(g, b, rect);
+                            }
+                            else
+                            {
+                                g.FillEllipse(b, rect);
+                            }
+                        }
+
+                        using (var edge = new Pen(Color.FromArgb(200, Color.White), 1f))
+                        {
+                            if (stepOn)
+                            {
+                                DrawMinimapDiamond(g, edge, rect);
+                            }
+                            else
+                            {
+                                g.DrawEllipse(edge, rect);
+                            }
                         }
                     }
                 }

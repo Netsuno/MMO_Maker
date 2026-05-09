@@ -7,4 +7,7 @@ public static class MapEventTriggerKinds
 
     /// <summary>Déclenché quand le joueur arrive sur la tuile (mouvement ou sync position réussie).</summary>
     public const string StepOn = "step_on";
+
+    /// <summary>Une fois par « visite » de carte (changement de <c>frog_map</c>), sur la tuile d’arrivée.</summary>
+    public const string Page = "page";
 }

@@ -10,6 +10,11 @@ public static class MapEventTriggerNormalization
             return MapEventTriggerKinds.StepOn;
         }
 
+        if (v == MapEventTriggerKinds.Page)
+        {
+            return MapEventTriggerKinds.Page;
+        }
+
         return MapEventTriggerKinds.Interact;
     }
 }

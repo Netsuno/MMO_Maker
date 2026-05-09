@@ -13,7 +13,8 @@ public sealed class MapEventTriggerNormalizationTests
     [InlineData("interact", MapEventTriggerKinds.Interact)]
     [InlineData("Step_On", MapEventTriggerKinds.StepOn)]
     [InlineData("step_on", MapEventTriggerKinds.StepOn)]
-    [InlineData("page", MapEventTriggerKinds.Interact)]
+    [InlineData("PAGE", MapEventTriggerKinds.Page)]
+    [InlineData("page", MapEventTriggerKinds.Page)]
     public void NormalizeTriggerKind_maps_known_values(string? raw, string expected)
     {
         Assert.Equal(expected, MapEventTriggerNormalization.NormalizeTriggerKind(raw));
