@@ -22,4 +22,8 @@ public sealed class MapEventWireEntry
 
     [JsonPropertyName("tileY")]
     public int TileY { get; set; }
+
+    /// <summary><see cref="MapEventTriggerKinds"/> ; défaut <c>interact</c> si absent du JSON.</summary>
+    [JsonPropertyName("triggerKind")]
+    public string TriggerKind { get; set; } = MapEventTriggerKinds.Interact;
 }

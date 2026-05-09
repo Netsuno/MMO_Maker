@@ -6,14 +6,15 @@ using MySqlConnector;
 namespace Frog.Server.Database;
 
 /// <summary>
-/// Lecture MariaDB avec cache mémoire par <c>map_id</c>, invalidée quand COUNT / MAX(id) des lignes changent.
+/// Lecture MariaDB avec cache mémoire par <c>map_id</c>, invalidée quand l’empreinte des lignes change.
 /// </summary>
 public sealed class MariaDbMapEventStore : IMapEventStore
 {
-    private sealed class CacheEntry(int rowCount, long maxId, string json, IReadOnlyList<MapEventWireEntry> placements)
+    private sealed class CacheEntry(int rowCount, long maxId, long rowSignature, string json, IReadOnlyList<MapEventWireEntry> placements)
     {
         public int RowCount { get; } = rowCount;
         public long MaxId { get; } = maxId;
+        public long RowSignature { get; } = rowSignature;
         public string Json { get; } = json;
         public IReadOnlyList<MapEventWireEntry> Placements { get; } = placements;
     }
@@ -69,18 +70,19 @@ public sealed class MariaDbMapEventStore : IMapEventStore
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
-            var (cnt, mx) = ReadFingerprint(connection, mapId);
-            if (_cache.TryGetValue(mapId, out var cached) && cached.RowCount == cnt && cached.MaxId == mx)
+            var (cnt, mx, sig) = ReadFingerprint(connection, mapId);
+            if (_cache.TryGetValue(mapId, out var cached) &&
+                cached.RowCount == cnt &&
+                cached.MaxId == mx &&
+                cached.RowSignature == sig)
             {
                 entry = cached;
                 return true;
             }
 
             var list = ReadPlacements(connection, mapId);
-            var fpCnt = list.Count;
-            var fpMx = list.Count == 0 ? 0L : list.Max(p => p.PlacementId);
             var json = JsonSerializer.Serialize(list);
-            var fresh = new CacheEntry(fpCnt, fpMx, json, list);
+            var fresh = new CacheEntry(cnt, mx, sig, json, list);
             _cache[mapId] = fresh;
             entry = fresh;
             return true;
@@ -91,24 +93,31 @@ public sealed class MariaDbMapEventStore : IMapEventStore
         }
     }
 
-    private static (int Cnt, long MaxId) ReadFingerprint(MySqlConnection connection, int mapId)
+    private static (int Cnt, long MaxId, long Signature) ReadFingerprint(MySqlConnection connection, int mapId)
     {
         const string sql = """
-            SELECT COUNT(*), COALESCE(MAX(id), 0) FROM frog_map_event WHERE map_id = @mapId;
+            SELECT
+              COUNT(*),
+              COALESCE(MAX(id), 0),
+              COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('#', id, event_catalog_id, tile_x, tile_y, IFNULL(trigger_kind, ''))) AS UNSIGNED)), 0)
+            FROM frog_map_event
+            WHERE map_id = @mapId;
             """;
 
         using var cmd = new MySqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@mapId", mapId);
         using var reader = cmd.ExecuteReader();
         reader.Read();
-        return (reader.GetInt32(0), reader.GetInt64(1));
+        var sigObj = reader.GetValue(2);
+        var sig = sigObj is ulong u ? unchecked((long)u) : Convert.ToInt64(sigObj);
+        return (reader.GetInt32(0), reader.GetInt64(1), sig);
     }
 
     private static List<MapEventWireEntry> ReadPlacements(MySqlConnection connection, int mapId)
     {
         var list = new List<MapEventWireEntry>();
         const string sql = """
-            SELECT e.id, e.event_catalog_id, e.tile_x, e.tile_y, c.slug, c.display_name
+            SELECT e.id, e.event_catalog_id, e.tile_x, e.tile_y, c.slug, c.display_name, IFNULL(e.trigger_kind, 'interact')
             FROM frog_map_event e
             INNER JOIN frog_event_catalog c ON c.id = e.event_catalog_id
             WHERE e.map_id = @mapId
@@ -128,6 +137,7 @@ public sealed class MariaDbMapEventStore : IMapEventStore
                 TileY = reader.GetInt32(3),
                 Slug = reader.GetString(4),
                 DisplayName = reader.GetString(5),
+                TriggerKind = MapEventTriggerNormalization.NormalizeTriggerKind(reader.GetString(6)),
             });
         }
 

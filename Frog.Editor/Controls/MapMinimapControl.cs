@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 using Frog.Editor.Services;
 using Frog.Editor.Ui;
 
@@ -62,6 +63,30 @@ public sealed class MapMinimapControl : Control
     {
         DetachInner();
         base.OnHandleDestroyed(e);
+    }
+
+    private static void FillMinimapDiamond(Graphics g, Brush brush, RectangleF r)
+    {
+        var pts = new[]
+        {
+            new PointF(r.X + r.Width * 0.5f, r.Y),
+            new PointF(r.Right, r.Y + r.Height * 0.5f),
+            new PointF(r.X + r.Width * 0.5f, r.Bottom),
+            new PointF(r.Left, r.Y + r.Height * 0.5f),
+        };
+        g.FillPolygon(brush, pts);
+    }
+
+    private static void DrawMinimapDiamond(Graphics g, Pen pen, RectangleF r)
+    {
+        var pts = new[]
+        {
+            new PointF(r.X + r.Width * 0.5f, r.Y),
+            new PointF(r.Right, r.Y + r.Height * 0.5f),
+            new PointF(r.X + r.Width * 0.5f, r.Bottom),
+            new PointF(r.Left, r.Y + r.Height * 0.5f),
+        };
+        g.DrawPolygon(pen, pts);
     }
 
     private static bool TryComputeMinimapLayout(
@@ -167,14 +192,30 @@ public sealed class MapMinimapControl : Control
                     }
 
                     var tint = MapEventMarkerColors.TintFromSlug(m.PrimarySlug);
+                    var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
+                    var rect = new RectangleF(cx - r, cy - r, r * 2f, r * 2f);
                     using (var b = new SolidBrush(Color.FromArgb(228, tint)))
                     {
-                        g.FillEllipse(b, cx - r, cy - r, r * 2f, r * 2f);
+                        if (stepOn)
+                        {
+                            FillMinimapDiamond(g, b, rect);
+                        }
+                        else
+                        {
+                            g.FillEllipse(b, rect);
+                        }
                     }
 
                     using (var edge = new Pen(Color.FromArgb(200, Color.White), 1f))
                     {
-                        g.DrawEllipse(edge, cx - r, cy - r, r * 2f, r * 2f);
+                        if (stepOn)
+                        {
+                            DrawMinimapDiamond(g, edge, rect);
+                        }
+                        else
+                        {
+                            g.DrawEllipse(edge, rect);
+                        }
                     }
                 }
             }

@@ -34,6 +34,7 @@ public static class MariaDbSchemaBootstrap
         MariaDbMigrationV2.Apply(connection);
         MariaDbMigrationV3.Apply(connection);
         MariaDbMigrationV4.Apply(connection);
+        MariaDbMigrationV5.Apply(connection);
         SeedDemoAccountIfMissing(connection);
     }
 

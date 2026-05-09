@@ -37,6 +37,7 @@ public static class MariaDbMigrationV4
                 event_catalog_id INT NOT NULL,
                 tile_x INT NOT NULL,
                 tile_y INT NOT NULL,
+                trigger_kind VARCHAR(32) NOT NULL DEFAULT 'interact',
                 created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                 CONSTRAINT fk_fme_map FOREIGN KEY (map_id) REFERENCES frog_map(id) ON DELETE CASCADE,
                 CONSTRAINT fk_fme_cat FOREIGN KEY (event_catalog_id) REFERENCES frog_event_catalog(id) ON DELETE CASCADE,

@@ -1,3 +1,4 @@
+using Frog.Core.Protocol;
 using Frog.Editor.Services;
 
 namespace Frog.Editor.Forms;
@@ -12,6 +13,8 @@ internal sealed class MapEventsBrowseDialog : Form
     private readonly Button _btnReload = new() { Text = "Charger", AutoSize = true };
     private readonly Button _btnPlace = new() { Text = "Placer sur carte", AutoSize = true };
     private readonly Button _btnDeleteSelected = new() { Text = "Supprimer ligne", AutoSize = true };
+    private readonly ComboBox _cbTrigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 340 };
+    private readonly Button _btnApplyTrigger = new() { Text = "Appliquer déclencheur à la ligne", AutoSize = true };
     private readonly ListView _lvCatalog = new()
     {
         View = View.Details,
@@ -54,7 +57,15 @@ internal sealed class MapEventsBrowseDialog : Form
         _lvPlacements.Columns.Add("tile_x", 60);
         _lvPlacements.Columns.Add("tile_y", 60);
         _lvPlacements.Columns.Add("slug", 140);
-        _lvPlacements.Columns.Add("display_name", 220);
+        _lvPlacements.Columns.Add("display_name", 200);
+        _lvPlacements.Columns.Add("trigger_kind", 110);
+
+        _cbTrigger.Items.AddRange(new object[]
+        {
+            "interact — action « Interagir » (touche E)",
+            "step_on — à l’arrivée sur la tuile (marche)",
+        });
+        _cbTrigger.SelectedIndex = 0;
 
         var top = new FlowLayoutPanel
         {
@@ -110,8 +121,11 @@ internal sealed class MapEventsBrowseDialog : Form
         placeToolbar.Controls.Add(_numTileX);
         placeToolbar.Controls.Add(new Label { Text = "Y", AutoSize = true, Margin = new Padding(8, 8, 0, 0) });
         placeToolbar.Controls.Add(_numTileY);
+        placeToolbar.Controls.Add(new Label { Text = "Déclencheur", AutoSize = true, Margin = new Padding(12, 8, 4, 0) });
+        placeToolbar.Controls.Add(_cbTrigger);
         placeToolbar.Controls.Add(_btnPlace);
         placeToolbar.Controls.Add(_btnDeleteSelected);
+        placeToolbar.Controls.Add(_btnApplyTrigger);
         placeOuter.Controls.Add(placeToolbar, 0, 0);
         placeOuter.Controls.Add(new Label { Text = "frog_map_event (filtre frog_map.id)", Dock = DockStyle.Fill, AutoSize = true }, 0, 1);
         placeOuter.Controls.Add(_lvPlacements, 0, 2);
@@ -135,6 +149,7 @@ internal sealed class MapEventsBrowseDialog : Form
         _btnReload.Click += (_, _) => ReloadSafe();
         _btnPlace.Click += (_, _) => PlaceSafe();
         _btnDeleteSelected.Click += (_, _) => DeleteSelectedSafe();
+        _btnApplyTrigger.Click += (_, _) => ApplyTriggerSafe();
         _btnAddCatalog.Click += (_, _) => AddCatalogSafe();
         _btnDeleteCatalogRow.Click += (_, _) => DeleteCatalogRowSafe();
         Shown += (_, _) => ReloadSafe();
@@ -209,7 +224,7 @@ internal sealed class MapEventsBrowseDialog : Form
             var mapId = (int)_numMapId.Value;
             var tx = (int)_numTileX.Value;
             var ty = (int)_numTileY.Value;
-            if (!MapEventsMariaDbWriter.TryInsertPlacement(_connectionString, mapId, catalogId, tx, ty, out var err))
+            if (!MapEventsMariaDbWriter.TryInsertPlacement(_connectionString, mapId, catalogId, tx, ty, GetTriggerKindFromUi(), out var err))
             {
                 MessageBox.Show(this, string.IsNullOrEmpty(err) ? "Placement déjà présent pour cette carte, tuile et type (INSERT IGNORE)." : err, "Placer événement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -222,6 +237,34 @@ internal sealed class MapEventsBrowseDialog : Form
             MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
+
+    private void ApplyTriggerSafe()
+    {
+        try
+        {
+            if (!TryGetSingleSelectedFirstColumnLong(_lvPlacements, out var rowId))
+            {
+                MessageBox.Show(this, "Sélectionnez une ligne de placement.", "Déclencheur", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var mapId = (int)_numMapId.Value;
+            if (!MapEventsMariaDbWriter.TryUpdatePlacementTriggerKind(_connectionString, rowId, mapId, GetTriggerKindFromUi(), out var err))
+            {
+                MessageBox.Show(this, err, "Déclencheur", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            Reload();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private string GetTriggerKindFromUi() =>
+        _cbTrigger.SelectedIndex == 1 ? MapEventTriggerKinds.StepOn : MapEventTriggerKinds.Interact;
 
     private void DeleteSelectedSafe()
     {
@@ -297,6 +340,7 @@ internal sealed class MapEventsBrowseDialog : Form
                 item.SubItems.Add(row.TileY.ToString());
                 item.SubItems.Add(row.Slug);
                 item.SubItems.Add(row.DisplayName);
+                item.SubItems.Add(row.TriggerKind);
                 _lvPlacements.Items.Add(item);
             }
         }

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows.Forms;
 using Frog.Core.Enums;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 using Frog.Editor.Assets;
 using Frog.Editor.Enums;
 using Frog.Editor.Services;
@@ -521,6 +522,30 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private static void FillDiamond(Graphics g, Brush brush, Rectangle r)
+    {
+        var pts = new[]
+        {
+            new Point(r.X + r.Width / 2, r.Y),
+            new Point(r.Right, r.Y + r.Height / 2),
+            new Point(r.X + r.Width / 2, r.Bottom),
+            new Point(r.Left, r.Y + r.Height / 2),
+        };
+        g.FillPolygon(brush, pts);
+    }
+
+    private static void DrawDiamond(Graphics g, Pen pen, Rectangle r)
+    {
+        var pts = new[]
+        {
+            new Point(r.X + r.Width / 2, r.Y),
+            new Point(r.Right, r.Y + r.Height / 2),
+            new Point(r.X + r.Width / 2, r.Bottom),
+            new Point(r.Left, r.Y + r.Height / 2),
+        };
+        g.DrawPolygon(pen, pts);
+    }
+
     private void DrawMapEventMarkerOverlay(Graphics g, int tx0, int ty0, int tx1, int ty1)
     {
         if (!ShowMapEventMarkers || _mapEventMarkers is null || Map is null || _mapEventMarkers.Count == 0)
@@ -552,14 +577,29 @@ public sealed class MapCanvas : Control
                 var badgeD = Math.Max(6, ts * 2 / 5);
                 var pad = Math.Max(1, ts / 14);
                 var badge = new Rectangle(rect.Right - badgeD - pad, rect.Y + pad, badgeD, badgeD);
+                var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
                 using (var brush = new SolidBrush(Color.FromArgb(150, fill)))
                 {
-                    g.FillEllipse(brush, badge);
+                    if (stepOn)
+                    {
+                        FillDiamond(g, brush, badge);
+                    }
+                    else
+                    {
+                        g.FillEllipse(brush, badge);
+                    }
                 }
 
                 using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
                 {
-                    g.DrawEllipse(edge, badge);
+                    if (stepOn)
+                    {
+                        DrawDiamond(g, edge, badge);
+                    }
+                    else
+                    {
+                        g.DrawEllipse(edge, badge);
+                    }
                 }
 
                 if (m.PlacementCount > 1)

@@ -123,6 +123,7 @@ public static class MapEventsMariaDbWriter
         int eventCatalogId,
         int tileX,
         int tileY,
+        string? triggerKind,
         out string errorMessage)
     {
         errorMessage = string.Empty;
@@ -133,12 +134,14 @@ public static class MapEventsMariaDbWriter
             return false;
         }
 
+        var tk = MapEventTriggerNormalization.NormalizeTriggerKind(triggerKind);
+
         using var connection = new MySqlConnection(connectionString);
         connection.Open();
 
         const string sql = """
-            INSERT IGNORE INTO frog_map_event(map_id, event_catalog_id, tile_x, tile_y)
-            VALUES (@mapId, @catalogId, @tx, @ty);
+            INSERT IGNORE INTO frog_map_event(map_id, event_catalog_id, tile_x, tile_y, trigger_kind)
+            VALUES (@mapId, @catalogId, @tx, @ty, @tk);
             """;
 
         using var cmd = new MySqlCommand(sql, connection);
@@ -146,10 +149,59 @@ public static class MapEventsMariaDbWriter
         cmd.Parameters.AddWithValue("@catalogId", eventCatalogId);
         cmd.Parameters.AddWithValue("@tx", tileX);
         cmd.Parameters.AddWithValue("@ty", tileY);
+        cmd.Parameters.AddWithValue("@tk", tk);
         try
         {
             var affected = cmd.ExecuteNonQuery();
             return affected > 0;
+        }
+        catch (MySqlException ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryUpdatePlacementTriggerKind(
+        string connectionString,
+        long rowId,
+        int mapId,
+        string? triggerKind,
+        out string errorMessage)
+    {
+        errorMessage = string.Empty;
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        if (mapId < 1 || rowId < 1)
+        {
+            errorMessage = "Identifiants invalides.";
+            return false;
+        }
+
+        var tk = MapEventTriggerNormalization.NormalizeTriggerKind(triggerKind);
+
+        using var connection = new MySqlConnection(connectionString);
+        connection.Open();
+        const string sql = """
+            UPDATE frog_map_event
+            SET trigger_kind = @tk
+            WHERE id = @id AND map_id = @mapId
+            LIMIT 1;
+            """;
+
+        using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@tk", tk);
+        cmd.Parameters.AddWithValue("@id", rowId);
+        cmd.Parameters.AddWithValue("@mapId", mapId);
+        try
+        {
+            var n = cmd.ExecuteNonQuery();
+            if (n == 0)
+            {
+                errorMessage = "Aucune ligne mise à jour (id ou carte incorrect).";
+                return false;
+            }
+
+            return true;
         }
         catch (MySqlException ex)
         {

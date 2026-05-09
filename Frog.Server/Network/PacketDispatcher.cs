@@ -334,14 +334,16 @@ public sealed class PacketDispatcher(
             placements = Array.Empty<MapEventWireEntry>();
         }
 
-        var here = placements.Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY).ToList();
+        var here = placements
+            .Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY)
+            .Where(p => MapEventTriggerNormalization.NormalizeTriggerKind(p.TriggerKind) == MapEventTriggerKinds.Interact)
+            .ToList();
         if (here.Count == 0)
         {
             await _packetSender.SendInteractResultAsync(clientSession, false, "Rien a interagir ici.", cancellationToken);
             return;
         }
 
-        // MVP : tout type catalogue sur la tuile déclenche une interaction réussie (message = libellé + slug).
         var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
         await _packetSender.SendInteractResultAsync(
             clientSession,
@@ -384,6 +386,8 @@ public sealed class PacketDispatcher(
                 session.PixelY,
                 cancellationToken);
         }
+
+        await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
     }
 
     private async Task HandlePositionSyncRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
@@ -419,6 +423,32 @@ public sealed class PacketDispatcher(
                 session.PixelY,
                 cancellationToken);
         }
+
+        await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
+    }
+
+    private async Task TryFireStepOnMapEventsAsync(ClientSession clientSession, Session session, CancellationToken cancellationToken)
+    {
+        if (!_mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        {
+            placements = Array.Empty<MapEventWireEntry>();
+        }
+
+        var here = placements
+            .Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY)
+            .Where(p => MapEventTriggerNormalization.NormalizeTriggerKind(p.TriggerKind) == MapEventTriggerKinds.StepOn)
+            .ToList();
+        if (here.Count == 0)
+        {
+            return;
+        }
+
+        var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
+        await _packetSender.SendInteractResultAsync(
+            clientSession,
+            true,
+            $"[Marche] {ev.DisplayName} ({ev.Slug})",
+            cancellationToken);
     }
 
     private async Task HandleHeartbeatRequestAsync(ClientSession clientSession, CancellationToken cancellationToken)
