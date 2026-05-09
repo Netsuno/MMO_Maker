@@ -48,8 +48,8 @@ Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal
 ### Jalons technique proposés (ordre pour travailler en autonomie)
 
 1. [x] **Multi‑maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).  
-2. **Stats persistées + multi‑slots perso** (position **`character_world_state`**, stats JSON **Hero**, **`CharacterListRequest` / `CharacterSelectRequest`** + UI client liste / activer).  
-3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter.  
+2. [x] **Stats persistées + multi‑slots perso** (position **`character_world_state`**, stats JSON **Hero**, **`CharacterListRequest` / `CharacterSelectRequest`** + UI client liste / activer / écran carte).  
+3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter — **priorité P1** (voir section **Priorités courantes**).  
 4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.  
 5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.  
 6. **Publication éditeur → MariaDB** (cartes puis événements / définitions progressives).  
@@ -131,7 +131,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 <details>
-<summary><strong>Phase 3 — Éditeur de cartes (outil métier créateur)</strong> (partiel)</summary>
+<summary><strong>Phase 3 — Éditeur de cartes (outil métier créateur)</strong> (partiel — **P1** dans « Priorités courantes »)</summary>
 
 - [x] **Mini‑carte** (coin carte) : rectangle de vue, clic pour centrer ; pan / zoom Ctrl+molette notifient la mini-carte.
 - [x] **Chrome RPG Maker** (approx.) : workspace sombre, **une seule barre de menus** (actions + raccourcis), tuiles + onglets A–D à droite, arbre « Cartes », bandeau titre carte.
@@ -142,7 +142,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 <details>
-<summary><strong>Phase 4 — Serveur : monde vivant</strong></summary>
+<summary><strong>Phase 4 — Serveur : monde vivant</strong> (**P1** persistance / logs)</summary>
 
 - [x] **Changement de carte / multi‑maps** : warps inter-cartes, `CurrentMapId` session, `PositionUpdate` avec `MapId`, `MapRequest` + empreintes par carte ; client WinForms recharge la carte affichée après warp.
 - [ ] Persistance **au‑delà de la position** (inventaire, flags monde, quêtes — MVP ; la position est déjà **par personnage** en MariaDB).
@@ -151,7 +151,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 <details>
-<summary><strong>Phase 5 — Client joueur présentable</strong></summary>
+<summary><strong>Phase 5 — Client joueur présentable</strong> (**P2** HUD / options)</summary>
 
 - [ ] **HUD / UX** : connexion, chat lisible, retours combat basiques.
 - [ ] Combat **action** étendu (vision Zelda‑like : directions, hitbox, i‑frames, armes animées si souhaité).
@@ -160,7 +160,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 <details>
-<summary><strong>Phase 6 — Données de jeu (objets, armes, autres)</strong></summary>
+<summary><strong>Phase 6 — Données de jeu (objets, armes, autres)</strong> (**P2**)</summary>
 
 - [ ] Modèles **`Frog.Core`** + fichier / chargement **serveur** pour items et équipements.
 - [ ] Premier **éditeur de données** (objets, armes ou table unifiée) avec IDs référençables par la carte.
@@ -169,7 +169,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 <details>
-<summary><strong>Phase 7 — Scripts créateur</strong></summary>
+<summary><strong>Phase 7 — Scripts créateur</strong> (**P3**)</summary>
 
 - [ ] Choix **runtime + sandbox** (Lua, C# isolé ou DSL ; limites CPU/mémoire ; pas de fichier/réseau arbitraire par défaut).
 - [ ] **API documentée et stable** : hooks (connexion joueur, entrée carte, interaction, objet, PNJ/combat selon périmètre).
@@ -178,7 +178,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 <details>
-<summary><strong>Phase 8 — Distribution et confiance</strong></summary>
+<summary><strong>Phase 8 — Distribution et confiance</strong> (**P3** — CI déjà fait)</summary>
 
 - [ ] **Packaging** (ZIP ou installateur léger) + **exemple jouable** (`.fmap` + tilesets dans le dépôt ou release).
 - [ ] **Admin minimal** : mute, kick ou ban (modération liée aux canaux chat).
@@ -188,6 +188,23 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 _La liste technique **par composant** (Core / Server / Client / Editor / Tests) est dans **Roadmap** juste après cette section._
+
+---
+
+## 🎯 Priorités courantes (découpage des phases)
+
+Ordre de travail **court** : ce qui débloque le **socle MMO** en premier (événements → persistance → joueur présentable → données → scripts → distribution).
+
+| Rang | Phases / chantiers | Pourquoi en premier |
+|------|---------------------|---------------------|
+| **P1** | **Phase 3** — marqueurs / **événements carte** + **liste en DB** réutilisable (tuile / map). | Bloque **dialogue NPC**, quêtes simples, interactions case ; aligné décision produit « événements bientôt ». |
+| **P1** | **Phase 4** — persistance **au-delà de la position** (flags / inventaire léger MVP si besoin) + **collisions / règles** alignées carte servie + **exploitation des logs**. | Monde **sauvegardé** et serveur **exploitable** pour une bêta. |
+| **P2** | **Phase 5** — **HUD / UX** en jeu (chat lisible, retours combat) ; **options** (volume, fenêtre). L’écran **Connexion → Perso → Carte** est déjà posé (`MainShellForm`). | Objectif **deux joueurs + chat + dialogue + combat** avec une UI lisible. |
+| **P2** | **Phase 6** — **objets / armes** dans `Frog.Core` + chargement serveur + **éditeur de données** + boucle **loot / équipement / utilisation** côté serveur. | Décision produit : **objets** importants tôt. |
+| **P3** | **Phase 7** — **scripts créateur** (runtime sandbox + API stable + erreurs lisibles). | Après métadonnées stables (carte, événements, items). |
+| **P3** | **Phase 8** — **packaging** ZIP bêta, **admin** chat (mute/kick/ban), **sécurité** prod, tests **TCP / MariaDB** en CI. | Quand la boucle gameplay tient ; le **build + tests** CI existe déjà (`.github/workflows/ci.yml`). |
+
+**Jalons techniques** (section plus haut) : **multi-maps** est coché ; enchaîner **événements + DB** puis **PvE** / **items** reste cohérent avec ce tableau.
 
 ---
 
