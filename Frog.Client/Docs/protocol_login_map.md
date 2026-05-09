@@ -377,6 +377,8 @@ Payload :
 - `JsonUtf8Length` (**UInt16** LE)
 - `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`) — champs notamment `placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, `triggerKind` (`interact` ou `step_on`).
 
+**Client (`MapViewRenderer`)** : sur la vue carte monde, surbrillance **rectangle** pour `triggerKind` **`interact`**, **losange** pour **`step_on`** (couleurs d’accent inchangées par slug, ex. démo).
+
 ### InteractRequest (Client -> Serveur)
 
 Session authentifiée.

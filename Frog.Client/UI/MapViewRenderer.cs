@@ -105,17 +105,37 @@ internal static class MapViewRenderer
 
         if (mapEvents is { Count: > 0 })
         {
-            foreach (var ev in mapEvents)
+            var prevEvSmooth = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            try
             {
-                if (ev.TileX < 0 || ev.TileY < 0 || ev.TileX >= map.Width || ev.TileY >= map.Height)
+                foreach (var ev in mapEvents)
                 {
-                    continue;
-                }
+                    if (ev.TileX < 0 || ev.TileY < 0 || ev.TileX >= map.Width || ev.TileY >= map.Height)
+                    {
+                        continue;
+                    }
 
-                var accent = string.Equals(ev.Slug, MapEventSlugs.DemoInteract, StringComparison.Ordinal)
-                    ? Color.FromArgb(230, 255, 210, 72)
-                    : Color.FromArgb(200, 96, 212, 255);
-                DrawEventTileOutline(g, ev.TileX, ev.TileY, tw, accent);
+                    var accent = string.Equals(ev.Slug, MapEventSlugs.DemoInteract, StringComparison.Ordinal)
+                        ? Color.FromArgb(230, 255, 210, 72)
+                        : Color.FromArgb(200, 96, 212, 255);
+                    var stepOn = string.Equals(
+                        MapEventTriggerNormalization.NormalizeTriggerKind(ev.TriggerKind),
+                        MapEventTriggerKinds.StepOn,
+                        StringComparison.Ordinal);
+                    if (stepOn)
+                    {
+                        DrawEventTileDiamondOutline(g, ev.TileX, ev.TileY, tw, accent);
+                    }
+                    else
+                    {
+                        DrawEventTileOutline(g, ev.TileX, ev.TileY, tw, accent);
+                    }
+                }
+            }
+            finally
+            {
+                g.SmoothingMode = prevEvSmooth;
             }
         }
 
@@ -195,6 +215,27 @@ internal static class MapViewRenderer
         var rect = new Rectangle(tileX * tw + 2, tileY * tw + 2, tw - 4, tw - 4);
         using var pen = new Pen(stroke, 3f);
         g.DrawRectangle(pen, rect);
+    }
+
+    /// <summary>Marqueur visuel aligné éditeur : <c>step_on</c> = losange sur la tuile.</summary>
+    private static void DrawEventTileDiamondOutline(Graphics g, int tileX, int tileY, int tw, Color stroke)
+    {
+        var pad = 4;
+        var x0 = tileX * tw + pad;
+        var y0 = tileY * tw + pad;
+        var x1 = tileX * tw + tw - pad;
+        var y1 = tileY * tw + tw - pad;
+        var cx = (x0 + x1) * 0.5f;
+        var cy = (y0 + y1) * 0.5f;
+        var pts = new[]
+        {
+            new PointF(cx, y0),
+            new PointF(x1, cy),
+            new PointF(cx, y1),
+            new PointF(x0, cy),
+        };
+        using var pen = new Pen(stroke, 2.8f);
+        g.DrawPolygon(pen, pts);
     }
 
     /// <summary>Centre du sprite en coordonnées pixel (fractionnaire autorisé pour interpolation).</summary>
