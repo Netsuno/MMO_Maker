@@ -137,9 +137,9 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 - [x] **Chrome RPG Maker** (approx.) : workspace sombre, **une seule barre de menus** (actions + raccourcis), tuiles + onglets A–D à droite, arbre « Cartes », bandeau titre carte.
 - [x] **`Map.Validate()`** : au moins une couche, bornes tuiles, pas de doublon (x,y) par couche, warps (MapId ≥ 0, destination ≥ 0).
 - [x] **`PropertyGrid`** : catégories / descriptions sur les propriétés **Tuile** ; validation via menu **Carte**.
-- [x] **Événements carte (socle)** : tables **`frog_event_catalog`** / **`frog_map_event`**, sync **`MapEventsRequest`/`Result`**, surbrillance client, **`InteractRequest`** générique (tout slug sur la tuile du joueur).
-- [x] **Éditeur** : dialogue MariaDB (**CRUD catalogue** + placements), raccourci **Ctrl+clic droit** sur le canevas → menu « événements sur cette tuile ».
-- [ ] **Suite P1** : marqueurs **visuels** sur le canevas, triggers (page / auto), scripts runtime — au-delà du socle DB + dialogue.
+- [x] **Événements carte (socle)** : tables **`frog_event_catalog`** / **`frog_map_event`**, sync **`MapEventsRequest`/`Result`**, surbrillance client (rectangle / losange / cercle selon `triggerKind`), **`InteractRequest`** + triggers **`interact`** / **`step_on`** / **`page`** (logs serveur structurés `MapEvent*`).
+- [x] **Éditeur** : dialogue MariaDB (**CRUD catalogue** + placements + `trigger_kind`), raccourci **Ctrl+clic droit** sur le canevas → menu « événements sur cette tuile » ; **marqueurs** canevas + mini-carte (lecture MariaDB, `editor-workstate`).
+- [ ] **Suite P1** restante : déclencheurs **auto** (temps / tick), **scripts runtime** ; raffinement UX événements.
 
 </details>
 
@@ -148,7 +148,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 
 - [x] **Changement de carte / multi‑maps** : warps inter-cartes, `CurrentMapId` session, `PositionUpdate` avec `MapId`, `MapRequest` + empreintes par carte ; client WinForms recharge la carte affichée après warp.
 - [ ] Persistance **au‑delà de la position** (inventaire, flags monde, quêtes — MVP ; la position est déjà **par personnage** en MariaDB).
-- [ ] Alignement **collisions/règles** avec la carte servie ; anti‑abus minimal ; exploitation des **logs** pour hébergement.
+- [ ] Alignement **collisions/règles** avec la carte servie ; anti‑abus minimal ; exploitation des **logs** pour hébergement (événements carte : `ServerNetworkLogs.MapEvent*` Information).
 
 </details>
 

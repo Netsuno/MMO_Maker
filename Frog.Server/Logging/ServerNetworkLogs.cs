@@ -43,4 +43,34 @@ internal static partial class ServerNetworkLogs
 
     [LoggerMessage(EventId = 5020, Level = LogLevel.Warning, Message = "Server sent error to client: {Message}")]
     public static partial void ErrorSentToClient(ILogger logger, string message);
+
+    [LoggerMessage(EventId = 5021, Level = LogLevel.Information, Message = "Map event interact username={Username} mapId={MapId} tile=({TileX},{TileY}) slug={Slug} placementId={PlacementId}")]
+    public static partial void MapEventInteractFired(
+        ILogger logger,
+        string username,
+        int mapId,
+        int tileX,
+        int tileY,
+        string slug,
+        long placementId);
+
+    [LoggerMessage(EventId = 5022, Level = LogLevel.Information, Message = "Map event step_on username={Username} mapId={MapId} tile=({TileX},{TileY}) slug={Slug} placementId={PlacementId}")]
+    public static partial void MapEventStepOnFired(
+        ILogger logger,
+        string username,
+        int mapId,
+        int tileX,
+        int tileY,
+        string slug,
+        long placementId);
+
+    [LoggerMessage(EventId = 5023, Level = LogLevel.Information, Message = "Map event page username={Username} mapId={MapId} tile=({TileX},{TileY}) slug={Slug} placementId={PlacementId}")]
+    public static partial void MapEventPageFired(
+        ILogger logger,
+        string username,
+        int mapId,
+        int tileX,
+        int tileY,
+        string slug,
+        long placementId);
 }

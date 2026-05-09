@@ -354,6 +354,14 @@ public sealed class PacketDispatcher(
         }
 
         var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
+        ServerNetworkLogs.MapEventInteractFired(
+            _logger,
+            session.Username,
+            session.CurrentMapId,
+            session.PositionX,
+            session.PositionY,
+            ev.Slug,
+            ev.PlacementId);
         await _packetSender.SendInteractResultAsync(
             clientSession,
             true,
@@ -477,6 +485,14 @@ public sealed class PacketDispatcher(
         }
 
         var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
+        ServerNetworkLogs.MapEventStepOnFired(
+            _logger,
+            session.Username,
+            session.CurrentMapId,
+            session.PositionX,
+            session.PositionY,
+            ev.Slug,
+            ev.PlacementId);
         await _packetSender.SendInteractResultAsync(
             clientSession,
             true,
@@ -517,6 +533,14 @@ public sealed class PacketDispatcher(
         }
 
         var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
+        ServerNetworkLogs.MapEventPageFired(
+            _logger,
+            session.Username,
+            session.CurrentMapId,
+            session.PositionX,
+            session.PositionY,
+            ev.Slug,
+            ev.PlacementId);
         await _packetSender.SendInteractResultAsync(
             clientSession,
             true,

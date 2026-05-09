@@ -172,6 +172,8 @@ Placements **`step_on`** : après un **`MoveRequest`** ou **`PositionSyncRequest
 
 Placements **`page`** : quand **`CurrentMapId`** change (connexion, sélection de perso avec autre carte, warp), après positionnement sur la nouvelle carte le serveur peut envoyer un **`InteractResult`** réussi avec **`[Page]`** pour au plus un placement `page` sur la **tuile courante**, **une fois par visite** de cette carte (réarmé en quittant la carte). Si aucun `page` sur la tuile d’arrivée, aucun message ; la visite est tout de même marquée pour ne pas répéter.
 
+**Exploitation / observabilité** : à chaque envoi réussi des trois chemins ci‑dessus, le serveur journalise aussi en **Information** des entrées structurées `MapEventInteractFired`, `MapEventStepOnFired`, `MapEventPageFired` (`ServerNetworkLogs`, ids **5021–5023**) avec `username`, `mapId`, tuile, `slug`, `placementId`.
+
 Côté serveur MariaDB, les placements sont mis en cache par carte ; l’empreinte de cache inclut notamment `COUNT(*)`, `MAX(id)` et un agrégat sur le contenu des lignes (dont `trigger_kind`) pour refléter les mises à jour sans redémarrage.
 
 ### RegisterResult (Serveur -> Client)
