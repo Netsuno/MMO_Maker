@@ -59,6 +59,9 @@ public sealed class MapCanvas : Control
     public event Action<Point>? HoveredTileChanged;
     public TileType SelectedTileType { get; set; } = TileType.Ground;
     public event Action<Tile?>? TileClicked;
+
+    /// <summary>Ctrl+clic droit sur une tuile (sans gommage) — menu contextuel éditeur.</summary>
+    public event Action<Point>? TileContextMenuRequested;
     public event Action? MapReplaced;
     public event Action? UndoHistoryChanged;
 
@@ -71,6 +74,9 @@ public sealed class MapCanvas : Control
     private Point _hoverTile;
     private Point? _selectionMarqueeAnchor;
     private Rectangle? _committedSelectionTiles;
+
+    /// <summary>Bloque le gommage au clic droit tant que le bouton n’est pas relâché (Ctrl+clic droit = menu).</summary>
+    private bool _suppressRightButtonErase;
 
     public MapCanvas()
     {
@@ -627,6 +633,13 @@ public sealed class MapCanvas : Control
                 return;
             }
 
+            if ((ModifierKeys & Keys.Control) == Keys.Control)
+            {
+                _suppressRightButtonErase = true;
+                TileContextMenuRequested?.Invoke(new Point(tx, ty));
+                return;
+            }
+
             if (!IsActiveLayerEditable())
             {
                 return;
@@ -762,7 +775,13 @@ public sealed class MapCanvas : Control
             }
         }
 
-        if ((e.Button & MouseButtons.Right) != 0 && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height && IsActiveLayerEditable())
+        if (!_suppressRightButtonErase &&
+            (e.Button & MouseButtons.Right) != 0 &&
+            tx >= 0 &&
+            ty >= 0 &&
+            tx < Map.Width &&
+            ty < Map.Height &&
+            IsActiveLayerEditable())
         {
             EraseStamp(tx, ty);
             Invalidate();
@@ -784,6 +803,11 @@ public sealed class MapCanvas : Control
             {
                 _paintStroke = false;
                 Capture = false;
+            }
+
+            if (e.Button == MouseButtons.Right)
+            {
+                _suppressRightButtonErase = false;
             }
 
             if (Map is null)

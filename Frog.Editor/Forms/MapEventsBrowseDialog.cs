@@ -26,6 +26,11 @@ internal sealed class MapEventsBrowseDialog : Form
         Dock = DockStyle.Fill,
     };
 
+    private readonly TextBox _txtNewSlug = new() { Width = 160, PlaceholderText = "ex. pnj_marchand" };
+    private readonly TextBox _txtNewDisplay = new() { Width = 260, PlaceholderText = "Nom affiché" };
+    private readonly Button _btnAddCatalog = new() { Text = "Ajouter au catalogue", AutoSize = true };
+    private readonly Button _btnDeleteCatalogRow = new() { Text = "Supprimer entrée catalogue", AutoSize = true };
+
     public MapEventsBrowseDialog(string connectionString, int initialMapId = 1, int defaultTileX = 0, int defaultTileY = 0)
     {
         _connectionString = connectionString;
@@ -34,7 +39,7 @@ internal sealed class MapEventsBrowseDialog : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(880, 560);
+        ClientSize = new Size(920, 600);
         _numMapId.Value = Math.Clamp(initialMapId, 1, int.MaxValue);
         _numTileX.Value = defaultTileX;
         _numTileY.Value = defaultTileY;
@@ -69,11 +74,26 @@ internal sealed class MapEventsBrowseDialog : Form
             SplitterDistance = 240,
         };
 
-        var catPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        var catPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
         catPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        catPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         catPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        catPanel.Controls.Add(new Label { Text = "frog_event_catalog (sélection = type à placer)", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
-        catPanel.Controls.Add(_lvCatalog, 0, 1);
+        catPanel.Controls.Add(new Label { Text = "frog_event_catalog (sélection = type à placer sur la carte)", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
+        var catNewRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            WrapContents = true,
+            Padding = new Padding(0, 2, 0, 6),
+        };
+        catNewRow.Controls.Add(new Label { Text = "Nouveau type", AutoSize = true, Margin = new Padding(0, 10, 4, 0) });
+        catNewRow.Controls.Add(_txtNewSlug);
+        catNewRow.Controls.Add(new Label { Text = "Nom", AutoSize = true, Margin = new Padding(8, 10, 4, 0) });
+        catNewRow.Controls.Add(_txtNewDisplay);
+        catNewRow.Controls.Add(_btnAddCatalog);
+        catNewRow.Controls.Add(_btnDeleteCatalogRow);
+        catPanel.Controls.Add(catNewRow, 0, 1);
+        catPanel.Controls.Add(_lvCatalog, 0, 2);
         split.Panel1.Controls.Add(catPanel);
 
         var placeOuter = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
@@ -115,7 +135,65 @@ internal sealed class MapEventsBrowseDialog : Form
         _btnReload.Click += (_, _) => ReloadSafe();
         _btnPlace.Click += (_, _) => PlaceSafe();
         _btnDeleteSelected.Click += (_, _) => DeleteSelectedSafe();
+        _btnAddCatalog.Click += (_, _) => AddCatalogSafe();
+        _btnDeleteCatalogRow.Click += (_, _) => DeleteCatalogRowSafe();
         Shown += (_, _) => ReloadSafe();
+    }
+
+    private void AddCatalogSafe()
+    {
+        try
+        {
+            if (!MapEventsMariaDbWriter.TryInsertCatalog(_connectionString, _txtNewSlug.Text, _txtNewDisplay.Text, out var newId, out var err))
+            {
+                MessageBox.Show(this, err, "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            MessageBox.Show(this, $"Entrée catalogue créée (id={newId}).", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _txtNewSlug.Clear();
+            _txtNewDisplay.Clear();
+            Reload();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void DeleteCatalogRowSafe()
+    {
+        try
+        {
+            if (!TryGetSingleSelectedFirstColumnInt(_lvCatalog, out var catalogId))
+            {
+                MessageBox.Show(this, "Sélectionnez une ligne du catalogue (colonne id).", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var ok = MessageBox.Show(
+                this,
+                $"Supprimer l’entrée catalogue id={catalogId} ?\nLes placements frog_map_event liés seront supprimés (cascade).",
+                "Confirmer",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+            if (ok != DialogResult.Yes)
+            {
+                return;
+            }
+
+            if (!MapEventsMariaDbWriter.TryDeleteCatalogById(_connectionString, catalogId, out var err))
+            {
+                MessageBox.Show(this, err, "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            Reload();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void PlaceSafe()

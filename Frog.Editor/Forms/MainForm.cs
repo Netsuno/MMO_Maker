@@ -165,6 +165,11 @@ public sealed class MainForm : Form
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Événements carte (MariaDB)…", null, (_, _) => BrowseMapEventsFromMariaDb());
+            mMap.DropDownItems.Add(
+                new ToolStripMenuItem("Astuce : Ctrl+clic droit sur la carte = menu événements (tuile sous curseur)")
+                {
+                    Enabled = false,
+                });
 
             var mView = new ToolStripMenuItem("Affichage");
             mView.DropDownItems.Add("Zoom avant", null, (_, _) => _canvas!.ZoomInTowardCenter());
@@ -239,6 +244,7 @@ public sealed class MainForm : Form
         _canvas.HoveredTileChanged += OnHoveredTileChanged;
         _canvas.ViewTransformChanged += OnCanvasViewTransformChanged;
         _canvas.TileClicked += OnTileClicked;
+        _canvas.TileContextMenuRequested += OnTileContextMenuRequested;
         _canvas.MapReplaced += OnMapReplaced;
         _canvas.UndoHistoryChanged += UpdateUndoRedoButtons;
 
@@ -495,7 +501,7 @@ public sealed class MainForm : Form
     private void PushEditorStatusLine()
     {
         var zoomPct = (int)Math.Round(_canvas.Zoom * 100f);
-        var text = $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %";
+        var text = $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %    ·    Ctrl+clic droit : événements";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -919,6 +925,16 @@ public sealed class MainForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
+    }
+
+    private void OnTileContextMenuRequested(Point tile)
+    {
+        _lastHoverTile = tile;
+        PushEditorStatusLine();
+        var menu = new ContextMenuStrip();
+        menu.Closed += (_, _) => menu.Dispose();
+        menu.Items.Add("Événements MariaDB (cette tuile)…", null, (_, _) => BrowseMapEventsFromMariaDb());
+        menu.Show(Cursor.Position);
     }
 
     internal void BrowseMapEventsFromMariaDb()

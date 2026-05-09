@@ -341,22 +341,12 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        var demo = here.FirstOrDefault(p => string.Equals(p.Slug, MapEventSlugs.DemoInteract, StringComparison.Ordinal));
-        if (demo is not null)
-        {
-            await _packetSender.SendInteractResultAsync(
-                clientSession,
-                true,
-                $"{demo.DisplayName} : interaction reussie.",
-                cancellationToken);
-            return;
-        }
-
-        var first = here[0];
+        // MVP : tout type catalogue sur la tuile déclenche une interaction réussie (message = libellé + slug).
+        var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
         await _packetSender.SendInteractResultAsync(
             clientSession,
-            false,
-            $"Rien d'implemente pour « {first.Slug} » ({first.DisplayName}).",
+            true,
+            $"{ev.DisplayName} ({ev.Slug})",
             cancellationToken);
     }
 

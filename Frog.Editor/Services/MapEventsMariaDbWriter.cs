@@ -1,3 +1,4 @@
+using Frog.Core.Protocol;
 using MySqlConnector;
 
 namespace Frog.Editor.Services;
@@ -5,6 +6,116 @@ namespace Frog.Editor.Services;
 /// <summary>Écritures MVP sur <c>frog_map_event</c> (aligné sur <c>MariaDbMigrationV4</c>).</summary>
 public static class MapEventsMariaDbWriter
 {
+    /// <summary>Insère une entrée catalogue ; <paramref name="newId"/> = dernier auto-incrément si succès.</summary>
+    public static bool TryInsertCatalog(string connectionString, string slug, string displayName, out int newId, out string errorMessage)
+    {
+        newId = 0;
+        errorMessage = string.Empty;
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        var s = MapEventCatalogNormalization.TryNormalizeSlug(slug);
+        var d = MapEventCatalogNormalization.TryNormalizeDisplayName(displayName);
+        if (s is null)
+        {
+            errorMessage = "Slug invalide (lettres minuscules, chiffres, _ ; ex. pnj_marchand).";
+            return false;
+        }
+
+        if (d is null)
+        {
+            errorMessage = "Nom affiché invalide.";
+            return false;
+        }
+
+        using var connection = new MySqlConnection(connectionString);
+        connection.Open();
+        const string insertSql = """
+            INSERT INTO frog_event_catalog(slug, display_name)
+            VALUES (@slug, @dn);
+            """;
+        using (var cmd = new MySqlCommand(insertSql, connection))
+        {
+            cmd.Parameters.AddWithValue("@slug", s);
+            cmd.Parameters.AddWithValue("@dn", d);
+            try
+            {
+                cmd.ExecuteNonQuery();
+            }
+            catch (MySqlException ex) when (ex.Number == 1062)
+            {
+                errorMessage = "Ce slug existe déjà dans le catalogue.";
+                return false;
+            }
+            catch (MySqlException ex)
+            {
+                errorMessage = ex.Message;
+                return false;
+            }
+        }
+
+        try
+        {
+            using var idCmd = new MySqlCommand("SELECT LAST_INSERT_ID();", connection);
+            var scalar = idCmd.ExecuteScalar();
+            if (scalar is null || scalar is DBNull)
+            {
+                errorMessage = "Insertion catalogue : LAST_INSERT_ID indisponible.";
+                return false;
+            }
+
+            newId = Convert.ToInt32(scalar);
+            return newId > 0;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>Supprime une entrée catalogue (les placements associés sont supprimés en cascade).</summary>
+    public static bool TryDeleteCatalogById(string connectionString, int catalogId, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        if (catalogId < 1)
+        {
+            errorMessage = "Identifiant catalogue invalide.";
+            return false;
+        }
+
+        if (catalogId == 1)
+        {
+            errorMessage = "L'entrée catalogue id=1 (démo) est réservée au socle.";
+            return false;
+        }
+
+        using var connection = new MySqlConnection(connectionString);
+        connection.Open();
+        const string sql = """
+            DELETE FROM frog_event_catalog
+            WHERE id = @id
+            LIMIT 1;
+            """;
+        using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@id", catalogId);
+        try
+        {
+            var n = cmd.ExecuteNonQuery();
+            if (n == 0)
+            {
+                errorMessage = "Aucune entrée catalogue supprimée (id inconnu).";
+                return false;
+            }
+
+            return true;
+        }
+        catch (MySqlException ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
     /// <summary><c>true</c> si une ligne a été insérée ; <c>false</c> si doublon unique (ignored).</summary>
     public static bool TryInsertPlacement(
         string connectionString,

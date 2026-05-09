@@ -137,7 +137,9 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 - [x] **Chrome RPG Maker** (approx.) : workspace sombre, **une seule barre de menus** (actions + raccourcis), tuiles + onglets A–D à droite, arbre « Cartes », bandeau titre carte.
 - [x] **`Map.Validate()`** : au moins une couche, bornes tuiles, pas de doublon (x,y) par couche, warps (MapId ≥ 0, destination ≥ 0).
 - [x] **`PropertyGrid`** : catégories / descriptions sur les propriétés **Tuile** ; validation via menu **Carte**.
-- [ ] **Marqueurs / événements** sur carte (**priorité équipe**) + liste d’événements persistée (**DB**) pour réutilisation multi‑cases / multi‑maps.
+- [x] **Événements carte (socle)** : tables **`frog_event_catalog`** / **`frog_map_event`**, sync **`MapEventsRequest`/`Result`**, surbrillance client, **`InteractRequest`** générique (tout slug sur la tuile du joueur).
+- [x] **Éditeur** : dialogue MariaDB (**CRUD catalogue** + placements), raccourci **Ctrl+clic droit** sur le canevas → menu « événements sur cette tuile ».
+- [ ] **Suite P1** : marqueurs **visuels** sur le canevas, triggers (page / auto), scripts runtime — au-delà du socle DB + dialogue.
 
 </details>
 
