@@ -51,5 +51,7 @@ public enum PacketId : byte
     InteractRequest = 31,
     /// <summary>Résultat interaction (même forme que <see cref="LoginResult"/>).</summary>
     InteractResult = 32,
+    /// <summary>Centre joueur en pixels monde (Int32 LE × 2). Session authentifiée ; serveur valide vitesse + collisions puis diffuse <see cref="PositionUpdate"/>.</summary>
+    PositionSyncRequest = 33,
     Error = 255
 }

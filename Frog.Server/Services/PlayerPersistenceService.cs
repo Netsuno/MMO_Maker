@@ -38,8 +38,8 @@ public sealed class PlayerPersistenceService(
                     _playerStateStore.UpsertForCharacter(
                         session.CharacterId,
                         session.CurrentMapId,
-                        session.PositionX,
-                        session.PositionY);
+                        session.PixelX,
+                        session.PixelY);
                     n++;
                 }
 

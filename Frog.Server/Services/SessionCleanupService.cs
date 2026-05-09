@@ -47,8 +47,8 @@ public sealed class SessionCleanupService(
                         _playerStateStore.UpsertForCharacter(
                             session.CharacterId,
                             session.CurrentMapId,
-                            session.PositionX,
-                            session.PositionY);
+                            session.PixelX,
+                            session.PixelY);
                     }
                     ClientSession? client = null;
                     if (_clientRegistry.TryGet(session.Id, out client))

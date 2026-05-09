@@ -444,6 +444,18 @@ public sealed class FrogGameClient : IDisposable
     public Task SendMapRequestAsync(CancellationToken cancellationToken = default)
         => SendMapRequestAsync(null, cancellationToken);
 
+    /// <summary>Demande le blob carte complet (sans hint), ex. si <see cref="MapAlreadySynced"/> est reçu alors que l’UI n’a pas de <see cref="Map"/>.</summary>
+    public Task SendMapRequestIgnoringFingerprintAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_mapFingerprintLock)
+        {
+            _mapFingerprints.Clear();
+            _mapRequestHintMapId = 1;
+        }
+
+        return SendRawAsync([(byte)PacketId.MapRequest], cancellationToken);
+    }
+
     /// <param name="hintMapId">Si non null, cherche l’empreinte pour cette carte ; sinon utilise la dernière carte connue pour les hints.</param>
     public Task SendMapRequestAsync(int? hintMapId, CancellationToken cancellationToken = default)
     {
@@ -482,6 +494,16 @@ public sealed class FrogGameClient : IDisposable
     public Task SendMoveAsync(sbyte dx, sbyte dy, CancellationToken cancellationToken = default)
     {
         var payload = new byte[] { (byte)PacketId.MoveRequest, (byte)dx, (byte)dy };
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    /// <summary>Rapport de position client (protocole ≥ 8) : centre en pixels monde, validé côté serveur.</summary>
+    public Task SendPositionSyncAsync(int pixelCenterX, int pixelCenterY, CancellationToken cancellationToken = default)
+    {
+        var payload = new byte[1 + WorldMetrics.PositionSyncPayloadByteCount];
+        payload[0] = (byte)PacketId.PositionSyncRequest;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), pixelCenterX);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1 + sizeof(int)), pixelCenterY);
         return SendRawAsync(payload, cancellationToken);
     }
 

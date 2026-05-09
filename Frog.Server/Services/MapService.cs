@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Maps;
@@ -221,21 +222,7 @@ public sealed class MapService
     }
 
     private static HashSet<(int X, int Y)> IndexBlockedTiles(Map map)
-    {
-        var blocked = new HashSet<(int X, int Y)>();
-        foreach (var layer in map.Layers)
-        {
-            foreach (var tile in layer.Tiles)
-            {
-                if (tile.Type == TileType.Block)
-                {
-                    blocked.Add((tile.X, tile.Y));
-                }
-            }
-        }
-
-        return blocked;
-    }
+        => MapCollision.IndexBlockedTiles(map);
 
     private void AddWarpEntries(int sourceMapId, Map map)
     {
@@ -341,6 +328,28 @@ public sealed class MapService
 
     public bool IsBlocked(int mapId, int x, int y)
         => _chunks.TryGetValue(mapId, out var chunk) && chunk.BlockedTiles.Contains((x, y));
+
+    /// <summary>True si le cercle (centre pixels) intersecte au moins une tuile bloquée.</summary>
+    public bool IsBlockedForPlayerCircle(
+        int mapId,
+        int centerPixelX,
+        int centerPixelY,
+        int radiusPixels,
+        int tileSizePixels = WorldMetrics.DefaultTileSizePixels)
+    {
+        if (!_chunks.TryGetValue(mapId, out var chunk))
+        {
+            return true;
+        }
+
+        return MapCollision.IsBlockedForPlayerCircle(
+            chunk.Model,
+            chunk.BlockedTiles,
+            centerPixelX,
+            centerPixelY,
+            radiusPixels,
+            tileSizePixels);
+    }
 
     public bool IsWarpCell(int mapId, int x, int y)
         => _warps.ContainsKey((mapId, x, y));

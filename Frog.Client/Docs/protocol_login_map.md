@@ -70,10 +70,17 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 
 ## Grille monde et pixels
 
-Le serveur aligne la position joueur sur une grille **tuiles** (voir `PositionUpdate`) et maintient en interne le **centre** de la tuile en **pixels monde** pour la mêlée. Constantes partagées dans `Frog.Core/Constants/WorldMetrics.cs` :
+À partir de **`FrogWireProtocol.Version` ≥ 7**, l’autorité de position est le **centre du joueur en pixels monde** (entiers) : le joueur peut se trouver **entre deux tuiles**. Les champs `PositionX` / `PositionY` (ou équivalents tuile) côté session serveur restent des **indices de tuile dérivés** (`floor(pixel / tailleTuile)`) pour les warps, événements carte et interactions sur la grille.
+
+Constantes partagées dans `Frog.Core/Constants/WorldMetrics.cs` :
 
 - `DefaultTileSizePixels` = **32** (carré ; aligné avec l’éditeur de cartes et le découpage `SrcX`/`SrcY` des tuiles)
+- `PlayerMovePixelsPerRequest` = **8** (pas par `MoveRequest`, diagonale normalisée)
+- `PlayerCollisionRadiusPixels` = **10** (disque vs tuiles `Block`)
+- `PlayerMinCenterSeparationPixels` = **22** (collision joueur ↔ joueur si `AllowPlayerOverlap` désactivé sur la carte)
 - `MeleeRangePixels` = **56** (distance euclidienne max. centre → centre pour un coup au corps à corps ; ~1,75 tuile)
+
+La persistance MariaDB / `character_world_state.pos_x`, `pos_y` stocke ces **pixels centre** (anciennes données en « tuile seule » peuvent nécessiter une migration : `pos_k = pos_k * 32 + 16`).
 
 ## Carte monde (.fmap) et blob MapData
 
@@ -154,6 +161,8 @@ Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`C
 À partir de **`FrogWireProtocol.Version` ≥ 5**, le client peut **créer** un perso additionnel (`CharacterCreateRequest` / `CharacterCreateResult`) : nom affichage validé côté serveur (lettres/chiffres/espaces/tiret/souligné, longueur max 32), max **8** persos par compte, payload stats par défaut comme **Hero**.
 
 À partir de **`FrogWireProtocol.Version` ≥ 6**, le client peut mettre à jour les **six stats** du perso actif (`CharacterStatsUpdateRequest` / `CharacterStatsUpdateResult`) : le corps est **6 octets** dans l’ordre **STR, AGI, DEX, INT, VIT, LUCK**, chaque octet entre **1** et **99**. En cas de succès, le serveur persiste dans `frog_character.payload` (objet JSON `stats`) et peut renvoyer un **`CharacterPayload`** à jour.
+
+À partir de **`FrogWireProtocol.Version` ≥ 7**, les coordonnées **`PositionUpdate`** et la persistance monde sont en **pixels centre** (voir section *Grille monde et pixels*).
 
 Additive **après wire v6** : **`MapEventsRequest`** (**29**) corps **vide** après l’opcode (session authentifiée). Le serveur répond **`MapEventsResult`** (**30**) avec **`CurrentMapId`**, puis longueur **UInt16 LE** puis JSON UTF‑8 : tableau d’objets `MapEventWireEntry` (`placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`). Si MariaDB est désactivée ou sans lignes, la réponse est un tableau vide. Le client peut renvoyer cette requête après **`MapData`** / **`MapAlreadySynced`** ou un changement de carte.
 
@@ -247,8 +256,8 @@ Regles serveur:
 - pas de mouvement `(0,0)`
 - chaque delta doit etre dans `[-1, 1]`
 - le mouvement doit rester dans les limites de map
-- le mouvement est refuse sur les tuiles bloquees (`Block` / collision serveur)
-- le mouvement est refuse si un autre joueur occupe deja la case cible (**sauf** si la carte a le flag `AllowPlayerOverlap` — plusieurs joueurs peuvent partager une tuile **sans** ignorer collisions solides / bloc).
+- depuis la **v7** du protocole, le mouvement applique un pas en **pixels** (voir `WorldMetrics.PlayerMovePixelsPerRequest`) avec collision **cercle joueur ↔ tuiles bloquées** (`PlayerCollisionRadiusPixels`)
+- si la carte **n’a pas** le flag `AllowPlayerOverlap`, le pas est refusé lorsque le **centre** projeté serait à moins de `PlayerMinCenterSeparationPixels` du centre d’un autre joueur sur la même carte
 
 **Warps** : après un mouvement réussi, si la case d’arrivée est une tuile **Warp** (`TileType.Warp`), le serveur téléporte vers la **carte cible** (`WarpTargetMapId`, `0` = carte monde par défaut) si le blob `frog_map` pour cette cible est **chargé** (présent en base et désérialisable). Sinon le joueur reste sur la case warp. La case d’arrivée doit être libre (pas bloc ; même règle **joueur** que pour les pas si `AllowPlayerOverlap` est absent sur la carte **d’arrivée**).
 
@@ -260,8 +269,7 @@ Payload:
 - `UsernameLength` (Byte)
 - `UsernameUtf8` (`UsernameLength` octets)
 - **`MapId` (Int32 LE)** — carte logique du joueur (`FrogWireProtocol.Version` **≥ 3** ; clients obsolètes ne peuvent pas parser ce flux)
-- `PositionX` (Int32 little-endian)
-- `PositionY` (Int32 little-endian)
+- **`PixelCenterX` / `PixelCenterY` (Int32 LE chaque)** — depuis la version **7** : centre joueur en pixels monde (axes 0…`Width*TailleTuile-1`). Versions **&lt; 7** du client : anciennement **indices de tuile** au même emplacement.
 
 Les clients doivent **ignorer** les mises à jour dont le `MapId` ne correspond pas à la carte actuellement affichée (sinon superposition d’AOI entre cartes).
 

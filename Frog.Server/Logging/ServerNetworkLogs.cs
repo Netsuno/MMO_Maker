@@ -29,8 +29,8 @@ internal static partial class ServerNetworkLogs
     [LoggerMessage(EventId = 5015, Level = LogLevel.Debug, Message = "MapData sent {Username} mapId={MapId} bytes={MapBytes}")]
     public static partial void MapDataSent(ILogger logger, string username, int mapId, int mapBytes);
 
-    [LoggerMessage(EventId = 5016, Level = LogLevel.Debug, Message = "Move applied {Username} tile=({X},{Y})")]
-    public static partial void MoveApplied(ILogger logger, string username, int x, int y);
+    [LoggerMessage(EventId = 5016, Level = LogLevel.Debug, Message = "Move applied {Username} pixel=({Px},{Py})")]
+    public static partial void MoveApplied(ILogger logger, string username, int px, int py);
 
     [LoggerMessage(EventId = 5017, Level = LogLevel.Debug, Message = "Chat broadcast channel={Channel} from={From} recipients={RecipientCount}")]
     public static partial void ChatBroadcast(ILogger logger, string channel, string from, int recipientCount);

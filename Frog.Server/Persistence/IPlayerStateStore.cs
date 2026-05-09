@@ -2,9 +2,9 @@ namespace Frog.Server.Persistence;
 
 public interface IPlayerStateStore
 {
-    /// <summary>Charge carte + tuile pour le personnage (<c>frog_character.id</c>).</summary>
+    /// <summary>Charge carte + position en <b>pixels monde</b> (centre) pour le personnage (<c>frog_character.id</c>) — même unité que `PositionUpdate` lorsque <see cref="Frog.Core.Constants.FrogWireProtocol"/> ≥ 7.</summary>
     bool TryGetForCharacter(string characterId, out PlayerWorldState state);
 
-    /// <summary>Persiste la position monde pour ce personnage (une ligne par perso, base multi-slots).</summary>
+    /// <summary>Persiste <c>mapId</c> + centre joueur (<paramref name="x"/>, <paramref name="y"/> en pixels).</summary>
     void UpsertForCharacter(string characterId, int mapId, int x, int y);
 }

@@ -9,6 +9,7 @@ using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Server.Models;
 using Frog.Server.Database;
 using Frog.Server.Logging;
 using Frog.Server.Persistence;
@@ -91,6 +92,10 @@ public sealed class PacketDispatcher(
                 await HandleMoveRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
+            case PacketId.PositionSyncRequest:
+                await HandlePositionSyncRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
             case PacketId.HeartbeatRequest:
                 await HandleHeartbeatRequestAsync(clientSession, cancellationToken);
                 break;
@@ -163,30 +168,34 @@ public sealed class PacketDispatcher(
 
         clientSession.AuthenticatedSession = session;
         session.CharacterId = _characterBootstrap.EnsureDefaultHero(username);
-        if (!string.IsNullOrWhiteSpace(session.CharacterId) &&
-            _playerStateStore.TryGetForCharacter(session.CharacterId, out var world))
-        {
-            session.PositionX = world.X;
-            session.PositionY = world.Y;
-            session.CurrentMapId = world.MapId;
-        }
-        else
-        {
-            session.PositionX = 0;
-            session.PositionY = 0;
-            session.CurrentMapId = MapService.DefaultWorldMapId;
-        }
+
+        PlayerWorldState world = default;
+        var persistOk = !string.IsNullOrWhiteSpace(session.CharacterId) &&
+            _playerStateStore.TryGetForCharacter(session.CharacterId, out world);
+        session.CurrentMapId = persistOk ? world.MapId : MapService.DefaultWorldMapId;
+
+        var usePersistedPose = persistOk;
 
         if (!_mapService.TryEnsureMapLoaded(session.CurrentMapId))
         {
             session.CurrentMapId = MapService.DefaultWorldMapId;
-            session.PositionX = 0;
-            session.PositionY = 0;
             _mapService.TryEnsureMapLoaded(session.CurrentMapId);
+            usePersistedPose = false;
         }
 
+        if (usePersistedPose)
+        {
+            session.PixelX = world.X;
+            session.PixelY = world.Y;
+        }
+        else
+        {
+            SessionPixelSync.SetTileCenter(session, 0, 0);
+        }
+
+        ClampSessionPixelsAndSyncTiles(session);
+
         _clientRegistry.Register(session.Id, clientSession);
-        SessionPixelSync.SyncFromTileGrid(session);
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
         ServerNetworkLogs.LoginSucceeded(_logger, username);
@@ -373,7 +382,7 @@ public sealed class PacketDispatcher(
 
         _movementService.TryApplyWarpAfterMove(session);
         _connectionManager.TryTouchSession(session.Id);
-        ServerNetworkLogs.MoveApplied(_logger, session.Username, session.PositionX, session.PositionY);
+        ServerNetworkLogs.MoveApplied(_logger, session.Username, session.PixelX, session.PixelY);
         var clients = _clientRegistry.GetAllAuthenticatedClients();
         foreach (var targetClient in clients)
         {
@@ -381,8 +390,43 @@ public sealed class PacketDispatcher(
                 targetClient,
                 session.Username,
                 session.CurrentMapId,
-                session.PositionX,
-                session.PositionY,
+                session.PixelX,
+                session.PixelY,
+                cancellationToken);
+        }
+    }
+
+    private async Task HandlePositionSyncRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (!TryParsePositionSyncPayload(payload.Span, out var px, out var py))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "PositionSyncRequest: 8 octets attendus (Int32 centre X,Y LE).", cancellationToken);
+            return;
+        }
+
+        if (!_movementService.TryApplyReportedPixelPosition(session, px, py, out var error))
+        {
+            await _packetSender.SendErrorAsync(clientSession, error, cancellationToken);
+            return;
+        }
+
+        _movementService.TryApplyWarpAfterMove(session);
+        _connectionManager.TryTouchSession(session.Id);
+        ServerNetworkLogs.MoveApplied(_logger, session.Username, session.PixelX, session.PixelY);
+        foreach (var targetClient in _clientRegistry.GetAllAuthenticatedClients())
+        {
+            await _packetSender.SendPositionUpdateAsync(
+                targetClient,
+                session.Username,
+                session.CurrentMapId,
+                session.PixelX,
+                session.PixelY,
                 cancellationToken);
         }
     }
@@ -414,8 +458,8 @@ public sealed class PacketDispatcher(
             _playerStateStore.UpsertForCharacter(
                 session.CharacterId,
                 session.CurrentMapId,
-                session.PositionX,
-                session.PositionY);
+                session.PixelX,
+                session.PixelY);
         }
         _clientRegistry.Unregister(sessionId);
         await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, cancellationToken);
@@ -472,8 +516,6 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        SessionPixelSync.SyncFromTileGrid(attacker);
-        SessionPixelSync.SyncFromTileGrid(defender);
         var hit = MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY);
         var message = hit ? "Touche." : "Hors portee.";
         _connectionManager.TryTouchSession(attacker.Id);
@@ -694,6 +736,20 @@ public sealed class PacketDispatcher(
         return true;
     }
 
+    /// <summary>2 × Int32 LE — centre joueur en pixels monde (<see cref="Frog.Core.Constants.WorldMetrics"/>).</summary>
+    public static bool TryParsePositionSyncPayload(ReadOnlySpan<byte> payload, out int pixelX, out int pixelY)
+    {
+        pixelX = pixelY = 0;
+        if (payload.Length != WorldMetrics.PositionSyncPayloadByteCount)
+        {
+            return false;
+        }
+
+        pixelX = BinaryPrimitives.ReadInt32LittleEndian(payload);
+        pixelY = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(sizeof(int)));
+        return true;
+    }
+
     private bool TryGetActiveSession(ClientSession clientSession, out Frog.Server.Models.Session session)
     {
         session = null!;
@@ -810,33 +866,34 @@ public sealed class PacketDispatcher(
             _playerStateStore.UpsertForCharacter(
                 session.CharacterId,
                 session.CurrentMapId,
-                session.PositionX,
-                session.PositionY);
+                session.PixelX,
+                session.PixelY);
         }
 
         session.CharacterId = newCharacterId;
-        if (_playerStateStore.TryGetForCharacter(newCharacterId, out var world))
-        {
-            session.PositionX = world.X;
-            session.PositionY = world.Y;
-            session.CurrentMapId = world.MapId;
-        }
-        else
-        {
-            session.PositionX = 0;
-            session.PositionY = 0;
-            session.CurrentMapId = MapService.DefaultWorldMapId;
-        }
+        var persistOkCs = _playerStateStore.TryGetForCharacter(newCharacterId, out var worldCs);
+        session.CurrentMapId = persistOkCs ? worldCs.MapId : MapService.DefaultWorldMapId;
+
+        var usePersistedPoseCs = persistOkCs;
 
         if (!_mapService.TryEnsureMapLoaded(session.CurrentMapId))
         {
             session.CurrentMapId = MapService.DefaultWorldMapId;
-            session.PositionX = 0;
-            session.PositionY = 0;
             _mapService.TryEnsureMapLoaded(session.CurrentMapId);
+            usePersistedPoseCs = false;
         }
 
-        SessionPixelSync.SyncFromTileGrid(session);
+        if (usePersistedPoseCs)
+        {
+            session.PixelX = worldCs.X;
+            session.PixelY = worldCs.Y;
+        }
+        else
+        {
+            SessionPixelSync.SetTileCenter(session, 0, 0);
+        }
+
+        ClampSessionPixelsAndSyncTiles(session);
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendCharacterSelectResultAsync(clientSession, true, "Personnage actif.", cancellationToken);
         await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
@@ -847,8 +904,8 @@ public sealed class PacketDispatcher(
                 targetClient,
                 session.Username,
                 session.CurrentMapId,
-                session.PositionX,
-                session.PositionY,
+                session.PixelX,
+                session.PixelY,
                 cancellationToken);
         }
     }
@@ -1009,6 +1066,15 @@ public sealed class PacketDispatcher(
 
     private async Task SyncPositionsOnJoinAsync(ClientSession joiningClient, Frog.Server.Models.Session joiningSession, CancellationToken cancellationToken)
     {
+        // Le client initialise sa position locale depuis ce paquet (sans attendre CharacterSelect).
+        await _packetSender.SendPositionUpdateAsync(
+            joiningClient,
+            joiningSession.Username,
+            joiningSession.CurrentMapId,
+            joiningSession.PixelX,
+            joiningSession.PixelY,
+            cancellationToken);
+
         var activeSessions = _connectionManager.GetActiveSessions();
         var connectedClients = _clientRegistry.GetAllAuthenticatedClients();
 
@@ -1028,8 +1094,8 @@ public sealed class PacketDispatcher(
                 joiningClient,
                 existingSession.Username,
                 existingSession.CurrentMapId,
-                existingSession.PositionX,
-                existingSession.PositionY,
+                existingSession.PixelX,
+                existingSession.PixelY,
                 cancellationToken);
         }
 
@@ -1050,9 +1116,24 @@ public sealed class PacketDispatcher(
                 targetClient,
                 joiningSession.Username,
                 joiningSession.CurrentMapId,
-                joiningSession.PositionX,
-                joiningSession.PositionY,
+                joiningSession.PixelX,
+                joiningSession.PixelY,
                 cancellationToken);
         }
+    }
+
+    private void ClampSessionPixelsAndSyncTiles(Session session)
+    {
+        var ts = WorldMetrics.DefaultTileSizePixels;
+        if (_mapService.TryGetMapBounds(session.CurrentMapId, out var mw, out var mh))
+        {
+            var maxPx = mw * ts - 1;
+            var maxPy = mh * ts - 1;
+            session.PixelX = Math.Clamp(session.PixelX, 0, maxPx);
+            session.PixelY = Math.Clamp(session.PixelY, 0, maxPy);
+        }
+
+        SessionPixelSync.SyncTileFromPixels(session, ts);
+        session.LastPositionSyncUtc = DateTime.UtcNow;
     }
 }

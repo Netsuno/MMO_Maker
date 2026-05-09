@@ -85,12 +85,13 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return SendUtf8MessageAsync(session, PacketId.Error, message, cancellationToken);
     }
 
+    /// <summary>Deux entiers = centre joueur en pixels monde (axes partagés Frog.Core WorldMetrics), pas indices de tuile.</summary>
     public Task SendPositionUpdateAsync(
         ClientSession session,
         string username,
         int mapId,
-        int positionX,
-        int positionY,
+        int pixelCenterX,
+        int pixelCenterY,
         CancellationToken cancellationToken)
     {
         var usernameBytes = Encoding.UTF8.GetBytes(username);
@@ -106,8 +107,8 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         var o = 2 + usernameBytes.Length;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), mapId);
         o += sizeof(int);
-        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), positionX);
-        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o + sizeof(int)), positionY);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), pixelCenterX);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o + sizeof(int)), pixelCenterY);
         return session.SendFrameAsync(payload, cancellationToken);
     }
 

@@ -10,6 +10,7 @@ using Frog.Server.Database;
 using Frog.Server.Network;
 using Frog.Server.Persistence;
 using Frog.Server.Services;
+using Frog.Server.Models;
 using Xunit;
 
 namespace Frog.Tests;
@@ -119,17 +120,20 @@ public sealed class Sprint1ServerTests
         var session = new Frog.Server.Models.Session
         {
             Id = Guid.NewGuid(),
-            Username = "mover",
-            PositionX = 0,
-            PositionY = 0
+            Username = "mover"
         };
+
+        SessionPixelSync.SetTileCenter(session, 0, 0);
+        var beforePx = session.PixelX;
 
         var moved = movement.TryApplyMove(session, 1, 0, out var error);
 
         Assert.True(moved);
         Assert.Equal(string.Empty, error);
-        Assert.Equal(1, session.PositionX);
+        Assert.Equal(beforePx + WorldMetrics.PlayerMovePixelsPerRequest, session.PixelX);
         Assert.Equal(0, session.PositionY);
+        Assert.True(session.PixelX >= 0);
+        Assert.True(session.PixelY >= 0);
     }
 
     [Fact]
@@ -140,17 +144,18 @@ public sealed class Sprint1ServerTests
         var session = new Frog.Server.Models.Session
         {
             Id = Guid.NewGuid(),
-            Username = "edge",
-            PositionX = 0,
-            PositionY = 0
+            Username = "edge"
         };
+
+        SessionPixelSync.SetTileCenter(session, 0, 0);
+        session.PixelX = 0;
+        SessionPixelSync.SyncTileFromPixels(session);
 
         var moved = movement.TryApplyMove(session, -1, 0, out var error);
 
         Assert.False(moved);
         Assert.Equal("Mouvement hors limites.", error);
-        Assert.Equal(0, session.PositionX);
-        Assert.Equal(0, session.PositionY);
+        Assert.Equal(0, session.PixelX);
     }
 
     [Fact]
@@ -161,17 +166,20 @@ public sealed class Sprint1ServerTests
         var session = new Frog.Server.Models.Session
         {
             Id = Guid.NewGuid(),
-            Username = "collider",
-            PositionX = 4,
-            PositionY = 5
+            Username = "collider"
         };
+
+        var ts = WorldMetrics.DefaultTileSizePixels;
+        session.PixelX = 4 * ts + 24;
+        session.PixelY = 5 * ts + 16;
+        SessionPixelSync.SyncTileFromPixels(session);
 
         var moved = movement.TryApplyMove(session, 1, 0, out var error);
 
         Assert.False(moved);
         Assert.Equal("Mouvement bloque par collision.", error);
-        Assert.Equal(4, session.PositionX);
-        Assert.Equal(5, session.PositionY);
+        Assert.Equal(4 * ts + 24, session.PixelX);
+        Assert.Equal(5 * ts + 16, session.PixelY);
     }
 
     [Fact]
@@ -337,14 +345,19 @@ public sealed class Sprint1ServerTests
             var connections = new ConnectionManager();
             Assert.True(connections.TryCreateSession("warp-x", out var session));
             session!.CurrentMapId = MapService.DefaultWorldMapId;
-            session.PositionX = 2;
-            session.PositionY = 3;
+            var ts = WorldMetrics.DefaultTileSizePixels;
+            session.PixelX = 3 * ts - 1;
+            session.PixelY = 3 * ts + 16;
+            SessionPixelSync.SyncTileFromPixels(session);
             var movement = new MovementService(mapService, connections);
             Assert.True(movement.TryApplyMove(session, 1, 0, out _));
             Assert.True(movement.TryApplyWarpAfterMove(session));
             Assert.Equal(42, session.CurrentMapId);
             Assert.Equal(18, session.PositionX);
             Assert.Equal(18, session.PositionY);
+            var (ex, ey) = WorldMetrics.TileCenterToPixels(18, 18);
+            Assert.Equal(ex, session.PixelX);
+            Assert.Equal(ey, session.PixelY);
         }
         finally
         {
@@ -425,9 +438,12 @@ public sealed class Sprint1ServerTests
         var mapService = MapTestHelpers.CreateMapService();
         var connections = new ConnectionManager();
         Assert.True(connections.TryCreateSession("walker", out var session));
-        session!.PositionX = 2;
-        session.PositionY = 3;
-        session.CurrentMapId = MapService.DefaultWorldMapId;
+        session!.CurrentMapId = MapService.DefaultWorldMapId;
+
+        var ts = WorldMetrics.DefaultTileSizePixels;
+        session.PixelX = 3 * ts - 1;
+        session.PixelY = 3 * ts + ts / 2;
+        SessionPixelSync.SyncTileFromPixels(session);
 
         var movement = new MovementService(mapService, connections);
         Assert.True(movement.TryApplyMove(session, 1, 0, out _));
@@ -449,10 +465,16 @@ public sealed class Sprint1ServerTests
         var connections = new ConnectionManager();
         Assert.True(connections.TryCreateSession("p1", out var s1));
         Assert.True(connections.TryCreateSession("p2", out var s2));
-        s1!.PositionX = 1;
-        s1.PositionY = 1;
-        s2!.PositionX = 2;
-        s2.PositionY = 1;
+        s1!.CurrentMapId = MapService.DefaultWorldMapId;
+        s2!.CurrentMapId = MapService.DefaultWorldMapId;
+        var (s1x, s1y) = WorldMetrics.TileCenterToPixels(1, 1);
+        s1.PixelX = s1x;
+        s1.PixelY = s1y;
+        SessionPixelSync.SyncTileFromPixels(s1);
+        var (s2Cx, _) = WorldMetrics.TileCenterToPixels(2, 1);
+        s2.PixelX = s2Cx - 12;
+        s2.PixelY = s1y;
+        SessionPixelSync.SyncTileFromPixels(s2);
 
         var movement = new MovementService(mapService, connections);
         var moved = movement.TryApplyMove(s2, -1, 0, out var error);
@@ -470,17 +492,24 @@ public sealed class Sprint1ServerTests
         var connections = new ConnectionManager();
         Assert.True(connections.TryCreateSession("p1", out var s1));
         Assert.True(connections.TryCreateSession("p2", out var s2));
-        s1!.PositionX = 1;
-        s1.PositionY = 1;
-        s2!.PositionX = 2;
-        s2.PositionY = 1;
+        s1!.CurrentMapId = MapService.DefaultWorldMapId;
+        s2!.CurrentMapId = MapService.DefaultWorldMapId;
+        var (s1x, s1y) = WorldMetrics.TileCenterToPixels(1, 1);
+        s1.PixelX = s1x;
+        s1.PixelY = s1y;
+        SessionPixelSync.SyncTileFromPixels(s1);
+        var (s2Cx, _) = WorldMetrics.TileCenterToPixels(2, 1);
+        s2.PixelX = s2Cx - 12;
+        s2.PixelY = s1y;
+        SessionPixelSync.SyncTileFromPixels(s2);
+        var beforePx = s2.PixelX;
 
         var movement = new MovementService(mapService, connections);
         var moved = movement.TryApplyMove(s2, -1, 0, out var error);
 
         Assert.False(moved);
-        Assert.Equal("Case occupee par un autre joueur.", error);
-        Assert.Equal(2, s2.PositionX);
+        Assert.Equal("Trop pres d'un autre joueur.", error);
+        Assert.Equal(beforePx, s2.PixelX);
     }
 
     [Fact]

@@ -110,8 +110,8 @@ public sealed class GameServerService(
                         _playerStateStore.UpsertForCharacter(
                             s.CharacterId,
                             s.CurrentMapId,
-                            s.PositionX,
-                            s.PositionY);
+                            s.PixelX,
+                            s.PixelY);
                     }
 
                     _clientRegistry.Unregister(sessionId);

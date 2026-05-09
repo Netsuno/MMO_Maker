@@ -102,7 +102,7 @@ Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal
 |--------|--------|----------------|
 | **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
 | **Frog.Server** | 🟢 En évolution | TCP, login/register, map(s), mouvement, collisions, **warps**, chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou MariaDB), nettoyage sessions. |
-| **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `Form1` (connexion, map **PNG multi-couches**, déplacements, chat 3 canaux, heartbeat, mêlée). |
+| **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `MainShellForm` (écrans **Connexion → Perso → Carte**, map **PNG multi-couches**, déplacements, chat 3 canaux, heartbeat, mêlée). |
 | **Frog.Editor** | 🟢 En évolution | UI type **RPG Maker** (sombre, menu Fichier / Édition / …, texte menu clair, **outils & type de tuile en listes déroulantes** pour colonnes étroites, tuiles A–D, arbre cartes, `.fmap` + manifeste). |
 | **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
 
@@ -217,7 +217,7 @@ _La liste technique **par composant** (Core / Server / Client / Editor / Tests) 
 - [x] Rendu map : **tilesets PNG** (dossiers `Maps/` + `Tilesets/`, manifeste `.tilesets.json`) + secours couleurs ; **tuiles 32 px** (`WorldMetrics`)
 - [x] Bouton **Logout** (`LogoutRequest` / `LogoutAck`, fermeture TCP côté serveur)
 - [x] **Warp inter-cartes** : `PositionUpdate` local toujours appliqué ; `MapRequest` auto debouncé + empreintes par `mapId` dans `FrogGameClient`
-- [x] **Multi-slots (MVP)** : `FrogWireProtocol` v4–v5, liste persos, **création** perso (`CharacterCreate*`), changement de perso actif (`Form1` + `FrogGameClient`)
+- [x] **Multi-slots (MVP)** : `FrogWireProtocol` v4–v5, liste persos, **création** perso (`CharacterCreate*`), changement de perso actif (`MainShellForm` + `FrogGameClient`)
 - [ ] Polish HUD
 - [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
 

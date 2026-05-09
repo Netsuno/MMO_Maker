@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows.Forms;
 using Frog.Client.Assets;
@@ -10,54 +11,62 @@ using Frog.Client.UI;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 
 namespace Frog.Client;
 
-public partial class Form1 : Form
+public sealed class MainShellForm : Form
 {
+    private enum ClientUiPhase
+    {
+        Login,
+        CharacterSelect,
+        Playing,
+    }
+
+    private ClientUiPhase _phase = ClientUiPhase.Login;
+    private bool _awaitingPlayingPhase;
+
+    private readonly Panel _hostPages = new() { Dock = DockStyle.Fill };
+    private readonly Panel _panelLogin = new() { Dock = DockStyle.Fill, Padding = new Padding(32), AutoScroll = true };
+    private readonly Panel _panelCharacter = new() { Dock = DockStyle.Fill, Padding = new Padding(32), AutoScroll = true, Visible = false };
+    private readonly Panel _panelGame = new() { Dock = DockStyle.Fill, Visible = false };
+    private readonly Button _btnSwitchCharacter = new() { Text = "Changer de personnage", AutoSize = true };
+    private readonly Button _btnBackDisconnect = new() { Text = "Retour à la connexion (fermer la session)", AutoSize = true, Enabled = false };
+
     private FrogGameClient? _client;
     private Map? _map;
     private string? _username;
-    private int _tileX;
-    private int _tileY;
+    private int _srvPixelX;
+    private int _srvPixelY;
     private readonly ConcurrentDictionary<string, OtherPlayerView> _others = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Interpolation visuelle (clients) entre positions tuile ; autorité jeu reste grillaire serveur.</summary>
+    /// <summary>Position affichée locale : prédiction continue + réconciliation avec la position réseau autoritaire.</summary>
     private float _visLocalCx;
 
     private float _visLocalCy;
 
-    private bool _localTweening;
-
     private bool _localVisualInitialized;
 
-    private DateTime _localTweenStartUtc;
-
-    private float _localFromCx;
-
-    private float _localFromCy;
+    /// <summary>Dernier échantillon UTC pour le lissage mouvement (client seulement).</summary>
+    private DateTime _motionSmoothLastUtc;
 
     private readonly System.Windows.Forms.Timer _smoothTimer = new() { Interval = 16 };
 
+    /// <summary>Fond carte (aligné <see cref="MapViewRenderer"/> secours) pour éviter flash si le bitmap est court.</summary>
+    private static readonly Color MapSurfaceBackColor = Color.FromArgb(60, 90, 60);
+
     private sealed class OtherPlayerView
     {
-        public int TileX;
+        public int ServerPixelX;
 
-        public int TileY;
+        public int ServerPixelY;
 
         public float VisCx;
 
         public float VisCy;
-
-        public float FromCx;
-
-        public float FromCy;
-
-        public DateTime TweenStartUtc;
-
-        public bool Tweening;
 
         public bool Initialized;
     }
@@ -65,8 +74,22 @@ public partial class Form1 : Form
     private DateTime _lastAutoMapRequestUtc = DateTime.MinValue;
     private static readonly TimeSpan AutoMapRequestDebounce = TimeSpan.FromMilliseconds(300);
     private readonly Dictionary<int, Bitmap> _tilesetBitmaps = new();
-    private DateTime _lastMoveUtc = DateTime.MinValue;
+    /// <summary>Envoi périodique <see cref="FrogGameClient.SendPositionSyncAsync"/> (protocole ≥ 8) : centre prédit en pixels.</summary>
+    private DateTime _lastMoveSendUtc = DateTime.MinValue;
+    private bool _pendingIdlePositionSync;
     private DateTime _lastInteractUtc = DateTime.MinValue;
+
+    /// <summary>Touches direction maintenues (prédiction client + boucle réseau).</summary>
+    private bool _holdLeft;
+
+    private bool _holdRight;
+
+    private bool _holdUp;
+
+    private bool _holdDown;
+
+    private HashSet<(int X, int Y)>? _mapBlockedTiles;
+
     private readonly List<MapEventWireEntry> _mapEvents = new();
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
     private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Value = 6000, Width = 70 };
@@ -80,12 +103,17 @@ public partial class Form1 : Form
     private readonly Button _btnLogout = new() { Text = "Logout", Enabled = false };
     private readonly ComboBox _cmbCharacters = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Enabled = false };
     private readonly Button _btnCharRefresh = new() { Text = "Liste persos", Width = 95, Enabled = false };
-    private readonly Button _btnCharApply = new() { Text = "Activer", Width = 72, Enabled = false };
+    private readonly Button _btnEnterGame = new() { Text = "Entrer dans le jeu", Width = 220, Enabled = false };
     private readonly TextBox _txtNewCharName = new() { Width = 100, PlaceholderText = "Nouveau perso" };
     private readonly Button _btnCharCreate = new() { Text = "Créer perso", Width = 95, Enabled = false };
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
-    private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = true };
-    private readonly PictureBox _picMap = new() { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.AutoSize };
+    private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = MapSurfaceBackColor };
+    private readonly PictureBox _picMap = new()
+    {
+        Location = new Point(0, 0),
+        SizeMode = PictureBoxSizeMode.AutoSize,
+        BackColor = MapSurfaceBackColor,
+    };
     private readonly TextBox _txtChat = new() { Dock = DockStyle.Fill };
     private readonly Button _btnSendChat = new() { Text = "Envoyer chat", Dock = DockStyle.Bottom, Height = 28 };
     private readonly ComboBox _cmbChannel = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
@@ -96,31 +124,113 @@ public partial class Form1 : Form
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _heartbeatTimer = new() { Interval = 45_000 };
 
-    public Form1()
+    /// <summary>Fréquence d’envoi position au serveur (aligné prédiction locale ~52 ms).</summary>
+    private const int MoveNetworkPulseMs = 52;
+
+    public MainShellForm()
     {
-        InitializeComponent();
-        Text = "FRoG Client (WinForms)";
-        ClientSize = new Size(1024, 720);
+        AutoScaleMode = AutoScaleMode.Font;
+        Text = "FRoG — Frog Isle";
+        ClientSize = new Size(1040, 720);
+        MinimumSize = new Size(980, 640);
+        StartPosition = FormStartPosition.CenterScreen;
         KeyPreview = true;
+        DoubleBuffered = true;
         BuildLayout();
+        EnableDoubleBuffer(_mapScroll);
+        EnableDoubleBuffer(_picMap);
         _smoothTimer.Tick += SmoothTimer_OnTick;
         _smoothTimer.Start();
         _cmbChannel.Items.AddRange(new object[] { "Global", "Map", "Whisper" });
         _cmbChannel.SelectedIndex = 1;
         _heartbeatTimer.Tick += async (_, _) => await SendHeartbeatSafeAsync();
-        Load += Form1_Load;
-        FormClosing += async (_, _) => await Form1_FormClosingAsync();
-        KeyDown += Form1_KeyDown;
+        Load += MainShell_Load;
+        FormClosing += async (_, _) => await MainShell_FormClosingAsync();
+        KeyDown += MainShell_KeyDown;
+        KeyUp += MainShell_KeyUp;
+        Deactivate += (_, _) =>
+        {
+            ReleaseAllMoveKeys();
+            ScheduleIdlePositionSyncIfAllReleased();
+        };
+
+        ApplyPhaseUi();
     }
 
-    private void Form1_Load(object? sender, EventArgs e)
+    private static Label TitleLbl(string text, float emSize = 14f)
+    {
+        var family = SystemFonts.MessageBoxFont?.FontFamily ?? SystemFonts.DefaultFont.FontFamily;
+        return new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Font = new Font(family, emSize, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 12),
+        };
+    }
+
+    private void ApplyPhaseUi()
+    {
+        _panelLogin.Visible = _phase == ClientUiPhase.Login;
+        _panelCharacter.Visible = _phase == ClientUiPhase.CharacterSelect;
+        _panelGame.Visible = _phase == ClientUiPhase.Playing;
+
+        if (_phase == ClientUiPhase.Login)
+        {
+            _panelLogin.BringToFront();
+        }
+        else if (_phase == ClientUiPhase.CharacterSelect)
+        {
+            _panelCharacter.BringToFront();
+        }
+        else
+        {
+            _panelGame.BringToFront();
+        }
+    }
+
+    private void SetPhase(ClientUiPhase p)
+    {
+        _phase = p;
+        ApplyPhaseUi();
+        if (InvokeRequired)
+        {
+            return;
+        }
+
+        Activate();
+        Focus();
+    }
+
+    private void GoToCharacterSelectPhase()
+    {
+        ReleaseAllMoveKeys();
+        _awaitingPlayingPhase = false;
+        _btnMelee.Enabled = false;
+        SetPhase(ClientUiPhase.CharacterSelect);
+        _ = RefreshCharacterListAsync();
+    }
+
+    private void TryEnterPlayingPhaseAfterMapReady()
+    {
+        if (!_awaitingPlayingPhase || _map is null)
+        {
+            return;
+        }
+
+        _awaitingPlayingPhase = false;
+        _btnMelee.Enabled = true;
+        SetPhase(ClientUiPhase.Playing);
+    }
+
+    private void MainShell_Load(object? sender, EventArgs e)
     {
         var ctx = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _client = new FrogGameClient(ctx);
         WireClient();
     }
 
-    private async Task Form1_FormClosingAsync()
+    private async Task MainShell_FormClosingAsync()
     {
         _smoothTimer.Stop();
         _heartbeatTimer.Stop();
@@ -141,7 +251,7 @@ public partial class Form1 : Form
             return;
         }
 
-        if (_map is null)
+        if (_phase != ClientUiPhase.Playing || _map is null)
         {
             return;
         }
@@ -150,86 +260,250 @@ public partial class Form1 : Form
         {
             RedrawMap();
         }
+
+        TrySendHeldMoveNetwork();
     }
 
     private void ResetLocalMotionState()
     {
         _localVisualInitialized = false;
-        _localTweening = false;
+        _motionSmoothLastUtc = default;
+        _pendingIdlePositionSync = false;
+        ReleaseAllMoveKeys();
     }
 
-    private static float SmoothStep(float t) => t * t * (3f - 2f * t);
-
-    private static void StepMovementTween(
-        ref float vx,
-        ref float vy,
-        float targetX,
-        float targetY,
-        ref bool tweening,
-        DateTime startUtc,
-        float fromX,
-        float fromY)
+    private void ReleaseAllMoveKeys()
     {
-        const float durationMs = 118f;
-        var elapsed = (float)(DateTime.UtcNow - startUtc).TotalMilliseconds;
-        var u = Math.Min(1f, elapsed / durationMs);
-        u = SmoothStep(u);
-        vx = fromX + (targetX - fromX) * u;
-        vy = fromY + (targetY - fromY) * u;
-        if (elapsed >= durationMs - 0.001f || u >= 0.999f)
-        {
-            vx = targetX;
-            vy = targetY;
-            tweening = false;
-        }
+        _holdLeft = _holdRight = _holdUp = _holdDown = false;
     }
 
-    private bool AdvanceMovementSmoothing()
+    private bool TryGetHeldMoveNormalized(out float vx, out float vy)
     {
-        if (_map is null || string.IsNullOrEmpty(_username))
+        vx = (_holdRight ? 1 : 0) - (_holdLeft ? 1 : 0);
+        vy = (_holdDown ? 1 : 0) - (_holdUp ? 1 : 0);
+        if (vx == 0 && vy == 0)
         {
             return false;
         }
 
+        var len = MathF.Sqrt(vx * vx + vy * vy);
+        vx /= len;
+        vy /= len;
+        return true;
+    }
+
+    private bool TryGetHeldMoveDiscrete(out sbyte dx, out sbyte dy)
+    {
+        dx = (sbyte)((_holdRight ? 1 : 0) - (_holdLeft ? 1 : 0));
+        dy = (sbyte)((_holdDown ? 1 : 0) - (_holdUp ? 1 : 0));
+        return dx != 0 || dy != 0;
+    }
+
+    private void ClampLocalVisToMap()
+    {
+        if (_map is null)
+        {
+            return;
+        }
+
         var tw = WorldMetrics.DefaultTileSizePixels;
-        var tgtLocalX = (_tileX + 0.5f) * tw;
-        var tgtLocalY = (_tileY + 0.5f) * tw;
+        var maxX = _map.Width * tw - 1f;
+        var maxY = _map.Height * tw - 1f;
+        _visLocalCx = Math.Clamp(_visLocalCx, 0f, maxX);
+        _visLocalCy = Math.Clamp(_visLocalCy, 0f, maxY);
+    }
+
+    private bool IsPredictedCenterBlocked(float cx, float cy)
+    {
+        if (_mapBlockedTiles is null || _map is null || _mapBlockedTiles.Count == 0)
+        {
+            return false;
+        }
+
+        var ix = (int)MathF.Round(cx);
+        var iy = (int)MathF.Round(cy);
+        return MapCollision.IsBlockedForPlayerCircle(
+            _map,
+            _mapBlockedTiles,
+            ix,
+            iy,
+            WorldMetrics.PlayerCollisionRadiusPixels);
+    }
+
+    /// <summary>Avance la prédiction avec la même cible que le serveur (~8 px par « tick » réseau) et glissement le long des murs.</summary>
+    private void TryApplyLocalPredictStep(float pvx, float pvy, float dt)
+    {
+        var speedPxPerSec = WorldMetrics.PlayerMovePixelsPerRequest / (MoveNetworkPulseMs / 1000f);
+        var dx = pvx * speedPxPerSec * dt;
+        var dy = pvy * speedPxPerSec * dt;
+
+        var nx = _visLocalCx + dx;
+        var ny = _visLocalCy + dy;
+        if (!IsPredictedCenterBlocked(nx, ny))
+        {
+            _visLocalCx = nx;
+            _visLocalCy = ny;
+            return;
+        }
+
+        nx = _visLocalCx + dx;
+        ny = _visLocalCy;
+        if (!IsPredictedCenterBlocked(nx, ny))
+        {
+            _visLocalCx = nx;
+            return;
+        }
+
+        nx = _visLocalCx;
+        ny = _visLocalCy + dy;
+        if (!IsPredictedCenterBlocked(nx, ny))
+        {
+            _visLocalCy = ny;
+        }
+    }
+
+    private void TrySendHeldMoveNetwork()
+    {
+        if (_client is null || !_client.IsConnected || string.IsNullOrEmpty(_username) || !_localVisualInitialized)
+        {
+            return;
+        }
+
+        var holding = TryGetHeldMoveDiscrete(out _, out _);
+        if (!holding && !_pendingIdlePositionSync)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if ((now - _lastMoveSendUtc).TotalMilliseconds < MoveNetworkPulseMs)
+        {
+            return;
+        }
+
+        _lastMoveSendUtc = now;
+        if (_pendingIdlePositionSync && !holding)
+        {
+            _pendingIdlePositionSync = false;
+        }
+
+        var px = (int)Math.Round(_visLocalCx);
+        var py = (int)Math.Round(_visLocalCy);
+        _ = SendPositionSyncBurstAsync(px, py);
+    }
+
+    private async Task SendPositionSyncBurstAsync(int pixelCenterX, int pixelCenterY)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendPositionSyncAsync(pixelCenterX, pixelCenterY).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("PositionSync: " + ex.Message);
+        }
+    }
+
+    private void ScheduleIdlePositionSyncIfAllReleased()
+    {
+        if (_holdLeft || _holdRight || _holdUp || _holdDown)
+        {
+            return;
+        }
+
+        _pendingIdlePositionSync = true;
+        PrimeMoveNetworkPulse();
+    }
+
+    private static void EnableDoubleBuffer(Control control)
+    {
+        typeof(Control).InvokeMember(
+            "DoubleBuffered",
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.SetProperty,
+            null,
+            control,
+            [true]);
+    }
+
+    private bool AdvanceMovementSmoothing()
+    {
+        if (_map is null)
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        if (_motionSmoothLastUtc == default)
+        {
+            _motionSmoothLastUtc = now;
+        }
+
+        var dt = (float)(now - _motionSmoothLastUtc).TotalSeconds;
+        _motionSmoothLastUtc = now;
+        if (dt <= 0 || dt > 0.25f)
+        {
+            dt = 1f / 60f;
+        }
+
+        const float convergencePerSec = 17f;
+        var alpha = 1f - MathF.Exp(-convergencePerSec * dt);
+        const float snapEps = 0.18f;
+        const float moveEps = 0.006f;
+
         var dirty = false;
 
-        if (_localTweening)
+        if (_localVisualInitialized && !string.IsNullOrEmpty(_username) && _map is not null)
         {
-            StepMovementTween(
-                ref _visLocalCx,
-                ref _visLocalCy,
-                tgtLocalX,
-                tgtLocalY,
-                ref _localTweening,
-                _localTweenStartUtc,
-                _localFromCx,
-                _localFromCy);
-            dirty = true;
+            var hasMove = TryGetHeldMoveNormalized(out var pvx, out var pvy);
+            if (hasMove)
+            {
+                TryApplyLocalPredictStep(pvx, pvy, dt);
+                ClampLocalVisToMap();
+                dirty = true;
+            }
+
+            var ex = _visLocalCx - _srvPixelX;
+            var ey = _visLocalCy - _srvPixelY;
+            var errMag = MathF.Sqrt(ex * ex + ey * ey);
+            // Référence serveur mise à jour par PositionUpdate ; ne pas tirer le joueur local vers elle (évite rollback).
+            const float snapDesyncPx = 256f;
+            if (errMag > snapDesyncPx)
+            {
+                _visLocalCx = _srvPixelX;
+                _visLocalCy = _srvPixelY;
+                dirty = true;
+            }
         }
 
         foreach (var kv in _others.ToArray())
         {
             var o = kv.Value;
-            if (!o.Tweening)
+            if (!o.Initialized)
             {
                 continue;
             }
 
-            var tx = (o.TileX + 0.5f) * tw;
-            var ty = (o.TileY + 0.5f) * tw;
-            StepMovementTween(
-                ref o.VisCx,
-                ref o.VisCy,
-                tx,
-                ty,
-                ref o.Tweening,
-                o.TweenStartUtc,
-                o.FromCx,
-                o.FromCy);
-            dirty = true;
+            var tx = (float)o.ServerPixelX;
+            var ty = (float)o.ServerPixelY;
+            var nx = o.VisCx + (tx - o.VisCx) * alpha;
+            var ny = o.VisCy + (ty - o.VisCy) * alpha;
+            if (MathF.Abs(tx - nx) <= snapEps && MathF.Abs(ty - ny) <= snapEps)
+            {
+                nx = tx;
+                ny = ty;
+            }
+
+            if (MathF.Abs(nx - o.VisCx) > moveEps || MathF.Abs(ny - o.VisCy) > moveEps)
+            {
+                o.VisCx = nx;
+                o.VisCy = ny;
+                dirty = true;
+            }
         }
 
         return dirty;
@@ -265,6 +539,46 @@ public partial class Form1 : Form
             Margin = new Padding(4, topPad, 4, 4),
         };
 
+    /// <summary>Empile des contrôles en colonne dans un panneau (écran login / perso).</summary>
+    private static void AddStackToPanel(Panel panel, params Control[] sections)
+    {
+        var outer = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount = 1,
+            BackColor = panel.BackColor,
+        };
+        outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        outer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 560));
+        outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+
+        var flow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(12),
+            BackColor = panel.BackColor,
+        };
+        foreach (var section in sections)
+        {
+            section.Margin = new Padding(0, 0, 0, 12);
+            flow.Controls.Add(section);
+        }
+
+        var host = new Panel { Dock = DockStyle.Fill, AutoSize = false, BackColor = panel.BackColor };
+        host.Controls.Add(flow);
+        outer.Controls.Add(new Panel { Dock = DockStyle.Fill }, 0, 0);
+        outer.Controls.Add(host, 1, 0);
+        outer.Controls.Add(new Panel { Dock = DockStyle.Fill }, 2, 0);
+
+        panel.Controls.Clear();
+        panel.Controls.Add(outer);
+    }
+
     private void BuildLayout()
     {
         StyleToolbarButton(_btnConnect);
@@ -274,12 +588,23 @@ public partial class Form1 : Form
         StyleToolbarButton(_btnMap);
         StyleToolbarButton(_btnLogout);
         StyleToolbarButton(_btnCharRefresh);
-        StyleToolbarButton(_btnCharApply);
+        StyleToolbarButton(_btnEnterGame);
         StyleToolbarButton(_btnCharCreate);
         StyleToolbarButton(_btnMelee);
         StyleToolbarButton(_btnStatsApply);
+        StyleToolbarButton(_btnBackDisconnect);
+        StyleToolbarButton(_btnSwitchCharacter);
+        BackColor = SystemColors.Control;
+        _panelLogin.BackColor = Color.FromArgb(245, 248, 252);
+        _panelCharacter.BackColor = Color.FromArgb(245, 248, 252);
+        _panelGame.BackColor = SystemColors.Control;
+        foreach (Panel p in new[] { _panelLogin, _panelCharacter })
+        {
+            p.AutoScroll = true;
+        }
+
         _cmbCharacters.MinimumSize = new Size(220, 0);
-        _cmbCharacters.Width = Math.Max(_cmbCharacters.Width, 280);
+        _cmbCharacters.Width = Math.Max(_cmbCharacters.Width, 320);
         _txtNewCharName.MinimumSize = new Size(120, 0);
         _txtNewCharName.Width = Math.Max(_txtNewCharName.Width, 140);
         foreach (Control c in new Control[] { _txtHost, _txtUser, _txtPass })
@@ -290,37 +615,45 @@ public partial class Form1 : Form
         _numPort.Margin = new Padding(2, 4, 12, 4);
         _txtMeleeTarget.Margin = new Padding(2, 4, 8, 4);
 
-        var rowConn = CreateToolbarRow();
-        rowConn.Controls.Add(Lbl("Hôte"));
-        rowConn.Controls.Add(_txtHost);
-        rowConn.Controls.Add(Lbl("Port"));
-        rowConn.Controls.Add(_numPort);
-        rowConn.Controls.Add(Lbl("User"));
-        rowConn.Controls.Add(_txtUser);
-        rowConn.Controls.Add(Lbl("Pass"));
-        rowConn.Controls.Add(_txtPass);
-        rowConn.Controls.Add(_btnConnect);
-        rowConn.Controls.Add(_btnDisconnect);
-        rowConn.Controls.Add(_btnLogin);
-        rowConn.Controls.Add(_btnRegister);
-        rowConn.Controls.Add(_btnMap);
-        rowConn.Controls.Add(_btnLogout);
+        var loginFields = CreateToolbarRow();
+        loginFields.FlowDirection = FlowDirection.LeftToRight;
+        loginFields.WrapContents = true;
+        loginFields.AutoSize = true;
+        loginFields.Controls.Add(Lbl("Hôte", topPad: 16));
+        loginFields.Controls.Add(_txtHost);
+        loginFields.Controls.Add(Lbl("Port", topPad: 16));
+        loginFields.Controls.Add(_numPort);
+        loginFields.Controls.Add(Lbl("Compte", topPad: 16));
+        loginFields.Controls.Add(_txtUser);
+        loginFields.Controls.Add(Lbl("Mot de passe", topPad: 16));
+        loginFields.Controls.Add(_txtPass);
 
-        var rowChar = CreateToolbarRow();
-        rowChar.Controls.Add(Lbl("Perso"));
-        rowChar.Controls.Add(_cmbCharacters);
-        rowChar.Controls.Add(_btnCharRefresh);
-        rowChar.Controls.Add(_btnCharApply);
-        rowChar.Controls.Add(Lbl("Nouveau"));
-        rowChar.Controls.Add(_txtNewCharName);
-        rowChar.Controls.Add(_btnCharCreate);
-        rowChar.Controls.Add(Lbl("Mêlée"));
-        rowChar.Controls.Add(_txtMeleeTarget);
-        rowChar.Controls.Add(_btnMelee);
+        var loginBtns = CreateToolbarRow();
+        loginBtns.WrapContents = true;
+        loginBtns.Controls.Add(_btnConnect);
+        loginBtns.Controls.Add(_btnDisconnect);
+        loginBtns.Controls.Add(_btnLogin);
+        loginBtns.Controls.Add(_btnRegister);
+
+        AddStackToPanel(_panelLogin, TitleLbl("Connexion"), loginFields, loginBtns);
+
+        var rowCharPick = CreateToolbarRow();
+        rowCharPick.WrapContents = true;
+        rowCharPick.Controls.Add(Lbl("Personnage", topPad: 16));
+        rowCharPick.Controls.Add(_cmbCharacters);
+        rowCharPick.Controls.Add(_btnCharRefresh);
+        rowCharPick.Controls.Add(_btnEnterGame);
+
+        var rowCreate = CreateToolbarRow();
+        rowCreate.WrapContents = true;
+        rowCreate.Controls.Add(Lbl("Nouveau personnage", topPad: 16));
+        rowCreate.Controls.Add(_txtNewCharName);
+        rowCreate.Controls.Add(_btnCharCreate);
 
         var rowStats = CreateToolbarRow();
         var statLabels = new[] { "STR", "AGI", "DEX", "INT", "VIT", "LUCK" };
-        rowStats.Controls.Add(Lbl("Stats"));
+        rowStats.WrapContents = true;
+        rowStats.Controls.Add(Lbl("Stats", topPad: 16));
         for (var i = 0; i < _numStats.Length; i++)
         {
             _numStats[i] = new NumericUpDown
@@ -332,30 +665,17 @@ public partial class Form1 : Form
                 Enabled = false,
                 Margin = new Padding(2, 4, 8, 4),
             };
-            rowStats.Controls.Add(Lbl(statLabels[i], topPad: 8));
+            rowStats.Controls.Add(Lbl(statLabels[i], topPad: 16));
             rowStats.Controls.Add(_numStats[i]);
         }
 
         rowStats.Controls.Add(_btnStatsApply);
-        rowStats.Controls.Add(Lbl("(flèches = bouger · E = interagir)", topPad: 10));
 
-        var toolbar = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 1,
-            RowCount = 3,
-            Padding = new Padding(8, 8, 8, 6),
-            BackColor = SystemColors.Control,
-        };
-        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        toolbar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        toolbar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        toolbar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        toolbar.Controls.Add(rowConn, 0, 0);
-        toolbar.Controls.Add(rowChar, 0, 1);
-        toolbar.Controls.Add(rowStats, 0, 2);
+        var rowCharNav = CreateToolbarRow();
+        rowCharNav.WrapContents = true;
+        rowCharNav.Controls.Add(_btnBackDisconnect);
+
+        AddStackToPanel(_panelCharacter, TitleLbl("Choisir votre personnage"), rowCharPick, rowCreate, rowStats, rowCharNav);
 
         _mapScroll.Controls.Add(_picMap);
         var rightChat = new TableLayoutPanel
@@ -396,15 +716,44 @@ public partial class Form1 : Form
         center.Controls.Add(_mapScroll, 0, 0);
         center.Controls.Add(rightChat, 1, 0);
 
+        var gameTop = CreateToolbarRow();
+        gameTop.WrapContents = true;
+        gameTop.Controls.Add(_btnMap);
+        gameTop.Controls.Add(_btnSwitchCharacter);
+        gameTop.Controls.Add(_btnLogout);
+        gameTop.Controls.Add(Lbl("Mêlée"));
+        gameTop.Controls.Add(_txtMeleeTarget);
+        gameTop.Controls.Add(_btnMelee);
+        gameTop.Controls.Add(Lbl("Flèches = déplacement · E = interagir", topPad: 14));
+
+        var gameLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(6, 4, 6, 6),
+            BackColor = SystemColors.Control,
+        };
+        gameLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gameLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        gameLayout.Controls.Add(gameTop, 0, 0);
+        gameLayout.Controls.Add(center, 0, 1);
+        _panelGame.Controls.Clear();
+        _panelGame.Controls.Add(gameLayout);
+
+        _hostPages.BackColor = SystemColors.Control;
+        _hostPages.Controls.Add(_panelGame);
+        _hostPages.Controls.Add(_panelCharacter);
+        _hostPages.Controls.Add(_panelLogin);
+
+        _txtLog.Dock = DockStyle.Bottom;
         _txtLog.MinimumSize = new Size(120, 88);
         _txtLog.Height = 100;
 
-        MinimumSize = new Size(980, 640);
         ClientSize = new Size(Math.Max(ClientSize.Width, 1040), Math.Max(ClientSize.Height, 720));
 
-        Controls.Add(center);
+        Controls.Add(_hostPages);
         Controls.Add(_txtLog);
-        Controls.Add(toolbar);
     }
 
     private void WireClient()
@@ -422,6 +771,8 @@ public partial class Form1 : Form
         _btnLogout.Click += async (_, _) => await LogoutAsync();
         _btnSendChat.Click += async (_, _) => await SendChatAsync();
         _btnMelee.Click += async (_, _) => await MeleeAsync();
+        _btnSwitchCharacter.Click += (_, _) => GoToCharacterSelectPhase();
+        _btnBackDisconnect.Click += async (_, _) => await DisconnectAsync();
 
         _client.HelloReceived += msg => AppendLog("Hello: " + msg);
         _client.LoginResultReceived += OnLoginResult;
@@ -445,7 +796,7 @@ public partial class Form1 : Form
         _client.InteractResultReceived += OnInteractResult;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
-        _btnCharApply.Click += async (_, _) => await ApplySelectedCharacterAsync();
+        _btnEnterGame.Click += async (_, _) => await ApplySelectedCharacterAsync();
         _btnCharCreate.Click += async (_, _) => await CreateCharacterAsync();
         _btnStatsApply.Click += async (_, _) => await ApplyCharacterStatsAsync();
     }
@@ -497,6 +848,7 @@ public partial class Form1 : Form
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
         _map = null;
+        _mapBlockedTiles = null;
         _username = null;
         _sessionDisplayedMapId = 0;
         _others.Clear();
@@ -504,6 +856,9 @@ public partial class Form1 : Form
         ClearMapImage();
         DisposeTilesetBitmaps();
         _mapEvents.Clear();
+        _awaitingPlayingPhase = false;
+        _btnBackDisconnect.Enabled = false;
+        SetPhase(ClientUiPhase.Login);
     }
 
     private void OnConnectionClosed()
@@ -545,17 +900,19 @@ public partial class Form1 : Form
 
         _username = _txtUser.Text.Trim();
         _btnMap.Enabled = true;
-        _btnMelee.Enabled = true;
         _btnLogout.Enabled = true;
+        _btnMelee.Enabled = false;
         _cmbCharacters.Enabled = true;
         _btnCharRefresh.Enabled = true;
-        _btnCharApply.Enabled = true;
+        _btnEnterGame.Enabled = true;
         _txtNewCharName.Enabled = true;
         _btnCharCreate.Enabled = true;
         SetStatsControlsEnabled(true);
+        _btnBackDisconnect.Enabled = true;
         _heartbeatTimer.Start();
         _ = RefreshCharacterListAsync();
         _ = MapRequestAsync();
+        SetPhase(ClientUiPhase.CharacterSelect);
     }
 
     private async Task RegisterAsync()
@@ -622,6 +979,7 @@ public partial class Form1 : Form
     {
         _username = null;
         _map = null;
+        _mapBlockedTiles = null;
         _sessionDisplayedMapId = 0;
         _others.Clear();
         ResetLocalMotionState();
@@ -632,6 +990,8 @@ public partial class Form1 : Form
         _btnMelee.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
+        _awaitingPlayingPhase = false;
+        SetPhase(ClientUiPhase.Login);
     }
 
     private void ResetCharacterPickUi()
@@ -639,7 +999,7 @@ public partial class Form1 : Form
         _cmbCharacters.Items.Clear();
         _cmbCharacters.Enabled = false;
         _btnCharRefresh.Enabled = false;
-        _btnCharApply.Enabled = false;
+        _btnEnterGame.Enabled = false;
         _txtNewCharName.Enabled = false;
         _btnCharCreate.Enabled = false;
         SetStatsControlsEnabled(false);
@@ -660,17 +1020,54 @@ public partial class Form1 : Form
         _mapEvents.Clear();
         _sessionDisplayedMapId = mapId;
         _map = map;
+        _mapBlockedTiles = MapCollision.IndexBlockedTiles(map);
         _others.Clear();
-        ResetLocalMotionState();
+        // Ne pas ResetLocalMotionState() ici : un second MapRequest (ex. après CharacterSelectResult)
+        // recevrait MapData après PositionUpdate ; la remise à zéro coupait tout envoi PositionSync.
+        _motionSmoothLastUtc = DateTime.UtcNow;
+        _pendingIdlePositionSync = false;
+        if (_localVisualInitialized && !string.IsNullOrEmpty(_username))
+        {
+            _visLocalCx = _srvPixelX;
+            _visLocalCy = _srvPixelY;
+            ClampLocalVisToMap();
+        }
+
         ReloadTilesetBitmaps();
         RedrawMap();
         _ = RequestMapEventsFromServerAsync();
+        TryEnterPlayingPhaseAfterMapReady();
     }
 
     private void OnMapAlreadySynced(int mapId, long revision)
     {
         AppendLog($"Carte id={mapId} déjà à jour (révision serveur {revision}).");
+        _sessionDisplayedMapId = mapId;
+        if (_map is null && _client is { IsConnected: true } && !string.IsNullOrEmpty(_username))
+        {
+            AppendLog("Carte absente en local — re-demande du blob complet.");
+            _ = RequestFullMapBlobAsync();
+        }
+
         _ = RequestMapEventsFromServerAsync();
+        TryEnterPlayingPhaseAfterMapReady();
+    }
+
+    private async Task RequestFullMapBlobAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendMapRequestIgnoringFingerprintAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("MapRequest (blob complet): " + ex.Message);
+        }
     }
 
     private async Task RequestMapEventsFromServerAsync()
@@ -862,6 +1259,7 @@ public partial class Form1 : Form
         AppendLog(ok ? "Perso: " + message : "Perso refusé: " + message);
         if (ok)
         {
+            _awaitingPlayingPhase = true;
             _ = MapRequestAsync();
         }
     }
@@ -934,7 +1332,7 @@ public partial class Form1 : Form
             return;
         }
 
-        var tw = WorldMetrics.DefaultTileSizePixels;
+        var needImmediateRedraw = false;
         if (isLocal)
         {
             if (_sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
@@ -944,21 +1342,18 @@ public partial class Form1 : Form
 
             if (!_localVisualInitialized)
             {
-                _tileX = x;
-                _tileY = y;
-                _visLocalCx = (x + 0.5f) * tw;
-                _visLocalCy = (y + 0.5f) * tw;
-                _localTweening = false;
+                _srvPixelX = x;
+                _srvPixelY = y;
+                _visLocalCx = x;
+                _visLocalCy = y;
+                _motionSmoothLastUtc = DateTime.UtcNow;
                 _localVisualInitialized = true;
+                needImmediateRedraw = true;
             }
-            else if (x != _tileX || y != _tileY)
+            else if (x != _srvPixelX || y != _srvPixelY)
             {
-                _localFromCx = _visLocalCx;
-                _localFromCy = _visLocalCy;
-                _tileX = x;
-                _tileY = y;
-                _localTweenStartUtc = DateTime.UtcNow;
-                _localTweening = true;
+                _srvPixelX = x;
+                _srvPixelY = y;
             }
         }
         else
@@ -966,25 +1361,24 @@ public partial class Form1 : Form
             var ov = _others.GetOrAdd(user, _ => new OtherPlayerView());
             if (!ov.Initialized)
             {
-                ov.TileX = x;
-                ov.TileY = y;
-                ov.VisCx = (x + 0.5f) * tw;
-                ov.VisCy = (y + 0.5f) * tw;
-                ov.Tweening = false;
+                ov.ServerPixelX = x;
+                ov.ServerPixelY = y;
+                ov.VisCx = x;
+                ov.VisCy = y;
                 ov.Initialized = true;
+                needImmediateRedraw = true;
             }
-            else if (ov.TileX != x || ov.TileY != y)
+            else if (ov.ServerPixelX != x || ov.ServerPixelY != y)
             {
-                ov.FromCx = ov.VisCx;
-                ov.FromCy = ov.VisCy;
-                ov.TileX = x;
-                ov.TileY = y;
-                ov.TweenStartUtc = DateTime.UtcNow;
-                ov.Tweening = true;
+                ov.ServerPixelX = x;
+                ov.ServerPixelY = y;
             }
         }
 
-        RedrawMap();
+        if (needImmediateRedraw)
+        {
+            RedrawMap();
+        }
     }
 
     private void TryScheduleMapRequestAfterWarp(int serverMapId)
@@ -1117,15 +1511,25 @@ public partial class Form1 : Form
         }
     }
 
-    private async void Form1_KeyDown(object? sender, KeyEventArgs e)
+    private void MainShell_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (_client is null || !_client.IsConnected || string.IsNullOrEmpty(_username) || _map is null)
+        if (_phase != ClientUiPhase.Playing)
+        {
+            return;
+        }
+
+        if (_client is null || !_client.IsConnected || string.IsNullOrEmpty(_username))
         {
             return;
         }
 
         if (e.KeyCode == Keys.E)
         {
+            if (_map is null)
+            {
+                return;
+            }
+
             e.Handled = true;
             var nowE = DateTime.UtcNow;
             if ((nowE - _lastInteractUtc).TotalMilliseconds < 400)
@@ -1138,31 +1542,82 @@ public partial class Form1 : Form
             return;
         }
 
-        sbyte dx = 0, dy = 0;
         switch (e.KeyCode)
         {
-            case Keys.Left: dx = -1; break;
-            case Keys.Right: dx = 1; break;
-            case Keys.Up: dy = -1; break;
-            case Keys.Down: dy = 1; break;
-            default: return;
+            case Keys.Left:
+                if (!_holdLeft)
+                {
+                    PrimeMoveNetworkPulse();
+                }
+
+                _holdLeft = true;
+                break;
+            case Keys.Right:
+                if (!_holdRight)
+                {
+                    PrimeMoveNetworkPulse();
+                }
+
+                _holdRight = true;
+                break;
+            case Keys.Up:
+                if (!_holdUp)
+                {
+                    PrimeMoveNetworkPulse();
+                }
+
+                _holdUp = true;
+                break;
+            case Keys.Down:
+                if (!_holdDown)
+                {
+                    PrimeMoveNetworkPulse();
+                }
+
+                _holdDown = true;
+                break;
+            default:
+                return;
         }
 
         e.Handled = true;
-        var now = DateTime.UtcNow;
-        if ((now - _lastMoveUtc).TotalMilliseconds < 120)
+    }
+
+    private void PrimeMoveNetworkPulse()
+    {
+        _lastMoveSendUtc = DateTime.UtcNow.AddMilliseconds(-MoveNetworkPulseMs - 1);
+        TrySendHeldMoveNetwork();
+    }
+
+    private void MainShell_KeyUp(object? sender, KeyEventArgs e)
+    {
+        if (_phase != ClientUiPhase.Playing)
         {
             return;
         }
 
-        _lastMoveUtc = now;
-        try
+        switch (e.KeyCode)
         {
-            await _client.SendMoveAsync(dx, dy).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            AppendLog("Move: " + ex.Message);
+            case Keys.Left:
+                _holdLeft = false;
+                ScheduleIdlePositionSyncIfAllReleased();
+                e.Handled = true;
+                break;
+            case Keys.Right:
+                _holdRight = false;
+                ScheduleIdlePositionSyncIfAllReleased();
+                e.Handled = true;
+                break;
+            case Keys.Up:
+                _holdUp = false;
+                ScheduleIdlePositionSyncIfAllReleased();
+                e.Handled = true;
+                break;
+            case Keys.Down:
+                _holdDown = false;
+                ScheduleIdlePositionSyncIfAllReleased();
+                e.Handled = true;
+                break;
         }
     }
 
@@ -1173,9 +1628,8 @@ public partial class Form1 : Form
             return;
         }
 
-        var tw = WorldMetrics.DefaultTileSizePixels;
-        var lcx = (_tileX + 0.5f) * tw;
-        var lcy = (_tileY + 0.5f) * tw;
+        var lcx = (float)_srvPixelX;
+        var lcy = (float)_srvPixelY;
         if (_localVisualInitialized)
         {
             lcx = _visLocalCx;
@@ -1189,8 +1643,9 @@ public partial class Form1 : Form
         }
 
         var bmp = MapViewRenderer.Render(_map, otherPx, _username, lcx, lcy, _tilesetBitmaps, _mapEvents);
-        ClearMapImage();
+        var previous = _picMap.Image;
         _picMap.Image = bmp;
+        previous?.Dispose();
     }
 
     private void ReloadTilesetBitmaps()
