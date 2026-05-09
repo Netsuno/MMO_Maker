@@ -65,8 +65,27 @@ public sealed class MapCanvas : Control
     public event Action? MapReplaced;
     public event Action? UndoHistoryChanged;
 
+    /// <summary>Marqueurs événements ou visibilité overlay ont changé (mini-carte, etc.).</summary>
+    public event Action? MapEventOverlayChanged;
+
+    private bool _showMapEventMarkers = true;
+
     /// <summary>Affiche les pastilles d’événements MariaDB (<see cref="MapEventMarkers"/>) sur le canevas.</summary>
-    public bool ShowMapEventMarkers { get; set; } = true;
+    public bool ShowMapEventMarkers
+    {
+        get => _showMapEventMarkers;
+        set
+        {
+            if (_showMapEventMarkers == value)
+            {
+                return;
+            }
+
+            _showMapEventMarkers = value;
+            MapEventOverlayChanged?.Invoke();
+            Invalidate();
+        }
+    }
 
     private IReadOnlyList<MapEventMarkerView>? _mapEventMarkers;
 
@@ -77,6 +96,7 @@ public sealed class MapCanvas : Control
         set
         {
             _mapEventMarkers = value;
+            MapEventOverlayChanged?.Invoke();
             Invalidate();
         }
     }
@@ -528,7 +548,7 @@ public sealed class MapCanvas : Control
                 }
 
                 var rect = new Rectangle(m.TileX * ts, m.TileY * ts, ts, ts);
-                var fill = MarkerTintFromSlug(m.PrimarySlug);
+                var fill = MapEventMarkerColors.TintFromSlug(m.PrimarySlug);
                 var badgeD = Math.Max(6, ts * 2 / 5);
                 var pad = Math.Max(1, ts / 14);
                 var badge = new Rectangle(rect.Right - badgeD - pad, rect.Y + pad, badgeD, badgeD);
@@ -560,33 +580,6 @@ public sealed class MapCanvas : Control
         {
             g.SmoothingMode = prevSmooth;
             g.TextRenderingHint = prevText;
-        }
-    }
-
-    private static Color MarkerTintFromSlug(string slug)
-    {
-        unchecked
-        {
-            var h = 0;
-            foreach (var c in slug)
-            {
-                h = h * 31 + c;
-            }
-
-            h ^= slug.Length * 1315423911;
-            var palette = new[]
-            {
-                Color.MediumOrchid,
-                Color.Turquoise,
-                Color.Coral,
-                Color.Gold,
-                Color.LightSkyBlue,
-                Color.LimeGreen,
-                Color.Orange,
-                Color.HotPink,
-            };
-            var idx = (h & int.MaxValue) % palette.Length;
-            return palette[idx];
         }
     }
 

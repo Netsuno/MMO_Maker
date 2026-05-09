@@ -1,7 +1,10 @@
 #nullable enable
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using Frog.Core.Models;
+using Frog.Editor.Services;
 using Frog.Editor.Ui;
 
 namespace Frog.Editor.Controls;
@@ -29,6 +32,7 @@ public sealed class MapMinimapControl : Control
         if (_canvas is not null)
         {
             _canvas.ViewTransformChanged += OnViewTransformChanged;
+            _canvas.MapEventOverlayChanged += OnMapEventOverlayChanged;
             _canvas.Resize += OnCanvasResize;
         }
 
@@ -36,6 +40,8 @@ public sealed class MapMinimapControl : Control
     }
 
     private void OnViewTransformChanged() => Invalidate();
+
+    private void OnMapEventOverlayChanged() => Invalidate();
 
     private void OnCanvasResize(object? sender, EventArgs e) => Invalidate();
 
@@ -47,6 +53,7 @@ public sealed class MapMinimapControl : Control
         }
 
         _canvas.ViewTransformChanged -= OnViewTransformChanged;
+        _canvas.MapEventOverlayChanged -= OnMapEventOverlayChanged;
         _canvas.Resize -= OnCanvasResize;
         _canvas = null;
     }
@@ -55,6 +62,39 @@ public sealed class MapMinimapControl : Control
     {
         DetachInner();
         base.OnHandleDestroyed(e);
+    }
+
+    private static bool TryComputeMinimapLayout(
+        int controlWidth,
+        int controlHeight,
+        Map map,
+        int tileSize,
+        out float pad,
+        out float ox,
+        out float oy,
+        out float scale,
+        out float drawW,
+        out float drawH,
+        out float mapPxW,
+        out float mapPxH)
+    {
+        pad = 3f;
+        mapPxW = Math.Max(1f, map.Width * (float)tileSize);
+        mapPxH = Math.Max(1f, map.Height * (float)tileSize);
+        var innerW = controlWidth - 2 * pad;
+        var innerH = controlHeight - 2 * pad;
+        scale = Math.Min(innerW / mapPxW, innerH / mapPxH);
+        if (scale <= 0 || float.IsInfinity(scale) || float.IsNaN(scale))
+        {
+            ox = oy = drawW = drawH = 0f;
+            return false;
+        }
+
+        drawW = mapPxW * scale;
+        drawH = mapPxH * scale;
+        ox = pad + (innerW - drawW) * 0.5f;
+        oy = pad + (innerH - drawH) * 0.5f;
+        return true;
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -74,21 +114,10 @@ public sealed class MapMinimapControl : Control
 
         var map = _canvas.Map;
         var ts = _canvas.TileSize;
-        var mapPxW = Math.Max(1f, map.Width * (float)ts);
-        var mapPxH = Math.Max(1f, map.Height * (float)ts);
-        const float pad = 3f;
-        var innerW = Width - 2 * pad;
-        var innerH = Height - 2 * pad;
-        var scale = Math.Min(innerW / mapPxW, innerH / mapPxH);
-        if (scale <= 0 || float.IsInfinity(scale) || float.IsNaN(scale))
+        if (!TryComputeMinimapLayout(Width, Height, map, ts, out _, out var ox, out var oy, out var scale, out var drawW, out var drawH, out var mapPxW, out var mapPxH))
         {
             return;
         }
-
-        var drawW = mapPxW * scale;
-        var drawH = mapPxH * scale;
-        var ox = pad + (innerW - drawW) * 0.5f;
-        var oy = pad + (innerH - drawH) * 0.5f;
 
         using (var fill = new SolidBrush(Color.FromArgb(55, 72, 86)))
         {
@@ -115,6 +144,45 @@ public sealed class MapMinimapControl : Control
         {
             g.DrawRectangle(vpPen, rx, ry, rwm, rhm);
         }
+
+        if (_canvas.ShowMapEventMarkers && _canvas.MapEventMarkers is { Count: > 0 } markers)
+        {
+            var prev = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            try
+            {
+                foreach (var m in markers)
+                {
+                    if (m.TileX < 0 || m.TileX >= map.Width || m.TileY < 0 || m.TileY >= map.Height)
+                    {
+                        continue;
+                    }
+
+                    var cx = ox + (m.TileX + 0.5f) * ts * scale;
+                    var cy = oy + (m.TileY + 0.5f) * ts * scale;
+                    var r = Math.Max(1.25f, 2.2f * scale);
+                    if (m.PlacementCount > 1)
+                    {
+                        r *= 1.2f;
+                    }
+
+                    var tint = MapEventMarkerColors.TintFromSlug(m.PrimarySlug);
+                    using (var b = new SolidBrush(Color.FromArgb(228, tint)))
+                    {
+                        g.FillEllipse(b, cx - r, cy - r, r * 2f, r * 2f);
+                    }
+
+                    using (var edge = new Pen(Color.FromArgb(200, Color.White), 1f))
+                    {
+                        g.DrawEllipse(edge, cx - r, cy - r, r * 2f, r * 2f);
+                    }
+                }
+            }
+            finally
+            {
+                g.SmoothingMode = prev;
+            }
+        }
     }
 
     protected override void OnMouseClick(MouseEventArgs e)
@@ -127,21 +195,11 @@ public sealed class MapMinimapControl : Control
 
         var map = _canvas.Map;
         var ts = _canvas.TileSize;
-        var mapPxW = Math.Max(1f, map.Width * (float)ts);
-        var mapPxH = Math.Max(1f, map.Height * (float)ts);
-        const float pad = 3f;
-        var innerW = Width - 2 * pad;
-        var innerH = Height - 2 * pad;
-        var scale = Math.Min(innerW / mapPxW, innerH / mapPxH);
-        if (scale <= 0 || float.IsInfinity(scale) || float.IsNaN(scale))
+        if (!TryComputeMinimapLayout(Width, Height, map, ts, out _, out var ox, out var oy, out var scale, out var drawW, out var drawH, out _, out _))
         {
             return;
         }
 
-        var drawW = mapPxW * scale;
-        var drawH = mapPxH * scale;
-        var ox = pad + (innerW - drawW) * 0.5f;
-        var oy = pad + (innerH - drawH) * 0.5f;
         var mx = e.X - ox;
         var my = e.Y - oy;
         if (mx < 0 || my < 0 || mx > drawW || my > drawH)
