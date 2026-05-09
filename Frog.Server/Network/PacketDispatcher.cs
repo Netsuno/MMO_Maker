@@ -366,6 +366,8 @@ public sealed class PacketDispatcher(
             return;
         }
 
+        var cellBefore = (session.CurrentMapId, session.PositionX, session.PositionY);
+
         if (!_movementService.TryApplyMove(session, deltaX, deltaY, out var error))
         {
             await _packetSender.SendErrorAsync(clientSession, error, cancellationToken);
@@ -387,7 +389,11 @@ public sealed class PacketDispatcher(
                 cancellationToken);
         }
 
-        await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
+        var cellAfter = (session.CurrentMapId, session.PositionX, session.PositionY);
+        if (cellAfter != cellBefore)
+        {
+            await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
+        }
     }
 
     private async Task HandlePositionSyncRequestAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
@@ -403,6 +409,8 @@ public sealed class PacketDispatcher(
             await _packetSender.SendErrorAsync(clientSession, "PositionSyncRequest: 8 octets attendus (Int32 centre X,Y LE).", cancellationToken);
             return;
         }
+
+        var cellBefore = (session.CurrentMapId, session.PositionX, session.PositionY);
 
         if (!_movementService.TryApplyReportedPixelPosition(session, px, py, out var error))
         {
@@ -424,7 +432,11 @@ public sealed class PacketDispatcher(
                 cancellationToken);
         }
 
-        await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
+        var cellAfter = (session.CurrentMapId, session.PositionX, session.PositionY);
+        if (cellAfter != cellBefore)
+        {
+            await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
+        }
     }
 
     private async Task TryFireStepOnMapEventsAsync(ClientSession clientSession, Session session, CancellationToken cancellationToken)

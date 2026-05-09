@@ -278,6 +278,7 @@ L’utilisateur peut :
 
 - Menu **Carte → Événements carte (MariaDB)…** (WPF équivalent dans `MainWindow.xaml`).
 - Lecture catalogue + placements ; **Placer sur carte** (INSERT IGNORE, clé unique tuile/type) ; **Supprimer ligne** placement avec confirmation ; **Ajouter / supprimer entrée catalogue** (slug normalisé via `Frog.Core.Protocol.MapEventCatalogNormalization`, suppression id≠1) (`MapEventsMariaDbReader`, `MapEventsMariaDbWriter`, `MapEventsBrowseDialog`).
+- Colonne **`trigger_kind`** sur `frog_map_event` : **`interact`** (action « Interagir » / paquet 31) ou **`step_on`** (événement à l’arrivée sur la tuile côté serveur). Combo **Déclencheur** + **Appliquer déclencheur à la ligne** dans le dialogue. Sur le canevas / mini-carte, pastille ronde = `interact`, losange = `step_on` (couleurs inchangées par slug).
 - **Ctrl+clic droit** sur le canevas : menu contextuel → ouvre le même dialogue avec **tuile X/Y** et **`frog_map.id`** courants (sans gommage ; barre d’état rappelle le raccourci).
 - Tuiles X/Y par défaut : dernière position survolée sur le canevas ; **`frog_map.id`** prérempli depuis `editor-workstate.json` (« dernier id publié » via **Fichier → Publier vers MariaDB**), encore modifiable manuellement.
 
