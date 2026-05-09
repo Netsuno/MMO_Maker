@@ -49,6 +49,8 @@
                           InputGestureText="Ctrl+S" />
                 <MenuItem Header="Publier vers MariaDB…"
                           Command="{x:Static local:MainWindow.CmdPublishMap}" />
+                <MenuItem Header="Lancer le client Frog…"
+                          Command="{x:Static local:MainWindow.CmdLaunchFrogClient}" />
                 <Separator />
                 <MenuItem Header="_Quitter" Command="{x:Static local:MainWindow.CmdQuit}" />
             </MenuItem>

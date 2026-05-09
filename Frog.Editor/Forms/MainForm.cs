@@ -131,6 +131,7 @@ public sealed class MainForm : Form
                 ShowShortcutKeys = true,
             });
             mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB…", null, (_, _) => PublishMapToMariaDb()));
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Lancer le client Frog…", null, (_, _) => LaunchFrogGameClient()));
             mFile.DropDownItems.Add(new ToolStripSeparator());
             mFile.DropDownItems.Add("Quitter", null, (_, _) =>
             {
@@ -883,6 +884,11 @@ public sealed class MainForm : Form
         File.WriteAllBytes(sfd.FileName, bytes);
         SaveTilesetManifestNextToMap(sfd.FileName);
         MessageBox.Show(GetDialogOwner(), "Carte et manifeste tilesets (.tilesets.json) sauvegardés.", "Succès", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    internal void LaunchFrogGameClient()
+    {
+        EditorFrogClientLauncher.Launch(GetDialogOwner());
     }
 
     internal void PublishMapToMariaDb()
