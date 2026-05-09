@@ -66,6 +66,8 @@
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
                 <MenuItem Header="Événements carte (MariaDB)…" Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
+                <MenuItem Header="Actualiser marqueurs événements (MariaDB)"
+                          Command="{x:Static local:MainWindow.CmdRefreshMapEventMarkers}" />
             </MenuItem>
             <MenuItem Header="_Affichage" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Zoom avant"
@@ -76,6 +78,12 @@
                           InputGestureText="Ctrl+-" />
                 <Separator />
                 <MenuItem Header="Réinitialiser la vue (zoom 100 %)" Command="{x:Static local:MainWindow.CmdResetView}" />
+                <Separator />
+                <MenuItem x:Name="MnuShowEventMarkers"
+                          Header="Marqueurs événements (MariaDB)"
+                          IsCheckable="True"
+                          IsChecked="True"
+                          Click="OnToggleMapEventMarkers" />
             </MenuItem>
         </Menu>
         <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">

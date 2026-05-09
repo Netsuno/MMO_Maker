@@ -1,3 +1,4 @@
+using System.Linq;
 using MySqlConnector;
 
 namespace Frog.Editor.Services;
@@ -5,6 +6,9 @@ namespace Frog.Editor.Services;
 public readonly record struct EventCatalogRow(int Id, string Slug, string DisplayName);
 
 public readonly record struct MapEventPlacementRow(long Id, int MapId, int EventCatalogId, int TileX, int TileY, string Slug, string DisplayName);
+
+/// <summary>Agrégat par tuile pour l’overlay marqueurs sur le canevas (plusieurs placements possibles sur une même case).</summary>
+public readonly record struct MapEventMarkerView(int TileX, int TileY, int PlacementCount, string PrimarySlug);
 
 /// <summary>Lecture <c>frog_event_catalog</c> et <c>frog_map_event</c> (aligné sur <c>MariaDbMigrationV4</c>).</summary>
 public static class MapEventsMariaDbReader
@@ -64,5 +68,25 @@ public static class MapEventsMariaDbReader
         }
 
         return list;
+    }
+
+    public static IReadOnlyList<MapEventMarkerView> ToMarkerViews(IReadOnlyList<MapEventPlacementRow> rows)
+    {
+        if (rows.Count == 0)
+        {
+            return Array.Empty<MapEventMarkerView>();
+        }
+
+        return rows
+            .GroupBy(r => (r.TileX, r.TileY))
+            .Select(g =>
+            {
+                var ordered = g.OrderBy(x => x.Id).ToList();
+                var first = ordered[0];
+                return new MapEventMarkerView(first.TileX, first.TileY, ordered.Count, first.Slug);
+            })
+            .OrderBy(m => m.TileY)
+            .ThenBy(m => m.TileX)
+            .ToList();
     }
 }

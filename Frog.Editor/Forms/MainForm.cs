@@ -26,6 +26,7 @@ public sealed class MainForm : Form
     private readonly MenuStrip? _menuStrip;
     private readonly ToolStripMenuItem? _mnuUndo;
     private readonly ToolStripMenuItem? _mnuRedo;
+    private readonly ToolStripMenuItem? _mnuShowEventMarkers;
     private readonly StatusStrip? _status;
     private readonly ToolStripStatusLabel? _lblPos;
     private readonly bool _embedAsWpfChild;
@@ -165,6 +166,7 @@ public sealed class MainForm : Form
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Événements carte (MariaDB)…", null, (_, _) => BrowseMapEventsFromMariaDb());
+            mMap.DropDownItems.Add("Actualiser marqueurs événements (MariaDB)", null, (_, _) => RefreshMapEventMarkersFromMariaDb());
             mMap.DropDownItems.Add(
                 new ToolStripMenuItem("Astuce : Ctrl+clic droit sur la carte = menu événements (tuile sous curseur)")
                 {
@@ -176,12 +178,20 @@ public sealed class MainForm : Form
             mView.DropDownItems.Add("Zoom arrière", null, (_, _) => _canvas!.ZoomOutTowardCenter());
             mView.DropDownItems.Add(new ToolStripSeparator());
             mView.DropDownItems.Add("Réinitialiser la vue (zoom 100 %)", null, (_, _) => ResetMapView());
+            mView.DropDownItems.Add(new ToolStripSeparator());
+            var mnuShowEventMarkers = new ToolStripMenuItem("Marqueurs événements (MariaDB)")
+            {
+                CheckOnClick = true,
+                Checked = true,
+            };
+            mView.DropDownItems.Add(mnuShowEventMarkers);
 
             menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mEdit, mResources, mMap, mView });
             MainMenuStrip = menuStrip;
             _menuStrip = menuStrip;
             _mnuUndo = mnuUndo;
             _mnuRedo = mnuRedo;
+            _mnuShowEventMarkers = mnuShowEventMarkers;
 
             var status = new StatusStrip { SizingGrip = false, GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Bottom };
             status.BackColor = EditorChrome.RibbonBg;
@@ -196,6 +206,7 @@ public sealed class MainForm : Form
             {
                 ApplyLayoutPercentages();
                 PositionMinimap();
+                BeginInvoke(new Action(RefreshMapEventMarkersFromMariaDb));
             };
             ResizeEnd += (_, _) => ApplyLayoutPercentages();
         }
@@ -204,6 +215,7 @@ public sealed class MainForm : Form
             _menuStrip = null;
             _mnuUndo = null;
             _mnuRedo = null;
+            _mnuShowEventMarkers = null;
             _status = null;
             _lblPos = null;
         }
@@ -247,6 +259,15 @@ public sealed class MainForm : Form
         _canvas.TileContextMenuRequested += OnTileContextMenuRequested;
         _canvas.MapReplaced += OnMapReplaced;
         _canvas.UndoHistoryChanged += UpdateUndoRedoButtons;
+
+        if (_mnuShowEventMarkers is not null)
+        {
+            _mnuShowEventMarkers.CheckedChanged += (_, _) =>
+            {
+                _canvas.ShowMapEventMarkers = _mnuShowEventMarkers.Checked;
+                _canvas.Invalidate();
+            };
+        }
 
         _minimap = new MapMinimapControl
         {
@@ -828,6 +849,7 @@ public sealed class MainForm : Form
         UpdateUndoRedoButtons();
         SyncMapsTree();
         UpdateMapChromeLabels();
+        RefreshMapEventMarkersFromMariaDb();
     }
 
     internal void OpenTileset()
@@ -909,6 +931,7 @@ public sealed class MainForm : Form
                 bytes);
             _lastPublishedFrogMapId = dlg.PublishedMapId;
             EditorLocalWorkstate.WriteLastPublishedFrogMapId(_lastPublishedFrogMapId);
+            RefreshMapEventMarkersFromMariaDb();
             MessageBox.Show(
                 GetDialogOwner(),
                 $"Carte publiée : frog_map id={dlg.PublishedMapId}, clé « {dlg.PublishedMapKey} ».",
@@ -947,6 +970,48 @@ public sealed class MainForm : Form
 
         using var dlg = new MapEventsBrowseDialog(connectionString, initialMapId: _lastPublishedFrogMapId, defaultTileX: _lastHoverTile.X, defaultTileY: _lastHoverTile.Y);
         dlg.ShowDialog(GetDialogOwner());
+        RefreshMapEventMarkersFromMariaDb();
+    }
+
+    /// <summary>Recharge les placements <c>frog_map_event</c> pour <see cref="_lastPublishedFrogMapId"/> et met à jour l’overlay canevas.</summary>
+    internal void RefreshMapEventMarkersFromMariaDb()
+    {
+        if (!EditorMariaDbConfig.TryGetEnabledConnection(out var connectionString, out _))
+        {
+            _canvas.MapEventMarkers = null;
+            return;
+        }
+
+        if (_lastPublishedFrogMapId < 1)
+        {
+            _canvas.MapEventMarkers = null;
+            return;
+        }
+
+        try
+        {
+            var rows = MapEventsMariaDbReader.LoadPlacementsForMap(connectionString, _lastPublishedFrogMapId);
+            _canvas.MapEventMarkers = MapEventsMariaDbReader.ToMarkerViews(rows);
+        }
+        catch
+        {
+            _canvas.MapEventMarkers = null;
+        }
+    }
+
+    internal bool MapEventMarkersVisible
+    {
+        get => _canvas.ShowMapEventMarkers;
+        set
+        {
+            _canvas.ShowMapEventMarkers = value;
+            if (_mnuShowEventMarkers is not null)
+            {
+                _mnuShowEventMarkers.Checked = value;
+            }
+
+            _canvas.Invalidate();
+        }
     }
 
     private static void SaveTilesetManifestNextToMap(string mapFilePath)
@@ -1004,6 +1069,7 @@ public sealed class MainForm : Form
         UpdateUndoRedoButtons();
         SyncMapsTree();
         UpdateMapChromeLabels();
+        RefreshMapEventMarkersFromMariaDb();
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
         {

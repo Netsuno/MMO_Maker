@@ -65,6 +65,22 @@ public sealed class MapCanvas : Control
     public event Action? MapReplaced;
     public event Action? UndoHistoryChanged;
 
+    /// <summary>Affiche les pastilles d’événements MariaDB (<see cref="MapEventMarkers"/>) sur le canevas.</summary>
+    public bool ShowMapEventMarkers { get; set; } = true;
+
+    private IReadOnlyList<MapEventMarkerView>? _mapEventMarkers;
+
+    /// <summary>Marqueurs agrégés par tuile (null = aucun overlay).</summary>
+    public IReadOnlyList<MapEventMarkerView>? MapEventMarkers
+    {
+        get => _mapEventMarkers;
+        set
+        {
+            _mapEventMarkers = value;
+            Invalidate();
+        }
+    }
+
     public EditorTool ActiveTool { get; set; } = EditorTool.Brush;
 
     private bool _panning;
@@ -295,6 +311,7 @@ public sealed class MapCanvas : Control
                 }
 
                 DrawTileTypeOverlay(g, tx0, ty0, tx1, ty1);
+                DrawMapEventMarkerOverlay(g, tx0, ty0, tx1, ty1);
             }
 
             if (ActiveTool == EditorTool.Selection && Map is not null && _selectionMarqueeAnchor is { } sa)
@@ -481,6 +498,95 @@ public sealed class MapCanvas : Control
                         break;
                 }
             }
+        }
+    }
+
+    private void DrawMapEventMarkerOverlay(Graphics g, int tx0, int ty0, int tx1, int ty1)
+    {
+        if (!ShowMapEventMarkers || _mapEventMarkers is null || Map is null || _mapEventMarkers.Count == 0)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var prevSmooth = g.SmoothingMode;
+        var prevText = g.TextRenderingHint;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        try
+        {
+            foreach (var m in _mapEventMarkers)
+            {
+                if (m.TileX < tx0 || m.TileX > tx1 || m.TileY < ty0 || m.TileY > ty1)
+                {
+                    continue;
+                }
+
+                if (m.TileX < 0 || m.TileX >= Map.Width || m.TileY < 0 || m.TileY >= Map.Height)
+                {
+                    continue;
+                }
+
+                var rect = new Rectangle(m.TileX * ts, m.TileY * ts, ts, ts);
+                var fill = MarkerTintFromSlug(m.PrimarySlug);
+                var badgeD = Math.Max(6, ts * 2 / 5);
+                var pad = Math.Max(1, ts / 14);
+                var badge = new Rectangle(rect.Right - badgeD - pad, rect.Y + pad, badgeD, badgeD);
+                using (var brush = new SolidBrush(Color.FromArgb(150, fill)))
+                {
+                    g.FillEllipse(brush, badge);
+                }
+
+                using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
+                {
+                    g.DrawEllipse(edge, badge);
+                }
+
+                if (m.PlacementCount > 1)
+                {
+                    var label = m.PlacementCount > 9 ? "9+" : m.PlacementCount.ToString();
+                    using var f = new Font(Font.FontFamily, Math.Max(6f, ts * 0.21f), FontStyle.Bold, GraphicsUnit.Pixel);
+                    using var tb = new SolidBrush(Color.White);
+                    using var sf = new StringFormat
+                    {
+                        Alignment = StringAlignment.Center,
+                        LineAlignment = StringAlignment.Center,
+                    };
+                    g.DrawString(label, f, tb, badge, sf);
+                }
+            }
+        }
+        finally
+        {
+            g.SmoothingMode = prevSmooth;
+            g.TextRenderingHint = prevText;
+        }
+    }
+
+    private static Color MarkerTintFromSlug(string slug)
+    {
+        unchecked
+        {
+            var h = 0;
+            foreach (var c in slug)
+            {
+                h = h * 31 + c;
+            }
+
+            h ^= slug.Length * 1315423911;
+            var palette = new[]
+            {
+                Color.MediumOrchid,
+                Color.Turquoise,
+                Color.Coral,
+                Color.Gold,
+                Color.LightSkyBlue,
+                Color.LimeGreen,
+                Color.Orange,
+                Color.HotPink,
+            };
+            var idx = (h & int.MaxValue) % palette.Length;
+            return palette[idx];
         }
     }
 

@@ -59,6 +59,11 @@ public partial class MainWindow : Window
         nameof(CmdBrowseMapEvents),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdRefreshMapEventMarkers = new(
+        "Actualiser marqueurs événements (MariaDB)",
+        nameof(CmdRefreshMapEventMarkers),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdResetView = new(
         "Réinitialiser la vue (zoom 100 %)",
         nameof(CmdResetView),
@@ -105,6 +110,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEventsFromMariaDb()));
+        CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkersFromMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdResetView, (_, _) => _editor.ResetMapView()));
         CommandBindings.Add(new CommandBinding(CmdZoomIn, (_, _) => _editor.EditorZoomIn()));
         CommandBindings.Add(new CommandBinding(CmdZoomOut, (_, _) => _editor.EditorZoomOut()));
@@ -118,6 +124,19 @@ public partial class MainWindow : Window
     {
         CommandManager.InvalidateRequerySuggested();
         _editor.NotifyWpfShellLayout();
+        _editor.RefreshMapEventMarkersFromMariaDb();
+        if (MnuShowEventMarkers is not null)
+        {
+            MnuShowEventMarkers.IsChecked = _editor.MapEventMarkersVisible;
+        }
+    }
+
+    private void OnToggleMapEventMarkers(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem mi)
+        {
+            _editor.MapEventMarkersVisible = mi.IsChecked == true;
+        }
     }
 
     private void OnTileHoverStatusChanged(string text)
