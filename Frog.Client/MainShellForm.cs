@@ -120,6 +120,7 @@ public sealed class MainShellForm : Form
     private readonly TextBox _txtWhisperTo = new() { PlaceholderText = "Cible whisper", Width = 120 };
     private readonly TextBox _txtMeleeTarget = new() { PlaceholderText = "Cible mêlée", Width = 100 };
     private readonly Button _btnMelee = new() { Text = "Mêlée", Enabled = false };
+    private readonly Button _btnWorldFlagsDemo = new() { Text = "Drapeau démo (worldFlags)", Enabled = false };
     private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _heartbeatTimer = new() { Interval = 45_000 };
@@ -207,6 +208,7 @@ public sealed class MainShellForm : Form
         ReleaseAllMoveKeys();
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = false;
+        _btnWorldFlagsDemo.Enabled = false;
         SetPhase(ClientUiPhase.CharacterSelect);
         _ = RefreshCharacterListAsync();
     }
@@ -220,6 +222,7 @@ public sealed class MainShellForm : Form
 
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = true;
+        _btnWorldFlagsDemo.Enabled = true;
         SetPhase(ClientUiPhase.Playing);
     }
 
@@ -591,6 +594,7 @@ public sealed class MainShellForm : Form
         StyleToolbarButton(_btnEnterGame);
         StyleToolbarButton(_btnCharCreate);
         StyleToolbarButton(_btnMelee);
+        StyleToolbarButton(_btnWorldFlagsDemo);
         StyleToolbarButton(_btnStatsApply);
         StyleToolbarButton(_btnBackDisconnect);
         StyleToolbarButton(_btnSwitchCharacter);
@@ -724,6 +728,7 @@ public sealed class MainShellForm : Form
         gameTop.Controls.Add(Lbl("Mêlée"));
         gameTop.Controls.Add(_txtMeleeTarget);
         gameTop.Controls.Add(_btnMelee);
+        gameTop.Controls.Add(_btnWorldFlagsDemo);
         gameTop.Controls.Add(Lbl("Flèches = déplacement · E = interagir", topPad: 14));
 
         var gameLayout = new TableLayoutPanel
@@ -771,6 +776,7 @@ public sealed class MainShellForm : Form
         _btnLogout.Click += async (_, _) => await LogoutAsync();
         _btnSendChat.Click += async (_, _) => await SendChatAsync();
         _btnMelee.Click += async (_, _) => await MeleeAsync();
+        _btnWorldFlagsDemo.Click += async (_, _) => await SendWorldFlagsDemoPatchAsync();
         _btnSwitchCharacter.Click += (_, _) => GoToCharacterSelectPhase();
         _btnBackDisconnect.Click += async (_, _) => await DisconnectAsync();
 
@@ -794,6 +800,7 @@ public sealed class MainShellForm : Form
         _client.CharacterStatsUpdateResultReceived += OnCharacterStatsUpdateResult;
         _client.MapEventsResultReceived += OnMapEventsResult;
         _client.InteractResultReceived += OnInteractResult;
+        _client.WorldFlagsPatchResultReceived += OnWorldFlagsPatchResult;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
         _btnEnterGame.Click += async (_, _) => await ApplySelectedCharacterAsync();
@@ -845,6 +852,7 @@ public sealed class MainShellForm : Form
         _btnRegister.Enabled = false;
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
+        _btnWorldFlagsDemo.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
         _map = null;
@@ -902,6 +910,7 @@ public sealed class MainShellForm : Form
         _btnMap.Enabled = true;
         _btnLogout.Enabled = true;
         _btnMelee.Enabled = false;
+        _btnWorldFlagsDemo.Enabled = false;
         _cmbCharacters.Enabled = true;
         _btnCharRefresh.Enabled = true;
         _btnEnterGame.Enabled = true;
@@ -988,6 +997,7 @@ public sealed class MainShellForm : Form
         _mapEvents.Clear();
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
+        _btnWorldFlagsDemo.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
         _awaitingPlayingPhase = false;
@@ -1116,6 +1126,28 @@ public sealed class MainShellForm : Form
     private void OnInteractResult(bool ok, string message)
     {
         AppendLog(ok ? "Interaction: " + message : "Interaction refusée: " + message);
+    }
+
+    private void OnWorldFlagsPatchResult(bool ok, string message)
+    {
+        AppendLog(ok ? "worldFlags: " + message : "worldFlags refusé: " + message);
+    }
+
+    private async Task SendWorldFlagsDemoPatchAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendWorldFlagsPatchAsync("{\"demo_story\":true}", CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("WorldFlagsPatch: " + ex.Message);
+        }
     }
 
     private async Task SendInteractAsync()

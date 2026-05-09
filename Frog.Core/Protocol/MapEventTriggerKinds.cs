@@ -10,4 +10,7 @@ public static class MapEventTriggerKinds
 
     /// <summary>Une fois par « visite » de carte (changement de <c>frog_map</c>), sur la tuile d’arrivée.</summary>
     public const string Page = "page";
+
+    /// <summary>Tant que le joueur reste sur la tuile : <c>HeartbeatRequest</c> avec cooldown par <c>placementId</c>.</summary>
+    public const string AutoTile = "auto_tile";
 }

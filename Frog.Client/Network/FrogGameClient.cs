@@ -57,6 +57,8 @@ public sealed class FrogGameClient : IDisposable
     /// <summary>JSON tableau <see cref="Frog.Core.Protocol.MapEventWireEntry"/> pour une carte.</summary>
     public event Action<int, string>? MapEventsResultReceived;
     public event Action<bool, string>? InteractResultReceived;
+    /// <summary>Réponse <see cref="PacketId.WorldFlagsPatchRequest"/> (même forme que stats).</summary>
+    public event Action<bool, string>? WorldFlagsPatchResultReceived;
     public event Action? ConnectionClosed;
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -388,6 +390,14 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.WorldFlagsPatchResult:
+                if (TryReadStatusMessage(body.Span, out var wfOk, out var wfMsg))
+                {
+                    Post(() => WorldFlagsPatchResultReceived?.Invoke(wfOk, wfMsg));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -579,6 +589,28 @@ public sealed class FrogGameClient : IDisposable
 
     public Task SendInteractRequestAsync(CancellationToken cancellationToken = default)
         => SendRawAsync([(byte)PacketId.InteractRequest], cancellationToken);
+
+    /// <summary>Objet JSON UTF-8 (ex. <c>{"story_intro":true}</c>) fusionné dans <c>payload.worldFlags</c>.</summary>
+    public Task SendWorldFlagsPatchAsync(string patchJsonObject, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(patchJsonObject);
+        var utf8 = Encoding.UTF8.GetBytes(patchJsonObject);
+        if (utf8.Length is 0 or > CharacterPayloadWorldFlags.MaxPatchUtf8Bytes)
+        {
+            throw new ArgumentException($"Patch JSON: 1..{CharacterPayloadWorldFlags.MaxPatchUtf8Bytes} octets UTF-8.", nameof(patchJsonObject));
+        }
+
+        if (utf8.Length > ushort.MaxValue - 1)
+        {
+            throw new ArgumentException("Patch JSON trop long pour UInt16.", nameof(patchJsonObject));
+        }
+
+        var payload = new byte[1 + sizeof(ushort) + utf8.Length];
+        payload[0] = (byte)PacketId.WorldFlagsPatchRequest;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1), (ushort)utf8.Length);
+        utf8.CopyTo(payload.AsSpan(1 + sizeof(ushort)));
+        return SendRawAsync(payload, cancellationToken);
+    }
 
     public async Task SendChatAsync(ChatChannel channel, string whisperTarget, string message, CancellationToken cancellationToken = default)
     {

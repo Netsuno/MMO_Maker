@@ -136,6 +136,10 @@ public sealed class PacketDispatcher(
                 await HandleInteractRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
+            case PacketId.WorldFlagsPatchRequest:
+                await HandleWorldFlagsPatchRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
             default:
                 ServerNetworkLogs.UnknownPacket(_logger, (byte)packetId);
                 await _packetSender.SendErrorAsync(clientSession, $"Packet non supporte: {(byte)packetId}", cancellationToken);
@@ -407,6 +411,11 @@ public sealed class PacketDispatcher(
         }
 
         var cellAfter = (session.CurrentMapId, session.PositionX, session.PositionY);
+        if (cellAfter != cellBefore)
+        {
+            session.MapEventAutoTileLastFiredUtc.Clear();
+        }
+
         if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
         {
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
@@ -456,6 +465,11 @@ public sealed class PacketDispatcher(
         }
 
         var cellAfter = (session.CurrentMapId, session.PositionX, session.PositionY);
+        if (cellAfter != cellBefore)
+        {
+            session.MapEventAutoTileLastFiredUtc.Clear();
+        }
+
         if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
         {
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
@@ -559,6 +573,55 @@ public sealed class PacketDispatcher(
 
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendHeartbeatAckAsync(clientSession, cancellationToken);
+        await TryFireAutoTileMapEventsOnHeartbeatAsync(clientSession, session, cancellationToken);
+    }
+
+    private async Task TryFireAutoTileMapEventsOnHeartbeatAsync(
+        ClientSession clientSession,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        if (!_mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        {
+            placements = Array.Empty<MapEventWireEntry>();
+        }
+
+        var candidates = placements
+            .Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY)
+            .Where(p => MapEventTriggerNormalization.NormalizeTriggerKind(p.TriggerKind) == MapEventTriggerKinds.AutoTile)
+            .OrderBy(p => p.CatalogId)
+            .ThenBy(p => p.PlacementId)
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var ev in candidates)
+        {
+            if (session.MapEventAutoTileLastFiredUtc.TryGetValue(ev.PlacementId, out var last) &&
+                now - last < MapEventAutoTileConstants.Cooldown)
+            {
+                continue;
+            }
+
+            session.MapEventAutoTileLastFiredUtc[ev.PlacementId] = now;
+            ServerNetworkLogs.MapEventAutoTileFired(
+                _logger,
+                session.Username,
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY,
+                ev.Slug,
+                ev.PlacementId);
+            await _packetSender.SendInteractResultAsync(
+                clientSession,
+                true,
+                $"[Auto-tuile] {ev.DisplayName} ({ev.Slug})",
+                cancellationToken);
+            return;
+        }
     }
 
     private async Task HandleLogoutRequestAsync(ClientSession clientSession, CancellationToken cancellationToken)
@@ -1189,6 +1252,92 @@ public sealed class PacketDispatcher(
 
         displayName = Encoding.UTF8.GetString(payload.Slice(1, len));
         return !string.IsNullOrWhiteSpace(displayName);
+    }
+
+    /// <summary>Corps : longueur JSON UTF‑8 (<see cref="ushort"/> LE) + objet (booléens uniquement, ≤ <see cref="CharacterPayloadWorldFlags.MaxPatchUtf8Bytes"/> octets).</summary>
+    public static bool TryParseWorldFlagsPatchPayload(ReadOnlySpan<byte> payload, out string patchJson)
+    {
+        patchJson = string.Empty;
+        if (payload.Length < 2)
+        {
+            return false;
+        }
+
+        var len = BinaryPrimitives.ReadUInt16LittleEndian(payload);
+        if (len is 0 or > CharacterPayloadWorldFlags.MaxPatchUtf8Bytes || payload.Length != 2 + len)
+        {
+            return false;
+        }
+
+        patchJson = Encoding.UTF8.GetString(payload.Slice(2, len));
+        return true;
+    }
+
+    private async Task HandleWorldFlagsPatchRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(session.CharacterId))
+        {
+            await _packetSender.SendWorldFlagsPatchResultAsync(
+                clientSession,
+                false,
+                "Aucun personnage actif.",
+                cancellationToken);
+            return;
+        }
+
+        if (!TryParseWorldFlagsPatchPayload(payload.Span, out var patchJson))
+        {
+            await _packetSender.SendWorldFlagsPatchResultAsync(
+                clientSession,
+                false,
+                "WorldFlagsPatchRequest: UInt16 LE + UTF-8 JSON attendu.",
+                cancellationToken);
+            return;
+        }
+
+        if (!_characterBootstrap.IsCharacterOwned(session.Username, session.CharacterId!))
+        {
+            await _packetSender.SendWorldFlagsPatchResultAsync(
+                clientSession,
+                false,
+                "Personnage non autorise.",
+                cancellationToken);
+            return;
+        }
+
+        _connectionManager.TryTouchSession(session.Id);
+        if (!_characterPayloadReader.TryGetPayloadJson(session.CharacterId!, out var currentJson))
+        {
+            currentJson = CharacterPayloadDefaults.NewHeroJson;
+        }
+
+        if (!CharacterPayloadWorldFlags.TryMergeWorldFlags(currentJson, patchJson, out var merged, out var mergeErr))
+        {
+            await _packetSender.SendWorldFlagsPatchResultAsync(clientSession, false, mergeErr, cancellationToken);
+            return;
+        }
+
+        if (!_characterPayloadWriter.TryUpdatePayloadJson(session.CharacterId!, merged))
+        {
+            await _packetSender.SendWorldFlagsPatchResultAsync(
+                clientSession,
+                false,
+                "Sauvegarde drapeaux refusee.",
+                cancellationToken);
+            return;
+        }
+
+        await _packetSender.SendWorldFlagsPatchResultAsync(clientSession, true, "worldFlags mis a jour.", cancellationToken);
+        await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
     }
 
     private async Task SyncPositionsOnJoinAsync(ClientSession joiningClient, Frog.Server.Models.Session joiningSession, CancellationToken cancellationToken)

@@ -37,5 +37,8 @@ public static class PacketIds
     public const byte MapEventsResult = 30;
     public const byte InteractRequest = 31;
     public const byte InteractResult = 32;
+    public const byte PositionSyncRequest = 33;
+    public const byte WorldFlagsPatchRequest = 34;
+    public const byte WorldFlagsPatchResult = 35;
     public const byte Error = 255;
 }

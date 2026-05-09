@@ -66,6 +66,9 @@ Valeurs partagees dans `Frog.Core/Enums/PacketId.cs`:
 - `30` -> `MapEventsResult`
 - `31` -> `InteractRequest`
 - `32` -> `InteractResult`
+- `33` -> `PositionSyncRequest`
+- `34` -> `WorldFlagsPatchRequest`
+- `35` -> `WorldFlagsPatchResult`
 - `255` -> `Error`
 
 ## Grille monde et pixels
@@ -164,7 +167,7 @@ Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`C
 
 À partir de **`FrogWireProtocol.Version` ≥ 7**, les coordonnées **`PositionUpdate`** et la persistance monde sont en **pixels centre** (voir section *Grille monde et pixels*).
 
-Additive **après wire v6** : **`MapEventsRequest`** (**29**) corps **vide** après l’opcode (session authentifiée). Le serveur répond **`MapEventsResult`** (**30**) avec **`CurrentMapId`**, puis longueur **UInt16 LE** puis JSON UTF‑8 : tableau d’objets `MapEventWireEntry` (`placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, **`triggerKind`**). **`triggerKind`** vaut `interact` (défaut si absent du JSON), `step_on` (à l’**arrivée** sur la tuile) ou **`page`** (une fois par **entrée sur la carte** sur la tuile d’arrivée, voir ci‑dessous). Si MariaDB est désactivée ou sans lignes, la réponse est un tableau vide. Le client peut renvoyer cette requête après **`MapData`** / **`MapAlreadySynced`** ou un changement de carte.
+Additive **après wire v6** : **`MapEventsRequest`** (**29**) corps **vide** après l’opcode (session authentifiée). Le serveur répond **`MapEventsResult`** (**30**) avec **`CurrentMapId`**, puis longueur **UInt16 LE** puis JSON UTF‑8 : tableau d’objets `MapEventWireEntry` (`placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, **`triggerKind`**). **`triggerKind`** vaut `interact` (défaut si absent du JSON), `step_on` (à l’**arrivée** sur la tuile), **`page`** (une fois par **entrée sur la carte** sur la tuile d’arrivée, voir ci‑dessous) ou **`auto_tile`** (heartbeat, voir **v9**). Si MariaDB est désactivée ou sans lignes, la réponse est un tableau vide. Le client peut renvoyer cette requête après **`MapData`** / **`MapAlreadySynced`** ou un changement de carte.
 
 **`InteractRequest`** (**31**), corps vide : interaction sur la **tuile courante** du joueur (`PositionX` / `PositionY` grille). Réponse **`InteractResult`** (**32**), même forme que **`LoginResult`**. Seuls les placements dont **`triggerKind`** est **`interact`** sont pris en compte : s’il en existe au moins un sur cette tuile, **succès** avec message `"{displayName} ({slug})"` pour l’entrée **la plus petite** (`catalogId`, puis `placementId`) ; sinon échec « Rien a interagir ici. ».
 
@@ -172,7 +175,11 @@ Placements **`step_on`** : après un **`MoveRequest`** ou **`PositionSyncRequest
 
 Placements **`page`** : quand **`CurrentMapId`** change (connexion, sélection de perso avec autre carte, warp), après positionnement sur la nouvelle carte le serveur peut envoyer un **`InteractResult`** réussi avec **`[Page]`** pour au plus un placement `page` sur la **tuile courante**, **une fois par visite** de cette carte (réarmé en quittant la carte). Si aucun `page` sur la tuile d’arrivée, aucun message ; la visite est tout de même marquée pour ne pas répéter.
 
-**Exploitation / observabilité** : à chaque envoi réussi des trois chemins ci‑dessus, le serveur journalise aussi en **Information** des entrées structurées `MapEventInteractFired`, `MapEventStepOnFired`, `MapEventPageFired` (`ServerNetworkLogs`, ids **5021–5023**) avec `username`, `mapId`, tuile, `slug`, `placementId`.
+À partir de **`FrogWireProtocol.Version` ≥ 9**, placements **`auto_tile`** : après un **`HeartbeatAck`** réussi, si le joueur est sur une tuile avec au moins un `auto_tile`, le serveur peut envoyer **au plus un** **`InteractResult`** réussi par battement, message préfixé **`[Auto-tuile]`**, pour le premier placement dû (tri `catalogId`, puis `placementId`) dont le **cooldown par `placementId`** (~25 s) est écoulé. Les compteurs cooldown sont **réinitialisés** lorsque le triplet **(carte, tuile X, tuile Y)** change (même logique que pour `step_on` / `page` sur changement de case).
+
+À partir de **`FrogWireProtocol.Version` ≥ 9**, **`WorldFlagsPatchRequest`** (**34**) / **`WorldFlagsPatchResult`** (**35**) : fusion JSON contrôlée dans **`frog_character.payload.worldFlags`** (voir section dédiée).
+
+**Exploitation / observabilité** : à chaque envoi réussi des chemins carte ci‑dessus, le serveur journalise aussi en **Information** des entrées structurées `MapEventInteractFired`, `MapEventStepOnFired`, `MapEventPageFired`, `MapEventAutoTileFired` (`ServerNetworkLogs`, ids **5021–5024**) avec `username`, `mapId`, tuile, `slug`, `placementId`.
 
 Côté serveur MariaDB, les placements sont mis en cache par carte ; l’empreinte de cache inclut notamment `COUNT(*)`, `MAX(id)` et un agrégat sur le contenu des lignes (dont `trigger_kind`) pour refléter les mises à jour sans redémarrage.
 
@@ -268,6 +275,16 @@ Regles serveur:
 - si la carte **n’a pas** le flag `AllowPlayerOverlap`, le pas est refusé lorsque le **centre** projeté serait à moins de `PlayerMinCenterSeparationPixels` du centre d’un autre joueur sur la même carte
 
 **Warps** : après un mouvement réussi, si la case d’arrivée est une tuile **Warp** (`TileType.Warp`), le serveur téléporte vers la **carte cible** (`WarpTargetMapId`, `0` = carte monde par défaut) si le blob `frog_map` pour cette cible est **chargé** (présent en base et désérialisable). Sinon le joueur reste sur la case warp. La case d’arrivée doit être libre (pas bloc ; même règle **joueur** que pour les pas si `AllowPlayerOverlap` est absent sur la carte **d’arrivée**).
+
+### PositionSyncRequest (Client -> Serveur)
+
+`FrogWireProtocol.Version` **≥ 8**. Session authentifiée : rapport du **centre joueur** en pixels monde (anti-triche vitesse + collisions comme après `MoveRequest`).
+
+Payload :
+
+- `PacketId` (Byte) = `33`
+- **`PixelCenterX`** (`Int32` LE)
+- **`PixelCenterY`** (`Int32` LE)
 
 ### PositionUpdate (Serveur -> Clients authentifies)
 
@@ -379,9 +396,30 @@ Payload :
 - `PacketId` (Byte) = `30`
 - `MapId` (**Int32** LE) — valeur `Session.CurrentMapId` au moment de la requête
 - `JsonUtf8Length` (**UInt16** LE)
-- `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`) — champs notamment `placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, `triggerKind` (`interact`, `step_on` ou `page`).
+- `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`) — champs notamment `placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, `triggerKind` (`interact`, `step_on`, `page` ou `auto_tile`).
 
-**Client (`MapViewRenderer`)** : sur la vue carte monde, surbrillance **rectangle** pour **`interact`**, **losange** pour **`step_on`**, **cercle** (coin bas-gauche de la tuile) pour **`page`** (couleurs d’accent inchangées par slug, ex. démo).
+**Client (`MapViewRenderer`)** : sur la vue carte monde, surbrillance **rectangle** pour **`interact`**, **losange** pour **`step_on`**, **cercle** (coin bas-gauche de la tuile) pour **`page`**, **rectangle pointillé** pour **`auto_tile`** (couleurs d’accent inchangées par slug, ex. démo).
+
+### WorldFlagsPatchRequest (Client -> Serveur)
+
+`FrogWireProtocol.Version` **≥ 9**. Session authentifiée, personnage actif.
+
+Payload :
+
+- `PacketId` (Byte) = `34`
+- **`JsonUtf8Length`** (`UInt16` LE) — longueur du fragment suivant (1…**2048** octets UTF‑8)
+- **`JsonUtf8`** — objet JSON à **fusionner** dans `frog_character.payload.worldFlags` : uniquement des propriétés **booléennes** (`true` / `false`), clés `[A-Za-z0-9_]{1,64}` (UTF‑8), au plus **24** clés dans le patch (plafonds détaillés côté `Frog.Core/Character/CharacterPayloadWorldFlags.cs`).
+
+### WorldFlagsPatchResult (Serveur -> Client)
+
+Même forme que **`LoginResult`** :
+
+- `PacketId` (Byte) = `35`
+- `Success` (Byte)
+- `MessageLength` (Byte)
+- `MessageUtf8`
+
+En cas de succès, le serveur peut renvoyer un **`CharacterPayload`** à jour.
 
 ### InteractRequest (Client -> Serveur)
 

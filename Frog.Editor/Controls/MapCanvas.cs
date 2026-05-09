@@ -579,6 +579,7 @@ public sealed class MapCanvas : Control
                 var badge = new Rectangle(rect.Right - badgeD - pad, rect.Y + pad, badgeD, badgeD);
                 var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
                 var page = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
+                var autoTile = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.AutoTile, StringComparison.Ordinal);
                 if (page)
                 {
                     var rDot = Math.Max(3f, ts * 0.17f);
@@ -607,6 +608,16 @@ public sealed class MapCanvas : Control
                         };
                         g.DrawString(label, f, tb, countRect, sf);
                     }
+                }
+                else if (autoTile)
+                {
+                    var inset = Math.Max(2, ts / 10);
+                    var dashRect = new Rectangle(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
+                    using var dashPen = new Pen(Color.FromArgb(220, fill), Math.Max(1.5f, ts / 20f))
+                    {
+                        DashStyle = DashStyle.Dash,
+                    };
+                    g.DrawRectangle(dashPen, dashRect);
                 }
                 else
                 {

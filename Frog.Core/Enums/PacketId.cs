@@ -53,5 +53,11 @@ public enum PacketId : byte
     InteractResult = 32,
     /// <summary>Centre joueur en pixels monde (Int32 LE × 2). Session authentifiée ; serveur valide vitesse + collisions puis diffuse <see cref="PositionUpdate"/>.</summary>
     PositionSyncRequest = 33,
+
+    /// <summary>Fusion JSON des drapeaux monde dans <c>frog_character.payload.worldFlags</c> (UInt16 LE + UTF-8 objet, booléens uniquement).</summary>
+    WorldFlagsPatchRequest = 34,
+
+    /// <summary>Résultat patch drapeaux (même forme courte que <see cref="LoginResult"/>).</summary>
+    WorldFlagsPatchResult = 35,
     Error = 255
 }

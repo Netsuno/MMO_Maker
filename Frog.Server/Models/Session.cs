@@ -31,4 +31,7 @@ public sealed class Session
 
     /// <summary>Cartes pour lesquelles un événement <c>page</c> a déjà été joué cette session (réarmé en quittant la carte).</summary>
     public HashSet<int> PageTriggerSatisfiedMapIds { get; } = new();
+
+    /// <summary>Dernier <c>InteractResult</c> auto-tuile par <c>placementId</c> (réinitialisé au changement de case carte).</summary>
+    public Dictionary<long, DateTime> MapEventAutoTileLastFiredUtc { get; } = new();
 }

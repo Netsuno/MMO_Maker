@@ -13,7 +13,7 @@ internal sealed class MapEventsBrowseDialog : Form
     private readonly Button _btnReload = new() { Text = "Charger", AutoSize = true };
     private readonly Button _btnPlace = new() { Text = "Placer sur carte", AutoSize = true };
     private readonly Button _btnDeleteSelected = new() { Text = "Supprimer ligne", AutoSize = true };
-    private readonly ComboBox _cbTrigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 420 };
+    private readonly ComboBox _cbTrigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 480 };
     private readonly Button _btnApplyTrigger = new() { Text = "Appliquer déclencheur à la ligne", AutoSize = true };
     private readonly ListView _lvCatalog = new()
     {
@@ -65,6 +65,7 @@ internal sealed class MapEventsBrowseDialog : Form
             "interact — action « Interagir » (touche E)",
             "step_on — à l’arrivée sur la tuile (marche)",
             "page — une fois par entrée sur la carte (tuile d’arrivée)",
+            "auto_tile — sur place : Heartbeat serveur (cooldown par placement)",
         });
         _cbTrigger.SelectedIndex = 0;
 
@@ -269,6 +270,7 @@ internal sealed class MapEventsBrowseDialog : Form
         {
             1 => MapEventTriggerKinds.StepOn,
             2 => MapEventTriggerKinds.Page,
+            3 => MapEventTriggerKinds.AutoTile,
             _ => MapEventTriggerKinds.Interact,
         };
 

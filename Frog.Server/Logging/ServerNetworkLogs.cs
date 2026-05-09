@@ -73,4 +73,14 @@ internal static partial class ServerNetworkLogs
         int tileY,
         string slug,
         long placementId);
+
+    [LoggerMessage(EventId = 5024, Level = LogLevel.Information, Message = "Map event auto_tile username={Username} mapId={MapId} tile=({TileX},{TileY}) slug={Slug} placementId={PlacementId}")]
+    public static partial void MapEventAutoTileFired(
+        ILogger logger,
+        string username,
+        int mapId,
+        int tileX,
+        int tileY,
+        string slug,
+        long placementId);
 }

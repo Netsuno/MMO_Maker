@@ -15,6 +15,11 @@ public static class MapEventTriggerNormalization
             return MapEventTriggerKinds.Page;
         }
 
+        if (v == MapEventTriggerKinds.AutoTile)
+        {
+            return MapEventTriggerKinds.AutoTile;
+        }
+
         return MapEventTriggerKinds.Interact;
     }
 }

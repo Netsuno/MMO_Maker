@@ -122,9 +122,14 @@ internal static class MapViewRenderer
                     var kind = MapEventTriggerNormalization.NormalizeTriggerKind(ev.TriggerKind);
                     var stepOn = string.Equals(kind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
                     var page = string.Equals(kind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
+                    var autoTile = string.Equals(kind, MapEventTriggerKinds.AutoTile, StringComparison.Ordinal);
                     if (page)
                     {
                         DrawEventTilePageDotOutline(g, ev.TileX, ev.TileY, tw, accent);
+                    }
+                    else if (autoTile)
+                    {
+                        DrawEventTileDashedOutline(g, ev.TileX, ev.TileY, tw, accent);
                     }
                     else if (stepOn)
                     {
@@ -217,6 +222,13 @@ internal static class MapViewRenderer
     {
         var rect = new Rectangle(tileX * tw + 2, tileY * tw + 2, tw - 4, tw - 4);
         using var pen = new Pen(stroke, 3f);
+        g.DrawRectangle(pen, rect);
+    }
+
+    private static void DrawEventTileDashedOutline(Graphics g, int tileX, int tileY, int tw, Color stroke)
+    {
+        var rect = new Rectangle(tileX * tw + 2, tileY * tw + 2, tw - 4, tw - 4);
+        using var pen = new Pen(stroke, 2.8f) { DashStyle = DashStyle.Dash };
         g.DrawRectangle(pen, rect);
     }
 

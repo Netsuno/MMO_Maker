@@ -186,6 +186,7 @@ public sealed class MapMinimapControl : Control
                     var tint = MapEventMarkerColors.TintFromSlug(m.PrimarySlug);
                     var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
                     var page = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
+                    var autoTile = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.AutoTile, StringComparison.Ordinal);
                     var tileL = ox + m.TileX * ts * scale;
                     var tileT = oy + m.TileY * ts * scale;
                     var twm = ts * scale;
@@ -203,6 +204,16 @@ public sealed class MapMinimapControl : Control
                         {
                             g.DrawEllipse(edge, cpx - rDot, cpy - rDot, rDot * 2f, rDot * 2f);
                         }
+                    }
+                    else if (autoTile)
+                    {
+                        var pad = Math.Max(0.5f, 1.2f * scale);
+                        var rr = new RectangleF(tileL + pad, tileT + pad, twm - pad * 2f, twm - pad * 2f);
+                        using var p = new Pen(Color.FromArgb(235, tint), Math.Max(0.8f, 1.1f * scale))
+                        {
+                            DashStyle = DashStyle.Dash,
+                        };
+                        g.DrawRectangle(p, rr.X, rr.Y, rr.Width, rr.Height);
                     }
                     else
                     {
