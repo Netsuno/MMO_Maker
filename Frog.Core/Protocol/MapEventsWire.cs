@@ -26,4 +26,9 @@ public sealed class MapEventWireEntry
     /// <summary><see cref="MapEventTriggerKinds"/> ; défaut <c>interact</c> si absent du JSON.</summary>
     [JsonPropertyName("triggerKind")]
     public string TriggerKind { get; set; } = MapEventTriggerKinds.Interact;
+
+    /// <summary>Clé catalogue optionnelle (runtime scripts créateur — non exécutée dans le MVP actuel).</summary>
+    [JsonPropertyName("scriptKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ScriptKey { get; set; }
 }

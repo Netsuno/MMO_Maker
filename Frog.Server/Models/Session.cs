@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Frog.Server.Services;
 
 namespace Frog.Server.Models;
 
@@ -34,4 +35,7 @@ public sealed class Session
 
     /// <summary>Dernier <c>InteractResult</c> auto-tuile par <c>placementId</c> (réinitialisé au changement de case carte).</summary>
     public Dictionary<long, DateTime> MapEventAutoTileLastFiredUtc { get; } = new();
+
+    /// <summary>Limite <see cref="Frog.Core.Enums.PacketId.MoveRequest"/> + <see cref="Frog.Core.Enums.PacketId.PositionSyncRequest"/> par seconde.</summary>
+    public MovementPacketRateGate MovementPacketRateGate { get; } = new();
 }

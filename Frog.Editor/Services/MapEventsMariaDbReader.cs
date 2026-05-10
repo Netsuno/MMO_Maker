@@ -4,7 +4,7 @@ using MySqlConnector;
 
 namespace Frog.Editor.Services;
 
-public readonly record struct EventCatalogRow(int Id, string Slug, string DisplayName);
+public readonly record struct EventCatalogRow(int Id, string Slug, string DisplayName, string? ScriptKey);
 
 public readonly record struct MapEventPlacementRow(
     long Id,
@@ -29,7 +29,7 @@ public static class MapEventsMariaDbReader
         using var connection = new MySqlConnection(connectionString);
         connection.Open();
         const string sql = """
-            SELECT id, slug, display_name
+            SELECT id, slug, display_name, script_key
             FROM frog_event_catalog
             ORDER BY id;
             """;
@@ -37,7 +37,14 @@ public static class MapEventsMariaDbReader
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            list.Add(new EventCatalogRow(reader.GetInt32(0), reader.GetString(1), reader.GetString(2)));
+            string? sk = null;
+            if (!reader.IsDBNull(3))
+            {
+                var t = reader.GetString(3).Trim();
+                sk = t.Length > 0 ? t : null;
+            }
+
+            list.Add(new EventCatalogRow(reader.GetInt32(0), reader.GetString(1), reader.GetString(2), sk));
         }
 
         return list;

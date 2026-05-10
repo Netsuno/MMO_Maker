@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Frog.Core.Protocol;
 using Frog.Editor.Services;
 
@@ -31,8 +32,14 @@ internal sealed class MapEventsBrowseDialog : Form
 
     private readonly TextBox _txtNewSlug = new() { Width = 160, PlaceholderText = "ex. pnj_marchand" };
     private readonly TextBox _txtNewDisplay = new() { Width = 260, PlaceholderText = "Nom affiché" };
+    private readonly TextBox _txtNewScriptKey = new() { Width = 160, PlaceholderText = "script_key (opt.)" };
     private readonly Button _btnAddCatalog = new() { Text = "Ajouter au catalogue", AutoSize = true };
     private readonly Button _btnDeleteCatalogRow = new() { Text = "Supprimer entrée catalogue", AutoSize = true };
+    private readonly Button _btnApplyScriptKey = new() { Text = "Appliquer script_key (ligne catalogue)", AutoSize = true };
+    private readonly TextBox _txtFilterCatalog = new() { Width = 220, PlaceholderText = "Filtrer catalogue…" };
+    private readonly TextBox _txtFilterPlacements = new() { Width = 220, PlaceholderText = "Filtrer placements…" };
+    private readonly List<EventCatalogRow> _catalogRows = new();
+    private readonly List<MapEventPlacementRow> _placementRows = new();
 
     public MapEventsBrowseDialog(string connectionString, int initialMapId = 1, int defaultTileX = 0, int defaultTileY = 0)
     {
@@ -49,7 +56,8 @@ internal sealed class MapEventsBrowseDialog : Form
 
         _lvCatalog.Columns.Add("id", 50);
         _lvCatalog.Columns.Add("slug", 160);
-        _lvCatalog.Columns.Add("display_name", 420);
+        _lvCatalog.Columns.Add("display_name", 280);
+        _lvCatalog.Columns.Add("script_key", 200);
 
         _lvPlacements.Columns.Add("id", 70);
         _lvPlacements.Columns.Add("map_id", 60);
@@ -87,11 +95,22 @@ internal sealed class MapEventsBrowseDialog : Form
             SplitterDistance = 240,
         };
 
-        var catPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+        var catPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
         catPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        catPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         catPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         catPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         catPanel.Controls.Add(new Label { Text = "frog_event_catalog (sélection = type à placer sur la carte)", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
+        var catFilterRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            WrapContents = true,
+            Padding = new Padding(0, 0, 0, 4),
+        };
+        catFilterRow.Controls.Add(new Label { Text = "Filtre", AutoSize = true, Margin = new Padding(0, 8, 6, 0) });
+        catFilterRow.Controls.Add(_txtFilterCatalog);
+        catPanel.Controls.Add(catFilterRow, 0, 1);
         var catNewRow = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -103,15 +122,18 @@ internal sealed class MapEventsBrowseDialog : Form
         catNewRow.Controls.Add(_txtNewSlug);
         catNewRow.Controls.Add(new Label { Text = "Nom", AutoSize = true, Margin = new Padding(8, 10, 4, 0) });
         catNewRow.Controls.Add(_txtNewDisplay);
+        catNewRow.Controls.Add(new Label { Text = "script_key", AutoSize = true, Margin = new Padding(8, 10, 4, 0) });
+        catNewRow.Controls.Add(_txtNewScriptKey);
         catNewRow.Controls.Add(_btnAddCatalog);
         catNewRow.Controls.Add(_btnDeleteCatalogRow);
-        catPanel.Controls.Add(catNewRow, 0, 1);
-        catPanel.Controls.Add(_lvCatalog, 0, 2);
+        catNewRow.Controls.Add(_btnApplyScriptKey);
+        catPanel.Controls.Add(catNewRow, 0, 2);
+        catPanel.Controls.Add(_lvCatalog, 0, 3);
         split.Panel1.Controls.Add(catPanel);
 
         var placeOuter = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
         placeOuter.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        placeOuter.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        placeOuter.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         placeOuter.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var placeToolbar = new FlowLayoutPanel
         {
@@ -129,7 +151,17 @@ internal sealed class MapEventsBrowseDialog : Form
         placeToolbar.Controls.Add(_btnDeleteSelected);
         placeToolbar.Controls.Add(_btnApplyTrigger);
         placeOuter.Controls.Add(placeToolbar, 0, 0);
-        placeOuter.Controls.Add(new Label { Text = "frog_map_event (filtre frog_map.id)", Dock = DockStyle.Fill, AutoSize = true }, 0, 1);
+        var placeMid = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            WrapContents = true,
+            Padding = new Padding(0, 0, 0, 4),
+        };
+        placeMid.Controls.Add(new Label { Text = "frog_map_event · ", AutoSize = true, Margin = new Padding(0, 4, 4, 0) });
+        placeMid.Controls.Add(new Label { Text = "Filtre", AutoSize = true, Margin = new Padding(8, 4, 4, 0) });
+        placeMid.Controls.Add(_txtFilterPlacements);
+        placeOuter.Controls.Add(placeMid, 0, 1);
         placeOuter.Controls.Add(_lvPlacements, 0, 2);
         split.Panel2.Controls.Add(placeOuter);
 
@@ -154,6 +186,9 @@ internal sealed class MapEventsBrowseDialog : Form
         _btnApplyTrigger.Click += (_, _) => ApplyTriggerSafe();
         _btnAddCatalog.Click += (_, _) => AddCatalogSafe();
         _btnDeleteCatalogRow.Click += (_, _) => DeleteCatalogRowSafe();
+        _btnApplyScriptKey.Click += (_, _) => ApplyScriptKeySafe();
+        _txtFilterCatalog.TextChanged += (_, _) => RefreshFilteredLists();
+        _txtFilterPlacements.TextChanged += (_, _) => RefreshFilteredLists();
         Shown += (_, _) => ReloadSafe();
     }
 
@@ -161,7 +196,13 @@ internal sealed class MapEventsBrowseDialog : Form
     {
         try
         {
-            if (!MapEventsMariaDbWriter.TryInsertCatalog(_connectionString, _txtNewSlug.Text, _txtNewDisplay.Text, out var newId, out var err))
+            if (!MapEventsMariaDbWriter.TryInsertCatalog(
+                    _connectionString,
+                    _txtNewSlug.Text,
+                    _txtNewDisplay.Text,
+                    _txtNewScriptKey.Text,
+                    out var newId,
+                    out var err))
             {
                 MessageBox.Show(this, err, "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -170,6 +211,7 @@ internal sealed class MapEventsBrowseDialog : Form
             MessageBox.Show(this, $"Entrée catalogue créée (id={newId}).", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
             _txtNewSlug.Clear();
             _txtNewDisplay.Clear();
+            _txtNewScriptKey.Clear();
             Reload();
         }
         catch (Exception ex)
@@ -322,25 +364,89 @@ internal sealed class MapEventsBrowseDialog : Form
         }
     }
 
+    private void ApplyScriptKeySafe()
+    {
+        try
+        {
+            if (!TryGetSingleSelectedFirstColumnInt(_lvCatalog, out var catalogId))
+            {
+                MessageBox.Show(this, "Sélectionnez une ligne du catalogue (colonne id).", "script_key", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (!MapEventsMariaDbWriter.TryUpdateCatalogScriptKey(_connectionString, catalogId, _txtNewScriptKey.Text, out var err))
+            {
+                MessageBox.Show(this, err, "script_key", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            Reload();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
     private void Reload()
     {
+        _catalogRows.Clear();
+        foreach (var row in MapEventsMariaDbReader.LoadCatalog(_connectionString))
+        {
+            _catalogRows.Add(row);
+        }
+
+        _placementRows.Clear();
+        var mapId = (int)_numMapId.Value;
+        foreach (var row in MapEventsMariaDbReader.LoadPlacementsForMap(_connectionString, mapId))
+        {
+            _placementRows.Add(row);
+        }
+
+        RefreshFilteredLists();
+    }
+
+    private void RefreshFilteredLists()
+    {
+        var cf = _txtFilterCatalog.Text.Trim();
+        var pf = _txtFilterPlacements.Text.Trim();
+        var o = StringComparison.OrdinalIgnoreCase;
         _lvCatalog.BeginUpdate();
         _lvPlacements.BeginUpdate();
         try
         {
             _lvCatalog.Items.Clear();
-            foreach (var row in MapEventsMariaDbReader.LoadCatalog(_connectionString))
+            foreach (var row in _catalogRows)
             {
+                if (cf.Length > 0)
+                {
+                    var sk = row.ScriptKey ?? string.Empty;
+                    if (!row.Slug.Contains(cf, o) && !row.DisplayName.Contains(cf, o) && !sk.Contains(cf, o))
+                    {
+                        continue;
+                    }
+                }
+
                 var item = new ListViewItem(row.Id.ToString());
                 item.SubItems.Add(row.Slug);
                 item.SubItems.Add(row.DisplayName);
+                item.SubItems.Add(row.ScriptKey ?? string.Empty);
                 _lvCatalog.Items.Add(item);
             }
 
             _lvPlacements.Items.Clear();
-            var mapId = (int)_numMapId.Value;
-            foreach (var row in MapEventsMariaDbReader.LoadPlacementsForMap(_connectionString, mapId))
+            foreach (var row in _placementRows)
             {
+                if (pf.Length > 0)
+                {
+                    var blob =
+                        $"{row.Id} {row.MapId} {row.EventCatalogId} {row.TileX} {row.TileY} {row.Slug} {row.DisplayName} {row.TriggerKind}";
+                    if (!blob.Contains(pf, o))
+                    {
+                        continue;
+                    }
+                }
+
                 var item = new ListViewItem(row.Id.ToString());
                 item.SubItems.Add(row.MapId.ToString());
                 item.SubItems.Add(row.EventCatalogId.ToString());

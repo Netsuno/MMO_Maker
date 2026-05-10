@@ -83,4 +83,10 @@ internal static partial class ServerNetworkLogs
         int tileY,
         string slug,
         long placementId);
+
+    [LoggerMessage(EventId = 5025, Level = LogLevel.Information, Message = "World flags patched username={Username} characterId={CharacterId}")]
+    public static partial void WorldFlagsPatched(ILogger logger, string username, string characterId);
+
+    [LoggerMessage(EventId = 5026, Level = LogLevel.Debug, Message = "Movement rate limited username={Username}")]
+    public static partial void MovementRateLimited(ILogger logger, string username);
 }

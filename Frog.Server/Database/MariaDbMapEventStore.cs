@@ -98,10 +98,11 @@ public sealed class MariaDbMapEventStore : IMapEventStore
         const string sql = """
             SELECT
               COUNT(*),
-              COALESCE(MAX(id), 0),
-              COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('#', id, event_catalog_id, tile_x, tile_y, IFNULL(trigger_kind, ''))) AS UNSIGNED)), 0)
-            FROM frog_map_event
-            WHERE map_id = @mapId;
+              COALESCE(MAX(e.id), 0),
+              COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('#', e.id, e.event_catalog_id, e.tile_x, e.tile_y, IFNULL(e.trigger_kind, ''), IFNULL(c.script_key, ''))) AS UNSIGNED)), 0)
+            FROM frog_map_event e
+            INNER JOIN frog_event_catalog c ON c.id = e.event_catalog_id
+            WHERE e.map_id = @mapId;
             """;
 
         using var cmd = new MySqlCommand(sql, connection);
@@ -117,7 +118,7 @@ public sealed class MariaDbMapEventStore : IMapEventStore
     {
         var list = new List<MapEventWireEntry>();
         const string sql = """
-            SELECT e.id, e.event_catalog_id, e.tile_x, e.tile_y, c.slug, c.display_name, IFNULL(e.trigger_kind, 'interact')
+            SELECT e.id, e.event_catalog_id, e.tile_x, e.tile_y, c.slug, c.display_name, IFNULL(e.trigger_kind, 'interact'), c.script_key
             FROM frog_map_event e
             INNER JOIN frog_event_catalog c ON c.id = e.event_catalog_id
             WHERE e.map_id = @mapId
@@ -129,6 +130,13 @@ public sealed class MariaDbMapEventStore : IMapEventStore
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
+            string? scriptKey = null;
+            if (!reader.IsDBNull(7))
+            {
+                var sk = reader.GetString(7).Trim();
+                scriptKey = sk.Length > 0 ? sk : null;
+            }
+
             list.Add(new MapEventWireEntry
             {
                 PlacementId = reader.GetInt64(0),
@@ -138,6 +146,7 @@ public sealed class MariaDbMapEventStore : IMapEventStore
                 Slug = reader.GetString(4),
                 DisplayName = reader.GetString(5),
                 TriggerKind = MapEventTriggerNormalization.NormalizeTriggerKind(reader.GetString(6)),
+                ScriptKey = scriptKey,
             });
         }
 

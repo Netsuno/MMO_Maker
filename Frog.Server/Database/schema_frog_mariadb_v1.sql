@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS frog_event_catalog(
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     slug VARCHAR(64) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
+    script_key VARCHAR(128) NULL COMMENT 'Cle script auteur (execution runtime prevue ; optionnel).',
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     UNIQUE KEY uq_frog_event_catalog_slug(slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -100,7 +101,7 @@ CREATE TABLE IF NOT EXISTS frog_map_event(
     event_catalog_id INT NOT NULL,
     tile_x INT NOT NULL,
     tile_y INT NOT NULL,
-    trigger_kind VARCHAR(32) NOT NULL DEFAULT 'interact' COMMENT 'interact | step_on | page',
+    trigger_kind VARCHAR(32) NOT NULL DEFAULT 'interact' COMMENT 'interact | step_on | page | auto_tile',
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT fk_fme_map FOREIGN KEY (map_id) REFERENCES frog_map(id) ON DELETE CASCADE,
     CONSTRAINT fk_fme_cat FOREIGN KEY (event_catalog_id) REFERENCES frog_event_catalog(id) ON DELETE CASCADE,

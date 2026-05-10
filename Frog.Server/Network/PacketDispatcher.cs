@@ -381,6 +381,13 @@ public sealed class PacketDispatcher(
             return;
         }
 
+        if (!session.MovementPacketRateGate.TryConsume(DateTime.UtcNow))
+        {
+            ServerNetworkLogs.MovementRateLimited(_logger, session.Username);
+            await _packetSender.SendErrorAsync(clientSession, "Trop de mouvements.", cancellationToken);
+            return;
+        }
+
         if (!TryParseMovePayload(payload.Span, out var deltaX, out var deltaY))
         {
             await _packetSender.SendErrorAsync(clientSession, "Payload mouvement invalide.", cancellationToken);
@@ -433,6 +440,13 @@ public sealed class PacketDispatcher(
         if (!TryGetActiveSession(clientSession, out var session))
         {
             await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        if (!session.MovementPacketRateGate.TryConsume(DateTime.UtcNow))
+        {
+            ServerNetworkLogs.MovementRateLimited(_logger, session.Username);
+            await _packetSender.SendErrorAsync(clientSession, "Trop de mouvements.", cancellationToken);
             return;
         }
 
@@ -1337,6 +1351,7 @@ public sealed class PacketDispatcher(
         }
 
         await _packetSender.SendWorldFlagsPatchResultAsync(clientSession, true, "worldFlags mis a jour.", cancellationToken);
+        ServerNetworkLogs.WorldFlagsPatched(_logger, session.Username, session.CharacterId!);
         await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
     }
 

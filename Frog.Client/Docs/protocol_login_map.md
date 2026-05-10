@@ -396,7 +396,7 @@ Payload :
 - `PacketId` (Byte) = `30`
 - `MapId` (**Int32** LE) — valeur `Session.CurrentMapId` au moment de la requête
 - `JsonUtf8Length` (**UInt16** LE)
-- `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`) — champs notamment `placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, `triggerKind` (`interact`, `step_on`, `page` ou `auto_tile`).
+- `JsonUtf8` — tableau JSON d’objets `MapEventWireEntry` (`Frog.Core/Protocol/MapEventsWire.cs`) — champs notamment `placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, `triggerKind` (`interact`, `step_on`, `page` ou `auto_tile`), **`scriptKey`** (optionnel, métadonnée catalogue pour scripts auteur — non exécutée dans le MVP actuel).
 
 **Client (`MapViewRenderer`)** : sur la vue carte monde, surbrillance **rectangle** pour **`interact`**, **losange** pour **`step_on`**, **cercle** (coin bas-gauche de la tuile) pour **`page`**, **rectangle pointillé** pour **`auto_tile`** (couleurs d’accent inchangées par slug, ex. démo).
 

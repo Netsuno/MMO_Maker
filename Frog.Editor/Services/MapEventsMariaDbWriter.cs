@@ -7,7 +7,13 @@ namespace Frog.Editor.Services;
 public static class MapEventsMariaDbWriter
 {
     /// <summary>Insère une entrée catalogue ; <paramref name="newId"/> = dernier auto-incrément si succès.</summary>
-    public static bool TryInsertCatalog(string connectionString, string slug, string displayName, out int newId, out string errorMessage)
+    public static bool TryInsertCatalog(
+        string connectionString,
+        string slug,
+        string displayName,
+        string? scriptKeyRaw,
+        out int newId,
+        out string errorMessage)
     {
         newId = 0;
         errorMessage = string.Empty;
@@ -26,16 +32,23 @@ public static class MapEventsMariaDbWriter
             return false;
         }
 
+        if (!MapEventScriptKeyNormalization.TryNormalize(scriptKeyRaw, out var scriptKey, out var skErr))
+        {
+            errorMessage = skErr;
+            return false;
+        }
+
         using var connection = new MySqlConnection(connectionString);
         connection.Open();
         const string insertSql = """
-            INSERT INTO frog_event_catalog(slug, display_name)
-            VALUES (@slug, @dn);
+            INSERT INTO frog_event_catalog(slug, display_name, script_key)
+            VALUES (@slug, @dn, @sk);
             """;
         using (var cmd = new MySqlCommand(insertSql, connection))
         {
             cmd.Parameters.AddWithValue("@slug", s);
             cmd.Parameters.AddWithValue("@dn", d);
+            cmd.Parameters.AddWithValue("@sk", scriptKey is null ? DBNull.Value : scriptKey);
             try
             {
                 cmd.ExecuteNonQuery();
@@ -104,6 +117,57 @@ public static class MapEventsMariaDbWriter
             if (n == 0)
             {
                 errorMessage = "Aucune entrée catalogue supprimée (id inconnu).";
+                return false;
+            }
+
+            return true;
+        }
+        catch (MySqlException ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>Met à jour <c>script_key</c> pour une ligne catalogue (vide = NULL).</summary>
+    public static bool TryUpdateCatalogScriptKey(
+        string connectionString,
+        int catalogId,
+        string? scriptKeyRaw,
+        out string errorMessage)
+    {
+        errorMessage = string.Empty;
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        if (catalogId < 1)
+        {
+            errorMessage = "Identifiant catalogue invalide.";
+            return false;
+        }
+
+        if (!MapEventScriptKeyNormalization.TryNormalize(scriptKeyRaw, out var scriptKey, out var skErr))
+        {
+            errorMessage = skErr;
+            return false;
+        }
+
+        using var connection = new MySqlConnection(connectionString);
+        connection.Open();
+        const string sql = """
+            UPDATE frog_event_catalog
+            SET script_key = @sk
+            WHERE id = @id
+            LIMIT 1;
+            """;
+
+        using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@sk", scriptKey is null ? DBNull.Value : scriptKey);
+        cmd.Parameters.AddWithValue("@id", catalogId);
+        try
+        {
+            var n = cmd.ExecuteNonQuery();
+            if (n == 0)
+            {
+                errorMessage = "Aucune ligne catalogue mise à jour (id inconnu).";
                 return false;
             }
 

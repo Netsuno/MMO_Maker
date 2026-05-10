@@ -139,7 +139,8 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 - [x] **`PropertyGrid`** : catégories / descriptions sur les propriétés **Tuile** ; validation via menu **Carte**.
 - [x] **Événements carte (socle)** : tables **`frog_event_catalog`** / **`frog_map_event`**, sync **`MapEventsRequest`/`Result`**, surbrillance client (rectangle / losange / cercle selon `triggerKind`), **`InteractRequest`** + triggers **`interact`** / **`step_on`** / **`page`** (logs serveur structurés `MapEvent*`).
 - [x] **Éditeur** : dialogue MariaDB (**CRUD catalogue** + placements + `trigger_kind`), raccourci **Ctrl+clic droit** sur le canevas → menu « événements sur cette tuile » ; **marqueurs** canevas + mini-carte (lecture MariaDB, `editor-workstate`).
-- [ ] **Suite P1** restante : déclencheurs **auto** (temps / tick), **scripts runtime** ; raffinement UX événements.
+- [x] **Suite P1 (socle)** : déclencheur **`auto_tile`** (heartbeat serveur) ; métadonnée catalogue **`script_key`** (wire JSON `scriptKey`, MariaDB, éditeur — exécution réservée **Phase 7**) ; **filtres** dans le dialogue événements (catalogue + placements).
+- [ ] **Suite P1 (exécution)** : runtime scripts sandbox + API ; autres raffinements UX événements au besoin.
 
 </details>
 
@@ -147,8 +148,10 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 <summary><strong>Phase 4 — Serveur : monde vivant</strong> (**P1** persistance / logs)</summary>
 
 - [x] **Changement de carte / multi‑maps** : warps inter-cartes, `CurrentMapId` session, `PositionUpdate` avec `MapId`, `MapRequest` + empreintes par carte ; client WinForms recharge la carte affichée après warp.
-- [ ] Persistance **au‑delà de la position** (inventaire, flags monde, quêtes — MVP ; la position est déjà **par personnage** en MariaDB).
-- [ ] Alignement **collisions/règles** avec la carte servie ; anti‑abus minimal ; exploitation des **logs** pour hébergement (événements carte : `ServerNetworkLogs.MapEvent*` Information).
+- [x] **Persistance MVP au‑delà de la position** : **`worldFlags`** dans `frog_character.payload` (paquets **34/35**, merge serveur) ; inventaire / quêtes **à venir** (tables dédiées ou JSON selon jalons).
+- [x] **Collisions / règles** : même blob carte serveur et client ; **`MapCollision.IndexBlockedTiles`** + **`IsBlockedForPlayerCircle`** côté prédiction client et **`MapService`** côté serveur.
+- [x] **Anti‑abus minimal** : plafond **50** paquets **`MoveRequest` + `PositionSyncRequest`** / seconde glissante par session (`MovementPacketRateGate`).
+- [x] **Logs hébergement** : `ServerNetworkLogs.MapEvent*` (5021–5024), **`WorldFlagsPatched`** (5025), **`MovementRateLimited`** (5026, Debug).
 
 </details>
 
