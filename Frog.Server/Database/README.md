@@ -6,7 +6,7 @@
 |---------|------|
 | **`schema_frog_mariadb_v1.sql`** | Crée toutes les tables et index (idempotent : `IF NOT EXISTS`). |
 
-Tables : `accounts`, `player_world_state` (héritage), **`character_world_state`** (position par perso), `frog_map`, `frog_character`, `frog_asset_blob`, `frog_map_editor_save`.
+Tables : `accounts`, `player_world_state` (héritage), **`character_world_state`** (position par perso), `frog_map`, `frog_character`, `frog_asset_blob`, `frog_map_editor_save`, **`frog_event_catalog`**, **`frog_map_event`**, **`frog_item_definition`**, **`character_inventory_slot`** (inventaire relationnel, squelette v1).
 
 Les colonnes temporelles utilisent **`CURRENT_TIMESTAMP(6)`** (compatible MariaDB / MySQL) ; pour des horodatages alignés sur UTC, configure le serveur SQL en **`time_zone = '+00:00'`** (ou équivalent).
 
@@ -16,7 +16,7 @@ Après le DDL v1, le serveur applique aussi **`MariaDbMigrationV2`** (C#) : `acc
 
 1. Crée une base vide (ex. `mmo_test`) dans MariaDB.
 2. Dans `Frog.Server/appsettings.Local.json`, mets `MariaDb.enabled` à `true` et une `connectionString` valide.
-3. Lance le serveur une fois : **`MariaDbSchemaBootstrap`** exécute ce script au démarrage, puis FK `fk_pws_character`, puis **migration v2**, puis seed `demo` / carte selon ta config.
+3. Lance le serveur une fois : **`MariaDbSchemaBootstrap`** exécute ce script au démarrage, puis FK `fk_pws_character`, puis **migration v2**, puis migrations **v3–v7** (dont inventaire relationnel v7), puis seed `demo` / carte selon ta config.
 
 ## Option B — À la main (client SQL)
 

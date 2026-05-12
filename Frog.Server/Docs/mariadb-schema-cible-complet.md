@@ -75,6 +75,10 @@ Ci-dessous : **liste cible**. Toutes les tables ne sont pas à créer demain ; c
 
 ### 3.5 Inventaire & équipement (instances joueur)
 
+**Implémentation v1 (dépôt actuel)** — inventaire **relationnel** dans MariaDB : **`frog_item_definition`** (types d’objets), **`character_inventory_slot`** (`character_uuid`, `slot_index`, `item_definition_id` nullable, `quantity`). Pas de stockage inventaire dans le JSON **`frog_character.payload`**. Voir `schema_frog_mariadb_v1.sql` et **`MariaDbMigrationV7`**.
+
+**Cible étendue** (évolution sans renommer le cœur v1 si possible) :
+
 - **`character_inventory_stack`** — `character_id`, `stack_id`, `item_definition_id`, quantité, **durabilité**, **bonus_reroll_json**, slot banque/inventaire, position UI (ordonner).
 - **`character_equipped_item`** — `character_id`, slot (épée, bouclier, …), lien `stack_id` ou duplication si design « copie équipée ».
 

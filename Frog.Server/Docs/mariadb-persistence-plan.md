@@ -36,6 +36,11 @@ Exécuté au démarrage si `MariaDb.enabled` est `true` (`MariaDbSchemaBootstrap
 | **frog_character** | Perso : `id` CHAR(36), `account_username`, `account_id` → `accounts.id` (migration v2), `display_name`, `payload` JSON. |
 | **frog_asset_blob** | Binaires dédupliqués (SHA-256). |
 | **frog_map_editor_save** | Historique des sauvegardes éditeur. |
+| **frog_event_catalog** / **frog_map_event** | Événements carte (catalogue + placements). |
+| **frog_item_definition** | Catalogue des **types** d’objets (slug, nom, pile max). |
+| **character_inventory_slot** | **Inventaire relationnel** : une ligne par `(character_uuid, slot_index)` ; `item_definition_id` NULL = case vide ; FK vers `frog_item_definition`. |
+
+**Décision persistance :** l’inventaire joueur **n’est pas** stocké dans le JSON `frog_character.payload` ; il vit dans **`character_inventory_slot`** (extension future : stacks séparés, équipement, banque — voir [`mariadb-schema-cible-complet.md`](mariadb-schema-cible-complet.md) §3.5).
 
 Contrainte **fk_pws_character** : ajoutée en C# après le script si elle n’existe pas (`information_schema`).
 
@@ -66,6 +71,10 @@ Le serveur utilise **`IPlayerStateStore.TryGetForCharacter` / `UpsertForCharacte
 ### 2.4 Personnage par défaut
 
 À chaque login, `ICharacterBootstrap.EnsureDefaultHero(username)` crée au besoin une ligne **frog_character** (`display_name = 'Hero'`). La position est lue/écrite dans **`character_world_state`** pour `Session.CharacterId`. Des persos supplémentaires sont créés via **`ICharacterBootstrap.TryCreateCharacter`** (protocole `CharacterCreateRequest`, max 8 par compte, nom validé côté serveur).
+
+### 2.5 Migration « v7 » (`MariaDbMigrationV7`)
+
+Idempotent, après v6 : si la table **`frog_item_definition`** n’existe pas encore, crée **`frog_item_definition`**, **`character_inventory_slot`**, l’index `idx_character_inventory_slot_item`, et un seed **`demo_item`** (`INSERT IGNORE`, aligné sur le script v1) — utile pour les bases créées avant l’extension inventaire.
 
 ---
 
