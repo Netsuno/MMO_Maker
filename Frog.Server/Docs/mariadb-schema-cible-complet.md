@@ -22,7 +22,7 @@ Tu peux migrer progressivement depuis `frog_*` vers ces noms dans des scripts ve
 | **PK techniques** (`BIGINT` auto-incrément ou `BINARY(16)` UUID) pour entités volumineuses et jointures | Stable, performances index, pas de refactor quand `display_name` change. |
 | **`account_id` numérique** en remplacement lent de `accounts.username` comme FK principale | Moins fragile que le login texte pour les FK et les renommages futurs. Garder `username` unique. |
 | **`character_id` unique** déjà prévu UUID ; évolution possible `BINARY(16)` pour gain place | Compatible clients / merge de shards plus tard si besoin. |
-| **`JSON`/`JSONB` MariaDB pour « extension »**, colonnes typed pour données **filtriées/triées** ou **economie** critique | Inventaire léger peut rester ligne + JSON jusqu’à stabilisation puis colonnes. |
+| **`JSON`/`JSONB` MariaDB pour « extension »**, colonnes typed pour données **filtriées/triées** ou **economie** critique | Stats / flags monde **déjà** sortis du JSON perso côté MariaDB (**`character_stat`**, **`character_world_flag`**). Réserver `JSON` aux extras non structurés (quêtes légères, prefs) jusqu’à stabilisation puis tables dédiées. |
 | **`revision` / `content_sha256` sur blobs** (cartes, manifests) comme aujourd’hui | Synchro client et éditeur sans télécharger tout. |
 | **`created_at`, `updated_at`, `deleted_at` (soft delete) sur entités authoring** | Récupération, audit RGPD, désactivation sans perte brutale. |
 | **Tables de liaison avec PK composite** où le couple (A,B) est unique (`character_quest`, équipements) | Modèle ER clair, pas de lignes zombies. |
@@ -37,7 +37,7 @@ Tu peux migrer progressivement depuis `frog_*` vers ces noms dans des scripts ve
 |-------------|------------------|
 | `accounts` (**PK username** ; **v2 :** colonne **`id` BIGINT UNSIGNED** AUTO_INCREMENT UNIQUE) | À terme : PK = `id`, `username` unique ; migrer FK (`player_world_state`, etc.). **v2 appliquée en runtime** (`MariaDbMigrationV2`). |
 | `player_world_state` (PK username) | Migrer PK vers **`character_id`** (perso comme unité monde) ou doublon `accountusername` résiduel jusqu’à fin de mig ; position = **par perso**. |
-| `frog_character` | Renomme conceptuel **`character`** : stats de base typed + `extras` JSON pour le reste. |
+| `frog_character` | Renomme conceptuel **`character`** : stats / drapeaux / extras **relationnels + LONGTEXT** (`character_stat`, `character_world_flag`, `character_payload_kv`, **v8–v10**) ; plus de colonne `payload` JSON côté MariaDB. |
 | `frog_map` | Reste carte **révisionnée blob** ; liens vers **spawn**, **warp** en données tabulaires ou dans blob selon stratégie. |
 | `frog_asset_blob`, `frog_map_editor_save` | Consolider sous famille **`game_asset`** / **`editor_audit`**. |
 
@@ -56,7 +56,9 @@ Ci-dessous : **liste cible**. Toutes les tables ne sont pas à créer demain ; c
 
 ### 3.2 Personnage
 
-- **`character`** — `id`, `account_id`, nom affiché, slot, niveau XP, carte courante id, coords (tuile ou pixel selon jeu), état santé/resource, **equipment_snapshot** léger ou join tables, **`stats_json`** / **`appearance_json`** en phase exploratory.
+Sous MariaDB dans ce dépôt : les **stats** (STR…LUCK), les **`worldFlags`** et les **autres clés racine** du JSON perso (sous plafonds) sont dans **`character_stat`**, **`character_world_flag`**, **`character_payload_kv`** (**`MariaDbMigrationV8`** / **`MariaDbMigrationV9`**, assemblage dans **`MariaDbCharacterPayloadReader`**) ; le client reçoit toujours un JSON **`CharacterPayload`** agrégé.
+
+- **`character`** — `id`, `account_id`, nom affiché, slot, niveau XP, carte courante id, coords (tuile ou pixel selon jeu), état santé/resource, **equipment_snapshot** léger ou join tables, **`stats_json`** / **`appearance_json`** en phase exploratory (cible long terme ; les stats « fixes » six attributs sont déjà relationnelles côté serveur).
 - **`character_slot`** — nombre de persos max, déblocage boutique (optionnel).
 - **`character_progression`** — arbre de talents, points non dépensés (ou fusion dans JSON si simple).
 
@@ -75,7 +77,7 @@ Ci-dessous : **liste cible**. Toutes les tables ne sont pas à créer demain ; c
 
 ### 3.5 Inventaire & équipement (instances joueur)
 
-**Implémentation v1 (dépôt actuel)** — inventaire **relationnel** dans MariaDB : **`frog_item_definition`** (types d’objets), **`character_inventory_slot`** (`character_uuid`, `slot_index`, `item_definition_id` nullable, `quantity`). Pas de stockage inventaire dans le JSON **`frog_character.payload`**. Voir `schema_frog_mariadb_v1.sql` et **`MariaDbMigrationV7`**.
+**Implémentation v1 (dépôt actuel)** — inventaire **relationnel** dans MariaDB : **`frog_item_definition`**, **`character_inventory_slot`**. Données perso hors inventaire : **`character_stat`**, **`character_world_flag`**, **`character_payload_kv`** (LONGTEXT) — pas de type JSON SQL sur **`frog_character`**. Voir `schema_frog_mariadb_v1.sql` et migrations **V7–V10**.
 
 **Cible étendue** (évolution sans renommer le cœur v1 si possible) :
 

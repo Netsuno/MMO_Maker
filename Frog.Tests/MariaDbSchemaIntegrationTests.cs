@@ -1,5 +1,6 @@
 using System;
 using Frog.Server.Database;
+using MySqlConnector;
 using Xunit;
 
 namespace Frog.Tests;
@@ -25,5 +26,28 @@ public sealed class MariaDbSchemaIntegrationTests
 
         MariaDbSchemaBootstrap.Apply(cs);
         MariaDbSchemaBootstrap.Apply(cs);
+
+        using var connection = new MySqlConnection(cs);
+        connection.Open();
+        using var cmd = new MySqlCommand(
+            """
+            SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME IN ('character_stat', 'character_world_flag', 'character_payload_kv');
+            """,
+            connection);
+        Assert.Equal(3, Convert.ToInt32(cmd.ExecuteScalar()));
+
+        using (var col = new MySqlCommand(
+            """
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'frog_character'
+              AND COLUMN_NAME = 'payload';
+            """,
+            connection))
+        {
+            Assert.Equal(0, Convert.ToInt32(col.ExecuteScalar()));
+        }
     }
 }

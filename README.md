@@ -33,7 +33,7 @@ Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal
 | **Téléchargement carte** | **HEAD révision / hash puis blob** tant que ça reste fiable ; cache client acceptable. |
 | **Événements (RPG Maker)** | **À faire bientôt** : événements sur cases, **liste en DB réutilisable** entre maps/cases, association sauvegardée avec la carte ou la tuile. |
 | **Personnages** | **Plusieurs slots** prévus ; **stats tôt** : **STR, AGI, DEX, INT, VIT, LUCK**. |
-| **Objets / inventaire** | **Priorité importante** : au début chaque « type » d’objet prend **1 place**. **Persistance : tables relationnelles** (`frog_item_definition`, `character_inventory_slot` — squelette v1 ; pas d’inventaire dans le JSON `frog_character.payload`). **Serveur :** effets / règles en **DB**. **Client :** mise en cache des infos « affichage / ambiance » pour ne pas surcharger la DB. |
+| **Objets / inventaire** | **Priorité importante** : au début chaque « type » d’objet prend **1 place**. **Persistance : tables relationnelles** (`frog_item_definition`, `character_inventory_slot` — squelette v1). **Serveur :** effets / règles en **DB**. **Client :** mise en cache des infos « affichage / ambiance » pour ne pas surcharger la DB. |
 | **Mode offline jeu** | **Pas tranché** pour l’instant. |
 | **Réseau** | **Contrôle autoritaire serveur**. **TCP** pour flux fiables ; ajouter ou basculer **UDP** lorsque jugé meilleur compromis **sécurité / lag** à plus grande échelle (voir protocole, sans tout casser d’un coup). Cible volume **≤100 joueurs / carte au début**, architecture **scalable** si carton. |
 | **Chat** | Actuel : global / map / whisper. **Guilde → chat guilde**, **groupe → chat groupe** lorsque ces systèmes existeront. **Logs chat** oui ; **kick modérateur plus tard**, **ban en DB** dès besoin plausible. |
@@ -148,7 +148,7 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 <summary><strong>Phase 4 — Serveur : monde vivant</strong> (**P1** persistance / logs)</summary>
 
 - [x] **Changement de carte / multi‑maps** : warps inter-cartes, `CurrentMapId` session, `PositionUpdate` avec `MapId`, `MapRequest` + empreintes par carte ; client WinForms recharge la carte affichée après warp.
-- [x] **Persistance MVP au‑delà de la position** : **`worldFlags`** dans `frog_character.payload` (paquets **34/35**) ; **inventaire : modèle relationnel** (`frog_item_definition`, `character_inventory_slot` — DDL v1 + migration **V7** ; logique jeu / paquets **Phase 6**) ; quêtes **à venir** (tables dédiées).
+- [x] **Persistance MVP au‑delà de la position** : **`worldFlags`** → **`character_world_flag`** ; **stats** → **`character_stat`** ; **extras** → **`character_payload_kv`** (LONGTEXT, **v9–v10**) ; **inventaire** (**V7**) ; **aucun** type JSON SQL sur `frog_character` (**v10**) ; quêtes **à venir**.
 - [x] **Collisions / règles** : même blob carte serveur et client ; **`MapCollision.IndexBlockedTiles`** + **`IsBlockedForPlayerCircle`** côté prédiction client et **`MapService`** côté serveur.
 - [x] **Anti‑abus minimal** : plafond **50** paquets **`MoveRequest` + `PositionSyncRequest`** / seconde glissante par session (`MovementPacketRateGate`).
 - [x] **Logs hébergement** : `ServerNetworkLogs.MapEvent*` (5021–5024), **`WorldFlagsPatched`** (5025), **`MovementRateLimited`** (5026, Debug).

@@ -25,7 +25,7 @@ public enum PacketId : byte
     MeleeAttackResult = 18,
     /// <summary>La carte monde demandée correspond déjà à la révision + empreinte en cache du client (<see cref="MapRequest"/> avec hint).</summary>
     MapAlreadySynced = 19,
-    /// <summary>Données perso JSON (<c>frog_character.payload</c>) après connexion réussie.</summary>
+    /// <summary>Données perso en JSON UTF-8 (agrégat assemblé depuis MariaDB : stats / flags / KV).</summary>
     CharacterPayload = 20,
     /// <summary>Demande la liste des personnages du compte (session authentifiée).</summary>
     CharacterListRequest = 21,
@@ -54,7 +54,7 @@ public enum PacketId : byte
     /// <summary>Centre joueur en pixels monde (Int32 LE × 2). Session authentifiée ; serveur valide vitesse + collisions puis diffuse <see cref="PositionUpdate"/>.</summary>
     PositionSyncRequest = 33,
 
-    /// <summary>Fusion JSON des drapeaux monde dans <c>frog_character.payload.worldFlags</c> (UInt16 LE + UTF-8 objet, booléens uniquement).</summary>
+    /// <summary>Fusion JSON des drapeaux monde côté wire ; persistance MariaDB : table <c>character_world_flag</c> (UInt16 LE + UTF-8 objet, booléens uniquement).</summary>
     WorldFlagsPatchRequest = 34,
 
     /// <summary>Résultat patch drapeaux (même forme courte que <see cref="LoginResult"/>).</summary>

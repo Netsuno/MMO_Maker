@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace Frog.Core.Character;
 
-/// <summary>Bloc stats perso (6 attributs) aligné sur le JSON <c>frog_character.payload.stats</c>.</summary>
+/// <summary>Bloc stats perso (6 attributs) ; wire JSON <c>stats</c> — sous MariaDB persistance dans <c>character_stat</c>.</summary>
 public static class CharacterStatsWire
 {
     public const int PackedByteCount = 6;

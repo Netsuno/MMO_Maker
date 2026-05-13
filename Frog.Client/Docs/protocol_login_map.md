@@ -157,13 +157,13 @@ Payload:
 - `MessageLength` (Byte)
 - `MessageUtf8` (`MessageLength` octets)
 
-Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`CharacterPayload`** (`FrogWireProtocol.Version` **≥ 3**) avec le JSON DB du perso courant (perso actif après bootstrap, ex. **Hero**).
+Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`CharacterPayload`** (`FrogWireProtocol.Version` **≥ 3**) avec le JSON du perso courant (perso actif après bootstrap, ex. **Hero**) : sous MariaDB ce JSON est **assemblé** (stats, `worldFlags`, extras) même si la base les stocke en **tables relationnelles**.
 
 À partir de **`FrogWireProtocol.Version` ≥ 4**, le client peut demander la **liste des personnages** du compte (`CharacterListRequest` / `CharacterListResult`) puis activer un autre slot (`CharacterSelectRequest` / `CharacterSelectResult`) ; le serveur renvoie alors un **`CharacterPayload`** pour le nouvel UUID et diffuse des **`PositionUpdate`** à tous les clients connectés.
 
-À partir de **`FrogWireProtocol.Version` ≥ 5**, le client peut **créer** un perso additionnel (`CharacterCreateRequest` / `CharacterCreateResult`) : nom affichage validé côté serveur (lettres/chiffres/espaces/tiret/souligné, longueur max 32), max **8** persos par compte, payload stats par défaut comme **Hero**.
+À partir de **`FrogWireProtocol.Version` ≥ 5**, le client peut **créer** un perso additionnel (`CharacterCreateRequest` / `CharacterCreateResult`) : nom affichage validé côté serveur (lettres/chiffres/espaces/tiret/souligné, longueur max 32), max **8** persos par compte, stats par défaut **10** sur les six attributs (même profil que **Hero**).
 
-À partir de **`FrogWireProtocol.Version` ≥ 6**, le client peut mettre à jour les **six stats** du perso actif (`CharacterStatsUpdateRequest` / `CharacterStatsUpdateResult`) : le corps est **6 octets** dans l’ordre **STR, AGI, DEX, INT, VIT, LUCK**, chaque octet entre **1** et **99**. En cas de succès, le serveur persiste dans `frog_character.payload` (objet JSON `stats`) et peut renvoyer un **`CharacterPayload`** à jour.
+À partir de **`FrogWireProtocol.Version` ≥ 6**, le client peut mettre à jour les **six stats** du perso actif (`CharacterStatsUpdateRequest` / `CharacterStatsUpdateResult`) : le corps est **6 octets** dans l’ordre **STR, AGI, DEX, INT, VIT, LUCK**, chaque octet entre **1** et **99**. En cas de succès, le serveur persiste (MariaDB : table **`character_stat`**, plus la colonne JSON `payload` pour d’éventuels extras) et peut renvoyer un **`CharacterPayload`** à jour.
 
 À partir de **`FrogWireProtocol.Version` ≥ 7**, les coordonnées **`PositionUpdate`** et la persistance monde sont en **pixels centre** (voir section *Grille monde et pixels*).
 
@@ -177,7 +177,7 @@ Placements **`page`** : quand **`CurrentMapId`** change (connexion, sélection d
 
 À partir de **`FrogWireProtocol.Version` ≥ 9**, placements **`auto_tile`** : après un **`HeartbeatAck`** réussi, si le joueur est sur une tuile avec au moins un `auto_tile`, le serveur peut envoyer **au plus un** **`InteractResult`** réussi par battement, message préfixé **`[Auto-tuile]`**, pour le premier placement dû (tri `catalogId`, puis `placementId`) dont le **cooldown par `placementId`** (~25 s) est écoulé. Les compteurs cooldown sont **réinitialisés** lorsque le triplet **(carte, tuile X, tuile Y)** change (même logique que pour `step_on` / `page` sur changement de case).
 
-À partir de **`FrogWireProtocol.Version` ≥ 9**, **`WorldFlagsPatchRequest`** (**34**) / **`WorldFlagsPatchResult`** (**35**) : fusion JSON contrôlée dans **`frog_character.payload.worldFlags`** (voir section dédiée).
+À partir de **`FrogWireProtocol.Version` ≥ 9**, **`WorldFlagsPatchRequest`** (**34**) / **`WorldFlagsPatchResult`** (**35**) : fusion JSON contrôlée du bloc **`worldFlags`** (persisté MariaDB dans **`character_world_flag`** ; le client manipule toujours un objet JSON dans le patch).
 
 **Exploitation / observabilité** : à chaque envoi réussi des chemins carte ci‑dessus, le serveur journalise aussi en **Information** des entrées structurées `MapEventInteractFired`, `MapEventStepOnFired`, `MapEventPageFired`, `MapEventAutoTileFired` (`ServerNetworkLogs`, ids **5021–5024**) avec `username`, `mapId`, tuile, `slug`, `placementId`.
 
@@ -306,7 +306,7 @@ Payload (protocole **≥ 3**) :
 - `CharacterIdUtf8Length` (Byte, > 0, même borne pratique que login)
 - `CharacterIdUtf8` (longueur ci‑dessus)
 - `JsonLength` (`UInt16` LE)
-- `JsonUtf8` (`JsonLength` octets) — contenu typique : `frog_character.payload` (ex. stats JSON)
+- `JsonUtf8` (`JsonLength` octets) — JSON agrégé perso (`stats`, `worldFlags`, autres clés) ; sous MariaDB les valeurs persistées viennent des tables **`character_stat`**, **`character_world_flag`**, **`character_payload_kv`** (valeurs **LONGTEXT** UTF-8, migrations **v8–v10**).
 
 Envoyé après login réussi lorsque le lecteur perso connaît l’UUID (`Session.CharacterId`), et à nouveau après un **`CharacterSelectRequest`** réussi.
 
@@ -408,7 +408,7 @@ Payload :
 
 - `PacketId` (Byte) = `34`
 - **`JsonUtf8Length`** (`UInt16` LE) — longueur du fragment suivant (1…**2048** octets UTF‑8)
-- **`JsonUtf8`** — objet JSON à **fusionner** dans `frog_character.payload.worldFlags` : uniquement des propriétés **booléennes** (`true` / `false`), clés `[A-Za-z0-9_]{1,64}` (UTF‑8), au plus **24** clés dans le patch (plafonds détaillés côté `Frog.Core/Character/CharacterPayloadWorldFlags.cs`).
+- **`JsonUtf8`** — objet JSON à **fusionner** dans le bloc **`worldFlags`** du perso (même sémantique qu’avant côté client) : uniquement des propriétés **booléennes** (`true` / `false`), clés `[A-Za-z0-9_]{1,64}` (UTF‑8), au plus **24** clés dans le patch (plafonds détaillés côté `Frog.Core/Character/CharacterPayloadWorldFlags.cs`).
 
 ### WorldFlagsPatchResult (Serveur -> Client)
 

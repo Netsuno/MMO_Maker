@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace Frog.Core.Character;
 
-/// <summary>Fusion contrôlée de <c>frog_character.payload.worldFlags</c> (objet booléen par clé).</summary>
+/// <summary>Fusion contrôlée du bloc <c>worldFlags</c> du JSON perso (objet booléen par clé) ; sous MariaDB persistance dans <c>character_world_flag</c>.</summary>
 public static class CharacterPayloadWorldFlags
 {
     public const int MaxPatchUtf8Bytes = 2048;

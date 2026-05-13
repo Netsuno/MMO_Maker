@@ -22,6 +22,8 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
+        var withPayloadColumn = MariaDbSchemaInfo.ColumnExists(connection, "frog_character", "payload");
+
         const string selectSql = """
             SELECT id FROM frog_character
             WHERE account_username = @username AND display_name = 'Hero'
@@ -39,22 +41,72 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
         }
 
         var id = Guid.NewGuid().ToString();
-        const string insertSql = """
-            INSERT INTO frog_character(id, account_id, account_username, display_name, payload)
-            SELECT @id, a.id, @username, 'Hero', CAST(@payload AS JSON)
+        if (withPayloadColumn)
+        {
+            const string insertSql = """
+                INSERT INTO frog_character(id, account_id, account_username, display_name, payload)
+                SELECT @id, a.id, @username, 'Hero', CAST(@payload AS JSON)
+                FROM accounts a
+                WHERE a.username = @username
+                LIMIT 1;
+                """;
+
+            using var tx = connection.BeginTransaction();
+            try
+            {
+                using (var insert = new MySqlCommand(insertSql, connection, tx))
+                {
+                    insert.Parameters.AddWithValue("@id", id);
+                    insert.Parameters.AddWithValue("@username", username);
+                    insert.Parameters.AddWithValue("@payload", CharacterPayloadDefaults.EmptyPayloadJson);
+                    var n = insert.ExecuteNonQuery();
+                    if (n != 1)
+                    {
+                        throw new InvalidOperationException($"Compte introuvable pour créer le perso : {username}");
+                    }
+                }
+
+                MariaDbCharacterPayloadRelational.SeedDefaultStats(connection, id, tx);
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
+            }
+
+            return id;
+        }
+
+        const string insertNoPayload = """
+            INSERT INTO frog_character(id, account_id, account_username, display_name)
+            SELECT @id, a.id, @username, 'Hero'
             FROM accounts a
             WHERE a.username = @username
             LIMIT 1;
             """;
 
-        using var insert = new MySqlCommand(insertSql, connection);
-        insert.Parameters.AddWithValue("@id", id);
-        insert.Parameters.AddWithValue("@username", username);
-        insert.Parameters.AddWithValue("@payload", CharacterPayloadDefaults.NewHeroJson);
-        var n = insert.ExecuteNonQuery();
-        if (n != 1)
+        using var txNp = connection.BeginTransaction();
+        try
         {
-            throw new InvalidOperationException($"Compte introuvable pour créer le perso : {username}");
+            using (var insert = new MySqlCommand(insertNoPayload, connection, txNp))
+            {
+                insert.Parameters.AddWithValue("@id", id);
+                insert.Parameters.AddWithValue("@username", username);
+                var n = insert.ExecuteNonQuery();
+                if (n != 1)
+                {
+                    throw new InvalidOperationException($"Compte introuvable pour créer le perso : {username}");
+                }
+            }
+
+            MariaDbCharacterPayloadRelational.SeedDefaultStats(connection, id, txNp);
+            txNp.Commit();
+        }
+        catch
+        {
+            txNp.Rollback();
+            throw;
         }
 
         return id;
@@ -122,6 +174,8 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
+        var withPayloadColumn = MariaDbSchemaInfo.ColumnExists(connection, "frog_character", "payload");
+
         const string countSql = """
             SELECT COUNT(*) FROM frog_character
             WHERE account_username = @username;
@@ -139,28 +193,61 @@ public sealed class MariaDbCharacterBootstrap : ICharacterBootstrap
         }
 
         var id = Guid.NewGuid().ToString();
-        const string insertSql = """
-            INSERT INTO frog_character(id, account_id, account_username, display_name, payload)
-            SELECT @id, a.id, @username, @display_name, CAST(@payload AS JSON)
-            FROM accounts a
-            WHERE a.username = @username
-            LIMIT 1;
-            """;
-
         try
         {
-            using var insert = new MySqlCommand(insertSql, connection);
-            insert.Parameters.AddWithValue("@id", id);
-            insert.Parameters.AddWithValue("@username", username);
-            insert.Parameters.AddWithValue("@display_name", name);
-            insert.Parameters.AddWithValue("@payload", CharacterPayloadDefaults.NewHeroJson);
-            var rows = insert.ExecuteNonQuery();
-            if (rows != 1)
+            using var tx = connection.BeginTransaction();
+            if (withPayloadColumn)
             {
-                errorMessage = "Compte introuvable.";
-                return false;
+                const string insertSql = """
+                    INSERT INTO frog_character(id, account_id, account_username, display_name, payload)
+                    SELECT @id, a.id, @username, @display_name, CAST(@payload AS JSON)
+                    FROM accounts a
+                    WHERE a.username = @username
+                    LIMIT 1;
+                    """;
+
+                using (var insert = new MySqlCommand(insertSql, connection, tx))
+                {
+                    insert.Parameters.AddWithValue("@id", id);
+                    insert.Parameters.AddWithValue("@username", username);
+                    insert.Parameters.AddWithValue("@display_name", name);
+                    insert.Parameters.AddWithValue("@payload", CharacterPayloadDefaults.EmptyPayloadJson);
+                    var rows = insert.ExecuteNonQuery();
+                    if (rows != 1)
+                    {
+                        tx.Rollback();
+                        errorMessage = "Compte introuvable.";
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                const string insertNoPayload = """
+                    INSERT INTO frog_character(id, account_id, account_username, display_name)
+                    SELECT @id, a.id, @username, @display_name
+                    FROM accounts a
+                    WHERE a.username = @username
+                    LIMIT 1;
+                    """;
+
+                using (var insert = new MySqlCommand(insertNoPayload, connection, tx))
+                {
+                    insert.Parameters.AddWithValue("@id", id);
+                    insert.Parameters.AddWithValue("@username", username);
+                    insert.Parameters.AddWithValue("@display_name", name);
+                    var rows = insert.ExecuteNonQuery();
+                    if (rows != 1)
+                    {
+                        tx.Rollback();
+                        errorMessage = "Compte introuvable.";
+                        return false;
+                    }
+                }
             }
 
+            MariaDbCharacterPayloadRelational.SeedDefaultStats(connection, id, tx);
+            tx.Commit();
             characterId = id;
             return true;
         }

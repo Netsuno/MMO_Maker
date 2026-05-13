@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS frog_character(
     id CHAR(36) NOT NULL PRIMARY KEY,
     account_username VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
-    payload JSON NOT NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     UNIQUE KEY uq_frog_character_account_name(account_username, display_name),
@@ -110,7 +109,7 @@ CREATE TABLE IF NOT EXISTS frog_map_event(
 
 CREATE INDEX IF NOT EXISTS idx_frog_map_event_map ON frog_map_event(map_id);
 
--- Inventaire joueur (décision produit : relationnel, pas dans frog_character.payload).
+-- Inventaire joueur (décision produit : relationnel ; pas dans les extras perso KV).
 -- Grille : une ligne par case (slot_index). item_definition_id NULL = case vide.
 CREATE TABLE IF NOT EXISTS frog_item_definition(
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
