@@ -2,7 +2,7 @@ using System;
 using System.Windows.Threading;
 using Frog.Application.Maps;
 using Frog.Editor;
-using Xunit;;
+using Xunit;
 
 namespace Frog.Editor.WindowsSmokeTests;
 
