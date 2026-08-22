@@ -7,8 +7,8 @@
   - CI acceptée : https://github.com/Netsuno/MMO_Maker/actions/runs/32585827562
 - **Phase 5 : GATE REACHED — WAITING FOR REVIEW** (corrections after rejection of `baaf79c`)
   - Rejected tip : `baaf79c846f1151f7e7a5f544812756635f1fcfd`
-  - Corrections head : `aacc2c05828b41400012b3fbc67c5455217f5f20`
-  - Commit range : `baaf79c..aacc2c0`
+  - Corrections head : `5774b4ffc3b69ba08a15b59ec5b0329c09c5ba28` (implementation: `aacc2c05828b41400012b3fbc67c5455217f5f20`)
+  - Commit range : `baaf79c..5774b4f`
   - CI : _pending — see PR #2 checks_
 - Phase 6 : non commencée
 

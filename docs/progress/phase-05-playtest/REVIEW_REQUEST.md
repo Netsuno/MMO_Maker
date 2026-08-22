@@ -7,7 +7,7 @@ Phase 5 temporarily rejected at `baaf79c` despite green CI. Corrections on the *
 ## Plage de commits
 
 - After rejected tip: `baaf79c846f1151f7e7a5f544812756635f1fcfd`
-- Head: `aacc2c05828b41400012b3fbc67c5455217f5f20`
+- Head: `5774b4ffc3b69ba08a15b59ec5b0329c09c5ba28` (impl `aacc2c0`)
 - PR: #2 — `cursor/phase0-baseline-audit-02c7`
 
 ## Preuves locales (avant CI)
