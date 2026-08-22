@@ -77,7 +77,9 @@ public sealed class EditorPlaytestSmokeTests
                 var stop = window.EditorForm.StopPlaytestAsync();
                 StaTestRunner.PumpUntil(() => stop.IsCompleted && start.IsCompleted, EditorSmokeTestAccess.DefaultTimeout);
 
-                Assert.True(launcher.StopCount >= 1);
+                Assert.True(
+                    launcher.StopCount >= 1,
+                    $"expected process cleanup on cancel; StopCount={launcher.StopCount}, LastError={window.EditorForm.LastPlaytestErrorForTest}");
                 Assert.False(window.EditorForm.IsPlaytestActiveForTest());
             }
             finally
@@ -105,7 +107,17 @@ public sealed class EditorPlaytestSmokeTests
             CancellationToken cancellationToken = default)
         {
             ServerStartEntered = true;
-            await Task.Delay(30_000, cancellationToken).ConfigureAwait(false);
+            // Mirror EditorPlaytestProcessLauncher: if wait/cancel fails after start, stop locally.
+            try
+            {
+                await Task.Delay(30_000, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                StopCount++;
+                throw;
+            }
+
             return new PlaytestProcessHandle
             {
                 ProcessId = Interlocked.Increment(ref _pid),
