@@ -12,6 +12,12 @@ internal static class EditorTestHooks
 
     public static IPlaytestProcessLauncher? OverridePlaytestProcessLauncher { get; set; }
 
+    /// <summary>Chemin serveur injecté (smoke) — évite la résolution disque.</summary>
+    public static string? OverrideServerExePath { get; set; }
+
+    /// <summary>Chemin client injecté (smoke).</summary>
+    public static string? OverrideClientExePath { get; set; }
+
     public static bool SkipMariaDbOnStartup { get; set; }
 
     /// <summary>Smoke / unit : autorise playtest sur dépôt mémoire test.</summary>

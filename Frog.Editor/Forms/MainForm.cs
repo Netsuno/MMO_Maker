@@ -1486,14 +1486,33 @@ public sealed class MainForm : Form
 
         try
         {
-            if (!EditorFrogServerLauncher.TryResolveExecutable(out var serverExe, out _))
+            // Gate durable avant résolution des exécutables (messages actionnables stables en smoke).
+            if (!EditorTestHooks.AllowNonDurablePlaytest && !_persistenceCapabilities.IsDurablePersistence)
+            {
+                LastPlaytestErrorForTest =
+                    "Playtest impossible : PostgreSQL durable requis (les brouillons mémoire ne sont pas playtestables).";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            string serverExe;
+            if (!string.IsNullOrWhiteSpace(EditorTestHooks.OverrideServerExePath))
+            {
+                serverExe = EditorTestHooks.OverrideServerExePath;
+            }
+            else if (!EditorFrogServerLauncher.TryResolveExecutable(out serverExe, out _))
             {
                 LastPlaytestErrorForTest = "Frog.Server introuvable. Compilez le serveur (Release/Debug) ou indiquez le chemin.";
                 _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
                 return;
             }
 
-            if (!EditorFrogClientLauncher.TryResolveExecutable(out var clientExe))
+            string clientExe;
+            if (!string.IsNullOrWhiteSpace(EditorTestHooks.OverrideClientExePath))
+            {
+                clientExe = EditorTestHooks.OverrideClientExePath;
+            }
+            else if (!EditorFrogClientLauncher.TryResolveExecutable(out clientExe))
             {
                 LastPlaytestErrorForTest = "Frog.Client.exe introuvable.";
                 _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");

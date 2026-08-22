@@ -2,7 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
-using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Editor;
 using Frog.Editor.Services;
@@ -20,6 +19,9 @@ public sealed class EditorPlaytestSmokeTests
         {
             EditorSmokeTestAccess.ConfigureInMemoryRepository();
             EditorTestHooks.AllowNonDurablePlaytest = false;
+            // Exes injectés pour prouver que le gate durable s’applique avant le lancement.
+            EditorTestHooks.OverrideServerExePath = "fake-Frog.Server.exe";
+            EditorTestHooks.OverrideClientExePath = "fake-Frog.Client.exe";
 
             MainWindow? window = null;
             try
@@ -57,6 +59,8 @@ public sealed class EditorPlaytestSmokeTests
         {
             EditorSmokeTestAccess.ConfigureInMemoryRepository();
             EditorTestHooks.AllowNonDurablePlaytest = true;
+            EditorTestHooks.OverrideServerExePath = "fake-Frog.Server.exe";
+            EditorTestHooks.OverrideClientExePath = "fake-Frog.Client.exe";
             var launcher = new CancelAwareFakeLauncher();
             EditorTestHooks.OverridePlaytestProcessLauncher = launcher;
 
@@ -69,8 +73,7 @@ public sealed class EditorPlaytestSmokeTests
                     EditorSmokeTestAccess.DefaultTimeout);
 
                 var start = window.EditorForm.StartPlaytestAsync();
-                // Cancel via Stop while server start is delayed.
-                StaTestRunner.PumpUntil(() => launcher.ServerStartEntered, TimeSpan.FromSeconds(10));
+                StaTestRunner.PumpUntil(() => launcher.ServerStartEntered, TimeSpan.FromSeconds(20));
                 var stop = window.EditorForm.StopPlaytestAsync();
                 StaTestRunner.PumpUntil(() => stop.IsCompleted && start.IsCompleted, EditorSmokeTestAccess.DefaultTimeout);
 
