@@ -2,11 +2,11 @@
 
 - Dernière mise à jour : 2026-08-22
 - Branche : `cursor/phase0-baseline-audit-02c7`
-- Commit de preuve (suites) : `08ff2e6230f78d832e72dbe101007a3cf3c00f30`
+- Commit de preuve (suites) : `af5ed14c628b51570d03bed47f75049fa88aaed9`
 - Gate Phase 3 accepté : `20eedc1`
 - Plage revue Phase 4 : `20eedc1..HEAD`
 - **Phase 4 — gate data safety : READY FOR REVIEW**
-- CI (preuve) : https://github.com/Netsuno/MMO_Maker/actions/runs/32585492554 (exit 0)
+- CI (preuve) : https://github.com/Netsuno/MMO_Maker/actions/runs/32585645096 (exit 0)
 - Smoke ×3 (workflow) : https://github.com/Netsuno/MMO_Maker/actions/runs/32585353371 (`bad59a4`, exit 0)
 
 ## Vérifié comme fonctionnel (head courant)

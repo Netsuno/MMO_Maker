@@ -11,7 +11,7 @@ Gate Phase 4 rejeté pour smoke Windows instable. Stabilisation livrée ; CI ver
 | Unitaires 129/129 | OK |
 | PostgreSQL 16/16 | OK |
 | Smoke Windows 7/7 × 3 consecutive | OK |
-| CI workflow exit 0 | OK — https://github.com/Netsuno/MMO_Maker/actions/runs/32585492554 |
+| CI workflow exit 0 | OK — https://github.com/Netsuno/MMO_Maker/actions/runs/32585645096 |
 | Phase 5 non commencée | OK |
 
 ## Preuves

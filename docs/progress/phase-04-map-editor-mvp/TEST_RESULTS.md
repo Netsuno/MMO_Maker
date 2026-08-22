@@ -3,9 +3,9 @@
 ## Identification
 
 - Date d’exécution : **2026-08-22**
-- Commit : `08ff2e6230f78d832e72dbe101007a3cf3c00f30`
+- Commit : `af5ed14c628b51570d03bed47f75049fa88aaed9`
 - Branche : `cursor/phase0-baseline-audit-02c7`
-- CI (exit 0) : https://github.com/Netsuno/MMO_Maker/actions/runs/32585492554
+- CI (exit 0) : https://github.com/Netsuno/MMO_Maker/actions/runs/32585645096
 - Hôte de test : terminé normalement (pas de crash dispatcher / exit 0)
 - Smoke ×3 également confirmé sur `bad59a4` : https://github.com/Netsuno/MMO_Maker/actions/runs/32585353371
 
@@ -20,7 +20,7 @@ dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.Integration
 FROG_EDITOR_FORCE_IN_MEMORY=1 dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj -c Release --no-build
 ```
 
-## Résultats CI (head `08ff2e6`)
+## Résultats CI (head `af5ed14`)
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
