@@ -4,7 +4,7 @@
 
 - Prior rejected-but-CI-green tip: `baaf79c846f1151f7e7a5f544812756635f1fcfd`
 - Corrections start after that commit on `cursor/phase0-baseline-audit-02c7`
-- Head (this gate): _filled after push — see STATUS.md_
+- Head (this gate): `aacc2c05828b41400012b3fbc67c5455217f5f20`
 
 ## Suites (local pre-push)
 
