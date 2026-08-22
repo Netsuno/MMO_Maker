@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using Frog.Editor;
 using Xunit;
 
@@ -9,10 +10,12 @@ namespace Frog.Editor.WindowsSmokeTests;
 public sealed class EditorMainWindowSmokeTests
 {
     [Fact]
-    public Task MainWindow_OpensDemoMap_WithInMemoryRepository()
-        => StaTestRunner.Run(RunSmokeAsync);
+    public void MainWindow_OpensDemoMap_WithInMemoryRepository()
+    {
+        StaTestRunner.Run(RunSmoke);
+    }
 
-    private static async Task RunSmokeAsync()
+    private static void RunSmoke()
     {
         EditorSmokeTestAccess.ConfigureInMemoryRepository();
 
@@ -25,15 +28,21 @@ public sealed class EditorMainWindowSmokeTests
         {
             window = EditorSmokeTestAccess.CreateAndShowMainWindow();
 
-            await EditorSmokeTestAccess.WaitForWorkspaceReadyAsync(
-                window,
-                EditorSmokeTestAccess.DefaultTimeout).ConfigureAwait(true);
+            StaTestRunner.PumpUntil(
+                () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
+                EditorSmokeTestAccess.DefaultTimeout);
+
+            if (window.EditorForm.WorkspaceInitializationTask.IsFaulted)
+            {
+                throw window.EditorForm.WorkspaceInitializationTask.Exception
+                      ?? new InvalidOperationException("Workspace initialization failed.");
+            }
 
             EditorSmokeTestAccess.AssertShellReady(window);
 
-            await EditorSmokeTestAccess.AssertDispatcherResponsiveAsync(
-                window,
-                TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+            var dispatcherDone = false;
+            window.Dispatcher.InvokeAsync(() => dispatcherDone = true, DispatcherPriority.Normal);
+            StaTestRunner.PumpUntil(() => dispatcherDone, TimeSpan.FromSeconds(5));
         }
         finally
         {
