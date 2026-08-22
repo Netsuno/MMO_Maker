@@ -7,7 +7,7 @@
   - Rejected tip : `f9d88b4827fc89c9e4ab63bd8c941bbb823d662b`
   - Implementation commit : `62b27c542bab33896b73e00889da4e0a29211fad`
   - CI-evidence tip : `2665e040937045155c887c62affdbfea98aa7153` (committed headless client)
-  - Gate HEAD : `06ad37303749c4f1585bc7c1d6bd156e1b6487d2`
+  - Gate HEAD : branch tip (docs after CI-evidence tip)
   - Range after rejection : `f9d88b4..HEAD`
   - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32600611710 (success on `2665e04`)
 - Phase 6 : non commencée
