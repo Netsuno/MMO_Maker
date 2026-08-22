@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Frog.Application.Playtest;
 using Frog.Core;
 using Frog.Core.Character;
 using Frog.Core.Constants;
@@ -171,14 +172,21 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        if (!_authService.ValidateCredentials(username, password))
+        var playtestTokenOk = _playtest.Enabled
+                              && !string.IsNullOrEmpty(_playtest.AuthToken)
+                              && string.Equals(username, PlaytestAuthToken.Username, StringComparison.Ordinal)
+                              && PlaytestAuthToken.FixedTimeEquals(password, _playtest.AuthToken);
+
+        if (!playtestTokenOk && !_authService.ValidateCredentials(username, password))
         {
             ServerNetworkLogs.LoginFailed(_logger, "invalid_credentials");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
             return;
         }
 
-        if (!_connectionManager.TryCreateSession(username, out var session) || session is null)
+        // Session username stable ; jeton jamais journalisé.
+        var sessionName = playtestTokenOk ? PlaytestAuthToken.Username : username;
+        if (!_connectionManager.TryCreateSession(sessionName, out var session) || session is null)
         {
             ServerNetworkLogs.LoginFailed(_logger, "already_connected");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Compte deja connecte.", cancellationToken);
@@ -186,7 +194,7 @@ public sealed class PacketDispatcher(
         }
 
         clientSession.AuthenticatedSession = session;
-        session.CharacterId = _characterBootstrap.EnsureDefaultHero(username);
+        session.CharacterId = _characterBootstrap.EnsureDefaultHero(sessionName);
 
         var mapAtLoginStart = session.CurrentMapId;
 
@@ -239,7 +247,7 @@ public sealed class PacketDispatcher(
         _clientRegistry.Register(session.Id, clientSession);
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
-        ServerNetworkLogs.LoginSucceeded(_logger, username);
+        ServerNetworkLogs.LoginSucceeded(_logger, sessionName);
 
         await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
 

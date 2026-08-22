@@ -66,7 +66,6 @@ public sealed class PlaytestE2ETests
 
         var preparer = new PlaytestMapPreparer(repo);
         var port = GetFreePort();
-        var workDir = Path.Combine(Path.GetTempPath(), "frog-e2e-" + Guid.NewGuid().ToString("N"));
         var prepared = await preparer.PrepareAsync(
             workspace,
             new PlaytestPrepareRequest
@@ -78,7 +77,6 @@ public sealed class PlaytestE2ETests
                 SpawnTileY = 0,
                 RequireDurablePersistence = false,
                 PublishCurrentBeforeLaunch = false,
-                WorkDirectory = workDir,
             });
         var plan = Assert.IsType<PlaytestPreparationResult.Success>(prepared).Plan;
         Assert.Equal(3, plan.Maps.Count);
@@ -189,10 +187,10 @@ public sealed class PlaytestE2ETests
             Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.BindAddressEnvironmentVariable, null);
             try
             {
-                if (Directory.Exists(workDir))
-                {
-                    Directory.Delete(workDir, recursive: true);
-                }
+                PlaytestWorkspacePaths.TryDeleteOwnedWorkspace(
+                    plan.WorkDirectory,
+                    plan.CorrelationId,
+                    out _);
             }
             catch
             {

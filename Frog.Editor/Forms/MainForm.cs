@@ -218,6 +218,7 @@ public sealed class MainForm : Form
 
         FormClosed += async (_, _) =>
         {
+            // Fallback only — primary await is MainWindow coordinated close / Quit.
             try
             {
                 await StopPlaytestAsync().ConfigureAwait(true);
@@ -1462,7 +1463,19 @@ public sealed class MainForm : Form
     internal bool IsPlaytestActiveForTest()
         => _playtestOrchestrator?.ActiveSession?.IsActive == true;
 
+    internal bool IsPlaytestBusyForTest() => _playtestBusy;
+
+    internal bool HasOwnedPlaytestProcessesForTest()
+        => _playtestLauncher?.HasOwnedProcesses == true
+           || _playtestOrchestrator?.ActiveSession is { Server: not null } or { Client: not null };
+
     internal string? LastPlaytestErrorForTest { get; private set; }
+
+    internal IReadOnlyList<string> DrainPlaytestLauncherLogsForTest()
+        => _playtestLauncher?.DrainLogsSnapshot() ?? Array.Empty<string>();
+
+    internal PlaytestSessionState? GetPlaytestSessionForTest()
+        => _playtestOrchestrator?.ActiveSession;
 
     internal async Task StartPlaytestAsync()
     {
@@ -1601,7 +1614,7 @@ public sealed class MainForm : Form
 
                 var summary = lines.Count > 0
                     ? string.Join(Environment.NewLine, lines.TakeLast(40))
-                    : $"Playtest démarré — MapId={success.Plan.PrimaryCanonicalMapId} rev={success.Plan.PrimaryPublishedRevision}";
+                    : $"Playtest prêt — MapId={success.Plan.PrimaryCanonicalMapId} rev={success.Plan.PrimaryPublishedRevision} spawn=({success.Plan.Spawn.TileX},{success.Plan.Spawn.TileY})";
                 _dialogService.ShowInfo(summary, "Playtest");
             }
         }

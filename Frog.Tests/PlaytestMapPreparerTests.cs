@@ -23,7 +23,6 @@ public sealed class PlaytestMapPreparerTests
         Assert.NotNull(workspace.CurrentMapId);
 
         var preparer = new PlaytestMapPreparer(repo);
-        var workDir = Path.Combine(Path.GetTempPath(), "frog-pt-" + Guid.NewGuid().ToString("N"));
         var result = await preparer.PrepareAsync(
             workspace,
             new PlaytestPrepareRequest
@@ -32,7 +31,6 @@ public sealed class PlaytestMapPreparerTests
                 Port = 6011,
                 SpawnTileX = 1,
                 SpawnTileY = 1,
-                WorkDirectory = workDir,
                 RequireDurablePersistence = false,
                 PublishCurrentBeforeLaunch = true,
             });
@@ -85,7 +83,6 @@ public sealed class PlaytestMapPreparerTests
             workspace,
             new PlaytestPrepareRequest
             {
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-dirty-" + Guid.NewGuid().ToString("N")),
                 RequireDurablePersistence = false,
                 SpawnTileX = 0,
                 SpawnTileY = 0,
@@ -110,7 +107,6 @@ public sealed class PlaytestMapPreparerTests
                 SpawnTileX = 9999,
                 SpawnTileY = 9999,
                 RequireDurablePersistence = false,
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-spawn-" + Guid.NewGuid().ToString("N")),
             });
         var failed = Assert.IsType<PlaytestPreparationResult.Failed>(result);
         Assert.Equal(PlaytestFailureKind.Validation, failed.Kind);
@@ -142,12 +138,10 @@ public sealed class PlaytestMapPreparerTests
         Assert.True(workspace.IsDirty);
 
         var preparer = new PlaytestMapPreparer(repo);
-        var workDir = Path.Combine(Path.GetTempPath(), "frog-pt-new-" + Guid.NewGuid().ToString("N"));
         var result = await preparer.PrepareAsync(
             workspace,
             new PlaytestPrepareRequest
             {
-                WorkDirectory = workDir,
                 RequireDurablePersistence = false,
                 PublishCurrentBeforeLaunch = true,
                 SpawnTileX = 0,
@@ -176,7 +170,6 @@ public sealed class PlaytestMapPreparerTests
             workspace,
             new PlaytestPrepareRequest
             {
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-abc-" + Guid.NewGuid().ToString("N")),
                 RequireDurablePersistence = false,
                 PublishCurrentBeforeLaunch = false,
                 SpawnTileX = 0,
@@ -238,7 +231,6 @@ public sealed class PlaytestMapPreparerTests
             workspace,
             new PlaytestPrepareRequest
             {
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-cycle-" + Guid.NewGuid().ToString("N")),
                 RequireDurablePersistence = false,
                 PublishCurrentBeforeLaunch = false,
                 SpawnTileX = 0,
@@ -276,7 +268,6 @@ public sealed class PlaytestMapPreparerTests
             workspace,
             new PlaytestPrepareRequest
             {
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-share-" + Guid.NewGuid().ToString("N")),
                 RequireDurablePersistence = false,
                 PublishCurrentBeforeLaunch = false,
                 SpawnTileX = 0,
@@ -318,7 +309,6 @@ public sealed class PlaytestMapPreparerTests
             workspace,
             new PlaytestPrepareRequest
             {
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-unpub-" + Guid.NewGuid().ToString("N")),
                 RequireDurablePersistence = false,
                 PublishCurrentBeforeLaunch = false,
                 SpawnTileX = 0,
@@ -397,7 +387,6 @@ public sealed class PlaytestOrchestratorTests
             {
                 Port = 6123,
                 RequireDurablePersistence = false,
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-orch-" + Guid.NewGuid().ToString("N")),
                 SpawnTileX = 1,
                 SpawnTileY = 1,
             },
@@ -427,7 +416,6 @@ public sealed class PlaytestOrchestratorTests
             {
                 Port = 6124,
                 RequireDurablePersistence = false,
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-orch-c-" + Guid.NewGuid().ToString("N")),
                 SpawnTileX = 1,
                 SpawnTileY = 1,
             },
@@ -456,7 +444,6 @@ public sealed class PlaytestOrchestratorTests
             {
                 Port = 6125,
                 RequireDurablePersistence = false,
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-orch-ok-" + Guid.NewGuid().ToString("N")),
                 SpawnTileX = 1,
                 SpawnTileY = 1,
             },
@@ -489,7 +476,6 @@ public sealed class PlaytestOrchestratorTests
             {
                 Port = 6126,
                 RequireDurablePersistence = false,
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-orch-to-" + Guid.NewGuid().ToString("N")),
                 SpawnTileX = 1,
                 SpawnTileY = 1,
             },

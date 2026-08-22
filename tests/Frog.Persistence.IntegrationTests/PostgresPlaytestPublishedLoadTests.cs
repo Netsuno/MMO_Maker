@@ -76,7 +76,6 @@ public sealed class PostgresPlaytestPublishedLoadTests
         Assert.Equal("DRAFT_NEWER", workspace.CurrentMap!.Name);
 
         var preparer = new PlaytestMapPreparer(repo);
-        var workDir = Path.Combine(Path.GetTempPath(), "frog-pg-pt-" + Guid.NewGuid().ToString("N"));
         var prepared = await preparer.PrepareAsync(
             workspace,
             new PlaytestPrepareRequest
@@ -85,7 +84,6 @@ public sealed class PostgresPlaytestPublishedLoadTests
                 Port = 0,
                 SpawnTileX = 1,
                 SpawnTileY = 1,
-                WorkDirectory = workDir,
                 RequireDurablePersistence = true,
                 // Force re-publish would create new published from draft — keep false to pin prior published.
                 PublishCurrentBeforeLaunch = false,
@@ -125,7 +123,6 @@ public sealed class PostgresPlaytestPublishedLoadTests
         Assert.True(workspace.IsDirty);
 
         var preparer = new PlaytestMapPreparer(repo);
-        var workDir = Path.Combine(Path.GetTempPath(), "frog-pg-new-" + Guid.NewGuid().ToString("N"));
         var prepared = await preparer.PrepareAsync(
             workspace,
             new PlaytestPrepareRequest
@@ -134,7 +131,6 @@ public sealed class PostgresPlaytestPublishedLoadTests
                 Port = 0,
                 SpawnTileX = 1,
                 SpawnTileY = 1,
-                WorkDirectory = workDir,
                 RequireDurablePersistence = true,
                 PublishCurrentBeforeLaunch = true,
             });
@@ -154,10 +150,7 @@ public sealed class PostgresPlaytestPublishedLoadTests
 
         try
         {
-            if (Directory.Exists(workDir))
-            {
-                Directory.Delete(workDir, recursive: true);
-            }
+            PlaytestWorkspacePaths.TryDeleteOwnedWorkspace(success.Plan.WorkDirectory, success.Plan.CorrelationId, out _);
         }
         catch
         {

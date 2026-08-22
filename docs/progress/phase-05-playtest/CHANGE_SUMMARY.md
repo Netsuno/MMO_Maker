@@ -1,40 +1,34 @@
-# Phase 5 — CHANGE SUMMARY (incl. rejection corrections)
+# Phase 5 — CHANGE SUMMARY (second rejection corrections)
 
 ## Application
 
-- `PlaytestModels`, `PlaytestMapPreparer` (save-new/dirty → publish → BFS warp closure), `PlaytestOrchestrator` (temp cleanup), `RuntimeMapIdAllocator`, `PlaytestManifestWriter`
-- `PlaytestChildEnvironment` — shared sanitize + child env-name probe (no secret values)
-- `PlaytestSpawnValidator` — bounds + passability
-- `IMapRepository.LoadPublishedByIdAndRevisionAsync`
-
-## Persistence
-
-- `PostgresMapRepository.LoadPublishedByIdAndRevisionAsync`
-- PG tests: published-vs-draft + brand-new unsaved map playtest prepare
+- `PlaytestOwnedProcessLauncher` — production process manager (sanitize, drain logs, Hello readiness, client READY wait, owned-only kill)
+- `PlaytestWorkspacePaths` — canonical owned workspace root + marker; safe delete only
+- `PlaytestAuthToken` — ephemeral loopback token (never logged)
+- `PlaytestLogSanitizer` — removes full secret values (not name-only mangling)
+- Preparer always creates owned workspace; generates auth token on plan
+- Orchestrator cleanup uses owned-workspace delete only
 
 ## Server
 
-- `FrogServerHostFactory` + playtest env (`FROG_PLAYTEST_*` incl. `BIND_ADDRESS=127.0.0.1`)
-- `PlaytestMapBlobStore`, `PlaytestRuntimeOptions`
-- `PacketDispatcher` playtest spawn + correlated log scopes
-- **No** Persistence/PG reference on playtest path
-
-## Editor
-
-- Playtest / Stop Playtest; `PlaytestSpawnDialog` (tile X/Y)
-- `EditorPlaytestProcessLauncher`: sanitize server+client env; async stdout/stderr; Hello readiness; owned-only kill; await exit; correlated bounded logs
-- Smoke: `OverrideSpawnTile` hook
+- Playtest token login (`__frog_playtest__` + env token) when playtest enabled
+- `PlaytestRuntimeOptions.AuthToken` from env
 
 ## Client
 
-- CLI: `--playtest --host --port --correlation`
+- `--playtest-token` / env token; auto-connect + token login + map load
+- Stdout `FROG_PLAYTEST_READY` after auth+map; correlated Console logs (token redacted)
+- Never logs the token
+
+## Editor
+
+- `EditorPlaytestProcessLauncher` thin wrapper over `PlaytestOwnedProcessLauncher`
+- WPF `OnMainWindowClosing` / Quit: cancel close while playtest active/busy/owned; await `StopPlaytestAsync`; then dirty prompt; then close
+- `FormClosed` stop is fallback only
+- Success UI only after orchestrator returns Success (client ready)
 
 ## Tests
 
-- Secret probe (server+client roles)
-- New-map + warp graph unit suite
-- Spawn validator cases
-- Real `dotnet Frog.Server.dll` process lifecycle
-- TCP framing fragmentation / invalid sizes / version mismatch
-- TCP E2E move/block/two-warps/map request/shutdown
-- Windows smoke playtest error + cancel
+- Production launcher/orchestrator integration (Frog.Tests)
+- Safe workspace sentinel + secret redaction
+- WPF playtest close smokes + `FrogGameClient` protocol-version rejection (Windows)

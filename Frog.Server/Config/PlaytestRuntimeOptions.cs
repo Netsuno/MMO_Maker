@@ -19,6 +19,8 @@ public sealed class PlaytestRuntimeOptions
     public Guid PrimaryCanonicalMapId { get; init; }
     public long PrimaryPublishedRevision { get; init; }
     public string BindAddress { get; init; } = "127.0.0.1";
+    /// <summary>Jeton playtest (env uniquement — jamais loggé).</summary>
+    public string? AuthToken { get; init; }
 
     public static PlaytestRuntimeOptions FromEnvironment()
     {
@@ -42,6 +44,8 @@ public sealed class PlaytestRuntimeOptions
             bind = "127.0.0.1";
         }
 
+        var token = Environment.GetEnvironmentVariable(PlaytestAuthToken.EnvironmentVariable);
+
         return new PlaytestRuntimeOptions
         {
             Enabled = true,
@@ -53,6 +57,7 @@ public sealed class PlaytestRuntimeOptions
             PrimaryCanonicalMapId = doc.PrimaryCanonicalMapId,
             PrimaryPublishedRevision = doc.PrimaryPublishedRevision,
             BindAddress = bind,
+            AuthToken = string.IsNullOrWhiteSpace(token) ? null : token,
         };
     }
 }

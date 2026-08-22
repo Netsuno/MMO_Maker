@@ -129,6 +129,11 @@ public sealed class MainShellForm : Form
     private const int MoveNetworkPulseMs = 52;
 
     private readonly ClientPlaytestOptions? _playtestOptions;
+    private bool _playtestReadyEmitted;
+    private int? _playtestObservedMapId;
+    private int? _playtestObservedPixelX;
+    private int? _playtestObservedPixelY;
+    private bool _playtestLoginOk;
 
     public MainShellForm()
         : this(null)
@@ -252,7 +257,105 @@ public sealed class MainShellForm : Form
         {
             AppendLog(
                 $"[playtest] host={_playtestOptions.Host} port={_playtestOptions.Port} correlation={_playtestOptions.CorrelationId ?? "-"}");
+            BeginInvoke(async () => await RunPlaytestAutoStartAsync().ConfigureAwait(true));
         }
+    }
+
+    /// <summary>
+    /// Playtest : connecte, authentifie via jeton éphémère (jamais loggé), charge la carte, signale readiness stdout.
+    /// </summary>
+    private async Task RunPlaytestAutoStartAsync()
+    {
+        if (_playtestOptions is not { IsPlaytest: true } || _client is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (string.IsNullOrEmpty(_playtestOptions.PlaytestToken))
+            {
+                EmitPlaytestFailure("jeton playtest manquant");
+                return;
+            }
+
+            await ConnectAsync().ConfigureAwait(true);
+            if (!_client.IsConnected)
+            {
+                EmitPlaytestFailure("connexion TCP échouée");
+                return;
+            }
+
+            // Attendre Hello (envoyé par le serveur à la connexion) avant login.
+            for (var i = 0; i < 50 && _client.IsConnected; i++)
+            {
+                await Task.Delay(40).ConfigureAwait(true);
+            }
+
+            if (!_client.IsConnected)
+            {
+                EmitPlaytestFailure("déconnecté pendant Hello (version protocole ?)");
+                return;
+            }
+
+            await _client.SendLoginAsync("__frog_playtest__", _playtestOptions.PlaytestToken!)
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            EmitPlaytestFailure(ex.Message);
+        }
+    }
+
+    private void EmitPlaytestFailure(string message)
+    {
+        var safe = message.Replace('\r', ' ').Replace('\n', ' ');
+        if (!string.IsNullOrEmpty(_playtestOptions?.PlaytestToken))
+        {
+            safe = safe.Replace(_playtestOptions.PlaytestToken, "***", StringComparison.Ordinal);
+        }
+
+        AppendLog("[playtest] FAIL: " + safe);
+        try
+        {
+            Console.Error.WriteLine("FROG_PLAYTEST_FAIL " + safe);
+            Console.Error.Flush();
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
+    private void TryEmitPlaytestReady()
+    {
+        if (_playtestReadyEmitted || _playtestOptions is not { IsPlaytest: true })
+        {
+            return;
+        }
+
+        if (!_playtestLoginOk || _map is null || _playtestObservedMapId is null)
+        {
+            return;
+        }
+
+        var corr = string.IsNullOrWhiteSpace(_playtestOptions.CorrelationId)
+            ? "-"
+            : _playtestOptions.CorrelationId!;
+        var line =
+            $"FROG_PLAYTEST_READY correlation={corr} map={_playtestObservedMapId} x={_playtestObservedPixelX ?? -1} y={_playtestObservedPixelY ?? -1}";
+        try
+        {
+            Console.Out.WriteLine(line);
+            Console.Out.Flush();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        AppendLog(line);
+        _playtestReadyEmitted = true;
     }
 
     private async Task MainShell_FormClosingAsync()
@@ -810,7 +913,14 @@ public sealed class MainShellForm : Form
         _client.CharacterPayloadReceived += OnCharacterPayload;
         _client.PositionUpdateReceived += OnPositionUpdate;
         _client.PlayerLeaveReceived += OnPlayerLeave;
-        _client.ErrorReceived += err => AppendLog("Erreur: " + err);
+        _client.ErrorReceived += err =>
+        {
+            AppendLog("Erreur: " + err);
+            if (_playtestOptions is { IsPlaytest: true } && !_playtestReadyEmitted)
+            {
+                EmitPlaytestFailure(err);
+            }
+        };
         _client.HeartbeatAckReceived += () => { };
         _client.LogoutAckReceived += OnLogoutAck;
         _client.ChatMessageReceived += OnChatMessage;
@@ -925,10 +1035,18 @@ public sealed class MainShellForm : Form
         AppendLog(ok ? "Login OK: " + message : "Login refusé: " + message);
         if (!ok)
         {
+            if (_playtestOptions is { IsPlaytest: true })
+            {
+                EmitPlaytestFailure("login refusé: " + message);
+            }
+
             return;
         }
 
-        _username = _txtUser.Text.Trim();
+        _playtestLoginOk = true;
+        _username = _playtestOptions is { IsPlaytest: true }
+            ? "__frog_playtest__"
+            : _txtUser.Text.Trim();
         _btnMap.Enabled = true;
         _btnLogout.Enabled = true;
         _btnMelee.Enabled = false;
@@ -944,6 +1062,34 @@ public sealed class MainShellForm : Form
         _ = RefreshCharacterListAsync();
         _ = MapRequestAsync();
         SetPhase(ClientUiPhase.CharacterSelect);
+        if (_playtestOptions is { IsPlaytest: true })
+        {
+            _ = AutoEnterPlaytestCharacterAsync();
+        }
+    }
+
+    private async Task AutoEnterPlaytestCharacterAsync()
+    {
+        try
+        {
+            for (var i = 0; i < 40; i++)
+            {
+                await Task.Delay(50).ConfigureAwait(true);
+                if (_cmbCharacters.Items.Count > 0)
+                {
+                    _cmbCharacters.SelectedIndex = 0;
+                    await ApplySelectedCharacterAsync().ConfigureAwait(true);
+                    return;
+                }
+            }
+
+            // Pas de perso listé : la carte + spawn playtest suffisent pour la readiness.
+            TryEmitPlaytestReady();
+        }
+        catch (Exception ex)
+        {
+            EmitPlaytestFailure("auto perso: " + ex.Message);
+        }
     }
 
     private async Task RegisterAsync()
@@ -1069,6 +1215,11 @@ public sealed class MainShellForm : Form
         RedrawMap();
         _ = RequestMapEventsFromServerAsync();
         TryEnterPlayingPhaseAfterMapReady();
+        if (_playtestOptions is { IsPlaytest: true })
+        {
+            _playtestObservedMapId = mapId;
+            TryEmitPlaytestReady();
+        }
     }
 
     private void OnMapAlreadySynced(int mapId, long revision)
@@ -1381,6 +1532,14 @@ public sealed class MainShellForm : Form
     private void OnPositionUpdate(string user, int mapId, int x, int y)
     {
         var isLocal = _username is not null && string.Equals(user, _username, StringComparison.OrdinalIgnoreCase);
+        if (isLocal && _playtestOptions is { IsPlaytest: true })
+        {
+            _playtestObservedMapId ??= mapId;
+            _playtestObservedPixelX = x;
+            _playtestObservedPixelY = y;
+            TryEmitPlaytestReady();
+        }
+
         if (!isLocal && _sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
         {
             return;
@@ -1747,8 +1906,26 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (!string.IsNullOrEmpty(_playtestOptions?.PlaytestToken))
+        {
+            line = line.Replace(_playtestOptions.PlaytestToken, "***", StringComparison.Ordinal);
+        }
+
         var t = DateTime.Now.ToString("HH:mm:ss");
-        _txtLog.AppendText($"[{t}] {line}{Environment.NewLine}");
+        var stamped = $"[{t}] {line}";
+        _txtLog.AppendText(stamped + Environment.NewLine);
+        if (_playtestOptions is { IsPlaytest: true })
+        {
+            try
+            {
+                Console.Out.WriteLine(stamped);
+                Console.Out.Flush();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
     }
 
     private sealed class CharacterPickRow(string id, string displayName)

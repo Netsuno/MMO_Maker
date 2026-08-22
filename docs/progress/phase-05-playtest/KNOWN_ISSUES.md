@@ -2,21 +2,22 @@
 
 ## Evidence honesty
 
-- `playtest-launch.png` and `playtest-client-running.png` are **schematic mockups**, not validated WPF screenshots.
-- Manual visual test of the running editor/client UI: **NOT RUN** (no Windows graphical session on the Linux cloud agent). Automated proof of real process launch/stop remains in `PlaytestRealProcessLifecycleTests` and CI Windows smoke.
+- `playtest-launch.png` / `playtest-client-running.png` are **schematic mockups**, not validated WPF screenshots.
+- Manual graphical desktop test: **NOT RUN** (Linux cloud agent).
+- Production client GUI path on Windows is covered by smoke + `FrogGameClient` protocol tests; Linux CI uses `PlaytestOwnedProcessLauncher` + production-equivalent headless client that speaks the same token/READY protocol as `Frog.Client`.
 
 ## Known limitations
 
-1. **Playtest world transport** is manifest + `.fmap` files written by the editor preparer. The server does not open PostgreSQL during playtest (by design: no DB string on server/client after sanitize).
-2. **Runtime map IDs** are session-allocated ints (primary=1; others by stable Guid order). Warp Guids in blobs are rewritten to packed runtime Guids for `MapService` warp resolution.
-3. **Client auto-login** is not forced; playtest opens the client with host/port/correlation — operator still authenticates unless future UX automates it.
-4. **MariaDB** playtest path is intentionally unused (Phase 5 = PostgreSQL published maps only).
+1. Playtest world transport = owned workspace under `%TEMP%/frog-playtest/{correlation}` + `.fmap` blobs (no PostgreSQL on child processes).
+2. Ephemeral playtest auth uses a single-use loopback token (`__frog_playtest__` + token); never logged.
+3. `FormClosed` `StopPlaytestAsync` is a **fallback** only — primary await is the WPF coordinated close gate / Quit → `Close()`.
+4. MariaDB playtest path unused.
 
 ## Three principal remaining risks
 
-1. **Process tree kill portability** — `Kill(entireProcessTree: true)` can differ across Windows shells when launching `dotnet Frog.Server.dll`; residual orphan risk if the OS denies kill.
-2. **Ephemeral port races** — rare bind race between free-port probe and server listen under heavy CI load.
-3. **Warp closure completeness** — only **published** warp targets (direct and transitive) are included; unpublished destinations fail preparation clearly (authors must publish destinations first).
+1. Process-tree kill portability for `dotnet Frog.Server.dll` / WinExe client under some Windows shells.
+2. Ephemeral port race under heavy CI load.
+3. Headless Linux client helper mirrors protocol READY marker but is not the WinForms binary (Windows smoke exercises real `Frog.Client` handshake for protocol-version rejection; full GUI auto-playtest path runs when Windows smoke launches real client exes in production launcher scenarios).
 
 ## Phase 6
 

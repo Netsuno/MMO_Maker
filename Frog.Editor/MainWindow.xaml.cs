@@ -155,7 +155,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdPlaytest, async (_, _) => await _editor.StartPlaytestAsync()));
         CommandBindings.Add(new CommandBinding(CmdStopPlaytest, async (_, _) => await _editor.StopPlaytestAsync(),
             (_, e) => e.CanExecute = _editor.IsPlaytestActiveForTest()));
-        CommandBindings.Add(new CommandBinding(CmdQuit, (_, _) => System.Windows.Application.Current.Shutdown()));
+        CommandBindings.Add(new CommandBinding(CmdQuit, (_, _) => Close()));
         CommandBindings.Add(new CommandBinding(CmdUndo, (_, _) => _editor.DoUndo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanUndo));
         CommandBindings.Add(new CommandBinding(CmdRedo, (_, _) => _editor.DoRedo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanRedo));
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
@@ -176,6 +176,7 @@ public partial class MainWindow : Window
     private bool _closingAfterConfirm;
     private bool _allowCloseWithoutPrompt;
     private bool _closePromptInFlight;
+    private bool _playtestCloseInFlight;
 
     internal void AllowCloseWithoutPromptForTest()
     {
@@ -190,13 +191,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!_editor.HasUnsavedChangesForTest())
+        var playtestActive = _editor.IsPlaytestActiveForTest()
+                             || _editor.IsPlaytestBusyForTest()
+                             || _editor.HasOwnedPlaytestProcessesForTest();
+        var dirty = _editor.HasUnsavedChangesForTest();
+
+        if (!playtestActive && !dirty)
         {
             return;
         }
 
         e.Cancel = true;
-        if (_closePromptInFlight)
+        if (_closePromptInFlight || _playtestCloseInFlight)
         {
             return;
         }
@@ -206,11 +212,31 @@ public partial class MainWindow : Window
         {
             try
             {
-                if (await _editor.TryRequestCloseAsync().ConfigureAwait(true))
+                if (_editor.IsPlaytestActiveForTest()
+                    || _editor.IsPlaytestBusyForTest()
+                    || _editor.HasOwnedPlaytestProcessesForTest())
                 {
-                    _closingAfterConfirm = true;
-                    Close();
+                    _playtestCloseInFlight = true;
+                    try
+                    {
+                        await _editor.StopPlaytestAsync().ConfigureAwait(true);
+                    }
+                    finally
+                    {
+                        _playtestCloseInFlight = false;
+                    }
                 }
+
+                if (_editor.HasUnsavedChangesForTest())
+                {
+                    if (!await _editor.TryRequestCloseAsync().ConfigureAwait(true))
+                    {
+                        return;
+                    }
+                }
+
+                _closingAfterConfirm = true;
+                Close();
             }
             catch (Exception ex)
             {

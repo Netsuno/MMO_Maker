@@ -43,10 +43,8 @@ public sealed class PlaytestWarpRuntimeDiagnosticsTests
         var workspace = new MapWorkspaceSession(repo);
         Assert.True(await workspace.OpenMapAsync(saveA.MapId));
         var preparer = new PlaytestMapPreparer(repo);
-        var workDir = Path.Combine(Path.GetTempPath(), "frog-diag-" + Guid.NewGuid().ToString("N"));
         var prepared = await preparer.PrepareAsync(workspace, new PlaytestPrepareRequest
         {
-            WorkDirectory = workDir,
             RequireDurablePersistence = false,
             PublishCurrentBeforeLaunch = false,
             SpawnTileX = 0,

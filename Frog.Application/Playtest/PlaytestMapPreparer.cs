@@ -23,6 +23,10 @@ public sealed class PlaytestPrepareRequest
     public int Port { get; init; } = 0;
     public int SpawnTileX { get; init; }
     public int SpawnTileY { get; init; }
+    /// <summary>
+    /// Ignoré s’il n’est pas un workspace owned sous la racine canonique.
+    /// Préférer laisser null — le preparer crée toujours un dossier owned.
+    /// </summary>
     public string? WorkDirectory { get; init; }
     public bool RequireDurablePersistence { get; init; } = true;
     public bool PublishCurrentBeforeLaunch { get; init; } = true;
@@ -202,10 +206,26 @@ public sealed class PlaytestMapPreparer : IPlaytestMapPreparer
             });
         }
 
-        var workDir = request.WorkDirectory
-                      ?? Path.Combine(Path.GetTempPath(), "frog-playtest", request.CorrelationId.ToString("N"));
-        Directory.CreateDirectory(workDir);
+        var workDir = PlaytestWorkspacePaths.CreateOwnedWorkspace(request.CorrelationId);
+        if (!string.IsNullOrWhiteSpace(request.WorkDirectory))
+        {
+            // Refuse arbitrary caller paths — only accept if already an owned workspace for this correlation.
+            if (!PlaytestWorkspacePaths.TryValidateOwnedWorkspace(
+                    request.WorkDirectory,
+                    request.CorrelationId,
+                    out var workDirError))
+            {
+                return new PlaytestPreparationResult.Failed(
+                    workDirError ?? "WorkDirectory playtest non owned.",
+                    PlaytestFailureKind.Validation);
+            }
+
+            // Caller supplied a pre-created owned dir (tests) — use it; keep marker.
+            workDir = Path.GetFullPath(request.WorkDirectory);
+        }
+
         var manifestPath = Path.Combine(workDir, "playtest-manifest.json");
+        var authToken = PlaytestAuthToken.Create();
 
         var plan = new PlaytestLaunchPlan
         {
@@ -223,6 +243,7 @@ public sealed class PlaytestMapPreparer : IPlaytestMapPreparer
             Port = request.Port > 0 ? request.Port : 0,
             WorkDirectory = workDir,
             ManifestPath = manifestPath,
+            AuthToken = authToken,
         };
 
         PlaytestManifestWriter.Write(plan);

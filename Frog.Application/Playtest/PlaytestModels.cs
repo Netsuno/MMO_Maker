@@ -33,6 +33,9 @@ public sealed class PlaytestLaunchPlan
     public required int Port { get; init; }
     public required string WorkDirectory { get; init; }
     public required string ManifestPath { get; init; }
+
+    /// <summary>Jeton éphémère loopback — jamais sérialisé dans le manifeste JSON ni journalisé.</summary>
+    public string AuthToken { get; init; } = string.Empty;
 }
 
 public abstract record PlaytestPreparationResult

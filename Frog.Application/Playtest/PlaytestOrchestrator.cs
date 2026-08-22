@@ -255,17 +255,19 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
         state.Server = null;
 
         if (state.Plan is { } plan &&
-            !string.IsNullOrWhiteSpace(plan.WorkDirectory) &&
-            Directory.Exists(plan.WorkDirectory))
+            !string.IsNullOrWhiteSpace(plan.WorkDirectory))
         {
-            try
+            if (PlaytestWorkspacePaths.TryDeleteOwnedWorkspace(
+                    plan.WorkDirectory,
+                    plan.CorrelationId,
+                    out var cleanupError))
             {
-                Directory.Delete(plan.WorkDirectory, recursive: true);
-                state.LogLines.Add($"[{state.CorrelationId:N}] Temp playtest nettoyé: {plan.WorkDirectory}");
+                state.LogLines.Add($"[{plan.CorrelationId:N}] Temp playtest nettoyé: {plan.WorkDirectory}");
             }
-            catch (Exception ex)
+            else if (!string.IsNullOrWhiteSpace(cleanupError))
             {
-                state.LogLines.Add($"[{state.CorrelationId:N}] Nettoyage temp échoué: {ex.Message}");
+                state.LogLines.Add(
+                    $"[{plan.CorrelationId:N}] Nettoyage temp refusé/échoué: {PlaytestLogSanitizer.Sanitize(cleanupError)}");
             }
         }
     }

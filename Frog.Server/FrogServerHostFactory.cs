@@ -221,6 +221,7 @@ public static class FrogServerHostFactory
             SpawnRuntimeMapId = plan.Spawn.RuntimeMapId,
             PrimaryCanonicalMapId = plan.PrimaryCanonicalMapId,
             PrimaryPublishedRevision = plan.PrimaryPublishedRevision,
+            AuthToken = string.IsNullOrEmpty(plan.AuthToken) ? null : plan.AuthToken,
         };
     }
 
