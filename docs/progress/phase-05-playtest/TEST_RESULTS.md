@@ -3,8 +3,8 @@
 ## Commit range
 
 - After Phase 4 accepted: `22d19b4570eaf552e5ce162243a83020ce86e2eb`
-- Green head: `e507a0481dd29c36524be4c854a458c84c70439c`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32590792046
+- Green head: `e2a1c0c179d5c2189ec2ef58d7dd945856c7678d`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32590970105
 
 ## Suites (CI)
 
