@@ -1,7 +1,7 @@
 # État du projet — MMO Maker
 
 - Dernière mise à jour : 2026-08-22
-- Branche / commit : `cursor/phase0-baseline-audit-02c7` / `3353b56`
+- Branche / commit : `cursor/phase0-baseline-audit-02c7` / `f487ff0`
 - **Phase 3 — Shell éditeur : READY FOR REVIEW**
 - Prochaine phase **non commencée** : Phase 4 — Map Editor MVP
 - Rapport : [`docs/progress/phase-03-editor-shell/REVIEW_REQUEST.md`](progress/phase-03-editor-shell/REVIEW_REQUEST.md)
