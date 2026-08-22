@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
+using Frog.Application.Maps;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -1096,7 +1097,6 @@ public sealed class MapCanvas : Control
         }
 
         EnsureLayerExists();
-        var layer = Map.Layers[ActiveLayerIndex];
         var ts = TileSize;
         var sw = Math.Max(1, SelectedStampInTiles.Width);
         var sh = Math.Max(1, SelectedStampInTiles.Height);
@@ -1118,8 +1118,7 @@ public sealed class MapCanvas : Control
                     continue;
                 }
 
-                layer.Tiles.RemoveAll(t => t.X == mx && t.Y == my);
-                layer.Tiles.Add(CreateBrushTile(mx, my, sx, sy));
+                MapEditOperations.PaintTile(Map, ActiveLayerIndex, mx, my, CreateBrushTile(mx, my, sx, sy));
             }
         }
     }
@@ -1152,12 +1151,12 @@ public sealed class MapCanvas : Control
 
     private void EraseAt(int tx, int ty)
     {
-        if (Map is null || ActiveLayerIndex < 0 || ActiveLayerIndex >= Map.Layers.Count || !IsActiveLayerEditable())
+        if (Map is null)
         {
             return;
         }
 
-        Map.Layers[ActiveLayerIndex].Tiles.RemoveAll(t => t.X == tx && t.Y == ty);
+        MapEditOperations.EraseTile(Map, ActiveLayerIndex, tx, ty);
     }
 
     private void EraseStamp(int tx, int ty)
@@ -1196,7 +1195,6 @@ public sealed class MapCanvas : Control
         }
 
         EnsureLayerExists();
-        var layer = Map.Layers[ActiveLayerIndex];
         var minX = Math.Min(x0, x1);
         var maxX = Math.Max(x0, x1);
         var minY = Math.Min(y0, y1);
@@ -1217,8 +1215,7 @@ public sealed class MapCanvas : Control
                     continue;
                 }
 
-                layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
-                layer.Tiles.Add(CreateBrushTile(x, y, sx, sy));
+                MapEditOperations.PaintTile(Map, ActiveLayerIndex, x, y, CreateBrushTile(x, y, sx, sy));
             }
         }
     }
@@ -1231,69 +1228,57 @@ public sealed class MapCanvas : Control
         }
 
         EnsureLayerExists();
-        var layer = Map.Layers[ActiveLayerIndex];
-        var start = layer.Tiles.FirstOrDefault(t => t.X == sx && t.Y == sy);
-        var matchEmpty = start is null;
-
-        var q = new Queue<(int x, int y)>();
-        var seen = new HashSet<(int, int)>();
-        q.Enqueue((sx, sy));
-        var toPaint = new List<(int x, int y)>();
-
-        while (q.Count > 0)
-        {
-            var (x, y) = q.Dequeue();
-            if (!seen.Add((x, y)))
-            {
-                continue;
-            }
-
-            if (x < 0 || y < 0 || x >= Map.Width || y >= Map.Height)
-            {
-                continue;
-            }
-
-            var here = layer.Tiles.FirstOrDefault(t => t.X == x && t.Y == y);
-            if (matchEmpty)
-            {
-                if (here is not null)
-                {
-                    continue;
-                }
-            }
-            else if (start is null || !SameVisualTile(start, here))
-            {
-                continue;
-            }
-
-            toPaint.Add((x, y));
-            q.Enqueue((x - 1, y));
-            q.Enqueue((x + 1, y));
-            q.Enqueue((x, y - 1));
-            q.Enqueue((x, y + 1));
-        }
-
-        foreach (var (x, y) in toPaint)
-        {
-            layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
-            layer.Tiles.Add(CreateBrushTile(x, y, SelectedSrc.X, SelectedSrc.Y));
-        }
+        MapEditOperations.FloodFill(Map, ActiveLayerIndex, sx, sy, CreateBrushTile(sx, sy, SelectedSrc.X, SelectedSrc.Y));
     }
 
-    private static bool SameVisualTile(Tile a, Tile? b)
+    internal void ApplyEditForTest(Action<MapCanvas> edit)
     {
-        if (b is null)
+        ArgumentNullException.ThrowIfNull(edit);
+        BeginEditTransaction();
+        edit(this);
+        Invalidate();
+    }
+
+    internal void PaintTileForTest(int x, int y) => ApplyBrush(x, y);
+
+    internal void SetBlockTileForTest(int x, int y)
+    {
+        BeginEditTransaction();
+        MapEditOperations.SetBlockTile(Map!, ActiveLayerIndex, x, y);
+        Invalidate();
+    }
+
+    internal void SetWarpTileForTest(int x, int y, Guid targetMapId, int targetX, int targetY)
+    {
+        BeginEditTransaction();
+        MapEditOperations.SetWarpDestination(Map!, ActiveLayerIndex, x, y, targetMapId, targetX, targetY);
+        Invalidate();
+    }
+
+    internal void SetLayerVisibilityForTest(int layerIndex, bool visible)
+    {
+        BeginEditTransaction();
+        MapEditOperations.SetLayerVisibility(Map!, layerIndex, visible);
+        Invalidate();
+    }
+
+    internal void SetLayerLockedForTest(int layerIndex, bool locked)
+    {
+        BeginEditTransaction();
+        MapEditOperations.SetLayerLocked(Map!, layerIndex, locked);
+        Invalidate();
+    }
+
+    internal void SetMapNameForTest(string name)
+    {
+        if (Map is null)
         {
-            return false;
+            return;
         }
 
-        if (a.TilesetId != b.TilesetId || a.SrcX != b.SrcX || a.SrcY != b.SrcY || a.Type != b.Type)
-        {
-            return false;
-        }
-
-        return a.Type != TileType.Warp
-            || (a.WarpTargetMapId == b.WarpTargetMapId && a.WarpTargetX == b.WarpTargetX && a.WarpTargetY == b.WarpTargetY);
+        BeginEditTransaction();
+        Map.Name = name;
+        Invalidate();
     }
 
     private void EnsureLayerExists()

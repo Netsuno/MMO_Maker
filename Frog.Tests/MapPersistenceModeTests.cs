@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Frog.Application.Maps;
 using Frog.Core.Enums;
@@ -49,9 +51,9 @@ public sealed class MapPersistenceModeTests
     public async Task DraftPublish_KeepsPreviousPublishedRevisionImmutable()
     {
         var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
-        var mapId = DemoMapFactory.DefaultMapId;
         var session = new MapWorkspaceSession(repo);
         await session.InitializeAsync();
+        var mapId = session.CurrentMapId!.Value;
 
         Assert.IsType<SaveMapResult.Success>(await session.SaveCurrentAsync(SaveMapIntent.Publish));
         var publishedV1 = await repo.LoadPublishedByIdAsync(mapId);
@@ -83,21 +85,18 @@ public sealed class MapPersistenceModeTests
     public async Task WarpOutOfBounds_ReturnsValidationFailed_NotPersistenceError()
     {
         var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
-        var targetId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001");
-        var otherId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccc0002");
-
-        await repo.SaveAsync(new SaveMapRequest
+        var targetId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = targetId,
+            MapId = null,
             Map = new Map { Name = "Small", Width = 3, Height = 3, Layers = { new Layer { LayerType = LayerType.Ground } } },
             ExpectedRevision = 0,
-        });
-        await repo.SaveAsync(new SaveMapRequest
+        })).MapId;
+        var otherId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = otherId,
-            Map = CreateMapWithWarp(targetId, 9, 9),
+            MapId = null,
+            Map = CreateMapWithWarp(targetId, 1, 1),
             ExpectedRevision = 0,
-        });
+        })).MapId;
 
         var bad = await repo.SaveAsync(new SaveMapRequest
         {
@@ -106,6 +105,38 @@ public sealed class MapPersistenceModeTests
             ExpectedRevision = 1,
         });
         Assert.IsType<SaveMapResult.ValidationFailed>(bad);
+    }
+
+    [Fact]
+    public async Task SaveCurrentAsync_PersistenceFailed_KeepsDirty()
+    {
+        var repo = new FailingSaveRepository();
+        var session = new MapWorkspaceSession(repo);
+        session.AdoptLocalDraft(DemoMapFactory.CreateStarter(), markDirty: true);
+
+        var result = await session.SaveCurrentAsync(SaveMapIntent.SaveDraft);
+        Assert.IsType<SaveMapResult.PersistenceFailed>(result);
+        Assert.True(session.IsDirty);
+    }
+
+    private sealed class FailingSaveRepository : IMapRepository
+    {
+        public MapRepositoryCapabilities Capabilities => MapRepositoryCapabilities.InMemoryTest;
+
+        public Task<SaveMapResult> SaveAsync(SaveMapRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult<SaveMapResult>(new SaveMapResult.PersistenceFailed("injecté"));
+
+        public Task<StoredMap?> LoadByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
+            => Task.FromResult<StoredMap?>(null);
+
+        public Task<StoredMap?> LoadPublishedByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
+            => Task.FromResult<StoredMap?>(null);
+
+        public Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<MapCatalogEntry>>(Array.Empty<MapCatalogEntry>());
+
+        public Task<IReadOnlyList<MapPublicationRecord>> ListPublicationHistoryAsync(Guid mapId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<MapPublicationRecord>>(Array.Empty<MapPublicationRecord>());
     }
 
     private static Map CreateMapWithWarp(Guid targetId, int destX, int destY)

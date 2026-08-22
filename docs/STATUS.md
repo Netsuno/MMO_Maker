@@ -2,17 +2,18 @@
 
 - Dernière mise à jour : 2026-08-22
 - Branche : `cursor/phase0-baseline-audit-02c7`
-- Commit d’implémentation Phase 3 (immuable) : `3fc6530`
-- Plage revue Phase 4 : `3fc6530..HEAD`
-- **Phase 4 — Map Editor MVP : READY FOR REVIEW**
-- Rapport : [`docs/progress/phase-04-map-editor-mvp/REVIEW_REQUEST.md`](progress/phase-04-map-editor-mvp/REVIEW_REQUEST.md)
+- Gate Phase 3 accepté : `20eedc1`
+- Plage revue Phase 4 : `20eedc1..HEAD`
+- **Phase 4 — gate data safety : READY FOR REVIEW**
 
-## Vérifié comme fonctionnel
+## Vérifié comme fonctionnel (head courant)
 
-- Build C# 12 + **114** tests unitaires `Frog.Tests`
-- Intégration PostgreSQL (**10**) incl. publication et second save
-- Smoke UI Windows (**2**) : ouverture shell + save brouillon mémoire
-- Éditeur : peinture, collision, warp, undo/redo, save/publish PostgreSQL
+- Build Release `Frog.Creator.sln`
+- **129** tests unitaires `Frog.Tests`
+- **16** tests intégration PostgreSQL (`Frog.Persistence.IntegrationTests`) — **100 % vert**
+- **7** smoke Windows (`Frog.Editor.WindowsSmokeTests`) — open/save, fermeture dirty, undo canvas
+- Contrat création : `MapId = null` → id généré ; mise à jour si existant
+- Séparation brouillon/publication, concurrence atomique, prompts dirty
 
 ## Différé (hors chemin critique)
 
@@ -27,8 +28,7 @@ dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
 export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only'
 dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release --no-build
 # Windows uniquement :
-export FROG_EDITOR_FORCE_IN_MEMORY=1
-dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj -c Release --no-build
+FROG_EDITOR_FORCE_IN_MEMORY=1 dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj -c Release --no-build
 ```
 
 ## Prochaine phase proposée (non commencée)

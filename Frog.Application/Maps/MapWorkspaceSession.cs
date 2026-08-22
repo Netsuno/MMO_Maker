@@ -52,7 +52,7 @@ public sealed class MapWorkspaceSession
                 var saved = await _repository.SaveAsync(
                         new SaveMapRequest
                         {
-                            MapId = DemoMapFactory.DefaultMapId,
+                            MapId = null,
                             Map = demo,
                             ExpectedRevision = 0,
                             Intent = SaveMapIntent.SaveDraft,
@@ -60,12 +60,19 @@ public sealed class MapWorkspaceSession
                         cancellationToken)
                     .ConfigureAwait(false);
 
-                if (saved is not SaveMapResult.Success)
+                if (saved is not SaveMapResult.Success success)
                 {
                     throw new InvalidOperationException("Impossible d’enregistrer la carte démo initiale.");
                 }
 
                 await RefreshCatalogAsync(cancellationToken).ConfigureAwait(false);
+                var demoOpened = await OpenMapAsync(success.MapId, cancellationToken).ConfigureAwait(false);
+                if (!demoOpened)
+                {
+                    throw new InvalidOperationException("Impossible d’ouvrir la carte démo enregistrée.");
+                }
+
+                return;
             }
             else
             {

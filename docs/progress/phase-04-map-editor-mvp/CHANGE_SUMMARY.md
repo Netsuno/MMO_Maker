@@ -1,32 +1,31 @@
-# Phase 04 — résumé des changements (gate data safety)
+# Phase 04 — résumé des changements (gate data safety, itération 2)
 
-## Application
+## Contrat création / mise à jour
 
-- `MapRepositoryCapabilities` : `IsDurablePersistence`, `AllowsSave`, libellés UI
-- `SaveMapIntent`, `SaveMapResult.NotDurable`, `SaveMapResult.PersistenceFailed`
-- `MapWorkspaceSession` : `CanPersist`, mutex save, `SaveCurrentAsync(SaveMapIntent)`, init démo locale sans fausse persistance
-- `MapWarpValidator`, `MapEditOperations` (logique testable sans UI)
-- `IMapRepository` : `LoadPublishedByIdAsync`, `ListPublicationHistoryAsync`
+- `MapId = null` ou vide → création, id retourné par `SaveMapResult.Success`
+- `MapId` existant → mise à jour atomique (`ExpectedRevision`)
+- `MapId` inconnu → `Conflict`
+- `MapWorkspaceSession.InitializeAsync` : seed démo avec `MapId = null`
+
+## Persistence PostgreSQL
+
+- Fixtures warp : carte cible créée d’abord, coordonnées dans les bornes
+- `TestBeforeCommitAsync` → `PersistenceFailed` (pas d’exception)
+- `ChangeTracker.Clear()` après `ExecuteUpdate` avant publish
+- Test régression même instance repository (révisions + historique)
 
 ## Éditeur
 
-- `IEditorDialogService` injectable (smoke + tests)
-- Save/Publish : pas de `_ =` silencieux, état occupé, menus désactivés si non persistant
-- Prompts Enregistrer / Ignorer / Annuler (changement carte, nouvelle carte, ouverture fichier, fermeture)
-- Dirty + undo sur PropertyGrid, visibilité couche, opérations couche
-- `WarpDestinationDialog` : limites X/Y selon carte cible sélectionnée
+- `MapCanvas` délègue à `MapEditOperations`
+- Undo : snapshot avant mutation (visibilité couche, PropertyGrid MouseDown)
+- Fermeture WPF : cancel synchrone + prompt async + re-close
+- `SaveMap()` wrapper avec capture d’exceptions (plus de `_ =` silencieux)
 
-## Persistence
+## Tests ajoutés / corrigés
 
-- Migration `DraftPublishSeparation` : snapshots publiés immuables + historique
-- `PostgresMapRepository` : `ExecuteUpdate` atomique sur `Id + Revision`, validation warp avant écriture
-- `InMemoryMapRepository` : séparation draft/publish pour tests
-
-## Tests
-
-- `MapPersistenceModeTests`, `MapEditOperationsTests`
-- PG : concurrence 2 DbContext, draft/publish immuable, warp hors limites
-- Smoke : 1 test via `MainForm.SaveMapAsync()`
+- PG : 16 tests (100 % vert local)
+- Smoke : 7 tests Windows (save commande, close dirty, undo canvas)
+- Unit : 129 (`Frog.Tests`)
 
 ## Plage
 

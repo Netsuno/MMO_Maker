@@ -35,61 +35,66 @@ public sealed class InMemoryMapRepository : IMapRepository
 
         lock (_gate)
         {
-            var mapId = request.MapId ?? Guid.Empty;
-            if (mapId == Guid.Empty)
+            if (request.MapId is Guid requestedId && requestedId != Guid.Empty)
             {
-                mapId = Guid.NewGuid();
-            }
-
-            if (!_drafts.TryGetValue(mapId, out var existing))
-            {
-                if (request.ExpectedRevision != 0)
+                if (!_drafts.TryGetValue(requestedId, out var existing))
                 {
                     return Task.FromResult<SaveMapResult>(new SaveMapResult.Conflict(0));
                 }
 
-                var revision = 1L;
-                var draft = CreateStored(mapId, request.Map, revision, MapPublishStatus.Draft, null);
-                _drafts[mapId] = draft;
-
-                if (request.Intent == SaveMapIntent.Publish)
+                if (existing.Revision != request.ExpectedRevision)
                 {
-                    PublishSnapshotLocked(mapId, draft);
-                    return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(revision, mapId, revision));
+                    return Task.FromResult<SaveMapResult>(new SaveMapResult.Conflict(existing.Revision));
                 }
 
-                return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(revision, mapId));
+                return Task.FromResult<SaveMapResult>(UpdateExistingLocked(requestedId, existing, request));
             }
 
-            if (existing.Revision != request.ExpectedRevision)
+            if (request.ExpectedRevision != 0)
             {
-                return Task.FromResult<SaveMapResult>(new SaveMapResult.Conflict(existing.Revision));
+                return Task.FromResult<SaveMapResult>(new SaveMapResult.Conflict(0));
             }
 
-            var newRevision = existing.Revision + 1;
-            var updatedDraft = CreateStored(
-                mapId,
-                request.Map,
-                newRevision,
-                MapPublishStatus.Draft,
-                existing.PublishedRevision);
-            _drafts[mapId] = updatedDraft;
+            var mapId = Guid.NewGuid();
+            var revision = 1L;
+            var draft = CreateStored(mapId, request.Map, revision, MapPublishStatus.Draft, null);
+            _drafts[mapId] = draft;
 
             if (request.Intent == SaveMapIntent.Publish)
             {
-                PublishSnapshotLocked(mapId, updatedDraft);
-                var publishedDraft = CreateStored(
-                    mapId,
-                    request.Map,
-                    newRevision,
-                    MapPublishStatus.Published,
-                    newRevision);
-                _drafts[mapId] = publishedDraft;
-                return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(newRevision, mapId, newRevision));
+                PublishSnapshotLocked(mapId, draft);
+                return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(revision, mapId, revision));
             }
 
-            return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(newRevision, mapId, updatedDraft.PublishedRevision));
+            return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(revision, mapId));
         }
+    }
+
+    private SaveMapResult UpdateExistingLocked(Guid mapId, StoredMap existing, SaveMapRequest request)
+    {
+        var newRevision = existing.Revision + 1;
+        var updatedDraft = CreateStored(
+            mapId,
+            request.Map,
+            newRevision,
+            MapPublishStatus.Draft,
+            existing.PublishedRevision);
+        _drafts[mapId] = updatedDraft;
+
+        if (request.Intent == SaveMapIntent.Publish)
+        {
+            PublishSnapshotLocked(mapId, updatedDraft);
+            var publishedDraft = CreateStored(
+                mapId,
+                request.Map,
+                newRevision,
+                MapPublishStatus.Published,
+                newRevision);
+            _drafts[mapId] = publishedDraft;
+            return new SaveMapResult.Success(newRevision, mapId, newRevision);
+        }
+
+        return new SaveMapResult.Success(newRevision, mapId, updatedDraft.PublishedRevision);
     }
 
     public Task<StoredMap?> LoadByIdAsync(Guid mapId, CancellationToken cancellationToken = default)

@@ -20,7 +20,8 @@ public sealed class MapWorkspaceSessionTests
 
         Assert.NotNull(session.CurrentMap);
         Assert.Equal(DemoMapFactory.DefaultName, session.CurrentMap.Name);
-        Assert.Equal(DemoMapFactory.DefaultMapId, session.CurrentMapId);
+        Assert.NotNull(session.CurrentMapId);
+        Assert.NotEqual(Guid.Empty, session.CurrentMapId);
         Assert.Equal(1, session.CurrentRevision);
         Assert.Single(session.Catalog);
         Assert.True(session.CurrentMap.Validate(out _));
@@ -31,14 +32,14 @@ public sealed class MapWorkspaceSessionTests
     public async Task ListSummaries_ReflectsSavedMaps()
     {
         var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
-        var mapId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         var map = DemoMapFactory.CreateStarter("Alpha");
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        var created = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = null,
             Map = map,
             ExpectedRevision = 0,
         }));
+        var mapId = created.MapId;
 
         var list = await repo.ListSummariesAsync();
         Assert.Single(list);
@@ -51,20 +52,18 @@ public sealed class MapWorkspaceSessionTests
     public async Task OpenMap_LoadsSelectedCatalogEntry()
     {
         var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
-        var id1 = Guid.Parse("33333333-3333-3333-3333-333333333331");
-        var id2 = Guid.Parse("33333333-3333-3333-3333-333333333332");
-        await repo.SaveAsync(new SaveMapRequest
+        var id1 = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = id1,
+            MapId = null,
             Map = DemoMapFactory.CreateStarter("A"),
             ExpectedRevision = 0,
-        });
-        await repo.SaveAsync(new SaveMapRequest
+        })).MapId;
+        var id2 = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = id2,
+            MapId = null,
             Map = DemoMapFactory.CreateStarter("B"),
             ExpectedRevision = 0,
-        });
+        })).MapId;
 
         var session = new MapWorkspaceSession(repo);
         await session.InitializeAsync(preferredMapId: id2);
@@ -122,9 +121,9 @@ public sealed class MapWorkspaceSessionTests
     public async Task SaveCurrentAsync_ReturnsConflict_WhenRevisionStale()
     {
         var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
-        var mapId = DemoMapFactory.DefaultMapId;
         var session = new MapWorkspaceSession(repo);
         await session.InitializeAsync();
+        var mapId = session.CurrentMapId!.Value;
 
         session.MarkDirty();
         var external = await repo.SaveAsync(new SaveMapRequest

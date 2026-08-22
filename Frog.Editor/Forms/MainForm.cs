@@ -63,6 +63,8 @@ public sealed class MainForm : Form
     private MapRepositoryCapabilities _persistenceCapabilities = MapRepositoryCapabilities.InMemoryDemo;
     private bool _saveInProgress;
     private bool _closeConfirmed;
+    private bool _propGridUndoCaptured;
+    private Task? _pendingSaveOperation;
     private ToolStripMenuItem? _mnuSave;
     private ToolStripMenuItem? _mnuPublish;
 
@@ -83,9 +85,37 @@ public sealed class MainForm : Form
 
     internal bool IsSaveInProgressForTest() => _saveInProgress;
 
-    internal Task SaveMapAsync() => SaveMapCoreAsync();
+    internal Task? PendingSaveOperationForTest => _pendingSaveOperation;
 
-    internal Task PublishMapAsync() => PublishMapCoreAsync();
+    internal bool HasUnsavedChangesForTest() => _workspace?.IsDirty == true;
+
+    internal bool IsCloseConfirmedForTest() => _closeConfirmed;
+
+    internal void SaveMap()
+    {
+        if (_saveInProgress)
+        {
+            return;
+        }
+
+        _pendingSaveOperation = RunSaveOperationAsync(SaveMapCoreAsync);
+    }
+
+    internal void PublishMap()
+    {
+        if (_saveInProgress)
+        {
+            return;
+        }
+
+        _pendingSaveOperation = RunSaveOperationAsync(PublishMapCoreAsync);
+    }
+
+    internal Task SaveMapCoreForTestAsync() => SaveMapCoreAsync();
+
+    internal Task PublishMapCoreForTestAsync() => PublishMapCoreAsync();
+
+    internal async Task<bool> TryRequestCloseAsync() => await ConfirmCloseAsync().ConfigureAwait(true);
 
     public bool CanExecuteSaveOrPublish()
         => _workspace is not null
@@ -157,20 +187,26 @@ public sealed class MainForm : Form
         _dialogService = EditorTestHooks.OverrideDialogService
                          ?? new WinFormsEditorDialogService(GetDialogOwner);
 
-        FormClosing += async (_, e) =>
+        if (!embedAsWpfChild)
         {
-            if (_closeConfirmed || _workspace?.IsDirty != true)
+            FormClosing += (_, e) =>
             {
-                return;
-            }
+                if (_closeConfirmed || _workspace?.IsDirty != true)
+                {
+                    return;
+                }
 
-            e.Cancel = true;
-            if (await ConfirmCloseAsync().ConfigureAwait(true))
-            {
-                _closeConfirmed = true;
-                Close();
-            }
-        };
+                e.Cancel = true;
+                BeginInvoke(new Action(async () =>
+                {
+                    if (await ConfirmCloseAsync().ConfigureAwait(true))
+                    {
+                        _closeConfirmed = true;
+                        Close();
+                    }
+                }));
+            };
+        }
 
         FormClosed += (_, _) => TilesetCache.Clear();
 
@@ -493,12 +529,16 @@ public sealed class MainForm : Form
                 return;
             }
 
-            _canvas.Map.Layers[t.index].Visible = t.visible;
             if (!_suppressDirtyTracking && _canvas.Map is not null)
             {
                 _canvas.History.PushBeforeChange(_canvas.Map);
+                _canvas.Map.Layers[t.index].Visible = t.visible;
                 OnMapEdited();
                 UpdateUndoRedoButtons();
+            }
+            else if (_canvas.Map is not null)
+            {
+                _canvas.Map.Layers[t.index].Visible = t.visible;
             }
             _canvas.Invalidate();
         };
@@ -520,6 +560,17 @@ public sealed class MainForm : Form
         _propGrid = new PropertyGrid { Dock = DockStyle.Fill, HelpVisible = false };
         EditorChrome.StylePropertyGrid(_propGrid);
         _propGrid.Font = EditorChrome.BodyFont;
+        _propGrid.SelectedObjectsChanged += (_, _) => _propGridUndoCaptured = false;
+        _propGrid.MouseDown += (_, _) =>
+        {
+            if (_propGridUndoCaptured || _suppressDirtyTracking || _canvas.Map is null)
+            {
+                return;
+            }
+
+            _canvas.History.PushBeforeChange(_canvas.Map);
+            _propGridUndoCaptured = true;
+        };
         _propGrid.PropertyValueChanged += (_, _) =>
         {
             if (_suppressDirtyTracking || _canvas.Map is null)
@@ -529,19 +580,12 @@ public sealed class MainForm : Form
 
             if (_propGrid.SelectedObject is Map)
             {
-                _canvas.History.PushBeforeChange(_canvas.Map);
                 UpdateMapChromeLabels();
-                OnMapEdited();
-                UpdateUndoRedoButtons();
-                return;
             }
 
-            if (_propGrid.SelectedObject is Tile)
-            {
-                _canvas.History.PushBeforeChange(_canvas.Map);
-                OnMapEdited();
-                UpdateUndoRedoButtons();
-            }
+            OnMapEdited();
+            UpdateUndoRedoButtons();
+            _propGridUndoCaptured = false;
         };
         _mapsProjectPanel.CurrentMapNodeSelected += (_, _) =>
         {
@@ -1125,26 +1169,6 @@ public sealed class MainForm : Form
         RefreshTilesetList();
     }
 
-    internal void SaveMap()
-    {
-        if (_saveInProgress)
-        {
-            return;
-        }
-
-        _ = RunSaveOperationAsync(SaveMapCoreAsync);
-    }
-
-    internal void PublishMap()
-    {
-        if (_saveInProgress)
-        {
-            return;
-        }
-
-        _ = RunSaveOperationAsync(PublishMapCoreAsync);
-    }
-
     private async System.Threading.Tasks.Task RunSaveOperationAsync(Func<System.Threading.Tasks.Task> operation)
     {
         if (_saveInProgress)
@@ -1159,11 +1183,18 @@ public sealed class MainForm : Form
         {
             await operation().ConfigureAwait(true);
         }
+        catch (Exception ex)
+        {
+            _dialogService.ShowError(
+                $"Erreur inattendue pendant l’enregistrement : {ex.Message}\nLa carte modifiée reste en mémoire.",
+                "Enregistrement échoué");
+        }
         finally
         {
             _saveInProgress = false;
             UpdatePersistenceMenuState();
             PushEditorStatusLine();
+            _pendingSaveOperation = null;
         }
     }
 

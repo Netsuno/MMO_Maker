@@ -1,6 +1,6 @@
 # Phase 04 — résultats de tests
 
-## Commandes
+## Commandes (head courant)
 
 ```bash
 dotnet build Frog.Creator.sln -c Release
@@ -11,38 +11,44 @@ dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.Integration
 FROG_EDITOR_FORCE_IN_MEMORY=1 dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj -c Release --no-build
 ```
 
-## Résultats locaux (agent Linux)
+## Résultats locaux (agent Linux, Release)
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
-| Frog.Tests | 128 | 0 | 128 |
-| Frog.Persistence.IntegrationTests | 13 | 0 | 13 |
+| Frog.Tests | 129 | 0 | 129 |
+| Frog.Persistence.IntegrationTests | 16 | 0 | 16 |
 
-## Smoke Windows (CI)
+## Smoke Windows (CI `windows-latest`)
 
-| Test | Attendu |
+| Test | Rôle |
 | --- | --- |
-| `MainWindow_OpensAndSavesDemoMap_WithInMemoryRepository` | PASS (shell + commande Save réelle) |
+| `MainWindow_OpensAndSavesDemoMap_WithInMemoryRepository` | Shell + commande `SaveMap()` + état occupé |
+| `MainWindow_DirtyCloseCancel_KeepsWindowOpen` | Fermeture dirty → Cancel |
+| `MainWindow_DirtyCloseDiscard_ClosesWindow` | Fermeture dirty → Discard |
+| `MainWindow_DirtyCloseSaveSuccess_ClosesWindow` | Fermeture dirty → Save OK |
+| `MainWindow_DirtyCloseSaveFailed_KeepsWindowOpenAndDirty` | Save échoué → fenêtre ouverte + dirty |
+| `MapCanvas_UndoRedo_RestoresPaintedTileBlockWarpLayerAndMapName` | Chemin canvas réel + undo/redo |
+| `MapCanvas_LockedLayer_DoesNotAcceptPaint` | Couche verrouillée |
 
-**Note :** le smoke Windows contient **1 test** (open + save via chemin commande éditeur).
+**Total smoke : 7 tests**
 
-## Scénarios data safety couverts
+**Lien run GitHub Actions :** _(à remplir après push CI)_
+
+## Scénarios gate couverts
 
 | Scénario | Test |
 | --- | --- |
-| Démo mémoire : save bloqué (`NotDurable`) | `MapPersistenceModeTests.DemoRepository_BlocksSave_WithNotDurable` |
-| Test mémoire : save éphémère autorisé | `MapPersistenceModeTests.TestRepository_AllowsEphemeralSave` |
-| Init démo locale sans catalogue persistant | `MapWorkspaceSessionTests.Initialize_OpensLocalDemo_WhenDemoRepository` |
-| Draft → publish → edit draft → publish précédent inchangé | `MapPersistenceModeTests.DraftPublish_*`, `PostgresMapRepositoryTests.Publish_KeepsPreviousPublishedSnapshotImmutable` |
-| Concurrence 2 DbContext même `ExpectedRevision` | `PostgresMapRepositoryTests.Save_ConcurrentDbContexts_ExactlyOneSucceeds` |
-| Warp destination hors limites → `ValidationFailed` | `MapPersistenceModeTests.WarpOutOfBounds_*`, PG équivalent |
-| Édition + reload sans perte modèle | `MapEditOperationsTests.SaveAndReload_PreservesEditedModel` |
-| Couche verrouillée non modifiable | `MapEditOperationsTests.PaintTile_DoesNotModifyLockedLayer` |
-| Smoke : `SaveMapAsync` (pas `SaveCurrentAsync` direct) | `EditorMainWindowSmokeTests` |
+| Init PG base vide (`MapId = null`) | `InitializeSession_OnEmptyDatabase_SeedsDemoSavePublishAndReload` |
+| Fixtures warp valides (cible créée d’abord) | Tous les `CreateSampleMap` PG |
+| `PersistenceFailed` + rollback | `Save_RollsBack_WhenFailureOccursBeforeCommit` |
+| Même repository : create → publish → draft → republish | `Save_SameRepositoryInstance_PublishSequenceHasCorrectRevisions` |
+| Concurrence 2 DbContext | `Save_ConcurrentDbContexts_ExactlyOneSucceeds` |
+| Fermeture WPF dirty | `EditorCloseSmokeTests` (4 cas) |
+| Canvas utilise `MapEditOperations` | `MapCanvasUndoSmokeTests` |
 
 ## Confirmation CI Phase 3
 
-- [x] Gate Phase 3 accepté (`20eedc1`) — smoke Windows Phase 3 vert avant Phase 4
+- [x] Gate Phase 3 accepté (`20eedc1`)
 
 ## Non exécuté localement
 

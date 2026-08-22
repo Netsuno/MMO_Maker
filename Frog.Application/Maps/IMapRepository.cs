@@ -10,7 +10,7 @@ public enum MapPublishStatus : byte
 
 public sealed class SaveMapRequest
 {
-    /// <summary>Null pour création (id généré) ; sinon identité canonique de la carte.</summary>
+    /// <summary>Null ou vide = création (identifiant généré) ; identifiant existant = mise à jour.</summary>
     public Guid? MapId { get; init; }
     public required Map Map { get; init; }
     /// <summary>0 pour une création ; sinon la révision brouillon actuellement connue.</summary>

@@ -69,7 +69,7 @@ public sealed class PostgresMapRepository : IMapRepository
                     return new SaveMapResult.Conflict(0);
                 }
 
-                var entity = MapPersistenceMapper.ToEntity(request, now);
+                var entity = MapPersistenceMapper.ToEntity(request.Map, now);
                 entity.Status = MapPublishStatus.Draft;
                 _db.Maps.Add(entity);
                 await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -85,6 +85,8 @@ public sealed class PostgresMapRepository : IMapRepository
                 {
                     publishedRevision = null;
                 }
+
+                _db.ChangeTracker.Clear();
             }
             else
             {
@@ -130,6 +132,8 @@ public sealed class PostgresMapRepository : IMapRepository
                 _db.MapNpcSpawns.AddRange(children.NpcSpawns);
                 await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+                _db.ChangeTracker.Clear();
+
                 if (request.Intent == SaveMapIntent.Publish)
                 {
                     var draft = await _db.Maps.SingleAsync(m => m.Id == mapId, cancellationToken).ConfigureAwait(false);
@@ -144,11 +148,20 @@ public sealed class PostgresMapRepository : IMapRepository
                         .SingleAsync(cancellationToken)
                         .ConfigureAwait(false);
                 }
+
+                _db.ChangeTracker.Clear();
             }
 
             if (TestBeforeCommitAsync is not null)
             {
-                await TestBeforeCommitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await TestBeforeCommitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    return new SaveMapResult.PersistenceFailed(ex.Message);
+                }
             }
 
             await tx.CommitAsync(cancellationToken).ConfigureAwait(false);

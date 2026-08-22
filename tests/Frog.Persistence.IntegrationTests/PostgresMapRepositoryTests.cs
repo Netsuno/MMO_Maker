@@ -19,25 +19,61 @@ public sealed class PostgresMapRepositoryTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
+    public async Task InitializeSession_OnEmptyDatabase_SeedsDemoSavePublishAndReload()
+    {
+        await using var db = CreateDb();
+        var repo = new PostgresMapRepository(db);
+        var session = new MapWorkspaceSession(repo);
+
+        await session.InitializeAsync();
+
+        Assert.NotNull(session.CurrentMap);
+        Assert.NotNull(session.CurrentMapId);
+        Assert.Equal(1, session.CurrentRevision);
+        Assert.Contains(session.Catalog, e => e.MapId == session.CurrentMapId);
+        Assert.False(session.IsDirty);
+
+        session.CurrentMap!.Name = "Demo PG seeded";
+        session.MarkDirty();
+        var saved = await session.SaveCurrentAsync(SaveMapIntent.SaveDraft);
+        var saveSuccess = Assert.IsType<SaveMapResult.Success>(saved);
+        Assert.Equal(2, saveSuccess.NewRevision);
+
+        session.MarkDirty();
+        var published = await session.SaveCurrentAsync(SaveMapIntent.Publish);
+        Assert.IsType<SaveMapResult.Success>(published);
+
+        await using var db2 = CreateDb();
+        var reloaded = await new PostgresMapRepository(db2).LoadByIdAsync(session.CurrentMapId!.Value);
+        Assert.NotNull(reloaded);
+        Assert.Equal("Demo PG seeded", reloaded!.Map.Name);
+        Assert.Equal(3, reloaded.Revision);
+
+        var publishedSnapshot = await new PostgresMapRepository(db2).LoadPublishedByIdAsync(session.CurrentMapId!.Value);
+        Assert.NotNull(publishedSnapshot);
+        Assert.Equal("Demo PG seeded", publishedSnapshot!.Map.Name);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
     public async Task SaveAndLoad_RoundTrip_PreservesModelIncludingAccents()
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var mapId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0101");
-        var map = CreateSampleMap("Carte d'été", mapId);
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Cible", 8, 8);
+        var map = CreateSampleMap("Carte d'été", targetId, warpX: 2, warpY: 3);
 
         var saved = await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = null,
             Map = map,
             ExpectedRevision = 0,
         });
         var success = Assert.IsType<SaveMapResult.Success>(saved);
         Assert.Equal(1, success.NewRevision);
-        Assert.Equal(mapId, success.MapId);
 
         await using var db2 = CreateDb();
-        var loaded = await new PostgresMapRepository(db2).LoadByIdAsync(mapId);
+        var loaded = await new PostgresMapRepository(db2).LoadByIdAsync(success.MapId);
         Assert.NotNull(loaded);
         Assert.Equal(1, loaded.Revision);
         AssertMapsEqual(map, loaded.Map);
@@ -49,18 +85,18 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var mapId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccc0202");
-        var map = CreateSampleMap("A", mapId);
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Cible", 8, 8);
+        var map = CreateSampleMap("A", targetId, warpX: 1, warpY: 1);
+        var created = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = null,
             Map = map,
             ExpectedRevision = 0,
         }));
 
         var conflict = await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = created.MapId,
             Map = map,
             ExpectedRevision = 0,
         });
@@ -70,24 +106,48 @@ public sealed class PostgresMapRepositoryTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
-    public async Task Save_RollsBack_WhenFailureOccursBeforeCommit()
+    public async Task Save_Conflict_WhenMapIdDoesNotExist()
     {
         await using var db = CreateDb();
-        var mapId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddd0303");
+        var repo = new PostgresMapRepository(db);
+        var mapId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccc0202");
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Cible", 8, 8);
+        var map = CreateSampleMap("Ghost", targetId, warpX: 1, warpY: 1);
+
+        var conflict = await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 1,
+        });
+        Assert.IsType<SaveMapResult.Conflict>(conflict);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task Save_RollsBack_WhenFailureOccursBeforeCommit()
+    {
+        await using var targetDb = CreateDb();
+        var (targetId, _) = await CreateTargetMapAsync(new PostgresMapRepository(targetDb), "Cible", 8, 8);
+
+        await using var db = CreateDb();
         var repo = new PostgresMapRepository(db)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injecté"),
         };
+        var map = CreateSampleMap("Rollback", targetId, warpX: 1, warpY: 1);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => repo.SaveAsync(new SaveMapRequest
+        var result = await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
-            Map = CreateSampleMap("Rollback", mapId),
+            MapId = null,
+            Map = map,
             ExpectedRevision = 0,
-        }));
+        });
+        Assert.IsType<SaveMapResult.PersistenceFailed>(result);
 
         await using var db2 = CreateDb();
-        Assert.Null(await new PostgresMapRepository(db2).LoadByIdAsync(mapId));
+        var list = await new PostgresMapRepository(db2).ListSummariesAsync();
+        Assert.DoesNotContain(list, e => e.Name == "Rollback");
     }
 
     [PostgresFact]
@@ -136,20 +196,21 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var zetaId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeee0001");
-        var alphaId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeee0002");
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Cible", 8, 8);
+        var zeta = CreateSampleMap("Zeta", targetId, warpX: 1, warpY: 1);
+        var alpha = CreateSampleMap("Alpha", targetId, warpX: 2, warpY: 2);
+        var zetaId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = zetaId,
-            Map = CreateSampleMap("Zeta", zetaId),
+            MapId = null,
+            Map = zeta,
             ExpectedRevision = 0,
-        }));
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        })).MapId;
+        var alphaId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = alphaId,
-            Map = CreateSampleMap("Alpha", alphaId),
+            MapId = null,
+            Map = alpha,
             ExpectedRevision = 0,
-        }));
+        })).MapId;
 
         await using var db2 = CreateDb();
         var list = await new PostgresMapRepository(db2).ListSummariesAsync();
@@ -165,35 +226,30 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var mapId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0101");
-        var map = CreateSampleMap("PublishMe", mapId);
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Cible", 8, 8);
+        var map = CreateSampleMap("PublishMe", targetId, warpX: 1, warpY: 1);
+        var mapId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = null,
             Map = map,
             ExpectedRevision = 0,
-            Status = MapPublishStatus.Draft,
-        }));
+        })).MapId;
 
-        await using var db2 = CreateDb();
-        var published = await new PostgresMapRepository(db2).SaveAsync(new SaveMapRequest
+        var published = await repo.SaveAsync(new SaveMapRequest
         {
             MapId = mapId,
             Map = map,
             ExpectedRevision = 1,
-            Status = MapPublishStatus.Published,
+            Intent = SaveMapIntent.Publish,
         });
-        Assert.IsType<SaveMapResult.Success>(published);
+        var pubSuccess = Assert.IsType<SaveMapResult.Success>(published);
+        Assert.Equal(2, pubSuccess.NewRevision);
 
         await using var db3 = CreateDb();
         var loaded = await new PostgresMapRepository(db3).LoadByIdAsync(mapId);
         Assert.NotNull(loaded);
-        Assert.Equal(MapPublishStatus.Published, loaded.Status);
+        Assert.Equal(MapPublishStatus.Published, loaded!.Status);
         Assert.Equal(2, loaded.Revision);
-
-        var summaries = await new PostgresMapRepository(db3).ListSummariesAsync();
-        var entry = summaries.First(s => s.MapId == mapId);
-        Assert.Equal(MapPublishStatus.Published, entry.Status);
     }
 
     [PostgresFact]
@@ -202,14 +258,14 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var mapId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccc0304");
-        var map = CreateSampleMap("Twice", mapId);
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Cible", 8, 8);
+        var map = CreateSampleMap("Twice", targetId, warpX: 1, warpY: 1);
+        var mapId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = null,
             Map = map,
             ExpectedRevision = 0,
-        }));
+        })).MapId;
 
         map.Name = "Twice updated";
         var second = await repo.SaveAsync(new SaveMapRequest
@@ -217,7 +273,7 @@ public sealed class PostgresMapRepositoryTests
             MapId = mapId,
             Map = map,
             ExpectedRevision = 1,
-            Status = MapPublishStatus.Published,
+            Intent = SaveMapIntent.Publish,
         });
         Assert.IsType<SaveMapResult.Success>(second);
     }
@@ -228,14 +284,13 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var mapId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddd0404");
         var map = DemoMapFactory.CreateStarter("EmptyTwice");
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        var mapId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = null,
             Map = map,
             ExpectedRevision = 0,
-        }));
+        })).MapId;
 
         map.Name = "EmptyTwice v2";
         var second = await repo.SaveAsync(new SaveMapRequest
@@ -252,17 +307,18 @@ public sealed class PostgresMapRepositoryTests
     public async Task Save_ConcurrentDbContexts_ExactlyOneSucceeds()
     {
         await using var seedDb = CreateDb();
-        var mapId = Guid.Parse("11111111-1111-1111-1111-111111111101");
-        var map = CreateSampleMap("Concurrent", mapId);
-        Assert.IsType<SaveMapResult.Success>(await new PostgresMapRepository(seedDb).SaveAsync(new SaveMapRequest
+        var seedRepo = new PostgresMapRepository(seedDb);
+        var (targetId, _) = await CreateTargetMapAsync(seedRepo, "Cible", 8, 8);
+        var map = CreateSampleMap("Concurrent", targetId, warpX: 1, warpY: 1);
+        var mapId = Assert.IsType<SaveMapResult.Success>(await seedRepo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = null,
             Map = map,
             ExpectedRevision = 0,
-        }));
+        })).MapId;
 
         map.Name = "Writer A";
-        var mapB = CreateSampleMap("Concurrent", mapId);
+        var mapB = CreateSampleMap("Concurrent", targetId, warpX: 2, warpY: 2);
         mapB.Name = "Writer B";
 
         await using var db1 = CreateDb();
@@ -285,14 +341,14 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var mapId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-        var map = CreateSampleMap("PublishFlow", mapId);
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Cible", 8, 8);
+        var map = CreateSampleMap("PublishFlow", targetId, warpX: 1, warpY: 1);
+        var mapId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            MapId = mapId,
+            MapId = null,
             Map = map,
             ExpectedRevision = 0,
-        }));
+        })).MapId;
 
         Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
@@ -302,14 +358,12 @@ public sealed class PostgresMapRepositoryTests
             Intent = SaveMapIntent.Publish,
         }));
 
-        await using var db2 = CreateDb();
-        var repo2 = new PostgresMapRepository(db2);
-        var publishedV1 = await repo2.LoadPublishedByIdAsync(mapId);
+        var publishedV1 = await repo.LoadPublishedByIdAsync(mapId);
         Assert.NotNull(publishedV1);
         var v1Name = publishedV1!.Map.Name;
 
         map.Name = "Draft changed";
-        Assert.IsType<SaveMapResult.Success>(await repo2.SaveAsync(new SaveMapRequest
+        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
             MapId = mapId,
             Map = map,
@@ -317,14 +371,12 @@ public sealed class PostgresMapRepositoryTests
             Intent = SaveMapIntent.SaveDraft,
         }));
 
-        await using var db3 = CreateDb();
-        var repo3 = new PostgresMapRepository(db3);
-        var stillV1 = await repo3.LoadPublishedByIdAsync(mapId);
+        var stillV1 = await repo.LoadPublishedByIdAsync(mapId);
         Assert.NotNull(stillV1);
         Assert.Equal(v1Name, stillV1!.Map.Name);
 
         map.Name = "Published v2";
-        Assert.IsType<SaveMapResult.Success>(await repo3.SaveAsync(new SaveMapRequest
+        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
             MapId = mapId,
             Map = map,
@@ -332,13 +384,78 @@ public sealed class PostgresMapRepositoryTests
             Intent = SaveMapIntent.Publish,
         }));
 
-        await using var db4 = CreateDb();
-        var repo4 = new PostgresMapRepository(db4);
-        var publishedV2 = await repo4.LoadPublishedByIdAsync(mapId);
+        var publishedV2 = await repo.LoadPublishedByIdAsync(mapId);
         Assert.NotNull(publishedV2);
         Assert.Equal("Published v2", publishedV2!.Map.Name);
 
-        var history = await repo4.ListPublicationHistoryAsync(mapId);
+        var history = await repo.ListPublicationHistoryAsync(mapId);
+        Assert.Equal(2, history.Count);
+        Assert.Contains(history, h => h.Revision == 2);
+        Assert.Contains(history, h => h.Revision == 4);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task Save_SameRepositoryInstance_PublishSequenceHasCorrectRevisions()
+    {
+        await using var db = CreateDb();
+        var repo = new PostgresMapRepository(db);
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Cible", 10, 10);
+        var map = CreateSampleMap("Sequence", targetId, warpX: 1, warpY: 1);
+
+        var create = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = map,
+            ExpectedRevision = 0,
+        }));
+        var mapId = create.MapId;
+        Assert.Equal(1, create.NewRevision);
+
+        var publish1 = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 1,
+            Intent = SaveMapIntent.Publish,
+        }));
+        Assert.Equal(2, publish1.NewRevision);
+        Assert.Equal(2, publish1.PublishedRevision);
+
+        map.Name = "Draft v2";
+        var draft2 = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 2,
+            Intent = SaveMapIntent.SaveDraft,
+        }));
+        Assert.Equal(3, draft2.NewRevision);
+
+        var pub1Snapshot = await repo.LoadPublishedByIdAsync(mapId);
+        Assert.NotNull(pub1Snapshot);
+        Assert.Equal("Sequence", pub1Snapshot!.Map.Name);
+
+        map.Name = "Published v2";
+        var publish2 = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 3,
+            Intent = SaveMapIntent.Publish,
+        }));
+        Assert.Equal(4, publish2.NewRevision);
+        Assert.Equal(4, publish2.PublishedRevision);
+
+        var draft = await repo.LoadByIdAsync(mapId);
+        var published = await repo.LoadPublishedByIdAsync(mapId);
+        Assert.NotNull(draft);
+        Assert.NotNull(published);
+        Assert.Equal(4, draft!.Revision);
+        Assert.Equal("Published v2", draft.Map.Name);
+        Assert.Equal("Published v2", published!.Map.Name);
+
+        var history = await repo.ListPublicationHistoryAsync(mapId);
         Assert.Equal(2, history.Count);
         Assert.Contains(history, h => h.Revision == 2);
         Assert.Contains(history, h => h.Revision == 4);
@@ -350,30 +467,14 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var targetId = Guid.Parse("33333333-3333-3333-3333-333333333331");
-        var sourceId = Guid.Parse("33333333-3333-3333-3333-333333333332");
-
-        var small = new Map
+        var (targetId, _) = await CreateTargetMapAsync(repo, "Small", 3, 3);
+        var source = CreateSampleMap("Source", targetId, warpX: 1, warpY: 1);
+        var sourceId = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            Name = "Small",
-            Width = 3,
-            Height = 3,
-        };
-        small.Layers.Add(new Layer { LayerType = LayerType.Ground });
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
-        {
-            MapId = targetId,
-            Map = small,
-            ExpectedRevision = 0,
-        }));
-
-        var source = CreateSampleMap("Source", sourceId);
-        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
-        {
-            MapId = sourceId,
+            MapId = null,
             Map = source,
             ExpectedRevision = 0,
-        }));
+        })).MapId;
 
         source.Name = "Bad warp";
         var attr = source.Layers.First(l => l.LayerType == LayerType.Attributes);
@@ -399,7 +500,25 @@ public sealed class PostgresMapRepositoryTests
     private FrogDbContext CreateDb() =>
         new(FrogDbContextOptions.Create(_fixture.ConnectionString));
 
-    private static Map CreateSampleMap(string name, Guid warpTargetMapId)
+    private static async Task<(Guid MapId, Map Map)> CreateTargetMapAsync(
+        PostgresMapRepository repo,
+        string name,
+        int width,
+        int height)
+    {
+        var map = new Map { Name = name, Width = width, Height = height };
+        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        var saved = await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = map,
+            ExpectedRevision = 0,
+        });
+        var success = Assert.IsType<SaveMapResult.Success>(saved);
+        return (success.MapId, map);
+    }
+
+    private static Map CreateSampleMap(string name, Guid warpTargetMapId, int warpX, int warpY)
     {
         var map = new Map
         {
@@ -424,11 +543,11 @@ public sealed class PostgresMapRepositoryTests
             Y = 1,
             Type = TileType.Warp,
             WarpTargetMapId = warpTargetMapId,
-            WarpTargetX = 7,
-            WarpTargetY = 17,
+            WarpTargetX = warpX,
+            WarpTargetY = warpY,
             Attributes =
             {
-                new WarpAttribute { TargetMapId = warpTargetMapId, TargetX = 7, TargetY = 17 },
+                new WarpAttribute { TargetMapId = warpTargetMapId, TargetX = warpX, TargetY = warpY },
             },
         });
         map.Layers.Add(ground);

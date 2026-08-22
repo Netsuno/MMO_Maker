@@ -38,24 +38,23 @@ public sealed class EditorMainWindowSmokeTests
 
             if (includeSave)
             {
-                Task? saveTask = null;
                 window.Dispatcher.Invoke(() =>
                 {
                     var session = window.EditorForm.GetWorkspaceSessionForTest()!;
                     session.CurrentMap!.Name = "Smoke saved";
                     session.MarkDirty();
-                    saveTask = window.EditorForm.SaveMapAsync();
+                    window.EditorForm.SaveMap();
                 });
 
-                if (saveTask is null)
-                {
-                    throw new InvalidOperationException("Save task was not started.");
-                }
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.PendingSaveOperationForTest?.IsCompleted == true
+                          || (!window.EditorForm.IsSaveInProgressForTest()
+                              && window.EditorForm.GetWorkspaceSessionForTest()?.IsDirty == false),
+                    EditorSmokeTestAccess.DefaultTimeout);
 
-                saveTask.Wait(EditorSmokeTestAccess.DefaultTimeout);
-                if (saveTask.IsFaulted)
+                if (window.EditorForm.PendingSaveOperationForTest?.IsFaulted == true)
                 {
-                    throw saveTask.Exception?.GetBaseException()
+                    throw window.EditorForm.PendingSaveOperationForTest.Exception?.GetBaseException()
                           ?? new InvalidOperationException("Save failed.");
                 }
 

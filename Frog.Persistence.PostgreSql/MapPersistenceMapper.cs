@@ -13,16 +13,15 @@ internal static class MapPersistenceMapper
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    public static MapEntity ToEntity(SaveMapRequest request, DateTimeOffset nowUtc)
+    public static MapEntity ToEntity(Map map, DateTimeOffset nowUtc)
     {
-        var id = request.MapId is Guid requested && requested != Guid.Empty ? requested : Guid.NewGuid();
         var entity = new MapEntity
         {
-            Id = id,
-            Name = request.Map.Name,
-            Width = request.Map.Width,
-            Height = request.Map.Height,
-            AllowPlayerOverlap = request.Map.AllowPlayerOverlap,
+            Id = Guid.NewGuid(),
+            Name = map.Name,
+            Width = map.Width,
+            Height = map.Height,
+            AllowPlayerOverlap = map.AllowPlayerOverlap,
             Status = MapPublishStatus.Draft,
             Revision = 1,
             CreatedAtUtc = nowUtc,
@@ -30,7 +29,7 @@ internal static class MapPersistenceMapper
             LayersCatalogJson = "[]",
         };
 
-        PopulateChildren(entity, request.Map);
+        PopulateChildren(entity, map);
         return entity;
     }
 

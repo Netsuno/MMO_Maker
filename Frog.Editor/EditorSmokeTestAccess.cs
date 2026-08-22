@@ -95,12 +95,12 @@ internal static class EditorSmokeTestAccess
         }
 
         var session = window.EditorForm.GetWorkspaceSessionForTest();
-        if (session?.CurrentMapId != DemoMapFactory.DefaultMapId)
+        if (session?.CurrentMapId is null || session.CurrentMapId == Guid.Empty)
         {
-            throw new InvalidOperationException("Current map id does not match demo catalog entry.");
+            throw new InvalidOperationException("Current map id missing after workspace init.");
         }
 
-        if (session.Catalog.All(e => e.MapId != DemoMapFactory.DefaultMapId))
+        if (session.Catalog.Count == 0)
         {
             throw new InvalidOperationException("Demo map missing from catalog.");
         }

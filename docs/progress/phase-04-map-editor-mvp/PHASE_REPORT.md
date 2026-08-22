@@ -1,4 +1,4 @@
-# Phase 04 — Map Editor MVP (gate data safety)
+# Phase 04 — Map Editor MVP (gate data safety, itération 2)
 
 ## Identification
 
@@ -10,26 +10,24 @@
 
 ## Verdict proposé
 
-**READY FOR REVIEW** — corrections gate data safety livrées ; Phase 5 non commencée.
+**READY FOR REVIEW** — corrections gate itération 2 (CI PG 16/16, contrat création, canvas/close).
 
-## Livré (corrections gate)
+## Corrections itération 2
 
-| Exigence | Livrable |
+| Point gate | État |
 | --- | --- |
-| Mode mémoire vs PostgreSQL | `MapRepositoryCapabilities`, `AllowsSave`, `NotDurable`, labels UI sans faux « PostgreSQL » |
-| Brouillon / publication séparés | Snapshots immuables PG + in-memory, historique, `LoadPublishedByIdAsync` |
-| Concurrence optimiste atomique | `Revision` token EF + `ExecuteUpdate` conditionnel → `Conflict` |
-| Erreurs PostgreSQL | `PersistenceFailed`, mutex save, état occupé UI, carte conservée en mémoire |
-| Dirty + prompts | Save/Discard/Cancel avant changement carte, nouvelle carte, ouverture fichier, fermeture |
-| Warps | Limites selon carte cible, `ValidationFailed` hors limites |
-| Tests édition | `MapEditOperations` + tests crayon/rectangle/fill/gomme/block/warp/couche |
-| Smoke Windows | 1 test — chemin commande `SaveMapAsync` (dialogs injectables) |
+| Contrat création PostgreSQL unifié | OK |
+| Fixtures warp valides | OK |
+| Tests PG obsolètes corrigés | OK — 16/16 |
+| EF tracker post-`ExecuteUpdate` | OK + test régression |
+| Fermeture WPF dirty | OK + 4 smokes |
+| Canvas → `MapEditOperations` + undo | OK + 2 smokes |
+| Pas de tâche async silencieuse | OK |
 
-## Non commencé (Phase 5+)
+## Non commencé
 
-- Playtest serveur depuis carte publiée PG
-- Nouvelles fonctions MariaDB
+Phase 5 — playtest serveur.
 
 ## Décision requise
 
-Accepter Phase 4 (gate data safety) et autoriser Phase 5, ou demander ajustements.
+Accepter Phase 4 (gate data safety) et autoriser Phase 5.

@@ -158,12 +158,41 @@ public partial class MainWindow : Window
         Closed += OnMainWindowClosed;
     }
 
-    private async void OnMainWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private bool _closingAfterConfirm;
+
+    private void OnMainWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (!await _editor.ConfirmCloseAsync().ConfigureAwait(true))
+        if (_closingAfterConfirm)
         {
-            e.Cancel = true;
+            return;
         }
+
+        if (!_editor.HasUnsavedChangesForTest())
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            try
+            {
+                if (await _editor.TryRequestCloseAsync().ConfigureAwait(true))
+                {
+                    _closingAfterConfirm = true;
+                    Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show(
+                    this,
+                    "Erreur lors de la fermeture : " + ex.Message,
+                    "MMO Maker",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }));
     }
 
     private async void OnMainWindowLoaded(object sender, RoutedEventArgs e)
