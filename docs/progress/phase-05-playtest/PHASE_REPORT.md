@@ -6,6 +6,8 @@
 
 - Phase 4 accepted: `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - Rejected tip (CI green, product incomplete): `baaf79c846f1151f7e7a5f544812756635f1fcfd`
+- Green corrections head: `af71e6f24c1650a2e945a667c2e8a022acc1b2cb`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32596037772
 - Branch: `cursor/phase0-baseline-audit-02c7` (PR #2 only)
 - Phase 6: **not started**
 
@@ -20,13 +22,13 @@
 7. Loopback framing/protocol tests on real `ClientSession` parser.
 8. Visual: schematics labeled honestly; manual WPF capture **NOT RUN** on Linux agent; real process launch proven in automated tests.
 
-## Local counts (pre-CI)
+## CI counts (`af71e6f`)
 
 | Suite | Result |
 | --- | --- |
 | Frog.Tests | 165/165 |
 | PostgreSQL integration | 18/18 |
-| Windows smoke | 9×3 on CI |
+| Windows smoke | 9/9 × 3 |
 
 ## Evidence pack
 

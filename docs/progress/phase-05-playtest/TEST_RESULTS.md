@@ -3,18 +3,18 @@
 ## Commit range
 
 - Prior rejected-but-CI-green tip: `baaf79c846f1151f7e7a5f544812756635f1fcfd`
-- Corrections start after that commit on `cursor/phase0-baseline-audit-02c7`
-- Head (this gate): `5774b4ffc3b69ba08a15b59ec5b0329c09c5ba28`
+- Green corrections head: `af71e6f24c1650a2e945a667c2e8a022acc1b2cb`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32596037772
 
-## Suites (local pre-push)
+## Suites (CI on `af71e6f`)
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
 | Frog.Tests | 165 | 0 | 165 |
 | Frog.Persistence.IntegrationTests | 18 | 0 | 18 |
-| Frog.Editor.WindowsSmokeTests | (CI Windows) | — | 9 × 3 expected |
+| Frog.Editor.WindowsSmokeTests | 9 | 0 | 9 × 3 consecutive |
 
-Previous Phase 0–4 suites remain included; counts rose with Phase 5 correction tests.
+Previous Phase 0–4 suites remain included; counts rose with Phase 5 correction tests (was 145 / 17 / 9×3 at `baaf79c`).
 
 ### Unit / E2E / protocol (`Frog.Tests`) — correction coverage
 

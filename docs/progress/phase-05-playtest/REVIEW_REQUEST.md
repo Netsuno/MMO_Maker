@@ -7,16 +7,17 @@ Phase 5 temporarily rejected at `baaf79c` despite green CI. Corrections on the *
 ## Plage de commits
 
 - After rejected tip: `baaf79c846f1151f7e7a5f544812756635f1fcfd`
-- Head: `5774b4ffc3b69ba08a15b59ec5b0329c09c5ba28` (impl `aacc2c0`)
+- Green head: `af71e6f24c1650a2e945a667c2e8a022acc1b2cb`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32596037772
 - PR: #2 — `cursor/phase0-baseline-audit-02c7`
 
-## Preuves locales (avant CI)
+## CI counts
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
 | Frog.Tests | 165 | 0 | 165 |
 | Frog.Persistence.IntegrationTests | 18 | 0 | 18 |
-| Frog.Editor.WindowsSmokeTests | CI | — | 9×3 |
+| Frog.Editor.WindowsSmokeTests | 9×3 | 0 | 9×3 |
 
 ## Checklist corrections
 

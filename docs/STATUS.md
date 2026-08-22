@@ -7,18 +7,18 @@
   - CI acceptée : https://github.com/Netsuno/MMO_Maker/actions/runs/32585827562
 - **Phase 5 : GATE REACHED — WAITING FOR REVIEW** (corrections after rejection of `baaf79c`)
   - Rejected tip : `baaf79c846f1151f7e7a5f544812756635f1fcfd`
-  - Corrections head : `5774b4ffc3b69ba08a15b59ec5b0329c09c5ba28` (implementation: `aacc2c05828b41400012b3fbc67c5455217f5f20`)
-  - Commit range : `baaf79c..5774b4f`
-  - CI : _pending — see PR #2 checks_
+  - Green corrections head : `af71e6f24c1650a2e945a667c2e8a022acc1b2cb`
+  - Commit range : `baaf79c..af71e6f`
+  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32596037772
 - Phase 6 : non commencée
 
-## Vérifié Phase 5 (local pre-push)
+## Vérifié Phase 5 (CI)
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
 | Frog.Tests | 165 | 0 | 165 |
 | Frog.Persistence.IntegrationTests | 18 | 0 | 18 |
-| Frog.Editor.WindowsSmokeTests | CI Windows | — | 9×3 |
+| Frog.Editor.WindowsSmokeTests | 9×3 | 0 | 9×3 |
 
 Preuves : `docs/progress/phase-05-playtest/`
 
