@@ -1,7 +1,7 @@
 using System;
-using System.Windows;
 using System.Windows.Threading;
 using Frog.Editor;
+using WpfApplication = System.Windows.Application;
 using Xunit;
 
 namespace Frog.Editor.WindowsSmokeTests;
@@ -18,9 +18,9 @@ public sealed class EditorMainWindowSmokeTests
     {
         EditorSmokeTestAccess.ConfigureInMemoryRepository();
 
-        if (Application.Current is null)
+        if (WpfApplication.Current is null)
         {
-            _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            _ = new WpfApplication { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
         }
 
         MainWindow? window = null;
@@ -51,9 +51,9 @@ public sealed class EditorMainWindowSmokeTests
                 EditorSmokeTestAccess.CloseMainWindow(window);
             }
 
-            if (Application.Current is not null)
+            if (WpfApplication.Current is not null)
             {
-                Application.Current.Shutdown();
+                WpfApplication.Current.Shutdown();
             }
         }
     }
