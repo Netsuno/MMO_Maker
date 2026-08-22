@@ -1,6 +1,6 @@
 # Résultats de tests — Phase 02
 
-Commit testé : *(même que commit final de gate)*  
+Commit testé : 3604bd7a5146ab66ddd44e8d28314cbcea41eaaa  
 Environnement : Ubuntu 24.04, SDK 8.0.424, PostgreSQL 16.15 local (`frog_test` / user test local).
 
 | Commande | Environnement | Résultat | Détail | Ignorés | Artefact | Commit |

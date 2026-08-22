@@ -1,7 +1,7 @@
 # État du projet — MMO Maker
 
 - Dernière mise à jour : 2026-08-22 04:40 UTC
-- Branche / commit : `cursor/phase0-baseline-audit-02c7` (voir commit de gate Phase 2)
+- Branche / commit : `cursor/phase0-baseline-audit-02c7` / 3604bd7a5146ab66ddd44e8d28314cbcea41eaaa
 - **Phase 2 — Clarification produit : READY FOR REVIEW**
 - Prochaine phase **non commencée** : Phase 3 — Shell éditeur
 - Rapport : [`docs/progress/phase-02-clarification/REVIEW_REQUEST.md`](progress/phase-02-clarification/REVIEW_REQUEST.md)

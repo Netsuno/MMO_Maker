@@ -2,7 +2,7 @@
 
 ## Commits de la phase
 
-*(liste exacte après commit gate)*
+- 3604bd7a5146ab66ddd44e8d28314cbcea41eaaa docs(product): Phase 2 — MMO Maker scope, no FRoG compatibility
 
 ## Diff (départ `094ba3f` → final)
 

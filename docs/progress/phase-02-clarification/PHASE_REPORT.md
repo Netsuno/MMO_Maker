@@ -5,7 +5,7 @@
 - Date et fuseau horaire : 2026-08-22 04:34 UTC
 - Branche : `cursor/phase0-baseline-audit-02c7`
 - Commit de départ : `094ba3f` (PostgreSQL SoT)
-- Commit final : *(renseigné après push — voir STATUS / REVIEW_REQUEST)*
+- Commit final : 3604bd7a5146ab66ddd44e8d28314cbcea41eaaa
 - Working tree : clean après commit de gate
 - OS / SDK .NET / PostgreSQL : Ubuntu 24.04.4 LTS / SDK 8.0.424 / PostgreSQL 16.15
 - Phase et gate visés : Phase 2 — aucun document actif ne présente l’import `.fcc` ou la parité VB6 comme condition de livraison
