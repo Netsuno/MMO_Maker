@@ -2,9 +2,10 @@
 
 ## Smoke Windows
 
-- `tests/Frog.Editor.WindowsSmokeTests/` — STA, MainWindow, timeout 45s, assertions shell
+- `tests/Frog.Editor.WindowsSmokeTests/` — STA, MainWindow, timeout 45 s, assertions shell
 - `EditorSmokeTestAccess`, `EditorTestHooks`, `FROG_EDITOR_FORCE_IN_MEMORY`
-- CI Windows : étape smoke après tests unitaires
+- Chargement thème WPF (`EditorWpfTheme.xaml`) hors `StartupUri` pour ressources menu
+- CI Windows : étape smoke après tests unitaires — **PASS** run 32575250906
 - `scripts/windows-editor-smoke.ps1` — secours manuel
 
 ## Identité MapId

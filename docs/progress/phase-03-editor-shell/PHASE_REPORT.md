@@ -10,7 +10,7 @@
 
 ## Verdict proposé
 
-- **READY FOR REVIEW** — corrections gate appliquées ; smoke Windows **automatisé en CI** (non exécuté sur agent Linux).
+- **READY FOR REVIEW** — corrections gate appliquées ; smoke Windows **PASS en CI**.
 
 ## Corrections gate
 
@@ -21,16 +21,17 @@
 | Identité MapId | Migration `ModernMapIdentity`, ports Application, docs |
 | Pas de LegacyId actif | Retrait `legacy_id`, `LoadByLegacyIdAsync`, etc. |
 
-## Livré et vérifié (Linux)
+## Livré et vérifié
 
-- Build Release vert
-- 110 tests unitaires
-- 7 tests PostgreSQL (migration forward appliquée)
-
-## Non vérifié localement
-
-- Smoke Windows (CI uniquement — voir `TEST_RESULTS.md` pour lien run)
+| Preuve | Résultat |
+| --- | --- |
+| Build Release | OK |
+| Tests unitaires | 110 / 110 |
+| Tests PostgreSQL | 7 / 7 |
+| Smoke Windows CI | PASS — run 32575250906 |
 
 ## Décision requise
 
-Accepter Phase 3 et autoriser Phase 4, ou exiger confirmation du run CI Windows vert.
+Accepter Phase 3 et autoriser Phase 4, ou demander des précisions sur le smoke Windows.
+
+**Phase 4 non commencée.**

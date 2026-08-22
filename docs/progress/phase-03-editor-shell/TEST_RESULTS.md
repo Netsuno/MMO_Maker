@@ -29,20 +29,25 @@ Job : `.github/workflows/ci.yml` → `build-and-test` (windows-latest)
 Env : `FROG_EDITOR_FORCE_IN_MEMORY=1`
 
 ```powershell
+$env:FROG_EDITOR_FORCE_IN_MEMORY = "1"
 dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj -c Release --no-build -v n
 ```
 
-**Lien run GitHub Actions :** *(à compléter après push — PR #2, workflow CI)*
+**Lien run GitHub Actions :** https://github.com/Netsuno/MMO_Maker/actions/runs/32575250906
 
-| Test | Attendu |
+| Test | Résultat CI |
 | --- | --- |
-| `MainWindow_OpensDemoMap_WithInMemoryRepository` | PASS sur runner Windows |
+| `MainWindow_OpensDemoMap_WithInMemoryRepository` | **PASS** (1/1, ~5 s) |
+
+Assertions couvertes : fenêtre sans exception, zones gauche/centre/droite, catalogue démo, carte assignée au canvas (20×15, ≥3 couches), dispatcher réactif, fermeture propre, timeout 45 s.
+
+Secours manuel : `scripts/windows-editor-smoke.ps1`
 
 ## Migrations PostgreSQL
 
 - `20260822040506_InitialMapPersistence`
-- `20260822130000_ModernMapIdentity` (retrait legacy_id, FK target_map_id)
+- `20260822130000_ModernMapIdentity` (retrait `legacy_id`, FK `target_map_id`)
 
 ## Non exécuté localement
 
-- Smoke UI Windows (Linux)
+- Smoke UI Windows (Linux — validé sur runner `windows-latest` CI)
