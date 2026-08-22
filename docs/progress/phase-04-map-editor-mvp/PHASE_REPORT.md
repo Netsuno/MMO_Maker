@@ -4,11 +4,11 @@
 
 - Date : 2026-08-22
 - Branche : `cursor/phase0-baseline-audit-02c7`
-- Head : `bad59a48e9546004c216cc809ff987d4c62ac08e`
+- Head : `08ff2e6230f78d832e72dbe101007a3cf3c00f30`
 - Gate Phase 3 accepté : `20eedc1`
 - Plage revue Phase 4 : `20eedc1..HEAD`
 - PR : #2
-- CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32585353371
+- CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32585492554
 
 ## Verdict proposé
 

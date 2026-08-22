@@ -3,7 +3,7 @@
 ## Plage
 
 - Gate Phase 3 : `20eedc1`
-- Phase 4 : `20eedc1..HEAD` (`bad59a48e9546004c216cc809ff987d4c62ac08e`)
+- Phase 4 : `20eedc1..HEAD` (`08ff2e6230f78d832e72dbe101007a3cf3c00f30`)
 
 ## Persistence / contrat
 
@@ -21,4 +21,4 @@
 
 ## Preuve CI
 
-https://github.com/Netsuno/MMO_Maker/actions/runs/32585353371 — 129 / 16 / 7×3 PASS
+https://github.com/Netsuno/MMO_Maker/actions/runs/32585492554 — 129 / 16 / 7×3 PASS
