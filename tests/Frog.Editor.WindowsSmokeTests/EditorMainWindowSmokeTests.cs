@@ -34,8 +34,8 @@ public sealed class EditorMainWindowSmokeTests
 
             if (window.EditorForm.WorkspaceInitializationTask.IsFaulted)
             {
-                throw window.EditorForm.WorkspaceInitializationTask.Exception
-                      ?? new InvalidOperationException("Workspace initialization failed.");
+                var agg = window.EditorForm.WorkspaceInitializationTask.Exception;
+                throw agg?.InnerException ?? agg ?? new InvalidOperationException("Workspace initialization failed.");
             }
 
             EditorSmokeTestAccess.AssertShellReady(window);
