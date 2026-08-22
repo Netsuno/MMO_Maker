@@ -155,10 +155,13 @@ public sealed class ClientPlaytestSuccessSmokeTests
     private static string ResolveClientExe()
     {
         var baseDir = AppContext.BaseDirectory;
-        var direct = Path.Combine(baseDir, "Frog.Client.exe");
-        if (File.Exists(direct))
+        foreach (var name in new[] { "Frog.Client.exe", "Frog.Client.dll" })
         {
-            return direct;
+            var direct = Path.Combine(baseDir, name);
+            if (File.Exists(direct))
+            {
+                return direct;
+            }
         }
 
         foreach (var cfg in new[] { "Release", "Debug" })
@@ -171,16 +174,19 @@ public sealed class ClientPlaytestSuccessSmokeTests
                     parts.Add("..");
                 }
 
-                parts.AddRange(["Frog.Client", "bin", cfg, "net8.0-windows", "Frog.Client.exe"]);
-                var candidate = Path.GetFullPath(Path.Combine(parts.ToArray()));
-                if (File.Exists(candidate))
+                var root = Path.Combine(parts.ToArray());
+                foreach (var name in new[] { "Frog.Client.exe", "Frog.Client.dll" })
                 {
-                    return candidate;
+                    var candidate = Path.GetFullPath(Path.Combine(root, "Frog.Client", "bin", cfg, "net8.0-windows", name));
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
                 }
             }
         }
 
-        throw new FileNotFoundException("Frog.Client.exe (searched output dir and repo bin paths)");
+        throw new FileNotFoundException("Frog.Client.exe/dll (searched output dir and repo bin paths)");
     }
 
     private static int GetFreePort()
