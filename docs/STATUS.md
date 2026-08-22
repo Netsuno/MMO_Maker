@@ -1,32 +1,35 @@
 # État du projet FRoG
 
-- Dernière mise à jour : 2026-08-22 03:05 UTC
-- Branche / commit : `cursor/phase0-baseline-audit-02c7` (à jour après Task 2)
-- Phase active : **Phase 1 — Task 3 (frontières de projets)**
-- Dernier commit vert local : build+tests C# 12 sans preview (voir validation ci-dessous)
+- Dernière mise à jour : 2026-08-22 03:12 UTC
+- Branche / commit : `cursor/phase0-baseline-audit-02c7`
+- Phase active : **Phase 1 — Task 4 bloquée (PostgreSQL) ; Task 5 suivante (inventaire VB6)**
+- Dernier commit vert : architecture boundaries + suite tests
 - Environnement : Ubuntu 24.04, .NET SDK 8.0.424, PostgreSQL absent, MariaDB non démarrée, Docker absent
 
 ## Vérifié comme fonctionnel
 
-- `dotnet restore/build/test` **sans** `LangVersion=preview` (C# 12.0 dans `Directory.Build.props`)
-- `EnableWindowsTargeting` ancré pour agents Linux
-- Suite `Frog.Tests` : **86 réussis** (dont régression MapRequest fingerprint / stats copy)
-- Audit phase 0 : `docs/BASELINE_AUDIT.md`, `docs/STATUS.md`, `docs/TESTING.md`
+- Build/test C# 12 sans preview (`Directory.Build.props`)
+- `ArchitectureBoundaryTests` (Core pur, pas de cycles, UI éditeur sans SQL direct, Client sans packages DB)
+- Suite `Frog.Tests` complète après Task 3
+- Docs : `BASELINE_AUDIT`, `STATUS`, `TESTING`, `ARCHITECTURE`, `ADR-0001`
 
 ## Implémenté, mais non vérifié
 
-- Éditeur / client WinForms (non exécutés sur Linux)
-- Persistance MariaDB réelle (test intégration no-op sans env)
-- E2E TCP client↔serveur
+- Éditeur / client WinForms
+- Persistance MariaDB réelle
+- E2E TCP
 
 ## En cours
 
-- Une seule tâche : **Task 3 — établir / documenter les frontières de projets + test d’architecture**
+- Une seule tâche : **Task 5 — régénérer l’inventaire depuis la source VB6** (Task 4 en attente de décision humaine)
 
 ## Bloqueurs
 
-- **Produit :** PRD impose PostgreSQL ; le dépôt utilise MariaDB — décision humaine avant Task 4
-- Sources VB6 / fixtures `.map` absentes (bloque Phase 2+)
+- **Décision requise — Task 4 :** PRD = PostgreSQL ; dépôt = MariaDB mature. Options :
+  1. Migrer vers PostgreSQL (EF Core / Npgsql) comme source de vérité ;
+  2. Conserver MariaDB et amender le PRD ;
+  3. Dual-run temporaire (non recommandé sans plan).
+- Sources VB6 absentes du dépôt (clonage upstream prévu pour Task 5)
 - Pas de runtime WinForms sur cet agent Linux
 
 ## Commandes de validation
@@ -37,21 +40,19 @@ dotnet build Frog.Creator.sln -c Release --no-restore
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
 ```
 
-Voir aussi `docs/TESTING.md`.
-
 ## Résultat de la dernière validation
 
-- Build : **PASS** (0 warning, 0 error, C# 12)
-- Tests : **86 réussis, 0 échoués, 0 ignorés**
-- Intégration PostgreSQL : **NOT RUN**
-- Intégration MariaDB : **NOT RUN**
+- Build : **PASS**
+- Tests : exécuter après commit Task 3 (cible ≥ 91)
+- Intégration PostgreSQL : **NOT RUN** / bloqué
 - E2E : **NOT RUN**
 
 ## Prochaine tâche
 
-- Task 3 : graphe de dépendances documenté + test d’architecture (Core sans UI/DB/sockets ; pas de DbContext/Npgsql/MySql dans formulaires).
+- Cloner / référencer `Alexoune001/FRoG-Creator-OSE-V0.6.3`, régénérer inventaire des unités, comparer aux 157 annoncées, produire rapport d’écart.
 
 ## Référence
 
 - [`docs/BASELINE_AUDIT.md`](BASELINE_AUDIT.md)
-- [`docs/TESTING.md`](TESTING.md)
+- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)
+- [`docs/decisions/ADR-0001-project-boundaries.md`](decisions/ADR-0001-project-boundaries.md)
