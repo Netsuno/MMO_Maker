@@ -6,7 +6,8 @@
 - **Phase 5 : GATE REACHED — WAITING FOR REVIEW** (corrections after `f9d88b4`)
   - Rejected tip : `f9d88b4827fc89c9e4ab63bd8c941bbb823d662b`
   - Implementation commit : `62b27c542bab33896b73e00889da4e0a29211fad`
-  - Gate HEAD : _docs tip after this commit_
+  - CI fix : committed `Frog.PlaytestHeadlessClient` (no hardcoded `/workspace` on-the-fly build)
+  - Gate HEAD : _tip after CI-fix commit_
   - Range after rejection : `f9d88b4..HEAD`
   - CI : _pending_
 - Phase 6 : non commencée

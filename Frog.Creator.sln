@@ -42,6 +42,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Frog.Persistence.Integratio
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Frog.Editor.WindowsSmokeTests", "tests\Frog.Editor.WindowsSmokeTests\Frog.Editor.WindowsSmokeTests.csproj", "{D29F720D-3DC5-47AE-A41D-4C0B1DA7B76A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Frog.PlaytestHeadlessClient", "tests\Frog.PlaytestHeadlessClient\Frog.PlaytestHeadlessClient.csproj", "{E23946DB-EB04-41FA-9A53-7769B1AF6502}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -88,6 +90,10 @@ Global
 		{D29F720D-3DC5-47AE-A41D-4C0B1DA7B76A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D29F720D-3DC5-47AE-A41D-4C0B1DA7B76A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D29F720D-3DC5-47AE-A41D-4C0B1DA7B76A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E23946DB-EB04-41FA-9A53-7769B1AF6502}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E23946DB-EB04-41FA-9A53-7769B1AF6502}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E23946DB-EB04-41FA-9A53-7769B1AF6502}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E23946DB-EB04-41FA-9A53-7769B1AF6502}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -100,6 +106,7 @@ Global
 		{B8DF4357-70C8-533F-D3AC-77E309C3A021} = {0B3D1CBC-6644-4F72-AAAF-94B624295840}
 		{3B7EB9D0-8202-49CC-88DC-FC96F1CD3B50} = {0B3D1CBC-6644-4F72-AAAF-94B624295840}
 		{D29F720D-3DC5-47AE-A41D-4C0B1DA7B76A} = {0B3D1CBC-6644-4F72-AAAF-94B624295840}
+		{E23946DB-EB04-41FA-9A53-7769B1AF6502} = {0B3D1CBC-6644-4F72-AAAF-94B624295840}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E3951C16-EB70-480A-96DD-4DB8D80F3151}

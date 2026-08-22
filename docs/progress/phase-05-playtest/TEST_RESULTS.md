@@ -17,6 +17,7 @@
 
 ### Production launcher / orchestrator (`PlaytestProductionLauncherTests`)
 
+- Headless READY client: committed `tests/Frog.PlaytestHeadlessClient` (resolved from build output; CI-safe on Windows)
 - `OwnedLauncher_Orchestrator_ServerClientReady_Stop_NoOrphan_SafeCleanup` — real `PlaytestOwnedProcessLauncher` + `PlaytestOrchestrator`, real Frog.Server, READY client, correlation logs, secret absent, owned temp deleted, external sentinel preserved, port closed
 - `OwnedLauncher_ClientEarlyExit_FailsWithActionableLogs`
 - `WorkspaceCleanup_RejectsExternalSentinelDirectory`

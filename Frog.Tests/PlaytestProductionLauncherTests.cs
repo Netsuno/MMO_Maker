@@ -1,14 +1,12 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
-using Frog.Server.Config;
 using Xunit;
 
 namespace Frog.Tests;
@@ -43,7 +41,8 @@ public sealed class PlaytestProductionLauncherTests
         var sentinelFile = Path.Combine(sentinelDir, "do-not-delete.txt");
         await File.WriteAllTextAsync(sentinelFile, "sentinel");
 
-        var headlessClient = WriteHeadlessPlaytestClientScript();
+        var headlessClient = ResolveHeadlessClientDll();
+        Assert.True(File.Exists(headlessClient), $"missing {headlessClient}");
 
         var result = await orch.StartAsync(
             workspace,
@@ -168,50 +167,6 @@ public sealed class PlaytestProductionLauncherTests
         Assert.DoesNotContain("***=", cleaned.Replace("FROG_POSTGRES_CONNECTION_STRING=***", "", StringComparison.Ordinal), StringComparison.Ordinal);
     }
 
-    private static string WriteHeadlessPlaytestClientScript()
-    {
-        // Production-equivalent: TCP Hello check, token login, map request, emit READY marker.
-        // Implemented as a small C# script compiled? Simpler: shell + dotnet run of a tiny helper.
-        // Use prebuilt approach: a bash/python isn't protocol. Use `dotnet exec` of a helper dll we write.
-        return BuildAndReturnHeadlessClientDll();
-    }
-
-    private static string BuildAndReturnHeadlessClientDll()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "frog-headless-client-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        var csproj = Path.Combine(dir, "HeadlessPlaytestClient.csproj");
-        var program = Path.Combine(dir, "Program.cs");
-        File.WriteAllText(csproj, """
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="COREPROJ" />
-  </ItemGroup>
-</Project>
-""".Replace("COREPROJ", Path.GetFullPath("/workspace/Frog.Core/Frog.Core.csproj")));
-        File.WriteAllText(program, HeadlessClientSource);
-        var psi = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = $"build \"{csproj}\" -c Release -o \"{Path.Combine(dir, "out")}\" --nologo -v q",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        using var p = Process.Start(psi)!;
-        p.WaitForExit(120_000);
-        Assert.Equal(0, p.ExitCode);
-        var dll = Path.Combine(dir, "out", "HeadlessPlaytestClient.dll");
-        Assert.True(File.Exists(dll));
-        return dll;
-    }
-
     private static string WriteExitingClientScript()
     {
         if (OperatingSystem.IsWindows())
@@ -227,105 +182,48 @@ public sealed class PlaytestProductionLauncherTests
         return sh;
     }
 
-    private const string HeadlessClientSource = """
-using System.Buffers.Binary;
-using System.Net.Sockets;
-using System.Text;
-using Frog.Core.Constants;
-using Frog.Core.Enums;
-using Frog.Core.Protocol;
-
-var host = "127.0.0.1";
-var port = 6000;
-string? correlation = null;
-string? token = null;
-for (var i = 0; i < args.Length; i++)
-{
-    if (args[i] == "--host" && i + 1 < args.Length) host = args[++i];
-    else if (args[i] == "--port" && i + 1 < args.Length) port = int.Parse(args[++i]);
-    else if (args[i] == "--correlation" && i + 1 < args.Length) correlation = args[++i];
-    else if (args[i] == "--playtest-token" && i + 1 < args.Length) token = args[++i];
-}
-token ??= Environment.GetEnvironmentVariable("FROG_PLAYTEST_AUTH_TOKEN");
-if (string.IsNullOrEmpty(token)) { Console.Error.WriteLine("FROG_PLAYTEST_FAIL missing token"); return 2; }
-
-using var tcp = new TcpClient();
-await tcp.ConnectAsync(host, port);
-await using var stream = tcp.GetStream();
-var hello = await ReadFrame(stream);
-if (!WireHello.TryParse(hello, out _, out var ver) || ver != FrogWireProtocol.Version)
-{
-    Console.Error.WriteLine("FROG_PLAYTEST_FAIL bad hello");
-    return 3;
-}
-await WriteFrame(stream, BuildLogin("__frog_playtest__", token));
-var login = await ReadUntil(stream, PacketId.LoginResult);
-if (login[1] == 0) { Console.Error.WriteLine("FROG_PLAYTEST_FAIL login"); return 4; }
-_ = await ReadUntil(stream, PacketId.PositionUpdate);
-await WriteFrame(stream, new byte[] { (byte)PacketId.MapRequest });
-var map = await ReadUntilAny(stream, PacketId.MapData, PacketId.MapAlreadySynced);
-var mapId = map[0] == (byte)PacketId.MapData
-    ? BinaryPrimitives.ReadInt32LittleEndian(map.AsSpan(1))
-    : BinaryPrimitives.ReadInt32LittleEndian(map.AsSpan(1));
-Console.WriteLine($"FROG_PLAYTEST_READY correlation={correlation} map={mapId} x=0 y=0");
-await Task.Delay(Timeout.Infinite);
-return 0;
-
-static async Task<byte[]> ReadFrame(NetworkStream s)
-{
-    var lenBuf = new byte[4];
-    await ReadExact(s, lenBuf);
-    var len = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
-    var payload = new byte[len];
-    await ReadExact(s, payload);
-    return payload;
-}
-static async Task WriteFrame(NetworkStream s, byte[] payload)
-{
-    var frame = new byte[4 + payload.Length];
-    BinaryPrimitives.WriteInt32LittleEndian(frame, payload.Length);
-    payload.CopyTo(frame, 4);
-    await s.WriteAsync(frame);
-}
-static async Task ReadExact(NetworkStream s, byte[] buf)
-{
-    var n = 0;
-    while (n < buf.Length)
+    private static string ResolveHeadlessClientDll()
     {
-        var r = await s.ReadAsync(buf.AsMemory(n, buf.Length - n));
-        if (r == 0) throw new EndOfStreamException();
-        n += r;
+        var baseDir = AppContext.BaseDirectory;
+        var copied = Path.Combine(baseDir, "Frog.PlaytestHeadlessClient.dll");
+        if (File.Exists(copied))
+        {
+            return copied;
+        }
+
+        foreach (var cfg in new[] { "Release", "Debug" })
+        {
+            var candidate = Path.GetFullPath(Path.Combine(
+                baseDir,
+                "..",
+                "..",
+                "..",
+                "..",
+                "tests",
+                "Frog.PlaytestHeadlessClient",
+                "bin",
+                cfg,
+                "net8.0",
+                "Frog.PlaytestHeadlessClient.dll"));
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return Path.GetFullPath(Path.Combine(
+            baseDir,
+            "..",
+            "..",
+            "..",
+            "..",
+            "tests",
+            "Frog.PlaytestHeadlessClient",
+            "bin",
+            "Release",
+            "net8.0",
+            "Frog.PlaytestHeadlessClient.dll"));
     }
-}
-static async Task<byte[]> ReadUntil(NetworkStream s, PacketId id)
-{
-    while (true)
-    {
-        var f = await ReadFrame(s);
-        if (f[0] == (byte)id) return f;
-    }
-}
-static async Task<byte[]> ReadUntilAny(NetworkStream s, params PacketId[] ids)
-{
-    while (true)
-    {
-        var f = await ReadFrame(s);
-        if (ids.Any(i => f[0] == (byte)i)) return f;
-    }
-}
-static byte[] BuildLogin(string user, string pass)
-{
-    var ub = Encoding.UTF8.GetBytes(user);
-    var pb = Encoding.UTF8.GetBytes(pass);
-    var payload = new byte[1 + 1 + ub.Length + 1 + pb.Length];
-    payload[0] = (byte)PacketId.LoginRequest;
-    payload[1] = (byte)ub.Length;
-    ub.CopyTo(payload, 2);
-    payload[2 + ub.Length] = (byte)pb.Length;
-    pb.CopyTo(payload, 3 + ub.Length);
-    return payload;
-}
-""";
 
     private static string ResolveServerDll()
     {

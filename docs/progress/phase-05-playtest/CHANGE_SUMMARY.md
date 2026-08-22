@@ -29,6 +29,6 @@
 
 ## Tests
 
-- Production launcher/orchestrator integration (Frog.Tests)
+- Production launcher/orchestrator integration (Frog.Tests) via committed `tests/Frog.PlaytestHeadlessClient` (no on-the-fly `/workspace` build)
 - Safe workspace sentinel + secret redaction
 - WPF playtest close smokes + `FrogGameClient` protocol-version rejection (Windows)
