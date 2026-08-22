@@ -31,9 +31,18 @@ public static class FrogServerHostFactory
                 config.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
                 if (playtest.Enabled)
                 {
-                    var portEnv = Environment.GetEnvironmentVariable(PlaytestRuntimeOptions.PortEnvironmentVariable);
                     var bind = string.IsNullOrWhiteSpace(playtest.BindAddress) ? "127.0.0.1" : playtest.BindAddress;
-                    if (int.TryParse(portEnv, out var port) && port is > 0 and <= 65535)
+                    var port = playtest.Port;
+                    if (port is <= 0 or > 65535)
+                    {
+                        var portEnv = Environment.GetEnvironmentVariable(PlaytestRuntimeOptions.PortEnvironmentVariable);
+                        if (!int.TryParse(portEnv, out port))
+                        {
+                            port = 0;
+                        }
+                    }
+
+                    if (port is > 0 and <= 65535)
                     {
                         config.AddInMemoryCollection(new Dictionary<string, string?>
                         {
@@ -106,6 +115,7 @@ public static class FrogServerHostFactory
                     .Bind(ctx.Configuration.GetSection("Maps"));
 
                 services.AddSingleton(Options.Create(playtest));
+                services.AddSingleton(new PlaytestAuthTokenGate(playtest.AuthToken));
 
                 services.AddSingleton<AccountRepository>();
                 services.AddSingleton<IAccountRepository>(sp =>
@@ -221,6 +231,8 @@ public static class FrogServerHostFactory
             SpawnRuntimeMapId = plan.Spawn.RuntimeMapId,
             PrimaryCanonicalMapId = plan.PrimaryCanonicalMapId,
             PrimaryPublishedRevision = plan.PrimaryPublishedRevision,
+            BindAddress = string.IsNullOrWhiteSpace(plan.Host) ? "127.0.0.1" : plan.Host,
+            Port = plan.Port,
             AuthToken = string.IsNullOrEmpty(plan.AuthToken) ? null : plan.AuthToken,
         };
     }

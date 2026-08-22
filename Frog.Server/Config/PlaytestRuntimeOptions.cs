@@ -19,6 +19,8 @@ public sealed class PlaytestRuntimeOptions
     public Guid PrimaryCanonicalMapId { get; init; }
     public long PrimaryPublishedRevision { get; init; }
     public string BindAddress { get; init; } = "127.0.0.1";
+    /// <summary>Port TCP playtest (prioritaire sur l’env process — évite les courses entre tests).</summary>
+    public int Port { get; init; }
     /// <summary>Jeton playtest (env uniquement — jamais loggé).</summary>
     public string? AuthToken { get; init; }
 
@@ -45,6 +47,9 @@ public sealed class PlaytestRuntimeOptions
         }
 
         var token = Environment.GetEnvironmentVariable(PlaytestAuthToken.EnvironmentVariable);
+        var port = 0;
+        var portEnv = Environment.GetEnvironmentVariable(PortEnvironmentVariable);
+        _ = int.TryParse(portEnv, out port);
 
         return new PlaytestRuntimeOptions
         {
@@ -57,6 +62,7 @@ public sealed class PlaytestRuntimeOptions
             PrimaryCanonicalMapId = doc.PrimaryCanonicalMapId,
             PrimaryPublishedRevision = doc.PrimaryPublishedRevision,
             BindAddress = bind,
+            Port = port is > 0 and <= 65535 ? port : 0,
             AuthToken = string.IsNullOrWhiteSpace(token) ? null : token,
         };
     }

@@ -206,25 +206,12 @@ public sealed class PlaytestMapPreparer : IPlaytestMapPreparer
             });
         }
 
-        var workDir = PlaytestWorkspacePaths.CreateOwnedWorkspace(request.CorrelationId);
-        if (!string.IsNullOrWhiteSpace(request.WorkDirectory))
+        if (!TryResolveWorkDirectory(request, out var ownedWorkDir, out var workDirFailure))
         {
-            // Refuse arbitrary caller paths — only accept if already an owned workspace for this correlation.
-            if (!PlaytestWorkspacePaths.TryValidateOwnedWorkspace(
-                    request.WorkDirectory,
-                    request.CorrelationId,
-                    out var workDirError))
-            {
-                return new PlaytestPreparationResult.Failed(
-                    workDirError ?? "WorkDirectory playtest non owned.",
-                    PlaytestFailureKind.Validation);
-            }
-
-            // Caller supplied a pre-created owned dir (tests) — use it; keep marker.
-            workDir = Path.GetFullPath(request.WorkDirectory);
+            return workDirFailure!;
         }
 
-        var manifestPath = Path.Combine(workDir, "playtest-manifest.json");
+        var manifestPath = Path.Combine(ownedWorkDir, "playtest-manifest.json");
         var authToken = PlaytestAuthToken.Create();
 
         var plan = new PlaytestLaunchPlan
@@ -241,13 +228,45 @@ public sealed class PlaytestMapPreparer : IPlaytestMapPreparer
             Maps = runtimeMaps,
             Host = string.IsNullOrWhiteSpace(request.Host) ? "127.0.0.1" : request.Host,
             Port = request.Port > 0 ? request.Port : 0,
-            WorkDirectory = workDir,
+            WorkDirectory = ownedWorkDir,
             ManifestPath = manifestPath,
             AuthToken = authToken,
         };
 
         PlaytestManifestWriter.Write(plan);
         return new PlaytestPreparationResult.Success(plan);
+    }
+
+    /// <summary>
+    /// Valide un WorkDirectory fourni <b>avant</b> toute création, sinon crée un workspace owned.
+    /// Un chemin invalide ne laisse aucun nouveau dossier owned derrière.
+    /// </summary>
+    private static bool TryResolveWorkDirectory(
+        PlaytestPrepareRequest request,
+        out string workDir,
+        out PlaytestPreparationResult.Failed? failure)
+    {
+        workDir = string.Empty;
+        failure = null;
+        if (!string.IsNullOrWhiteSpace(request.WorkDirectory))
+        {
+            if (!PlaytestWorkspacePaths.TryValidateOwnedWorkspace(
+                    request.WorkDirectory,
+                    request.CorrelationId,
+                    out var workDirError))
+            {
+                failure = new PlaytestPreparationResult.Failed(
+                    workDirError ?? "WorkDirectory playtest non owned.",
+                    PlaytestFailureKind.Validation);
+                return false;
+            }
+
+            workDir = Path.GetFullPath(request.WorkDirectory);
+            return true;
+        }
+
+        workDir = PlaytestWorkspacePaths.CreateOwnedWorkspace(request.CorrelationId);
+        return true;
     }
 
     private async Task<(bool Ok, string? Error, PlaytestFailureKind Kind, Dictionary<Guid, StoredMap>? Maps)>

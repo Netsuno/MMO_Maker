@@ -35,6 +35,7 @@ public sealed class PacketDispatcher(
     IPlayerStateStore playerStateStore,
     IMapEventStore mapEventStore,
     IOptions<PlaytestRuntimeOptions> playtestOptions,
+    PlaytestAuthTokenGate playtestAuthTokenGate,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -50,6 +51,7 @@ public sealed class PacketDispatcher(
     private readonly IPlayerStateStore _playerStateStore = playerStateStore;
     private readonly IMapEventStore _mapEventStore = mapEventStore;
     private readonly PlaytestRuntimeOptions _playtest = playtestOptions.Value;
+    private readonly PlaytestAuthTokenGate _playtestAuthTokenGate = playtestAuthTokenGate;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
@@ -173,9 +175,8 @@ public sealed class PacketDispatcher(
         }
 
         var playtestTokenOk = _playtest.Enabled
-                              && !string.IsNullOrEmpty(_playtest.AuthToken)
                               && string.Equals(username, PlaytestAuthToken.Username, StringComparison.Ordinal)
-                              && PlaytestAuthToken.FixedTimeEquals(password, _playtest.AuthToken);
+                              && _playtestAuthTokenGate.TryConsume(password);
 
         if (!playtestTokenOk && !_authService.ValidateCredentials(username, password))
         {

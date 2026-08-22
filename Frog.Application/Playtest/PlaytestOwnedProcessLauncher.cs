@@ -11,7 +11,7 @@ namespace Frog.Application.Playtest;
 
 /// <summary>
 /// Lanceur production playtest (serveur + client) : sanitize env, drain logs, Hello readiness,
-/// attente readiness client, kill owned-only. Utilisable hors WPF (tests / éditeur).
+/// attente readiness client (map+spawn exact), kill owned-only. Utilisable hors WPF (tests / éditeur).
 /// </summary>
 public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
 {
@@ -24,7 +24,11 @@ public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
     private readonly object _gate = new();
     private int _logChars;
 
-    public TimeSpan ClientReadyTimeout { get; init; } = TimeSpan.FromSeconds(45);
+    public TimeSpan ClientReadyTimeout { get; set; } = TimeSpan.FromSeconds(45);
+    public TimeSpan ProcessStopTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Test seam: force WaitForExit to time out after Kill (ownership retained).</summary>
+    public bool ForceStopWaitTimeout { get; set; }
 
     public bool HasOwnedProcesses
     {
@@ -99,11 +103,13 @@ public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
         cancellationToken.ThrowIfCancellationRequested();
         RegisterSecretForRedaction(request.Plan.AuthToken);
 
-        var tokenArg = string.IsNullOrEmpty(request.Plan.AuthToken)
-            ? string.Empty
-            : $" --playtest-token {request.Plan.AuthToken}";
-        var args =
-            $"--playtest --host 127.0.0.1 --port {request.Port} --correlation {request.Plan.CorrelationId:N}{tokenArg}";
+        var args = BuildClientArguments(request.Plan.CorrelationId, request.Port);
+        if (!string.IsNullOrEmpty(request.Plan.AuthToken)
+            && args.Contains(request.Plan.AuthToken, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Le jeton playtest ne doit jamais figurer dans la ligne de commande.");
+        }
+
         var psi = new ProcessStartInfo
         {
             FileName = request.ExecutablePath,
@@ -125,6 +131,7 @@ public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
         psi.Environment[PlaytestRuntimeEnv.CorrelationId] = request.Plan.CorrelationId.ToString("N");
         if (!string.IsNullOrEmpty(request.Plan.AuthToken))
         {
+            // Env only — never command line.
             psi.Environment[PlaytestAuthToken.EnvironmentVariable] = request.Plan.AuthToken;
         }
 
@@ -142,7 +149,7 @@ public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
         {
             await WaitForClientReadyAsync(
                     process,
-                    request.Plan.CorrelationId,
+                    request.Plan,
                     ClientReadyTimeout,
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -156,54 +163,86 @@ public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
         return handle;
     }
 
+    /// <summary>Arguments client playtest — sans jeton (env uniquement).</summary>
+    public static string BuildClientArguments(Guid correlationId, int port)
+        => $"--playtest --host 127.0.0.1 --port {port} --correlation {correlationId:N}";
+
     public async Task StopAsync(PlaytestProcessHandle handle, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(handle);
         Process? process;
         lock (_gate)
         {
-            if (!_owned.Remove(handle.ProcessId, out process))
+            if (!_owned.TryGetValue(handle.ProcessId, out process))
             {
                 AppendLog(Guid.Empty, $"ignore-stop-unowned pid={handle.ProcessId} role={handle.Role}");
                 return;
             }
         }
 
+        var terminated = false;
         try
         {
-            if (!process.HasExited)
+            if (process.HasExited)
+            {
+                terminated = true;
+            }
+            else
             {
                 process.Kill(entireProcessTree: true);
                 using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                waitCts.CancelAfter(TimeSpan.FromSeconds(5));
+                waitCts.CancelAfter(ProcessStopTimeout);
                 try
                 {
+                    if (ForceStopWaitTimeout)
+                    {
+                        // Test seam: always surface stop failure and retain ownership.
+                        AppendLog(Guid.Empty, $"stop-wait-timeout pid={handle.ProcessId} role={handle.Role}");
+                        throw new InvalidOperationException(
+                            $"Échec arrêt processus playtest pid={handle.ProcessId} role={handle.Role} (ownership conservée). "
+                            + FormatRecentLogs());
+                    }
+
                     await process.WaitForExitAsync(waitCts.Token).ConfigureAwait(false);
+                    terminated = process.HasExited;
                 }
                 catch (OperationCanceledException)
                 {
                     AppendLog(Guid.Empty, $"stop-wait-timeout pid={handle.ProcessId} role={handle.Role}");
+                    terminated = process.HasExited;
                 }
             }
         }
         catch (Exception ex)
         {
             AppendLog(Guid.Empty, $"stop-error pid={handle.ProcessId}: {ex.Message}");
+            terminated = false;
         }
-        finally
-        {
-            try
-            {
-                process.CancelOutputRead();
-                process.CancelErrorRead();
-            }
-            catch
-            {
-                // ignore
-            }
 
-            process.Dispose();
+        if (!terminated)
+        {
+            // Retain ownership for retry — do not dispose / remove.
+            throw new InvalidOperationException(
+                $"Échec arrêt processus playtest pid={handle.ProcessId} role={handle.Role} (ownership conservée). "
+                + FormatRecentLogs());
         }
+
+        lock (_gate)
+        {
+            _owned.Remove(handle.ProcessId);
+        }
+
+        try
+        {
+            process.CancelOutputRead();
+            process.CancelErrorRead();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        process.Dispose();
     }
 
     public bool IsRunning(PlaytestProcessHandle handle)
@@ -241,9 +280,22 @@ public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
                 .ToList();
         }
 
+        Exception? first = null;
         foreach (var h in handles)
         {
-            await StopAsync(h, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await StopAsync(h, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                first ??= ex;
+            }
+        }
+
+        if (first is not null)
+        {
+            throw first;
         }
     }
 
@@ -301,12 +353,12 @@ public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
 
     private async Task WaitForClientReadyAsync(
         Process process,
-        Guid correlationId,
+        PlaytestLaunchPlan plan,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow + timeout;
-        var needle = $"{ReadyMarkerPrefix} correlation={correlationId:N}";
+        string? lastReject = null;
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -318,18 +370,35 @@ public sealed class PlaytestOwnedProcessLauncher : IPlaytestProcessLauncher
 
             foreach (var line in DrainLogsSnapshot())
             {
-                if (line.Contains(needle, StringComparison.OrdinalIgnoreCase))
+                if (!line.Contains(ReadyMarkerPrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    AppendLog(correlationId, "client-ready-observed");
+                    continue;
+                }
+
+                if (PlaytestReadyMarker.TryValidateAgainstPlan(
+                        line,
+                        plan.CorrelationId,
+                        plan.Spawn,
+                        out var values,
+                        out var error))
+                {
+                    AppendLog(
+                        plan.CorrelationId,
+                        $"client-ready-observed map={values.RuntimeMapId} tile=({values.TileX},{values.TileY}) pixel=({values.PixelX},{values.PixelY})");
                     return;
                 }
+
+                lastReject = error;
+                AppendLog(plan.CorrelationId, "client-ready-rejected: " + (error ?? "invalid"));
             }
 
             await Task.Delay(100, cancellationToken).ConfigureAwait(false);
         }
 
         throw new TimeoutException(
-            "Délai dépassé : client playtest non prêt (auth + carte). " + FormatRecentLogs());
+            "Délai dépassé : client playtest non prêt (auth + carte + spawn exact). "
+            + (lastReject is null ? "" : "Dernier rejet: " + lastReject + " ")
+            + FormatRecentLogs());
     }
 
     private Process StartOwned(ProcessStartInfo psi, Guid correlationId, string role)

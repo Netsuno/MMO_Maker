@@ -86,8 +86,6 @@ public sealed class PlaytestE2ETests
         Assert.Equal(1, runtimeA);
         Assert.NotEqual(runtimeB, runtimeC);
 
-        Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.PortEnvironmentVariable, port.ToString());
-        Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.BindAddressEnvironmentVariable, "127.0.0.1");
         var playtestOpts = FrogServerHostFactory.CreatePlaytestOptionsFromPlan(plan);
         using var host = FrogServerHostFactory.Create(playtestOpts);
         await host.StartAsync();
@@ -183,8 +181,6 @@ public sealed class PlaytestE2ETests
         finally
         {
             await host.StopAsync();
-            Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.PortEnvironmentVariable, null);
-            Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.BindAddressEnvironmentVariable, null);
             try
             {
                 PlaytestWorkspacePaths.TryDeleteOwnedWorkspace(

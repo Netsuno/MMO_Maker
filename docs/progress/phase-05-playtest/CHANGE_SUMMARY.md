@@ -1,34 +1,30 @@
-# Phase 5 — CHANGE SUMMARY (second rejection corrections)
+# Phase 5 — CHANGE SUMMARY (third rejection corrections)
 
-## Application
+## READY / spawn
 
-- `PlaytestOwnedProcessLauncher` — production process manager (sanitize, drain logs, Hello readiness, client READY wait, owned-only kill)
-- `PlaytestWorkspacePaths` — canonical owned workspace root + marker; safe delete only
-- `PlaytestAuthToken` — ephemeral loopback token (never logged)
-- `PlaytestLogSanitizer` — removes full secret values (not name-only mangling)
-- Preparer always creates owned workspace; generates auth token on plan
-- Orchestrator cleanup uses owned-workspace delete only
+- Strict `PlaytestReadyMarker` (correlation, runtime map, tileX/Y, pixelX/Y)
+- Headless + Frog.Client emit authoritative PositionUpdate-derived coords (spawn 1,1 → pixels 48,48)
+- `WaitForClientReadyAsync` parses/validates marker against `plan.Spawn` (rejects wrong map/spawn/malformed)
 
-## Server
+## Token
 
-- Playtest token login (`__frog_playtest__` + env token) when playtest enabled
-- `PlaytestRuntimeOptions.AuthToken` from env
+- Removed `--playtest-token` from process command line (env `FROG_PLAYTEST_AUTH_TOKEN` only)
+- `PlaytestAuthTokenGate` consumes token atomically on first successful playtest auth; reuse fails
+- Never logged
 
-## Client
+## Lifecycle
 
-- `--playtest-token` / env token; auto-connect + token login + map load
-- Stdout `FROG_PLAYTEST_READY` after auth+map; correlated Console logs (token redacted)
-- Never logs the token
+- Early-exit via headless `--exit-before-ready` (PID + exit code 7 + sanitized stderr)
+- `StopAsync` retains ownership until termination confirmed; injectable `ForceStopWaitTimeout` seam
+- Orchestrator defers workspace delete while owned processes remain
 
-## Editor
+## Isolation / workspace
 
-- `EditorPlaytestProcessLauncher` thin wrapper over `PlaytestOwnedProcessLauncher`
-- WPF `OnMainWindowClosing` / Quit: cancel close while playtest active/busy/owned; await `StopPlaytestAsync`; then dirty prompt; then close
-- `FormClosed` stop is fallback only
-- Success UI only after orchestrator returns Success (client ready)
+- Playtest children fail-fast if forbidden env **names** present (values never printed)
+- Production path sanitizes then starts; integration injects forbidden names in parent
+- `PlaytestMapPreparer` validates caller `WorkDirectory` before any create (no leak)
 
 ## Tests
 
-- Production launcher/orchestrator integration (Frog.Tests) via committed `tests/Frog.PlaytestHeadlessClient` (no on-the-fly `/workspace` build)
-- Safe workspace sentinel + secret redaction
-- WPF playtest close smokes + `FrogGameClient` protocol-version rejection (Windows)
+- Unit: READY validate, token gate, workspace leak, production launcher spawn/env/early-exit/stop-failure, token reuse TCP
+- Windows smoke: real `Frog.Server` + `Frog.Client.exe` + production orchestrator success path

@@ -86,6 +86,80 @@ public static class PlaytestChildEnvironment
     }
 
     /// <summary>
+    /// Liste les <b>noms</b> interdits présents (jamais les valeurs). Pour preuves d’isolation.
+    /// </summary>
+    public static IReadOnlyList<string> ListPresentForbiddenNames(IDictionary environmentVariables)
+    {
+        ArgumentNullException.ThrowIfNull(environmentVariables);
+        var present = new List<string>();
+        foreach (var name in ForbiddenVariableNames)
+        {
+            if (environmentVariables.Contains(name))
+            {
+                present.Add(name);
+            }
+        }
+
+        foreach (DictionaryEntry entry in environmentVariables)
+        {
+            var key = entry.Key?.ToString();
+            if (string.IsNullOrEmpty(key) || present.Contains(key, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (IsForbiddenKey(key))
+            {
+                present.Add(key);
+            }
+        }
+
+        return present;
+    }
+
+    public static IReadOnlyList<string> ListPresentForbiddenNamesFromProcessEnv()
+        => ListPresentForbiddenNames(Environment.GetEnvironmentVariables());
+
+    /// <summary>
+    /// À appeler au démarrage d’un enfant playtest : échoue sans imprimer de valeurs si un nom interdit est présent.
+    /// </summary>
+    public static bool TryFailFastIfForbiddenPresent(TextWriter errorWriter, out int exitCode)
+    {
+        exitCode = 0;
+        var names = ListPresentForbiddenNamesFromProcessEnv();
+        if (names.Count == 0)
+        {
+            return false;
+        }
+
+        errorWriter.WriteLine(
+            "FROG_PLAYTEST_FAIL forbidden-env-present names=" + string.Join(',', names));
+        errorWriter.Flush();
+        exitCode = 11;
+        return true;
+    }
+
+    public static bool IsPlaytestChildProcess()
+    {
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(PlaytestRuntimeEnv.ManifestPath)))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(PlaytestAuthToken.EnvironmentVariable)))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(PlaytestRuntimeEnv.CorrelationId)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Lance un processus enfant (rôle serveur ou client) qui n’imprime que les <b>noms</b>
     /// de variables d’environnement après sanitization. Retourne les noms interdits encore présents.
     /// </summary>

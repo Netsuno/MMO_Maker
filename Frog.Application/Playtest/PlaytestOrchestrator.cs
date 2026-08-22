@@ -38,6 +38,9 @@ public interface IPlaytestProcessLauncher
     Task StopAsync(PlaytestProcessHandle handle, CancellationToken cancellationToken = default);
 
     bool IsRunning(PlaytestProcessHandle handle);
+
+    /// <summary>True si des PIDs owned sont encore suivis (arrêt non confirmé).</summary>
+    bool HasOwnedProcesses { get; }
 }
 
 /// <summary>État d’une session playtest orchestrée.</summary>
@@ -200,7 +203,6 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
         lock (_gate)
         {
             state = _active;
-            _active = null;
         }
 
         if (state is null)
@@ -209,6 +211,18 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
         }
 
         await CleanupUnsafeAsync(state, cancellationToken).ConfigureAwait(false);
+
+        if (!_launcher.HasOwnedProcesses)
+        {
+            ClearActive(state);
+        }
+        else
+        {
+            // Stop incomplete — keep session visible for retry; workspace retained.
+            state.IsActive = true;
+            state.LogLines.Add(
+                $"[{state.CorrelationId:N}] Session playtest conservée — arrêt incomplet, retry StopAsync requis.");
+        }
     }
 
     private void ClearActive(PlaytestSessionState state)
@@ -225,6 +239,7 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
     private async Task CleanupUnsafeAsync(PlaytestSessionState state, CancellationToken cancellationToken)
     {
         state.IsActive = false;
+        var stopFailed = false;
         if (state.Client is { } client)
         {
             try
@@ -232,9 +247,11 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
                 state.LogLines.Add($"[{state.CorrelationId:N}] Arrêt client PID={client.ProcessId}");
                 await _launcher.StopAsync(client, cancellationToken).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
-                // best-effort
+                stopFailed = true;
+                state.LogLines.Add(
+                    $"[{state.CorrelationId:N}] Échec arrêt client: {PlaytestLogSanitizer.Sanitize(ex.Message)}");
             }
         }
 
@@ -245,10 +262,19 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
                 state.LogLines.Add($"[{state.CorrelationId:N}] Arrêt serveur PID={server.ProcessId}");
                 await _launcher.StopAsync(server, cancellationToken).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
-                // best-effort
+                stopFailed = true;
+                state.LogLines.Add(
+                    $"[{state.CorrelationId:N}] Échec arrêt serveur: {PlaytestLogSanitizer.Sanitize(ex.Message)}");
             }
+        }
+
+        if (stopFailed || _launcher.HasOwnedProcesses)
+        {
+            state.LogLines.Add(
+                $"[{state.CorrelationId:N}] Nettoyage workspace différé — processus owned encore présents ou arrêt non confirmé.");
+            return;
         }
 
         state.Client = null;

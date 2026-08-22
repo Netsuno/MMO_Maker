@@ -539,5 +539,7 @@ public sealed class PlaytestOrchestratorTests
         }
 
         public bool IsRunning(PlaytestProcessHandle handle) => false;
+
+        public bool HasOwnedProcesses => false;
     }
 }

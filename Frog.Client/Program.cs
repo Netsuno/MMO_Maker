@@ -1,3 +1,5 @@
+using Frog.Application.Playtest;
+
 namespace Frog.Client
 {
     internal static class Program
@@ -5,13 +7,23 @@ namespace Frog.Client
         [STAThread]
         static void Main(string[] args)
         {
+            if (args.Any(a => string.Equals(a, "--playtest", StringComparison.OrdinalIgnoreCase))
+                || PlaytestChildEnvironment.IsPlaytestChildProcess())
+            {
+                if (PlaytestChildEnvironment.TryFailFastIfForbiddenPresent(Console.Error, out var exitCode))
+                {
+                    Environment.Exit(exitCode);
+                    return;
+                }
+            }
+
             ApplicationConfiguration.Initialize();
             var options = ClientPlaytestCli.Parse(args);
-            Application.Run(new MainShellForm(options));
+            System.Windows.Forms.Application.Run(new MainShellForm(options));
         }
     }
 
-    /// <summary>Arguments CLI playtest (jamais de chaîne PostgreSQL ; jeton jamais journalisé).</summary>
+    /// <summary>Arguments CLI playtest (jamais de chaîne PostgreSQL ; jeton uniquement via env).</summary>
     internal sealed class ClientPlaytestOptions
     {
         public bool IsPlaytest { get; init; }
@@ -30,7 +42,6 @@ namespace Frog.Client
             var host = "127.0.0.1";
             var port = 6000;
             string? correlation = null;
-            string? token = null;
             for (var i = 0; i < args.Length; i++)
             {
                 var a = args[i];
@@ -52,16 +63,15 @@ namespace Frog.Client
                 {
                     correlation = args[++i];
                 }
-                else if (string.Equals(a, "--playtest-token", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                else if (string.Equals(a, "--playtest-token", StringComparison.OrdinalIgnoreCase))
                 {
-                    token = args[++i];
+                    throw new InvalidOperationException(
+                        "FROG_PLAYTEST_FAIL playtest-token-on-command-line-forbidden");
                 }
             }
 
-            if (string.IsNullOrEmpty(token))
-            {
-                token = Environment.GetEnvironmentVariable("FROG_PLAYTEST_AUTH_TOKEN");
-            }
+            // Env only — never command line.
+            var token = Environment.GetEnvironmentVariable(PlaytestAuthToken.EnvironmentVariable);
 
             return new ClientPlaytestOptions
             {

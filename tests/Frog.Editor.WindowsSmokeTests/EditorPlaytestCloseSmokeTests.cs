@@ -157,5 +157,7 @@ public sealed class EditorPlaytestCloseSmokeTests
         }
 
         public bool IsRunning(PlaytestProcessHandle handle) => StopCount == 0;
+
+        public bool HasOwnedProcesses => StopCount == 0;
     }
 }

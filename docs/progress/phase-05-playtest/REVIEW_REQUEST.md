@@ -1,23 +1,21 @@
-# Demande de revue — Phase 5 (second rejection corrections)
+# Demande de revue — Phase 5 (third rejection corrections)
 
 ## Contexte
 
-Second temporary rejection at `f9d88b4`. Corrections on **same** branch/PR only. Phase 6 not started.
+Third temporary rejection at `6dcf0b3`. Corrections on **same** branch/PR only. Phase 6 not started.
 
 ## Plage
 
-- After: `f9d88b4827fc89c9e4ab63bd8c941bbb823d662b`
-- Implementation: `62b27c542bab33896b73e00889da4e0a29211fad`
-- CI-evidence tip: `2665e040937045155c887c62affdbfea98aa7153`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32600611710 (168 / 18 / 12×3)
-- Head: see `docs/STATUS.md`
+- After: `6dcf0b301c9b3f06aa3b118a49e10d832719b0fc`
+- Head / CI: see `docs/STATUS.md`
 
 ## Checklist
 
-- [x] Production launcher/orchestrator path tested
-- [x] WPF coordinated close awaits playtest stop
-- [x] Client token auth + READY before “Playtest prêt”
-- [x] Safe owned workspace cleanup + sentinel
-- [x] Secret redaction (full values)
-- [x] Real FrogGameClient protocol-version rejection
+- [x] Exact READY map/tile/pixel validation
+- [x] Real Frog.Client.exe success smoke
+- [x] Token env-only + single-use reuse denied
+- [x] Early-exit PID/exit/safe error
+- [x] Stop-failure ownership retained
+- [x] Real child env isolation
+- [x] Invalid WorkDirectory no-leak
 - [x] Screenshots remain NOT RUN

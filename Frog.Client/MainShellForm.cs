@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using Frog.Client.Assets;
 using Frog.Client.Network;
 using Frog.Client.UI;
+using Frog.Application.Playtest;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
@@ -334,16 +335,29 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        if (!_playtestLoginOk || _map is null || _playtestObservedMapId is null)
+        if (!_playtestLoginOk || _map is null || _playtestObservedMapId is null
+            || _playtestObservedPixelX is null || _playtestObservedPixelY is null)
         {
             return;
         }
 
-        var corr = string.IsNullOrWhiteSpace(_playtestOptions.CorrelationId)
-            ? "-"
-            : _playtestOptions.CorrelationId!;
-        var line =
-            $"FROG_PLAYTEST_READY correlation={corr} map={_playtestObservedMapId} x={_playtestObservedPixelX ?? -1} y={_playtestObservedPixelY ?? -1}";
+        if (!Guid.TryParseExact(_playtestOptions.CorrelationId ?? string.Empty, "N", out var corr)
+            && !Guid.TryParse(_playtestOptions.CorrelationId, out corr))
+        {
+            EmitPlaytestFailure("correlation manquante pour READY");
+            return;
+        }
+
+        var pixelX = _playtestObservedPixelX.Value;
+        var pixelY = _playtestObservedPixelY.Value;
+        var (tileX, tileY) = PlaytestReadyMarker.PixelsToTile(pixelX, pixelY);
+        var line = PlaytestReadyMarker.Format(
+            corr,
+            _playtestObservedMapId.Value,
+            tileX,
+            tileY,
+            pixelX,
+            pixelY);
         try
         {
             Console.Out.WriteLine(line);

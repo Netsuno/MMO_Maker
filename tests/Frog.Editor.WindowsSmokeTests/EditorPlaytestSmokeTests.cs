@@ -145,5 +145,7 @@ public sealed class EditorPlaytestSmokeTests
         }
 
         public bool IsRunning(PlaytestProcessHandle handle) => false;
+
+        public bool HasOwnedProcesses => false;
     }
 }
