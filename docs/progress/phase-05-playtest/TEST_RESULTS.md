@@ -3,61 +3,68 @@
 ## Commit range
 
 - After Phase 4 accepted: `22d19b4570eaf552e5ce162243a83020ce86e2eb`
-- Green head (this gate): _filled after push/CI — see REVIEW_REQUEST.md_
+- Green head: `e507a0481dd29c36524be4c854a458c84c70439c`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32590792046
 
-## Suites
+## Suites (CI)
+
+| Suite | Passed | Failed | Total |
+| --- | ---: | ---: | ---: |
+| Frog.Tests | 145 | 0 | 145 |
+| Frog.Persistence.IntegrationTests | 17 | 0 | 17 |
+| Frog.Editor.WindowsSmokeTests | 9 | 0 | 9 × 3 consecutive |
 
 ### Unit / E2E / protocol (`Frog.Tests`)
 
-**145 / 145 PASS** (local Release)
+Includes preparer, orchestrator (failure/cancel/timeout/stop), manifest/protocol, architecture Server↛Persistence, non-UI E2E playtest host.
 
-Includes:
+### PostgreSQL
 
-- Playtest preparer (dirty save, durable gate, spawn validation, draft≠published)
-- Orchestrator (launch failure, cancel, timeout, stop cleanup)
-- Manifest/protocol (schema version, invalid login/move payloads, Hello version, size contract)
-- Architecture: Server → Application, **not** Persistence
-- Non-UI E2E playtest host: startup → Hello → login → spawn → valid move → blocked move → warp → disconnect → port closed
+Includes `ServerPlaytestPipeline_LoadsPublishedSnapshot_NotNewerDraft` — published blocks remain after newer draft clears them; `MapService` fingerprint = published revision.
 
-### PostgreSQL integration
+### Windows smoke ×3
 
-**17 / 17 PASS** (local)
-
-New: `ServerPlaytestPipeline_LoadsPublishedSnapshot_NotNewerDraft` — published blocks remain after newer draft clears them; `MapService` fingerprint revision = published revision.
-
-### Windows smoke (`Frog.Editor.WindowsSmokeTests`)
-
-- Phase 4 suite retained (7) + playtest smoke (2) = **9** tests
-- CI runs the suite **×3 consecutive** (unchanged workflow policy)
-- Not executed on this Linux cloud agent (WPF STA host requires Windows runner)
+Phase 4 suite (7) + playtest error/cancel (2) = 9; three consecutive passes OK.
 
 ## Correlated logs (sample)
 
 ```
-[a1b2…f0] Playtest préparé MapId=<guid> rev=<n>
-[a1b2…f0] Démarrage serveur port=<p>
-[a1b2…f0] Serveur PID=<pid>
-[a1b2…f0] Démarrage client 127.0.0.1:<p>
-[a1b2…f0] Client PID=<pid>
+[<correlation>] Playtest préparé MapId=<guid> rev=<n>
+[<correlation>] Démarrage serveur port=<p>
+[<correlation>] Serveur PID=<pid>
+[<correlation>] Démarrage client 127.0.0.1:<p>
+[<correlation>] Client PID=<pid>
 ```
 
-Server scope fields when playtest enabled: `PlaytestCorrelationId`, `PlaytestMapId`, `PlaytestPublishedRevision`.
+Server playtest scopes: `PlaytestCorrelationId`, `PlaytestMapId`, `PlaytestPublishedRevision`.
 
 ## Draft-not-loaded proof
 
-- Unit: after publish, draft rename + save; published snapshot name unchanged; manifest pins published revision.
-- PG: draft clears blocks; preparer + `MapService.IsBlocked(1,6,5)` still true from published snapshot.
-- E2E: draft name `SHOULD_NOT_LOAD` / blocks cleared in draft; live `MapService` still reports published blocks + warp to runtime map 2.
+- Unit: draft rename after publish; published snapshot unchanged; manifest pins revision.
+- PG: draft clears blocks; preparer + `MapService.IsBlocked` still true from published.
+- E2E: draft diverges; live MapService still has published blocks + warp to runtime map 2.
 
 ## Process shutdown
 
-- Orchestrator clears active session and stops client then server on failure/cancel/Stop.
-- E2E: after `host.StopAsync()`, playtest TCP port is closed (no orphan listener).
-- Editor `FormClosed` / Stop Playtest calls orchestrator + `StopAllOwnedAsync`.
+- Orchestrator clears session; stops client then server.
+- E2E: port closed after host stop (no orphan listener).
+- Smoke cancel: fake launcher records cleanup on cancelled server start wait.
+- Editor FormClosed / Stop Playtest cleanup.
 
-## Not executed here
+## Screenshots
 
-| Test | Why |
+- `playtest-launch.png` — playtest launch schematic
+- `playtest-client-running.png` — client session schematic  
+
+(Real WPF capture deferred; Linux agent — schematics committed for gate evidence.)
+
+## Not executed / deferred
+
+| Item | Why |
 | --- | --- |
-| Windows UI smoke ×3 | Linux agent — deferred to GitHub Actions `windows` job |
-| Live WPF screenshot capture | No Windows UI session in this environment (schematics provided) |
+| Live interactive WPF screenshot of Frog.Client window | No Windows desktop session in cloud agent; CI smoke covers command/error/cancel |
+
+## Confirmations
+
+- `git status` clean on gate docs commit  
+- Phase 6 not started  
