@@ -1,28 +1,29 @@
 # État du projet FRoG
 
-- Dernière mise à jour : 2026-08-22 03:20 UTC
+- Dernière mise à jour : 2026-08-22 03:35 UTC
 - Branche / commit : `cursor/phase0-baseline-audit-02c7`
-- Phase active : **Phase 2 — Task 6 (structures carte VB6)** ; Task 4 PostgreSQL toujours bloquée
+- Phase active : **Phase 2→3 — Task 8/9 (modèle + LegacyFccMapReader)** ; Task 4 PG bloquée
 - Environnement : Ubuntu 24.04, .NET SDK 8.0.424
 
 ## Vérifié comme fonctionnel
 
-- Build/test C# 12 (91 tests architecture + métier)
-- Inventaire VB6 régénéré depuis upstream (Forms/Modules/Classes = 105/44/8 ; +3 `.ctl`)
+- Build/test C# 12 + architecture boundaries
+- Inventaire VB6 (105/44/8 + 3 ctl)
+- Caractérisation en-tête `.fcc` sur 3 fixtures (taille, nom, array 31×31, SHA-256 map1)
 
 ## Implémenté, mais non vérifié
 
 - Éditeur / client WinForms ; MariaDB réelle ; E2E TCP
+- Reader `.fcc` complet (test Skip Task 9)
 
 ## En cours
 
-- Une seule tâche : **Task 6 — extraire structures/enums de carte depuis `modTypes` / `modDatabase`**
+- Une seule tâche : **implémenter `LegacyFccMapReader` + modèle nécessaire (Tasks 8–9)** après commit de la spec/fixtures
 
 ## Bloqueurs
 
-- **Task 4 — décision humaine :** PostgreSQL (PRD) vs MariaDB (dépôt). Options : (1) migrer PG, (2) amender PRD pour MariaDB, (3) dual-run planifié.
-- Fixtures binaires `.map` VB6 non encore collectées (Task 7)
-- WinForms non exécutable sur cet agent Linux
+- **Task 4 :** PostgreSQL (PRD) vs MariaDB (dépôt) — décision humaine
+- Détail octet-à-octet des champs `String`/`*Set` dans les 88 octets tuile (documenté comme À PROUVER)
 
 ## Commandes de validation
 
@@ -32,11 +33,8 @@ dotnet restore Frog.Creator.sln && dotnet build Frog.Creator.sln -c Release --no
 
 ## Résultat de la dernière validation
 
-- Build : **PASS**
-- Tests : **91 réussis**
-- Intégration PostgreSQL : **NOT RUN** (bloqué)
-- E2E : **NOT RUN**
+- À rafraîchir après tests characterization
 
 ## Prochaine tâche
 
-- Extraire `MapRec` / couches / attributs / `Data1..3` depuis les sources VB6 clonées ; rédiger le début de `docs/LEGACY_FORMATS.md`.
+- Frog.Legacy (ou Core temporaire) : reader `.fcc` header + tuiles + warps avec golden masters sur map1–3 ; rapport d’import structuré.
