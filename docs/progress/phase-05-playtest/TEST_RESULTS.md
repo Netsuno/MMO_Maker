@@ -3,8 +3,8 @@
 ## Commit range
 
 - Prior rejected tip: `f9d88b4827fc89c9e4ab63bd8c941bbb823d662b`
-- Implementation commit: _see STATUS.md after push_
-- Gate HEAD: _see STATUS.md after push_
+- Implementation commit: 62b27c542bab33896b73e00889da4e0a29211fad
+- Gate HEAD: 62b27c542bab33896b73e00889da4e0a29211fad
 - CI: _pending_
 
 ## Suites (local pre-push)

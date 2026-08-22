@@ -5,7 +5,9 @@
 - **Phase 4 : ACCEPTED** — `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - **Phase 5 : GATE REACHED — WAITING FOR REVIEW** (corrections after `f9d88b4`)
   - Rejected tip : `f9d88b4827fc89c9e4ab63bd8c941bbb823d662b`
-  - Implementation / HEAD : _filled after push_
+  - Implementation commit : `62b27c542bab33896b73e00889da4e0a29211fad`
+  - Gate HEAD : _docs tip after this commit_
+  - Range after rejection : `f9d88b4..HEAD`
   - CI : _pending_
 - Phase 6 : non commencée
 
