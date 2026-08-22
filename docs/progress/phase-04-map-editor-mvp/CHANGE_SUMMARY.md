@@ -1,28 +1,34 @@
-# Phase 04 — résumé des changements
+# Phase 04 — résumé des changements (gate data safety)
 
 ## Application
 
-- `MapWorkspaceSession` : `IsDirty`, `MarkDirty`, `SaveCurrentAsync`, `ReloadCurrentAsync`
+- `MapRepositoryCapabilities` : `IsDurablePersistence`, `AllowsSave`, libellés UI
+- `SaveMapIntent`, `SaveMapResult.NotDurable`, `SaveMapResult.PersistenceFailed`
+- `MapWorkspaceSession` : `CanPersist`, mutex save, `SaveCurrentAsync(SaveMapIntent)`, init démo locale sans fausse persistance
+- `MapWarpValidator`, `MapEditOperations` (logique testable sans UI)
+- `IMapRepository` : `LoadPublishedByIdAsync`, `ListPublicationHistoryAsync`
 
 ## Éditeur
 
-- `SaveMap` / Ctrl+S → PostgreSQL brouillon
-- `PublishMap` → PostgreSQL publié
-- `ExportMapToFile` → `.fmap` (export secondaire)
-- `WarpDestinationDialog` — configuration carte cible + X/Y
-- `MapCanvas.DefaultWarpTargetMapId`, `MapEdited`
-- Menus WPF/WinForms mis à jour (PG primaire, MariaDB héritage)
+- `IEditorDialogService` injectable (smoke + tests)
+- Save/Publish : pas de `_ =` silencieux, état occupé, menus désactivés si non persistant
+- Prompts Enregistrer / Ignorer / Annuler (changement carte, nouvelle carte, ouverture fichier, fermeture)
+- Dirty + undo sur PropertyGrid, visibilité couche, opérations couche
+- `WarpDestinationDialog` : limites X/Y selon carte cible sélectionnée
 
 ## Persistence
 
-- `PostgresMapRepository` : mise à jour fiable (ExecuteDelete + insert enfants, fix FK warp)
+- Migration `DraftPublishSeparation` : snapshots publiés immuables + historique
+- `PostgresMapRepository` : `ExecuteUpdate` atomique sur `Id + Revision`, validation warp avant écriture
+- `InMemoryMapRepository` : séparation draft/publish pour tests
 
-## Core / docs
+## Tests
 
-- Commentaires VB6 obsolètes retirés de `Map.cs`, `TileType.cs`
-- `docs/BACKLOG.md` Phase 4 cochée
+- `MapPersistenceModeTests`, `MapEditOperationsTests`
+- PG : concurrence 2 DbContext, draft/publish immuable, warp hors limites
+- Smoke : 1 test via `MainForm.SaveMapAsync()`
 
-## Commits de référence
+## Plage
 
-- Implémentation shell Phase 3 : `3fc6530`
-- Phase 4 : plage `3fc6530..HEAD`
+- Gate Phase 3 : `20eedc1`
+- Phase 4 : `20eedc1..HEAD`

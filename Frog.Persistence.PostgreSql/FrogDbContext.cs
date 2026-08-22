@@ -14,6 +14,10 @@ public sealed class FrogDbContext : DbContext
     public DbSet<MapCellEntity> MapCells => Set<MapCellEntity>();
     public DbSet<MapWarpEntity> MapWarps => Set<MapWarpEntity>();
     public DbSet<MapNpcSpawnEntity> MapNpcSpawns => Set<MapNpcSpawnEntity>();
+    public DbSet<MapPublishedSnapshotEntity> MapPublishedSnapshots => Set<MapPublishedSnapshotEntity>();
+    public DbSet<MapPublishedCellEntity> MapPublishedCells => Set<MapPublishedCellEntity>();
+    public DbSet<MapPublishedWarpEntity> MapPublishedWarps => Set<MapPublishedWarpEntity>();
+    public DbSet<MapPublicationHistoryEntity> MapPublicationHistory => Set<MapPublicationHistoryEntity>();
     public DbSet<TilesetEntity> Tilesets => Set<TilesetEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
@@ -28,7 +32,9 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.Width).IsRequired();
             e.Property(x => x.Height).IsRequired();
-            e.Property(x => x.Revision).IsRequired();
+            e.Property(x => x.Revision).IsRequired().IsConcurrencyToken();
+            e.Property(x => x.PublishedRevision);
+            e.Property(x => x.PublishedSnapshotId);
             e.Property(x => x.LayersCatalogJson).HasColumnType("jsonb").IsRequired();
             e.Property(x => x.Status).HasConversion<byte>();
             e.ToTable(t =>
@@ -64,6 +70,38 @@ public sealed class FrogDbContext : DbContext
         {
             e.ToTable("map_npc_spawns");
             e.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<MapPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("map_published_snapshots");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.MapId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.LayersCatalogJson).HasColumnType("jsonb").IsRequired();
+            e.HasMany(x => x.Cells).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Warps).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MapPublishedCellEntity>(e =>
+        {
+            e.ToTable("map_published_cells");
+            e.HasKey(x => new { x.SnapshotId, x.X, x.Y });
+            e.Property(x => x.LayersJson).HasColumnType("jsonb").IsRequired();
+        });
+
+        modelBuilder.Entity<MapPublishedWarpEntity>(e =>
+        {
+            e.ToTable("map_published_warps");
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.Snapshot).WithMany(x => x.Warps).HasForeignKey(x => x.SnapshotId);
+        });
+
+        modelBuilder.Entity<MapPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("map_publication_history");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.MapId);
         });
 
         modelBuilder.Entity<TilesetEntity>(e =>

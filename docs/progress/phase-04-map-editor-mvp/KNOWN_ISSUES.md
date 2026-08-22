@@ -1,12 +1,12 @@
 # Phase 04 — problèmes connus
 
-| Sévérité | Item | Notes |
-| --- | --- | --- |
-| Moyenne | Serveur charge encore MariaDB | Phase 5 — consommer PG publié |
-| Faible | `IsDirty` ne détecte pas retour exact à l’état sauvegardé via undo | MVP acceptable |
-| Faible | Menus MariaDB héritage toujours présents | Gelés, non étendus |
-| Faible | Playtest depuis éditeur | Phase 5 |
+## Acceptés pour gate
 
-## Résolu
+- Export `.fmap` reste un chemin secondaire (non PostgreSQL).
+- Publication MariaDB reste héritage / hors scope Phase 4.
+- Undo/redo testé via `MapEditOperations` + session ; pas de replay souris automatisé.
 
-- Second enregistrement PostgreSQL avec warps (fix repository)
+## Hors scope Phase 4
+
+- Playtest serveur (Phase 5).
+- Chargement runtime de la dernière révision publiée côté serveur (Phase 5).

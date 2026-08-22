@@ -23,7 +23,7 @@ internal static class MapPersistenceMapper
             Width = request.Map.Width,
             Height = request.Map.Height,
             AllowPlayerOverlap = request.Map.AllowPlayerOverlap,
-            Status = request.Status,
+            Status = MapPublishStatus.Draft,
             Revision = 1,
             CreatedAtUtc = nowUtc,
             UpdatedAtUtc = nowUtc,
@@ -65,7 +65,82 @@ internal static class MapPersistenceMapper
         List<MapWarpEntity> Warps,
         List<MapNpcSpawnEntity> NpcSpawns);
 
-    private static string SerializeLayersCatalog(Map map) =>
+    public static MapPublishedSnapshotEntity ToPublishedSnapshot(MapEntity draft, Map map, DateTimeOffset nowUtc)
+    {
+        var snapshotId = Guid.NewGuid();
+        var snapshot = new MapPublishedSnapshotEntity
+        {
+            Id = snapshotId,
+            MapId = draft.Id,
+            Revision = draft.Revision,
+            PublishedAtUtc = nowUtc,
+            Name = map.Name,
+            Width = map.Width,
+            Height = map.Height,
+            AllowPlayerOverlap = map.AllowPlayerOverlap,
+            LayersCatalogJson = SerializeLayersCatalog(map),
+        };
+
+        var children = BuildChildren(draft.Id, map);
+        foreach (var cell in children.Cells)
+        {
+            snapshot.Cells.Add(new MapPublishedCellEntity
+            {
+                SnapshotId = snapshotId,
+                X = cell.X,
+                Y = cell.Y,
+                LayersJson = cell.LayersJson,
+            });
+        }
+
+        foreach (var warp in children.Warps)
+        {
+            snapshot.Warps.Add(new MapPublishedWarpEntity
+            {
+                Id = Guid.NewGuid(),
+                SnapshotId = snapshotId,
+                SourceX = warp.SourceX,
+                SourceY = warp.SourceY,
+                TargetMapId = warp.TargetMapId,
+                TargetX = warp.TargetX,
+                TargetY = warp.TargetY,
+                DestinationUnresolved = warp.DestinationUnresolved,
+            });
+        }
+
+        return snapshot;
+    }
+
+    public static StoredMap ToStoredFromSnapshot(MapPublishedSnapshotEntity snapshot, long? publishedRevision)
+    {
+        var pseudo = new MapEntity
+        {
+            Id = snapshot.MapId,
+            Name = snapshot.Name,
+            Width = snapshot.Width,
+            Height = snapshot.Height,
+            AllowPlayerOverlap = snapshot.AllowPlayerOverlap,
+            LayersCatalogJson = snapshot.LayersCatalogJson,
+            Cells = snapshot.Cells.Select(c => new MapCellEntity
+            {
+                MapId = snapshot.MapId,
+                X = c.X,
+                Y = c.Y,
+                LayersJson = c.LayersJson,
+            }).ToList(),
+        };
+
+        return new StoredMap
+        {
+            MapId = snapshot.MapId,
+            Map = ToDomain(pseudo),
+            Revision = snapshot.Revision,
+            Status = MapPublishStatus.Published,
+            PublishedRevision = publishedRevision ?? snapshot.Revision,
+        };
+    }
+
+    public static string SerializeLayersCatalog(Map map) =>
         JsonSerializer.Serialize(
             map.Layers.Select(l => new LayerCatalogEntry
             {

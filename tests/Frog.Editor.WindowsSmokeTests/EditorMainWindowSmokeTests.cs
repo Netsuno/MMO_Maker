@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows.Threading;
 using Frog.Application.Maps;
 using Frog.Editor;
@@ -37,38 +38,36 @@ public sealed class EditorMainWindowSmokeTests
 
             if (includeSave)
             {
-                Exception? saveError = null;
+                Task? saveTask = null;
                 window.Dispatcher.Invoke(() =>
                 {
-                    try
-                    {
-                        var session = window.EditorForm.GetWorkspaceSessionForTest()!;
-                        var beforeRev = session.CurrentRevision;
-                        session.CurrentMap!.Name = "Smoke saved";
-                        session.MarkDirty();
-                        var saveTask = session.SaveCurrentAsync(MapPublishStatus.Draft);
-                        saveTask.Wait(EditorSmokeTestAccess.DefaultTimeout);
-                        if (saveTask.IsFaulted)
-                        {
-                            throw saveTask.Exception?.GetBaseException()
-                                  ?? new InvalidOperationException("Save failed.");
-                        }
-
-                        EditorSmokeTestAccess.AssertSaveSuccess(saveTask.Result, beforeRev);
-                        if (session.IsDirty)
-                        {
-                            throw new InvalidOperationException("Session should be clean after save.");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        saveError = ex;
-                    }
+                    var session = window.EditorForm.GetWorkspaceSessionForTest()!;
+                    session.CurrentMap!.Name = "Smoke saved";
+                    session.MarkDirty();
+                    saveTask = window.EditorForm.SaveMapAsync();
                 });
 
-                if (saveError is not null)
+                if (saveTask is null)
                 {
-                    throw saveError;
+                    throw new InvalidOperationException("Save task was not started.");
+                }
+
+                saveTask.Wait(EditorSmokeTestAccess.DefaultTimeout);
+                if (saveTask.IsFaulted)
+                {
+                    throw saveTask.Exception?.GetBaseException()
+                          ?? new InvalidOperationException("Save failed.");
+                }
+
+                var session = window.EditorForm.GetWorkspaceSessionForTest()!;
+                if (session.IsDirty)
+                {
+                    throw new InvalidOperationException("Session should be clean after save.");
+                }
+
+                if (!string.Equals(session.CurrentMap!.Name, "Smoke saved", StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("Saved map name was not persisted in session.");
                 }
             }
 

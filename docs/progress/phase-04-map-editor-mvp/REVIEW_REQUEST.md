@@ -1,21 +1,23 @@
-# Demande de revue — Phase 4 Map Editor MVP
+# Demande de revue — Phase 4 Map Editor MVP (gate data safety)
 
 ## Contexte
 
-Phase 3 acceptée. Phase 4 livre l’éditeur de cartes MVP : peinture, collisions, warps, undo/redo, sauvegarde/publication PostgreSQL.
+Gate Phase 4 rejeté temporairement pour corrections data safety. Cette itération adresse les 8 points du feedback sans commencer Phase 5.
 
-## Critères
+## Critères gate
 
 | Critère | État |
 | --- | --- |
-| Peinture / gomme / remplissage / rectangle | OK — canvas existant |
-| Undo / redo | OK — `MapUndoController` |
-| Collision (`Block`) | OK — palette + overlay |
-| Warp + destination configurable | OK — dialogue + défaut carte courante |
-| Enregistrement PostgreSQL | OK — `SaveCurrentAsync` Draft |
-| Publication PostgreSQL | OK — statut `Published` |
-| Tests unitaires + PG + smoke save | OK — 114 + 10 + 2 smoke |
-| Pas de nouvelle feature MariaDB | OK |
+| Mode mémoire : pas de succès « PostgreSQL » trompeur | OK |
+| Save/Publish désactivés ou clairement non persistants en démo | OK |
+| `FROG_EDITOR_FORCE_IN_MEMORY=1` réservé aux tests | OK |
+| Dirty + prompts complets | OK |
+| Erreurs PG gérées + état occupé | OK |
+| Concurrence atomique + test 2 DbContext | OK |
+| Brouillon / publication séparés + migration | OK |
+| Warps : limites carte cible + validation | OK |
+| Tests édition + smoke chemin commande | OK |
+| Phase 5 non commencée | OK |
 
 ## Preuves
 
@@ -26,6 +28,6 @@ Phase 3 acceptée. Phase 4 livre l’éditeur de cartes MVP : peinture, collisio
 
 ## Question de gate
 
-**Accepter Phase 4** et autoriser Phase 5 (playtest) ?
+**Accepter Phase 4 (data safety)** et autoriser Phase 5 ?
 
 **Phase 5 non commencée.**

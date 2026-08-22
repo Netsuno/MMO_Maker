@@ -134,8 +134,8 @@ public partial class MainWindow : Window
 
         CommandBindings.Add(new CommandBinding(CmdNewMap, (_, _) => _editor.CreateNewMap()));
         CommandBindings.Add(new CommandBinding(CmdOpenMap, (_, _) => _editor.LoadMap()));
-        CommandBindings.Add(new CommandBinding(CmdSaveMap, (_, _) => _editor.SaveMap()));
-        CommandBindings.Add(new CommandBinding(CmdPublishMap, (_, _) => _editor.PublishMap()));
+        CommandBindings.Add(new CommandBinding(CmdSaveMap, (_, _) => _editor.SaveMap(), (_, e) => e.CanExecute = _editor.CanExecuteSaveOrPublish()));
+        CommandBindings.Add(new CommandBinding(CmdPublishMap, (_, _) => _editor.PublishMap(), (_, e) => e.CanExecute = _editor.CanExecuteSaveOrPublish()));
         CommandBindings.Add(new CommandBinding(CmdExportMap, (_, _) => _editor.ExportMapToFile()));
         CommandBindings.Add(new CommandBinding(CmdPublishMapToMariaDb, (_, _) => _editor.PublishMapToMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdEditWarp, (_, _) => _editor.EditSelectedWarpDestination()));
@@ -154,7 +154,16 @@ public partial class MainWindow : Window
 
         Loaded += OnMainWindowLoaded;
         SizeChanged += (_, _) => _editor.NotifyWpfShellLayout();
+        Closing += OnMainWindowClosing;
         Closed += OnMainWindowClosed;
+    }
+
+    private async void OnMainWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (!await _editor.ConfirmCloseAsync().ConfigureAwait(true))
+        {
+            e.Cancel = true;
+        }
     }
 
     private async void OnMainWindowLoaded(object sender, RoutedEventArgs e)

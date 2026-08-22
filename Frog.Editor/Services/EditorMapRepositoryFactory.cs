@@ -5,6 +5,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace Frog.Editor.Services;
 
+/// <summary>Résultat de la composition root éditeur.</summary>
+public sealed record EditorMapRepositoryBundle(IMapRepository Repository, MapRepositoryCapabilities Capabilities);
+
 /// <summary>
 /// Composition root éditeur : PostgreSQL si chaîne fournie, sinon mémoire (carte démo hors DB).
 /// </summary>
@@ -13,40 +16,35 @@ public static class EditorMapRepositoryFactory
     public const string EnvConnectionString = "FROG_POSTGRES_CONNECTION_STRING";
     public const string EnvForceInMemory = "FROG_EDITOR_FORCE_IN_MEMORY";
 
-    public static IMapRepository Create()
+    public static IMapRepository Create() => CreateBundle().Repository;
+
+    public static EditorMapRepositoryBundle CreateBundle()
     {
         if (EditorTestHooks.OverrideMapRepository is { } injected)
         {
-            return injected;
+            return new EditorMapRepositoryBundle(injected, injected.Capabilities);
         }
 
         if (string.Equals(Environment.GetEnvironmentVariable(EnvForceInMemory), "1", StringComparison.Ordinal))
         {
-            return new InMemoryMapRepository();
+            var testRepo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+            return new EditorMapRepositoryBundle(testRepo, testRepo.Capabilities);
         }
 
         var cs = ResolveConnectionString();
         if (string.IsNullOrWhiteSpace(cs))
         {
-            return new InMemoryMapRepository();
+            var demoRepo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryDemo);
+            return new EditorMapRepositoryBundle(demoRepo, demoRepo.Capabilities);
         }
 
         var db = new FrogDbContext(FrogDbContextOptions.Create(cs));
         db.Database.Migrate();
-        return new PostgresMapRepository(db);
+        var pgRepo = new PostgresMapRepository(db);
+        return new EditorMapRepositoryBundle(pgRepo, pgRepo.Capabilities);
     }
 
-    public static string DescribeBackend()
-    {
-        if (EditorTestHooks.OverrideMapRepository is not null
-            || string.Equals(Environment.GetEnvironmentVariable(EnvForceInMemory), "1", StringComparison.Ordinal)
-            || string.IsNullOrWhiteSpace(ResolveConnectionString()))
-        {
-            return "mémoire (démo)";
-        }
-
-        return "PostgreSQL";
-    }
+    public static string DescribeBackend() => CreateBundle().Capabilities.DisplayLabel;
 
     private static string? ResolveConnectionString()
     {

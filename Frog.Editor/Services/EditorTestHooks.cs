@@ -7,5 +7,7 @@ internal static class EditorTestHooks
 {
     public static IMapRepository? OverrideMapRepository { get; set; }
 
+    public static IEditorDialogService? OverrideDialogService { get; set; }
+
     public static bool SkipMariaDbOnStartup { get; set; }
 }

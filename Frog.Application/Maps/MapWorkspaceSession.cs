@@ -8,11 +8,18 @@ namespace Frog.Application.Maps;
 public sealed class MapWorkspaceSession
 {
     private readonly IMapRepository _repository;
+    private readonly SemaphoreSlim _saveGate = new(1, 1);
 
     public MapWorkspaceSession(IMapRepository repository)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
     }
+
+    public MapRepositoryCapabilities Capabilities => _repository.Capabilities;
+
+    public bool CanPersist => Capabilities.IsDurablePersistence;
+
+    public bool IsSaveInProgress { get; private set; }
 
     public IReadOnlyList<MapCatalogEntry> Catalog { get; private set; } = Array.Empty<MapCatalogEntry>();
 
@@ -24,11 +31,13 @@ public sealed class MapWorkspaceSession
 
     public MapPublishStatus CurrentStatus { get; private set; } = MapPublishStatus.Draft;
 
+    public long? PublishedRevision { get; private set; }
+
     /// <summary>Modifications en mémoire non encore persistées.</summary>
     public bool IsDirty { get; private set; }
 
     /// <summary>
-    /// Si le catalogue est vide, enregistre la carte démo puis l’ouvre.
+    /// Si le catalogue est vide, enregistre la carte démo (PostgreSQL / test mémoire) ou l’ouvre localement (démo).
     /// Sinon rafraîchit le catalogue et ouvre la première entrée (ou <paramref name="preferredMapId"/>).
     /// </summary>
     public async Task InitializeAsync(Guid? preferredMapId = null, CancellationToken cancellationToken = default)
@@ -38,23 +47,31 @@ public sealed class MapWorkspaceSession
         if (Catalog.Count == 0)
         {
             var demo = DemoMapFactory.CreateStarter();
-            var saved = await _repository.SaveAsync(
-                    new SaveMapRequest
-                    {
-                        MapId = DemoMapFactory.DefaultMapId,
-                        Map = demo,
-                        ExpectedRevision = 0,
-                        Status = MapPublishStatus.Draft,
-                    },
-                    cancellationToken)
-                .ConfigureAwait(false);
-
-            if (saved is not SaveMapResult.Success)
+            if (Capabilities.AllowsSave)
             {
-                throw new InvalidOperationException("Impossible d’enregistrer la carte démo initiale.");
-            }
+                var saved = await _repository.SaveAsync(
+                        new SaveMapRequest
+                        {
+                            MapId = DemoMapFactory.DefaultMapId,
+                            Map = demo,
+                            ExpectedRevision = 0,
+                            Intent = SaveMapIntent.SaveDraft,
+                        },
+                        cancellationToken)
+                    .ConfigureAwait(false);
 
-            await RefreshCatalogAsync(cancellationToken).ConfigureAwait(false);
+                if (saved is not SaveMapResult.Success)
+                {
+                    throw new InvalidOperationException("Impossible d’enregistrer la carte démo initiale.");
+                }
+
+                await RefreshCatalogAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                AdoptLocalDraft(demo, DemoMapFactory.DefaultMapId, revision: 0, markDirty: false);
+                return;
+            }
         }
 
         var targetId = preferredMapId
@@ -86,23 +103,20 @@ public sealed class MapWorkspaceSession
             return false;
         }
 
-        CurrentMap = stored.Map;
-        CurrentMapId = stored.MapId;
-        CurrentRevision = stored.Revision;
-        CurrentStatus = stored.Status;
-        IsDirty = false;
+        ApplyStored(stored);
         return true;
     }
 
     /// <summary>Remplace la carte courante par une nouvelle carte locale (non encore persistée).</summary>
-    public void AdoptLocalDraft(Map map, Guid? mapId = null, long revision = 0)
+    public void AdoptLocalDraft(Map map, Guid? mapId = null, long revision = 0, bool markDirty = true)
     {
         ArgumentNullException.ThrowIfNull(map);
         CurrentMap = map;
         CurrentMapId = mapId;
         CurrentRevision = revision;
         CurrentStatus = MapPublishStatus.Draft;
-        IsDirty = true;
+        PublishedRevision = null;
+        IsDirty = markDirty;
     }
 
     public void MarkDirty()
@@ -110,9 +124,14 @@ public sealed class MapWorkspaceSession
         IsDirty = true;
     }
 
+    public void ClearDirty()
+    {
+        IsDirty = false;
+    }
+
     /// <summary>Persiste la carte courante (brouillon ou publication).</summary>
     public async Task<SaveMapResult> SaveCurrentAsync(
-        MapPublishStatus status,
+        SaveMapIntent intent,
         CancellationToken cancellationToken = default)
     {
         if (CurrentMap is null)
@@ -120,28 +139,55 @@ public sealed class MapWorkspaceSession
             return new SaveMapResult.ValidationFailed("Aucune carte ouverte.");
         }
 
-        var result = await _repository.SaveAsync(
-                new SaveMapRequest
-                {
-                    MapId = CurrentMapId,
-                    Map = CurrentMap,
-                    ExpectedRevision = CurrentRevision,
-                    Status = status,
-                },
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        if (result is SaveMapResult.Success success)
+        if (!Capabilities.AllowsSave)
         {
-            CurrentMapId = success.MapId;
-            CurrentRevision = success.NewRevision;
-            CurrentStatus = status;
-            IsDirty = false;
-            await RefreshCatalogAsync(cancellationToken).ConfigureAwait(false);
+            return new SaveMapResult.NotDurable(
+                "Cette session n’est pas persistante. Configurez PostgreSQL pour enregistrer durablement.");
         }
 
-        return result;
+        if (!await _saveGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        {
+            return new SaveMapResult.ValidationFailed("Une opération d’enregistrement est déjà en cours.");
+        }
+
+        IsSaveInProgress = true;
+        try
+        {
+            var result = await _repository.SaveAsync(
+                    new SaveMapRequest
+                    {
+                        MapId = CurrentMapId,
+                        Map = CurrentMap,
+                        ExpectedRevision = CurrentRevision,
+                        Intent = intent,
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (result is SaveMapResult.Success success)
+            {
+                CurrentMapId = success.MapId;
+                CurrentRevision = success.NewRevision;
+                PublishedRevision = success.PublishedRevision;
+                CurrentStatus = intent == SaveMapIntent.Publish ? MapPublishStatus.Published : MapPublishStatus.Draft;
+                IsDirty = false;
+                await RefreshCatalogAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return result;
+        }
+        finally
+        {
+            IsSaveInProgress = false;
+            _saveGate.Release();
+        }
     }
+
+    /// <summary>Obsolète — utiliser <see cref="SaveCurrentAsync(SaveMapIntent, CancellationToken)"/>.</summary>
+    public Task<SaveMapResult> SaveCurrentAsync(MapPublishStatus status, CancellationToken cancellationToken = default)
+        => SaveCurrentAsync(
+            status == MapPublishStatus.Published ? SaveMapIntent.Publish : SaveMapIntent.SaveDraft,
+            cancellationToken);
 
     /// <summary>Recharge la carte courante depuis le dépôt (résolution conflit).</summary>
     public async Task<bool> ReloadCurrentAsync(CancellationToken cancellationToken = default)
@@ -152,5 +198,15 @@ public sealed class MapWorkspaceSession
         }
 
         return await OpenMapAsync(mapId, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void ApplyStored(StoredMap stored)
+    {
+        CurrentMap = stored.Map;
+        CurrentMapId = stored.MapId;
+        CurrentRevision = stored.Revision;
+        CurrentStatus = stored.Status;
+        PublishedRevision = stored.PublishedRevision;
+        IsDirty = false;
     }
 }

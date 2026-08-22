@@ -5,6 +5,7 @@ namespace Frog.Editor.Dialogs;
 /// <summary>Configuration destination d’une tuile warp (carte cible + coordonnées).</summary>
 internal sealed class WarpDestinationDialog : Form
 {
+    private readonly IReadOnlyList<MapCatalogEntry> _catalog;
     private readonly ComboBox _cmbTargetMap;
     private readonly NumericUpDown _numX;
     private readonly NumericUpDown _numY;
@@ -23,6 +24,7 @@ internal sealed class WarpDestinationDialog : Form
         int mapWidth,
         int mapHeight)
     {
+        _catalog = catalog;
         Text = "Destination warp";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;
@@ -39,15 +41,15 @@ internal sealed class WarpDestinationDialog : Form
         };
         foreach (var entry in catalog.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase))
         {
-            _cmbTargetMap.Items.Add(new MapComboItem(entry.MapId, entry.Name));
+            _cmbTargetMap.Items.Add(new MapComboItem(entry.MapId, entry.Name, entry.Width, entry.Height));
         }
 
         if (_cmbTargetMap.Items.Count == 0)
         {
-            _cmbTargetMap.Items.Add(new MapComboItem(Guid.Empty, "(aucune carte catalogue)"));
+            _cmbTargetMap.Items.Add(new MapComboItem(Guid.Empty, "(aucune carte catalogue)", 0, 0));
         }
 
-        SelectMap(initialTargetMapId);
+        _cmbTargetMap.SelectedIndexChanged += (_, _) => ApplyBoundsForSelectedTarget(initialX, initialY);
 
         _numX = new NumericUpDown
         {
@@ -79,6 +81,9 @@ internal sealed class WarpDestinationDialog : Form
         Controls.Add(btnCancel);
         AcceptButton = btnOk;
         CancelButton = btnCancel;
+
+        SelectMap(initialTargetMapId);
+        ApplyBoundsForSelectedTarget(initialX, initialY);
     }
 
     public bool TryValidate(out string errorMessage)
@@ -90,8 +95,38 @@ internal sealed class WarpDestinationDialog : Form
             return false;
         }
 
+        if (!_catalog.Any(e => e.MapId == item.MapId))
+        {
+            errorMessage = "La carte cible sélectionnée n’existe plus dans le catalogue.";
+            return false;
+        }
+
+        if (TargetX < 0 || TargetY < 0 || TargetX >= item.Width || TargetY >= item.Height)
+        {
+            errorMessage =
+                $"Destination ({TargetX}, {TargetY}) hors limites de la carte cible ({item.Width}×{item.Height}).";
+            return false;
+        }
+
         TargetMapId = item.MapId;
         return true;
+    }
+
+    private void ApplyBoundsForSelectedTarget(int preferredX, int preferredY)
+    {
+        if (_cmbTargetMap.SelectedItem is not MapComboItem item || item.MapId == Guid.Empty || item.Width <= 0 || item.Height <= 0)
+        {
+            _numX.Maximum = 0;
+            _numY.Maximum = 0;
+            _numX.Value = 0;
+            _numY.Value = 0;
+            return;
+        }
+
+        _numX.Maximum = Math.Max(0, item.Width - 1);
+        _numY.Maximum = Math.Max(0, item.Height - 1);
+        _numX.Value = Math.Clamp(preferredX, 0, (int)_numX.Maximum);
+        _numY.Value = Math.Clamp(preferredY, 0, (int)_numY.Maximum);
     }
 
     private void SelectMap(Guid mapId)
@@ -111,8 +146,8 @@ internal sealed class WarpDestinationDialog : Form
     private static Label MkLabel(string text, int x, int y)
         => new() { Text = text, AutoSize = true, Location = new Point(x, y) };
 
-    private sealed record MapComboItem(Guid MapId, string Name)
+    private sealed record MapComboItem(Guid MapId, string Name, int Width, int Height)
     {
-        public override string ToString() => $"{Name} ({MapId.ToString("N")[..8]})";
+        public override string ToString() => $"{Name} ({MapId.ToString("N")[..8]}) {Width}×{Height}";
     }
 }

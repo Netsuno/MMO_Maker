@@ -59,6 +59,12 @@ public sealed class MainForm : Form
     private MapWorkspaceSession? _workspace;
     private bool _catalogOpenInProgress;
     private bool _suppressDirtyTracking;
+    private readonly IEditorDialogService _dialogService;
+    private MapRepositoryCapabilities _persistenceCapabilities = MapRepositoryCapabilities.InMemoryDemo;
+    private bool _saveInProgress;
+    private bool _closeConfirmed;
+    private ToolStripMenuItem? _mnuSave;
+    private ToolStripMenuItem? _mnuPublish;
 
     /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
     internal Control LeftShellForWpf => _leftColumnPanel;
@@ -72,6 +78,36 @@ public sealed class MainForm : Form
     internal Map? GetCanvasMapForTest() => _canvas.Map;
 
     internal MapWorkspaceSession? GetWorkspaceSessionForTest() => _workspace;
+
+    internal MapRepositoryCapabilities GetPersistenceCapabilitiesForTest() => _persistenceCapabilities;
+
+    internal bool IsSaveInProgressForTest() => _saveInProgress;
+
+    internal Task SaveMapAsync() => SaveMapCoreAsync();
+
+    internal Task PublishMapAsync() => PublishMapCoreAsync();
+
+    public bool CanExecuteSaveOrPublish()
+        => _workspace is not null
+           && _persistenceCapabilities.AllowsSave
+           && !_saveInProgress
+           && _workspace.IsSaveInProgress != true;
+
+    internal async Task<bool> ConfirmCloseAsync()
+    {
+        if (_closeConfirmed || _workspace?.IsDirty != true)
+        {
+            return true;
+        }
+
+        var proceed = await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true);
+        if (proceed)
+        {
+            _closeConfirmed = true;
+        }
+
+        return proceed;
+    }
 
     internal bool AreShellHostsReadyForTest() =>
         _leftColumnPanel.IsHandleCreated
@@ -118,6 +154,23 @@ public sealed class MainForm : Form
 
         KeyPreview = true;
         EditorChrome.ApplyFormChrome(this);
+        _dialogService = EditorTestHooks.OverrideDialogService
+                         ?? new WinFormsEditorDialogService(GetDialogOwner);
+
+        FormClosing += async (_, e) =>
+        {
+            if (_closeConfirmed || _workspace?.IsDirty != true)
+            {
+                return;
+            }
+
+            e.Cancel = true;
+            if (await ConfirmCloseAsync().ConfigureAwait(true))
+            {
+                _closeConfirmed = true;
+                Close();
+            }
+        };
 
         FormClosed += (_, _) => TilesetCache.Clear();
 
@@ -138,12 +191,16 @@ public sealed class MainForm : Form
                 ShowShortcutKeys = true,
             });
             mFile.DropDownItems.Add(new ToolStripSeparator());
-            mFile.DropDownItems.Add(new ToolStripMenuItem("Enregistrer (PostgreSQL)", null, (_, _) => SaveMap())
+            var mnuSave = new ToolStripMenuItem("Enregistrer (PostgreSQL)", null, (_, _) => SaveMap())
             {
                 ShortcutKeys = Keys.Control | Keys.S,
                 ShowShortcutKeys = true,
-            });
-            mFile.DropDownItems.Add(new ToolStripMenuItem("Publier (PostgreSQL)…", null, (_, _) => PublishMap()));
+            };
+            var mnuPublish = new ToolStripMenuItem("Publier (PostgreSQL)…", null, (_, _) => PublishMap());
+            mFile.DropDownItems.Add(mnuSave);
+            mFile.DropDownItems.Add(mnuPublish);
+            _mnuSave = mnuSave;
+            _mnuPublish = mnuPublish;
             mFile.DropDownItems.Add(new ToolStripMenuItem("Exporter fichier .fmap…", null, (_, _) => ExportMapToFile()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB… (héritage)", null, (_, _) => PublishMapToMariaDb()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Lancer le client Frog…", null, (_, _) => LaunchFrogGameClient()));
@@ -437,6 +494,12 @@ public sealed class MainForm : Form
             }
 
             _canvas.Map.Layers[t.index].Visible = t.visible;
+            if (!_suppressDirtyTracking && _canvas.Map is not null)
+            {
+                _canvas.History.PushBeforeChange(_canvas.Map);
+                OnMapEdited();
+                UpdateUndoRedoButtons();
+            }
             _canvas.Invalidate();
         };
         _layersProjectPanel.RenameLayerRequested += (_, _) => RenameLayerDisplay();
@@ -459,9 +522,25 @@ public sealed class MainForm : Form
         _propGrid.Font = EditorChrome.BodyFont;
         _propGrid.PropertyValueChanged += (_, _) =>
         {
+            if (_suppressDirtyTracking || _canvas.Map is null)
+            {
+                return;
+            }
+
             if (_propGrid.SelectedObject is Map)
             {
+                _canvas.History.PushBeforeChange(_canvas.Map);
                 UpdateMapChromeLabels();
+                OnMapEdited();
+                UpdateUndoRedoButtons();
+                return;
+            }
+
+            if (_propGrid.SelectedObject is Tile)
+            {
+                _canvas.History.PushBeforeChange(_canvas.Map);
+                OnMapEdited();
+                UpdateUndoRedoButtons();
             }
         };
         _mapsProjectPanel.CurrentMapNodeSelected += (_, _) =>
@@ -536,9 +615,12 @@ public sealed class MainForm : Form
 
     private async System.Threading.Tasks.Task InitializeWorkspaceCoreAsync()
     {
-        _workspace = new MapWorkspaceSession(EditorMapRepositoryFactory.Create());
+        var bundle = EditorMapRepositoryFactory.CreateBundle();
+        _persistenceCapabilities = bundle.Capabilities;
+        _workspace = new MapWorkspaceSession(bundle.Repository);
         await _workspace.InitializeAsync().ConfigureAwait(true);
         ApplyWorkspaceMapToUi();
+        UpdatePersistenceMenuState();
         PushEditorStatusLine();
     }
 
@@ -640,7 +722,8 @@ public sealed class MainForm : Form
     private void PushEditorStatusLine()
     {
         var zoomPct = (int)Math.Round(_canvas.Zoom * 100f);
-        var backend = EditorMapRepositoryFactory.DescribeBackend();
+        var backend = _persistenceCapabilities.DisplayLabel;
+        var busy = _saveInProgress || _workspace?.IsSaveInProgress == true ? "    ·    enregistrement…" : "";
         var rev = _workspace is null
             ? ""
             : _workspace.CurrentMapId is Guid id
@@ -648,7 +731,7 @@ public sealed class MainForm : Form
                 : "    ·    brouillon local";
         var dirty = _workspace?.IsDirty == true ? "    ·    modifié" : "";
         var text =
-            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}    ·    catalogue {backend}";
+            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -905,6 +988,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
     private void RemoveLayer()
@@ -921,6 +1005,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
     private void RenameLayerDisplay()
@@ -944,6 +1029,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
     private void ChangeLayerEngineType()
@@ -976,6 +1062,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
     private void ToggleLayerLock()
@@ -986,13 +1073,23 @@ public sealed class MainForm : Form
             return;
         }
 
+        _canvas.History.PushBeforeChange(_canvas.Map);
         _canvas.Map.Layers[ix].Locked = !_canvas.Map.Layers[ix].Locked;
         RefreshLayersUi();
         _canvas.Invalidate();
+        UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
-    internal void CreateNewMap()
+    internal void CreateNewMap() => _ = CreateNewMapCoreAsync();
+
+    private async System.Threading.Tasks.Task CreateNewMapCoreAsync()
     {
+        if (_workspace?.IsDirty == true && !await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true))
+        {
+            return;
+        }
+
         using var dlg = new NewMapDialog();
         if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
@@ -1012,6 +1109,7 @@ public sealed class MainForm : Form
         SyncMapsTree();
         UpdateMapChromeLabels();
         RefreshMapEventMarkersFromMariaDb();
+        PushEditorStatusLine();
     }
 
     internal void OpenTileset()
@@ -1027,9 +1125,47 @@ public sealed class MainForm : Form
         RefreshTilesetList();
     }
 
-    internal void SaveMap() => _ = SaveMapCoreAsync();
+    internal void SaveMap()
+    {
+        if (_saveInProgress)
+        {
+            return;
+        }
 
-    internal void PublishMap() => _ = PublishMapCoreAsync();
+        _ = RunSaveOperationAsync(SaveMapCoreAsync);
+    }
+
+    internal void PublishMap()
+    {
+        if (_saveInProgress)
+        {
+            return;
+        }
+
+        _ = RunSaveOperationAsync(PublishMapCoreAsync);
+    }
+
+    private async System.Threading.Tasks.Task RunSaveOperationAsync(Func<System.Threading.Tasks.Task> operation)
+    {
+        if (_saveInProgress)
+        {
+            return;
+        }
+
+        _saveInProgress = true;
+        UpdatePersistenceMenuState();
+        PushEditorStatusLine();
+        try
+        {
+            await operation().ConfigureAwait(true);
+        }
+        finally
+        {
+            _saveInProgress = false;
+            UpdatePersistenceMenuState();
+            PushEditorStatusLine();
+        }
+    }
 
     internal void ExportMapToFile()
     {
@@ -1055,17 +1191,25 @@ public sealed class MainForm : Form
     {
         if (_workspace is null || _canvas.Map is null)
         {
-            MessageBox.Show(GetDialogOwner(), "Catalogue non initialisé.", "Enregistrement", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _dialogService.ShowInfo("Catalogue non initialisé.", "Enregistrement");
+            return;
+        }
+
+        if (!_persistenceCapabilities.AllowsSave)
+        {
+            _dialogService.ShowWarning(
+                "Cette session n’est pas persistante. Configurez PostgreSQL pour enregistrer durablement.",
+                "Enregistrement indisponible");
             return;
         }
 
         if (!_canvas.Map.Validate(out var err))
         {
-            MessageBox.Show(GetDialogOwner(), err ?? "Carte invalide.", "Enregistrement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _dialogService.ShowWarning(err ?? "Carte invalide.", "Enregistrement");
             return;
         }
 
-        var result = await _workspace.SaveCurrentAsync(MapPublishStatus.Draft).ConfigureAwait(true);
+        var result = await _workspace.SaveCurrentAsync(SaveMapIntent.SaveDraft).ConfigureAwait(true);
         await HandleSaveResultAsync(result, published: false).ConfigureAwait(true);
     }
 
@@ -1073,33 +1217,39 @@ public sealed class MainForm : Form
     {
         if (_workspace is null || _canvas.Map is null)
         {
-            MessageBox.Show(GetDialogOwner(), "Catalogue non initialisé.", "Publication", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _dialogService.ShowInfo("Catalogue non initialisé.", "Publication");
+            return;
+        }
+
+        if (!_persistenceCapabilities.AllowsSave)
+        {
+            _dialogService.ShowWarning(
+                "Cette session n’est pas persistante. Configurez PostgreSQL pour publier durablement.",
+                "Publication indisponible");
             return;
         }
 
         if (!_canvas.Map.Validate(out var err))
         {
-            MessageBox.Show(GetDialogOwner(), err ?? "Carte invalide.", "Publication", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _dialogService.ShowWarning(err ?? "Carte invalide.", "Publication");
             return;
         }
 
-        var confirm = MessageBox.Show(
-            GetDialogOwner(),
-            "Publier cette carte vers PostgreSQL ? Elle sera marquée « publiée » et disponible pour le runtime.",
-            "Publication PostgreSQL",
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question);
-        if (confirm != DialogResult.Yes)
+        var persistenceLabel = _persistenceCapabilities.IsDurablePersistence ? "PostgreSQL" : _persistenceCapabilities.DisplayLabel;
+        if (!_dialogService.ConfirmYesNo(
+                $"Publier cette carte vers {persistenceLabel} ? Une révision publiée immuable sera conservée.",
+                "Publication"))
         {
             return;
         }
 
-        var result = await _workspace.SaveCurrentAsync(MapPublishStatus.Published).ConfigureAwait(true);
+        var result = await _workspace.SaveCurrentAsync(SaveMapIntent.Publish).ConfigureAwait(true);
         await HandleSaveResultAsync(result, published: true).ConfigureAwait(true);
     }
 
     private async System.Threading.Tasks.Task HandleSaveResultAsync(SaveMapResult result, bool published)
     {
+        var persistenceLabel = _persistenceCapabilities.IsDurablePersistence ? "PostgreSQL" : _persistenceCapabilities.DisplayLabel;
         switch (result)
         {
             case SaveMapResult.Success success:
@@ -1108,29 +1258,32 @@ public sealed class MainForm : Form
                 PushEditorStatusLine();
                 UpdateMapChromeLabels();
                 var label = published ? "publiée" : "enregistrée";
-                MessageBox.Show(
-                    GetDialogOwner(),
-                    $"Carte {label} (id {success.MapId:N}, révision {success.NewRevision}).",
-                    published ? "Publication PostgreSQL" : "Enregistrement PostgreSQL",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                _dialogService.ShowInfo(
+                    $"Carte {label} ({persistenceLabel}, id {success.MapId:N}, révision {success.NewRevision}).",
+                    published ? $"Publication {persistenceLabel}" : $"Enregistrement {persistenceLabel}");
                 break;
             case SaveMapResult.ValidationFailed failed:
-                MessageBox.Show(GetDialogOwner(), failed.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _dialogService.ShowWarning(failed.Error, "Validation");
+                break;
+            case SaveMapResult.NotDurable notDurable:
+                _dialogService.ShowWarning(notDurable.Message, published ? "Publication indisponible" : "Enregistrement indisponible");
+                break;
+            case SaveMapResult.PersistenceFailed failed:
+                _dialogService.ShowError(
+                    $"Échec de persistance ({persistenceLabel}) : {failed.Error}\nLa carte modifiée reste en mémoire.",
+                    published ? "Publication échouée" : "Enregistrement échoué");
                 break;
             case SaveMapResult.Conflict conflict:
-                var reload = MessageBox.Show(
-                    GetDialogOwner(),
-                    $"Conflit de révision (attendue r{_workspace!.CurrentRevision}, serveur r{conflict.CurrentRevision}). Recharger la carte depuis le catalogue ?",
-                    "Conflit",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-                if (reload == DialogResult.Yes)
+                if (!_dialogService.ConfirmYesNo(
+                        $"Conflit de révision (attendue r{_workspace!.CurrentRevision}, serveur r{conflict.CurrentRevision}). Recharger la carte depuis le catalogue ?",
+                        "Conflit"))
                 {
-                    if (await _workspace.ReloadCurrentAsync().ConfigureAwait(true))
-                    {
-                        ApplyWorkspaceMapToUi();
-                    }
+                    break;
+                }
+
+                if (await _workspace.ReloadCurrentAsync().ConfigureAwait(true))
+                {
+                    ApplyWorkspaceMapToUi();
                 }
 
                 break;
@@ -1139,17 +1292,14 @@ public sealed class MainForm : Form
 
     private async System.Threading.Tasks.Task<bool> TryDiscardOrSaveBeforeSwitchAsync()
     {
-        var answer = MessageBox.Show(
-            GetDialogOwner(),
-            "Modifications non enregistrées. Enregistrer avant de changer de carte ?",
-            "Modifications",
-            MessageBoxButtons.YesNoCancel,
-            MessageBoxIcon.Question);
+        var answer = _dialogService.PromptSaveDiscardCancel(
+            "Modifications non enregistrées. Enregistrer avant de continuer ?",
+            "Modifications");
         return answer switch
         {
-            DialogResult.Cancel => false,
-            DialogResult.No => true,
-            DialogResult.Yes => await TrySaveBeforeSwitchAsync(),
+            EditorPromptChoice.Cancel => false,
+            EditorPromptChoice.Discard => true,
+            EditorPromptChoice.Save => await TrySaveBeforeSwitchAsync(),
             _ => false,
         };
     }
@@ -1158,6 +1308,30 @@ public sealed class MainForm : Form
     {
         await SaveMapCoreAsync().ConfigureAwait(true);
         return _workspace?.IsDirty != true;
+    }
+
+    private void UpdatePersistenceMenuState()
+    {
+        var enabled = CanExecuteSaveOrPublish();
+        if (_mnuSave is not null)
+        {
+            _mnuSave.Enabled = enabled;
+            _mnuSave.Text = _persistenceCapabilities.IsDurablePersistence
+                ? "Enregistrer (PostgreSQL)"
+                : _persistenceCapabilities.AllowsSave
+                    ? "Enregistrer (test mémoire)"
+                    : "Enregistrer (non persistant)";
+        }
+
+        if (_mnuPublish is not null)
+        {
+            _mnuPublish.Enabled = enabled;
+            _mnuPublish.Text = _persistenceCapabilities.IsDurablePersistence
+                ? "Publier (PostgreSQL)…"
+                : _persistenceCapabilities.AllowsSave
+                    ? "Publier (test mémoire)…"
+                    : "Publier (non persistant)…";
+        }
     }
 
     internal void EditSelectedWarpDestination()
@@ -1376,8 +1550,15 @@ public sealed class MainForm : Form
         File.WriteAllBytes(manifestPath, TilesetManifestJson.Serialize(manifest));
     }
 
-    internal void LoadMap()
+    internal void LoadMap() => _ = LoadMapCoreAsync();
+
+    private async System.Threading.Tasks.Task LoadMapCoreAsync()
     {
+        if (_workspace?.IsDirty == true && !await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true))
+        {
+            return;
+        }
+
         using var ofd = new OpenFileDialog { Filter = "Frog Map|*.fmap" };
         if (ofd.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
@@ -1421,6 +1602,8 @@ public sealed class MainForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
         }
+
+        PushEditorStatusLine();
     }
 
     /// <summary>

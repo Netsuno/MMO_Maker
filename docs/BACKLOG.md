@@ -25,12 +25,13 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 - [x] Catalogue cartes via `IMapRepository` / `MapWorkspaceSession` (`MapId`)
 - [x] Smoke test Windows automatisé (`Frog.Editor.WindowsSmokeTests` + CI)
 - [x] Migration identité moderne (`ModernMapIdentity`)
-- [ ] Confirmation CI Windows verte (post-push)
+- [x] Confirmation CI Windows verte (post-push)
 
-## Phase 4 — Map Editor MVP (prochaine)
+## Phase 4 — Map Editor MVP
 
 - [x] Peinture / collision / warp / undo (canvas existant)
-- [x] Sauvegarde + publication PostgreSQL via `MapWorkspaceSession.SaveCurrentAsync`
-- [x] Dialogue destination warp
-- [x] Tests unitaires session + smoke save + intégration publish
+- [x] Sauvegarde + publication PostgreSQL via session (draft / publish séparés)
+- [x] Corrections gate data safety (mémoire, concurrence, prompts, tests)
+- [x] Dialogue destination warp (limites carte cible)
+- [x] Tests unitaires session + édition + smoke save + intégration PG
 - [ ] Playtest déclenché depuis l’éditeur (Phase 5)

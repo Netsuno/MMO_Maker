@@ -15,23 +15,34 @@ FROG_EDITOR_FORCE_IN_MEMORY=1 dotnet test tests/Frog.Editor.WindowsSmokeTests/Fr
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
-| Frog.Tests | 114 | 0 | 114 |
-| Frog.Persistence.IntegrationTests | 10 | 0 | 10 |
+| Frog.Tests | 128 | 0 | 128 |
+| Frog.Persistence.IntegrationTests | 13 | 0 | 13 |
 
 ## Smoke Windows (CI)
 
 | Test | Attendu |
 | --- | --- |
-| `MainWindow_OpensAndSavesDemoMap_WithInMemoryRepository` | PASS (shell + save brouillon) |
+| `MainWindow_OpensAndSavesDemoMap_WithInMemoryRepository` | PASS (shell + commande Save réelle) |
 
-**Lien run GitHub Actions :** https://github.com/Netsuno/MMO_Maker/actions/runs/32576686949
+**Note :** le smoke Windows contient **1 test** (open + save via chemin commande éditeur).
 
-## Nouveaux tests Phase 4
+## Scénarios data safety couverts
 
-- `MapWorkspaceSessionTests` : save draft, publish, conflict, validation warp
-- `PostgresMapRepositoryTests.Save_PublishedStatus_PersistsInDatabase`
-- `PostgresMapRepositoryTests.Save_SecondUpdate_*`
-- Smoke : enregistrement brouillon mémoire
+| Scénario | Test |
+| --- | --- |
+| Démo mémoire : save bloqué (`NotDurable`) | `MapPersistenceModeTests.DemoRepository_BlocksSave_WithNotDurable` |
+| Test mémoire : save éphémère autorisé | `MapPersistenceModeTests.TestRepository_AllowsEphemeralSave` |
+| Init démo locale sans catalogue persistant | `MapWorkspaceSessionTests.Initialize_OpensLocalDemo_WhenDemoRepository` |
+| Draft → publish → edit draft → publish précédent inchangé | `MapPersistenceModeTests.DraftPublish_*`, `PostgresMapRepositoryTests.Publish_KeepsPreviousPublishedSnapshotImmutable` |
+| Concurrence 2 DbContext même `ExpectedRevision` | `PostgresMapRepositoryTests.Save_ConcurrentDbContexts_ExactlyOneSucceeds` |
+| Warp destination hors limites → `ValidationFailed` | `MapPersistenceModeTests.WarpOutOfBounds_*`, PG équivalent |
+| Édition + reload sans perte modèle | `MapEditOperationsTests.SaveAndReload_PreservesEditedModel` |
+| Couche verrouillée non modifiable | `MapEditOperationsTests.PaintTile_DoesNotModifyLockedLayer` |
+| Smoke : `SaveMapAsync` (pas `SaveCurrentAsync` direct) | `EditorMainWindowSmokeTests` |
+
+## Confirmation CI Phase 3
+
+- [x] Gate Phase 3 accepté (`20eedc1`) — smoke Windows Phase 3 vert avant Phase 4
 
 ## Non exécuté localement
 

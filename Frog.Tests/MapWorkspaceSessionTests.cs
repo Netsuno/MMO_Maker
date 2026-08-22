@@ -13,7 +13,7 @@ public sealed class MapWorkspaceSessionTests
     [Fact]
     public async Task Initialize_SeedsDemo_WhenCatalogEmpty()
     {
-        var repo = new InMemoryMapRepository();
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         var session = new MapWorkspaceSession(repo);
 
         await session.InitializeAsync();
@@ -30,7 +30,7 @@ public sealed class MapWorkspaceSessionTests
     [Fact]
     public async Task ListSummaries_ReflectsSavedMaps()
     {
-        var repo = new InMemoryMapRepository();
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         var mapId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         var map = DemoMapFactory.CreateStarter("Alpha");
         Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
@@ -50,7 +50,7 @@ public sealed class MapWorkspaceSessionTests
     [Fact]
     public async Task OpenMap_LoadsSelectedCatalogEntry()
     {
-        var repo = new InMemoryMapRepository();
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         var id1 = Guid.Parse("33333333-3333-3333-3333-333333333331");
         var id2 = Guid.Parse("33333333-3333-3333-3333-333333333332");
         await repo.SaveAsync(new SaveMapRequest
@@ -77,7 +77,7 @@ public sealed class MapWorkspaceSessionTests
     [Fact]
     public void AdoptLocalDraft_ClearsMapBinding()
     {
-        var session = new MapWorkspaceSession(new InMemoryMapRepository());
+        var session = new MapWorkspaceSession(new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest));
         var draft = DemoMapFactory.CreateStarter("Brouillon");
         session.AdoptLocalDraft(draft);
 
@@ -90,7 +90,7 @@ public sealed class MapWorkspaceSessionTests
     [Fact]
     public async Task SaveCurrentAsync_PersistsDraftAndIncrementsRevision()
     {
-        var repo = new InMemoryMapRepository();
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         var session = new MapWorkspaceSession(repo);
         await session.InitializeAsync();
         session.CurrentMap!.Name = "Renommée";
@@ -107,7 +107,7 @@ public sealed class MapWorkspaceSessionTests
     [Fact]
     public async Task SaveCurrentAsync_Publish_SetsPublishedStatus()
     {
-        var repo = new InMemoryMapRepository();
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         var session = new MapWorkspaceSession(repo);
         await session.InitializeAsync();
 
@@ -121,7 +121,7 @@ public sealed class MapWorkspaceSessionTests
     [Fact]
     public async Task SaveCurrentAsync_ReturnsConflict_WhenRevisionStale()
     {
-        var repo = new InMemoryMapRepository();
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         var mapId = DemoMapFactory.DefaultMapId;
         var session = new MapWorkspaceSession(repo);
         await session.InitializeAsync();
@@ -141,9 +141,23 @@ public sealed class MapWorkspaceSessionTests
     }
 
     [Fact]
+    public async Task Initialize_OpensLocalDemo_WhenDemoRepository()
+    {
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryDemo);
+        var session = new MapWorkspaceSession(repo);
+        await session.InitializeAsync();
+
+        Assert.NotNull(session.CurrentMap);
+        Assert.Equal(DemoMapFactory.DefaultMapId, session.CurrentMapId);
+        Assert.Empty(session.Catalog);
+        Assert.False(session.IsDirty);
+        Assert.False(session.CanPersist);
+    }
+
+    [Fact]
     public async Task SaveCurrentAsync_ValidationFailed_WhenWarpInvalid()
     {
-        var repo = new InMemoryMapRepository();
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         var session = new MapWorkspaceSession(repo);
         await session.InitializeAsync();
 

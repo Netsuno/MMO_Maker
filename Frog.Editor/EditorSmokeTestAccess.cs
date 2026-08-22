@@ -19,7 +19,8 @@ internal static class EditorSmokeTestAccess
 
     public static void ConfigureInMemoryRepository()
     {
-        EditorTestHooks.OverrideMapRepository = new InMemoryMapRepository();
+        EditorTestHooks.OverrideMapRepository = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
         EditorTestHooks.SkipMariaDbOnStartup = true;
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");
     }
@@ -108,6 +109,17 @@ internal static class EditorSmokeTestAccess
         {
             throw new InvalidOperationException("Left/center/right shell hosts are not ready.");
         }
+
+        var caps = window.EditorForm.GetPersistenceCapabilitiesForTest();
+        if (caps.IsDurablePersistence)
+        {
+            throw new InvalidOperationException("Smoke test must not run with durable PostgreSQL backend.");
+        }
+
+        if (!caps.AllowsSave)
+        {
+            throw new InvalidOperationException("Smoke test repository must allow in-memory save.");
+        }
     }
 
     public static void CloseMainWindow(MainWindow window)
@@ -125,6 +137,25 @@ internal static class EditorSmokeTestAccess
         if (success.NewRevision <= previousRevision)
         {
             throw new InvalidOperationException($"Expected revision > {previousRevision}, got {success.NewRevision}.");
+        }
+    }
+
+    private sealed class SilentEditorDialogService : IEditorDialogService
+    {
+        public EditorPromptChoice PromptSaveDiscardCancel(string message, string title) => EditorPromptChoice.Save;
+
+        public bool ConfirmYesNo(string message, string title) => true;
+
+        public void ShowInfo(string message, string title)
+        {
+        }
+
+        public void ShowWarning(string message, string title)
+        {
+        }
+
+        public void ShowError(string message, string title)
+        {
         }
     }
 }
