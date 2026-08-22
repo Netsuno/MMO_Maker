@@ -9,28 +9,12 @@ namespace Frog.Editor.WindowsSmokeTests;
 public sealed class EditorMainWindowSmokeTests
 {
     [Fact]
-    public void MainWindow_OpensDemoMap_WithInMemoryRepository()
+    public void MainWindow_OpensAndSavesDemoMap_WithInMemoryRepository()
     {
-        StaTestRunner.Run(RunOpenSmoke);
+        StaTestRunner.Run(() => RunSmoke(includeSave: true));
     }
 
-    [Fact]
-    public void MainWindow_SaveDraft_InMemoryRepository()
-    {
-        StaTestRunner.Run(RunSaveSmoke);
-    }
-
-    private static void RunOpenSmoke()
-    {
-        RunSmokeCore(includeSave: false);
-    }
-
-    private static void RunSaveSmoke()
-    {
-        RunSmokeCore(includeSave: true);
-    }
-
-    private static void RunSmokeCore(bool includeSave)
+    private static void RunSmoke(bool includeSave)
     {
         EditorSmokeTestAccess.ConfigureInMemoryRepository();
 
