@@ -65,6 +65,11 @@ public sealed class MapCanvas : Control
     public event Action<Point>? TileContextMenuRequested;
     public event Action? MapReplaced;
     public event Action? UndoHistoryChanged;
+    /// <summary>Carte modifiée par une action d’édition (peinture, undo, etc.).</summary>
+    public event Action? MapEdited;
+
+    /// <summary>Carte cible par défaut pour les nouvelles tuiles warp (souvent la carte courante).</summary>
+    public Guid? DefaultWarpTargetMapId { get; set; }
 
     /// <summary>Marqueurs événements ou visibilité overlay ont changé (mini-carte, etc.).</summary>
     public event Action? MapEventOverlayChanged;
@@ -205,8 +210,7 @@ public sealed class MapCanvas : Control
         }
 
         EditorTileClipboard.CopyFromLayer(Map, ActiveLayerIndex, rect);
-        History.PushBeforeChange(Map);
-        UndoHistoryChanged?.Invoke();
+        BeginEditTransaction();
         DeleteTilesInRectangle(rect);
         Invalidate();
         return true;
@@ -220,8 +224,7 @@ public sealed class MapCanvas : Control
         }
 
         EnsureLayerExists();
-        History.PushBeforeChange(Map);
-        UndoHistoryChanged?.Invoke();
+        BeginEditTransaction();
         var n = EditorTileClipboard.PasteToLayer(Map, ActiveLayerIndex, _hoverTile.X, _hoverTile.Y, Map.Width, Map.Height);
         Invalidate();
         RaiseTileClicked(_hoverTile.X, _hoverTile.Y);
@@ -235,8 +238,7 @@ public sealed class MapCanvas : Control
             return false;
         }
 
-        History.PushBeforeChange(Map);
-        UndoHistoryChanged?.Invoke();
+        BeginEditTransaction();
         DeleteTilesInRectangle(rect);
         Invalidate();
         return true;
@@ -276,6 +278,7 @@ public sealed class MapCanvas : Control
         }
 
         Map = restored;
+        MapEdited?.Invoke();
         MapReplaced?.Invoke();
         Invalidate();
     }
@@ -294,6 +297,7 @@ public sealed class MapCanvas : Control
         }
 
         Map = restored;
+        MapEdited?.Invoke();
         MapReplaced?.Invoke();
         Invalidate();
     }
@@ -876,8 +880,7 @@ public sealed class MapCanvas : Control
                         break;
                     }
 
-                    History.PushBeforeChange(Map);
-                    UndoHistoryChanged?.Invoke();
+                    BeginEditTransaction();
                     FloodFill(tx, ty);
                     Invalidate();
                     RaiseTileClicked(tx, ty);
@@ -912,8 +915,19 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        History.PushBeforeChange(Map);
+        BeginEditTransaction();
         _paintStroke = true;
+    }
+
+    private void BeginEditTransaction()
+    {
+        if (Map is null)
+        {
+            return;
+        }
+
+        History.PushBeforeChange(Map);
+        MapEdited?.Invoke();
         UndoHistoryChanged?.Invoke();
     }
 
@@ -1007,8 +1021,7 @@ public sealed class MapCanvas : Control
                 ey = Math.Clamp(ey, 0, Map.Height - 1);
                 if (IsActiveLayerEditable())
                 {
-                    History.PushBeforeChange(Map);
-                    UndoHistoryChanged?.Invoke();
+                    BeginEditTransaction();
                     ApplyRectangle(ro.X, ro.Y, ex, ey);
                     RaiseTileClicked(ex, ey);
                 }
@@ -1124,7 +1137,7 @@ public sealed class MapCanvas : Control
         };
         if (SelectedTileType == TileType.Warp)
         {
-            tile.WarpTargetMapId = Guid.Empty;
+            tile.WarpTargetMapId = DefaultWarpTargetMapId ?? Guid.Empty;
             tile.WarpTargetX = 0;
             tile.WarpTargetY = 0;
         }

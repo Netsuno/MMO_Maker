@@ -33,10 +33,8 @@ public sealed class PostgresMapRepository : IMapRepository
         MapEntity? existing = null;
         if (request.MapId is Guid mapId && mapId != Guid.Empty)
         {
+            _db.ChangeTracker.Clear();
             existing = await _db.Maps
-                .Include(m => m.Cells)
-                .Include(m => m.Warps)
-                .Include(m => m.NpcSpawns)
                 .SingleOrDefaultAsync(m => m.Id == mapId, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -64,7 +62,22 @@ public sealed class PostgresMapRepository : IMapRepository
 
             existing.Status = request.Status;
             existing.Revision++;
-            MapPersistenceMapper.ReplaceChildren(existing, request.Map, now);
+            MapPersistenceMapper.ApplyMapFields(existing, request.Map, now);
+            await _db.MapCells.Where(c => c.MapId == existing.Id).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+            await _db.MapWarps.Where(w => w.MapId == existing.Id).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+            await _db.MapNpcSpawns.Where(n => n.MapId == existing.Id).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            var children = MapPersistenceMapper.BuildChildren(existing.Id, request.Map);
+            foreach (var warp in children.Warps)
+            {
+                warp.TargetMap = null;
+            }
+
+            _db.MapCells.AddRange(children.Cells);
+            _db.MapWarps.AddRange(children.Warps);
+            _db.MapNpcSpawns.AddRange(children.NpcSpawns);
+
             newRevision = existing.Revision;
             savedId = existing.Id;
         }

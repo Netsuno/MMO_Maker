@@ -1,5 +1,3 @@
-// #TODO (FR) : Définir la structure de données d’une carte selon l’héritage VB6
-// (largeur, hauteur, couches, tuiles, attributs, événements, métadonnées).
 #nullable enable
 namespace Frog.Core.Models;
 
@@ -10,9 +8,8 @@ using Frog.Core.Enums;
 using Frog.Core.Interfaces;
 
 /// <summary>
-/// Représente une carte (map) logique. Sert d’unité d’édition (Editor), d’affichage (Client)
-/// et d’instance côté serveur (Server). Les types numériques doivent rester compatibles
-/// avec le format binaire hérité du projet VB6.
+/// Représente une carte (map) logique. Unité d’édition (Editor), d’affichage (Client)
+/// et d’instance côté serveur (Server).
 /// </summary>
 public sealed class Map : IValidatable
 {
@@ -22,8 +19,7 @@ public sealed class Map : IValidatable
     public int Height { get; set; }
 
     /// <summary>
-    /// Couches de rendu/attributs. L’ordre et le nombre doivent rester cohérents avec l’éditeur VB6
-    /// (Ground/Mask/Mask2/Fringe/Fringe2/Attributes). Voir <see cref="Enums.LayerType"/>.
+    /// Couches de rendu/attributs. Voir <see cref="Enums.LayerType"/>.
     /// </summary>
     public List<Layer> Layers { get; } = new();
 

@@ -153,9 +153,98 @@ public sealed class PostgresMapRepositoryTests
 
         await using var db2 = CreateDb();
         var list = await new PostgresMapRepository(db2).ListSummariesAsync();
-        Assert.Equal(2, list.Count);
-        Assert.Equal("Alpha", list[0].Name);
-        Assert.Equal("Zeta", list[1].Name);
+        var ours = list.Where(x => x.MapId == zetaId || x.MapId == alphaId).ToList();
+        Assert.Equal(2, ours.Count);
+        Assert.Equal("Alpha", ours[0].Name);
+        Assert.Equal("Zeta", ours[1].Name);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task Save_PublishedStatus_PersistsInDatabase()
+    {
+        await using var db = CreateDb();
+        var repo = new PostgresMapRepository(db);
+        var mapId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0101");
+        var map = CreateSampleMap("PublishMe", mapId);
+        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 0,
+            Status = MapPublishStatus.Draft,
+        }));
+
+        await using var db2 = CreateDb();
+        var published = await new PostgresMapRepository(db2).SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 1,
+            Status = MapPublishStatus.Published,
+        });
+        Assert.IsType<SaveMapResult.Success>(published);
+
+        await using var db3 = CreateDb();
+        var loaded = await new PostgresMapRepository(db3).LoadByIdAsync(mapId);
+        Assert.NotNull(loaded);
+        Assert.Equal(MapPublishStatus.Published, loaded.Status);
+        Assert.Equal(2, loaded.Revision);
+
+        var summaries = await new PostgresMapRepository(db3).ListSummariesAsync();
+        var entry = summaries.First(s => s.MapId == mapId);
+        Assert.Equal(MapPublishStatus.Published, entry.Status);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task Save_SecondUpdate_SameDbContext_Succeeds()
+    {
+        await using var db = CreateDb();
+        var repo = new PostgresMapRepository(db);
+        var mapId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccc0304");
+        var map = CreateSampleMap("Twice", mapId);
+        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 0,
+        }));
+
+        map.Name = "Twice updated";
+        var second = await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 1,
+            Status = MapPublishStatus.Published,
+        });
+        Assert.IsType<SaveMapResult.Success>(second);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task Save_SecondUpdate_EmptyMap_Succeeds()
+    {
+        await using var db = CreateDb();
+        var repo = new PostgresMapRepository(db);
+        var mapId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddd0404");
+        var map = DemoMapFactory.CreateStarter("EmptyTwice");
+        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 0,
+        }));
+
+        map.Name = "EmptyTwice v2";
+        var second = await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = map,
+            ExpectedRevision = 1,
+        });
+        Assert.IsType<SaveMapResult.Success>(second);
     }
 
     private FrogDbContext CreateDb() =>

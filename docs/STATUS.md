@@ -3,26 +3,21 @@
 - Dernière mise à jour : 2026-08-22
 - Branche : `cursor/phase0-baseline-audit-02c7`
 - Commit d’implémentation Phase 3 (immuable) : `3fc6530`
-- Plage revue gate Phase 3 : `3fc6530..HEAD`
-- **Phase 3 — Shell éditeur : READY FOR REVIEW (corrections gate)**
-- Prochaine phase **non commencée** : Phase 4 — Map Editor MVP
-- Rapport : [`docs/progress/phase-03-editor-shell/REVIEW_REQUEST.md`](progress/phase-03-editor-shell/REVIEW_REQUEST.md)
+- Plage revue Phase 4 : `3fc6530..HEAD`
+- **Phase 4 — Map Editor MVP : READY FOR REVIEW**
+- Rapport : [`docs/progress/phase-04-map-editor-mvp/REVIEW_REQUEST.md`](progress/phase-04-map-editor-mvp/REVIEW_REQUEST.md)
 
 ## Vérifié comme fonctionnel
 
-- Build C# 12 + **110** tests unitaires `Frog.Tests`
-- Intégration PostgreSQL (**7**) incl. migration `ModernMapIdentity`
-- Identité carte moderne : `MapId` (Guid), `LoadByIdAsync`, warps `TargetMapId` + FK
-- Smoke UI Windows automatisé : `tests/Frog.Editor.WindowsSmokeTests` (job CI Windows)
-- Shell éditeur + catalogue via `MapWorkspaceSession` / `IMapRepository`
-
-## Implémenté, mais non vérifié localement (agent Linux)
-
-- Exécution manuelle du smoke Windows (automatisé en CI)
+- Build C# 12 + **114** tests unitaires `Frog.Tests`
+- Intégration PostgreSQL (**10**) incl. publication et second save
+- Smoke UI Windows (**2**) : ouverture shell + save brouillon mémoire
+- Éditeur : peinture, collision, warp, undo/redo, save/publish PostgreSQL
 
 ## Différé (hors chemin critique)
 
-- `Frog.Legacy` / fixtures `.fcc` (expérimental ; warps int → Guid runtime helper)
+- Playtest serveur depuis carte PG (Phase 5)
+- `Frog.Legacy` / MariaDB héritage (gelé)
 
 ## Commandes de validation
 
@@ -38,4 +33,4 @@ dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.cs
 
 ## Prochaine phase proposée (non commencée)
 
-- Phase 4 : Map Editor MVP (peinture, collision, warp, undo, save/publish PG)
+Phase 5 — Playtest depuis l’éditeur (carte publiée PostgreSQL → serveur/client).

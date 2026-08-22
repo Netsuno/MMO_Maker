@@ -24,14 +24,29 @@ public partial class MainWindow : Window
         new InputGestureCollection { new KeyGesture(Key.O, ModifierKeys.Control) });
 
     public static readonly RoutedUICommand CmdSaveMap = new(
-        "Enregistrer",
+        "Enregistrer (PostgreSQL)",
         nameof(CmdSaveMap),
         typeof(MainWindow),
         new InputGestureCollection { new KeyGesture(Key.S, ModifierKeys.Control) });
 
     public static readonly RoutedUICommand CmdPublishMap = new(
-        "Publier vers MariaDB… (héritage)",
+        "Publier (PostgreSQL)…",
         nameof(CmdPublishMap),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdExportMap = new(
+        "Exporter fichier .fmap…",
+        nameof(CmdExportMap),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdEditWarp = new(
+        "Configurer warp sélectionné…",
+        nameof(CmdEditWarp),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdPublishMapToMariaDb = new(
+        "Publier vers MariaDB… (héritage)",
+        nameof(CmdPublishMapToMariaDb),
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdLaunchFrogClient = new(
@@ -120,7 +135,10 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdNewMap, (_, _) => _editor.CreateNewMap()));
         CommandBindings.Add(new CommandBinding(CmdOpenMap, (_, _) => _editor.LoadMap()));
         CommandBindings.Add(new CommandBinding(CmdSaveMap, (_, _) => _editor.SaveMap()));
-        CommandBindings.Add(new CommandBinding(CmdPublishMap, (_, _) => _editor.PublishMapToMariaDb()));
+        CommandBindings.Add(new CommandBinding(CmdPublishMap, (_, _) => _editor.PublishMap()));
+        CommandBindings.Add(new CommandBinding(CmdExportMap, (_, _) => _editor.ExportMapToFile()));
+        CommandBindings.Add(new CommandBinding(CmdPublishMapToMariaDb, (_, _) => _editor.PublishMapToMariaDb()));
+        CommandBindings.Add(new CommandBinding(CmdEditWarp, (_, _) => _editor.EditSelectedWarpDestination()));
         CommandBindings.Add(new CommandBinding(CmdLaunchFrogClient, (_, _) => _editor.LaunchFrogGameClient()));
         CommandBindings.Add(new CommandBinding(CmdQuit, (_, _) => System.Windows.Application.Current.Shutdown()));
         CommandBindings.Add(new CommandBinding(CmdUndo, (_, _) => _editor.DoUndo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanUndo));

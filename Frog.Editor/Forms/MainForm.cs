@@ -58,6 +58,7 @@ public sealed class MainForm : Form
     private System.Windows.Window? _wpfOwnerWindow;
     private MapWorkspaceSession? _workspace;
     private bool _catalogOpenInProgress;
+    private bool _suppressDirtyTracking;
 
     /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
     internal Control LeftShellForWpf => _leftColumnPanel;
@@ -137,12 +138,14 @@ public sealed class MainForm : Form
                 ShowShortcutKeys = true,
             });
             mFile.DropDownItems.Add(new ToolStripSeparator());
-            mFile.DropDownItems.Add(new ToolStripMenuItem("Enregistrer", null, (_, _) => SaveMap())
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Enregistrer (PostgreSQL)", null, (_, _) => SaveMap())
             {
                 ShortcutKeys = Keys.Control | Keys.S,
                 ShowShortcutKeys = true,
             });
-            mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB…", null, (_, _) => PublishMapToMariaDb()));
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Publier (PostgreSQL)…", null, (_, _) => PublishMap()));
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Exporter fichier .fmap…", null, (_, _) => ExportMapToFile()));
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB… (héritage)", null, (_, _) => PublishMapToMariaDb()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Lancer le client Frog…", null, (_, _) => LaunchFrogGameClient()));
             mFile.DropDownItems.Add(new ToolStripSeparator());
             mFile.DropDownItems.Add("Quitter", null, (_, _) =>
@@ -178,6 +181,7 @@ public sealed class MainForm : Form
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
+            mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("Événements carte (MariaDB)…", null, (_, _) => BrowseMapEventsFromMariaDb());
             mMap.DropDownItems.Add("Actualiser marqueurs événements (MariaDB)", null, (_, _) => RefreshMapEventMarkersFromMariaDb());
             mMap.DropDownItems.Add(
@@ -272,6 +276,7 @@ public sealed class MainForm : Form
         _canvas.TileContextMenuRequested += OnTileContextMenuRequested;
         _canvas.MapReplaced += OnMapReplaced;
         _canvas.UndoHistoryChanged += UpdateUndoRedoButtons;
+        _canvas.MapEdited += OnMapEdited;
 
         if (_mnuShowEventMarkers is not null)
         {
@@ -565,6 +570,11 @@ public sealed class MainForm : Form
         _catalogOpenInProgress = true;
         try
         {
+            if (_workspace.IsDirty && !await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true))
+            {
+                return;
+            }
+
             if (!await _workspace.OpenMapAsync(mapId).ConfigureAwait(true))
             {
                 MessageBox.Show(GetDialogOwner(), $"Carte {mapId} introuvable dans le catalogue.", "Monde", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -586,14 +596,25 @@ public sealed class MainForm : Form
             return;
         }
 
-        _canvas.ClearHistory();
-        _canvas.Map = _workspace.CurrentMap;
-        _propGrid.SelectedObject = _canvas.Map;
-        RefreshLayersUi();
-        _canvas.Invalidate();
-        UpdateUndoRedoButtons();
-        SyncMapsTree();
-        UpdateMapChromeLabels();
+        _suppressDirtyTracking = true;
+        try
+        {
+            _canvas.ClearHistory();
+            _canvas.Map = _workspace.CurrentMap;
+            _canvas.DefaultWarpTargetMapId = _workspace.CurrentMapId;
+            _propGrid.SelectedObject = _canvas.Map;
+            RefreshLayersUi();
+            _canvas.Invalidate();
+            UpdateUndoRedoButtons();
+            SyncMapsTree();
+            UpdateMapChromeLabels();
+        }
+        finally
+        {
+            _suppressDirtyTracking = false;
+        }
+
+        PushEditorStatusLine();
     }
 
     private void OnPaletteStampChanged(Rectangle stampPixels)
@@ -623,10 +644,11 @@ public sealed class MainForm : Form
         var rev = _workspace is null
             ? ""
             : _workspace.CurrentMapId is Guid id
-                ? $"    ·    carte {id.ToString("N")[..8]} r{_workspace.CurrentRevision}"
+                ? $"    ·    carte {id.ToString("N")[..8]} r{_workspace.CurrentRevision}{FormatStatusSuffix()}"
                 : "    ·    brouillon local";
+        var dirty = _workspace?.IsDirty == true ? "    ·    modifié" : "";
         var text =
-            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}    ·    catalogue {backend}";
+            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -778,12 +800,34 @@ public sealed class MainForm : Form
         }
     }
 
+    private string FormatStatusSuffix()
+    {
+        if (_workspace is null)
+        {
+            return string.Empty;
+        }
+
+        return _workspace.CurrentStatus == MapPublishStatus.Published ? " publiée" : " brouillon";
+    }
+
+    private void OnMapEdited()
+    {
+        if (_suppressDirtyTracking)
+        {
+            return;
+        }
+
+        _workspace?.MarkDirty();
+        PushEditorStatusLine();
+    }
+
     private void OnMapReplaced()
     {
         RefreshLayersUi();
         _propGrid.SelectedObject = _canvas.Map;
         UpdateUndoRedoButtons();
         UpdateMapChromeLabels();
+        OnMapEdited();
     }
 
     internal void DoUndo()
@@ -958,6 +1002,7 @@ public sealed class MainForm : Form
         var map = new Map { Width = dlg.MapWidth, Height = dlg.MapHeight, Name = dlg.MapName };
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
         _workspace?.AdoptLocalDraft(map);
+        _canvas.DefaultWarpTargetMapId = null;
         _canvas.ClearHistory();
         _canvas.Map = map;
         _propGrid.SelectedObject = map;
@@ -982,7 +1027,11 @@ public sealed class MainForm : Form
         RefreshTilesetList();
     }
 
-    internal void SaveMap()
+    internal void SaveMap() => _ = SaveMapCoreAsync();
+
+    internal void PublishMap() => _ = PublishMapCoreAsync();
+
+    internal void ExportMapToFile()
     {
         if (_canvas.Map is null)
         {
@@ -999,7 +1048,174 @@ public sealed class MainForm : Form
         var bytes = serializer.Serialize(_canvas.Map);
         File.WriteAllBytes(sfd.FileName, bytes);
         SaveTilesetManifestNextToMap(sfd.FileName);
-        MessageBox.Show(GetDialogOwner(), "Carte et manifeste tilesets (.tilesets.json) sauvegardés.", "Succès", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(GetDialogOwner(), "Carte et manifeste tilesets (.tilesets.json) exportés.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private async System.Threading.Tasks.Task SaveMapCoreAsync()
+    {
+        if (_workspace is null || _canvas.Map is null)
+        {
+            MessageBox.Show(GetDialogOwner(), "Catalogue non initialisé.", "Enregistrement", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        if (!_canvas.Map.Validate(out var err))
+        {
+            MessageBox.Show(GetDialogOwner(), err ?? "Carte invalide.", "Enregistrement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var result = await _workspace.SaveCurrentAsync(MapPublishStatus.Draft).ConfigureAwait(true);
+        await HandleSaveResultAsync(result, published: false).ConfigureAwait(true);
+    }
+
+    private async System.Threading.Tasks.Task PublishMapCoreAsync()
+    {
+        if (_workspace is null || _canvas.Map is null)
+        {
+            MessageBox.Show(GetDialogOwner(), "Catalogue non initialisé.", "Publication", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        if (!_canvas.Map.Validate(out var err))
+        {
+            MessageBox.Show(GetDialogOwner(), err ?? "Carte invalide.", "Publication", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            GetDialogOwner(),
+            "Publier cette carte vers PostgreSQL ? Elle sera marquée « publiée » et disponible pour le runtime.",
+            "Publication PostgreSQL",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (confirm != DialogResult.Yes)
+        {
+            return;
+        }
+
+        var result = await _workspace.SaveCurrentAsync(MapPublishStatus.Published).ConfigureAwait(true);
+        await HandleSaveResultAsync(result, published: true).ConfigureAwait(true);
+    }
+
+    private async System.Threading.Tasks.Task HandleSaveResultAsync(SaveMapResult result, bool published)
+    {
+        switch (result)
+        {
+            case SaveMapResult.Success success:
+                _canvas.DefaultWarpTargetMapId = _workspace!.CurrentMapId;
+                SyncMapsTree();
+                PushEditorStatusLine();
+                UpdateMapChromeLabels();
+                var label = published ? "publiée" : "enregistrée";
+                MessageBox.Show(
+                    GetDialogOwner(),
+                    $"Carte {label} (id {success.MapId:N}, révision {success.NewRevision}).",
+                    published ? "Publication PostgreSQL" : "Enregistrement PostgreSQL",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                break;
+            case SaveMapResult.ValidationFailed failed:
+                MessageBox.Show(GetDialogOwner(), failed.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                break;
+            case SaveMapResult.Conflict conflict:
+                var reload = MessageBox.Show(
+                    GetDialogOwner(),
+                    $"Conflit de révision (attendue r{_workspace!.CurrentRevision}, serveur r{conflict.CurrentRevision}). Recharger la carte depuis le catalogue ?",
+                    "Conflit",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+                if (reload == DialogResult.Yes)
+                {
+                    if (await _workspace.ReloadCurrentAsync().ConfigureAwait(true))
+                    {
+                        ApplyWorkspaceMapToUi();
+                    }
+                }
+
+                break;
+        }
+    }
+
+    private async System.Threading.Tasks.Task<bool> TryDiscardOrSaveBeforeSwitchAsync()
+    {
+        var answer = MessageBox.Show(
+            GetDialogOwner(),
+            "Modifications non enregistrées. Enregistrer avant de changer de carte ?",
+            "Modifications",
+            MessageBoxButtons.YesNoCancel,
+            MessageBoxIcon.Question);
+        return answer switch
+        {
+            DialogResult.Cancel => false,
+            DialogResult.No => true,
+            DialogResult.Yes => await TrySaveBeforeSwitchAsync(),
+            _ => false,
+        };
+    }
+
+    private async System.Threading.Tasks.Task<bool> TrySaveBeforeSwitchAsync()
+    {
+        await SaveMapCoreAsync().ConfigureAwait(true);
+        return _workspace?.IsDirty != true;
+    }
+
+    internal void EditSelectedWarpDestination()
+    {
+        if (_canvas.Map is null || _workspace is null)
+        {
+            return;
+        }
+
+        var layerIndex = GetSelectedLayerIndex();
+        if (layerIndex < 0 || layerIndex >= _canvas.Map.Layers.Count)
+        {
+            return;
+        }
+
+        var tile = _canvas.Map.Layers[layerIndex].Tiles.FirstOrDefault(t => t.X == _lastHoverTile.X && t.Y == _lastHoverTile.Y);
+        if (tile is null || tile.Type != TileType.Warp)
+        {
+            MessageBox.Show(GetDialogOwner(), "Sélectionnez une tuile warp (couche attributs) sous le curseur.", "Warp", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        EditWarpDestination(tile);
+    }
+
+    internal void EditWarpDestination(Tile tile)
+    {
+        if (_canvas.Map is null || _workspace is null)
+        {
+            return;
+        }
+
+        using var dlg = new Dialogs.WarpDestinationDialog(
+            _workspace.Catalog,
+            tile.WarpTargetMapId == Guid.Empty ? _workspace.CurrentMapId ?? Guid.Empty : tile.WarpTargetMapId,
+            tile.WarpTargetX,
+            tile.WarpTargetY,
+            _canvas.Map.Width,
+            _canvas.Map.Height);
+        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (!dlg.TryValidate(out var verr))
+        {
+            MessageBox.Show(GetDialogOwner(), verr, "Warp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        _canvas.History.PushBeforeChange(_canvas.Map);
+        tile.WarpTargetMapId = dlg.TargetMapId;
+        tile.WarpTargetX = dlg.TargetX;
+        tile.WarpTargetY = dlg.TargetY;
+        _workspace.MarkDirty();
+        _canvas.Invalidate();
+        UpdateUndoRedoButtons();
+        PushEditorStatusLine();
     }
 
     internal void LaunchFrogGameClient()

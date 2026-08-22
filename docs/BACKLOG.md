@@ -27,8 +27,10 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 - [x] Migration identité moderne (`ModernMapIdentity`)
 - [ ] Confirmation CI Windows verte (post-push)
 
-## Phase 4 — Map Editor MVP (prochaine, non commencée)
+## Phase 4 — Map Editor MVP (prochaine)
 
-- Création / peinture / collision / warp / undo
-- Sauvegarde + publication PostgreSQL via `Frog.Application`
-- Playtest déclenché depuis l’éditeur (Phase 5)
+- [x] Peinture / collision / warp / undo (canvas existant)
+- [x] Sauvegarde + publication PostgreSQL via `MapWorkspaceSession.SaveCurrentAsync`
+- [x] Dialogue destination warp
+- [x] Tests unitaires session + smoke save + intégration publish
+- [ ] Playtest déclenché depuis l’éditeur (Phase 5)

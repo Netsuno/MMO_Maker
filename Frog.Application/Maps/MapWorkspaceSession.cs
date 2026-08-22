@@ -24,6 +24,9 @@ public sealed class MapWorkspaceSession
 
     public MapPublishStatus CurrentStatus { get; private set; } = MapPublishStatus.Draft;
 
+    /// <summary>Modifications en mémoire non encore persistées.</summary>
+    public bool IsDirty { get; private set; }
+
     /// <summary>
     /// Si le catalogue est vide, enregistre la carte démo puis l’ouvre.
     /// Sinon rafraîchit le catalogue et ouvre la première entrée (ou <paramref name="preferredMapId"/>).
@@ -87,6 +90,7 @@ public sealed class MapWorkspaceSession
         CurrentMapId = stored.MapId;
         CurrentRevision = stored.Revision;
         CurrentStatus = stored.Status;
+        IsDirty = false;
         return true;
     }
 
@@ -98,5 +102,55 @@ public sealed class MapWorkspaceSession
         CurrentMapId = mapId;
         CurrentRevision = revision;
         CurrentStatus = MapPublishStatus.Draft;
+        IsDirty = true;
+    }
+
+    public void MarkDirty()
+    {
+        IsDirty = true;
+    }
+
+    /// <summary>Persiste la carte courante (brouillon ou publication).</summary>
+    public async Task<SaveMapResult> SaveCurrentAsync(
+        MapPublishStatus status,
+        CancellationToken cancellationToken = default)
+    {
+        if (CurrentMap is null)
+        {
+            return new SaveMapResult.ValidationFailed("Aucune carte ouverte.");
+        }
+
+        var result = await _repository.SaveAsync(
+                new SaveMapRequest
+                {
+                    MapId = CurrentMapId,
+                    Map = CurrentMap,
+                    ExpectedRevision = CurrentRevision,
+                    Status = status,
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result is SaveMapResult.Success success)
+        {
+            CurrentMapId = success.MapId;
+            CurrentRevision = success.NewRevision;
+            CurrentStatus = status;
+            IsDirty = false;
+            await RefreshCatalogAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    /// <summary>Recharge la carte courante depuis le dépôt (résolution conflit).</summary>
+    public async Task<bool> ReloadCurrentAsync(CancellationToken cancellationToken = default)
+    {
+        if (CurrentMapId is not Guid mapId)
+        {
+            return false;
+        }
+
+        return await OpenMapAsync(mapId, cancellationToken).ConfigureAwait(false);
     }
 }

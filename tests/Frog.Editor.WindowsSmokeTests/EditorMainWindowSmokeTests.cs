@@ -10,10 +10,26 @@ public sealed class EditorMainWindowSmokeTests
     [Fact]
     public void MainWindow_OpensDemoMap_WithInMemoryRepository()
     {
-        StaTestRunner.Run(RunSmoke);
+        StaTestRunner.Run(RunOpenSmoke);
     }
 
-    private static void RunSmoke()
+    [Fact]
+    public void MainWindow_SaveDraft_InMemoryRepository()
+    {
+        StaTestRunner.Run(RunSaveSmoke);
+    }
+
+    private static void RunOpenSmoke()
+    {
+        RunSmokeCore(includeSave: false);
+    }
+
+    private static void RunSaveSmoke()
+    {
+        RunSmokeCore(includeSave: true);
+    }
+
+    private static void RunSmokeCore(bool includeSave)
     {
         EditorSmokeTestAccess.ConfigureInMemoryRepository();
 
@@ -33,6 +49,25 @@ public sealed class EditorMainWindowSmokeTests
             }
 
             EditorSmokeTestAccess.AssertShellReady(window);
+
+            if (includeSave)
+            {
+                var session = window.EditorForm.GetWorkspaceSessionForTest()!;
+                var beforeRev = session.CurrentRevision;
+                var saveTask = EditorSmokeTestAccess.BeginSaveDraftForTestAsync(window);
+                StaTestRunner.PumpUntil(() => saveTask.IsCompleted, EditorSmokeTestAccess.DefaultTimeout);
+                if (saveTask.IsFaulted)
+                {
+                    throw saveTask.Exception?.GetBaseException()
+                          ?? new InvalidOperationException("Save failed.");
+                }
+
+                EditorSmokeTestAccess.AssertSaveSuccess(saveTask.Result, beforeRev);
+                if (session.IsDirty)
+                {
+                    throw new InvalidOperationException("Session should be clean after save.");
+                }
+            }
 
             var dispatcherDone = false;
             window.Dispatcher.InvokeAsync(() => dispatcherDone = true, DispatcherPriority.Normal);

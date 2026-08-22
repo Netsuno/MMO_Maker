@@ -114,4 +114,27 @@ internal static class EditorSmokeTestAccess
     {
         window.Dispatcher.Invoke(() => window.Close());
     }
+
+    /// <summary>Prépare et lance l’enregistrement brouillon (sans UI) pour smoke test.</summary>
+    public static Task<SaveMapResult> BeginSaveDraftForTestAsync(MainWindow window)
+    {
+        var session = window.EditorForm.GetWorkspaceSessionForTest()
+                      ?? throw new InvalidOperationException("Workspace session is null.");
+        session.CurrentMap!.Name = "Smoke saved";
+        session.MarkDirty();
+        return session.SaveCurrentAsync(MapPublishStatus.Draft);
+    }
+
+    public static void AssertSaveSuccess(SaveMapResult result, long previousRevision)
+    {
+        if (result is not SaveMapResult.Success success)
+        {
+            throw new InvalidOperationException($"Save failed: {result}");
+        }
+
+        if (success.NewRevision <= previousRevision)
+        {
+            throw new InvalidOperationException($"Expected revision > {previousRevision}, got {success.NewRevision}.");
+        }
+    }
 }

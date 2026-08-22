@@ -36,16 +36,45 @@ internal static class MapPersistenceMapper
 
     public static void ReplaceChildren(MapEntity entity, Map map, DateTimeOffset nowUtc)
     {
-        entity.Name = map.Name;
-        entity.Width = map.Width;
-        entity.Height = map.Height;
-        entity.AllowPlayerOverlap = map.AllowPlayerOverlap;
-        entity.UpdatedAtUtc = nowUtc;
+        ApplyMapFields(entity, map, nowUtc);
         entity.Cells.Clear();
         entity.Warps.Clear();
         entity.NpcSpawns.Clear();
         PopulateChildren(entity, map);
     }
+
+    public static void ApplyMapFields(MapEntity entity, Map map, DateTimeOffset nowUtc)
+    {
+        entity.Name = map.Name;
+        entity.Width = map.Width;
+        entity.Height = map.Height;
+        entity.AllowPlayerOverlap = map.AllowPlayerOverlap;
+        entity.UpdatedAtUtc = nowUtc;
+        entity.LayersCatalogJson = SerializeLayersCatalog(map);
+    }
+
+    public static MapChildEntities BuildChildren(Guid mapId, Map map)
+    {
+        var entity = new MapEntity { Id = mapId, LayersCatalogJson = SerializeLayersCatalog(map) };
+        PopulateChildren(entity, map);
+        return new MapChildEntities(entity.Cells, entity.Warps, entity.NpcSpawns);
+    }
+
+    public sealed record MapChildEntities(
+        List<MapCellEntity> Cells,
+        List<MapWarpEntity> Warps,
+        List<MapNpcSpawnEntity> NpcSpawns);
+
+    private static string SerializeLayersCatalog(Map map) =>
+        JsonSerializer.Serialize(
+            map.Layers.Select(l => new LayerCatalogEntry
+            {
+                LayerType = (byte)l.LayerType,
+                DisplayName = l.DisplayName,
+                Visible = l.Visible,
+                Locked = l.Locked,
+            }).ToList(),
+            Json);
 
     public static Map ToDomain(MapEntity entity)
     {
@@ -132,15 +161,7 @@ internal static class MapPersistenceMapper
 
     private static void PopulateChildren(MapEntity entity, Map map)
     {
-        entity.LayersCatalogJson = JsonSerializer.Serialize(
-            map.Layers.Select(l => new LayerCatalogEntry
-            {
-                LayerType = (byte)l.LayerType,
-                DisplayName = l.DisplayName,
-                Visible = l.Visible,
-                Locked = l.Locked,
-            }).ToList(),
-            Json);
+        entity.LayersCatalogJson = SerializeLayersCatalog(map);
 
         var cells = new Dictionary<(int X, int Y), List<CellLayerPayload>>();
         var warpKeys = new HashSet<(int X, int Y)>();

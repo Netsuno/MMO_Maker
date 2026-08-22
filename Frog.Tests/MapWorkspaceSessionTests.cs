@@ -1,6 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Frog.Application.Maps;
+using Frog.Core.Enums;
+using Frog.Core.Models;
 using Xunit;
 
 namespace Frog.Tests;
@@ -21,6 +24,7 @@ public sealed class MapWorkspaceSessionTests
         Assert.Equal(1, session.CurrentRevision);
         Assert.Single(session.Catalog);
         Assert.True(session.CurrentMap.Validate(out _));
+        Assert.False(session.IsDirty);
     }
 
     [Fact]
@@ -80,5 +84,80 @@ public sealed class MapWorkspaceSessionTests
         Assert.Null(session.CurrentMapId);
         Assert.Equal(0, session.CurrentRevision);
         Assert.Same(draft, session.CurrentMap);
+        Assert.True(session.IsDirty);
+    }
+
+    [Fact]
+    public async Task SaveCurrentAsync_PersistsDraftAndIncrementsRevision()
+    {
+        var repo = new InMemoryMapRepository();
+        var session = new MapWorkspaceSession(repo);
+        await session.InitializeAsync();
+        session.CurrentMap!.Name = "Renommée";
+        session.MarkDirty();
+
+        var result = await session.SaveCurrentAsync(MapPublishStatus.Draft);
+        var success = Assert.IsType<SaveMapResult.Success>(result);
+        Assert.Equal(2, success.NewRevision);
+        Assert.False(session.IsDirty);
+        Assert.Equal(MapPublishStatus.Draft, session.CurrentStatus);
+        Assert.Equal("Renommée", session.Catalog[0].Name);
+    }
+
+    [Fact]
+    public async Task SaveCurrentAsync_Publish_SetsPublishedStatus()
+    {
+        var repo = new InMemoryMapRepository();
+        var session = new MapWorkspaceSession(repo);
+        await session.InitializeAsync();
+
+        var result = await session.SaveCurrentAsync(MapPublishStatus.Published);
+        var success = Assert.IsType<SaveMapResult.Success>(result);
+        Assert.Equal(MapPublishStatus.Published, session.CurrentStatus);
+        Assert.Equal(MapPublishStatus.Published, session.Catalog[0].Status);
+        Assert.Equal(2, success.NewRevision);
+    }
+
+    [Fact]
+    public async Task SaveCurrentAsync_ReturnsConflict_WhenRevisionStale()
+    {
+        var repo = new InMemoryMapRepository();
+        var mapId = DemoMapFactory.DefaultMapId;
+        var session = new MapWorkspaceSession(repo);
+        await session.InitializeAsync();
+
+        session.MarkDirty();
+        var external = await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = mapId,
+            Map = session.CurrentMap!,
+            ExpectedRevision = session.CurrentRevision,
+        });
+        Assert.IsType<SaveMapResult.Success>(external);
+
+        var conflict = await session.SaveCurrentAsync(MapPublishStatus.Draft);
+        Assert.IsType<SaveMapResult.Conflict>(conflict);
+        Assert.True(session.IsDirty);
+    }
+
+    [Fact]
+    public async Task SaveCurrentAsync_ValidationFailed_WhenWarpInvalid()
+    {
+        var repo = new InMemoryMapRepository();
+        var session = new MapWorkspaceSession(repo);
+        await session.InitializeAsync();
+
+        var attr = session.CurrentMap!.Layers.First(l => l.LayerType == LayerType.Attributes);
+        attr.Tiles.Add(new Tile
+        {
+            X = 0,
+            Y = 0,
+            Type = TileType.Warp,
+            WarpTargetMapId = Guid.Empty,
+        });
+        session.MarkDirty();
+
+        var result = await session.SaveCurrentAsync(MapPublishStatus.Draft);
+        Assert.IsType<SaveMapResult.ValidationFailed>(result);
     }
 }

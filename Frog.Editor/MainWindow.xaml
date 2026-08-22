@@ -45,11 +45,15 @@
                           Command="{x:Static local:MainWindow.CmdOpenMap}"
                           InputGestureText="Ctrl+O" />
                 <Separator />
-                <MenuItem Header="Enregistrer fichier…"
+                <MenuItem Header="Enregistrer (PostgreSQL)"
                           Command="{x:Static local:MainWindow.CmdSaveMap}"
                           InputGestureText="Ctrl+S" />
-                <MenuItem Header="Publier vers MariaDB… (héritage)"
+                <MenuItem Header="Publier (PostgreSQL)…"
                           Command="{x:Static local:MainWindow.CmdPublishMap}" />
+                <MenuItem Header="Exporter fichier .fmap…"
+                          Command="{x:Static local:MainWindow.CmdExportMap}" />
+                <MenuItem Header="Publier vers MariaDB… (héritage)"
+                          Command="{x:Static local:MainWindow.CmdPublishMapToMariaDb}" />
                 <MenuItem Header="Lancer le client…"
                           Command="{x:Static local:MainWindow.CmdLaunchFrogClient}" />
                 <Separator />
@@ -68,6 +72,7 @@
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
+                <MenuItem Header="Configurer warp sélectionné…" Command="{x:Static local:MainWindow.CmdEditWarp}" />
                 <MenuItem Header="Actualiser le catalogue (PostgreSQL / mémoire)"
                           Command="{x:Static local:MainWindow.CmdRefreshCatalog}"
                           InputGestureText="F5" />
@@ -99,6 +104,7 @@
                 <Button Content="Nouvelle" Command="{x:Static local:MainWindow.CmdNewMap}" Padding="10,4" />
                 <Button Content="Ouvrir" Command="{x:Static local:MainWindow.CmdOpenMap}" Padding="10,4" />
                 <Button Content="Enregistrer" Command="{x:Static local:MainWindow.CmdSaveMap}" Padding="10,4" />
+                <Button Content="Publier" Command="{x:Static local:MainWindow.CmdPublishMap}" Padding="10,4" />
                 <Separator />
                 <Button Content="Annuler" Command="{x:Static local:MainWindow.CmdUndo}" Padding="10,4" />
                 <Button Content="Rétablir" Command="{x:Static local:MainWindow.CmdRedo}" Padding="10,4" />
