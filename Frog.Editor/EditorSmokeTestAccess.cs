@@ -21,6 +21,13 @@ internal static class EditorSmokeTestAccess
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");
     }
 
+    public static void EnsureWinFormsInitialized()
+    {
+        System.Windows.Forms.Application.EnableVisualStyles();
+        System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+        System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
+    }
+
     public static MainWindow CreateAndShowMainWindow()
     {
         var window = new MainWindow();

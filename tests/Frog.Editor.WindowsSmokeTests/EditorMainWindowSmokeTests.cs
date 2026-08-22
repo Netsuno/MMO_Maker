@@ -18,6 +18,7 @@ public sealed class EditorMainWindowSmokeTests
     private static void RunSmoke()
     {
         EditorSmokeTestAccess.ConfigureInMemoryRepository();
+        EditorSmokeTestAccess.EnsureWinFormsInitialized();
 
         var app = new App();
         app.InitializeComponent();
