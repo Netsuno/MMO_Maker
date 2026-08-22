@@ -7,7 +7,10 @@ Second temporary rejection at `f9d88b4`. Corrections on **same** branch/PR only.
 ## Plage
 
 - After: `f9d88b4827fc89c9e4ab63bd8c941bbb823d662b`
-- Head / CI: see `docs/STATUS.md`
+- Implementation: `62b27c542bab33896b73e00889da4e0a29211fad`
+- CI-evidence tip: `2665e040937045155c887c62affdbfea98aa7153`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32600611710 (168 / 18 / 12×3)
+- Head: see `docs/STATUS.md`
 
 ## Checklist
 

@@ -3,17 +3,17 @@
 ## Commit range
 
 - Prior rejected tip: `f9d88b4827fc89c9e4ab63bd8c941bbb823d662b`
-- Implementation commit: 62b27c542bab33896b73e00889da4e0a29211fad
-- Gate HEAD: 62b27c542bab33896b73e00889da4e0a29211fad
-- CI: _pending_
+- Implementation commit: `62b27c542bab33896b73e00889da4e0a29211fad`
+- CI-evidence tip: `2665e040937045155c887c62affdbfea98aa7153`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32600611710 (success)
 
-## Suites (local pre-push)
+## Suites (CI on `2665e04`)
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
 | Frog.Tests | 168 | 0 | 168 |
 | Frog.Persistence.IntegrationTests | 18 | 0 | 18 |
-| Frog.Editor.WindowsSmokeTests | CI | — | expected ≥11 × 3 |
+| Frog.Editor.WindowsSmokeTests | 12 | 0 | 12 × 3 consecutive |
 
 ### Production launcher / orchestrator (`PlaytestProductionLauncherTests`)
 
