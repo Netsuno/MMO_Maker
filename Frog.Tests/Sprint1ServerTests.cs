@@ -335,7 +335,7 @@ public sealed class Sprint1ServerTests
         var store = new MemoryMapBlobStore();
         store.Seed(42, serializer.Serialize(interior), revision: 7);
 
-        var outdoor = MapSamples.StarterMeadow(42);
+        var outdoor = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(42));
         var tmp = Path.Combine(Path.GetTempPath(), $"frog-outdoor-{Guid.NewGuid():N}.fmap");
         File.WriteAllBytes(tmp, serializer.Serialize(outdoor));
 
@@ -399,7 +399,7 @@ public sealed class Sprint1ServerTests
         var store = new MemoryMapBlobStore();
         store.Seed(42, serializer.Serialize(interior), revision: 11);
 
-        var outdoor = MapSamples.StarterMeadow(42);
+        var outdoor = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(42));
         var tmp = Path.Combine(Path.GetTempPath(), $"frog-fp-test-{Guid.NewGuid():N}.fmap");
         File.WriteAllBytes(tmp, serializer.Serialize(outdoor));
 
@@ -459,7 +459,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MovementService_AllowsMoveOntoOtherPlayerWhenMapFlagEnabled()
     {
-        var map = MapSamples.StarterMeadow(MapService.DefaultWorldMapId);
+        var map = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(MapService.DefaultWorldMapId));
         map.AllowPlayerOverlap = true;
         var mapService = MapTestHelpers.CreateMapServiceFromMap(map);
         var connections = new ConnectionManager();

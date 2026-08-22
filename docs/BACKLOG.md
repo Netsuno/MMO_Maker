@@ -22,9 +22,10 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 
 - [x] Wireframe / responsabilités (`docs/EDITOR_WORKSPACE.md`)
 - [x] Shell : menu, toolbar, arbre monde, canvas, tilesets, couches, propriétés, status
-- [x] Catalogue cartes via `IMapRepository` / `MapWorkspaceSession`
-- [x] Persistance largeurs colonnes (workstate local)
-- [ ] Smoke test Windows (non exécutable sur agent Linux)
+- [x] Catalogue cartes via `IMapRepository` / `MapWorkspaceSession` (`MapId`)
+- [x] Smoke test Windows automatisé (`Frog.Editor.WindowsSmokeTests` + CI)
+- [x] Migration identité moderne (`ModernMapIdentity`)
+- [ ] Confirmation CI Windows verte (post-push)
 
 ## Phase 4 — Map Editor MVP (prochaine, non commencée)
 

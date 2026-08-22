@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using System.Windows.Input;
 using Frog.Editor.Config;
 using Frog.Editor.Forms;
+using Frog.Editor.Services;
 
 namespace Frog.Editor;
 
@@ -97,6 +98,8 @@ public partial class MainWindow : Window
 
     private readonly MainForm _editor;
 
+    internal MainForm EditorForm => _editor;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -155,7 +158,10 @@ public partial class MainWindow : Window
                 MessageBoxImage.Warning);
         }
 
-        _editor.RefreshMapEventMarkersFromMariaDb();
+        if (!EditorTestHooks.SkipMariaDbOnStartup)
+        {
+            _editor.RefreshMapEventMarkersFromMariaDb();
+        }
         if (MnuShowEventMarkers is not null)
         {
             MnuShowEventMarkers.IsChecked = _editor.MapEventMarkersVisible;

@@ -1,39 +1,36 @@
-# Rapport de fin de phase 03 — Shell éditeur
+# Rapport de fin de phase 03 — Shell éditeur (corrections gate)
 
 ## Identification
 
-- Date et fuseau horaire : 2026-08-22 04:42 UTC
+- Date : 2026-08-22
 - Branche : `cursor/phase0-baseline-audit-02c7`
-- Commit de départ : `d68c687` (Phase 2 tip)
-- Commit final : `f487ff0` (tip ; contenu Phase 3 : `3fc6530`)
-- OS / SDK .NET / PostgreSQL : Ubuntu 24.04 / SDK 8.0.424 / PostgreSQL 16.15
-- Phase et gate visés : Phase 3 — carte démo dans le shell ; UI réactive (smoke Windows)
+- Commit d’implémentation Phase 3 (immuable) : `3fc6530`
+- Plage revue : `3fc6530..HEAD` (corrections smoke Windows + MapId)
+- OS local : Ubuntu 24.04 / SDK 8.0.424 / PostgreSQL 16.15
 
 ## Verdict proposé
 
-- **READY FOR REVIEW** (avec réserve smoke Windows)
-- Justification : workspace documenté, shell (menu/toolbar/arbre/canvas/panneaux/status), catalogue via ports Application, build+109 unitaires+7 PG verts. Smoke UI Windows **non exécuté** sur Linux.
+- **READY FOR REVIEW** — corrections gate appliquées ; smoke Windows **automatisé en CI** (non exécuté sur agent Linux).
 
-## Livré et vérifié
+## Corrections gate
 
-| Fonction | Preuve | Test |
-| --- | --- | --- |
-| Wireframe / responsabilités | `docs/EDITOR_WORKSPACE.md` | Revue |
-| Session + démo | `MapWorkspaceSession`, `DemoMapFactory` | `MapWorkspaceSessionTests` |
-| Catalogue PG | `ListSummariesAsync` | Intégration PG |
-| Coque UI | `MainWindow` toolbar + panels | Architecture (pas DB dans Forms) |
-| Composition | `EditorMapRepositoryFactory` | Build Editor |
+| Exigence | Livrable |
+| --- | --- |
+| Smoke UI Windows | `Frog.Editor.WindowsSmokeTests` + job CI Windows |
+| Repository mémoire | `FROG_EDITOR_FORCE_IN_MEMORY=1` / `EditorTestHooks` |
+| Identité MapId | Migration `ModernMapIdentity`, ports Application, docs |
+| Pas de LegacyId actif | Retrait `legacy_id`, `LoadByLegacyIdAsync`, etc. |
 
-## Implémenté, mais non vérifié
+## Livré et vérifié (Linux)
 
-- Ouverture visuelle Windows / réactivité souris-clavier
+- Build Release vert
+- 110 tests unitaires
+- 7 tests PostgreSQL (migration forward appliquée)
 
-## Non réalisé ou reporté
+## Non vérifié localement
 
-- Peinture / save PG depuis UI (Phase 4)
-- Retrait MariaDB menus héritage
+- Smoke Windows (CI uniquement — voir `TEST_RESULTS.md` pour lien run)
 
-## Décisions requises
+## Décision requise
 
-1. Accepter le gate Phase 3 malgré smoke Windows manquant, ou exiger un run Windows avant Phase 4 ?
-2. Confirmer démarrage Phase 4 (Map Editor MVP).
+Accepter Phase 3 et autoriser Phase 4, ou exiger confirmation du run CI Windows vert.

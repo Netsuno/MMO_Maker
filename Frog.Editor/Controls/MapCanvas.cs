@@ -1124,7 +1124,7 @@ public sealed class MapCanvas : Control
         };
         if (SelectedTileType == TileType.Warp)
         {
-            tile.WarpTargetMapId = 0;
+            tile.WarpTargetMapId = Guid.Empty;
             tile.WarpTargetX = 0;
             tile.WarpTargetY = 0;
         }

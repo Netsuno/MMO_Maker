@@ -107,7 +107,7 @@ public sealed class MapService
     /// <summary>Starter Meadow hors DB : blobs sérialisés en mémoire pour cohérence hash.</summary>
     private Map RegisterStandaloneSampleWorldChunk(int headLookupBlobIdForFingerprint)
     {
-        var map = MapSamples.StarterMeadow(DefaultWorldMapId);
+        var map = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(DefaultWorldMapId));
         var bytes = _mapSerializer.Serialize(map);
         RegisterWorldChunkFromModel(
             DefaultWorldMapId,
@@ -235,11 +235,23 @@ public sealed class MapService
                     continue;
                 }
 
-                var destinationMap =
-                    tile.WarpTargetMapId == 0 ? DefaultWorldMapId : tile.WarpTargetMapId;
+                var destinationMap = ResolveRuntimeMapIdFromWarpTarget(tile.WarpTargetMapId);
                 _warps[(sourceMapId, tile.X, tile.Y)] = (destinationMap, tile.WarpTargetX, tile.WarpTargetY);
             }
         }
+    }
+
+    private static int ResolveRuntimeMapIdFromWarpTarget(Guid warpTargetMapId)
+    {
+        if (warpTargetMapId == Guid.Empty)
+        {
+            return DefaultWorldMapId;
+        }
+
+        Span<byte> bytes = stackalloc byte[16];
+        _ = warpTargetMapId.TryWriteBytes(bytes);
+        var runtimeId = BitConverter.ToInt32(bytes);
+        return runtimeId > 0 ? runtimeId : DefaultWorldMapId;
     }
 
     public bool TryGetWarpDestination(int mapId, int tileX, int tileY, out int targetMapId, out int targetX, out int targetY)

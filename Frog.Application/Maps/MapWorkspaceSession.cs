@@ -18,7 +18,7 @@ public sealed class MapWorkspaceSession
 
     public Map? CurrentMap { get; private set; }
 
-    public int? CurrentLegacyId { get; private set; }
+    public Guid? CurrentMapId { get; private set; }
 
     public long CurrentRevision { get; private set; }
 
@@ -26,9 +26,9 @@ public sealed class MapWorkspaceSession
 
     /// <summary>
     /// Si le catalogue est vide, enregistre la carte démo puis l’ouvre.
-    /// Sinon rafraîchit le catalogue et ouvre la première entrée (ou <paramref name="preferredLegacyId"/>).
+    /// Sinon rafraîchit le catalogue et ouvre la première entrée (ou <paramref name="preferredMapId"/>).
     /// </summary>
-    public async Task InitializeAsync(int? preferredLegacyId = null, CancellationToken cancellationToken = default)
+    public async Task InitializeAsync(Guid? preferredMapId = null, CancellationToken cancellationToken = default)
     {
         await RefreshCatalogAsync(cancellationToken).ConfigureAwait(false);
 
@@ -38,7 +38,7 @@ public sealed class MapWorkspaceSession
             var saved = await _repository.SaveAsync(
                     new SaveMapRequest
                     {
-                        LegacyId = DemoMapFactory.DefaultLegacyId,
+                        MapId = DemoMapFactory.DefaultMapId,
                         Map = demo,
                         ExpectedRevision = 0,
                         Status = MapPublishStatus.Draft,
@@ -54,9 +54,9 @@ public sealed class MapWorkspaceSession
             await RefreshCatalogAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        var targetId = preferredLegacyId
-                       ?? Catalog.FirstOrDefault(e => e.LegacyId == DemoMapFactory.DefaultLegacyId)?.LegacyId
-                       ?? Catalog[0].LegacyId;
+        var targetId = preferredMapId
+                       ?? Catalog.FirstOrDefault(e => e.MapId == DemoMapFactory.DefaultMapId)?.MapId
+                       ?? Catalog[0].MapId;
 
         var opened = await OpenMapAsync(targetId, cancellationToken).ConfigureAwait(false);
         if (!opened)
@@ -70,27 +70,32 @@ public sealed class MapWorkspaceSession
         Catalog = await _repository.ListSummariesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<bool> OpenMapAsync(int legacyId, CancellationToken cancellationToken = default)
+    public async Task<bool> OpenMapAsync(Guid mapId, CancellationToken cancellationToken = default)
     {
-        var stored = await _repository.LoadByLegacyIdAsync(legacyId, cancellationToken).ConfigureAwait(false);
+        if (mapId == Guid.Empty)
+        {
+            return false;
+        }
+
+        var stored = await _repository.LoadByIdAsync(mapId, cancellationToken).ConfigureAwait(false);
         if (stored is null)
         {
             return false;
         }
 
         CurrentMap = stored.Map;
-        CurrentLegacyId = stored.LegacyId;
+        CurrentMapId = stored.MapId;
         CurrentRevision = stored.Revision;
         CurrentStatus = stored.Status;
         return true;
     }
 
-    /// <summary>Remplace la carte courante par une nouvelle carte locale (non encore persistée sous un nouvel id).</summary>
-    public void AdoptLocalDraft(Map map, int? legacyId = null, long revision = 0)
+    /// <summary>Remplace la carte courante par une nouvelle carte locale (non encore persistée).</summary>
+    public void AdoptLocalDraft(Map map, Guid? mapId = null, long revision = 0)
     {
         ArgumentNullException.ThrowIfNull(map);
         CurrentMap = map;
-        CurrentLegacyId = legacyId;
+        CurrentMapId = mapId;
         CurrentRevision = revision;
         CurrentStatus = MapPublishStatus.Draft;
     }

@@ -88,7 +88,7 @@ public sealed class Map : IValidatable
 
                 if (t.Type == TileType.Warp)
                 {
-                    if (t.WarpTargetMapId < 0)
+                    if (t.WarpTargetMapId == Guid.Empty)
                     {
                         errorMessage =
                             $"Warp sur ({t.X}, {t.Y}) / couche « {layer.GetDisplayLabel()} » : identifiant de carte cible invalide.";

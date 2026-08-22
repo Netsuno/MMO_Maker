@@ -6,7 +6,9 @@ namespace Frog.Application.Maps;
 /// <summary>Cartes modernes de démonstration pour le shell éditeur (hors compatibilité FRoG).</summary>
 public static class DemoMapFactory
 {
-    public const int DefaultLegacyId = 1;
+    /// <summary>Identité stable de la carte démo en mémoire / seed PostgreSQL.</summary>
+    public static readonly Guid DefaultMapId = Guid.Parse("11111111-1111-1111-1111-111111111101");
+
     public const string DefaultName = "Carte démo";
 
     public static Map CreateStarter(string? name = null, int width = 20, int height = 15)

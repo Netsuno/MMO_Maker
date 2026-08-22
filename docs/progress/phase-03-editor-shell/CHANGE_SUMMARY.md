@@ -1,29 +1,31 @@
-# Phase 03 — résumé des changements
+# Phase 03 — résumé des changements (corrections gate)
 
-## Documents
+## Smoke Windows
 
-- `docs/EDITOR_WORKSPACE.md` — wireframe et responsabilités
-- `docs/ARCHITECTURE.md`, `STATUS.md`, `BACKLOG.md` — Phase 3
+- `tests/Frog.Editor.WindowsSmokeTests/` — STA, MainWindow, timeout 45s, assertions shell
+- `EditorSmokeTestAccess`, `EditorTestHooks`, `FROG_EDITOR_FORCE_IN_MEMORY`
+- CI Windows : étape smoke après tests unitaires
+- `scripts/windows-editor-smoke.ps1` — secours manuel
 
-## Application
+## Identité MapId
 
-- `IMapRepository.ListSummariesAsync` + `MapCatalogEntry`
-- `DemoMapFactory`, `InMemoryMapRepository`, `MapWorkspaceSession`
-
-## Persistence
-
-- `PostgresMapRepository.ListSummariesAsync`
+- `IMapRepository` : `MapId`, `LoadByIdAsync`, `SaveMapResult.Success(..., MapId)`
+- `MapWorkspaceSession.CurrentMapId` (Guid)
+- Migration `ModernMapIdentity` + snapshot EF
+- `Tile.WarpTargetMapId` → Guid ; warps PG `target_map_id` FK
+- `.fmap` v5 : warp Guid 16 octets
 
 ## Éditeur
 
-- Références Application + Persistence (composition)
-- `EditorMapRepositoryFactory` (PG ou mémoire)
-- Arbre « Monde » catalogue ; toolbar ; titres MMO Maker
-- Persistance largeurs colonnes ; init workspace au Loaded
-- Menus MariaDB relabelés « héritage »
+- Arbre monde par `MapId` ; statut sans LegacyId
+- Skip MariaDB au démarrage en mode test
 
-## Tests
+## Docs
 
-- `MapWorkspaceSessionTests` (4)
-- Architecture : Editor → Application, pas Legacy
-- Intégration : ListSummaries
+- `DATA_MODEL.md`, `EDITOR_WORKSPACE.md`, `STATUS.md`
+- Evidence pack phase-03 mis à jour
+
+## Commits de référence
+
+- Implémentation shell initiale : `3fc6530`
+- Corrections gate : plage `3fc6530..HEAD`

@@ -1,30 +1,36 @@
-# Demande de revue — Phase 3 (Shell éditeur)
+# Demande de revue — Phase 3 (corrections gate)
 
-## Demande
+## Contexte
 
-Merci de valider le **gate Phase 3** avant tout démarrage de la Phase 4 (Map Editor MVP).
+Phase 3 avait été **rejetée temporairement** pour :
+1. absence de smoke UI Windows ;
+2. usage de `LegacyId` / `legacy_id` dans le chemin actif.
+
+Les deux points sont adressés dans la plage `3fc6530..HEAD`.
 
 ## Critères PRD
 
 | Critère | État |
 | --- | --- |
-| Workspace documenté | OK — `docs/EDITOR_WORKSPACE.md` |
-| Shell (arbre / canvas / panneaux / status) | OK — coque WPF existante + toolbar |
-| Catalogue via Application | OK — `MapWorkspaceSession` + `ListSummaries` |
-| Carte démo ouverte | OK (logique session + seed) ; **UI Windows non observée** |
-| Pas de DB dans Forms | OK — tests architecture |
-| UI réactive | **NON VÉRIFIÉ** (Linux) |
+| Shell (arbre / canvas / panneaux / status) | OK |
+| Catalogue via Application | OK — `MapId` Guid |
+| Carte démo dans le shell | OK (logique + smoke CI) |
+| Smoke Windows déterministe | OK — `Frog.Editor.WindowsSmokeTests` |
+| Repository mémoire (sans PG/MariaDB) | OK |
+| Identité moderne (pas LegacyId actif) | OK — migration `ModernMapIdentity` |
+| Pas de DB dans Forms | OK |
 
 ## Preuves
 
 - [`PHASE_REPORT.md`](PHASE_REPORT.md)
-- [`TEST_RESULTS.md`](TEST_RESULTS.md) — 109 + 7 verts
+- [`TEST_RESULTS.md`](TEST_RESULTS.md) — 110 + 7 locaux ; lien CI smoke
 - [`CHANGE_SUMMARY.md`](CHANGE_SUMMARY.md)
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)
 
 ## Question de gate
 
-1. **Accepter** Phase 3 avec réserve smoke Windows et autoriser Phase 4 ?
-2. **Bloquer** jusqu’à un smoke Windows manuel / CI Windows UI ?
+**Accepter Phase 3** et autoriser Phase 4 (Map Editor MVP) ?
+
+Confirmer que le job CI Windows est vert (smoke inclus).
 
 **Phase 4 non commencée.**

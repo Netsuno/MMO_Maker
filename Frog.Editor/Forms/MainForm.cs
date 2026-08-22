@@ -68,6 +68,15 @@ public sealed class MainForm : Form
     /// <summary>Tuiles + couches + grille de propriétés.</summary>
     internal Control RightShellForWpf => _splitRightTileset;
 
+    internal Map? GetCanvasMapForTest() => _canvas.Map;
+
+    internal MapWorkspaceSession? GetWorkspaceSessionForTest() => _workspace;
+
+    internal bool AreShellHostsReadyForTest() =>
+        _leftColumnPanel.IsHandleCreated
+        && _wfMapDockPanel.IsHandleCreated
+        && _splitRightTileset.IsHandleCreated;
+
     internal void SetWpfOwnerWindow(System.Windows.Window window) => _wpfOwnerWindow = window;
 
     /// <summary>Réapplique les splits internes après redimensionnement de la coque WPF.</summary>
@@ -296,7 +305,7 @@ public sealed class MainForm : Form
         };
 
         _mapsProjectPanel = new MapsProjectPanel();
-        _mapsProjectPanel.CatalogMapOpenRequested += (_, legacyId) => _ = OpenCatalogMapAsync(legacyId);
+        _mapsProjectPanel.CatalogMapOpenRequested += (_, mapId) => _ = OpenCatalogMapAsync(mapId);
         _mapsElementHost = new ElementHost
         {
             Dock = DockStyle.Fill,
@@ -504,8 +513,23 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
     }
 
+    private Task? _workspaceInitTask;
+    internal Task WorkspaceInitializationTask => _workspaceInitTask ?? Task.CompletedTask;
+
     /// <summary>Initialise le catalogue (PostgreSQL ou mémoire) et ouvre la carte démo.</summary>
     internal async System.Threading.Tasks.Task InitializeWorkspaceAsync()
+    {
+        if (_workspaceInitTask is { IsCompleted: false })
+        {
+            await _workspaceInitTask.ConfigureAwait(true);
+            return;
+        }
+
+        _workspaceInitTask = InitializeWorkspaceCoreAsync();
+        await _workspaceInitTask.ConfigureAwait(true);
+    }
+
+    private async System.Threading.Tasks.Task InitializeWorkspaceCoreAsync()
     {
         _workspace = new MapWorkspaceSession(EditorMapRepositoryFactory.Create());
         await _workspace.InitializeAsync().ConfigureAwait(true);
@@ -526,14 +550,14 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
     }
 
-    private async System.Threading.Tasks.Task OpenCatalogMapAsync(int legacyId)
+    private async System.Threading.Tasks.Task OpenCatalogMapAsync(Guid mapId)
     {
         if (_workspace is null || _catalogOpenInProgress)
         {
             return;
         }
 
-        if (_workspace.CurrentLegacyId == legacyId)
+        if (_workspace.CurrentMapId == mapId)
         {
             return;
         }
@@ -541,9 +565,9 @@ public sealed class MainForm : Form
         _catalogOpenInProgress = true;
         try
         {
-            if (!await _workspace.OpenMapAsync(legacyId).ConfigureAwait(true))
+            if (!await _workspace.OpenMapAsync(mapId).ConfigureAwait(true))
             {
-                MessageBox.Show(GetDialogOwner(), $"Carte {legacyId} introuvable dans le catalogue.", "Monde", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(GetDialogOwner(), $"Carte {mapId} introuvable dans le catalogue.", "Monde", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -598,8 +622,8 @@ public sealed class MainForm : Form
         var backend = EditorMapRepositoryFactory.DescribeBackend();
         var rev = _workspace is null
             ? ""
-            : _workspace.CurrentLegacyId is int id
-                ? $"    ·    carte #{id} r{_workspace.CurrentRevision}"
+            : _workspace.CurrentMapId is Guid id
+                ? $"    ·    carte {id.ToString("N")[..8]} r{_workspace.CurrentRevision}"
                 : "    ·    brouillon local";
         var text =
             $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}    ·    catalogue {backend}";
@@ -623,8 +647,8 @@ public sealed class MainForm : Form
         {
             _mapsProjectPanel.RefreshCatalog(
                 _workspace.Catalog,
-                _workspace.CurrentLegacyId,
-                _workspace.CurrentLegacyId is null ? _workspace.CurrentMap?.Name ?? _canvas.Map?.Name : null);
+                _workspace.CurrentMapId,
+                _workspace.CurrentMapId is null ? _workspace.CurrentMap?.Name ?? _canvas.Map?.Name : null);
             return;
         }
 

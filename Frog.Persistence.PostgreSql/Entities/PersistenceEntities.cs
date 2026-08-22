@@ -5,7 +5,6 @@ namespace Frog.Persistence.PostgreSql.Entities;
 public sealed class MapEntity
 {
     public Guid Id { get; set; }
-    public int LegacyId { get; set; }
     public string Name { get; set; } = string.Empty;
     public int Width { get; set; }
     public int Height { get; set; }
@@ -36,7 +35,8 @@ public sealed class MapWarpEntity
     public Guid MapId { get; set; }
     public int SourceX { get; set; }
     public int SourceY { get; set; }
-    public int TargetLegacyId { get; set; }
+    public Guid? TargetMapId { get; set; }
+    public MapEntity? TargetMap { get; set; }
     public int TargetX { get; set; }
     public int TargetY { get; set; }
     public bool DestinationUnresolved { get; set; }

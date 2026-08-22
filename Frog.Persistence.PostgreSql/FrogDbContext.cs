@@ -25,8 +25,6 @@ public sealed class FrogDbContext : DbContext
         {
             e.ToTable("maps");
             e.HasKey(x => x.Id);
-            e.Property(x => x.LegacyId).IsRequired();
-            e.HasIndex(x => x.LegacyId).IsUnique();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.Width).IsRequired();
             e.Property(x => x.Height).IsRequired();
@@ -56,6 +54,10 @@ public sealed class FrogDbContext : DbContext
             e.ToTable("map_warps");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.MapId, x.SourceX, x.SourceY }).IsUnique();
+            e.HasOne(x => x.TargetMap)
+                .WithMany()
+                .HasForeignKey(x => x.TargetMapId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<MapNpcSpawnEntity>(e =>

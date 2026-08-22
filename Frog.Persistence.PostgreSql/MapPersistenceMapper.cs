@@ -15,11 +15,10 @@ internal static class MapPersistenceMapper
 
     public static MapEntity ToEntity(SaveMapRequest request, DateTimeOffset nowUtc)
     {
-        var id = Guid.NewGuid();
+        var id = request.MapId is Guid requested && requested != Guid.Empty ? requested : Guid.NewGuid();
         var entity = new MapEntity
         {
             Id = id,
-            LegacyId = request.LegacyId,
             Name = request.Map.Name,
             Width = request.Map.Width,
             Height = request.Map.Height,
@@ -171,16 +170,17 @@ internal static class MapPersistenceMapper
 
                 if (tile.Type == TileType.Warp && warpKeys.Add(key))
                 {
+                    var targetId = tile.WarpTargetMapId == Guid.Empty ? (Guid?)null : tile.WarpTargetMapId;
                     entity.Warps.Add(new MapWarpEntity
                     {
                         Id = Guid.NewGuid(),
                         MapId = entity.Id,
                         SourceX = tile.X,
                         SourceY = tile.Y,
-                        TargetLegacyId = tile.WarpTargetMapId,
+                        TargetMapId = targetId,
                         TargetX = tile.WarpTargetX,
                         TargetY = tile.WarpTargetY,
-                        DestinationUnresolved = tile.WarpTargetMapId < 0,
+                        DestinationUnresolved = targetId is null,
                     });
                 }
             }
@@ -213,7 +213,7 @@ internal static class MapPersistenceMapper
         public int TilesetId { get; set; }
         public int SrcX { get; set; }
         public int SrcY { get; set; }
-        public int WarpTargetMapId { get; set; }
+        public Guid WarpTargetMapId { get; set; }
         public int WarpTargetX { get; set; }
         public int WarpTargetY { get; set; }
         public string? ScriptId { get; set; }

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Frog.Core.Models;
 
 namespace Frog.Application.Maps;
@@ -6,18 +5,13 @@ namespace Frog.Application.Maps;
 /// <summary>Repository carte en mémoire (éditeur hors PostgreSQL, tests unitaires).</summary>
 public sealed class InMemoryMapRepository : IMapRepository
 {
-    private readonly ConcurrentDictionary<int, StoredMap> _maps = new();
+    private readonly Dictionary<Guid, StoredMap> _maps = new();
     private readonly object _gate = new();
 
     public Task<SaveMapResult> SaveAsync(SaveMapRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-
-        if (request.LegacyId < 0)
-        {
-            return Task.FromResult<SaveMapResult>(new SaveMapResult.ValidationFailed("LegacyId doit être >= 0."));
-        }
 
         if (!request.Map.Validate(out var error))
         {
@@ -26,7 +20,13 @@ public sealed class InMemoryMapRepository : IMapRepository
 
         lock (_gate)
         {
-            if (!_maps.TryGetValue(request.LegacyId, out var existing))
+            var mapId = request.MapId ?? Guid.Empty;
+            if (mapId == Guid.Empty)
+            {
+                mapId = Guid.NewGuid();
+            }
+
+            if (!_maps.TryGetValue(mapId, out var existing))
             {
                 if (request.ExpectedRevision != 0)
                 {
@@ -35,13 +35,13 @@ public sealed class InMemoryMapRepository : IMapRepository
 
                 var created = new StoredMap
                 {
-                    LegacyId = request.LegacyId,
+                    MapId = mapId,
                     Map = CloneMap(request.Map),
                     Revision = 1,
                     Status = request.Status,
                 };
-                _maps[request.LegacyId] = created;
-                return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(1));
+                _maps[mapId] = created;
+                return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(1, mapId));
             }
 
             if (existing.Revision != request.ExpectedRevision)
@@ -51,27 +51,27 @@ public sealed class InMemoryMapRepository : IMapRepository
 
             var updated = new StoredMap
             {
-                LegacyId = request.LegacyId,
+                MapId = mapId,
                 Map = CloneMap(request.Map),
                 Revision = existing.Revision + 1,
                 Status = request.Status,
             };
-            _maps[request.LegacyId] = updated;
-            return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(updated.Revision));
+            _maps[mapId] = updated;
+            return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(updated.Revision, mapId));
         }
     }
 
-    public Task<StoredMap?> LoadByLegacyIdAsync(int legacyId, CancellationToken cancellationToken = default)
+    public Task<StoredMap?> LoadByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_maps.TryGetValue(legacyId, out var stored))
+        if (!_maps.TryGetValue(mapId, out var stored))
         {
             return Task.FromResult<StoredMap?>(null);
         }
 
         return Task.FromResult<StoredMap?>(new StoredMap
         {
-            LegacyId = stored.LegacyId,
+            MapId = stored.MapId,
             Map = CloneMap(stored.Map),
             Revision = stored.Revision,
             Status = stored.Status,
@@ -82,10 +82,11 @@ public sealed class InMemoryMapRepository : IMapRepository
     {
         cancellationToken.ThrowIfCancellationRequested();
         IReadOnlyList<MapCatalogEntry> list = _maps.Values
-            .OrderBy(m => m.LegacyId)
+            .OrderBy(m => m.Map.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(m => m.MapId)
             .Select(m => new MapCatalogEntry
             {
-                LegacyId = m.LegacyId,
+                MapId = m.MapId,
                 Name = m.Map.Name,
                 Width = m.Map.Width,
                 Height = m.Map.Height,
@@ -98,7 +99,6 @@ public sealed class InMemoryMapRepository : IMapRepository
 
     private static Map CloneMap(Map source)
     {
-        // Sérialisation binaire du modèle déjà testée ; clone défensif simple pour l’in-memory.
         var clone = new Map
         {
             Name = source.Name,

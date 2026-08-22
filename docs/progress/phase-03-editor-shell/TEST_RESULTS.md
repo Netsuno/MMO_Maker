@@ -1,9 +1,10 @@
 # Phase 03 — résultats de tests
 
-## Environnement
+## Environnement local (agent Linux)
 
-- Ubuntu 24.04, .NET SDK 8.0.424, PostgreSQL 16.15
-- Date : 2026-08-22 04:42 UTC
+- Date : 2026-08-22
+- SDK : 8.0.424
+- PostgreSQL : 16.15
 
 ## Commandes
 
@@ -14,14 +15,34 @@ export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=f
 dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release --no-build
 ```
 
-## Résultats
+## Résultats locaux
 
-| Suite | Passed | Failed | Skipped |
+| Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
-| Frog.Tests | 109 | 0 | 0 |
-| Frog.Persistence.IntegrationTests | 7 | 0 | 0 |
+| Frog.Tests | 110 | 0 | 110 |
+| Frog.Persistence.IntegrationTests | 7 | 0 | 7 |
 
-## Non exécuté
+## Smoke Windows (CI)
 
-- Smoke UI Windows (`Frog.Editor` WinExe) — agent Linux
-- E2E client-serveur
+Projet : `tests/Frog.Editor.WindowsSmokeTests`  
+Job : `.github/workflows/ci.yml` → `build-and-test` (windows-latest)  
+Env : `FROG_EDITOR_FORCE_IN_MEMORY=1`
+
+```powershell
+dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj -c Release --no-build -v n
+```
+
+**Lien run GitHub Actions :** *(à compléter après push — PR #2, workflow CI)*
+
+| Test | Attendu |
+| --- | --- |
+| `MainWindow_OpensDemoMap_WithInMemoryRepository` | PASS sur runner Windows |
+
+## Migrations PostgreSQL
+
+- `20260822040506_InitialMapPersistence`
+- `20260822130000_ModernMapIdentity` (retrait legacy_id, FK target_map_id)
+
+## Non exécuté localement
+
+- Smoke UI Windows (Linux)

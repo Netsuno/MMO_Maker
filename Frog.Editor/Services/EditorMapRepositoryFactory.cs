@@ -11,9 +11,20 @@ namespace Frog.Editor.Services;
 public static class EditorMapRepositoryFactory
 {
     public const string EnvConnectionString = "FROG_POSTGRES_CONNECTION_STRING";
+    public const string EnvForceInMemory = "FROG_EDITOR_FORCE_IN_MEMORY";
 
     public static IMapRepository Create()
     {
+        if (EditorTestHooks.OverrideMapRepository is { } injected)
+        {
+            return injected;
+        }
+
+        if (string.Equals(Environment.GetEnvironmentVariable(EnvForceInMemory), "1", StringComparison.Ordinal))
+        {
+            return new InMemoryMapRepository();
+        }
+
         var cs = ResolveConnectionString();
         if (string.IsNullOrWhiteSpace(cs))
         {
@@ -27,9 +38,14 @@ public static class EditorMapRepositoryFactory
 
     public static string DescribeBackend()
     {
-        return string.IsNullOrWhiteSpace(ResolveConnectionString())
-            ? "mémoire (démo)"
-            : "PostgreSQL";
+        if (EditorTestHooks.OverrideMapRepository is not null
+            || string.Equals(Environment.GetEnvironmentVariable(EnvForceInMemory), "1", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(ResolveConnectionString()))
+        {
+            return "mémoire (démo)";
+        }
+
+        return "PostgreSQL";
     }
 
     private static string? ResolveConnectionString()

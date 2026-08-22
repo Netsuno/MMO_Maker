@@ -5,6 +5,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using Frog.Core.Enums;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 
 /// <summary>
@@ -169,14 +170,14 @@ public sealed class LegacyFccMapReader
                         X = x,
                         Y = y,
                         Type = TileType.Warp,
-                        WarpTargetMapId = data1,
+                        WarpTargetMapId = MapSamples.RuntimeMapIdToGuid(data1),
                         WarpTargetX = data2,
                         WarpTargetY = data3,
                         Attributes =
                         {
                             new WarpAttribute
                             {
-                                TargetMapId = data1,
+                                TargetMapId = MapSamples.RuntimeMapIdToGuid(data1),
                                 TargetX = data2,
                                 TargetY = data3,
                             },

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Frog.Core.Maps;
 using Frog.Legacy;
 using Xunit;
 
@@ -45,7 +46,7 @@ public sealed class LegacyFccMapReaderTests
 
         var attrs = result.Map.Layers.Single(l => l.LayerType == Frog.Core.Enums.LayerType.Attributes);
         var warp = attrs.Tiles.Single(t => t.Type == Frog.Core.Enums.TileType.Warp && t.X == 5 && t.Y == 14);
-        Assert.Equal(2, warp.WarpTargetMapId);
+        Assert.Equal(MapSamples.RuntimeMapIdToGuid(2), warp.WarpTargetMapId);
         Assert.Equal(7, warp.WarpTargetX);
         Assert.Equal(17, warp.WarpTargetY);
 

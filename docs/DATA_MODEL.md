@@ -13,12 +13,11 @@ Dates : `timestamptz` UTC.
 | `content` | tilesets (définitions) |
 | `ops` | imports legacy, historique EF |
 
-## Tables (migration `InitialMapPersistence`)
+## Tables
 
 ### `world.maps`
 
-- `id` uuid PK
-- `legacy_id` int UNIQUE (ID historique, pas de renumérotation silencieuse)
+- `id` uuid PK — **identité canonique (`MapId`)**
 - `name` varchar(200)
 - `width`, `height` int CHECK > 0
 - `allow_player_overlap` bool
@@ -27,20 +26,21 @@ Dates : `timestamptz` UTC.
 - `layers_catalog_json` jsonb (ordre / nom / visible / locked des couches)
 - `created_at_utc`, `updated_at_utc`
 
+> Migration `ModernMapIdentity` : suppression de `legacy_id` (identité historique FRoG).
+
 ### `world.map_cells`
 
 - PK `(map_id, x, y)`
-- `layers_json` jsonb : pile ordonnée `{layerType, tileType, tilesetId, srcX, srcY, warp*, scriptId}`
+- `layers_json` jsonb : pile ordonnée `{layerType, tileType, tilesetId, srcX, srcY, warpTargetMapId (Guid), warp*, scriptId}`
 - CHECK `x >= 0 AND y >= 0`
 - FK cascade vers `maps`
-
-Décision jsonb : les 13 couches VB6 + `*Set` ne sont pas encore toutes typées ; jsonb conserve l’ordre et évite une table par `Data1/2/3`.
 
 ### `world.map_warps`
 
 - PK uuid ; unique `(map_id, source_x, source_y)`
-- `target_legacy_id`, `target_x`, `target_y`
-- `destination_unresolved` si cible < 0
+- `target_map_id` uuid NULL → FK `world.maps(id)` ON DELETE SET NULL
+- `target_x`, `target_y`
+- `destination_unresolved` si cible absente
 
 ### `world.map_npc_spawns`
 
@@ -55,8 +55,24 @@ Décision jsonb : les 13 couches VB6 + `*Set` ne sont pas encore toutes typées 
 - unique `(sha256_hex, format_type)` → import idempotent
 - `report_json` jsonb, `result`, `source_path`, `imported_at_utc`
 
+## Contrat applicatif (`Frog.Application`)
+
+- `SaveMapRequest.MapId` — null ou Empty = création ; sinon mise à jour
+- `LoadByIdAsync(Guid mapId)`
+- `MapCatalogEntry.MapId`
+- `StoredMap.MapId`
+- `SaveMapResult.Success(NewRevision, MapId)`
+
 ## Invariants applicatifs
 
 - Sauvegarde dans une transaction (header + cellules + warps).
 - `ExpectedRevision` doit matcher `revision` (0 = création).
 - Le domaine `Map.Validate()` s’exécute avant écriture.
+- Tuile warp : `WarpTargetMapId` est un **Guid** (Empty = invalide à la validation).
+
+## Migrations
+
+| Migration | Contenu |
+| --- | --- |
+| `InitialMapPersistence` | schémas + tables initiales |
+| `ModernMapIdentity` | retrait `legacy_id` / `target_legacy_id` ; FK `target_map_id` |

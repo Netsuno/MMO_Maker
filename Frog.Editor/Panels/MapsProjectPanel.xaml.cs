@@ -18,8 +18,8 @@ public partial class MapsProjectPanel : System.Windows.Controls.UserControl
     /// <summary>La tuile « carte courante » (Tag <c>current</c>) est sélectionnée.</summary>
     public event EventHandler? CurrentMapNodeSelected;
 
-    /// <summary>Demande d’ouverture d’une carte du catalogue (legacy id).</summary>
-    public event EventHandler<int>? CatalogMapOpenRequested;
+    /// <summary>Demande d’ouverture d’une carte du catalogue (<see cref="Guid"/>).</summary>
+    public event EventHandler<Guid>? CatalogMapOpenRequested;
 
     public MapsProjectPanel()
     {
@@ -40,14 +40,14 @@ public partial class MapsProjectPanel : System.Windows.Controls.UserControl
             return;
         }
 
-        if (item.Tag is int legacyId)
+        if (item.Tag is Guid mapId)
         {
-            CatalogMapOpenRequested?.Invoke(this, legacyId);
+            CatalogMapOpenRequested?.Invoke(this, mapId);
         }
     }
 
     /// <summary>Reconstruit l’arbre monde à partir du catalogue applicatif.</summary>
-    public void RefreshCatalog(IReadOnlyList<MapCatalogEntry> catalog, int? selectedLegacyId, string? localDraftName)
+    public void RefreshCatalog(IReadOnlyList<MapCatalogEntry> catalog, Guid? selectedMapId, string? localDraftName)
     {
         ProjectTree.Items.Clear();
         var root = new TreeViewItem
@@ -60,11 +60,11 @@ public partial class MapsProjectPanel : System.Windows.Controls.UserControl
         TreeViewItem? toSelect = null;
         foreach (var entry in catalog)
         {
-            var isCurrent = selectedLegacyId is int id && id == entry.LegacyId;
+            var isCurrent = selectedMapId is Guid id && id == entry.MapId;
             var child = new TreeViewItem
             {
                 Header = FormatEntry(entry),
-                Tag = entry.LegacyId,
+                Tag = entry.MapId,
                 Foreground = isCurrent ? CurrentMapBrush : DefaultMapBrush,
             };
             root.Items.Add(child);
@@ -74,7 +74,7 @@ public partial class MapsProjectPanel : System.Windows.Controls.UserControl
             }
         }
 
-        if (selectedLegacyId is null && !string.IsNullOrEmpty(localDraftName))
+        if (selectedMapId is null && !string.IsNullOrEmpty(localDraftName))
         {
             var draft = new TreeViewItem
             {
@@ -97,13 +97,10 @@ public partial class MapsProjectPanel : System.Windows.Controls.UserControl
         }
     }
 
-    /// <summary>Reconstruit l’arbre comme l’ancien <c>TreeView</c> WinForms (<see cref="Frog.Editor.Forms.MainForm.SyncMapsTree"/>).</summary>
+    /// <summary>Compatibilité : une seule carte locale sans catalogue.</summary>
     public void RefreshFromMap(string? mapName)
     {
-        var local = string.IsNullOrEmpty(mapName)
-            ? Array.Empty<MapCatalogEntry>()
-            : Array.Empty<MapCatalogEntry>();
-        RefreshCatalog(local, selectedLegacyId: null, localDraftName: mapName);
+        RefreshCatalog(Array.Empty<MapCatalogEntry>(), selectedMapId: null, localDraftName: mapName);
     }
 
     /// <summary>Met à jour uniquement le libellé de la carte courante (renommage).</summary>
@@ -129,14 +126,13 @@ public partial class MapsProjectPanel : System.Windows.Controls.UserControl
                     return;
                 }
 
-                if (child.Tag is int && child.IsSelected)
+                if (child.Tag is Guid && child.IsSelected)
                 {
                     var text = child.Header?.ToString() ?? string.Empty;
-                    var pipe = text.IndexOf(' ', text.IndexOf(' ') + 1);
-                    // Conserve le préfixe "001  " si présent.
-                    if (text.Length >= 5 && char.IsDigit(text[0]))
+                    var sep = text.IndexOf("  ·  ", StringComparison.Ordinal);
+                    if (sep > 0)
                     {
-                        child.Header = text[..5] + mapName;
+                        child.Header = FormatShortId((Guid)child.Tag) + "  " + mapName + text[sep..];
                     }
                     else
                     {
@@ -152,6 +148,9 @@ public partial class MapsProjectPanel : System.Windows.Controls.UserControl
     private static string FormatEntry(MapCatalogEntry entry)
     {
         var status = entry.Status == MapPublishStatus.Published ? "publié" : "brouillon";
-        return $"{entry.LegacyId:D3}  {entry.Name}  ·  r{entry.Revision} ({status})";
+        return $"{FormatShortId(entry.MapId)}  {entry.Name}  ·  r{entry.Revision} ({status})";
     }
+
+    private static string FormatShortId(Guid mapId) =>
+        mapId.ToString("N")[..8].ToUpperInvariant();
 }

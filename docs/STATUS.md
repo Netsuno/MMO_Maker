@@ -1,33 +1,28 @@
 # État du projet — MMO Maker
 
 - Dernière mise à jour : 2026-08-22
-- Branche / commit : `cursor/phase0-baseline-audit-02c7` / `f487ff0`
-- **Phase 3 — Shell éditeur : READY FOR REVIEW**
+- Branche : `cursor/phase0-baseline-audit-02c7`
+- Commit d’implémentation Phase 3 (immuable) : `3fc6530`
+- Plage revue gate Phase 3 : `3fc6530..HEAD`
+- **Phase 3 — Shell éditeur : READY FOR REVIEW (corrections gate)**
 - Prochaine phase **non commencée** : Phase 4 — Map Editor MVP
 - Rapport : [`docs/progress/phase-03-editor-shell/REVIEW_REQUEST.md`](progress/phase-03-editor-shell/REVIEW_REQUEST.md)
-- Environnement audit : Ubuntu 24.04, .NET 8.0.424, PostgreSQL 16.15
 
 ## Vérifié comme fonctionnel
 
-- Build C# 12 + tests unitaires `Frog.Tests` (109)
-- Intégration PostgreSQL (7) dont `ListSummaries`
-- `MapWorkspaceSession` + catalogue via `IMapRepository`
-- Shell : menu, barre d’outils, arbre monde, canvas, tilesets/couches/propriétés, statut
-- Architecture : Editor → Application/Persistence ; pas de DB dans Forms
+- Build C# 12 + **110** tests unitaires `Frog.Tests`
+- Intégration PostgreSQL (**7**) incl. migration `ModernMapIdentity`
+- Identité carte moderne : `MapId` (Guid), `LoadByIdAsync`, warps `TargetMapId` + FK
+- Smoke UI Windows automatisé : `tests/Frog.Editor.WindowsSmokeTests` (job CI Windows)
+- Shell éditeur + catalogue via `MapWorkspaceSession` / `IMapRepository`
 
-## Implémenté, mais non vérifié
+## Implémenté, mais non vérifié localement (agent Linux)
 
-- Smoke UI Windows de l’éditeur (agent Linux) — **gate Phase 3 partiel**
-- Client WinForms ; E2E TCP
-- Runtime MariaDB optionnel (héritage)
+- Exécution manuelle du smoke Windows (automatisé en CI)
 
 ## Différé (hors chemin critique)
 
-- `Frog.Legacy` / fixtures `.fcc` (expérimental)
-
-## Bloqueurs
-
-- Smoke UI Windows requis pour clôturer pleinement le gate Phase 3 (« UI réactive »)
+- `Frog.Legacy` / fixtures `.fcc` (expérimental ; warps int → Guid runtime helper)
 
 ## Commandes de validation
 
@@ -35,7 +30,10 @@
 dotnet restore Frog.Creator.sln && dotnet build Frog.Creator.sln -c Release --no-restore
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
 export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only'
-dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
+dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release --no-build
+# Windows uniquement :
+export FROG_EDITOR_FORCE_IN_MEMORY=1
+dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj -c Release --no-build
 ```
 
 ## Prochaine phase proposée (non commencée)

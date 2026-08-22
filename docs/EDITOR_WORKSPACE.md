@@ -29,7 +29,7 @@ Colonnes redimensionnables (splitters WPF). Largeurs mémorisées localement (`e
 | --- | --- | --- | --- |
 | Menu / outils | `MainWindow` + commandes | Actions globales (nouveau, ouvrir fichier, undo, zoom) | Accès DB direct |
 | Outils gauche | `EditorLeftToolsWpf` | Outil actif, type de tuile attribut | Persistance |
-| Arbre monde | `MapsProjectPanel` | Liste / sélection des cartes du catalogue | SQL, sérialisation |
+| Arbre monde | `MapsProjectPanel` | Liste / sélection des cartes du catalogue (`MapId`) | SQL, sérialisation |
 | Canvas | `MapCanvas` | Rendu, caméra, édition tuiles (Phase 4+) | Repository |
 | Tilesets | `TilesetPickerPanelWpf` | Sélection tileset / tampon | Publication |
 | Couches | `LayersProjectPanel` | Visibilité, verrou, sélection couche | Sauvegarde PG |
@@ -38,11 +38,18 @@ Colonnes redimensionnables (splitters WPF). Largeurs mémorisées localement (`e
 
 ## Couche application
 
-- Ports : `IMapRepository` (`ListSummariesAsync`, `LoadByLegacyIdAsync`, `SaveAsync`).
+- Ports : `IMapRepository` (`ListSummariesAsync`, `LoadByIdAsync`, `SaveAsync`).
+- Identité : `MapId` (`Guid`) — pas de `LegacyId` dans le chemin actif.
 - Session : `MapWorkspaceSession` orchestre catalogue + carte courante (pas d’UI).
 - Composition éditeur : `EditorMapRepositoryFactory` choisit PostgreSQL (chaîne) ou mémoire (démo hors DB).
 - Formulaires / code-behind : **aucun** `DbContext` / `Npgsql` / `MySqlConnection`.
 
 ## Carte démo
 
-Au démarrage, la session ouvre une carte démo moderne (mémoire ou seed PG si catalogue vide). Gate Phase 3 : la carte est visible dans le shell ; smoke UI Windows documenté séparément.
+Au démarrage, la session ouvre une carte démo moderne (mémoire ou seed PG si catalogue vide). Gate Phase 3 : smoke Windows CI vérifie ouverture + canvas + catalogue.
+
+## Smoke Windows
+
+- Projet : `tests/Frog.Editor.WindowsSmokeTests`
+- CI : job `build-and-test` (Windows) avec `FROG_EDITOR_FORCE_IN_MEMORY=1`
+- Script manuel : `scripts/windows-editor-smoke.ps1`

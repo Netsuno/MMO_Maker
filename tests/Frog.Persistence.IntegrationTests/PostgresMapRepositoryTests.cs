@@ -23,19 +23,21 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var map = CreateSampleMap("Carte d'été");
+        var mapId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0101");
+        var map = CreateSampleMap("Carte d'été", mapId);
 
         var saved = await repo.SaveAsync(new SaveMapRequest
         {
-            LegacyId = 101,
+            MapId = mapId,
             Map = map,
             ExpectedRevision = 0,
         });
         var success = Assert.IsType<SaveMapResult.Success>(saved);
         Assert.Equal(1, success.NewRevision);
+        Assert.Equal(mapId, success.MapId);
 
         await using var db2 = CreateDb();
-        var loaded = await new PostgresMapRepository(db2).LoadByLegacyIdAsync(101);
+        var loaded = await new PostgresMapRepository(db2).LoadByIdAsync(mapId);
         Assert.NotNull(loaded);
         Assert.Equal(1, loaded.Revision);
         AssertMapsEqual(map, loaded.Map);
@@ -47,17 +49,18 @@ public sealed class PostgresMapRepositoryTests
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
-        var map = CreateSampleMap("A");
+        var mapId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccc0202");
+        var map = CreateSampleMap("A", mapId);
         Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            LegacyId = 202,
+            MapId = mapId,
             Map = map,
             ExpectedRevision = 0,
         }));
 
         var conflict = await repo.SaveAsync(new SaveMapRequest
         {
-            LegacyId = 202,
+            MapId = mapId,
             Map = map,
             ExpectedRevision = 0,
         });
@@ -70,6 +73,7 @@ public sealed class PostgresMapRepositoryTests
     public async Task Save_RollsBack_WhenFailureOccursBeforeCommit()
     {
         await using var db = CreateDb();
+        var mapId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddd0303");
         var repo = new PostgresMapRepository(db)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injecté"),
@@ -77,13 +81,13 @@ public sealed class PostgresMapRepositoryTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => repo.SaveAsync(new SaveMapRequest
         {
-            LegacyId = 303,
-            Map = CreateSampleMap("Rollback"),
+            MapId = mapId,
+            Map = CreateSampleMap("Rollback", mapId),
             ExpectedRevision = 0,
         }));
 
         await using var db2 = CreateDb();
-        Assert.Null(await new PostgresMapRepository(db2).LoadByLegacyIdAsync(303));
+        Assert.Null(await new PostgresMapRepository(db2).LoadByIdAsync(mapId));
     }
 
     [PostgresFact]
@@ -94,7 +98,6 @@ public sealed class PostgresMapRepositoryTests
         db.Maps.Add(new Frog.Persistence.PostgreSql.Entities.MapEntity
         {
             Id = Guid.NewGuid(),
-            LegacyId = 404,
             Name = "bad",
             Width = 0,
             Height = 10,
@@ -129,35 +132,36 @@ public sealed class PostgresMapRepositoryTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
-    public async Task ListSummaries_ReturnsSavedMapsOrderedByLegacyId()
+    public async Task ListSummaries_ReturnsSavedMapsOrderedByName()
     {
         await using var db = CreateDb();
         var repo = new PostgresMapRepository(db);
+        var zetaId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeee0001");
+        var alphaId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeee0002");
         Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            LegacyId = 20,
-            Map = CreateSampleMap("Zeta"),
+            MapId = zetaId,
+            Map = CreateSampleMap("Zeta", zetaId),
             ExpectedRevision = 0,
         }));
         Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
-            LegacyId = 5,
-            Map = CreateSampleMap("Alpha"),
+            MapId = alphaId,
+            Map = CreateSampleMap("Alpha", alphaId),
             ExpectedRevision = 0,
         }));
 
         await using var db2 = CreateDb();
         var list = await new PostgresMapRepository(db2).ListSummariesAsync();
         Assert.Equal(2, list.Count);
-        Assert.Equal(5, list[0].LegacyId);
         Assert.Equal("Alpha", list[0].Name);
-        Assert.Equal(20, list[1].LegacyId);
+        Assert.Equal("Zeta", list[1].Name);
     }
 
     private FrogDbContext CreateDb() =>
         new(FrogDbContextOptions.Create(_fixture.ConnectionString));
 
-    private static Map CreateSampleMap(string name)
+    private static Map CreateSampleMap(string name, Guid warpTargetMapId)
     {
         var map = new Map
         {
@@ -181,12 +185,12 @@ public sealed class PostgresMapRepositoryTests
             X = 2,
             Y = 1,
             Type = TileType.Warp,
-            WarpTargetMapId = 2,
+            WarpTargetMapId = warpTargetMapId,
             WarpTargetX = 7,
             WarpTargetY = 17,
             Attributes =
             {
-                new WarpAttribute { TargetMapId = 2, TargetX = 7, TargetY = 17 },
+                new WarpAttribute { TargetMapId = warpTargetMapId, TargetX = 7, TargetY = 17 },
             },
         });
         map.Layers.Add(ground);

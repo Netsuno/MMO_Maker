@@ -1,4 +1,5 @@
 using Frog.Application.Maps;
+using Frog.Persistence.PostgreSql.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Frog.Persistence.PostgreSql;
@@ -20,10 +21,6 @@ public sealed class PostgresMapRepository : IMapRepository
     public async Task<SaveMapResult> SaveAsync(SaveMapRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.LegacyId < 0)
-        {
-            return new SaveMapResult.ValidationFailed("LegacyId doit être >= 0.");
-        }
 
         if (!request.Map.Validate(out var error))
         {
@@ -33,14 +30,19 @@ public sealed class PostgresMapRepository : IMapRepository
         var now = _clock.GetUtcNow();
         await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
-        var existing = await _db.Maps
-            .Include(m => m.Cells)
-            .Include(m => m.Warps)
-            .Include(m => m.NpcSpawns)
-            .SingleOrDefaultAsync(m => m.LegacyId == request.LegacyId, cancellationToken)
-            .ConfigureAwait(false);
+        MapEntity? existing = null;
+        if (request.MapId is Guid mapId && mapId != Guid.Empty)
+        {
+            existing = await _db.Maps
+                .Include(m => m.Cells)
+                .Include(m => m.Warps)
+                .Include(m => m.NpcSpawns)
+                .SingleOrDefaultAsync(m => m.Id == mapId, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         long newRevision;
+        Guid savedId;
         if (existing is null)
         {
             if (request.ExpectedRevision != 0)
@@ -51,6 +53,7 @@ public sealed class PostgresMapRepository : IMapRepository
             var entity = MapPersistenceMapper.ToEntity(request, now);
             _db.Maps.Add(entity);
             newRevision = entity.Revision;
+            savedId = entity.Id;
         }
         else
         {
@@ -63,6 +66,7 @@ public sealed class PostgresMapRepository : IMapRepository
             existing.Revision++;
             MapPersistenceMapper.ReplaceChildren(existing, request.Map, now);
             newRevision = existing.Revision;
+            savedId = existing.Id;
         }
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -73,16 +77,21 @@ public sealed class PostgresMapRepository : IMapRepository
         }
 
         await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
-        return new SaveMapResult.Success(newRevision);
+        return new SaveMapResult.Success(newRevision, savedId);
     }
 
-    public async Task<StoredMap?> LoadByLegacyIdAsync(int legacyId, CancellationToken cancellationToken = default)
+    public async Task<StoredMap?> LoadByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
     {
+        if (mapId == Guid.Empty)
+        {
+            return null;
+        }
+
         var entity = await _db.Maps
             .AsNoTracking()
             .Include(m => m.Cells)
             .Include(m => m.Warps)
-            .SingleOrDefaultAsync(m => m.LegacyId == legacyId, cancellationToken)
+            .SingleOrDefaultAsync(m => m.Id == mapId, cancellationToken)
             .ConfigureAwait(false);
 
         if (entity is null)
@@ -92,7 +101,7 @@ public sealed class PostgresMapRepository : IMapRepository
 
         return new StoredMap
         {
-            LegacyId = entity.LegacyId,
+            MapId = entity.Id,
             Map = MapPersistenceMapper.ToDomain(entity),
             Revision = entity.Revision,
             Status = entity.Status,
@@ -103,10 +112,11 @@ public sealed class PostgresMapRepository : IMapRepository
     {
         return await _db.Maps
             .AsNoTracking()
-            .OrderBy(m => m.LegacyId)
+            .OrderBy(m => m.Name)
+            .ThenBy(m => m.Id)
             .Select(m => new MapCatalogEntry
             {
-                LegacyId = m.LegacyId,
+                MapId = m.Id,
                 Name = m.Name,
                 Width = m.Width,
                 Height = m.Height,
