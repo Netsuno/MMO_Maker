@@ -118,33 +118,69 @@ public sealed class ClientPlaytestSuccessSmokeTests
     private static string ResolveServerDll()
     {
         var baseDir = AppContext.BaseDirectory;
-        foreach (var cfg in new[] { "Release", "Debug" })
+        var names = new[]
         {
-            var candidate = Path.GetFullPath(Path.Combine(
-                baseDir, "..", "..", "..", "..", "Frog.Server", "bin", cfg, "net8.0", "Frog.Server.dll"));
-            if (File.Exists(candidate))
+            Path.Combine(baseDir, "Frog.Server.dll"),
+        };
+        foreach (var direct in names)
+        {
+            if (File.Exists(direct))
             {
-                return candidate;
+                return direct;
             }
         }
 
-        throw new FileNotFoundException("Frog.Server.dll");
+        foreach (var cfg in new[] { "Release", "Debug" })
+        {
+            foreach (var up in new[] { 4, 5, 6 })
+            {
+                var parts = new List<string> { baseDir };
+                for (var i = 0; i < up; i++)
+                {
+                    parts.Add("..");
+                }
+
+                parts.AddRange(["Frog.Server", "bin", cfg, "net8.0", "Frog.Server.dll"]);
+                var candidate = Path.GetFullPath(Path.Combine(parts.ToArray()));
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        throw new FileNotFoundException("Frog.Server.dll (searched output dir and repo bin paths)");
     }
 
     private static string ResolveClientExe()
     {
         var baseDir = AppContext.BaseDirectory;
+        var direct = Path.Combine(baseDir, "Frog.Client.exe");
+        if (File.Exists(direct))
+        {
+            return direct;
+        }
+
         foreach (var cfg in new[] { "Release", "Debug" })
         {
-            var candidate = Path.GetFullPath(Path.Combine(
-                baseDir, "..", "..", "..", "..", "Frog.Client", "bin", cfg, "net8.0-windows", "Frog.Client.exe"));
-            if (File.Exists(candidate))
+            foreach (var up in new[] { 4, 5, 6 })
             {
-                return candidate;
+                var parts = new List<string> { baseDir };
+                for (var i = 0; i < up; i++)
+                {
+                    parts.Add("..");
+                }
+
+                parts.AddRange(["Frog.Client", "bin", cfg, "net8.0-windows", "Frog.Client.exe"]);
+                var candidate = Path.GetFullPath(Path.Combine(parts.ToArray()));
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
             }
         }
 
-        throw new FileNotFoundException("Frog.Client.exe");
+        throw new FileNotFoundException("Frog.Client.exe (searched output dir and repo bin paths)");
     }
 
     private static int GetFreePort()
