@@ -250,8 +250,8 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        var span = payload.Span;
-        if (!(span.IsEmpty || span.Length == 40))
+        // Copier les hints avant tout await : ReadOnlySpan ne peut pas vivre dans une méthode async (C# 12).
+        if (!TryReadMapRequestFingerprint(payload, out var hasFingerprint, out var clientRevision, out var clientSha256))
         {
             await _packetSender.SendErrorAsync(clientSession, "MapRequest: payload attendu (vide ou 40 octets).", cancellationToken);
             return;
@@ -269,20 +269,16 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        if (span.Length == 40)
+        if (hasFingerprint &&
+            _mapService.TryMatchMapFingerprint(requestedMapId, clientRevision, clientSha256))
         {
-            var rev = BinaryPrimitives.ReadInt64LittleEndian(span);
-            var hintSha = span.Slice(sizeof(long), 32);
-            if (_mapService.TryMatchMapFingerprint(requestedMapId, rev, hintSha))
-            {
-                await _packetSender.SendMapAlreadySyncedAsync(
-                    clientSession,
-                    requestedMapId,
-                    _mapService.GetFingerprintRevision(requestedMapId),
-                    _mapService.GetFingerprintSha256(requestedMapId),
-                    cancellationToken);
-                return;
-            }
+            await _packetSender.SendMapAlreadySyncedAsync(
+                clientSession,
+                requestedMapId,
+                _mapService.GetFingerprintRevision(requestedMapId),
+                _mapService.GetFingerprintSha256(requestedMapId),
+                cancellationToken);
+            return;
         }
 
         var mapData = _mapService.GetSerializedMapForSession(session.Id, requestedMapId);
@@ -1185,7 +1181,7 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        if (!TryParseCharacterStatsUpdateRequest(payload.Span, out var packed))
+        if (!TryCopyCharacterStatsUpdateRequest(payload, out var packedBytes))
         {
             await _packetSender.SendCharacterStatsUpdateResultAsync(
                 clientSession,
@@ -1210,7 +1206,7 @@ public sealed class PacketDispatcher(
             currentJson = CharacterPayloadDefaults.NewHeroJson;
         }
 
-        if (!CharacterStatsWire.TryMergeIntoPayload(currentJson, packed, out var newJson, out var mergeErr))
+        if (!CharacterStatsWire.TryMergeIntoPayload(currentJson, packedBytes, out var newJson, out var mergeErr))
         {
             await _packetSender.SendCharacterStatsUpdateResultAsync(clientSession, false, mergeErr, cancellationToken);
             return;
@@ -1229,6 +1225,49 @@ public sealed class PacketDispatcher(
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendCharacterStatsUpdateResultAsync(clientSession, true, "Stats mises a jour.", cancellationToken);
         await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
+    }
+
+    /// <summary>
+    /// MapRequest : vide (resync complet) ou 40 octets (Int64 LE révision + SHA-256 sur 32 octets).
+    /// </summary>
+    public static bool TryReadMapRequestFingerprint(
+        ReadOnlyMemory<byte> payload,
+        out bool hasFingerprint,
+        out long clientRevision,
+        out byte[] clientSha256)
+    {
+        hasFingerprint = false;
+        clientRevision = 0;
+        clientSha256 = Array.Empty<byte>();
+
+        if (payload.IsEmpty)
+        {
+            return true;
+        }
+
+        if (payload.Length != 40)
+        {
+            return false;
+        }
+
+        var span = payload.Span;
+        clientRevision = BinaryPrimitives.ReadInt64LittleEndian(span);
+        clientSha256 = span.Slice(sizeof(long), 32).ToArray();
+        hasFingerprint = true;
+        return true;
+    }
+
+    /// <summary>Copie validée des 6 octets de stats (safe pour méthodes async).</summary>
+    public static bool TryCopyCharacterStatsUpdateRequest(ReadOnlyMemory<byte> payload, out byte[] packedStats)
+    {
+        packedStats = Array.Empty<byte>();
+        if (!TryParseCharacterStatsUpdateRequest(payload.Span, out var span))
+        {
+            return false;
+        }
+
+        packedStats = span.ToArray();
+        return true;
     }
 
     /// <summary>Corps : exactement 6 octets STR, AGI, DEX, INT, VIT, LUCK (valeurs 1–99).</summary>
