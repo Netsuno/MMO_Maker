@@ -36,7 +36,9 @@ public sealed class ArchitectureBoundaryTests
     private static readonly string[] FrogProjects =
     [
         "Frog.Core",
+        "Frog.Application",
         "Frog.Legacy",
+        "Frog.Persistence.PostgreSql",
         "Frog.Client",
         "Frog.Editor",
         "Frog.Server",
@@ -65,6 +67,24 @@ public sealed class ArchitectureBoundaryTests
     {
         var refs = GetProjectReferences("Frog.Legacy");
         Assert.Equal(new[] { "Frog.Core" }, refs);
+    }
+
+    [Fact]
+    public void FrogApplication_ReferencesOnlyCore()
+    {
+        var refs = GetProjectReferences("Frog.Application");
+        Assert.Equal(new[] { "Frog.Core" }, refs);
+    }
+
+    [Fact]
+    public void FrogPersistence_DoesNotReferenceUiProjects()
+    {
+        var refs = GetProjectReferences("Frog.Persistence.PostgreSql");
+        Assert.DoesNotContain("Frog.Editor", refs);
+        Assert.DoesNotContain("Frog.Client", refs);
+        Assert.DoesNotContain("Frog.Server", refs);
+        Assert.Contains("Frog.Core", refs);
+        Assert.Contains("Frog.Application", refs);
     }
 
     [Fact]
@@ -132,7 +152,7 @@ public sealed class ArchitectureBoundaryTests
 
         Assert.NotEmpty(files);
 
-        var pattern = new Regex(@"\b(new\s+MySqlConnection\b|DbContext\b|NpgsqlConnection\b)", RegexOptions.CultureInvariant);
+        var pattern = new Regex(@"\b(new\s+MySqlConnection\b|DbContext\b|NpgsqlConnection\b|FrogDbContext\b)", RegexOptions.CultureInvariant);
         var offenders = new List<string>();
         foreach (var file in files)
         {

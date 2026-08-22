@@ -7,7 +7,10 @@ Frog.Editor ──► Frog.Core
 Frog.Client ──► Frog.Core
 Frog.Server ──► Frog.Core
 Frog.Legacy ──► Frog.Core
-Frog.Tests  ──► Frog.Core, Frog.Server, Frog.Legacy
+Frog.Application ──► Frog.Core
+Frog.Persistence.PostgreSql ──► Frog.Application, Frog.Core
+Frog.Tests ──► Frog.Core, Frog.Server, Frog.Legacy
+Frog.Persistence.IntegrationTests ──► Persistence, Application, Core
 ```
 
 Packages notables :
@@ -15,25 +18,26 @@ Packages notables :
 | Projet | Packages UI / DB / host |
 | --- | --- |
 | Frog.Core | aucun |
+| Frog.Application | aucun |
+| Frog.Persistence.PostgreSql | EF Core 8, Npgsql, NamingConventions |
 | Frog.Client | WinForms (TFM `net8.0-windows`) |
-| Frog.Editor | WinForms + WPF + **MySqlConnector** |
-| Frog.Server | Hosting/Logging/Config + **MySqlConnector** |
+| Frog.Editor | WinForms + WPF + MySqlConnector (héritage) |
+| Frog.Server | Hosting/Logging/Config + MySqlConnector (héritage) |
 | Frog.Tests | xUnit |
 
-## Règles appliquées maintenant (tests d’architecture)
+## Règles appliquées (tests d’architecture)
 
 1. `Frog.Core` ne référence aucun autre projet FRoG.
-2. `Frog.Core` ne référence pas MySqlConnector, Npgsql, EF Core, System.Windows.Forms, PresentationFramework.
-3. Aucune dépendance circulaire entre projets de la solution.
-4. Les fichiers sous `Frog.Editor/Forms/` et le code-behind WPF principal n’instancient pas `MySqlConnection` / `DbContext` directement (accès DB via services).
+2. `Frog.Core` ne référence pas MySqlConnector, Npgsql, EF Core, WinForms, WPF.
+3. `Frog.Application` ne référence que `Frog.Core`.
+4. `Frog.Persistence.PostgreSql` ne référence pas Editor/Client/Server.
+5. Aucune dépendance circulaire.
+6. Surfaces UI éditeur : pas de `MySqlConnection` / `DbContext` / `FrogDbContext` directs.
 
-## Écarts connus vs PRD (non corrigés ici)
+## Écarts restants vs PRD
 
 | Cible PRD | Écart |
 | --- | --- |
-| `Frog.Application`, `Frog.Protocol`, `Frog.Legacy`, `Frog.Rendering`, `Frog.Persistence.PostgreSql` | Absents |
-| PostgreSQL / EF Core | MariaDB + SQL manuel |
-| Formulaires → ports applicatifs uniquement | Editor Services utilisent encore MySqlConnector (dette acceptée jusqu’à décision PG) |
+| `Frog.Protocol`, `Frog.Rendering` | Absents |
+| MariaDB dans Editor/Server | Héritage temporaire (ADR-0002) |
 | Protocol hors Core | Types sous `Frog.Core/Protocol/` |
-
-Voir `docs/BASELINE_AUDIT.md` et le bloqueur MariaDB vs PostgreSQL dans `docs/STATUS.md`.

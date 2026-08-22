@@ -1,37 +1,29 @@
 # État du projet FRoG
 
-- Dernière mise à jour : 2026-08-22 03:50 UTC
+- Dernière mise à jour : 2026-08-22 04:08 UTC
 - Branche / commit : `cursor/phase0-baseline-audit-02c7`
-- Phase active : **Phase 3 partielle faite** ; **Task 4 PostgreSQL bloquée (décision humaine)**
-- Environnement : Ubuntu 24.04, .NET SDK 8.0.424
+- Phase active : **Phase 4 verte** — prochaine : brancher l’éditeur / CLI d’import
+- Environnement : Ubuntu 24.04, .NET SDK 8.0.424, PostgreSQL 16.15
 
 ## Vérifié comme fonctionnel
 
-- Build/test C# 12 — **102 tests** verts
-- Frontières d’architecture (Core / Legacy / pas de cycles)
-- Inventaire VB6 régénéré
-- Spec `.fcc` + fixtures map1–3
-- `Frog.Legacy.LegacyFccMapReader` : header, 31×31, warps/blocks, rapport SHA-256, rejet tronqué
+- Suite unitaire `Frog.Tests` : **104** pass
+- PostgreSQL : base isolée par migrations, santé, round-trip carte (accents UTF-8), conflit de révision, rollback, import idempotent : **6/6**
+- `Frog.Legacy.LegacyFccMapReader` + fixtures `.fcc`
+- Frontières d’architecture (Core / Application / Persistence)
 
 ## Implémenté, mais non vérifié
 
-- Éditeur / client WinForms ; MariaDB réelle ; E2E TCP
-- Trailer NPC/Pano/Fog des `.fcc` ; packing String/*Set des 88 octets tuile
-- Couches Anim/Mask3/Fringe3 (signalées en warning)
+- Éditeur / client WinForms ; E2E TCP
+- MariaDB héritée (plus source de vérité — ADR-0002)
 
 ## En cours
 
-- Aucune (attente décision Task 4, ou poursuite Task 10 hors PG / polish reader)
+- Aucune
 
-## Bloqueurs — décision humaine requise
+## Bloqueurs
 
-**Task 4 — persistance :** le PRD impose **PostgreSQL** ; le dépôt a une stack **MariaDB** (migrations v1–v10, repos, éditeur). Options :
-
-1. Migrer vers PostgreSQL (EF Core / Npgsql) comme source de vérité  
-2. Conserver MariaDB et amender le PRD  
-3. Dual-run temporaire avec plan explicite  
-
-Sans ce choix, les repositories PostgreSQL du PRD ne doivent pas être improvisés.
+- WinForms non exécutable sur cet agent Linux
 
 ## Commandes de validation
 
@@ -39,16 +31,21 @@ Sans ce choix, les repositories PostgreSQL du PRD ne doivent pas être improvis�
 dotnet restore Frog.Creator.sln
 dotnet build Frog.Creator.sln -c Release --no-restore
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
+export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only'
+dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
 ```
 
 ## Résultat de la dernière validation
 
 - Build : **PASS**
-- Tests : **102 réussis, 0 échoués, 0 ignorés**
-- Intégration PostgreSQL : **NOT RUN** (bloqué)
+- Tests unitaires : **104 réussis, 0 échoués, 0 ignorés**
+- Intégration PostgreSQL : **PASS (6)**
 - E2E : **NOT RUN**
 
 ## Prochaine tâche
 
-- Après décision DB : Task 4 (santé PG ou ADR MariaDB)  
-- Sinon : enrichir `LegacyFccMapReader` (trailer NPC, String/*Set) + golden masters attendus dans `fixtures/expected/`
+- CLI `Frog.LegacyImporter` (`inspect` / `validate` / `import` / `report`) branché sur `IMapRepository`, ou ouverture d’une carte importée dans l’éditeur via ports applicatifs.
+
+## Référence
+
+- ADR-0002, `docs/DATA_MODEL.md`, `docs/TESTING.md`
