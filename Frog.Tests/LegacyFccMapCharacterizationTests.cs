@@ -80,10 +80,4 @@ public sealed class LegacyFccMapCharacterizationTests
         Assert.Equal("95e09b2b794b4d3bdb8903b83fdd41abe7769204f00556a3240b13506e781f3b", hash);
     }
 
-    [Fact(Skip = "Task 9: LegacyFccMapReader not implemented — 2026-08-22 — MAP-FMT-001")]
-    public void LegacyFccMapReader_ReadsMap1_FullModel_NotYetImplemented()
-    {
-        // Contrat cible : lire map1.fcc → dimensions 31×31, revision 22, warp (5,14)-> map 2 / (7,17), rapport SHA-256.
-        Assert.Fail("Implementer Frog.Legacy.LegacyFccMapReader");
-    }
 }

@@ -1,0 +1,37 @@
+namespace Frog.Legacy;
+
+/// <summary>Valeurs <c>TILE_TYPE_*</c> VB6 (modTypes) — ne pas renuméroter.</summary>
+public enum LegacyTileAttributeType : byte
+{
+    Walkable = 0,
+    Blocked = 1,
+    Warp = 2,
+    Item = 3,
+    NpcAvoid = 4,
+    Key = 5,
+    KeyOpen = 6,
+    Heal = 7,
+    Kill = 8,
+    Shop = 9,
+    CBlock = 10,
+    Arena = 11,
+    Sound = 12,
+    SpriteChange = 13,
+    Sign = 14,
+    Door = 15,
+    Notice = 16,
+    ClassChange = 18,
+    Scripted = 19,
+    NpcSpawn = 20,
+    Bank = 21,
+    Coffre = 22,
+    PorteCode = 23,
+    BlockMonture = 24,
+    BlockNiveaux = 25,
+    Toit = 26,
+    BlockGuilde = 27,
+    BlockToit = 28,
+    BlockDir = 29,
+    Craft = 30,
+    Metier = 31,
+}

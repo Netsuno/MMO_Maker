@@ -32,6 +32,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Server", "Server", "{8E1965
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{0B3D1CBC-6644-4F72-AAAF-94B624295840}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Frog.Legacy", "Frog.Legacy\Frog.Legacy.csproj", "{C54793A7-6CE5-41E5-A3FA-016699552008}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -58,6 +60,10 @@ Global
 		{B8DF4357-70C8-533F-D3AC-77E309C3A021}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B8DF4357-70C8-533F-D3AC-77E309C3A021}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B8DF4357-70C8-533F-D3AC-77E309C3A021}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C54793A7-6CE5-41E5-A3FA-016699552008}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C54793A7-6CE5-41E5-A3FA-016699552008}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C54793A7-6CE5-41E5-A3FA-016699552008}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C54793A7-6CE5-41E5-A3FA-016699552008}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

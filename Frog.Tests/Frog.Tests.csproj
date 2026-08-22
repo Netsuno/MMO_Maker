@@ -25,6 +25,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
         <ProjectReference Include="..\Frog.Server\Frog.Server.csproj" />
+        <ProjectReference Include="..\Frog.Legacy\Frog.Legacy.csproj" />
     </ItemGroup>
 
 </Project>

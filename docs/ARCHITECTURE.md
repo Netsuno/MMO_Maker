@@ -6,7 +6,8 @@
 Frog.Editor ──► Frog.Core
 Frog.Client ──► Frog.Core
 Frog.Server ──► Frog.Core
-Frog.Tests  ──► Frog.Core, Frog.Server
+Frog.Legacy ──► Frog.Core
+Frog.Tests  ──► Frog.Core, Frog.Server, Frog.Legacy
 ```
 
 Packages notables :

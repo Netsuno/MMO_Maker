@@ -36,6 +36,7 @@ public sealed class ArchitectureBoundaryTests
     private static readonly string[] FrogProjects =
     [
         "Frog.Core",
+        "Frog.Legacy",
         "Frog.Client",
         "Frog.Editor",
         "Frog.Server",
@@ -57,6 +58,13 @@ public sealed class ArchitectureBoundaryTests
     {
         var refs = GetProjectReferences("Frog.Core");
         Assert.Empty(refs);
+    }
+
+    [Fact]
+    public void FrogLegacy_ReferencesOnlyCore()
+    {
+        var refs = GetProjectReferences("Frog.Legacy");
+        Assert.Equal(new[] { "Frog.Core" }, refs);
     }
 
     [Fact]
