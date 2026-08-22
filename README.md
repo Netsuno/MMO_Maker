@@ -1,58 +1,71 @@
-# 🐸 FRoG Creator (Modern C# Edition.)
+# MMO Maker (C# / .NET 8)
 
-Projet de modernisation complète du **FRoG Creator OSE v0.6.3** (VB6) vers **C# / .NET 8**, en conservant la logique d’origine tout en modernisant l’architecture, les outils et la base de données.
+Environnement de création de MMO 2D : **éditeur**, **client** et **serveur** autoritaire, avec **PostgreSQL** comme source de vérité.
 
-**Dépôt GitHub :** [https://github.com/Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
+- Inspiration **fonctionnelle** : [FRoG Creator OSE 0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3) (idées de gameplay / éditeur, **sans compatibilité** — ADR-0003).
+- Inspiration **ergonomique** : principes RPG Maker (workspace, arbre de cartes, palette, outils) — identité et code originaux.
+- Dépôt : [Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
+- PRD d’exécution : `PRD_MMO_Maker_CSharp.md` ; état factuel : [`docs/STATUS.md`](docs/STATUS.md)
+
+## Stack
+
+| Couche | Choix |
+| --- | --- |
+| Langage | C# 12 / .NET 8 |
+| Éditeur / client | Windows, WinForms (+ coque WPF temporaire, ADR-0004) |
+| Serveur | .NET 8 console / Generic Host |
+| Persistance produit | **PostgreSQL** (EF Core) |
+| MariaDB | Héritage optionnel uniquement — voir [`docs/MARIADB_DOMAIN_MATRIX.md`](docs/MARIADB_DOMAIN_MATRIX.md) |
+
+## Démarrage rapide
+
+```bash
+dotnet restore Frog.Creator.sln
+dotnet build Frog.Creator.sln -c Release
+dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
+
+docker compose up -d postgres   # optionnel pour intégration
+export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only'
+dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
+```
+
+Voir [`docs/TESTING.md`](docs/TESTING.md) et [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 ---
 
-## 🎯 Objectifs
+## Décisions produit (référence équipe)
 
-- Migrer le moteur **VB6** (Client, Serveur, Éditeur) vers une base **C# .NET 8 (WinForms)**.
-- Unifier la logique commune dans un projet central `Frog.Core`.
-- Moderniser la communication réseau (voir **Décisions réseau** ci‑dessous).
-- Sauvegarder les données dans une **base MariaDB** (protocole MySQL ; comptes, état monde, cartes `frog_map`, personnages `frog_character`, etc. — voir `Frog.Server/Docs/mariadb-persistence-plan.md` et la **vision schéma complet** objet/quêtes/économie : `Frog.Server/Docs/mariadb-schema-cible-complet.md`).
-- Rendre l’éditeur compatible avec les formats d’origine tout en préparant l’extension du moteur.
-
----
-
-## 🧭 Décisions produit (référence)
-
-Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal / Zelda SNES‑like** ; [FRoG Creator OSE 0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3) comme inspiration fonctionnelle, pas comme stack).
+Alignement (**vision MMO Maker** pour un MMO **2D Graal / Zelda SNES-like**).
 
 | Sujet | Choix |
 |--------|--------|
-| **Hébergement & éditeur public** | **Un seul monde hébergé par vous** au début ; équipe comme auteurs. Plus tard : joueurs peuvent créer du contenu depuis l’éditeur, **toujours rattaché à votre monde / votre serveur** ; monétisation = **fonctionnalités**, pas court terme. |
+| **Hébergement & éditeur public** | **Un seul monde hébergé par vous** au début ; équipe comme auteurs. Plus tard : joueurs peuvent créer du contenu depuis l’éditeur, **toujours rattaché à votre monde / votre serveur** ; monétisation = **fonctionnalités**, pas court terme. |
 | **Licence / compte** | **Liée au compte** (serveur uniquement vous). |
 | **Plateformes** | **Windows seulement** pour l’instant. |
 | **Rendu** | Vue **Zelda SNES / Graal Online**. Tuiles **32×32 px** pour l’instant (évolutif). |
 | **Mouvement** | **Pixels** (autoritaire **serveur**). |
-| **Combat mêlée** | **8 directions** ; **PvE only** au début ; timing **simple pour l’instant** (à affiner ensuite). Knockback **+ courte invulnérabilité** (style Zelda). **Joueurs :** pas traverser les uns les autres sauf maps avec **flag éditeur** (collision joueur désactivée / traversée). |
-| **NPC ennemis** | **Statiques ou patrouille simple** ; **scripts comportement rapidement après** (+ **Lua** pour événements côté map **créateur**, hors logique compilée dans le serveur core — pas priorité tout de suite mais prévu pour les « joueurs‑auteurs »). |
-| **Cartes** | Objectif **plusieurs maps vite** (+ warps) ; pas d’**instances** pour l’instant ; plus tard : instances normales **+ procédurales**. |
+| **Combat mêlée** | **8 directions** ; **PvE only** au début ; timing **simple pour l’instant** (à affiner ensuite). Knockback **+ courte invulnérabilité** (style Zelda). **Joueurs :** pas traverser les uns les autres sauf maps avec **flag éditeur** (collision joueur désactivée / traversée). |
+| **NPC ennemis** | **Statiques ou patrouille simple** ; **scripts comportement rapidement après** (+ **Lua** pour événements côté map **créateur**, hors logique compilée dans le serveur core — pas priorité tout de suite mais prévu pour les « joueurs-auteurs »). |
+| **Cartes** | Objectif **plusieurs maps vite** (+ warps) ; pas d’**instances** pour l’instant ; plus tard : instances normales **+ procédurales**. |
 | **Téléchargement carte** | **HEAD révision / hash puis blob** tant que ça reste fiable ; cache client acceptable. |
-| **Événements (RPG Maker)** | **À faire bientôt** : événements sur cases, **liste en DB réutilisable** entre maps/cases, association sauvegardée avec la carte ou la tuile. |
-| **Personnages** | **Plusieurs slots** prévus ; **stats tôt** : **STR, AGI, DEX, INT, VIT, LUCK**. |
-| **Objets / inventaire** | **Priorité importante** : au début chaque « type » d’objet prend **1 place**. **Persistance : tables relationnelles** (`frog_item_definition`, `character_inventory_slot` — squelette v1). **Serveur :** effets / règles en **DB**. **Client :** mise en cache des infos « affichage / ambiance » pour ne pas surcharger la DB. |
+| **Événements (RPG Maker)** | **À faire bientôt** : événements sur cases, **liste en DB réutilisable** entre maps/cases, association sauvegardée avec la carte ou la tuile. |
+| **Personnages** | **Plusieurs slots** prévus ; **stats tôt** : **STR, AGI, DEX, INT, VIT, LUCK**. |
+| **Objets / inventaire** | **Priorité importante** : au début chaque « type » d’objet prend **1 place**. Persistance relationnelle côté produit via PostgreSQL (MariaDB historique encore présente côté serveur). |
 | **Mode offline jeu** | **Pas tranché** pour l’instant. |
-| **Réseau** | **Contrôle autoritaire serveur**. **TCP** pour flux fiables ; ajouter ou basculer **UDP** lorsque jugé meilleur compromis **sécurité / lag** à plus grande échelle (voir protocole, sans tout casser d’un coup). Cible volume **≤100 joueurs / carte au début**, architecture **scalable** si carton. |
-| **Chat** | Actuel : global / map / whisper. **Guilde → chat guilde**, **groupe → chat groupe** lorsque ces systèmes existeront. **Logs chat** oui ; **kick modérateur plus tard**, **ban en DB** dès besoin plausible. |
-| **Archi dépôt** | Conserver **Client / Serveur / Éditeur / Core** séparés. |
-| **Publier en DB depuis l’éditeur** | **Oui** (priorité après socle maps / données). |
-| **Conflit multi‑auteur carte** | **Plus tard**, pas problème actuel. |
-| **Auth** | **Votre serveur seulement** pour l’instant. **RGPD** à préciser selon exposition publique. |
-| **Audio** | **Qualité**, contenu livré avec le client (zip bêta). |
-| **Distribution** | **Zip bêta testeurs** au début, pas storefront imposée. |
-| **Héritage FRoG** | Conserver **l’idée d’un MMO éditable** comme base éducative / produit. **Rompre** : problèmes VB6 ; données **en clair peu sécurisées** tout en texte comme à l’époque. |
+| **Réseau** | **Contrôle autoritaire serveur**. **TCP** pour flux fiables ; UDP possible plus tard. |
+| **Chat** | Actuel : global / map / whisper. Guilde/groupe plus tard. |
+| **Archi dépôt** | Client / Serveur / Éditeur / Core / Application / Persistence séparés. |
+| **Publier en DB depuis l’éditeur** | **Oui** (PostgreSQL via ports applicatifs). |
+| **Héritage FRoG** | Inspiration fonctionnelle **uniquement** — **pas** d’import `.fcc` ni de compatibilité VB6 (ADR-0003). |
 
 ### Jalons technique proposés (ordre pour travailler en autonomie)
 
-1. [x] **Multi‑maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).  
+1. [x] **Multi-maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).  
 2. [x] **Stats persistées + multi‑slots perso** (position **`character_world_state`**, stats JSON **Hero**, **`CharacterListRequest` / `CharacterSelectRequest`** + UI client liste / activer / écran carte).  
 3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter — **priorité P1** (voir section **Priorités courantes**).  
 4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.  
 5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.  
-6. **Publication éditeur → MariaDB** (cartes puis événements / définitions progressives).  
+6. **Publication éditeur → PostgreSQL** (cartes puis événements / définitions progressives ; MariaDB = héritage seulement).  
 7. Pipeline **Lua** événements auteur‑carte sandboxé (après métadonnées stables).  
 8. Observabilité + **charges** : mesurer broadcasts par carte puis décisions **UDP / AOI**.
 
@@ -78,21 +91,24 @@ Alignement équipe (**vision MMO Maker** RPG Maker‑like pour un MMO **2D Graal
 
 | Projet | Description |
 |--------|--------------|
-| **Frog.Core** | Modèles partagés, enums, interfaces, sérialiseurs binaires (maps, items, NPCs…), IDs de paquets, `ChatChannel`, **`WorldMetrics`** (tuile ↔ pixels). |
-| **Frog.Client** | Client WinForms : TCP, login, map (rendu tuile simplifié), flèches, chat, heartbeat, mêlée ; doc `Frog.Client/Docs/protocol_login_map.md`. |
-| **Frog.Editor** | Éditeur de cartes WinForms : outils brush/fill/rectangle, undo/redo, `.fmap`, tilesets. |
-| **Frog.Server** | Serveur TCP : sessions, **carte `.fmap` ou `frog_map`**, mouvements **pixels**, **mêlée** (réseau évolutif UDP si besoin), chat, persistance MariaDB optionnelle, sauvegarde périodique joueur. |
-| **Frog.Tests** | Tests unitaires (sérialisation, protocole, persistance mémoire, mouvements…). |
+| **Frog.Core** | Domaine partagé, modèles, sérialiseur `.fmap`, protocole (à extraire plus tard). |
+| **Frog.Application** | Cas d’usage et ports (cartes, santé DB, imports ops). |
+| **Frog.Persistence.PostgreSql** | EF Core / Npgsql, migrations, repositories. |
+| **Frog.Client** | Client WinForms joueur. |
+| **Frog.Editor** | Éditeur (coque WPF temporaire + WinForms). |
+| **Frog.Server** | Serveur TCP autoritaire (MariaDB optionnelle héritée). |
+| **Frog.Legacy** | Expérimental / différé (lecteur `.fcc` — ADR-0003). |
+| **Frog.Tests** / **IntegrationTests** | Unitaires + PostgreSQL isolé. |
 
 ---
 
-## 🔧 Technologies principales
+## Technologies principales
 
 - **.NET 8.0 / C# 12**
-- **WinForms** pour Client et Éditeur
-- **MariaDB** (ou MySQL) + **MySqlConnector** (schéma v1 : comptes, `player_world_state`, `frog_map`, persos, assets — activer avec `MariaDb.enabled` + `appsettings.Local.json` ; ne pas committer les secrets)
-- **TCP** (état actuel) ; **UDP** prévu pour flux haute fréquence
-- **Sérialisation binaire** (format `.fmap` versionné dans `MapSerializer`)
+- **WinForms** (+ coque WPF temporaire pour l’éditeur)
+- **PostgreSQL** (source de vérité produit)
+- **MariaDB / MySqlConnector** : héritage optionnel seulement
+- **TCP** ; sérialisation `.fmap` pour cache/export
 
 ---
 

@@ -1,6 +1,6 @@
-# Tests — FRoG Creator
+# Tests — MMO Maker
 
-## Commande unique (build + tests unitaires)
+## Unitaires (toujours)
 
 ```bash
 dotnet restore Frog.Creator.sln
@@ -8,36 +8,31 @@ dotnet build Frog.Creator.sln -c Release --no-restore
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
 ```
 
-Sur Linux, `EnableWindowsTargeting` est déjà dans `Directory.Build.props`. Langage : **C# 12**.
+C# 12 (`LangVersion` 12.0). Linux : `EnableWindowsTargeting` déjà dans `Directory.Build.props`.
 
-## PostgreSQL (intégration)
-
-Démarrer une instance (Docker ou équivalent local) :
+## PostgreSQL (obligatoire pour toute tranche données / CI)
 
 ```bash
 docker compose up -d postgres
-# ou PostgreSQL 16 local
+# ou instance locale
 export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only'
 dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
 ```
 
-Chaque collection de tests crée une base `frog_it_*` via migrations, puis la détruit.  
-Sans la variable d’environnement, les faits PostgreSQL sont ignorés (raison + date dans l’attribut).
+CI : job `postgres-integration` (Ubuntu + Postgres 16). Identifiants = développement uniquement.
 
-Identifiants Compose (`frog` / `frog_dev_only`) et de test ci-dessus : **développement uniquement**.
-
-## Intégration MariaDB (héritage, optionnelle)
+## MariaDB (héritage, non bloquant)
 
 ```bash
-export MARIADB_TEST_CONNECTION_STRING='Server=...;Port=3306;Database=...;User Id=...;Password=...'
+export MARIADB_TEST_CONNECTION_STRING='...'
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release --filter Category=MariaDb
 ```
 
-## Niveaux
+## Legacy `.fcc` (expérimental)
 
-| Niveau | Emplacement | État |
-| --- | --- | --- |
-| Unitaire | `Frog.Tests` | Actif |
-| Intégration PostgreSQL | `tests/Frog.Persistence.IntegrationTests` | Env-gated + job CI Ubuntu |
-| Intégration MariaDB | Trait `MariaDb` | Env-gated, déprécié |
-| UI / E2E | — | Absent |
+Les tests `LegacyFcc*` restent dans `Frog.Tests` pour non-régression du code différé.  
+**Ils ne valident pas** une exigence produit (ADR-0003).
+
+## UI / E2E
+
+Smoke Windows requis à partir de la Phase 3 (shell éditeur). Non exécuté sur agents Linux.

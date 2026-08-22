@@ -1,4 +1,10 @@
-# Formats legacy FRoG (VB6)
+# LEGACY_FORMATS.md — référence historique seulement
+
+> **ADR-0003 :** ce document décrit une expérimentation FRoG `.fcc`.  
+> Il **n’est pas** une exigence de livraison du MMO Maker. Aucun importeur ni parité binaire n’est requis.
+
+---
+
 
 Spécifications **vérifiées depuis le code source** `Alexoune001/FRoG-Creator-OSE-V0.6.3` et **contrôlées sur fixtures** `.fcc` du même dépôt.  
 Les points encore non prouvés au niveau octet sont marqués **INCONNU / À PROUVER**.

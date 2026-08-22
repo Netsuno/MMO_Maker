@@ -8,6 +8,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- ADR-0003: experimental / deferred — not on the MMO Maker critical path. -->
+    <Description>Experimental FRoG .fcc reader (deferred). Not referenced by Editor/Client/Server.</Description>
   </PropertyGroup>
 
 </Project>

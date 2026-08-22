@@ -1,43 +1,36 @@
-# Architecture — frontières actuelles vs cible PRD
+# Architecture — MMO Maker
 
-## Graphe actuel (vérifié)
+## Autorité produit
+
+PRD `PRD_MMO_Maker_CSharp.md` v2.1 + ADR-0002 (PostgreSQL) + ADR-0003 (aucune compatibilité FRoG) + ADR-0004 (coque WPF temporaire).
+
+## Graphe actuel
 
 ```text
-Frog.Editor ──► Frog.Core
+Frog.Editor ──► Frog.Core          (+ MySqlConnector héritage)
 Frog.Client ──► Frog.Core
-Frog.Server ──► Frog.Core
-Frog.Legacy ──► Frog.Core
+Frog.Server ──► Frog.Core          (+ MySqlConnector héritage)
+Frog.Legacy ──► Frog.Core          (expérimental / différé)
 Frog.Application ──► Frog.Core
 Frog.Persistence.PostgreSql ──► Frog.Application, Frog.Core
-Frog.Tests ──► Frog.Core, Frog.Server, Frog.Legacy
+Frog.Tests ──► Core, Server, Legacy
 Frog.Persistence.IntegrationTests ──► Persistence, Application, Core
 ```
 
-Packages notables :
+## Règles
 
-| Projet | Packages UI / DB / host |
-| --- | --- |
-| Frog.Core | aucun |
-| Frog.Application | aucun |
-| Frog.Persistence.PostgreSql | EF Core 8, Npgsql, NamingConventions |
-| Frog.Client | WinForms (TFM `net8.0-windows`) |
-| Frog.Editor | WinForms + WPF + MySqlConnector (héritage) |
-| Frog.Server | Hosting/Logging/Config + MySqlConnector (héritage) |
-| Frog.Tests | xUnit |
+1. `Frog.Core` : domaine pur (pas UI, pas DB, pas sockets).
+2. `Frog.Application` : ports uniquement → Core.
+3. Persistence PostgreSQL : pas de référence Editor/Client/Server.
+4. Editor/Client/Server : **ne référencent pas** `Frog.Legacy`.
+5. Formulaires / code-behind : pas de `DbContext` / `NpgsqlConnection` / `MySqlConnection` (accès via services/ports).
+6. Aucune nouvelle fonctionnalité MariaDB.
 
-## Règles appliquées (tests d’architecture)
+## UI éditeur
 
-1. `Frog.Core` ne référence aucun autre projet FRoG.
-2. `Frog.Core` ne référence pas MySqlConnector, Npgsql, EF Core, WinForms, WPF.
-3. `Frog.Application` ne référence que `Frog.Core`.
-4. `Frog.Persistence.PostgreSql` ne référence pas Editor/Client/Server.
-5. Aucune dépendance circulaire.
-6. Surfaces UI éditeur : pas de `MySqlConnection` / `DbContext` / `FrogDbContext` directs.
+- Coque WPF + îlots WinForms (ADR-0004).
+- Cible produit WinForms ; pas d’extension WPF hors panneaux existants.
 
-## Écarts restants vs PRD
+## Hors chemin critique
 
-| Cible PRD | Écart |
-| --- | --- |
-| `Frog.Protocol`, `Frog.Rendering` | Absents |
-| MariaDB dans Editor/Server | Héritage temporaire (ADR-0002) |
-| Protocol hors Core | Types sous `Frog.Core/Protocol/` |
+- `Frog.Legacy`, fixtures `.fcc`, docs `LEGACY_FORMATS` (référence historique seulement).
