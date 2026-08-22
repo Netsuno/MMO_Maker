@@ -2,24 +2,22 @@
 
 ## Contexte
 
-Phase 4 acceptée sur `22d19b4`. Phase 5 implémente le playtest d’une carte **explicitement publiée** (PostgreSQL), serveur/client locaux, protocole uniquement, cleanup processus.
-
-## Critères
-
-| Critère | État |
-| --- | --- |
-| Unit/E2E/protocol `Frog.Tests` 145/145 | OK (local) |
-| PostgreSQL 17/17 | OK (local) |
-| Windows smoke 9×3 | CI Windows (voir URL ci-dessous) |
-| Draft jamais chargé par le serveur playtest | OK (unit + PG + E2E) |
-| Shutdown propre / pas d’orphan listener | OK (E2E) |
-| Phase 6 non commencée | OK |
-| `git status` clean après push | OK |
+Phase 4 acceptée sur `22d19b4`. Phase 5 livrée : playtest d’une carte **explicitement publiée** (PostgreSQL), serveur/client locaux, protocole uniquement, cleanup processus.
 
 ## Plage de commits
 
-- Début (après Phase 4) : `22d19b4570eaf552e5ce162243a83020ce86e2eb`
-- Head vert : _voir SHA poussé + CI_
+- Début (après Phase 4 acceptée) : `22d19b4570eaf552e5ce162243a83020ce86e2eb`
+- Head vert : `e507a0481dd29c36524be4c854a458c84c70439c`
+
+## CI verte
+
+https://github.com/Netsuno/MMO_Maker/actions/runs/32590792046
+
+| Suite | Passed | Failed | Total |
+| --- | ---: | ---: | ---: |
+| Frog.Tests (unit + protocol + E2E) | 145 | 0 | 145 |
+| Frog.Persistence.IntegrationTests | 17 | 0 | 17 |
+| Frog.Editor.WindowsSmokeTests | 9×3 | 0 | 9×3 |
 
 ## Preuves
 
@@ -27,11 +25,17 @@ Phase 4 acceptée sur `22d19b4`. Phase 5 implémente le playtest d’une carte *
 - [`TEST_RESULTS.md`](TEST_RESULTS.md)
 - [`CHANGE_SUMMARY.md`](CHANGE_SUMMARY.md)
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)
-- Screenshots schématiques : `playtest-launch.png`, `playtest-client-running.png`
+- Screenshots : `playtest-launch.png`, `playtest-client-running.png`
+- Draft non chargé : unit + PG `ServerPlaytestPipeline_LoadsPublishedSnapshot_NotNewerDraft` + E2E
+- Shutdown propre : E2E port fermé après `StopAsync` ; smoke cancel cleanup
+- `git status` clean après ce commit de docs
+- Phase 6 **non commencée**
 
 ## Trois risques principaux
 
-Voir [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
+1. Kill process tree / `dotnet dll` portability under Windows shells  
+2. Ephemeral port race under heavy CI  
+3. Warp targets must be published or playtest preparation fails  
 
 ## Question de gate
 
