@@ -22,10 +22,9 @@ FROG_EDITOR_FORCE_IN_MEMORY=1 dotnet test tests/Frog.Editor.WindowsSmokeTests/Fr
 
 | Test | Attendu |
 | --- | --- |
-| `MainWindow_OpensDemoMap_WithInMemoryRepository` | PASS |
-| `MainWindow_SaveDraft_InMemoryRepository` | PASS |
+| `MainWindow_OpensAndSavesDemoMap_WithInMemoryRepository` | PASS (shell + save brouillon) |
 
-**Lien run GitHub Actions :** *(complété après push — PR #2)*
+**Lien run GitHub Actions :** https://github.com/Netsuno/MMO_Maker/actions/runs/32576686949
 
 ## Nouveaux tests Phase 4
 
