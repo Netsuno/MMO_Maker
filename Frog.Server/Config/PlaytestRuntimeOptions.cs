@@ -8,6 +8,7 @@ public sealed class PlaytestRuntimeOptions
     public const string ManifestPathEnvironmentVariable = "FROG_PLAYTEST_MANIFEST_PATH";
     public const string CorrelationIdEnvironmentVariable = "FROG_PLAYTEST_CORRELATION_ID";
     public const string PortEnvironmentVariable = "FROG_PLAYTEST_PORT";
+    public const string BindAddressEnvironmentVariable = "FROG_PLAYTEST_BIND_ADDRESS";
 
     public bool Enabled { get; init; }
     public string? ManifestPath { get; init; }
@@ -17,6 +18,7 @@ public sealed class PlaytestRuntimeOptions
     public int SpawnRuntimeMapId { get; init; } = 1;
     public Guid PrimaryCanonicalMapId { get; init; }
     public long PrimaryPublishedRevision { get; init; }
+    public string BindAddress { get; init; } = "127.0.0.1";
 
     public static PlaytestRuntimeOptions FromEnvironment()
     {
@@ -34,6 +36,11 @@ public sealed class PlaytestRuntimeOptions
         var doc = PlaytestManifestWriter.Read(manifestPath);
         var correlationEnv = Environment.GetEnvironmentVariable(CorrelationIdEnvironmentVariable);
         var correlationId = Guid.TryParse(correlationEnv, out var parsed) ? parsed : doc.CorrelationId;
+        var bind = Environment.GetEnvironmentVariable(BindAddressEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(bind))
+        {
+            bind = "127.0.0.1";
+        }
 
         return new PlaytestRuntimeOptions
         {
@@ -45,6 +52,7 @@ public sealed class PlaytestRuntimeOptions
             SpawnRuntimeMapId = doc.Spawn.RuntimeMapId,
             PrimaryCanonicalMapId = doc.PrimaryCanonicalMapId,
             PrimaryPublishedRevision = doc.PrimaryPublishedRevision,
+            BindAddress = bind,
         };
     }
 }

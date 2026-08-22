@@ -1532,14 +1532,44 @@ public sealed class MainForm : Form
             var preparer = new PlaytestMapPreparer(_mapRepository);
             _playtestOrchestrator = new PlaytestOrchestrator(preparer, launcher);
 
+            if (_workspace.CurrentMap is null)
+            {
+                LastPlaytestErrorForTest = "Aucune carte ouverte.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            var map = _workspace.CurrentMap;
+            var defaultX = Math.Clamp(_lastHoverTile.X, 0, Math.Max(0, map.Width - 1));
+            var defaultY = Math.Clamp(_lastHoverTile.Y, 0, Math.Max(0, map.Height - 1));
+            int spawnX;
+            int spawnY;
+            if (EditorTestHooks.OverrideSpawnTile is { } forcedSpawn)
+            {
+                spawnX = forcedSpawn.X;
+                spawnY = forcedSpawn.Y;
+            }
+            else
+            {
+                using var spawnDlg = new Dialogs.PlaytestSpawnDialog(map.Width, map.Height, defaultX, defaultY);
+                if (spawnDlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+                {
+                    LastPlaytestErrorForTest = "Playtest annulé (spawn).";
+                    return;
+                }
+
+                spawnX = spawnDlg.TileX;
+                spawnY = spawnDlg.TileY;
+            }
+
             var port = EditorFrogServerLauncher.FindFreeTcpPort();
             var prepare = new PlaytestPrepareRequest
             {
                 CorrelationId = Guid.NewGuid(),
                 Host = "127.0.0.1",
                 Port = port,
-                SpawnTileX = 1,
-                SpawnTileY = 1,
+                SpawnTileX = spawnX,
+                SpawnTileY = spawnY,
                 RequireDurablePersistence = !EditorTestHooks.AllowNonDurablePlaytest,
                 PublishCurrentBeforeLaunch = true,
             };
@@ -1558,9 +1588,19 @@ public sealed class MainForm : Form
 
             if (result is PlaytestPreparationResult.Success success)
             {
-                var lines = _playtestOrchestrator.ActiveSession?.LogLines;
-                var summary = lines is { Count: > 0 }
-                    ? string.Join(Environment.NewLine, lines)
+                var lines = new List<string>();
+                if (_playtestOrchestrator.ActiveSession?.LogLines is { } sessionLogs)
+                {
+                    lines.AddRange(sessionLogs);
+                }
+
+                if (_playtestLauncher is not null)
+                {
+                    lines.AddRange(_playtestLauncher.DrainLogsSnapshot());
+                }
+
+                var summary = lines.Count > 0
+                    ? string.Join(Environment.NewLine, lines.TakeLast(40))
                     : $"Playtest démarré — MapId={success.Plan.PrimaryCanonicalMapId} rev={success.Plan.PrimaryPublishedRevision}";
                 _dialogService.ShowInfo(summary, "Playtest");
             }

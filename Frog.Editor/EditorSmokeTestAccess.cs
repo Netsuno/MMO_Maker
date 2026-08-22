@@ -26,6 +26,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
         EditorTestHooks.OverrideClientExePath = null;
+        EditorTestHooks.OverrideSpawnTile = null;
         EditorTestHooks.AllowNonDurablePlaytest = false;
         EditorTestHooks.SkipMariaDbOnStartup = true;
         TilesetCache.Clear();

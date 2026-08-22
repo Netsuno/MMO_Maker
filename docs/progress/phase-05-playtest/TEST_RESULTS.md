@@ -1,70 +1,58 @@
-# Phase 5 — TEST RESULTS
+# Phase 5 — TEST RESULTS (corrections after temporary rejection)
 
 ## Commit range
 
-- After Phase 4 accepted: `22d19b4570eaf552e5ce162243a83020ce86e2eb`
-- Green head: `e2a1c0c179d5c2189ec2ef58d7dd945856c7678d`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32590970105
+- Prior rejected-but-CI-green tip: `baaf79c846f1151f7e7a5f544812756635f1fcfd`
+- Corrections start after that commit on `cursor/phase0-baseline-audit-02c7`
+- Head (this gate): _filled after push — see STATUS.md_
 
-## Suites (CI)
+## Suites (local pre-push)
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
-| Frog.Tests | 145 | 0 | 145 |
-| Frog.Persistence.IntegrationTests | 17 | 0 | 17 |
-| Frog.Editor.WindowsSmokeTests | 9 | 0 | 9 × 3 consecutive |
+| Frog.Tests | 165 | 0 | 165 |
+| Frog.Persistence.IntegrationTests | 18 | 0 | 18 |
+| Frog.Editor.WindowsSmokeTests | (CI Windows) | — | 9 × 3 expected |
 
-### Unit / E2E / protocol (`Frog.Tests`)
+Previous Phase 0–4 suites remain included; counts rose with Phase 5 correction tests.
 
-Includes preparer, orchestrator (failure/cancel/timeout/stop), manifest/protocol, architecture Server↛Persistence, non-UI E2E playtest host.
+### Unit / E2E / protocol (`Frog.Tests`) — correction coverage
+
+- Child-process secret isolation: `PlaytestChildEnvironmentTests` (server + client role probes)
+- Brand-new unsaved map prepare: `Prepare_BrandNewUnsavedMap_*`
+- Warp BFS: A→B→C, A↔B cycle, shared target, unpublished transitive fail
+- Spawn validator: valid / blocked / OOB / 1×1 / edge corners
+- Real OS process: `PlaytestRealProcessLifecycleTests` (dotnet Frog.Server.dll, Hello readiness, owned kill, port closed, temp deleted, no secret echo)
+- TCP framing loopback on `ClientSession`: fragmented length/payload, max frame, oversized, zero/negative, truncated, cancel, timeout, protocol-version mismatch Hello, int.Max length quick reject
+- E2E TCP-only: move success, block Error, two consecutive warps A→B→C, MapRequest after each warp, clean disconnect + port closed (**no MovementService calls**)
 
 ### PostgreSQL
 
-Includes `ServerPlaytestPipeline_LoadsPublishedSnapshot_NotNewerDraft` — published blocks remain after newer draft clears them; `MapService` fingerprint = published revision.
+- Prior: `ServerPlaytestPipeline_LoadsPublishedSnapshot_NotNewerDraft`
+- New: `Playtest_BrandNewUnsavedMap_SavesPublishesAndLoadsSnapshot`
 
 ### Windows smoke ×3
 
-Phase 4 suite (7) + playtest error/cancel (2) = 9; three consecutive passes OK.
+Phase 4 suite + playtest error/cancel; spawn override hook for non-modal smoke. Validated on CI Windows runners.
 
-## Correlated logs (sample)
+## Visual / manual evidence
 
-```
-[<correlation>] Playtest préparé MapId=<guid> rev=<n>
-[<correlation>] Démarrage serveur port=<p>
-[<correlation>] Serveur PID=<pid>
-[<correlation>] Démarrage client 127.0.0.1:<p>
-[<correlation>] Client PID=<pid>
-```
-
-Server playtest scopes: `PlaytestCorrelationId`, `PlaytestMapId`, `PlaytestPublishedRevision`.
-
-## Draft-not-loaded proof
-
-- Unit: draft rename after publish; published snapshot unchanged; manifest pins revision.
-- PG: draft clears blocks; preparer + `MapService.IsBlocked` still true from published.
-- E2E: draft diverges; live MapService still has published blocks + warp to runtime map 2.
-
-## Process shutdown
-
-- Orchestrator clears session; stops client then server.
-- E2E: port closed after host stop (no orphan listener).
-- Smoke cancel: fake launcher records cleanup on cancelled server start wait.
-- Editor FormClosed / Stop Playtest cleanup.
-
-## Screenshots
-
-- `playtest-launch.png` — playtest launch schematic
-- `playtest-client-running.png` — client session schematic  
-
-(Real WPF capture deferred; Linux agent — schematics committed for gate evidence.)
-
-## Not executed / deferred
-
-| Item | Why |
+| Item | Status |
 | --- | --- |
-| Live interactive WPF screenshot of Frog.Client window | No Windows desktop session in cloud agent; CI smoke covers command/error/cancel |
+| Interactive WPF screenshots of editor launch / client / movement / stop | **NOT RUN** |
+| Why | Cloud agent is Linux; no Windows desktop session. PNGs in this folder are **schematic mockups**, not validated WPF screenshots. |
+| Automated process proof | `PlaytestRealProcessLifecycleTests` + E2E in-process host + Windows smoke (CI) |
+
+## Process lifecycle
+
+- Async stdout/stderr drain in `EditorPlaytestProcessLauncher`
+- Hello readiness on `127.0.0.1` (not bare port)
+- Kill **owned** PIDs only (no `GetProcessById` fallback)
+- Await `WaitForExitAsync` on stop; FormClosed awaits `StopPlaytestAsync`
+- Temp workdir deleted on orchestrator stop/failure
+- Bind forced `127.0.0.1` via `FROG_PLAYTEST_BIND_ADDRESS`
 
 ## Confirmations
 
-- `git status` clean on gate docs commit  
-- Phase 6 not started  
+- Working tree clean after docs commit
+- Phase 6 **not** started

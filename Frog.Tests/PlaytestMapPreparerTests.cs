@@ -130,6 +130,253 @@ public sealed class PlaytestMapPreparerTests
         var warp = rewritten.Layers[0].Tiles.Single(t => t.Type == TileType.Warp);
         Assert.Equal(MapSamples.RuntimeMapIdToGuid(targetRuntime), warp.WarpTargetMapId);
     }
+
+    [Fact]
+    public async Task Prepare_BrandNewUnsavedMap_SavesPublishesAndReturnsMapId()
+    {
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        var workspace = new MapWorkspaceSession(repo);
+        var map = CreateOpenMap("BrandNew", 6, 6);
+        workspace.AdoptLocalDraft(map);
+        Assert.Null(workspace.CurrentMapId);
+        Assert.True(workspace.IsDirty);
+
+        var preparer = new PlaytestMapPreparer(repo);
+        var workDir = Path.Combine(Path.GetTempPath(), "frog-pt-new-" + Guid.NewGuid().ToString("N"));
+        var result = await preparer.PrepareAsync(
+            workspace,
+            new PlaytestPrepareRequest
+            {
+                WorkDirectory = workDir,
+                RequireDurablePersistence = false,
+                PublishCurrentBeforeLaunch = true,
+                SpawnTileX = 0,
+                SpawnTileY = 0,
+            });
+
+        var success = Assert.IsType<PlaytestPreparationResult.Success>(result);
+        Assert.NotEqual(Guid.Empty, success.Plan.PrimaryCanonicalMapId);
+        Assert.Equal(workspace.CurrentMapId, success.Plan.PrimaryCanonicalMapId);
+        Assert.True(success.Plan.PrimaryPublishedRevision > 0);
+        Assert.True(File.Exists(success.Plan.ManifestPath));
+    }
+
+    [Fact]
+    public async Task Prepare_WarpGraph_A_to_B_to_C_IncludesAllPublishedMaps()
+    {
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        var idC = await PublishOpenAsync(repo, "C");
+        var idB = await PublishOpenAsync(repo, "B", warpTo: idC, warpX: 1, warpY: 1);
+        var idA = await PublishOpenAsync(repo, "A", warpTo: idB, warpX: 1, warpY: 0);
+
+        var workspace = new MapWorkspaceSession(repo);
+        Assert.True(await workspace.OpenMapAsync(idA));
+        var preparer = new PlaytestMapPreparer(repo);
+        var result = await preparer.PrepareAsync(
+            workspace,
+            new PlaytestPrepareRequest
+            {
+                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-abc-" + Guid.NewGuid().ToString("N")),
+                RequireDurablePersistence = false,
+                PublishCurrentBeforeLaunch = false,
+                SpawnTileX = 0,
+                SpawnTileY = 0,
+            });
+
+        var success = Assert.IsType<PlaytestPreparationResult.Success>(result);
+        Assert.Equal(3, success.Plan.Maps.Count);
+        Assert.Contains(success.Plan.Maps, m => m.CanonicalMapId == idA && m.RuntimeMapId == 1);
+        Assert.Contains(success.Plan.Maps, m => m.CanonicalMapId == idB);
+        Assert.Contains(success.Plan.Maps, m => m.CanonicalMapId == idC);
+        Assert.Equal(new[] { 1, 2, 3 }, success.Plan.Maps.Select(m => m.RuntimeMapId).OrderBy(x => x).ToArray());
+    }
+
+    [Fact]
+    public async Task Prepare_WarpGraph_Cycle_A_B_DoesNotHang_AndIncludesBoth()
+    {
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        var idA = Guid.NewGuid();
+        var idB = Guid.NewGuid();
+
+        // Publish A first without warp, then B→A, then update A→B.
+        var saveA0 = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = CreateOpenMap("A", 6, 6),
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.Publish,
+        }));
+        idA = saveA0.MapId;
+
+        var mapB = CreateOpenMap("B", 6, 6);
+        SetWarp(mapB, 1, 1, idA, 0, 0);
+        var saveB = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = mapB,
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.Publish,
+        }));
+        idB = saveB.MapId;
+
+        var storedA = await repo.LoadByIdAsync(idA);
+        Assert.NotNull(storedA);
+        SetWarp(storedA!.Map, 2, 2, idB, 0, 0);
+        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = idA,
+            Map = storedA.Map,
+            ExpectedRevision = storedA.Revision,
+            Intent = SaveMapIntent.Publish,
+        }));
+
+        var workspace = new MapWorkspaceSession(repo);
+        Assert.True(await workspace.OpenMapAsync(idA));
+        var preparer = new PlaytestMapPreparer(repo);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var result = await preparer.PrepareAsync(
+            workspace,
+            new PlaytestPrepareRequest
+            {
+                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-cycle-" + Guid.NewGuid().ToString("N")),
+                RequireDurablePersistence = false,
+                PublishCurrentBeforeLaunch = false,
+                SpawnTileX = 0,
+                SpawnTileY = 0,
+            },
+            cts.Token);
+
+        var success = Assert.IsType<PlaytestPreparationResult.Success>(result);
+        Assert.Equal(2, success.Plan.Maps.Count);
+        Assert.Contains(success.Plan.Maps, m => m.CanonicalMapId == idA);
+        Assert.Contains(success.Plan.Maps, m => m.CanonicalMapId == idB);
+    }
+
+    [Fact]
+    public async Task Prepare_WarpGraph_SharedTarget_Deduplicates()
+    {
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        var idShared = await PublishOpenAsync(repo, "Shared");
+        var idB = await PublishOpenAsync(repo, "B", warpTo: idShared, warpX: 0, warpY: 1);
+        var mapA = CreateOpenMap("A", 6, 6);
+        SetWarp(mapA, 1, 0, idShared, 0, 0);
+        SetWarp(mapA, 2, 0, idB, 0, 0);
+        var saveA = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = mapA,
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.Publish,
+        }));
+
+        var workspace = new MapWorkspaceSession(repo);
+        Assert.True(await workspace.OpenMapAsync(saveA.MapId));
+        var preparer = new PlaytestMapPreparer(repo);
+        var result = await preparer.PrepareAsync(
+            workspace,
+            new PlaytestPrepareRequest
+            {
+                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-share-" + Guid.NewGuid().ToString("N")),
+                RequireDurablePersistence = false,
+                PublishCurrentBeforeLaunch = false,
+                SpawnTileX = 0,
+                SpawnTileY = 0,
+            });
+
+        var success = Assert.IsType<PlaytestPreparationResult.Success>(result);
+        Assert.Equal(3, success.Plan.Maps.Count);
+        Assert.Equal(1, success.Plan.Maps.Count(m => m.CanonicalMapId == idShared));
+    }
+
+    [Fact]
+    public async Task Prepare_WarpGraph_UnpublishedTransitiveTarget_FailsClearly()
+    {
+        var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        // B exists only as draft (never published).
+        var draftB = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = CreateOpenMap("B-DraftOnly", 6, 6),
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.SaveDraft,
+        }));
+
+        var mapA = CreateOpenMap("A", 6, 6);
+        SetWarp(mapA, 1, 0, draftB.MapId, 0, 0);
+        var saveA = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = mapA,
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.Publish,
+        }));
+
+        var workspace = new MapWorkspaceSession(repo);
+        Assert.True(await workspace.OpenMapAsync(saveA.MapId));
+        var preparer = new PlaytestMapPreparer(repo);
+        var result = await preparer.PrepareAsync(
+            workspace,
+            new PlaytestPrepareRequest
+            {
+                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-pt-unpub-" + Guid.NewGuid().ToString("N")),
+                RequireDurablePersistence = false,
+                PublishCurrentBeforeLaunch = false,
+                SpawnTileX = 0,
+                SpawnTileY = 0,
+            });
+
+        var failed = Assert.IsType<PlaytestPreparationResult.Failed>(result);
+        Assert.Equal(PlaytestFailureKind.NotPublished, failed.Kind);
+        Assert.Contains(draftB.MapId.ToString(), failed.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<Guid> PublishOpenAsync(
+        InMemoryMapRepository repo,
+        string name,
+        Guid? warpTo = null,
+        int warpX = 0,
+        int warpY = 0)
+    {
+        var map = CreateOpenMap(name, 6, 6);
+        if (warpTo is Guid target)
+        {
+            SetWarp(map, warpX, warpY, target, 0, 0);
+        }
+
+        var save = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = map,
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.Publish,
+        }));
+        return save.MapId;
+    }
+
+    private static Map CreateOpenMap(string name, int w, int h)
+    {
+        var map = new Map { Name = name, Width = w, Height = h };
+        var ground = new Layer { LayerType = LayerType.Ground };
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                ground.Tiles.Add(new Tile { X = x, Y = y, TilesetId = 1, Type = TileType.Ground });
+            }
+        }
+
+        map.Layers.Add(ground);
+        return map;
+    }
+
+    private static void SetWarp(Map map, int x, int y, Guid target, int tx, int ty)
+    {
+        var t = map.Layers[0].Tiles.Single(tile => tile.X == x && tile.Y == y);
+        t.Type = TileType.Warp;
+        t.WarpTargetMapId = target;
+        t.WarpTargetX = tx;
+        t.WarpTargetY = ty;
+    }
 }
 
 public sealed class PlaytestOrchestratorTests

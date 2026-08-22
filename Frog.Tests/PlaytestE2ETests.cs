@@ -1,7 +1,9 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -10,145 +12,61 @@ using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
-using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Server;
 using Frog.Server.Config;
-using Frog.Server.Network;
-using Frog.Server.Playtest;
-using Frog.Server.Services;
-using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Frog.Tests;
 
-public sealed class PlaytestProtocolAndManifestTests
-{
-    [Fact]
-    public void Manifest_Roundtrip_And_RejectsBadSchemaVersion()
-    {
-        var plan = CreateMinimalPlan();
-        PlaytestManifestWriter.Write(plan);
-        var doc = PlaytestManifestWriter.Read(plan.ManifestPath);
-        Assert.Equal(PlaytestManifestDocument.CurrentSchemaVersion, doc.SchemaVersion);
-        Assert.Equal(plan.PrimaryCanonicalMapId, doc.PrimaryCanonicalMapId);
-        Assert.Equal(plan.PrimaryPublishedRevision, doc.PrimaryPublishedRevision);
-
-        var badPath = Path.Combine(plan.WorkDirectory, "bad.json");
-        File.WriteAllText(
-            badPath,
-            """{"schemaVersion":99,"correlationId":"00000000-0000-0000-0000-000000000001","primaryCanonicalMapId":"00000000-0000-0000-0000-000000000002","primaryPublishedRevision":1,"spawn":{"runtimeMapId":1,"tileX":0,"tileY":0},"maps":[]}""");
-        Assert.Throws<InvalidOperationException>(() => PlaytestManifestWriter.Read(badPath));
-    }
-
-    [Fact]
-    public void Login_Move_Payloads_RejectInvalidSizes()
-    {
-        Assert.False(PacketDispatcher.TryParseLoginPayload(ReadOnlySpan<byte>.Empty, out _, out _));
-        Assert.False(PacketDispatcher.TryParseLoginPayload(new byte[] { 1 }, out _, out _));
-        Assert.False(PacketDispatcher.TryParseMovePayload(ReadOnlySpan<byte>.Empty, out _, out _));
-        Assert.False(PacketDispatcher.TryParseMovePayload(new byte[] { 1 }, out _, out _));
-        Assert.False(PacketDispatcher.TryParsePositionSyncPayload(new byte[4], out _, out _));
-        Assert.True(PacketDispatcher.TryParseMovePayload(new byte[] { 1, 0 }, out var dx, out var dy));
-        Assert.Equal(1, dx);
-        Assert.Equal(0, dy);
-    }
-
-    [Fact]
-    public void WireHello_Version_MatchesFrogWireProtocol()
-    {
-        var bytes = WireHello.BuildPayload();
-        Assert.True(WireHello.TryParse(bytes, out _, out var ver));
-        Assert.Equal(FrogWireProtocol.Version, ver);
-    }
-
-    [Fact]
-    public void FrameSizeLimit_RejectsOversizeLengthPrefix()
-    {
-        // ClientSession rejects length > 1 MiB — document the contract.
-        const int max = 1024 * 1024;
-        Assert.True(max == 1_048_576);
-    }
-
-    [Fact]
-    public void PlaytestBlobStore_ExposesPublishedRevisionFingerprint()
-    {
-        var plan = CreateMinimalPlan();
-        PlaytestManifestWriter.Write(plan);
-        var store = PlaytestMapBlobStore.FromManifest(plan.ManifestPath);
-        Assert.True(store.TryGetHead(1, out var rev, out var sha));
-        Assert.Equal(plan.PrimaryPublishedRevision, rev);
-        Assert.Equal(64, sha.Length);
-    }
-
-    private static PlaytestLaunchPlan CreateMinimalPlan()
-    {
-        var mapId = Guid.NewGuid();
-        var map = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(1));
-        var bytes = new Frog.Core.IO.MapSerializer().Serialize(map);
-        var work = Path.Combine(Path.GetTempPath(), "frog-manifest-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(work);
-        return new PlaytestLaunchPlan
-        {
-            CorrelationId = Guid.NewGuid(),
-            PrimaryCanonicalMapId = mapId,
-            PrimaryPublishedRevision = 3,
-            Spawn = new PlaytestSpawnPoint { RuntimeMapId = 1, TileX = 1, TileY = 1 },
-            Maps =
-            [
-                new PlaytestRuntimeMap
-                {
-                    CanonicalMapId = mapId,
-                    PublishedRevision = 3,
-                    RuntimeMapId = 1,
-                    Name = map.Name,
-                    Map = map,
-                    SerializedFmap = bytes,
-                },
-            ],
-            Host = "127.0.0.1",
-            Port = 6000,
-            WorkDirectory = work,
-            ManifestPath = Path.Combine(work, "playtest-manifest.json"),
-        };
-    }
-}
-
 /// <summary>
-/// E2E non-UI : serveur playtest in-process + client TCP léger
-/// (startup, connect, spawn, valid move, blocked move, warp, disconnect, shutdown).
+/// E2E TCP réel : login → spawn → block → move → warp A→B → warp B→C → map request → disconnect → shutdown.
+/// Aucun appel direct à MovementService pour les assertions.
 /// </summary>
 public sealed class PlaytestE2ETests
 {
     [Fact]
-    public async Task PlaytestHost_MovementCollisionWarp_AndCleanShutdown()
+    public async Task PlaytestHost_TcpMovementCollision_TwoWarps_AndCleanShutdown()
     {
         var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
 
-        var interiorSave = await repo.SaveAsync(new SaveMapRequest
+        var mapC = CreateOpenMap("C", 8, 8);
+        var saveC = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
             MapId = null,
-            Map = CreateOpenMap("Interior", 22, 22),
+            Map = mapC,
             ExpectedRevision = 0,
             Intent = SaveMapIntent.Publish,
-        });
-        var interiorOk = Assert.IsType<SaveMapResult.Success>(interiorSave);
+        }));
 
-        var outdoorSave = await repo.SaveAsync(new SaveMapRequest
+        var mapB = CreateOpenMap("B", 8, 8);
+        SetWarp(mapB, 1, 0, saveC.MapId, 2, 2);
+        var saveB = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
         {
             MapId = null,
-            Map = MapSamples.StarterMeadow(interiorOk.MapId),
+            Map = mapB,
             ExpectedRevision = 0,
             Intent = SaveMapIntent.Publish,
-        });
-        var outdoorOk = Assert.IsType<SaveMapResult.Success>(outdoorSave);
+        }));
+
+        var mapA = CreateOpenMap("A", 8, 8);
+        SetBlock(mapA, 0, 1);
+        SetWarp(mapA, 1, 0, saveB.MapId, 0, 0);
+        var saveA = Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = mapA,
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.Publish,
+        }));
 
         var workspace = new MapWorkspaceSession(repo);
-        Assert.True(await workspace.OpenMapAsync(outdoorOk.MapId));
+        Assert.True(await workspace.OpenMapAsync(saveA.MapId));
 
         var preparer = new PlaytestMapPreparer(repo);
         var port = GetFreePort();
+        var workDir = Path.Combine(Path.GetTempPath(), "frog-e2e-" + Guid.NewGuid().ToString("N"));
         var prepared = await preparer.PrepareAsync(
             workspace,
             new PlaytestPrepareRequest
@@ -156,42 +74,28 @@ public sealed class PlaytestE2ETests
                 CorrelationId = Guid.NewGuid(),
                 Host = "127.0.0.1",
                 Port = port,
-                SpawnTileX = 1,
-                SpawnTileY = 1,
+                SpawnTileX = 0,
+                SpawnTileY = 0,
                 RequireDurablePersistence = false,
                 PublishCurrentBeforeLaunch = false,
-                WorkDirectory = Path.Combine(Path.GetTempPath(), "frog-e2e-" + Guid.NewGuid().ToString("N")),
+                WorkDirectory = workDir,
             });
-
         var plan = Assert.IsType<PlaytestPreparationResult.Success>(prepared).Plan;
-        Assert.Equal(2, plan.Maps.Count);
-
-        // Newer draft must not affect published playtest world.
-        workspace.CurrentMap!.Name = "SHOULD_NOT_LOAD";
-        // Flip a ground tile that was Block in published snapshot — draft-only change.
-        var blockTile = workspace.CurrentMap.Layers[0].Tiles.First(t => t.Type == TileType.Block);
-        blockTile.Type = TileType.Ground;
-        workspace.MarkDirty();
-        await workspace.SaveCurrentAsync(SaveMapIntent.SaveDraft);
+        Assert.Equal(3, plan.Maps.Count);
+        var runtimeA = plan.Maps.Single(m => m.Name == "A").RuntimeMapId;
+        var runtimeB = plan.Maps.Single(m => m.Name == "B").RuntimeMapId;
+        var runtimeC = plan.Maps.Single(m => m.Name == "C").RuntimeMapId;
+        Assert.Equal(1, runtimeA);
+        Assert.NotEqual(runtimeB, runtimeC);
 
         Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.PortEnvironmentVariable, port.ToString());
+        Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.BindAddressEnvironmentVariable, "127.0.0.1");
         var playtestOpts = FrogServerHostFactory.CreatePlaytestOptionsFromPlan(plan);
         using var host = FrogServerHostFactory.Create(playtestOpts);
         await host.StartAsync();
 
         try
         {
-            await WaitForPortAsync("127.0.0.1", port, TimeSpan.FromSeconds(20));
-
-            var mapService = host.Services.GetRequiredService<MapService>();
-            // Proof: published blocks still present (draft cleared them).
-            Assert.True(mapService.IsBlocked(1, 6, 5));
-            Assert.True(mapService.TryGetWarpDestination(1, 3, 3, out var destMap, out var tx, out var ty));
-            Assert.Equal(2, destMap);
-            Assert.Equal(18, tx);
-            Assert.Equal(18, ty);
-            Assert.True(mapService.TryEnsureMapLoaded(2));
-
             await using var tcp = new PlaytestTcpClient();
             await tcp.ConnectAsync("127.0.0.1", port);
             var hello = await tcp.ReadFrameAsync();
@@ -200,47 +104,81 @@ public sealed class PlaytestE2ETests
             Assert.Equal(FrogWireProtocol.Version, ver);
 
             await tcp.SendFrameAsync(BuildLogin("demo", "demo"));
-            var login = await tcp.ReadUntilAsync(PacketId.LoginResult);
-            Assert.NotEqual(0, login[1]);
+            Assert.NotEqual(0, (await tcp.ReadUntilAsync(PacketId.LoginResult))[1]);
 
-            var spawnPos = await tcp.ReadUntilAsync(PacketId.PositionUpdate, TimeSpan.FromSeconds(5));
-            ParsePositionUpdate(spawnPos, out var user, out var mapId, out var px, out var py);
-            Assert.Equal("demo", user);
-            Assert.Equal(1, mapId);
-            var (sx, sy) = WorldMetrics.TileCenterToPixels(1, 1);
+            var spawn = await tcp.ReadUntilAsync(PacketId.PositionUpdate, TimeSpan.FromSeconds(5));
+            ParsePositionUpdate(spawn, out _, out var mapId, out var px, out var py);
+            Assert.Equal(runtimeA, mapId);
+            var (sx, sy) = WorldMetrics.TileCenterToPixels(0, 0);
             Assert.Equal(sx, px);
             Assert.Equal(sy, py);
 
-            // Valid movement
-            await tcp.SendFrameAsync(BuildMove(1, 0));
-            var moved = await tcp.ReadUntilAsync(PacketId.PositionUpdate, TimeSpan.FromSeconds(3));
-            ParsePositionUpdate(moved, out _, out _, out var px2, out _);
-            Assert.True(px2 > px);
+            // Rejected movement into blocked tile (0,1) before leaving spawn column.
+            var blocked = false;
+            for (var i = 1; i <= 24 && !blocked; i++)
+            {
+                var stepY = sy + i * 8;
+                await tcp.SendFrameAsync(BuildPositionSync(sx, stepY));
+                await Task.Delay(80);
+                foreach (var f in await tcp.DrainFramesAsync(TimeSpan.FromMilliseconds(120)))
+                {
+                    if (f[0] == (byte)PacketId.Error)
+                    {
+                        blocked = true;
+                    }
+                    else if (f[0] == (byte)PacketId.PositionUpdate)
+                    {
+                        ParsePositionUpdate(f, out _, out _, out px, out py);
+                    }
+                }
+            }
 
-            // Blocked movement (server-authoritative Collision via same MapService as TCP host)
-            var connections = host.Services.GetRequiredService<ConnectionManager>();
-            Assert.True(connections.TryCreateSession("block-e2e", out var blockSession));
-            blockSession!.CurrentMapId = 1;
-            var (nearBx, nearBy) = WorldMetrics.TileCenterToPixels(4, 5);
-            blockSession.PixelX = nearBx;
-            blockSession.PixelY = nearBy;
-            SessionPixelSync.SyncTileFromPixels(blockSession);
-            var movement = host.Services.GetRequiredService<MovementService>();
-            Assert.False(movement.TryApplyMove(blockSession, 1, 0, out var blockErr));
-            Assert.Contains("bloque", blockErr, StringComparison.OrdinalIgnoreCase);
+            Assert.True(blocked, "expected TCP Error when entering blocked tile");
 
-            // Authoritative warp onto published target map (runtime id 2)
-            Assert.True(connections.TryCreateSession("warp-e2e", out var session));
-            session!.CurrentMapId = 1;
-            var ts = WorldMetrics.DefaultTileSizePixels;
-            session.PixelX = 3 * ts - 1;
-            session.PixelY = 3 * ts + ts / 2;
-            SessionPixelSync.SyncTileFromPixels(session);
-            Assert.True(movement.TryApplyMove(session, 1, 0, out _));
-            Assert.True(movement.TryApplyWarpAfterMove(session));
-            Assert.Equal(2, session.CurrentMapId);
-            Assert.Equal(18, session.PositionX);
-            Assert.Equal(18, session.PositionY);
+            // Cool rate gate, then successful east movement.
+            await Task.Delay(1100);
+            var movedEast = false;
+            for (var i = 0; i < 20 && !movedEast; i++)
+            {
+                await tcp.SendFrameAsync(BuildMove(1, 0));
+                await Task.Delay(80);
+                foreach (var f in await tcp.DrainFramesAsync(TimeSpan.FromMilliseconds(150)))
+                {
+                    if (f[0] == (byte)PacketId.PositionUpdate)
+                    {
+                        ParsePositionUpdate(f, out _, out mapId, out var nx, out py);
+                        if (nx > px)
+                        {
+                            movedEast = true;
+                            px = nx;
+                        }
+                    }
+                }
+            }
+
+            Assert.True(movedEast, "expected TCP PositionUpdate after successful MoveRequest");
+
+            // First warp A→B.
+            var onB = await StepUntilMapIdAsync(tcp, runtimeB, moveDx: 1, moveDy: 0, TimeSpan.FromSeconds(10));
+            Assert.True(onB, $"expected warp A→B via TCP PositionUpdate mapId={runtimeB}");
+
+            await tcp.SendFrameAsync(new byte[] { (byte)PacketId.MapRequest });
+            var mapDataB = await tcp.ReadUntilAnyAsync(
+                [PacketId.MapData, PacketId.MapAlreadySynced],
+                TimeSpan.FromSeconds(5));
+            Assert.True(mapDataB[0] is (byte)PacketId.MapData or (byte)PacketId.MapAlreadySynced);
+
+            await Task.Delay(1100);
+
+            // Second consecutive warp B→C (landed at 0,0; warp at 1,0).
+            var onC = await StepUntilMapIdAsync(tcp, runtimeC, moveDx: 1, moveDy: 0, TimeSpan.FromSeconds(10));
+            Assert.True(onC, $"expected second warp B→C via TCP mapId={runtimeC}");
+
+            await tcp.SendFrameAsync(new byte[] { (byte)PacketId.MapRequest });
+            var mapDataC = await tcp.ReadUntilAnyAsync(
+                [PacketId.MapData, PacketId.MapAlreadySynced],
+                TimeSpan.FromSeconds(5));
+            Assert.True(mapDataC[0] is (byte)PacketId.MapData or (byte)PacketId.MapAlreadySynced);
 
             await tcp.DisconnectAsync();
         }
@@ -248,9 +186,49 @@ public sealed class PlaytestE2ETests
         {
             await host.StopAsync();
             Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.PortEnvironmentVariable, null);
+            Environment.SetEnvironmentVariable(PlaytestRuntimeOptions.BindAddressEnvironmentVariable, null);
+            try
+            {
+                if (Directory.Exists(workDir))
+                {
+                    Directory.Delete(workDir, recursive: true);
+                }
+            }
+            catch
+            {
+                // best-effort
+            }
         }
 
         Assert.False(await IsPortOpenAsync("127.0.0.1", port));
+    }
+
+    private static async Task<bool> StepUntilMapIdAsync(
+        PlaytestTcpClient tcp,
+        int expectedMapId,
+        sbyte moveDx,
+        sbyte moveDy,
+        TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            await tcp.SendFrameAsync(BuildMove(moveDx, moveDy));
+            await Task.Delay(80);
+            foreach (var f in await tcp.DrainFramesAsync(TimeSpan.FromMilliseconds(200)))
+            {
+                if (f[0] == (byte)PacketId.PositionUpdate)
+                {
+                    ParsePositionUpdate(f, out _, out var mid, out _, out _);
+                    if (mid == expectedMapId)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static Map CreateOpenMap(string name, int w, int h)
@@ -261,13 +239,7 @@ public sealed class PlaytestE2ETests
         {
             for (var x = 0; x < w; x++)
             {
-                ground.Tiles.Add(new Tile
-                {
-                    X = x,
-                    Y = y,
-                    TilesetId = 1,
-                    Type = TileType.Ground,
-                });
+                ground.Tiles.Add(new Tile { X = x, Y = y, TilesetId = 1, Type = TileType.Ground });
             }
         }
 
@@ -275,29 +247,28 @@ public sealed class PlaytestE2ETests
         return map;
     }
 
-    private static int GetFreePort()
+    private static void SetBlock(Map map, int x, int y)
     {
-        var l = new TcpListener(System.Net.IPAddress.Loopback, 0);
-        l.Start();
-        var p = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return p;
+        var t = map.Layers[0].Tiles.First(tile => tile.X == x && tile.Y == y);
+        t.Type = TileType.Block;
     }
 
-    private static async Task WaitForPortAsync(string host, int port, TimeSpan timeout)
+    private static void SetWarp(Map map, int x, int y, Guid target, int tx, int ty)
     {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
-        {
-            if (await IsPortOpenAsync(host, port))
-            {
-                return;
-            }
+        var t = map.Layers[0].Tiles.First(tile => tile.X == x && tile.Y == y);
+        t.Type = TileType.Warp;
+        t.WarpTargetMapId = target;
+        t.WarpTargetX = tx;
+        t.WarpTargetY = ty;
+    }
 
-            await Task.Delay(50);
-        }
-
-        throw new TimeoutException("server port not open");
+    private static int GetFreePort()
+    {
+        var l = new TcpListener(IPAddress.Loopback, 0);
+        l.Start();
+        var p = ((IPEndPoint)l.LocalEndpoint).Port;
+        l.Stop();
+        return p;
     }
 
     private static async Task<bool> IsPortOpenAsync(string host, int port)
@@ -331,6 +302,15 @@ public sealed class PlaytestE2ETests
     private static byte[] BuildMove(sbyte dx, sbyte dy)
         => [(byte)PacketId.MoveRequest, unchecked((byte)dx), unchecked((byte)dy)];
 
+    private static byte[] BuildPositionSync(int px, int py)
+    {
+        var payload = new byte[1 + 8];
+        payload[0] = (byte)PacketId.PositionSyncRequest;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), px);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(5), py);
+        return payload;
+    }
+
     private static void ParsePositionUpdate(byte[] frame, out string username, out int mapId, out int px, out int py)
     {
         Assert.Equal((byte)PacketId.PositionUpdate, frame[0]);
@@ -342,7 +322,7 @@ public sealed class PlaytestE2ETests
         py = BinaryPrimitives.ReadInt32LittleEndian(frame.AsSpan(o + 8));
     }
 
-    private sealed class PlaytestTcpClient : IAsyncDisposable
+    internal sealed class PlaytestTcpClient : IAsyncDisposable
     {
         private TcpClient? _tcp;
         private NetworkStream? _stream;
@@ -386,7 +366,34 @@ public sealed class PlaytestE2ETests
             }
         }
 
+        public async Task<List<byte[]>> DrainFramesAsync(TimeSpan budget)
+        {
+            var frames = new List<byte[]>();
+            var deadline = DateTime.UtcNow + budget;
+            while (DateTime.UtcNow < deadline)
+            {
+                var remaining = deadline - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var frame = await TryReadFrameAsync(remaining);
+                if (frame is null)
+                {
+                    break;
+                }
+
+                frames.Add(frame);
+            }
+
+            return frames;
+        }
+
         public async Task<byte[]> ReadUntilAsync(PacketId id, TimeSpan? timeout = null)
+            => await ReadUntilAnyAsync([id], timeout);
+
+        public async Task<byte[]> ReadUntilAnyAsync(PacketId[] ids, TimeSpan? timeout = null)
         {
             var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(10));
             while (DateTime.UtcNow < deadline)
@@ -398,13 +405,13 @@ public sealed class PlaytestE2ETests
                 }
 
                 var frame = await ReadFrameAsync(remaining);
-                if (frame[0] == (byte)id)
+                if (ids.Any(id => frame[0] == (byte)id))
                 {
                     return frame;
                 }
             }
 
-            throw new TimeoutException("packet " + id + " not received");
+            throw new TimeoutException("expected packet not received");
         }
 
         public Task DisconnectAsync()

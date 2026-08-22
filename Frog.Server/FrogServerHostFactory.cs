@@ -32,11 +32,13 @@ public static class FrogServerHostFactory
                 if (playtest.Enabled)
                 {
                     var portEnv = Environment.GetEnvironmentVariable(PlaytestRuntimeOptions.PortEnvironmentVariable);
+                    var bind = string.IsNullOrWhiteSpace(playtest.BindAddress) ? "127.0.0.1" : playtest.BindAddress;
                     if (int.TryParse(portEnv, out var port) && port is > 0 and <= 65535)
                     {
                         config.AddInMemoryCollection(new Dictionary<string, string?>
                         {
                             ["Server:Port"] = port.ToString(),
+                            ["Server:BindAddress"] = bind,
                             ["MariaDb:Enabled"] = "false",
                         });
                     }
@@ -44,6 +46,7 @@ public static class FrogServerHostFactory
                     {
                         config.AddInMemoryCollection(new Dictionary<string, string?>
                         {
+                            ["Server:BindAddress"] = bind,
                             ["MariaDb:Enabled"] = "false",
                         });
                     }

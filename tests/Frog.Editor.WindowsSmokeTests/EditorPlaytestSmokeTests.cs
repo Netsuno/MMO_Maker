@@ -22,6 +22,7 @@ public sealed class EditorPlaytestSmokeTests
             // Exes injectés pour prouver que le gate durable s’applique avant le lancement.
             EditorTestHooks.OverrideServerExePath = "fake-Frog.Server.exe";
             EditorTestHooks.OverrideClientExePath = "fake-Frog.Client.exe";
+            EditorTestHooks.OverrideSpawnTile = new System.Drawing.Point(0, 0);
 
             MainWindow? window = null;
             try
@@ -61,6 +62,7 @@ public sealed class EditorPlaytestSmokeTests
             EditorTestHooks.AllowNonDurablePlaytest = true;
             EditorTestHooks.OverrideServerExePath = "fake-Frog.Server.exe";
             EditorTestHooks.OverrideClientExePath = "fake-Frog.Client.exe";
+            EditorTestHooks.OverrideSpawnTile = new System.Drawing.Point(1, 1);
             var launcher = new CancelAwareFakeLauncher();
             EditorTestHooks.OverridePlaytestProcessLauncher = launcher;
 

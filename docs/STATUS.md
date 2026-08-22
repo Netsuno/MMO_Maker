@@ -2,28 +2,29 @@
 
 - Dernière mise à jour : 2026-08-22
 - Branche : `cursor/phase0-baseline-audit-02c7`
-- Head : `e2a1c0c179d5c2189ec2ef58d7dd945856c7678d`
 - **Phase 4 : ACCEPTED**
   - Commit accepté : `22d19b4570eaf552e5ce162243a83020ce86e2eb`
   - CI acceptée : https://github.com/Netsuno/MMO_Maker/actions/runs/32585827562
-- **Phase 5 : GATE REACHED — WAITING FOR REVIEW**
-  - Commit vert : `e2a1c0c179d5c2189ec2ef58d7dd945856c7678d`
-  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32590970105
+- **Phase 5 : GATE REACHED — WAITING FOR REVIEW** (corrections after rejection of `baaf79c`)
+  - Rejected tip : `baaf79c846f1151f7e7a5f544812756635f1fcfd`
+  - Corrections head : _updated after push_
+  - CI : _updated after green run_
 - Phase 6 : non commencée
 
-## Vérifié Phase 5
+## Vérifié Phase 5 (local pre-push)
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
-| Frog.Tests | 145 | 0 | 145 |
-| Frog.Persistence.IntegrationTests | 17 | 0 | 17 |
-| Frog.Editor.WindowsSmokeTests | 9×3 | 0 | 9×3 |
+| Frog.Tests | 165 | 0 | 165 |
+| Frog.Persistence.IntegrationTests | 18 | 0 | 18 |
+| Frog.Editor.WindowsSmokeTests | CI Windows | — | 9×3 |
 
 Preuves : `docs/progress/phase-05-playtest/`
 
 ## Différé
 
 - Phase 6+
+- Manual WPF screenshots (**NOT RUN** on Linux agent; schematics only)
 - `Frog.Legacy` / nouvelles fonctions MariaDB (gelé)
 
 ## Commandes de validation

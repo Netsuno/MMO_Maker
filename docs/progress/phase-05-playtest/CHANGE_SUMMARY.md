@@ -1,35 +1,40 @@
-# Phase 5 — CHANGE SUMMARY
+# Phase 5 — CHANGE SUMMARY (incl. rejection corrections)
 
 ## Application
 
-- `PlaytestModels`, `PlaytestMapPreparer`, `PlaytestOrchestrator`, `RuntimeMapIdAllocator`, `PlaytestManifestWriter`
+- `PlaytestModels`, `PlaytestMapPreparer` (save-new/dirty → publish → BFS warp closure), `PlaytestOrchestrator` (temp cleanup), `RuntimeMapIdAllocator`, `PlaytestManifestWriter`
+- `PlaytestChildEnvironment` — shared sanitize + child env-name probe (no secret values)
+- `PlaytestSpawnValidator` — bounds + passability
 - `IMapRepository.LoadPublishedByIdAndRevisionAsync`
-- `InMemoryMapRepository`: create+Publish now sets `PublishedRevision` on draft (parity with update path)
 
 ## Persistence
 
-- `PostgresMapRepository.LoadPublishedByIdAndRevisionAsync` loads immutable snapshot by `(MapId, Revision)`
+- `PostgresMapRepository.LoadPublishedByIdAndRevisionAsync`
+- PG tests: published-vs-draft + brand-new unsaved map playtest prepare
 
 ## Server
 
-- Project reference: `Frog.Application` (manifest types only; **no** Persistence/PG)
-- `FrogServerHostFactory` + playtest env (`FROG_PLAYTEST_MANIFEST_PATH`, correlation, port)
+- `FrogServerHostFactory` + playtest env (`FROG_PLAYTEST_*` incl. `BIND_ADDRESS=127.0.0.1`)
 - `PlaytestMapBlobStore`, `PlaytestRuntimeOptions`
-- `PacketDispatcher` playtest spawn + log scopes
+- `PacketDispatcher` playtest spawn + correlated log scopes
+- **No** Persistence/PG reference on playtest path
 
 ## Editor
 
-- Menu/commands: Playtest / Stop Playtest
-- `EditorPlaytestProcessLauncher`, server exe resolution, free port, wait-for-ready, owned process kill tree
-- Never forwards PostgreSQL connection strings to playtest child processes
+- Playtest / Stop Playtest; `PlaytestSpawnDialog` (tile X/Y)
+- `EditorPlaytestProcessLauncher`: sanitize server+client env; async stdout/stderr; Hello readiness; owned-only kill; await exit; correlated bounded logs
+- Smoke: `OverrideSpawnTile` hook
 
 ## Client
 
 - CLI: `--playtest --host --port --correlation`
-- Prefills host/port; window title shows correlation
 
 ## Tests
 
-- Unit/orchestration/protocol/E2E in `Frog.Tests`
-- PG published-vs-draft pipeline test
-- Windows smoke: playtest error (non-durable) + cancel cleanup
+- Secret probe (server+client roles)
+- New-map + warp graph unit suite
+- Spawn validator cases
+- Real `dotnet Frog.Server.dll` process lifecycle
+- TCP framing fragmentation / invalid sizes / version mismatch
+- TCP E2E move/block/two-warps/map request/shutdown
+- Windows smoke playtest error + cancel

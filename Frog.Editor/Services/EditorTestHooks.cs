@@ -1,3 +1,4 @@
+using System.Drawing;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
 
@@ -22,4 +23,7 @@ internal static class EditorTestHooks
 
     /// <summary>Smoke / unit : autorise playtest sur dépôt mémoire test.</summary>
     public static bool AllowNonDurablePlaytest { get; set; }
+
+    /// <summary>Smoke : force la tuile de spawn sans dialogue modal.</summary>
+    public static Point? OverrideSpawnTile { get; set; }
 }

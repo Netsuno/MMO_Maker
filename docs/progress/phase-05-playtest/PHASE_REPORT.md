@@ -2,37 +2,32 @@
 
 ## Status
 
-**PHASE 5 GATE REACHED — WAITING FOR REVIEW**
+**PHASE 5 GATE REACHED — WAITING FOR REVIEW** (corrections after temporary rejection of `baaf79c`)
 
 - Phase 4 accepted: `22d19b4570eaf552e5ce162243a83020ce86e2eb`
-- Phase 5 green head: `e2a1c0c179d5c2189ec2ef58d7dd945856c7678d`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32590970105
-- Branch: `cursor/phase0-baseline-audit-02c7` (PR #2)
+- Rejected tip (CI green, product incomplete): `baaf79c846f1151f7e7a5f544812756635f1fcfd`
+- Branch: `cursor/phase0-baseline-audit-02c7` (PR #2 only)
 - Phase 6: **not started**
 
-## Objective delivered
+## Corrections delivered
 
-Reliable playtest of an **explicitly published** PostgreSQL map:
+1. Shared `PlaytestChildEnvironment.Sanitize` for **server and client**; child-process probe proves DB vars absent; secrets never printed.
+2. Brand-new unsaved maps: validate → save → MapId → publish → load published snapshot → launch (unit + PG).
+3. Recursive warp closure (BFS + visited): A→B→C, cycles, shared targets, unpublished transitive fail; E2E crosses two consecutive warps over TCP.
+4. Selectable spawn (`PlaytestSpawnDialog` / canvas hover default / smoke override) + `PlaytestSpawnValidator` (bounds, blocked, 1×1, edges).
+5. Lifecycle: async log drain, Hello readiness on `127.0.0.1`, owned-PID-only kill, await exit, temp cleanup, bind force.
+6. E2E uses real framed TCP for move / block / warps / map blobs — **no** direct `MovementService` asserts.
+7. Loopback framing/protocol tests on real `ClientSession` parser.
+8. Visual: schematics labeled honestly; manual WPF capture **NOT RUN** on Linux agent; real process launch proven in automated tests.
 
-1. Validate → save dirty draft → publish (or pin existing published revision).
-2. Never playtest unsaved in-memory-only changes.
-3. Editor starts local test server + client with correlated IDs.
-4. Server loads published MapId + revision via playtest manifest (`.fmap` blobs).
-5. Unpublished drafts never sent to server/client (no PG connection string on playtest processes).
-6. Configurable spawn tile on playtest login.
-7. Server authoritative for movement, collision, warps.
-8. Client map/runtime data via TCP protocol only.
-9. Correlated editor/server logs + actionable errors.
-10. Editor stops only processes it started; cleanup on cancel, failure, form close.
-
-## CI counts
+## Local counts (pre-CI)
 
 | Suite | Result |
 | --- | --- |
-| Frog.Tests | 145/145 |
-| PostgreSQL integration | 17/17 |
-| Windows smoke | 9/9 × 3 |
+| Frog.Tests | 165/165 |
+| PostgreSQL integration | 18/18 |
+| Windows smoke | 9×3 on CI |
 
 ## Evidence pack
 
-Sibling files in this directory + `playtest-launch.png`, `playtest-client-running.png`.
+Sibling files in this directory. PNGs are schematics only — see `KNOWN_ISSUES.md` / `TEST_RESULTS.md`.

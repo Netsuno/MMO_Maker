@@ -1,42 +1,38 @@
-# Demande de revue — Phase 5 Client/server playtest
+# Demande de revue — Phase 5 (corrections)
 
 ## Contexte
 
-Phase 4 acceptée sur `22d19b4`. Phase 5 livrée : playtest d’une carte **explicitement publiée** (PostgreSQL), serveur/client locaux, protocole uniquement, cleanup processus.
+Phase 5 temporarily rejected at `baaf79c` despite green CI. Corrections on the **same** branch/PR only.
 
 ## Plage de commits
 
-- Début (après Phase 4 acceptée) : `22d19b4570eaf552e5ce162243a83020ce86e2eb`
-- Head vert : `e2a1c0c179d5c2189ec2ef58d7dd945856c7678d`
+- After rejected tip: `baaf79c846f1151f7e7a5f544812756635f1fcfd`
+- Head: see `docs/STATUS.md` after push
+- PR: #2 — `cursor/phase0-baseline-audit-02c7`
 
-## CI verte
-
-https://github.com/Netsuno/MMO_Maker/actions/runs/32590970105
+## Preuves locales (avant CI)
 
 | Suite | Passed | Failed | Total |
 | --- | ---: | ---: | ---: |
-| Frog.Tests (unit + protocol + E2E) | 145 | 0 | 145 |
-| Frog.Persistence.IntegrationTests | 17 | 0 | 17 |
-| Frog.Editor.WindowsSmokeTests | 9×3 | 0 | 9×3 |
+| Frog.Tests | 165 | 0 | 165 |
+| Frog.Persistence.IntegrationTests | 18 | 0 | 18 |
+| Frog.Editor.WindowsSmokeTests | CI | — | 9×3 |
 
-## Preuves
+## Checklist corrections
 
-- [`PHASE_REPORT.md`](PHASE_REPORT.md)
-- [`TEST_RESULTS.md`](TEST_RESULTS.md)
-- [`CHANGE_SUMMARY.md`](CHANGE_SUMMARY.md)
-- [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)
-- Screenshots : `playtest-launch.png`, `playtest-client-running.png`
-- Draft non chargé : unit + PG `ServerPlaytestPipeline_LoadsPublishedSnapshot_NotNewerDraft` + E2E
-- Shutdown propre : E2E port fermé après `StopAsync` ; smoke cancel cleanup
-- `git status` clean après ce commit de docs
-- Phase 6 **non commencée**
+- [x] DB secrets stripped from server **and** client child envs + probe test
+- [x] Brand-new unsaved map (unit + PG)
+- [x] Recursive warp graph + E2E two consecutive warps (TCP)
+- [x] Selectable/validated spawn
+- [x] Lifecycle/logging/Hello readiness/owned kill/temp cleanup/`127.0.0.1`
+- [x] TCP E2E without direct MovementService
+- [x] Real framing/protocol loopback tests
+- [x] Visual honesty: schematics ≠ screenshots; manual **NOT RUN**
 
-## Trois risques principaux
+## Trois risques
 
-1. Kill process tree / `dotnet dll` portability under Windows shells  
-2. Ephemeral port race under heavy CI  
-3. Warp targets must be published or playtest preparation fails  
+See `KNOWN_ISSUES.md`.
 
-## Question de gate
+## Phase 6
 
-**Accepter Phase 5** et autoriser Phase 6 ?
+**Not started.**

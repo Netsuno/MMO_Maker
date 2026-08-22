@@ -253,5 +253,20 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
 
         state.Client = null;
         state.Server = null;
+
+        if (state.Plan is { } plan &&
+            !string.IsNullOrWhiteSpace(plan.WorkDirectory) &&
+            Directory.Exists(plan.WorkDirectory))
+        {
+            try
+            {
+                Directory.Delete(plan.WorkDirectory, recursive: true);
+                state.LogLines.Add($"[{state.CorrelationId:N}] Temp playtest nettoyé: {plan.WorkDirectory}");
+            }
+            catch (Exception ex)
+            {
+                state.LogLines.Add($"[{state.CorrelationId:N}] Nettoyage temp échoué: {ex.Message}");
+            }
+        }
     }
 }

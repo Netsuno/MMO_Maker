@@ -8,6 +8,7 @@ using Frog.Server.Playtest;
 using Frog.Server.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using MapPublishStatus = Frog.Application.Maps.MapPublishStatus;
 
 namespace Frog.Persistence.IntegrationTests;
 
@@ -108,6 +109,60 @@ public sealed class PostgresPlaytestPublishedLoadTests
 
         Assert.True(mapService.IsBlocked(1, 6, 5), "server must load published blocks, not draft-cleared tiles");
         Assert.Equal(publishedRevision, mapService.GetFingerprintRevision(1));
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task Playtest_BrandNewUnsavedMap_SavesPublishesAndLoadsSnapshot()
+    {
+        await using var db = new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString));
+        var repo = new PostgresMapRepository(db);
+        var workspace = new MapWorkspaceSession(repo);
+
+        var map = CreateBlockedPlaytestMap("BrandNewPgPlaytest");
+        workspace.AdoptLocalDraft(map);
+        Assert.Null(workspace.CurrentMapId);
+        Assert.True(workspace.IsDirty);
+
+        var preparer = new PlaytestMapPreparer(repo);
+        var workDir = Path.Combine(Path.GetTempPath(), "frog-pg-new-" + Guid.NewGuid().ToString("N"));
+        var prepared = await preparer.PrepareAsync(
+            workspace,
+            new PlaytestPrepareRequest
+            {
+                CorrelationId = Guid.NewGuid(),
+                Port = 0,
+                SpawnTileX = 1,
+                SpawnTileY = 1,
+                WorkDirectory = workDir,
+                RequireDurablePersistence = true,
+                PublishCurrentBeforeLaunch = true,
+            });
+
+        var success = Assert.IsType<PlaytestPreparationResult.Success>(prepared);
+        Assert.NotNull(workspace.CurrentMapId);
+        Assert.Equal(workspace.CurrentMapId, success.Plan.PrimaryCanonicalMapId);
+        Assert.True(success.Plan.PrimaryPublishedRevision > 0);
+        Assert.Equal("BrandNewPgPlaytest", success.Plan.Maps[0].Map.Name);
+
+        var published = await repo.LoadPublishedByIdAndRevisionAsync(
+            success.Plan.PrimaryCanonicalMapId,
+            success.Plan.PrimaryPublishedRevision);
+        Assert.NotNull(published);
+        Assert.Equal(MapPublishStatus.Published, published!.Status);
+        Assert.Contains(published.Map.Layers[0].Tiles, t => t.Type == TileType.Block);
+
+        try
+        {
+            if (Directory.Exists(workDir))
+            {
+                Directory.Delete(workDir, recursive: true);
+            }
+        }
+        catch
+        {
+            // best-effort
+        }
     }
 
     private static Map CreateBlockedPlaytestMap(string name)
