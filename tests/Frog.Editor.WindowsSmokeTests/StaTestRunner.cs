@@ -1,7 +1,5 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Threading;
 
 namespace Frog.Editor.WindowsSmokeTests;
 
@@ -15,6 +13,7 @@ internal static class StaTestRunner
         {
             try
             {
+                Frog.Editor.EditorSmokeTestAccess.EnsureWinFormsInitialized();
                 testBody();
             }
             catch (Exception ex)
@@ -40,32 +39,14 @@ internal static class StaTestRunner
         }
     }
 
-    public static Task RunAsync(Func<Task> testBody)
-    {
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        Run(() =>
-        {
-            try
-            {
-                testBody().GetAwaiter().GetResult();
-                tcs.TrySetResult();
-            }
-            catch (Exception ex)
-            {
-                tcs.TrySetException(ex);
-            }
-        });
-        return tcs.Task;
-    }
-
     /// <summary>Pompe le dispatcher WPF courant jusqu’à ce que <paramref name="predicate"/> soit vrai ou timeout.</summary>
     public static void PumpUntil(Func<bool> predicate, TimeSpan timeout)
     {
-        var dispatcher = Dispatcher.CurrentDispatcher;
+        var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         var deadline = DateTime.UtcNow + timeout;
         while (!predicate() && DateTime.UtcNow < deadline)
         {
-            dispatcher.Invoke(DispatcherPriority.Background, static () => { });
+            dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, static () => { });
             Thread.Sleep(15);
         }
 

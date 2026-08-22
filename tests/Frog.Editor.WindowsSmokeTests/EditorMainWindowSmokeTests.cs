@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using Frog.Editor;
@@ -18,11 +17,11 @@ public sealed class EditorMainWindowSmokeTests
     private static void RunSmoke()
     {
         EditorSmokeTestAccess.ConfigureInMemoryRepository();
-        EditorSmokeTestAccess.EnsureWinFormsInitialized();
 
-        var app = new App();
-        app.InitializeComponent();
-        app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        if (Application.Current is null)
+        {
+            _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        }
 
         MainWindow? window = null;
         try
@@ -52,9 +51,9 @@ public sealed class EditorMainWindowSmokeTests
                 EditorSmokeTestAccess.CloseMainWindow(window);
             }
 
-            if (System.Windows.Application.Current is not null)
+            if (Application.Current is not null)
             {
-                System.Windows.Application.Current.Shutdown();
+                Application.Current.Shutdown();
             }
         }
     }
