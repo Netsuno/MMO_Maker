@@ -1,6 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Threading;
 using Frog.Application.Maps;
 using Frog.Editor;
@@ -9,6 +10,7 @@ using Xunit;
 
 namespace Frog.Editor.WindowsSmokeTests;
 
+[Collection(UiSmokeCollectionDefinition.Name)]
 public sealed class EditorCloseSmokeTests
 {
     [Fact]
@@ -20,7 +22,7 @@ public sealed class EditorCloseSmokeTests
     [Fact]
     public void MainWindow_DirtyCloseDiscard_ClosesWindow()
     {
-        StaTestRunner.Run(() => RunCloseScenario(EditorPromptChoice.Discard, expectClosed: true, expectDirty: true));
+        StaTestRunner.Run(() => RunCloseScenario(EditorPromptChoice.Discard, expectClosed: true, expectDirty: false));
     }
 
     [Fact]
@@ -46,34 +48,46 @@ public sealed class EditorCloseSmokeTests
 
         if (!saveSucceeds)
         {
-            EditorTestHooks.OverrideMapRepository = new FailingSaveMapRepository();
+            EditorTestHooks.OverrideMapRepository = new SeedThenFailMapRepository();
         }
 
         MainWindow? window = null;
+        var closed = false;
         try
         {
             window = EditorSmokeTestAccess.CreateAndShowMainWindow();
+            window.Closed += (_, _) => closed = true;
+
             StaTestRunner.PumpUntil(
                 () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
                 EditorSmokeTestAccess.DefaultTimeout);
 
-            window.Dispatcher.Invoke(() =>
+            if (window.EditorForm.WorkspaceInitializationTask.IsFaulted)
             {
-                var session = window.EditorForm.GetWorkspaceSessionForTest()!;
-                session.CurrentMap!.Name = "Dirty close test";
-                session.MarkDirty();
-            });
+                throw window.EditorForm.WorkspaceInitializationTask.Exception?.GetBaseException()
+                      ?? new InvalidOperationException("Workspace initialization failed.");
+            }
 
-            window.Dispatcher.Invoke(() => window.Close());
+            var session = window.EditorForm.GetWorkspaceSessionForTest()!;
+            session.CurrentMap!.Name = "Dirty close test";
+            session.MarkDirty();
 
-            var closed = false;
-            StaTestRunner.PumpUntil(
-                () =>
-                {
-                    window.Dispatcher.Invoke(() => closed = !window.IsVisible);
-                    return closed == expectClosed;
-                },
-                EditorSmokeTestAccess.DefaultTimeout);
+            window.Close();
+
+            // Leave Closing cancel + ApplicationIdle prompt finish.
+            window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, static () => { });
+            window.Dispatcher.Invoke(DispatcherPriority.Background, static () => { });
+
+            if (expectClosed)
+            {
+                StaTestRunner.PumpUntil(() => closed, EditorSmokeTestAccess.DefaultTimeout);
+            }
+            else
+            {
+                StaTestRunner.PumpUntil(
+                    () => window.IsVisible && !window.EditorForm.IsSaveInProgressForTest(),
+                    EditorSmokeTestAccess.DefaultTimeout);
+            }
 
             if (closed != expectClosed)
             {
@@ -82,7 +96,7 @@ public sealed class EditorCloseSmokeTests
 
             if (!closed)
             {
-                var dirty = window.Dispatcher.Invoke(() => window.EditorForm.HasUnsavedChangesForTest());
+                var dirty = window.EditorForm.HasUnsavedChangesForTest();
                 if (dirty != expectDirty)
                 {
                     throw new InvalidOperationException($"Expected dirty={expectDirty}, got {dirty}.");
@@ -91,18 +105,13 @@ public sealed class EditorCloseSmokeTests
         }
         finally
         {
-            if (window is not null)
+            if (window is not null && !closed)
             {
-                EditorSmokeTestAccess.CloseMainWindow(window);
+                EditorSmokeTestAccess.ForceCloseMainWindow(window);
+                StaTestRunner.PumpUntil(() => closed || !window.IsVisible, TimeSpan.FromSeconds(5));
             }
 
-            if (System.Windows.Application.Current is not null)
-            {
-                System.Windows.Application.Current.Shutdown();
-            }
-
-            EditorTestHooks.OverrideDialogService = null;
-            EditorTestHooks.OverrideMapRepository = null;
+            EditorSmokeTestAccess.ResetHooks();
         }
     }
 
@@ -129,14 +138,23 @@ public sealed class EditorCloseSmokeTests
         }
     }
 
-    private sealed class FailingSaveMapRepository : IMapRepository
+    /// <summary>Autorise le seed initial, échoue les sauvegardes suivantes.</summary>
+    private sealed class SeedThenFailMapRepository : IMapRepository
     {
         private readonly InMemoryMapRepository _inner = new(MapRepositoryCapabilities.InMemoryTest);
+        private int _saveCount;
 
         public MapRepositoryCapabilities Capabilities => _inner.Capabilities;
 
         public Task<SaveMapResult> SaveAsync(SaveMapRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult<SaveMapResult>(new SaveMapResult.PersistenceFailed("injecté"));
+        {
+            if (Interlocked.Increment(ref _saveCount) == 1)
+            {
+                return _inner.SaveAsync(request, cancellationToken);
+            }
+
+            return Task.FromResult<SaveMapResult>(new SaveMapResult.PersistenceFailed("injecté"));
+        }
 
         public Task<StoredMap?> LoadByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
             => _inner.LoadByIdAsync(mapId, cancellationToken);
@@ -147,7 +165,9 @@ public sealed class EditorCloseSmokeTests
         public Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
             => _inner.ListSummariesAsync(cancellationToken);
 
-        public Task<IReadOnlyList<MapPublicationRecord>> ListPublicationHistoryAsync(Guid mapId, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<MapPublicationRecord>> ListPublicationHistoryAsync(
+            Guid mapId,
+            CancellationToken cancellationToken = default)
             => _inner.ListPublicationHistoryAsync(mapId, cancellationToken);
     }
 }

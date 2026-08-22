@@ -1231,41 +1231,57 @@ public sealed class MapCanvas : Control
         MapEditOperations.FloodFill(Map, ActiveLayerIndex, sx, sy, CreateBrushTile(sx, sy, SelectedSrc.X, SelectedSrc.Y));
     }
 
-    internal void ApplyEditForTest(Action<MapCanvas> edit)
+    internal bool TryPaintTileForTest(int x, int y)
     {
-        ArgumentNullException.ThrowIfNull(edit);
-        BeginEditTransaction();
-        edit(this);
-        Invalidate();
-    }
+        if (Map is null || !IsActiveLayerEditable())
+        {
+            return false;
+        }
 
-    internal void PaintTileForTest(int x, int y) => ApplyBrush(x, y);
+        if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
+        {
+            return false;
+        }
+
+        BeginEditTransaction();
+        ApplyBrush(x, y);
+        Invalidate();
+        return Map.Layers[ActiveLayerIndex].Tiles.Any(t => t.X == x && t.Y == y);
+    }
 
     internal void SetBlockTileForTest(int x, int y)
     {
+        if (Map is null || !IsActiveLayerEditable())
+        {
+            return;
+        }
+
         BeginEditTransaction();
-        MapEditOperations.SetBlockTile(Map!, ActiveLayerIndex, x, y);
+        MapEditOperations.SetBlockTile(Map, ActiveLayerIndex, x, y);
         Invalidate();
     }
 
     internal void SetWarpTileForTest(int x, int y, Guid targetMapId, int targetX, int targetY)
     {
+        if (Map is null || !IsActiveLayerEditable())
+        {
+            return;
+        }
+
         BeginEditTransaction();
-        MapEditOperations.SetWarpDestination(Map!, ActiveLayerIndex, x, y, targetMapId, targetX, targetY);
+        MapEditOperations.SetWarpDestination(Map, ActiveLayerIndex, x, y, targetMapId, targetX, targetY);
         Invalidate();
     }
 
     internal void SetLayerVisibilityForTest(int layerIndex, bool visible)
     {
-        BeginEditTransaction();
-        MapEditOperations.SetLayerVisibility(Map!, layerIndex, visible);
-        Invalidate();
-    }
+        if (Map is null || layerIndex < 0 || layerIndex >= Map.Layers.Count)
+        {
+            return;
+        }
 
-    internal void SetLayerLockedForTest(int layerIndex, bool locked)
-    {
         BeginEditTransaction();
-        MapEditOperations.SetLayerLocked(Map!, layerIndex, locked);
+        MapEditOperations.SetLayerVisibility(Map, layerIndex, visible);
         Invalidate();
     }
 

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Forms;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Frog.Editor.Config;
 using Frog.Editor.Forms;
 using Frog.Editor.Services;
@@ -159,10 +160,18 @@ public partial class MainWindow : Window
     }
 
     private bool _closingAfterConfirm;
+    private bool _allowCloseWithoutPrompt;
+    private bool _closePromptInFlight;
+
+    internal void AllowCloseWithoutPromptForTest()
+    {
+        _allowCloseWithoutPrompt = true;
+        _closingAfterConfirm = true;
+    }
 
     private void OnMainWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (_closingAfterConfirm)
+        if (_closingAfterConfirm || _allowCloseWithoutPrompt)
         {
             return;
         }
@@ -173,7 +182,13 @@ public partial class MainWindow : Window
         }
 
         e.Cancel = true;
-        Dispatcher.BeginInvoke(new Action(async () =>
+        if (_closePromptInFlight)
+        {
+            return;
+        }
+
+        _closePromptInFlight = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(async () =>
         {
             try
             {
@@ -191,6 +206,10 @@ public partial class MainWindow : Window
                     "MMO Maker",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
+            }
+            finally
+            {
+                _closePromptInFlight = false;
             }
         }));
     }

@@ -1,11 +1,13 @@
 using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Threading;
 using Frog.Application.Maps;
 using Frog.Core.Enums;
 using Frog.Core.Models;
+using Frog.Editor.Assets;
 using Frog.Editor.Services;
 
 namespace Frog.Editor;
@@ -17,12 +19,20 @@ internal static class EditorSmokeTestAccess
 
     private static bool _wpfThemeLoaded;
 
+    public static void ResetHooks()
+    {
+        EditorTestHooks.OverrideMapRepository = null;
+        EditorTestHooks.OverrideDialogService = null;
+        EditorTestHooks.SkipMariaDbOnStartup = true;
+        TilesetCache.Clear();
+        Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");
+    }
+
     public static void ConfigureInMemoryRepository()
     {
+        ResetHooks();
         EditorTestHooks.OverrideMapRepository = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
-        EditorTestHooks.SkipMariaDbOnStartup = true;
-        Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");
     }
 
     public static void EnsureWinFormsInitialized()
@@ -38,6 +48,7 @@ internal static class EditorSmokeTestAccess
         if (System.Windows.Application.Current is null)
         {
             _ = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            _wpfThemeLoaded = false;
         }
 
         if (_wpfThemeLoaded)
@@ -62,6 +73,30 @@ internal static class EditorSmokeTestAccess
         window.Show();
         window.UpdateLayout();
         return window;
+    }
+
+    /// <summary>Enregistre un tileset 64×64 via le chemin de production <see cref="TilesetCache.LoadFromFile"/>.</summary>
+    public static int RegisterMinimalTileset()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"frog-smoke-tileset-{Guid.NewGuid():N}.png");
+        using (var bmp = new Bitmap(64, 64))
+        {
+            using var g = Graphics.FromImage(bmp);
+            g.Clear(Color.ForestGreen);
+            bmp.Save(path, ImageFormat.Png);
+        }
+
+        var id = TilesetCache.LoadFromFile(path);
+        try
+        {
+            File.Delete(path);
+        }
+        catch
+        {
+            // best-effort cleanup
+        }
+
+        return id;
     }
 
     public static void AssertShellReady(MainWindow window)
@@ -122,9 +157,26 @@ internal static class EditorSmokeTestAccess
         }
     }
 
-    public static void CloseMainWindow(MainWindow window)
+    public static void ForceCloseMainWindow(MainWindow window)
     {
-        window.Dispatcher.Invoke(() => window.Close());
+        if (!window.Dispatcher.CheckAccess())
+        {
+            window.Dispatcher.Invoke(() => ForceCloseMainWindow(window));
+            return;
+        }
+
+        try
+        {
+            window.AllowCloseWithoutPromptForTest();
+            if (window.IsVisible || window.IsLoaded)
+            {
+                window.Close();
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Dispatcher may already be shutting down for this window.
+        }
     }
 
     public static void AssertSaveSuccess(SaveMapResult result, long previousRevision)

@@ -1,28 +1,28 @@
 using System;
-using System.Threading.Tasks;
-using System.Windows.Threading;
-using Frog.Application.Maps;
 using Frog.Editor;
 using Xunit;
 
 namespace Frog.Editor.WindowsSmokeTests;
 
+[Collection(UiSmokeCollectionDefinition.Name)]
 public sealed class EditorMainWindowSmokeTests
 {
     [Fact]
     public void MainWindow_OpensAndSavesDemoMap_WithInMemoryRepository()
     {
-        StaTestRunner.Run(() => RunSmoke(includeSave: true));
+        StaTestRunner.Run(() => RunSmoke());
     }
 
-    private static void RunSmoke(bool includeSave)
+    private static void RunSmoke()
     {
         EditorSmokeTestAccess.ConfigureInMemoryRepository();
 
         MainWindow? window = null;
+        var closed = false;
         try
         {
             window = EditorSmokeTestAccess.CreateAndShowMainWindow();
+            window.Closed += (_, _) => closed = true;
 
             StaTestRunner.PumpUntil(
                 () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
@@ -36,55 +36,41 @@ public sealed class EditorMainWindowSmokeTests
 
             EditorSmokeTestAccess.AssertShellReady(window);
 
-            if (includeSave)
+            var session = window.EditorForm.GetWorkspaceSessionForTest()!;
+            session.CurrentMap!.Name = "Smoke saved";
+            session.MarkDirty();
+            window.EditorForm.SaveMap();
+
+            StaTestRunner.PumpUntil(
+                () => window.EditorForm.PendingSaveOperationForTest?.IsCompleted == true
+                      || (!window.EditorForm.IsSaveInProgressForTest() && !session.IsDirty),
+                EditorSmokeTestAccess.DefaultTimeout);
+
+            if (window.EditorForm.PendingSaveOperationForTest?.IsFaulted == true)
             {
-                window.Dispatcher.Invoke(() =>
-                {
-                    var session = window.EditorForm.GetWorkspaceSessionForTest()!;
-                    session.CurrentMap!.Name = "Smoke saved";
-                    session.MarkDirty();
-                    window.EditorForm.SaveMap();
-                });
-
-                StaTestRunner.PumpUntil(
-                    () => window.EditorForm.PendingSaveOperationForTest?.IsCompleted == true
-                          || (!window.EditorForm.IsSaveInProgressForTest()
-                              && window.EditorForm.GetWorkspaceSessionForTest()?.IsDirty == false),
-                    EditorSmokeTestAccess.DefaultTimeout);
-
-                if (window.EditorForm.PendingSaveOperationForTest?.IsFaulted == true)
-                {
-                    throw window.EditorForm.PendingSaveOperationForTest.Exception?.GetBaseException()
-                          ?? new InvalidOperationException("Save failed.");
-                }
-
-                var session = window.EditorForm.GetWorkspaceSessionForTest()!;
-                if (session.IsDirty)
-                {
-                    throw new InvalidOperationException("Session should be clean after save.");
-                }
-
-                if (!string.Equals(session.CurrentMap!.Name, "Smoke saved", StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException("Saved map name was not persisted in session.");
-                }
+                throw window.EditorForm.PendingSaveOperationForTest.Exception?.GetBaseException()
+                      ?? new InvalidOperationException("Save failed.");
             }
 
-            var dispatcherDone = false;
-            window.Dispatcher.InvokeAsync(() => dispatcherDone = true, DispatcherPriority.Normal);
-            StaTestRunner.PumpUntil(() => dispatcherDone, TimeSpan.FromSeconds(5));
+            if (session.IsDirty)
+            {
+                throw new InvalidOperationException("Session should be clean after save.");
+            }
+
+            if (!string.Equals(session.CurrentMap!.Name, "Smoke saved", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Saved map name was not persisted in session.");
+            }
         }
         finally
         {
-            if (window is not null)
+            if (window is not null && !closed)
             {
-                EditorSmokeTestAccess.CloseMainWindow(window);
+                EditorSmokeTestAccess.ForceCloseMainWindow(window);
+                StaTestRunner.PumpUntil(() => closed || !window.IsVisible, TimeSpan.FromSeconds(5));
             }
 
-            if (System.Windows.Application.Current is not null)
-            {
-                System.Windows.Application.Current.Shutdown();
-            }
+            EditorSmokeTestAccess.ResetHooks();
         }
     }
 }
