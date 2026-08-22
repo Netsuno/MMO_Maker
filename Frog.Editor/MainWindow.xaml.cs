@@ -55,6 +55,17 @@ public partial class MainWindow : Window
         nameof(CmdLaunchFrogClient),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdPlaytest = new(
+        "Playtest (publier + serveur + client)…",
+        nameof(CmdPlaytest),
+        typeof(MainWindow),
+        new InputGestureCollection { new KeyGesture(Key.F5, ModifierKeys.Control) });
+
+    public static readonly RoutedUICommand CmdStopPlaytest = new(
+        "Arrêter le playtest",
+        nameof(CmdStopPlaytest),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdQuit = new("_Quitter", nameof(CmdQuit), typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdUndo = new(
@@ -141,6 +152,9 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdPublishMapToMariaDb, (_, _) => _editor.PublishMapToMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdEditWarp, (_, _) => _editor.EditSelectedWarpDestination()));
         CommandBindings.Add(new CommandBinding(CmdLaunchFrogClient, (_, _) => _editor.LaunchFrogGameClient()));
+        CommandBindings.Add(new CommandBinding(CmdPlaytest, async (_, _) => await _editor.StartPlaytestAsync()));
+        CommandBindings.Add(new CommandBinding(CmdStopPlaytest, async (_, _) => await _editor.StopPlaytestAsync(),
+            (_, e) => e.CanExecute = _editor.IsPlaytestActiveForTest()));
         CommandBindings.Add(new CommandBinding(CmdQuit, (_, _) => System.Windows.Application.Current.Shutdown()));
         CommandBindings.Add(new CommandBinding(CmdUndo, (_, _) => _editor.DoUndo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanUndo));
         CommandBindings.Add(new CommandBinding(CmdRedo, (_, _) => _editor.DoRedo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanRedo));

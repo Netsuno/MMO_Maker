@@ -162,6 +162,12 @@ public sealed class EditorCloseSmokeTests
         public Task<StoredMap?> LoadPublishedByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
             => _inner.LoadPublishedByIdAsync(mapId, cancellationToken);
 
+        public Task<StoredMap?> LoadPublishedByIdAndRevisionAsync(
+            Guid mapId,
+            long publishedRevision,
+            CancellationToken cancellationToken = default)
+            => _inner.LoadPublishedByIdAndRevisionAsync(mapId, publishedRevision, cancellationToken);
+
         public Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
             => _inner.ListSummariesAsync(cancellationToken);
 

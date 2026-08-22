@@ -2,11 +2,10 @@
 
 - Dernière mise à jour : 2026-08-22
 - Branche : `cursor/phase0-baseline-audit-02c7`
-- Head : `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - **Phase 4 : ACCEPTED**
   - Commit accepté : `22d19b4570eaf552e5ce162243a83020ce86e2eb`
   - CI acceptée : https://github.com/Netsuno/MMO_Maker/actions/runs/32585827562
-- **Phase 5 : IN PROGRESS** — Client/server playtest
+- **Phase 5 : GATE REACHED — WAITING FOR REVIEW** — Client/server playtest
 - Phase 6 : non commencée
 
 ## Vérifié Phase 4 (immuable)
@@ -17,9 +16,15 @@
 | Frog.Persistence.IntegrationTests | 16 | 0 | 16 |
 | Frog.Editor.WindowsSmokeTests | 7×3 | 0 | 7×3 |
 
-## En cours (Phase 5)
+## Phase 5 (local pré-CI)
 
-Playtest d’une carte explicitement publiée PostgreSQL : validate → save/publish → serveur local → client → mouvement / collision / warp autoritatifs → cleanup processus.
+| Suite | Passed | Failed | Total |
+| --- | ---: | ---: | ---: |
+| Frog.Tests | 145 | 0 | 145 |
+| Frog.Persistence.IntegrationTests | 17 | 0 | 17 |
+| Frog.Editor.WindowsSmokeTests | CI (9×3 attendu) | — | — |
+
+Preuves : `docs/progress/phase-05-playtest/`
 
 ## Différé
 

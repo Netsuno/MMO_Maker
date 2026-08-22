@@ -68,6 +68,11 @@ public interface IMapRepository
     Task<SaveMapResult> SaveAsync(SaveMapRequest request, CancellationToken cancellationToken = default);
     Task<StoredMap?> LoadByIdAsync(Guid mapId, CancellationToken cancellationToken = default);
     Task<StoredMap?> LoadPublishedByIdAsync(Guid mapId, CancellationToken cancellationToken = default);
+    /// <summary>Charge un snapshot publié exact (jamais le brouillon). Null si révision absente.</summary>
+    Task<StoredMap?> LoadPublishedByIdAndRevisionAsync(
+        Guid mapId,
+        long publishedRevision,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MapPublicationRecord>> ListPublicationHistoryAsync(Guid mapId, CancellationToken cancellationToken = default);
 }

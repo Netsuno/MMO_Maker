@@ -14,7 +14,9 @@ using Frog.Server.Database;
 using Frog.Server.Logging;
 using Frog.Server.Persistence;
 using Frog.Server.Services;
+using Frog.Server.Config;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Frog.Server.Network;
 
@@ -31,6 +33,7 @@ public sealed class PacketDispatcher(
     ICharacterPayloadWriter characterPayloadWriter,
     IPlayerStateStore playerStateStore,
     IMapEventStore mapEventStore,
+    IOptions<PlaytestRuntimeOptions> playtestOptions,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -45,6 +48,7 @@ public sealed class PacketDispatcher(
     private readonly ICharacterPayloadWriter _characterPayloadWriter = characterPayloadWriter;
     private readonly IPlayerStateStore _playerStateStore = playerStateStore;
     private readonly IMapEventStore _mapEventStore = mapEventStore;
+    private readonly PlaytestRuntimeOptions _playtest = playtestOptions.Value;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
@@ -55,12 +59,23 @@ public sealed class PacketDispatcher(
         }
     }
 
-    private static Dictionary<string, object?> BuildLogScope(ClientSession clientSession) => new()
+    private Dictionary<string, object?> BuildLogScope(ClientSession clientSession)
     {
-        ["ConnectionId"] = clientSession.ConnectionId,
-        ["RemoteEndPoint"] = clientSession.RemoteEndPoint,
-        ["Username"] = clientSession.Username ?? string.Empty
-    };
+        var scope = new Dictionary<string, object?>
+        {
+            ["ConnectionId"] = clientSession.ConnectionId,
+            ["RemoteEndPoint"] = clientSession.RemoteEndPoint,
+            ["Username"] = clientSession.Username ?? string.Empty
+        };
+        if (_playtest.Enabled)
+        {
+            scope["PlaytestCorrelationId"] = _playtest.CorrelationId;
+            scope["PlaytestMapId"] = _playtest.PrimaryCanonicalMapId;
+            scope["PlaytestPublishedRevision"] = _playtest.PrimaryPublishedRevision;
+        }
+
+        return scope;
+    }
 
     private async Task DispatchCoreAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
     {
@@ -178,25 +193,45 @@ public sealed class PacketDispatcher(
         PlayerWorldState world = default;
         var persistOk = !string.IsNullOrWhiteSpace(session.CharacterId) &&
             _playerStateStore.TryGetForCharacter(session.CharacterId, out world);
-        session.CurrentMapId = persistOk ? world.MapId : MapService.DefaultWorldMapId;
 
-        var usePersistedPose = persistOk;
-
-        if (!_mapService.TryEnsureMapLoaded(session.CurrentMapId))
+        if (_playtest.Enabled)
         {
-            session.CurrentMapId = MapService.DefaultWorldMapId;
+            // Playtest : spawn configurable sur la carte publiée ; ignorer la pose persistée.
+            session.CurrentMapId = _playtest.SpawnRuntimeMapId > 0
+                ? _playtest.SpawnRuntimeMapId
+                : MapService.DefaultWorldMapId;
             _mapService.TryEnsureMapLoaded(session.CurrentMapId);
-            usePersistedPose = false;
-        }
-
-        if (usePersistedPose)
-        {
-            session.PixelX = world.X;
-            session.PixelY = world.Y;
+            SessionPixelSync.SetTileCenter(session, _playtest.SpawnTileX, _playtest.SpawnTileY);
+            _logger.LogInformation(
+                "Playtest spawn correlation={CorrelationId} mapRuntime={MapId} tile=({X},{Y}) publishedRev={Revision}",
+                _playtest.CorrelationId,
+                session.CurrentMapId,
+                _playtest.SpawnTileX,
+                _playtest.SpawnTileY,
+                _playtest.PrimaryPublishedRevision);
         }
         else
         {
-            SessionPixelSync.SetTileCenter(session, 0, 0);
+            session.CurrentMapId = persistOk ? world.MapId : MapService.DefaultWorldMapId;
+
+            var usePersistedPose = persistOk;
+
+            if (!_mapService.TryEnsureMapLoaded(session.CurrentMapId))
+            {
+                session.CurrentMapId = MapService.DefaultWorldMapId;
+                _mapService.TryEnsureMapLoaded(session.CurrentMapId);
+                usePersistedPose = false;
+            }
+
+            if (usePersistedPose)
+            {
+                session.PixelX = world.X;
+                session.PixelY = world.Y;
+            }
+            else
+            {
+                SessionPixelSync.SetTileCenter(session, 0, 0);
+            }
         }
 
         ClampSessionPixelsAndSyncTiles(session);

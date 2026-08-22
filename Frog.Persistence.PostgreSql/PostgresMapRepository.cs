@@ -286,6 +286,26 @@ public sealed class PostgresMapRepository : IMapRepository
         return snapshot is null ? null : MapPersistenceMapper.ToStoredFromSnapshot(snapshot, draft.PublishedRevision);
     }
 
+    public async Task<StoredMap?> LoadPublishedByIdAndRevisionAsync(
+        Guid mapId,
+        long publishedRevision,
+        CancellationToken cancellationToken = default)
+    {
+        if (mapId == Guid.Empty || publishedRevision <= 0)
+        {
+            return null;
+        }
+
+        var snapshot = await _db.MapPublishedSnapshots
+            .AsNoTracking()
+            .Include(s => s.Cells)
+            .Include(s => s.Warps)
+            .SingleOrDefaultAsync(s => s.MapId == mapId && s.Revision == publishedRevision, cancellationToken)
+            .ConfigureAwait(false);
+
+        return snapshot is null ? null : MapPersistenceMapper.ToStoredFromSnapshot(snapshot, publishedRevision);
+    }
+
     public async Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
     {
         return await _db.Maps

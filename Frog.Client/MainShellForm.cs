@@ -128,8 +128,16 @@ public sealed class MainShellForm : Form
     /// <summary>Fréquence d’envoi position au serveur (aligné prédiction locale ~52 ms).</summary>
     private const int MoveNetworkPulseMs = 52;
 
+    private readonly ClientPlaytestOptions? _playtestOptions;
+
     public MainShellForm()
+        : this(null)
     {
+    }
+
+    internal MainShellForm(ClientPlaytestOptions? playtestOptions)
+    {
+        _playtestOptions = playtestOptions;
         AutoScaleMode = AutoScaleMode.Font;
         Text = "FRoG — Frog Isle";
         ClientSize = new Size(1040, 720);
@@ -138,6 +146,15 @@ public sealed class MainShellForm : Form
         KeyPreview = true;
         DoubleBuffered = true;
         BuildLayout();
+        if (_playtestOptions is { IsPlaytest: true })
+        {
+            _txtHost.Text = _playtestOptions.Host;
+            _numPort.Value = Math.Clamp(_playtestOptions.Port, 1, 65535);
+            Text = string.IsNullOrWhiteSpace(_playtestOptions.CorrelationId)
+                ? "FRoG — Playtest"
+                : $"FRoG — Playtest [{_playtestOptions.CorrelationId}]";
+        }
+
         EnableDoubleBuffer(_mapScroll);
         EnableDoubleBuffer(_picMap);
         _smoothTimer.Tick += SmoothTimer_OnTick;
@@ -231,6 +248,11 @@ public sealed class MainShellForm : Form
         var ctx = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _client = new FrogGameClient(ctx);
         WireClient();
+        if (_playtestOptions is { IsPlaytest: true })
+        {
+            AppendLog(
+                $"[playtest] host={_playtestOptions.Host} port={_playtestOptions.Port} correlation={_playtestOptions.CorrelationId ?? "-"}");
+        }
     }
 
     private async Task MainShell_FormClosingAsync()

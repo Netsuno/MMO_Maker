@@ -13,6 +13,9 @@ public static class EditorLocalWorkstate
         /// <summary>Chemin absolu vers <c>Frog.Client.exe</c> si la détection automatique a échoué une première fois.</summary>
         public string? ClientExePath { get; set; }
 
+        /// <summary>Chemin absolu vers <c>Frog.Server.exe</c> ou <c>Frog.Server.dll</c>.</summary>
+        public string? ServerExePath { get; set; }
+
         /// <summary>Largeur colonne gauche WPF (GridLength Absolute en DIPs), 0 = défaut.</summary>
         public double ShellLeftColumnWidth { get; set; }
 
@@ -100,6 +103,31 @@ public static class EditorLocalWorkstate
 
         var dto = LoadOrDefault();
         dto.ClientExePath = Path.GetFullPath(absolutePath);
+        Save(dto);
+    }
+
+    public static bool TryReadServerExePath(out string fullPath)
+    {
+        fullPath = string.Empty;
+        var p = LoadOrDefault().ServerExePath?.Trim();
+        if (string.IsNullOrEmpty(p) || !File.Exists(p))
+        {
+            return false;
+        }
+
+        fullPath = p;
+        return true;
+    }
+
+    public static void WriteServerExePath(string absolutePath)
+    {
+        if (string.IsNullOrWhiteSpace(absolutePath))
+        {
+            return;
+        }
+
+        var dto = LoadOrDefault();
+        dto.ServerExePath = Path.GetFullPath(absolutePath);
         Save(dto);
     }
 

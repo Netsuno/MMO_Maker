@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using System.Windows.Interop;
 using Frog.Application.Maps;
+using Frog.Application.Playtest;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
@@ -57,6 +58,7 @@ public sealed class MainForm : Form
     private readonly Label _lblMapWorkspaceTitle;
     private System.Windows.Window? _wpfOwnerWindow;
     private MapWorkspaceSession? _workspace;
+    private IMapRepository? _mapRepository;
     private bool _catalogOpenInProgress;
     private bool _suppressDirtyTracking;
     private readonly IEditorDialogService _dialogService;
@@ -67,6 +69,12 @@ public sealed class MainForm : Form
     private Task? _pendingSaveOperation;
     private ToolStripMenuItem? _mnuSave;
     private ToolStripMenuItem? _mnuPublish;
+    private ToolStripMenuItem? _mnuPlaytest;
+    private ToolStripMenuItem? _mnuStopPlaytest;
+    private EditorPlaytestProcessLauncher? _playtestLauncher;
+    private PlaytestOrchestrator? _playtestOrchestrator;
+    private CancellationTokenSource? _playtestCts;
+    private bool _playtestBusy;
 
     /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
     internal Control LeftShellForWpf => _leftColumnPanel;
@@ -208,7 +216,19 @@ public sealed class MainForm : Form
             };
         }
 
-        FormClosed += (_, _) => TilesetCache.Clear();
+        FormClosed += async (_, _) =>
+        {
+            try
+            {
+                await StopPlaytestAsync().ConfigureAwait(true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+
+            TilesetCache.Clear();
+        };
 
         if (!embedAsWpfChild)
         {
@@ -240,6 +260,16 @@ public sealed class MainForm : Form
             mFile.DropDownItems.Add(new ToolStripMenuItem("Exporter fichier .fmap…", null, (_, _) => ExportMapToFile()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB… (héritage)", null, (_, _) => PublishMapToMariaDb()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Lancer le client Frog…", null, (_, _) => LaunchFrogGameClient()));
+            _mnuPlaytest = new ToolStripMenuItem("Playtest (publier + serveur + client)…", null, async (_, _) => await StartPlaytestAsync())
+            {
+                ShortcutKeys = Keys.F5 | Keys.Control,
+            };
+            _mnuStopPlaytest = new ToolStripMenuItem("Arrêter le playtest", null, async (_, _) => await StopPlaytestAsync())
+            {
+                Enabled = false,
+            };
+            mFile.DropDownItems.Add(_mnuPlaytest);
+            mFile.DropDownItems.Add(_mnuStopPlaytest);
             mFile.DropDownItems.Add(new ToolStripSeparator());
             mFile.DropDownItems.Add("Quitter", null, (_, _) =>
             {
@@ -660,6 +690,7 @@ public sealed class MainForm : Form
     private async System.Threading.Tasks.Task InitializeWorkspaceCoreAsync()
     {
         var bundle = EditorMapRepositoryFactory.CreateBundle();
+        _mapRepository = bundle.Repository;
         _persistenceCapabilities = bundle.Capabilities;
         _workspace = new MapWorkspaceSession(bundle.Repository);
         await _workspace.InitializeAsync().ConfigureAwait(true);
@@ -1426,6 +1457,146 @@ public sealed class MainForm : Form
     internal void LaunchFrogGameClient()
     {
         EditorFrogClientLauncher.Launch(GetDialogOwner());
+    }
+
+    internal bool IsPlaytestActiveForTest()
+        => _playtestOrchestrator?.ActiveSession?.IsActive == true;
+
+    internal string? LastPlaytestErrorForTest { get; private set; }
+
+    internal async Task StartPlaytestAsync()
+    {
+        if (_playtestBusy)
+        {
+            return;
+        }
+
+        if (_workspace is null)
+        {
+            LastPlaytestErrorForTest = "Workspace non initialisé.";
+            _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+            return;
+        }
+
+        _playtestBusy = true;
+        LastPlaytestErrorForTest = null;
+        UpdatePlaytestMenuState();
+        _playtestCts = new CancellationTokenSource();
+        var ct = _playtestCts.Token;
+
+        try
+        {
+            if (!EditorFrogServerLauncher.TryResolveExecutable(out var serverExe, out _))
+            {
+                LastPlaytestErrorForTest = "Frog.Server introuvable. Compilez le serveur (Release/Debug) ou indiquez le chemin.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            if (!EditorFrogClientLauncher.TryResolveExecutable(out var clientExe))
+            {
+                LastPlaytestErrorForTest = "Frog.Client.exe introuvable.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            _playtestLauncher = new EditorPlaytestProcessLauncher();
+            var launcher = EditorTestHooks.OverridePlaytestProcessLauncher
+                           ?? (IPlaytestProcessLauncher)_playtestLauncher;
+            if (_mapRepository is null)
+            {
+                LastPlaytestErrorForTest = "Dépôt carte non initialisé.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            var preparer = new PlaytestMapPreparer(_mapRepository);
+            _playtestOrchestrator = new PlaytestOrchestrator(preparer, launcher);
+
+            var port = EditorFrogServerLauncher.FindFreeTcpPort();
+            var prepare = new PlaytestPrepareRequest
+            {
+                CorrelationId = Guid.NewGuid(),
+                Host = "127.0.0.1",
+                Port = port,
+                SpawnTileX = 1,
+                SpawnTileY = 1,
+                RequireDurablePersistence = !EditorTestHooks.AllowNonDurablePlaytest,
+                PublishCurrentBeforeLaunch = true,
+            };
+
+            var result = await _playtestOrchestrator.StartAsync(_workspace, prepare, serverExe, clientExe, ct)
+                .ConfigureAwait(true);
+
+            if (result is PlaytestPreparationResult.Failed failed)
+            {
+                LastPlaytestErrorForTest = failed.Error;
+                _dialogService.ShowWarning(
+                    failed.Error + Environment.NewLine + Environment.NewLine + $"(code: {failed.Kind})",
+                    "Playtest");
+                return;
+            }
+
+            if (result is PlaytestPreparationResult.Success success)
+            {
+                var lines = _playtestOrchestrator.ActiveSession?.LogLines;
+                var summary = lines is { Count: > 0 }
+                    ? string.Join(Environment.NewLine, lines)
+                    : $"Playtest démarré — MapId={success.Plan.PrimaryCanonicalMapId} rev={success.Plan.PrimaryPublishedRevision}";
+                _dialogService.ShowInfo(summary, "Playtest");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            LastPlaytestErrorForTest = "Playtest annulé.";
+        }
+        catch (Exception ex)
+        {
+            LastPlaytestErrorForTest = ex.Message;
+            _dialogService.ShowError("Échec playtest : " + ex.Message, "Playtest");
+        }
+        finally
+        {
+            _playtestBusy = false;
+            UpdatePlaytestMenuState();
+            PushEditorStatusLine();
+        }
+    }
+
+    internal async Task StopPlaytestAsync()
+    {
+        try
+        {
+            _playtestCts?.Cancel();
+            if (_playtestOrchestrator is not null)
+            {
+                await _playtestOrchestrator.StopAsync().ConfigureAwait(true);
+            }
+
+            if (_playtestLauncher is not null)
+            {
+                await _playtestLauncher.StopAllOwnedAsync().ConfigureAwait(true);
+            }
+        }
+        finally
+        {
+            UpdatePlaytestMenuState();
+            PushEditorStatusLine();
+        }
+    }
+
+    private void UpdatePlaytestMenuState()
+    {
+        var active = _playtestOrchestrator?.ActiveSession?.IsActive == true;
+        if (_mnuPlaytest is not null)
+        {
+            _mnuPlaytest.Enabled = !_playtestBusy && !active;
+        }
+
+        if (_mnuStopPlaytest is not null)
+        {
+            _mnuStopPlaytest.Enabled = active || _playtestBusy;
+        }
     }
 
     internal void PublishMapToMariaDb()

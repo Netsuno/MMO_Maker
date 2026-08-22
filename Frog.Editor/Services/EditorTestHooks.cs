@@ -1,4 +1,5 @@
 using Frog.Application.Maps;
+using Frog.Application.Playtest;
 
 namespace Frog.Editor.Services;
 
@@ -9,5 +10,10 @@ internal static class EditorTestHooks
 
     public static IEditorDialogService? OverrideDialogService { get; set; }
 
+    public static IPlaytestProcessLauncher? OverridePlaytestProcessLauncher { get; set; }
+
     public static bool SkipMariaDbOnStartup { get; set; }
+
+    /// <summary>Smoke / unit : autorise playtest sur dépôt mémoire test.</summary>
+    public static bool AllowNonDurablePlaytest { get; set; }
 }

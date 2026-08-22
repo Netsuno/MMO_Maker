@@ -23,6 +23,8 @@ internal static class EditorSmokeTestAccess
     {
         EditorTestHooks.OverrideMapRepository = null;
         EditorTestHooks.OverrideDialogService = null;
+        EditorTestHooks.OverridePlaytestProcessLauncher = null;
+        EditorTestHooks.AllowNonDurablePlaytest = false;
         EditorTestHooks.SkipMariaDbOnStartup = true;
         TilesetCache.Clear();
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");

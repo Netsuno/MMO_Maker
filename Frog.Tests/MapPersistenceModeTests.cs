@@ -132,6 +132,12 @@ public sealed class MapPersistenceModeTests
         public Task<StoredMap?> LoadPublishedByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
             => Task.FromResult<StoredMap?>(null);
 
+        public Task<StoredMap?> LoadPublishedByIdAndRevisionAsync(
+            Guid mapId,
+            long publishedRevision,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<StoredMap?>(null);
+
         public Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<MapCatalogEntry>>(Array.Empty<MapCatalogEntry>());
 

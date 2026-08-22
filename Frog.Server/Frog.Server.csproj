@@ -10,6 +10,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
+        <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -63,6 +63,13 @@ public sealed class InMemoryMapRepository : IMapRepository
             if (request.Intent == SaveMapIntent.Publish)
             {
                 PublishSnapshotLocked(mapId, draft);
+                var publishedDraft = CreateStored(
+                    mapId,
+                    request.Map,
+                    revision,
+                    MapPublishStatus.Published,
+                    revision);
+                _drafts[mapId] = publishedDraft;
                 return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(revision, mapId, revision));
             }
 
@@ -122,6 +129,28 @@ public sealed class InMemoryMapRepository : IMapRepository
             }
 
             if (!_publishedSnapshots.TryGetValue((mapId, pubRev), out var snapshot))
+            {
+                return Task.FromResult<StoredMap?>(null);
+            }
+
+            return Task.FromResult<StoredMap?>(CloneStored(snapshot));
+        }
+    }
+
+    public Task<StoredMap?> LoadPublishedByIdAndRevisionAsync(
+        Guid mapId,
+        long publishedRevision,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (mapId == Guid.Empty || publishedRevision <= 0)
+        {
+            return Task.FromResult<StoredMap?>(null);
+        }
+
+        lock (_gate)
+        {
+            if (!_publishedSnapshots.TryGetValue((mapId, publishedRevision), out var snapshot))
             {
                 return Task.FromResult<StoredMap?>(null);
             }

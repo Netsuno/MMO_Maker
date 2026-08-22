@@ -139,6 +139,17 @@ public sealed class ArchitectureBoundaryTests
     }
 
     [Fact]
+    public void FrogServer_ReferencesApplication_NotPersistence()
+    {
+        var refs = GetProjectReferences("Frog.Server");
+        Assert.Contains("Frog.Core", refs);
+        Assert.Contains("Frog.Application", refs);
+        Assert.DoesNotContain("Frog.Persistence.PostgreSql", refs);
+        Assert.DoesNotContain("Frog.Editor", refs);
+        Assert.DoesNotContain("Frog.Client", refs);
+    }
+
+    [Fact]
     public void FrogEditor_ReferencesApplicationAndNotLegacy()
     {
         var refs = GetProjectReferences("Frog.Editor");

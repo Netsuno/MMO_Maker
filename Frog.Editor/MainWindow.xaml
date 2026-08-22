@@ -56,6 +56,11 @@
                           Command="{x:Static local:MainWindow.CmdPublishMapToMariaDb}" />
                 <MenuItem Header="Lancer le client…"
                           Command="{x:Static local:MainWindow.CmdLaunchFrogClient}" />
+                <MenuItem Header="Playtest (publier + serveur + client)…"
+                          Command="{x:Static local:MainWindow.CmdPlaytest}"
+                          InputGestureText="Ctrl+F5" />
+                <MenuItem Header="Arrêter le playtest"
+                          Command="{x:Static local:MainWindow.CmdStopPlaytest}" />
                 <Separator />
                 <MenuItem Header="_Quitter" Command="{x:Static local:MainWindow.CmdQuit}" />
             </MenuItem>
