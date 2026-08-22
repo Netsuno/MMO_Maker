@@ -4,7 +4,7 @@
 
 - Export `.fmap` reste un chemin secondaire (non PostgreSQL).
 - Publication MariaDB reste héritage / hors scope Phase 4.
-- Undo/redo testé via `MapEditOperations` + session ; pas de replay souris automatisé.
+- Les smokes UI partagent un hôte STA unique (pas de parallélisme volontaire).
 
 ## Hors scope Phase 4
 

@@ -2,18 +2,22 @@
 
 - Dernière mise à jour : 2026-08-22
 - Branche : `cursor/phase0-baseline-audit-02c7`
+- Head : `bad59a48e9546004c216cc809ff987d4c62ac08e`
 - Gate Phase 3 accepté : `20eedc1`
 - Plage revue Phase 4 : `20eedc1..HEAD`
 - **Phase 4 — gate data safety : READY FOR REVIEW**
+- CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32585353371 (exit 0)
 
 ## Vérifié comme fonctionnel (head courant)
 
-- Build Release `Frog.Creator.sln`
-- **129** tests unitaires `Frog.Tests`
-- **16** tests intégration PostgreSQL (`Frog.Persistence.IntegrationTests`) — **100 % vert**
-- **7** smoke Windows (`Frog.Editor.WindowsSmokeTests`) — open/save, fermeture dirty, undo canvas
-- Contrat création : `MapId = null` → id généré ; mise à jour si existant
-- Séparation brouillon/publication, concurrence atomique, prompts dirty
+| Suite | Passed | Failed | Total | Host |
+| --- | ---: | ---: | ---: | --- |
+| Frog.Tests | 129 | 0 | 129 | Windows CI |
+| Frog.Persistence.IntegrationTests | 16 | 0 | 16 | Ubuntu CI + PostgreSQL |
+| Frog.Editor.WindowsSmokeTests | 7 | 0 | 7 | Windows CI ×3 consecutive |
+
+- Hôte de test smoke : terminé normalement (pas de crash, exit 0)
+- Smoke Windows exécuté **3 fois de suite** dans le même job CI (7/7 × 3)
 
 ## Différé (hors chemin critique)
 
