@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Threading;
 using Frog.Application.Maps;
 using Frog.Core.Enums;
@@ -13,6 +14,8 @@ namespace Frog.Editor;
 internal static class EditorSmokeTestAccess
 {
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(45);
+
+    private static bool _wpfThemeLoaded;
 
     public static void ConfigureInMemoryRepository()
     {
@@ -28,8 +31,32 @@ internal static class EditorSmokeTestAccess
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
     }
 
+    /// <summary>Crée Application WPF et fusionne EditorWpfTheme (comme App.xaml) sans StartupUri.</summary>
+    public static void EnsureWpfApplicationInitialized()
+    {
+        if (System.Windows.Application.Current is null)
+        {
+            _ = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        }
+
+        if (_wpfThemeLoaded)
+        {
+            return;
+        }
+
+        var theme = new ResourceDictionary
+        {
+            Source = new Uri(
+                "pack://application:,,,/Frog.Editor;component/Themes/EditorWpfTheme.xaml",
+                UriKind.Absolute),
+        };
+        System.Windows.Application.Current!.Resources.MergedDictionaries.Add(theme);
+        _wpfThemeLoaded = true;
+    }
+
     public static MainWindow CreateAndShowMainWindow()
     {
+        EnsureWpfApplicationInitialized();
         var window = new MainWindow();
         window.Show();
         window.UpdateLayout();
