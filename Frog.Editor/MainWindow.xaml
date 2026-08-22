@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Frog.Editor"
         xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
-        Title="Frog — Éditeur de cartes"
+        Title="MMO Maker — Éditeur"
         Width="1200"
         Height="780"
         MinWidth="1100"
@@ -21,6 +21,7 @@
         <KeyBinding Key="Subtract" Modifiers="Control" Command="{x:Static local:MainWindow.CmdZoomOut}" />
         <KeyBinding Key="OemPlus" Modifiers="Control" Command="{x:Static local:MainWindow.CmdZoomIn}" />
         <KeyBinding Key="OemMinus" Modifiers="Control" Command="{x:Static local:MainWindow.CmdZoomOut}" />
+        <KeyBinding Key="F5" Command="{x:Static local:MainWindow.CmdRefreshCatalog}" />
     </Window.InputBindings>
     <DockPanel>
         <Menu DockPanel.Dock="Top"
@@ -40,16 +41,16 @@
                 <MenuItem Header="Nouvelle carte…"
                           Command="{x:Static local:MainWindow.CmdNewMap}"
                           InputGestureText="Ctrl+N" />
-                <MenuItem Header="Ouvrir…"
+                <MenuItem Header="Ouvrir fichier…"
                           Command="{x:Static local:MainWindow.CmdOpenMap}"
                           InputGestureText="Ctrl+O" />
                 <Separator />
-                <MenuItem Header="Enregistrer"
+                <MenuItem Header="Enregistrer fichier…"
                           Command="{x:Static local:MainWindow.CmdSaveMap}"
                           InputGestureText="Ctrl+S" />
-                <MenuItem Header="Publier vers MariaDB…"
+                <MenuItem Header="Publier vers MariaDB… (héritage)"
                           Command="{x:Static local:MainWindow.CmdPublishMap}" />
-                <MenuItem Header="Lancer le client Frog…"
+                <MenuItem Header="Lancer le client…"
                           Command="{x:Static local:MainWindow.CmdLaunchFrogClient}" />
                 <Separator />
                 <MenuItem Header="_Quitter" Command="{x:Static local:MainWindow.CmdQuit}" />
@@ -67,8 +68,13 @@
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
-                <MenuItem Header="Événements carte (MariaDB)…" Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
-                <MenuItem Header="Actualiser marqueurs événements (MariaDB)"
+                <MenuItem Header="Actualiser le catalogue (PostgreSQL / mémoire)"
+                          Command="{x:Static local:MainWindow.CmdRefreshCatalog}"
+                          InputGestureText="F5" />
+                <Separator />
+                <MenuItem Header="Événements carte (MariaDB, héritage)…"
+                          Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
+                <MenuItem Header="Actualiser marqueurs événements (MariaDB, héritage)"
                           Command="{x:Static local:MainWindow.CmdRefreshMapEventMarkers}" />
             </MenuItem>
             <MenuItem Header="_Affichage" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
@@ -82,25 +88,41 @@
                 <MenuItem Header="Réinitialiser la vue (zoom 100 %)" Command="{x:Static local:MainWindow.CmdResetView}" />
                 <Separator />
                 <MenuItem x:Name="MnuShowEventMarkers"
-                          Header="Marqueurs événements (MariaDB)"
+                          Header="Marqueurs événements (MariaDB, héritage)"
                           IsCheckable="True"
                           IsChecked="True"
                           Click="OnToggleMapEventMarkers" />
             </MenuItem>
         </Menu>
+        <ToolBarTray DockPanel.Dock="Top" Background="#FF2A2E36">
+            <ToolBar Background="#FF2A2E36" Band="0" BandIndex="0" ToolBarTray.IsLocked="True">
+                <Button Content="Nouvelle" Command="{x:Static local:MainWindow.CmdNewMap}" Padding="10,4" />
+                <Button Content="Ouvrir" Command="{x:Static local:MainWindow.CmdOpenMap}" Padding="10,4" />
+                <Button Content="Enregistrer" Command="{x:Static local:MainWindow.CmdSaveMap}" Padding="10,4" />
+                <Separator />
+                <Button Content="Annuler" Command="{x:Static local:MainWindow.CmdUndo}" Padding="10,4" />
+                <Button Content="Rétablir" Command="{x:Static local:MainWindow.CmdRedo}" Padding="10,4" />
+                <Separator />
+                <Button Content="Zoom +" Command="{x:Static local:MainWindow.CmdZoomIn}" Padding="10,4" />
+                <Button Content="Zoom −" Command="{x:Static local:MainWindow.CmdZoomOut}" Padding="10,4" />
+                <Button Content="Vue 100 %" Command="{x:Static local:MainWindow.CmdResetView}" Padding="10,4" />
+                <Separator />
+                <Button Content="Catalogue" Command="{x:Static local:MainWindow.CmdRefreshCatalog}" Padding="10,4" />
+            </ToolBar>
+        </ToolBarTray>
         <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">
             <StatusBarItem>
                 <TextBlock x:Name="TileStatusText" Text="Tuile · x = 0, y = 0    ·    Zoom 100 %" Foreground="#FFEBEEF5" />
             </StatusBarItem>
         </StatusBar>
         <!-- Coque WPF : colonnes et splitters ; îlots WinForms (canevas GDI+, palettes, PropertyGrid). -->
-        <Grid Background="#FF202228">
+        <Grid x:Name="ShellGrid" Background="#FF202228">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.1*" MinWidth="240" />
+                <ColumnDefinition x:Name="ColLeft" Width="1.1*" MinWidth="240" />
                 <ColumnDefinition Width="6" />
                 <ColumnDefinition Width="2.6*" MinWidth="360" />
                 <ColumnDefinition Width="6" />
-                <ColumnDefinition Width="1.2*" MinWidth="260" />
+                <ColumnDefinition x:Name="ColRight" Width="1.2*" MinWidth="260" />
             </Grid.ColumnDefinitions>
             <wfi:WindowsFormsHost x:Name="HostLeft"
                                   Grid.Column="0"
@@ -110,7 +132,8 @@
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Stretch"
                           Background="#FF505666"
-                          ShowsPreview="False" />
+                          ShowsPreview="False"
+                          DragCompleted="OnShellSplitterDragCompleted" />
             <Border Grid.Column="2"
                     Margin="2,4,2,6"
                     BorderBrush="#FF585C68"
@@ -124,7 +147,8 @@
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Stretch"
                           Background="#FF505666"
-                          ShowsPreview="False" />
+                          ShowsPreview="False"
+                          DragCompleted="OnShellSplitterDragCompleted" />
             <wfi:WindowsFormsHost x:Name="HostRight"
                                   Grid.Column="4"
                                   Margin="0,0,0,0" />

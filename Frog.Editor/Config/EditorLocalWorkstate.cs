@@ -12,6 +12,12 @@ public static class EditorLocalWorkstate
 
         /// <summary>Chemin absolu vers <c>Frog.Client.exe</c> si la détection automatique a échoué une première fois.</summary>
         public string? ClientExePath { get; set; }
+
+        /// <summary>Largeur colonne gauche WPF (GridLength Absolute en DIPs), 0 = défaut.</summary>
+        public double ShellLeftColumnWidth { get; set; }
+
+        /// <summary>Largeur colonne droite WPF, 0 = défaut.</summary>
+        public double ShellRightColumnWidth { get; set; }
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -94,6 +100,27 @@ public static class EditorLocalWorkstate
 
         var dto = LoadOrDefault();
         dto.ClientExePath = Path.GetFullPath(absolutePath);
+        Save(dto);
+    }
+
+    public static bool TryReadShellColumnWidths(out double left, out double right)
+    {
+        var dto = LoadOrDefault();
+        left = dto.ShellLeftColumnWidth;
+        right = dto.ShellRightColumnWidth;
+        return left >= 180 && right >= 200;
+    }
+
+    public static void WriteShellColumnWidths(double left, double right)
+    {
+        if (left < 180 || right < 200)
+        {
+            return;
+        }
+
+        var dto = LoadOrDefault();
+        dto.ShellLeftColumnWidth = left;
+        dto.ShellRightColumnWidth = right;
         Save(dto);
     }
 }

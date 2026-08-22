@@ -139,6 +139,16 @@ public sealed class ArchitectureBoundaryTests
     }
 
     [Fact]
+    public void FrogEditor_ReferencesApplicationAndNotLegacy()
+    {
+        var refs = GetProjectReferences("Frog.Editor");
+        Assert.Contains("Frog.Core", refs);
+        Assert.Contains("Frog.Application", refs);
+        Assert.Contains("Frog.Persistence.PostgreSql", refs);
+        Assert.DoesNotContain("Frog.Legacy", refs);
+    }
+
+    [Fact]
     public void EditorUiSurfaces_DoNotConstructMySqlOrDbContext()
     {
         var editorRoot = Path.Combine(RepoRoot, "Frog.Editor");

@@ -1,22 +1,23 @@
 # État du projet — MMO Maker
 
-- Dernière mise à jour : 2026-08-22 04:40 UTC
-- Branche / commit : `cursor/phase0-baseline-audit-02c7` / 3604bd7a5146ab66ddd44e8d28314cbcea41eaaa
-- **Phase 2 — Clarification produit : READY FOR REVIEW**
-- Prochaine phase **non commencée** : Phase 3 — Shell éditeur
-- Rapport : [`docs/progress/phase-02-clarification/REVIEW_REQUEST.md`](progress/phase-02-clarification/REVIEW_REQUEST.md)
+- Dernière mise à jour : 2026-08-22
+- Branche / commit : `cursor/phase0-baseline-audit-02c7` (voir gate Phase 3)
+- **Phase 3 — Shell éditeur : READY FOR REVIEW**
+- Prochaine phase **non commencée** : Phase 4 — Map Editor MVP
+- Rapport : [`docs/progress/phase-03-editor-shell/REVIEW_REQUEST.md`](progress/phase-03-editor-shell/REVIEW_REQUEST.md)
 - Environnement audit : Ubuntu 24.04, .NET 8.0.424, PostgreSQL 16.15
 
 ## Vérifié comme fonctionnel
 
-- Build C# 12 + tests unitaires `Frog.Tests`
-- Intégration PostgreSQL (migrations, santé, round-trip, conflit, rollback, import ops)
-- CI : job Windows unitaires + job Ubuntu PostgreSQL
-- ADR-0002 / 0003 / 0004 ; matrice MariaDB ; backlog sans import `.fcc`
+- Build C# 12 + tests unitaires `Frog.Tests` (109)
+- Intégration PostgreSQL (7) dont `ListSummaries`
+- `MapWorkspaceSession` + catalogue via `IMapRepository`
+- Shell : menu, barre d’outils, arbre monde, canvas, tilesets/couches/propriétés, statut
+- Architecture : Editor → Application/Persistence ; pas de DB dans Forms
 
 ## Implémenté, mais non vérifié
 
-- Éditeur (coque WPF + WinForms) — UI non exécutée sur Linux
+- Smoke UI Windows de l’éditeur (agent Linux) — **gate Phase 3 partiel**
 - Client WinForms ; E2E TCP
 - Runtime MariaDB optionnel (héritage)
 
@@ -26,7 +27,7 @@
 
 ## Bloqueurs
 
-- Smoke UI Windows requis pour Phase 3 gate (environnement Linux insuffisant)
+- Smoke UI Windows requis pour clôturer pleinement le gate Phase 3 (« UI réactive »)
 
 ## Commandes de validation
 
@@ -37,10 +38,6 @@ export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=f
 dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
 ```
 
-## Résultat de la dernière validation
-
-- À renseigner dans `docs/progress/phase-02-clarification/TEST_RESULTS.md`
-
 ## Prochaine phase proposée (non commencée)
 
-- Phase 3 : shell éditeur (arbre / canvas / panneaux / status) inspiré RPG Maker
+- Phase 4 : Map Editor MVP (peinture, collision, warp, undo, save/publish PG)

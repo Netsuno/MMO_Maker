@@ -127,6 +127,33 @@ public sealed class PostgresMapRepositoryTests
         Assert.Equal(((RecordLegacyImportResult.Created)first).Id, again.Id);
     }
 
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task ListSummaries_ReturnsSavedMapsOrderedByLegacyId()
+    {
+        await using var db = CreateDb();
+        var repo = new PostgresMapRepository(db);
+        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            LegacyId = 20,
+            Map = CreateSampleMap("Zeta"),
+            ExpectedRevision = 0,
+        }));
+        Assert.IsType<SaveMapResult.Success>(await repo.SaveAsync(new SaveMapRequest
+        {
+            LegacyId = 5,
+            Map = CreateSampleMap("Alpha"),
+            ExpectedRevision = 0,
+        }));
+
+        await using var db2 = CreateDb();
+        var list = await new PostgresMapRepository(db2).ListSummariesAsync();
+        Assert.Equal(2, list.Count);
+        Assert.Equal(5, list[0].LegacyId);
+        Assert.Equal("Alpha", list[0].Name);
+        Assert.Equal(20, list[1].LegacyId);
+    }
+
     private FrogDbContext CreateDb() =>
         new(FrogDbContextOptions.Create(_fixture.ConnectionString));
 

@@ -1,6 +1,9 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Forms;
 using System.Windows.Input;
+using Frog.Editor.Config;
 using Frog.Editor.Forms;
 
 namespace Frog.Editor;
@@ -26,12 +29,12 @@ public partial class MainWindow : Window
         new InputGestureCollection { new KeyGesture(Key.S, ModifierKeys.Control) });
 
     public static readonly RoutedUICommand CmdPublishMap = new(
-        "Publier vers MariaDB…",
+        "Publier vers MariaDB… (héritage)",
         nameof(CmdPublishMap),
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdLaunchFrogClient = new(
-        "Lancer le client Frog…",
+        "Lancer le client…",
         nameof(CmdLaunchFrogClient),
         typeof(MainWindow));
 
@@ -60,14 +63,20 @@ public partial class MainWindow : Window
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdBrowseMapEvents = new(
-        "Événements carte (MariaDB)…",
+        "Événements carte (MariaDB, héritage)…",
         nameof(CmdBrowseMapEvents),
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdRefreshMapEventMarkers = new(
-        "Actualiser marqueurs événements (MariaDB)",
+        "Actualiser marqueurs événements (MariaDB, héritage)",
         nameof(CmdRefreshMapEventMarkers),
         typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdRefreshCatalog = new(
+        "Actualiser le catalogue",
+        nameof(CmdRefreshCatalog),
+        typeof(MainWindow),
+        new InputGestureCollection { new KeyGesture(Key.F5) });
 
     public static readonly RoutedUICommand CmdResetView = new(
         "Réinitialiser la vue (zoom 100 %)",
@@ -117,23 +126,69 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEventsFromMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkersFromMariaDb()));
+        CommandBindings.Add(new CommandBinding(CmdRefreshCatalog, async (_, _) => await _editor.RefreshMapCatalogAsync()));
         CommandBindings.Add(new CommandBinding(CmdResetView, (_, _) => _editor.ResetMapView()));
         CommandBindings.Add(new CommandBinding(CmdZoomIn, (_, _) => _editor.EditorZoomIn()));
         CommandBindings.Add(new CommandBinding(CmdZoomOut, (_, _) => _editor.EditorZoomOut()));
 
         Loaded += OnMainWindowLoaded;
         SizeChanged += (_, _) => _editor.NotifyWpfShellLayout();
-        Closed += (_, _) => _editor.Close();
+        Closed += OnMainWindowClosed;
     }
 
-    private void OnMainWindowLoaded(object sender, RoutedEventArgs e)
+    private async void OnMainWindowLoaded(object sender, RoutedEventArgs e)
     {
+        RestoreShellColumnWidths();
         CommandManager.InvalidateRequerySuggested();
         _editor.NotifyWpfShellLayout();
+        try
+        {
+            await _editor.InitializeWorkspaceAsync();
+        }
+        catch (System.Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                this,
+                "Échec d’initialisation du catalogue cartes :\n" + ex.Message,
+                "MMO Maker",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
         _editor.RefreshMapEventMarkersFromMariaDb();
         if (MnuShowEventMarkers is not null)
         {
             MnuShowEventMarkers.IsChecked = _editor.MapEventMarkersVisible;
+        }
+    }
+
+    private void OnMainWindowClosed(object? sender, System.EventArgs e)
+    {
+        PersistShellColumnWidths();
+        _editor.Close();
+    }
+
+    private void OnShellSplitterDragCompleted(object sender, DragCompletedEventArgs e) =>
+        PersistShellColumnWidths();
+
+    private void RestoreShellColumnWidths()
+    {
+        if (!EditorLocalWorkstate.TryReadShellColumnWidths(out var left, out var right))
+        {
+            return;
+        }
+
+        ColLeft.Width = new GridLength(left, GridUnitType.Pixel);
+        ColRight.Width = new GridLength(right, GridUnitType.Pixel);
+    }
+
+    private void PersistShellColumnWidths()
+    {
+        var left = ColLeft.ActualWidth;
+        var right = ColRight.ActualWidth;
+        if (left > 0 && right > 0)
+        {
+            EditorLocalWorkstate.WriteShellColumnWidths(left, right);
         }
     }
 

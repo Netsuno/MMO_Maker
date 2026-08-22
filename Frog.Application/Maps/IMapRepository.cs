@@ -32,8 +32,20 @@ public sealed class StoredMap
     public required MapPublishStatus Status { get; init; }
 }
 
+/// <summary>Entrée légère pour l’arbre « monde » de l’éditeur (pas de cellules).</summary>
+public sealed class MapCatalogEntry
+{
+    public required int LegacyId { get; init; }
+    public required string Name { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+    public required long Revision { get; init; }
+    public required MapPublishStatus Status { get; init; }
+}
+
 public interface IMapRepository
 {
     Task<SaveMapResult> SaveAsync(SaveMapRequest request, CancellationToken cancellationToken = default);
     Task<StoredMap?> LoadByLegacyIdAsync(int legacyId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default);
 }

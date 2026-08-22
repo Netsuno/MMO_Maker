@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
+    <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
+    <ProjectReference Include="..\Frog.Persistence.PostgreSql\Frog.Persistence.PostgreSql.csproj" />
   </ItemGroup>
 
   <ItemGroup>

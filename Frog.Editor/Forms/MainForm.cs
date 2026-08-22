@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using System.Windows.Interop;
+using Frog.Application.Maps;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
@@ -55,6 +56,8 @@ public sealed class MainForm : Form
     private readonly Panel _mapHeader;
     private readonly Label _lblMapWorkspaceTitle;
     private System.Windows.Window? _wpfOwnerWindow;
+    private MapWorkspaceSession? _workspace;
+    private bool _catalogOpenInProgress;
 
     /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
     internal Control LeftShellForWpf => _leftColumnPanel;
@@ -88,7 +91,7 @@ public sealed class MainForm : Form
     {
         _embedAsWpfChild = embedAsWpfChild;
         _lastPublishedFrogMapId = EditorLocalWorkstate.ReadLastPublishedFrogMapId();
-        Text = "Frog — Éditeur de cartes";
+        Text = "MMO Maker — Éditeur";
         MinimumSize = new Size(1100, 720);
         if (embedAsWpfChild)
         {
@@ -293,6 +296,7 @@ public sealed class MainForm : Form
         };
 
         _mapsProjectPanel = new MapsProjectPanel();
+        _mapsProjectPanel.CatalogMapOpenRequested += (_, legacyId) => _ = OpenCatalogMapAsync(legacyId);
         _mapsElementHost = new ElementHost
         {
             Dock = DockStyle.Fill,
@@ -488,8 +492,8 @@ public sealed class MainForm : Form
             Controls.Add(_splitLeft!);
         }
 
-        var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
-        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        // Placeholder jusqu’à InitializeWorkspaceAsync (session catalogue + carte démo).
+        var map = DemoMapFactory.CreateStarter();
         _canvas.Map = map;
         _propGrid.SelectedObject = _canvas.Map;
         RefreshLayersUi();
@@ -498,6 +502,74 @@ public sealed class MainForm : Form
         SyncMapsTree();
         UpdateMapChromeLabels();
         PushEditorStatusLine();
+    }
+
+    /// <summary>Initialise le catalogue (PostgreSQL ou mémoire) et ouvre la carte démo.</summary>
+    internal async System.Threading.Tasks.Task InitializeWorkspaceAsync()
+    {
+        _workspace = new MapWorkspaceSession(EditorMapRepositoryFactory.Create());
+        await _workspace.InitializeAsync().ConfigureAwait(true);
+        ApplyWorkspaceMapToUi();
+        PushEditorStatusLine();
+    }
+
+    internal async System.Threading.Tasks.Task RefreshMapCatalogAsync()
+    {
+        if (_workspace is null)
+        {
+            await InitializeWorkspaceAsync().ConfigureAwait(true);
+            return;
+        }
+
+        await _workspace.RefreshCatalogAsync().ConfigureAwait(true);
+        SyncMapsTree();
+        PushEditorStatusLine();
+    }
+
+    private async System.Threading.Tasks.Task OpenCatalogMapAsync(int legacyId)
+    {
+        if (_workspace is null || _catalogOpenInProgress)
+        {
+            return;
+        }
+
+        if (_workspace.CurrentLegacyId == legacyId)
+        {
+            return;
+        }
+
+        _catalogOpenInProgress = true;
+        try
+        {
+            if (!await _workspace.OpenMapAsync(legacyId).ConfigureAwait(true))
+            {
+                MessageBox.Show(GetDialogOwner(), $"Carte {legacyId} introuvable dans le catalogue.", "Monde", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            ApplyWorkspaceMapToUi();
+        }
+        finally
+        {
+            _catalogOpenInProgress = false;
+        }
+    }
+
+    private void ApplyWorkspaceMapToUi()
+    {
+        if (_workspace?.CurrentMap is null)
+        {
+            return;
+        }
+
+        _canvas.ClearHistory();
+        _canvas.Map = _workspace.CurrentMap;
+        _propGrid.SelectedObject = _canvas.Map;
+        RefreshLayersUi();
+        _canvas.Invalidate();
+        UpdateUndoRedoButtons();
+        SyncMapsTree();
+        UpdateMapChromeLabels();
     }
 
     private void OnPaletteStampChanged(Rectangle stampPixels)
@@ -523,7 +595,14 @@ public sealed class MainForm : Form
     private void PushEditorStatusLine()
     {
         var zoomPct = (int)Math.Round(_canvas.Zoom * 100f);
-        var text = $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %    ·    Ctrl+clic droit : événements";
+        var backend = EditorMapRepositoryFactory.DescribeBackend();
+        var rev = _workspace is null
+            ? ""
+            : _workspace.CurrentLegacyId is int id
+                ? $"    ·    carte #{id} r{_workspace.CurrentRevision}"
+                : "    ·    brouillon local";
+        var text =
+            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -538,7 +617,19 @@ public sealed class MainForm : Form
 
     internal void EditorZoomOut() => _canvas.ZoomOutTowardCenter();
 
-    private void SyncMapsTree() => _mapsProjectPanel.RefreshFromMap(_canvas.Map?.Name);
+    private void SyncMapsTree()
+    {
+        if (_workspace is not null)
+        {
+            _mapsProjectPanel.RefreshCatalog(
+                _workspace.Catalog,
+                _workspace.CurrentLegacyId,
+                _workspace.CurrentLegacyId is null ? _workspace.CurrentMap?.Name ?? _canvas.Map?.Name : null);
+            return;
+        }
+
+        _mapsProjectPanel.RefreshFromMap(_canvas.Map?.Name);
+    }
 
     private void UpdateMapChromeLabels()
     {
@@ -842,6 +933,7 @@ public sealed class MainForm : Form
 
         var map = new Map { Width = dlg.MapWidth, Height = dlg.MapHeight, Name = dlg.MapName };
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        _workspace?.AdoptLocalDraft(map);
         _canvas.ClearHistory();
         _canvas.Map = map;
         _propGrid.SelectedObject = map;
@@ -1062,6 +1154,7 @@ public sealed class MainForm : Form
 
         _canvas.ClearHistory();
         _canvas.Map = map;
+        _workspace?.AdoptLocalDraft(map);
         _canvas.ActiveTilesetId = 0;
         if (TilesetCache.ListRegistered().Count > 0)
         {

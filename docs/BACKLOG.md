@@ -10,7 +10,7 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 - Compatibilité protocole VB6
 - Nouvelles fonctionnalités MariaDB
 
-## Phase 2 — Clarification (cette phase)
+## Phase 2 — Clarification
 
 - [x] ADR absence de compatibilité FRoG
 - [x] Docs actives sans import `.fcc` critique
@@ -18,14 +18,15 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 - [x] Matrice MariaDB + ADR WPF
 - [x] PostgreSQL confirmé en CI
 
-## Phase 3 — Shell éditeur (prochaine, non commencée)
+## Phase 3 — Shell éditeur
 
-- Wireframe / responsabilités des panneaux
-- Shell WinForms/WPF existant : arbre, canvas, tilesets, couches, propriétés, status
-- Smoke test Windows
-- Pas d’accès DB dans les formulaires
+- [x] Wireframe / responsabilités (`docs/EDITOR_WORKSPACE.md`)
+- [x] Shell : menu, toolbar, arbre monde, canvas, tilesets, couches, propriétés, status
+- [x] Catalogue cartes via `IMapRepository` / `MapWorkspaceSession`
+- [x] Persistance largeurs colonnes (workstate local)
+- [ ] Smoke test Windows (non exécutable sur agent Linux)
 
-## Phase 4 — Map Editor MVP
+## Phase 4 — Map Editor MVP (prochaine, non commencée)
 
 - Création / peinture / collision / warp / undo
 - Sauvegarde + publication PostgreSQL via `Frog.Application`

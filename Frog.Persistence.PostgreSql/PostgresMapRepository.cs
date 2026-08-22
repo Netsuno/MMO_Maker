@@ -98,4 +98,22 @@ public sealed class PostgresMapRepository : IMapRepository
             Status = entity.Status,
         };
     }
+
+    public async Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _db.Maps
+            .AsNoTracking()
+            .OrderBy(m => m.LegacyId)
+            .Select(m => new MapCatalogEntry
+            {
+                LegacyId = m.LegacyId,
+                Name = m.Name,
+                Width = m.Width,
+                Height = m.Height,
+                Revision = m.Revision,
+                Status = m.Status,
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
 }
