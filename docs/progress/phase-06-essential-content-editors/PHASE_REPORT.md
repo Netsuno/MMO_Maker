@@ -8,9 +8,10 @@
 | --- | --- |
 | Branch | `cursor/phase0-baseline-audit-02c7` |
 | PR | #2 (Draft) |
-| Phase 6 HEAD | _branch tip after gate docs commit_ |
-| Range from Phase 5 accepted | `1944d73..HEAD` |
+| Phase 6 HEAD | `f5cf41c4180bf649dd3adca83d7a252d760658e7` |
+| Range from Phase 5 accepted | `1944d73..f5cf41c` |
 | Working tree | clean after push |
+| CI | https://github.com/Netsuno/MMO_Maker/actions/runs/32674090607 — SUCCESS (240 / 31 / 20×3) |
 | Environment | Cloud agent Linux + CI Windows smoke / Ubuntu PostgreSQL |
 | Phase 7 | **not started** |
 
