@@ -39,4 +39,7 @@
 
 ## Confirmations
 
-- Phase 6 not started
+- Phase 5 **ACCEPTED** at `1944d73b6fffa84799d288da555f1005b82f2698`
+- Phase 6 not started at acceptance time
+- HEAD CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32654860887
+- Counts: 197 unit / 18 PostgreSQL / 13 Windows smoke ×3

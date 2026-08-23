@@ -1,22 +1,10 @@
-# Demande de revue — Phase 5 (fifth rejection corrections)
+# Demande de revue — Phase 5
 
-## Contexte
+## Status
 
-Fifth temporary rejection at `b6991aa695da5b14690bd46696c533692dea56ce`. Corrections on **same** branch/PR only. Phase 6 not started.
+**PHASE 5 : ACCEPTED**
 
-## Plage
-
-- After: `b6991aa695da5b14690bd46696c533692dea56ce`
-- Implementation tip: `d33f9924e5ff4ee613475200bfb1a6dd88f0d65e`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32654683068
-
-## Checklist
-
-- [x] Reserved username detection uses shared `AccountUsername` (OrdinalIgnoreCase)
-- [x] Exact / uppercase / mixed-case reserved registration rejected
-- [x] Mixed-case seeded account cannot reuse token after consume
-- [x] Token committed **before** successful LoginResult
-- [x] Post-commit failures / abort never restore the token
-- [x] Session-creation failure before commit keeps token available
-- [x] Concurrent exactly-one-success preserved
-- [x] Prior Phase 5 corrections preserved; screenshots NOT RUN
+- Accepted HEAD: `1944d73b6fffa84799d288da555f1005b82f2698`
+- Branch / PR: `cursor/phase0-baseline-audit-02c7` / #2
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32654860887
+- Phase 6: **not started** at acceptance time

@@ -27,11 +27,18 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 - [x] Migration identité moderne (`ModernMapIdentity`)
 - [x] Confirmation CI Windows verte (post-push)
 
-## Phase 4 — Map Editor MVP
+## Phase 5 — Playtest
 
-- [x] Peinture / collision / warp / undo (canvas existant)
-- [x] Sauvegarde + publication PostgreSQL via session (draft / publish séparés)
-- [x] Corrections gate data safety (mémoire, concurrence, prompts, tests)
-- [x] Dialogue destination warp (limites carte cible)
-- [x] Tests unitaires session + édition + smoke save + intégration PG
-- [ ] Playtest déclenché depuis l’éditeur (Phase 5)
+- [x] Editor-triggered playtest (server + client)
+- [x] READY validation / token security / lifecycle
+- [x] Accepted at `1944d73b6fffa84799d288da555f1005b82f2698`
+
+## Phase 6 — Essential content editors
+
+- [ ] Tilesets
+- [ ] NPCs and monsters
+- [ ] Items
+- [ ] Spells and skills
+- [ ] Classes
+- [ ] Shops
+- [ ] Resources and spawns

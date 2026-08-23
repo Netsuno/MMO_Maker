@@ -1,21 +1,26 @@
-# Phase 5 — PHASE REPORT (fifth rejection corrections)
+# Phase 5 — PHASE REPORT (ACCEPTED)
 
 ## Status
 
-**PHASE 5 GATE REACHED — WAITING FOR REVIEW**
+**PHASE 5 : ACCEPTED**
 
-- Prior rejected HEAD: `b6991aa695da5b14690bd46696c533692dea56ce`
-- Implementation tip: `d33f9924e5ff4ee613475200bfb1a6dd88f0d65e`
+- Accepted HEAD: `1944d73b6fffa84799d288da555f1005b82f2698`
 - Branch / PR: `cursor/phase0-baseline-audit-02c7` / #2
-- Range: `b6991aa..HEAD`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32654683068
+- CI (accepted HEAD): https://github.com/Netsuno/MMO_Maker/actions/runs/32654860887
 - Phase 6: **not started**
 
-## Blockers addressed (fifth rejection)
+## Accepted scope
 
-1. **Case-sensitive reserved username** — shared `AccountUsername` OrdinalIgnoreCase; all casings rejected / playtest-gated
-2. **Late token commit** — commit before positive LoginResult; post-commit never ReleaseClaim
+Client/server playtest orchestration from the editor: READY validation, real Frog.Client smoke, single-use playtest token (case-insensitive reserved identity + commit-before-LoginResult), lifecycle/env isolation, workspace no-leak.
+
+## CI counts (accepted HEAD)
+
+| Suite | Passed |
+| --- | ---: |
+| Frog.Tests | 197 |
+| PostgreSQL | 18 |
+| Windows smoke | 13 × 3 |
 
 ## Visual
 
-Graphical screenshots: **NOT RUN**
+Graphical screenshots: **NOT RUN** (accepted as known limitation)
