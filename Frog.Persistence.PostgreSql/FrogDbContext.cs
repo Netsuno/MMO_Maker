@@ -24,6 +24,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<NpcEntity> Npcs => Set<NpcEntity>();
     public DbSet<NpcPublishedSnapshotEntity> NpcPublishedSnapshots => Set<NpcPublishedSnapshotEntity>();
     public DbSet<NpcPublicationHistoryEntity> NpcPublicationHistory => Set<NpcPublicationHistoryEntity>();
+    public DbSet<ItemEntity> Items => Set<ItemEntity>();
+    public DbSet<ItemPublishedSnapshotEntity> ItemPublishedSnapshots => Set<ItemPublishedSnapshotEntity>();
+    public DbSet<ItemPublicationHistoryEntity> ItemPublicationHistory => Set<ItemPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -185,6 +188,55 @@ public sealed class FrogDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.NpcId);
             e.HasOne(x => x.Npc).WithMany().HasForeignKey(x => x.NpcId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ItemEntity>(e =>
+        {
+            e.ToTable("items", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.IconLogicalPath).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(4000);
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_items_kind", "kind > 0");
+                t.HasCheckConstraint("ck_items_max_stack", "max_stack >= 1 AND max_stack <= 999");
+                t.HasCheckConstraint("ck_items_non_negative_prices", "buy_price >= 0 AND sell_price >= 0");
+                t.HasCheckConstraint("ck_items_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<ItemPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("item_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ItemId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.IconLogicalPath).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(4000);
+            e.HasOne(x => x.Item).WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_item_published_snapshots_kind", "kind > 0");
+                t.HasCheckConstraint(
+                    "ck_item_published_snapshots_max_stack",
+                    "max_stack >= 1 AND max_stack <= 999");
+                t.HasCheckConstraint(
+                    "ck_item_published_snapshots_non_negative_prices",
+                    "buy_price >= 0 AND sell_price >= 0");
+            });
+        });
+
+        modelBuilder.Entity<ItemPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("item_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ItemId);
+            e.HasOne(x => x.Item).WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LegacyImportEntity>(e =>

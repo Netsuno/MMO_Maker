@@ -1,5 +1,6 @@
 using Frog.Application.Content;
 using Frog.Application.Maps;
+using Frog.Core.Enums;
 using Frog.Core.Models;
 
 namespace Frog.Persistence.PostgreSql.Entities;
@@ -145,6 +146,51 @@ public sealed class NpcPublicationHistoryEntity
     public long Revision { get; set; }
     public DateTimeOffset PublishedAtUtc { get; set; }
     public NpcEntity Npc { get; set; } = null!;
+}
+
+public sealed class ItemEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public ItemType Kind { get; set; }
+    public string IconLogicalPath { get; set; } = string.Empty;
+    public int MaxStack { get; set; }
+    public int BuyPrice { get; set; }
+    public int SellPrice { get; set; }
+    public string? Description { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’un objet publié.</summary>
+public sealed class ItemPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid ItemId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public ItemType Kind { get; set; }
+    public string IconLogicalPath { get; set; } = string.Empty;
+    public int MaxStack { get; set; }
+    public int BuyPrice { get; set; }
+    public int SellPrice { get; set; }
+    public string? Description { get; set; }
+    public ItemEntity Item { get; set; } = null!;
+}
+
+public sealed class ItemPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid ItemId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public ItemEntity Item { get; set; } = null!;
 }
 
 public sealed class LegacyImportEntity

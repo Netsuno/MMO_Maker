@@ -1,4 +1,5 @@
 using Frog.Application.Content;
+using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Editor.Services;
 
@@ -14,6 +15,7 @@ public sealed class GameDataForm : Form
     private readonly Panel _host = new() { Dock = DockStyle.Fill };
     private readonly TilesetEditorPanel _tilesets;
     private readonly NpcEditorPanel _npcs;
+    private readonly ItemEditorPanel _items;
     private readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft };
 
     public GameDataForm()
@@ -34,12 +36,17 @@ public sealed class GameDataForm : Form
             new NpcWorkspaceSession(npcBundle.Repository),
             npcBundle.Capabilities);
         _npcs.StatusChanged += msg => _status.Text = msg;
+        var itemBundle = EditorItemRepositoryFactory.CreateBundle();
+        _items = new ItemEditorPanel(
+            new ItemWorkspaceSession(itemBundle.Repository),
+            itemBundle.Capabilities);
+        _items.StatusChanged += msg => _status.Text = msg;
 
         _categoryList.Items.AddRange(new object[]
         {
             "Tilesets",
             "NPCs / monstres",
-            "Objets (Phase 6 — à venir)",
+            "Objets",
             "Sorts / compétences (Phase 6 — à venir)",
             "Classes (Phase 6 — à venir)",
             "Boutiques (Phase 6 — à venir)",
@@ -60,6 +67,7 @@ public sealed class GameDataForm : Form
         {
             await _tilesets.InitializeAsync().ConfigureAwait(true);
             await _npcs.InitializeAsync().ConfigureAwait(true);
+            await _items.InitializeAsync().ConfigureAwait(true);
         };
     }
 
@@ -76,6 +84,11 @@ public sealed class GameDataForm : Form
             _npcs.Dock = DockStyle.Fill;
             _host.Controls.Add(_npcs);
         }
+        else if (_categoryList.SelectedIndex == 2)
+        {
+            _items.Dock = DockStyle.Fill;
+            _host.Controls.Add(_items);
+        }
         else
         {
             _host.Controls.Add(new Label
@@ -89,7 +102,7 @@ public sealed class GameDataForm : Form
 
     private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (_tilesets.IsDirty || _npcs.IsDirty)
+        if (_tilesets.IsDirty || _npcs.IsDirty || _items.IsDirty)
         {
             var r = MessageBox.Show(
                 this,
@@ -683,6 +696,329 @@ public sealed class NpcEditorPanel : UserControl
                 MessageBox.Show(this, "NPC introuvable.");
                 break;
             case DeleteNpcResult.PersistenceFailed persistence:
+                MessageBox.Show(this, persistence.Error, "Erreur");
+                break;
+        }
+    }
+
+    private sealed record CatalogItem(Guid Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+}
+
+/// <summary>Liste + formulaire objet (brouillon / publication).</summary>
+public sealed class ItemEditorPanel : UserControl
+{
+    private readonly ItemWorkspaceSession _session;
+    private readonly ContentRepositoryCapabilities _capabilities;
+    private readonly ListBox _list = new() { Dock = DockStyle.Fill };
+    private readonly TextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Rechercher…" };
+    private readonly ComboBox _statusFilter = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _name = new() { Width = 280 };
+    private readonly ComboBox _kind = new() { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _iconPath = new() { Width = 280 };
+    private readonly NumericUpDown _maxStack = new() { Minimum = 1, Maximum = 999, Value = 1, Width = 80 };
+    private readonly NumericUpDown _buyPrice = new() { Minimum = 0, Maximum = 999999999, Width = 120 };
+    private readonly NumericUpDown _sellPrice = new() { Minimum = 0, Maximum = 999999999, Width = 120 };
+    private readonly TextBox _description = new()
+    {
+        Width = 360,
+        Height = 90,
+        Multiline = true,
+        ScrollBars = ScrollBars.Vertical,
+    };
+    private readonly Label _meta = new() { AutoSize = true };
+    private readonly Label _validation = new() { AutoSize = true, ForeColor = Color.Firebrick };
+    private readonly Button _btnNew = new() { Text = "Nouveau", AutoSize = true };
+    private readonly Button _btnDup = new() { Text = "Dupliquer", AutoSize = true };
+    private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
+    private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
+    private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
+    private bool _suppressList;
+    private bool _binding;
+
+    public event Action<string>? StatusChanged;
+
+    public bool IsDirty => _session.IsDirty;
+
+    public ItemEditorPanel(ItemWorkspaceSession session, ContentRepositoryCapabilities capabilities)
+    {
+        _session = session;
+        _capabilities = capabilities;
+
+        _statusFilter.Items.AddRange(new object[] { "Tous", "Brouillon", "Publié" });
+        _statusFilter.SelectedIndex = 0;
+        _kind.Items.AddRange(
+            Enum.GetValues<ItemType>()
+                .Where(value => value != ItemType.Unknown)
+                .Cast<object>()
+                .ToArray());
+        _kind.SelectedItem = ItemType.Consumable;
+
+        var left = new Panel { Dock = DockStyle.Left, Width = 260, Padding = new Padding(4) };
+        left.Controls.Add(_list);
+        left.Controls.Add(_search);
+        left.Controls.Add(_statusFilter);
+
+        var form = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            Padding = new Padding(12),
+            AutoSize = true,
+        };
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        void Row(string label, Control control)
+        {
+            var row = form.RowCount++;
+            form.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row);
+            form.Controls.Add(control, 1, row);
+        }
+
+        Row("Nom", _name);
+        Row("Type", _kind);
+        Row("Chemin icône", _iconPath);
+        Row("Pile maximum", _maxStack);
+        Row("Prix d’achat", _buyPrice);
+        Row("Prix de vente", _sellPrice);
+        Row("Description", _description);
+        Row("État", _meta);
+        Row("", _validation);
+
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 40,
+            FlowDirection = FlowDirection.LeftToRight,
+        };
+        buttons.Controls.AddRange(new Control[] { _btnNew, _btnDup, _btnSave, _btnPublish, _btnDelete });
+
+        Controls.Add(form);
+        Controls.Add(buttons);
+        Controls.Add(left);
+
+        _search.TextChanged += async (_, _) =>
+        {
+            _session.SearchFilter = _search.Text;
+            await RefreshListAsync().ConfigureAwait(true);
+        };
+        _statusFilter.SelectedIndexChanged += async (_, _) =>
+        {
+            _session.StatusFilter = _statusFilter.SelectedIndex switch
+            {
+                1 => ContentPublishStatus.Draft,
+                2 => ContentPublishStatus.Published,
+                _ => null,
+            };
+            await RefreshListAsync().ConfigureAwait(true);
+        };
+        _list.SelectedIndexChanged += async (_, _) =>
+        {
+            if (_suppressList || _list.SelectedItem is not CatalogItem item)
+            {
+                return;
+            }
+
+            if (_session.IsDirty)
+            {
+                var result = MessageBox.Show(
+                    this,
+                    "Modifications non enregistrées. Continuer ?",
+                    "Objets",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+                if (result != DialogResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            await _session.OpenAsync(item.Id).ConfigureAwait(true);
+            BindForm();
+        };
+
+        void Mark()
+        {
+            if (_binding)
+            {
+                return;
+            }
+
+            ApplyFormToSession();
+            _session.MarkDirty();
+            LiveValidate();
+            StatusChanged?.Invoke("Modifié (non enregistré)");
+        }
+
+        _name.TextChanged += (_, _) => Mark();
+        _kind.SelectedIndexChanged += (_, _) => Mark();
+        _iconPath.TextChanged += (_, _) => Mark();
+        _maxStack.ValueChanged += (_, _) => Mark();
+        _buyPrice.ValueChanged += (_, _) => Mark();
+        _sellPrice.ValueChanged += (_, _) => Mark();
+        _description.TextChanged += (_, _) => Mark();
+
+        _btnNew.Click += (_, _) =>
+        {
+            _session.AdoptNewDraft(new ItemDefinition
+            {
+                Id = Guid.NewGuid(),
+                Name = "Nouvel objet",
+                Kind = ItemType.Consumable,
+                IconLogicalPath = $"icons/items/new_{Guid.NewGuid():N}.png",
+                MaxStack = 1,
+            });
+            BindForm();
+            StatusChanged?.Invoke("Nouveau brouillon");
+        };
+        _btnDup.Click += (_, _) =>
+        {
+            if (_session.Current is null)
+            {
+                return;
+            }
+
+            _session.DuplicateCurrent();
+            BindForm();
+            StatusChanged?.Invoke("Copie créée");
+        };
+        _btnSave.Click += async (_, _) => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
+        _btnPublish.Click += async (_, _) => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
+        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+
+        var canWrite = _capabilities.AllowsSave;
+        _btnSave.Enabled = canWrite;
+        _btnPublish.Enabled = canWrite;
+        _btnDelete.Enabled = canWrite;
+    }
+
+    public async Task InitializeAsync()
+    {
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend objets : {_capabilities.DisplayLabel}");
+    }
+
+    private async Task RefreshListAsync()
+    {
+        await _session.RefreshCatalogAsync().ConfigureAwait(true);
+        _suppressList = true;
+        _list.Items.Clear();
+        foreach (var entry in _session.Catalog)
+        {
+            _list.Items.Add(new CatalogItem(
+                entry.ItemId,
+                $"{entry.Name} ({entry.Kind}, pile {entry.MaxStack}) [{entry.Status}]"));
+        }
+
+        _suppressList = false;
+    }
+
+    private void BindForm()
+    {
+        var definition = _session.Current;
+        if (definition is null)
+        {
+            return;
+        }
+
+        _binding = true;
+        try
+        {
+            _name.Text = definition.Name;
+            _kind.SelectedItem = definition.Kind;
+            _iconPath.Text = definition.IconLogicalPath;
+            _maxStack.Value = Math.Clamp(definition.MaxStack, 1, 999);
+            _buyPrice.Value = Math.Clamp(definition.BuyPrice, 0, 999999999);
+            _sellPrice.Value = Math.Clamp(definition.SellPrice, 0, 999999999);
+            _description.Text = definition.Description ?? string.Empty;
+            _meta.Text =
+                $"Id={definition.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
+        }
+        finally
+        {
+            _binding = false;
+        }
+
+        LiveValidate();
+    }
+
+    private void ApplyFormToSession()
+    {
+        if (_session.Current is null)
+        {
+            return;
+        }
+
+        _session.Current.Name = _name.Text.Trim();
+        _session.Current.Kind = _kind.SelectedItem is ItemType kind ? kind : ItemType.Unknown;
+        _session.Current.IconLogicalPath = _iconPath.Text.Trim().Replace('\\', '/');
+        _session.Current.MaxStack = (int)_maxStack.Value;
+        _session.Current.BuyPrice = (int)_buyPrice.Value;
+        _session.Current.SellPrice = (int)_sellPrice.Value;
+        _session.Current.Description = string.IsNullOrWhiteSpace(_description.Text)
+            ? null
+            : _description.Text.Trim();
+    }
+
+    private void LiveValidate()
+    {
+        if (_session.Current is null)
+        {
+            _validation.Text = string.Empty;
+            return;
+        }
+
+        ApplyFormToSession();
+        _validation.Text = _session.Current.Validate(out var error) ? string.Empty : error;
+    }
+
+    private async Task SaveAsync(SaveContentIntent intent)
+    {
+        ApplyFormToSession();
+        var result = await _session.SaveCurrentAsync(intent).ConfigureAwait(true);
+        switch (result)
+        {
+            case SaveItemResult.Success success:
+                StatusChanged?.Invoke(
+                    intent == SaveContentIntent.Publish
+                        ? $"Publié rev={success.PublishedRevision}"
+                        : $"Brouillon enregistré rev={success.NewRevision}");
+                await RefreshListAsync().ConfigureAwait(true);
+                BindForm();
+                break;
+            case SaveItemResult.ValidationFailed validation:
+                MessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                break;
+            case SaveItemResult.Conflict conflict:
+                MessageBox.Show(
+                    this,
+                    $"Conflit de révision (courante={conflict.CurrentRevision}).",
+                    "Conflit");
+                break;
+            case SaveItemResult.NotDurable notDurable:
+                MessageBox.Show(this, notDurable.Message, "Persistance");
+                break;
+            case SaveItemResult.PersistenceFailed persistence:
+                MessageBox.Show(this, persistence.Error, "Erreur");
+                break;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        var result = await _session.DeleteCurrentAsync().ConfigureAwait(true);
+        switch (result)
+        {
+            case DeleteItemResult.Success:
+                StatusChanged?.Invoke("Supprimé");
+                await RefreshListAsync().ConfigureAwait(true);
+                break;
+            case DeleteItemResult.NotFound:
+                MessageBox.Show(this, "Objet introuvable.");
+                break;
+            case DeleteItemResult.PersistenceFailed persistence:
                 MessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }

@@ -24,6 +24,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideMapRepository = null;
         EditorTestHooks.OverrideTilesetRepository = null;
         EditorTestHooks.OverrideNpcRepository = null;
+        EditorTestHooks.OverrideItemRepository = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
@@ -44,6 +45,9 @@ internal static class EditorSmokeTestAccess
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideNpcRepository =
             new Frog.Application.Content.InMemoryNpcRepository(
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideItemRepository =
+            new Frog.Application.Content.InMemoryItemRepository(
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
     }
@@ -118,6 +122,42 @@ internal static class EditorSmokeTestAccess
         if (catalog.All(n => n.Name != "SmokeMonster"))
         {
             throw new InvalidOperationException("Published NPC missing from catalog after smoke publish.");
+        }
+    }
+
+    public static async Task OpenGameDataAndSaveSampleItemAsync(MainWindow window)
+    {
+        using var form = new Forms.GameData.GameDataForm();
+        var bundle = Services.EditorItemRepositoryFactory.CreateBundle();
+        var session = new Frog.Application.Content.ItemWorkspaceSession(bundle.Repository);
+        session.AdoptNewDraft(new Frog.Core.Models.ItemDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokePotion",
+            Kind = ItemType.Consumable,
+            IconLogicalPath = "icons/items/smoke-potion.png",
+            MaxStack = 20,
+            BuyPrice = 50,
+            SellPrice = 15,
+            Description = "Item smoke test",
+        });
+        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
+        if (saved is not Frog.Application.Content.SaveItemResult.Success)
+        {
+            throw new InvalidOperationException($"Item smoke save failed: {saved}");
+        }
+
+        session.MarkDirty();
+        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
+        if (published is not Frog.Application.Content.SaveItemResult.Success)
+        {
+            throw new InvalidOperationException($"Item smoke publish failed: {published}");
+        }
+
+        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
+        if (catalog.All(item => item.Name != "SmokePotion"))
+        {
+            throw new InvalidOperationException("Published item missing from catalog after smoke publish.");
         }
     }
 
