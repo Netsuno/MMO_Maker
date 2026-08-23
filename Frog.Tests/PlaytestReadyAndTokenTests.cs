@@ -86,40 +86,95 @@ public sealed class PlaytestReadyMarkerTests
 public sealed class PlaytestAuthTokenGateTests
 {
     [Fact]
-    public void TryConsume_FirstSucceeds_SecondFails_EvenSameValue()
+    public void TryClaim_Commit_FirstSucceeds_SecondFails()
     {
         var token = PlaytestAuthToken.Create();
         var gate = new PlaytestAuthTokenGate(token);
-        Assert.True(gate.TryConsume(token));
+        Assert.True(gate.TryClaim(token));
+        gate.CommitClaim();
         Assert.False(gate.HasRemainingToken);
-        Assert.False(gate.TryConsume(token));
+        Assert.False(gate.TryClaim(token));
     }
 
     [Fact]
-    public void TryConsume_WrongToken_DoesNotConsume()
+    public void TryClaim_WrongToken_DoesNotClaim()
     {
         var token = PlaytestAuthToken.Create();
         var gate = new PlaytestAuthTokenGate(token);
-        Assert.False(gate.TryConsume("not-the-token"));
+        Assert.False(gate.TryClaim("not-the-token"));
         Assert.True(gate.HasRemainingToken);
-        Assert.True(gate.TryConsume(token));
+        Assert.True(gate.TryClaim(token));
+        gate.ReleaseClaim();
+        Assert.True(gate.HasRemainingToken);
     }
 
     [Fact]
-    public void Concurrent_OnlyOneConsumerSucceeds()
+    public void ReleaseClaim_AfterFailedSession_TokenStillAvailable()
     {
         var token = PlaytestAuthToken.Create();
         var gate = new PlaytestAuthTokenGate(token);
-        var successes = 0;
+        Assert.True(gate.TryClaim(token));
+        Assert.True(gate.IsClaimed);
+        gate.ReleaseClaim();
+        Assert.True(gate.HasRemainingToken);
+        Assert.True(gate.TryClaim(token));
+        gate.CommitClaim();
+        Assert.False(gate.HasRemainingToken);
+    }
+
+    [Fact]
+    public void Concurrent_OnlyOneClaimSucceeds()
+    {
+        var token = PlaytestAuthToken.Create();
+        var gate = new PlaytestAuthTokenGate(token);
+        var claims = 0;
         Parallel.For(0, 32, _ =>
         {
-            if (gate.TryConsume(token))
+            if (gate.TryClaim(token))
             {
-                System.Threading.Interlocked.Increment(ref successes);
+                System.Threading.Interlocked.Increment(ref claims);
             }
         });
-        Assert.Equal(1, successes);
-        Assert.False(gate.HasRemainingToken);
+        Assert.Equal(1, claims);
+        gate.ReleaseClaim();
+        Assert.True(gate.HasRemainingToken);
+    }
+}
+
+public sealed class PlaytestClientReadyStateTests
+{
+    [Fact]
+    public void TryBuildReadyLine_Rejects_PositionAndLoadedMapMismatch()
+    {
+        var state = new PlaytestClientReadyState
+        {
+            LoginOk = true,
+            MapLoaded = true,
+        };
+        state.ObservePosition(mapId: 1, pixelX: 48, pixelY: 48);
+        state.ObserveLoadedMap(mapId: 2);
+        var corr = Guid.NewGuid();
+        Assert.False(state.TryBuildReadyLine(corr, out var line, out var reason));
+        Assert.Null(line);
+        Assert.Contains("map-mismatch", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryBuildReadyLine_Emits_WhenMapsMatch()
+    {
+        var state = new PlaytestClientReadyState
+        {
+            LoginOk = true,
+            MapLoaded = true,
+        };
+        state.ObservePosition(mapId: 1, pixelX: 48, pixelY: 48);
+        state.ObserveLoadedMap(mapId: 1);
+        var corr = Guid.NewGuid();
+        Assert.True(state.TryBuildReadyLine(corr, out var line, out var reason));
+        Assert.Null(reason);
+        Assert.Contains("map=1", line, StringComparison.Ordinal);
+        Assert.Contains("tileX=1", line, StringComparison.Ordinal);
+        Assert.Contains("pixelX=48", line, StringComparison.Ordinal);
     }
 }
 

@@ -174,24 +174,83 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        var playtestTokenOk = _playtest.Enabled
-                              && string.Equals(username, PlaytestAuthToken.Username, StringComparison.Ordinal)
-                              && _playtestAuthTokenGate.TryConsume(password);
+        var isPlaytestUser = PlaytestAuthToken.IsReservedUsername(username);
+        if (isPlaytestUser)
+        {
+            await HandlePlaytestLoginAsync(clientSession, password, cancellationToken).ConfigureAwait(false);
+            return;
+        }
 
-        if (!playtestTokenOk && !_authService.ValidateCredentials(username, password))
+        if (!_authService.ValidateCredentials(username, password))
         {
             ServerNetworkLogs.LoginFailed(_logger, "invalid_credentials");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
             return;
         }
 
-        // Session username stable ; jeton jamais journalisé.
-        var sessionName = playtestTokenOk ? PlaytestAuthToken.Username : username;
-        if (!_connectionManager.TryCreateSession(sessionName, out var session) || session is null)
+        if (!_connectionManager.TryCreateSession(username, out var session) || session is null)
         {
             ServerNetworkLogs.LoginFailed(_logger, "already_connected");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Compte deja connecte.", cancellationToken);
             return;
+        }
+
+        await CompleteLoginAsync(clientSession, username, playtestSpawn: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task HandlePlaytestLoginAsync(
+        ClientSession clientSession,
+        string password,
+        CancellationToken cancellationToken)
+    {
+        if (!_playtest.Enabled)
+        {
+            ServerNetworkLogs.LoginFailed(_logger, "invalid_credentials");
+            await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!_playtestAuthTokenGate.TryClaim(password))
+        {
+            ServerNetworkLogs.LoginFailed(_logger, "invalid_credentials");
+            await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!_connectionManager.TryCreateSession(PlaytestAuthToken.Username, out var session) || session is null)
+        {
+            _playtestAuthTokenGate.ReleaseClaim();
+            ServerNetworkLogs.LoginFailed(_logger, "already_connected");
+            await _packetSender.SendLoginResultAsync(clientSession, false, "Compte deja connecte.", cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            await CompleteLoginAsync(clientSession, PlaytestAuthToken.Username, playtestSpawn: true, cancellationToken)
+                .ConfigureAwait(false);
+            _playtestAuthTokenGate.CommitClaim();
+        }
+        catch
+        {
+            _playtestAuthTokenGate.ReleaseClaim();
+            _connectionManager.RemoveSession(session.Id);
+            throw;
+        }
+    }
+
+    private async Task CompleteLoginAsync(
+        ClientSession clientSession,
+        string sessionName,
+        bool playtestSpawn,
+        CancellationToken cancellationToken)
+    {
+        if (!_connectionManager.TryGetSessionByUsername(sessionName, out var session) || session is null)
+        {
+            throw new InvalidOperationException("Session playtest/login introuvable après création.");
         }
 
         clientSession.AuthenticatedSession = session;
@@ -203,9 +262,8 @@ public sealed class PacketDispatcher(
         var persistOk = !string.IsNullOrWhiteSpace(session.CharacterId) &&
             _playerStateStore.TryGetForCharacter(session.CharacterId, out world);
 
-        if (_playtest.Enabled)
+        if (playtestSpawn)
         {
-            // Playtest : spawn configurable sur la carte publiée ; ignorer la pose persistée.
             session.CurrentMapId = _playtest.SpawnRuntimeMapId > 0
                 ? _playtest.SpawnRuntimeMapId
                 : MapService.DefaultWorldMapId;
@@ -268,6 +326,17 @@ public sealed class PacketDispatcher(
         {
             ServerNetworkLogs.RegisterFailed(_logger, "invalid_payload");
             await _packetSender.SendRegisterResultAsync(clientSession, false, "Payload inscription invalide.", cancellationToken);
+            return;
+        }
+
+        if (PlaytestAuthToken.IsReservedUsername(username))
+        {
+            ServerNetworkLogs.RegisterFailed(_logger, "reserved_username");
+            await _packetSender.SendRegisterResultAsync(
+                clientSession,
+                false,
+                "Nom d'utilisateur réservé au playtest.",
+                cancellationToken);
             return;
         }
 

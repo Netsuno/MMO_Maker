@@ -164,6 +164,9 @@ public static class PlaytestAuthToken
         var bb = Encoding.UTF8.GetBytes(b);
         return CryptographicOperations.FixedTimeEquals(ba, bb);
     }
+
+    public static bool IsReservedUsername(string? username)
+        => string.Equals(username, Username, StringComparison.Ordinal);
 }
 
 /// <summary>Redaction de secrets dans les logs (retire la valeur complète, jamais un suffixe exposé).</summary>

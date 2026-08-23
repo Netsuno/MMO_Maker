@@ -1,24 +1,23 @@
-# Demande de revue — Phase 5 (third rejection corrections)
+# Demande de revue — Phase 5 (fourth rejection corrections)
 
 ## Contexte
 
-Third temporary rejection at `6dcf0b3`. Corrections on **same** branch/PR only. Phase 6 not started.
+Fourth temporary rejection at `ac3a71b2270812567c30f04395b58ad5438faabf`. Corrections on **same** branch/PR only. Phase 6 not started.
 
 ## Plage
 
-- After: `6dcf0b301c9b3f06aa3b118a49e10d832719b0fc`
-- Implementation: `2c5719038019e4e56c3e484d543cbf27e84777d2`
-- CI-evidence tip: `c310d02b30cac9e184a822e74837736ed1670482`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32604665896 (180 / 18 / 13×3)
+- After: `ac3a71b2270812567c30f04395b58ad5438faabf`
 - Head: see `docs/STATUS.md`
+- CI: see `docs/STATUS.md`
 
 ## Checklist
 
-- [x] Exact READY map/tile/pixel validation
-- [x] Real Frog.Client success smoke
-- [x] Token env-only + single-use reuse denied
-- [x] Early-exit PID/exit/safe error
-- [x] Stop-failure ownership retained
-- [x] Real child env isolation
-- [x] Invalid WorkDirectory no-leak
+- [x] Reserved `__frog_playtest__` registration rejected
+- [x] Playtest username never falls back to normal account auth
+- [x] Atomic claim/commit/release token semantics (failed session creation does not consume)
+- [x] TCP tests: reserved reg, first auth, reuse fail, concurrent exactly-one, session-failure no-consume, token not in errors
+- [x] Separate `positionMapId` vs `loadedMapId`; READY only when equal (MapData + MapAlreadySynced)
+- [x] Negative unit test: PositionUpdate vs MapData mismatch rejects READY
+- [x] Real Frog.Client success smoke preserved (Windows ×3)
+- [x] Prior third-rejection corrections preserved
 - [x] Screenshots remain NOT RUN

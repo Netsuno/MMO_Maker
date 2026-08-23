@@ -130,10 +130,7 @@ public sealed class MainShellForm : Form
     private const int MoveNetworkPulseMs = 52;
 
     private readonly ClientPlaytestOptions? _playtestOptions;
-    private bool _playtestReadyEmitted;
-    private int? _playtestObservedMapId;
-    private int? _playtestObservedPixelX;
-    private int? _playtestObservedPixelY;
+    private readonly PlaytestClientReadyState _playtestReady = new();
     private bool _playtestLoginOk;
 
     public MainShellForm()
@@ -330,16 +327,13 @@ public sealed class MainShellForm : Form
 
     private void TryEmitPlaytestReady()
     {
-        if (_playtestReadyEmitted || _playtestOptions is not { IsPlaytest: true })
+        if (_playtestReady.ReadyEmitted || _playtestOptions is not { IsPlaytest: true })
         {
             return;
         }
 
-        if (!_playtestLoginOk || _map is null || _playtestObservedMapId is null
-            || _playtestObservedPixelX is null || _playtestObservedPixelY is null)
-        {
-            return;
-        }
+        _playtestReady.LoginOk = _playtestLoginOk;
+        _playtestReady.MapLoaded = _map is not null;
 
         if (!Guid.TryParseExact(_playtestOptions.CorrelationId ?? string.Empty, "N", out var corr)
             && !Guid.TryParse(_playtestOptions.CorrelationId, out corr))
@@ -348,16 +342,17 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        var pixelX = _playtestObservedPixelX.Value;
-        var pixelY = _playtestObservedPixelY.Value;
-        var (tileX, tileY) = PlaytestReadyMarker.PixelsToTile(pixelX, pixelY);
-        var line = PlaytestReadyMarker.Format(
-            corr,
-            _playtestObservedMapId.Value,
-            tileX,
-            tileY,
-            pixelX,
-            pixelY);
+        if (!_playtestReady.TryBuildReadyLine(corr, out var line, out var failureReason))
+        {
+            if (!string.IsNullOrEmpty(failureReason)
+                && failureReason.Contains("map-mismatch", StringComparison.OrdinalIgnoreCase))
+            {
+                EmitPlaytestFailure(failureReason);
+            }
+
+            return;
+        }
+
         try
         {
             Console.Out.WriteLine(line);
@@ -368,8 +363,8 @@ public sealed class MainShellForm : Form
             // ignore
         }
 
-        AppendLog(line);
-        _playtestReadyEmitted = true;
+        AppendLog(line!);
+        _playtestReady.ReadyEmitted = true;
     }
 
     private async Task MainShell_FormClosingAsync()
@@ -930,7 +925,7 @@ public sealed class MainShellForm : Form
         _client.ErrorReceived += err =>
         {
             AppendLog("Erreur: " + err);
-            if (_playtestOptions is { IsPlaytest: true } && !_playtestReadyEmitted)
+            if (_playtestOptions is { IsPlaytest: true } && !_playtestReady.ReadyEmitted)
             {
                 EmitPlaytestFailure(err);
             }
@@ -1231,7 +1226,7 @@ public sealed class MainShellForm : Form
         TryEnterPlayingPhaseAfterMapReady();
         if (_playtestOptions is { IsPlaytest: true })
         {
-            _playtestObservedMapId = mapId;
+            _playtestReady.ObserveLoadedMap(mapId);
             TryEmitPlaytestReady();
         }
     }
@@ -1240,6 +1235,11 @@ public sealed class MainShellForm : Form
     {
         AppendLog($"Carte id={mapId} déjà à jour (révision serveur {revision}).");
         _sessionDisplayedMapId = mapId;
+        if (_playtestOptions is { IsPlaytest: true })
+        {
+            _playtestReady.ObserveLoadedMap(mapId);
+        }
+
         if (_map is null && _client is { IsConnected: true } && !string.IsNullOrEmpty(_username))
         {
             AppendLog("Carte absente en local — re-demande du blob complet.");
@@ -1248,6 +1248,10 @@ public sealed class MainShellForm : Form
 
         _ = RequestMapEventsFromServerAsync();
         TryEnterPlayingPhaseAfterMapReady();
+        if (_playtestOptions is { IsPlaytest: true })
+        {
+            TryEmitPlaytestReady();
+        }
     }
 
     private async Task RequestFullMapBlobAsync()
@@ -1548,9 +1552,7 @@ public sealed class MainShellForm : Form
         var isLocal = _username is not null && string.Equals(user, _username, StringComparison.OrdinalIgnoreCase);
         if (isLocal && _playtestOptions is { IsPlaytest: true })
         {
-            _playtestObservedMapId ??= mapId;
-            _playtestObservedPixelX = x;
-            _playtestObservedPixelY = y;
+            _playtestReady.ObservePosition(mapId, x, y);
             TryEmitPlaytestReady();
         }
 
