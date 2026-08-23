@@ -1,3 +1,4 @@
+using Frog.Application.Content;
 using Frog.Application.Maps;
 
 namespace Frog.Persistence.PostgreSql.Entities;
@@ -60,11 +61,46 @@ public sealed class MapNpcSpawnEntity
 public sealed class TilesetEntity
 {
     public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
     public string LogicalPath { get; set; } = string.Empty;
     public int TileSizePixels { get; set; }
     public int Width { get; set; }
     public int Height { get; set; }
     public string Sha256Hex { get; set; } = string.Empty;
+    public int? EditorPaletteId { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’un tileset publié.</summary>
+public sealed class TilesetPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid TilesetId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string LogicalPath { get; set; } = string.Empty;
+    public int TileSizePixels { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public string Sha256Hex { get; set; } = string.Empty;
+    public int? EditorPaletteId { get; set; }
+    public TilesetEntity Tileset { get; set; } = null!;
+}
+
+public sealed class TilesetPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid TilesetId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public TilesetEntity Tileset { get; set; } = null!;
 }
 
 public sealed class LegacyImportEntity

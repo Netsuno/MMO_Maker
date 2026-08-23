@@ -35,7 +35,7 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 
 ## Phase 6 — Essential content editors
 
-- [ ] Tilesets
+- [x] Tilesets
 - [ ] NPCs and monsters
 - [ ] Items
 - [ ] Spells and skills

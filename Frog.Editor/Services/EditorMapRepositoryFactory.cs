@@ -46,7 +46,7 @@ public static class EditorMapRepositoryFactory
 
     public static string DescribeBackend() => CreateBundle().Capabilities.DisplayLabel;
 
-    private static string? ResolveConnectionString()
+    internal static string? ResolveConnectionString()
     {
         var fromEnv = Environment.GetEnvironmentVariable(EnvConnectionString);
         if (!string.IsNullOrWhiteSpace(fromEnv))

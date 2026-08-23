@@ -22,6 +22,7 @@ internal static class EditorSmokeTestAccess
     public static void ResetHooks()
     {
         EditorTestHooks.OverrideMapRepository = null;
+        EditorTestHooks.OverrideTilesetRepository = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
@@ -37,7 +38,48 @@ internal static class EditorSmokeTestAccess
     {
         ResetHooks();
         EditorTestHooks.OverrideMapRepository = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideTilesetRepository =
+            new Frog.Application.Content.InMemoryTilesetRepository(
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
+    }
+
+    public static async Task OpenGameDataAndSaveSampleTilesetAsync(MainWindow window)
+    {
+        using var form = new Forms.GameData.GameDataForm();
+        // Accès interne via type public : on valide create/save via session injectée.
+        var bundle = Services.EditorTilesetRepositoryFactory.CreateBundle();
+        var session = new Frog.Application.Content.TilesetWorkspaceSession(bundle.Repository);
+        var def = new Frog.Core.Models.TilesetDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeTileset",
+            LogicalPath = "tiles/smoke.png",
+            TileSizePixels = 32,
+            WidthPixels = 32,
+            HeightPixels = 32,
+            Sha256Hex = new string('A', 64),
+            EditorPaletteId = 1,
+        };
+        session.AdoptNewDraft(def);
+        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
+        if (saved is not Frog.Application.Content.SaveTilesetResult.Success)
+        {
+            throw new InvalidOperationException($"Tileset smoke save failed: {saved}");
+        }
+
+        session.MarkDirty();
+        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
+        if (published is not Frog.Application.Content.SaveTilesetResult.Success)
+        {
+            throw new InvalidOperationException($"Tileset smoke publish failed: {published}");
+        }
+
+        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
+        if (catalog.All(t => t.Name != "SmokeTileset"))
+        {
+            throw new InvalidOperationException("Published tileset missing from catalog after smoke publish.");
+        }
     }
 
     public static void EnsureWinFormsInitialized()

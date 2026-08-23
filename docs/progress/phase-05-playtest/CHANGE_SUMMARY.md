@@ -1,4 +1,6 @@
-# Phase 5 — CHANGE SUMMARY (fifth rejection corrections)
+# Phase 5 — CHANGE SUMMARY (ACCEPTED)
+
+**Accepted HEAD:** `1944d73b6fffa84799d288da555f1005b82f2698`
 
 ## Token security (blockers)
 

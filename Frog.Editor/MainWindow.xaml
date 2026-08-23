@@ -73,6 +73,7 @@
                           InputGestureText="Ctrl+Y" />
             </MenuItem>
             <MenuItem Header="_Ressources" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
+                <MenuItem Header="Données de jeu…" Command="{x:Static local:MainWindow.CmdGameData}" />
                 <MenuItem Header="Charger une image tuiles…" Command="{x:Static local:MainWindow.CmdOpenTileset}" />
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">

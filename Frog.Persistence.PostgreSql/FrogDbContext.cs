@@ -19,6 +19,8 @@ public sealed class FrogDbContext : DbContext
     public DbSet<MapPublishedWarpEntity> MapPublishedWarps => Set<MapPublishedWarpEntity>();
     public DbSet<MapPublicationHistoryEntity> MapPublicationHistory => Set<MapPublicationHistoryEntity>();
     public DbSet<TilesetEntity> Tilesets => Set<TilesetEntity>();
+    public DbSet<TilesetPublishedSnapshotEntity> TilesetPublishedSnapshots => Set<TilesetPublishedSnapshotEntity>();
+    public DbSet<TilesetPublicationHistoryEntity> TilesetPublicationHistory => Set<TilesetPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -109,8 +111,36 @@ public sealed class FrogDbContext : DbContext
             e.ToTable("tilesets", "content");
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.LogicalPath).IsUnique();
+            e.HasIndex(x => x.EditorPaletteId).IsUnique().HasFilter("editor_palette_id IS NOT NULL");
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
             e.Property(x => x.LogicalPath).HasMaxLength(500).IsRequired();
             e.Property(x => x.Sha256Hex).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_tilesets_positive_size", "width > 0 AND height > 0 AND tile_size_pixels > 0");
+                t.HasCheckConstraint("ck_tilesets_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<TilesetPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("tileset_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TilesetId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.LogicalPath).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Sha256Hex).HasMaxLength(64).IsRequired();
+            e.HasOne(x => x.Tileset).WithMany().HasForeignKey(x => x.TilesetId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TilesetPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("tileset_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.TilesetId);
+            e.HasOne(x => x.Tileset).WithMany().HasForeignKey(x => x.TilesetId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LegacyImportEntity>(e =>

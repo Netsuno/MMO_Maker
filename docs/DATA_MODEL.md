@@ -48,7 +48,16 @@ Dates : `timestamptz` UTC.
 
 ### `content.tilesets`
 
-- `logical_path` unique, `tile_size_pixels`, dimensions, `sha256_hex`
+- `id` uuid PK
+- `name` varchar(120)
+- `logical_path` unique, `tile_size_pixels`, `width`/`height`, `sha256_hex`
+- `editor_palette_id` int NULL unique (alias peinture cartes)
+- `status` smallint (Draft/Published), `revision`, `published_revision`, `published_snapshot_id`
+- `created_at_utc`, `updated_at_utc`
+
+### `content.tileset_published_snapshots` / `tileset_publication_history`
+
+- Snapshots immuables + historique de publication (même modèle que les cartes)
 
 ### `ops.legacy_imports`
 
@@ -59,15 +68,14 @@ Dates : `timestamptz` UTC.
 
 - `SaveMapRequest.MapId` — null ou Empty = création ; sinon mise à jour
 - `LoadByIdAsync(Guid mapId)`
-- `MapCatalogEntry.MapId`
-- `StoredMap.MapId`
-- `SaveMapResult.Success(NewRevision, MapId)`
+- `ITilesetRepository` / `TilesetWorkspaceSession` — draft/publish tilesets
+- `IPublishedTilesetCatalog` — consommation serveur publiée uniquement
 
 ## Invariants applicatifs
 
 - Sauvegarde dans une transaction (header + cellules + warps).
 - `ExpectedRevision` doit matcher `revision` (0 = création).
-- Le domaine `Map.Validate()` s’exécute avant écriture.
+- Le domaine `Map.Validate()` / `TilesetDefinition.Validate()` s’exécute avant écriture.
 - Tuile warp : `WarpTargetMapId` est un **Guid** (Empty = invalide à la validation).
 
 ## Migrations
@@ -76,3 +84,5 @@ Dates : `timestamptz` UTC.
 | --- | --- |
 | `InitialMapPersistence` | schémas + tables initiales |
 | `ModernMapIdentity` | retrait `legacy_id` / `target_legacy_id` ; FK `target_map_id` |
+| `DraftPublishSeparation` | snapshots cartes publiées |
+| `TilesetDraftPublish` | draft/publish tilesets + snapshots |

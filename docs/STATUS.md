@@ -5,13 +5,19 @@
 - PR : #2 (Draft)
 - **Phase 4 : ACCEPTED** — `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - **Phase 5 : ACCEPTED** — `1944d73b6fffa84799d288da555f1005b82f2698`
-  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32654860887 (success on accepted HEAD)
-  - Frog.Tests : 197 · PostgreSQL : 18 · Windows smoke : 13 × 3
-  - Preuves : `docs/progress/phase-05-playtest/`
-- **Phase 6 : not started** (essential content editors)
-  - Planned slices : Tilesets → NPCs/monsters → Items → Spells/skills → Classes → Shops → Resources/spawns
+- **Phase 6 : IN PROGRESS** — essential content editors
+  - Slice 1 Tilesets : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_01_TILESETS.md`)
+  - Remaining : NPCs/monsters → Items → Spells/skills → Classes → Shops → Resources/spawns
+- Phase 7 : not started
 
-## Known issues carried from Phase 5
+## Local verification (Tilesets slice)
 
-- Graphical WPF playtest screenshots remain **NOT RUN** (honest)
-- MariaDB remains temporary legacy on the game server path; no new MariaDB features
+| Suite | Passed |
+| --- | ---: |
+| Frog.Tests | 204 |
+| PostgreSQL | 20 |
+
+## Known issues carried forward
+
+- Playtest screenshots NOT RUN (Phase 5)
+- Tileset↔map references via EditorPaletteId JSON (not Guid FK yet)

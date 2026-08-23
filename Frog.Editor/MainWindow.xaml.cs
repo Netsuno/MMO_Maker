@@ -85,6 +85,11 @@ public partial class MainWindow : Window
         nameof(CmdOpenTileset),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdGameData = new(
+        "Données de jeu…",
+        nameof(CmdGameData),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdValidateMap = new(
         "Valider la carte…",
         nameof(CmdValidateMap),
@@ -159,6 +164,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdUndo, (_, _) => _editor.DoUndo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanUndo));
         CommandBindings.Add(new CommandBinding(CmdRedo, (_, _) => _editor.DoRedo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanRedo));
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
+        CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEventsFromMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkersFromMariaDb()));
@@ -177,6 +183,12 @@ public partial class MainWindow : Window
     private bool _allowCloseWithoutPrompt;
     private bool _closePromptInFlight;
     private bool _playtestCloseInFlight;
+
+    private void OpenGameData()
+    {
+        using var dlg = new Forms.GameData.GameDataForm();
+        dlg.ShowDialog();
+    }
 
     internal void AllowCloseWithoutPromptForTest()
     {
