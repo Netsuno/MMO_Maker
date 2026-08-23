@@ -5,9 +5,10 @@
 **PHASE 5 GATE REACHED — WAITING FOR REVIEW**
 
 - Prior rejected HEAD: `ac3a71b2270812567c30f04395b58ad5438faabf`
+- Gate HEAD: `81c4ae0fa8be999b007a66d2e0885eac63a59ff6`
 - Branch / PR: `cursor/phase0-baseline-audit-02c7` / #2
-- Range: `ac3a71b..HEAD`
-- CI: see `docs/STATUS.md`
+- Range: `ac3a71b..81c4ae0`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32653169799
 - Phase 6: **not started**
 
 ## Blockers addressed (fourth rejection)

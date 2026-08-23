@@ -7,8 +7,8 @@ Fourth temporary rejection at `ac3a71b2270812567c30f04395b58ad5438faabf`. Correc
 ## Plage
 
 - After: `ac3a71b2270812567c30f04395b58ad5438faabf`
-- Head: see `docs/STATUS.md`
-- CI: see `docs/STATUS.md`
+- Gate HEAD: `81c4ae0fa8be999b007a66d2e0885eac63a59ff6`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32653169799
 
 ## Checklist
 

@@ -3,8 +3,9 @@
 ## Commit range
 
 - Prior rejected tip: `ac3a71b2270812567c30f04395b58ad5438faabf`
-- Range: `ac3a71b..HEAD`
-- CI: see `docs/STATUS.md`
+- Gate HEAD: `81c4ae0fa8be999b007a66d2e0885eac63a59ff6`
+- Range: `ac3a71b..81c4ae0`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32653169799 (success)
 
 ## Suites (CI on gate HEAD)
 
