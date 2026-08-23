@@ -7,8 +7,8 @@ Fifth temporary rejection at `b6991aa695da5b14690bd46696c533692dea56ce`. Correct
 ## Plage
 
 - After: `b6991aa695da5b14690bd46696c533692dea56ce`
-- Gate HEAD: see `docs/STATUS.md`
-- CI: see `docs/STATUS.md`
+- Implementation tip: `d33f9924e5ff4ee613475200bfb1a6dd88f0d65e`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32654683068
 
 ## Checklist
 
