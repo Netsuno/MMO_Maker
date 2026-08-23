@@ -7,7 +7,8 @@
 - **Phase 5 : ACCEPTED** — `1944d73b6fffa84799d288da555f1005b82f2698`
 - **Phase 6 : IN PROGRESS** — essential content editors
   - Slice 1 Tilesets : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_01_TILESETS.md`)
-  - Remaining : NPCs/monsters → Items → Spells/skills → Classes → Shops → Resources/spawns
+  - Slice 2 NPCs/monsters : implemented, verification pending (see `docs/progress/phase-06-essential-content-editors/SLICE_02_NPCS.md`)
+  - Remaining : Items → Spells/skills → Classes → Shops → Resources/spawns
 - Phase 7 : not started
 
 ## Local verification (Tilesets slice)
@@ -21,3 +22,4 @@
 
 - Playtest screenshots NOT RUN (Phase 5)
 - Tileset↔map references via EditorPaletteId JSON (not Guid FK yet)
+- NPC↔map spawn references use legacy integer `EditorAliasId` (not Guid FK yet)

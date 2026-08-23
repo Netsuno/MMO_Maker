@@ -1,5 +1,6 @@
 using Frog.Application.Content;
 using Frog.Application.Maps;
+using Frog.Core.Models;
 
 namespace Frog.Persistence.PostgreSql.Entities;
 
@@ -101,6 +102,49 @@ public sealed class TilesetPublicationHistoryEntity
     public long Revision { get; set; }
     public DateTimeOffset PublishedAtUtc { get; set; }
     public TilesetEntity Tileset { get; set; } = null!;
+}
+
+public sealed class NpcEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public NpcKind Kind { get; set; }
+    public string SpriteLogicalPath { get; set; } = string.Empty;
+    public int Level { get; set; }
+    public string? Notes { get; set; }
+    public int? EditorAliasId { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’un NPC ou monstre publié.</summary>
+public sealed class NpcPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid NpcId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public NpcKind Kind { get; set; }
+    public string SpriteLogicalPath { get; set; } = string.Empty;
+    public int Level { get; set; }
+    public string? Notes { get; set; }
+    public int? EditorAliasId { get; set; }
+    public NpcEntity Npc { get; set; } = null!;
+}
+
+public sealed class NpcPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid NpcId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public NpcEntity Npc { get; set; } = null!;
 }
 
 public sealed class LegacyImportEntity

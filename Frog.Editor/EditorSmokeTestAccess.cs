@@ -23,6 +23,7 @@ internal static class EditorSmokeTestAccess
     {
         EditorTestHooks.OverrideMapRepository = null;
         EditorTestHooks.OverrideTilesetRepository = null;
+        EditorTestHooks.OverrideNpcRepository = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
@@ -40,6 +41,9 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideMapRepository = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideTilesetRepository =
             new Frog.Application.Content.InMemoryTilesetRepository(
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideNpcRepository =
+            new Frog.Application.Content.InMemoryNpcRepository(
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
     }
@@ -79,6 +83,41 @@ internal static class EditorSmokeTestAccess
         if (catalog.All(t => t.Name != "SmokeTileset"))
         {
             throw new InvalidOperationException("Published tileset missing from catalog after smoke publish.");
+        }
+    }
+
+    public static async Task OpenGameDataAndSaveSampleNpcAsync(MainWindow window)
+    {
+        using var form = new Forms.GameData.GameDataForm();
+        var bundle = Services.EditorNpcRepositoryFactory.CreateBundle();
+        var session = new Frog.Application.Content.NpcWorkspaceSession(bundle.Repository);
+        session.AdoptNewDraft(new Frog.Core.Models.NpcDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeMonster",
+            Kind = Frog.Core.Models.NpcKind.Monster,
+            SpriteLogicalPath = "sprites/npcs/smoke-monster.png",
+            Level = 12,
+            Notes = "NPC smoke test",
+            EditorAliasId = 2,
+        });
+        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
+        if (saved is not Frog.Application.Content.SaveNpcResult.Success)
+        {
+            throw new InvalidOperationException($"NPC smoke save failed: {saved}");
+        }
+
+        session.MarkDirty();
+        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
+        if (published is not Frog.Application.Content.SaveNpcResult.Success)
+        {
+            throw new InvalidOperationException($"NPC smoke publish failed: {published}");
+        }
+
+        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
+        if (catalog.All(n => n.Name != "SmokeMonster"))
+        {
+            throw new InvalidOperationException("Published NPC missing from catalog after smoke publish.");
         }
     }
 

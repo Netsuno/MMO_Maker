@@ -21,6 +21,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<TilesetEntity> Tilesets => Set<TilesetEntity>();
     public DbSet<TilesetPublishedSnapshotEntity> TilesetPublishedSnapshots => Set<TilesetPublishedSnapshotEntity>();
     public DbSet<TilesetPublicationHistoryEntity> TilesetPublicationHistory => Set<TilesetPublicationHistoryEntity>();
+    public DbSet<NpcEntity> Npcs => Set<NpcEntity>();
+    public DbSet<NpcPublishedSnapshotEntity> NpcPublishedSnapshots => Set<NpcPublishedSnapshotEntity>();
+    public DbSet<NpcPublicationHistoryEntity> NpcPublicationHistory => Set<NpcPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -141,6 +144,47 @@ public sealed class FrogDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.TilesetId);
             e.HasOne(x => x.Tileset).WithMany().HasForeignKey(x => x.TilesetId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<NpcEntity>(e =>
+        {
+            e.ToTable("npcs", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.EditorAliasId).IsUnique().HasFilter("editor_alias_id IS NOT NULL");
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.SpriteLogicalPath).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(2000);
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_npcs_level", "level >= 1 AND level <= 99");
+                t.HasCheckConstraint("ck_npcs_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<NpcPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("npc_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.NpcId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.SpriteLogicalPath).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(2000);
+            e.HasOne(x => x.Npc).WithMany().HasForeignKey(x => x.NpcId).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t => t.HasCheckConstraint(
+                "ck_npc_published_snapshots_level",
+                "level >= 1 AND level <= 99"));
+        });
+
+        modelBuilder.Entity<NpcPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("npc_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.NpcId);
+            e.HasOne(x => x.Npc).WithMany().HasForeignKey(x => x.NpcId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LegacyImportEntity>(e =>

@@ -12,6 +12,8 @@ internal static class EditorTestHooks
 
     public static ITilesetRepository? OverrideTilesetRepository { get; set; }
 
+    public static INpcRepository? OverrideNpcRepository { get; set; }
+
     public static IEditorDialogService? OverrideDialogService { get; set; }
 
     public static IPlaytestProcessLauncher? OverridePlaytestProcessLauncher { get; set; }
