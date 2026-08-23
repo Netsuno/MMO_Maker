@@ -6,7 +6,7 @@
 
 ## Commit
 
-See git history after this file is committed (slice tip recorded in `docs/STATUS.md`).
+`ddd3dfc5df95864f2fbc89d911d02a66b88d4c17`
 
 ## Files / migrations
 
