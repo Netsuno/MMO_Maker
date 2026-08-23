@@ -7,16 +7,16 @@
 - **Phase 5 : ACCEPTED** — `1944d73b6fffa84799d288da555f1005b82f2698`
 - **Phase 6 : IN PROGRESS** — essential content editors
   - Slice 1 Tilesets : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_01_TILESETS.md`)
-  - Slice 2 NPCs/monsters : implemented, verification pending (see `docs/progress/phase-06-essential-content-editors/SLICE_02_NPCS.md`)
+  - Slice 2 NPCs/monsters : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_02_NPCS.md`)
   - Remaining : Items → Spells/skills → Classes → Shops → Resources/spawns
 - Phase 7 : not started
 
-## Local verification (Tilesets slice)
+## Local verification (Phase 6 through slice 2)
 
 | Suite | Passed |
 | --- | ---: |
-| Frog.Tests | 204 |
-| PostgreSQL | 20 |
+| Frog.Tests | 211 |
+| PostgreSQL | 22 |
 
 ## Known issues carried forward
 

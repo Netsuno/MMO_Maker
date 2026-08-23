@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation complete; local verification pending.
+**COMPLETE** — implemented in `882fa7c7ae5f2e233daee2518740293ac5198bd0`.
 
 ## Files / migration
 
@@ -30,6 +30,14 @@ dotnet test Frog.Tests/Frog.Tests.csproj -c Release
 dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
 # Windows CI: Frog.Editor.WindowsSmokeTests
 ```
+
+## Test results (local)
+
+| Suite | Passed |
+| --- | ---: |
+| Frog.Tests | 211 |
+| PostgreSQL | 22 |
+| Windows smoke | project build green; execution delegated to Windows CI |
 
 ## Remaining Phase 6 slices
 
