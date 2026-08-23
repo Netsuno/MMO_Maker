@@ -24,6 +24,7 @@ public abstract record DeleteSpellResult
 {
     public sealed record Success : DeleteSpellResult;
     public sealed record NotFound : DeleteSpellResult;
+    public sealed record Referenced(string Error) : DeleteSpellResult;
     public sealed record PersistenceFailed(string Error) : DeleteSpellResult;
 }
 

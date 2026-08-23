@@ -26,6 +26,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideNpcRepository = null;
         EditorTestHooks.OverrideItemRepository = null;
         EditorTestHooks.OverrideSpellRepository = null;
+        EditorTestHooks.OverrideClassRepository = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
@@ -50,8 +51,12 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideItemRepository =
             new Frog.Application.Content.InMemoryItemRepository(
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
-        EditorTestHooks.OverrideSpellRepository =
-            new Frog.Application.Content.InMemorySpellRepository(
+        var spellRepository = new Frog.Application.Content.InMemorySpellRepository(
+            Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideSpellRepository = spellRepository;
+        EditorTestHooks.OverrideClassRepository =
+            new Frog.Application.Content.InMemoryClassRepository(
+                spellRepository,
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
     }
@@ -198,6 +203,65 @@ internal static class EditorSmokeTestAccess
         if (catalog.All(spell => spell.Name != "SmokeFireball"))
         {
             throw new InvalidOperationException("Published spell missing from catalog after smoke publish.");
+        }
+    }
+
+    public static async Task OpenGameDataAndSaveSampleClassAsync(MainWindow window)
+    {
+        using var form = new Forms.GameData.GameDataForm();
+        var spellBundle = Services.EditorSpellRepositoryFactory.CreateBundle();
+        var spellSession = new Frog.Application.Content.SpellWorkspaceSession(spellBundle.Repository);
+        spellSession.AdoptNewDraft(new Frog.Core.Models.SpellDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeClassStarter",
+            Kind = SpellKind.Skill,
+            ManaCost = 0,
+            CooldownMs = 500,
+            TargetType = TargetType.Self,
+            IconLogicalPath = "icons/spells/smoke-class-starter.png",
+        });
+        var spellPublished = await spellSession.SaveCurrentAsync(
+            Frog.Application.Content.SaveContentIntent.Publish);
+        if (spellPublished is not Frog.Application.Content.SaveSpellResult.Success spellSuccess)
+        {
+            throw new InvalidOperationException($"Class smoke prerequisite spell failed: {spellPublished}");
+        }
+
+        var bundle = Services.EditorClassRepositoryFactory.CreateBundle(spellBundle.Repository);
+        var session = new Frog.Application.Content.ClassWorkspaceSession(bundle.Repository);
+        session.AdoptNewDraft(new Frog.Core.Models.ClassDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeWarrior",
+            Description = "Class smoke test",
+            BaseHp = 120,
+            BaseMp = 30,
+            Str = 15,
+            Agi = 9,
+            Vit = 14,
+            Int = 5,
+            Dex = 10,
+            Luck = 7,
+            StartingSpellId = spellSuccess.SpellId,
+        });
+        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
+        if (saved is not Frog.Application.Content.SaveClassResult.Success)
+        {
+            throw new InvalidOperationException($"Class smoke save failed: {saved}");
+        }
+
+        session.MarkDirty();
+        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
+        if (published is not Frog.Application.Content.SaveClassResult.Success)
+        {
+            throw new InvalidOperationException($"Class smoke publish failed: {published}");
+        }
+
+        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
+        if (catalog.All(characterClass => characterClass.Name != "SmokeWarrior"))
+        {
+            throw new InvalidOperationException("Published class missing from catalog after smoke publish.");
         }
     }
 

@@ -17,6 +17,7 @@ public sealed class GameDataForm : Form
     private readonly NpcEditorPanel _npcs;
     private readonly ItemEditorPanel _items;
     private readonly SpellEditorPanel _spells;
+    private readonly ClassEditorPanel _classes;
     private readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft };
 
     public GameDataForm()
@@ -47,6 +48,12 @@ public sealed class GameDataForm : Form
             new SpellWorkspaceSession(spellBundle.Repository),
             spellBundle.Capabilities);
         _spells.StatusChanged += msg => _status.Text = msg;
+        var classBundle = EditorClassRepositoryFactory.CreateBundle(spellBundle.Repository);
+        _classes = new ClassEditorPanel(
+            new ClassWorkspaceSession(classBundle.Repository),
+            spellBundle.PublishedCatalog,
+            classBundle.Capabilities);
+        _classes.StatusChanged += msg => _status.Text = msg;
 
         _categoryList.Items.AddRange(new object[]
         {
@@ -54,7 +61,7 @@ public sealed class GameDataForm : Form
             "NPCs / monstres",
             "Objets",
             "Sorts / compétences",
-            "Classes (Phase 6 — à venir)",
+            "Classes",
             "Boutiques (Phase 6 — à venir)",
             "Ressources / spawns (Phase 6 — à venir)",
         });
@@ -75,6 +82,7 @@ public sealed class GameDataForm : Form
             await _npcs.InitializeAsync().ConfigureAwait(true);
             await _items.InitializeAsync().ConfigureAwait(true);
             await _spells.InitializeAsync().ConfigureAwait(true);
+            await _classes.InitializeAsync().ConfigureAwait(true);
         };
     }
 
@@ -101,6 +109,11 @@ public sealed class GameDataForm : Form
             _spells.Dock = DockStyle.Fill;
             _host.Controls.Add(_spells);
         }
+        else if (_categoryList.SelectedIndex == 4)
+        {
+            _classes.Dock = DockStyle.Fill;
+            _host.Controls.Add(_classes);
+        }
         else
         {
             _host.Controls.Add(new Label
@@ -114,7 +127,11 @@ public sealed class GameDataForm : Form
 
     private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (_tilesets.IsDirty || _npcs.IsDirty || _items.IsDirty || _spells.IsDirty)
+        if (_tilesets.IsDirty
+            || _npcs.IsDirty
+            || _items.IsDirty
+            || _spells.IsDirty
+            || _classes.IsDirty)
         {
             var r = MessageBox.Show(
                 this,
@@ -1366,6 +1383,14 @@ public sealed class SpellEditorPanel : UserControl
             case DeleteSpellResult.NotFound:
                 MessageBox.Show(this, "Sort ou compétence introuvable.");
                 break;
+            case DeleteSpellResult.Referenced referenced:
+                MessageBox.Show(
+                    this,
+                    referenced.Error,
+                    "Référence",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                break;
             case DeleteSpellResult.PersistenceFailed persistence:
                 MessageBox.Show(this, persistence.Error, "Erreur");
                 break;
@@ -1373,6 +1398,412 @@ public sealed class SpellEditorPanel : UserControl
     }
 
     private sealed record CatalogItem(Guid Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+}
+
+/// <summary>Liste + formulaire classe (brouillon / publication).</summary>
+public sealed class ClassEditorPanel : UserControl
+{
+    private readonly ClassWorkspaceSession _session;
+    private readonly IPublishedSpellCatalog _spellCatalog;
+    private readonly ContentRepositoryCapabilities _capabilities;
+    private readonly ListBox _list = new() { Dock = DockStyle.Fill };
+    private readonly TextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Rechercher…" };
+    private readonly ComboBox _statusFilter = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _name = new() { Width = 280 };
+    private readonly TextBox _description = new()
+    {
+        Width = 360,
+        Height = 70,
+        Multiline = true,
+        ScrollBars = ScrollBars.Vertical,
+    };
+    private readonly NumericUpDown _baseHp = new() { Minimum = 1, Maximum = int.MaxValue, Value = 100, Width = 120 };
+    private readonly NumericUpDown _baseMp = new() { Minimum = 1, Maximum = int.MaxValue, Value = 50, Width = 120 };
+    private readonly NumericUpDown _str = StatControl();
+    private readonly NumericUpDown _agi = StatControl();
+    private readonly NumericUpDown _vit = StatControl();
+    private readonly NumericUpDown _int = StatControl();
+    private readonly NumericUpDown _dex = StatControl();
+    private readonly NumericUpDown _luck = StatControl();
+    private readonly ComboBox _startingSpell = new()
+    {
+        Width = 280,
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
+    private readonly Label _meta = new() { AutoSize = true };
+    private readonly Label _validation = new() { AutoSize = true, ForeColor = Color.Firebrick };
+    private readonly Button _btnNew = new() { Text = "Nouveau", AutoSize = true };
+    private readonly Button _btnDup = new() { Text = "Dupliquer", AutoSize = true };
+    private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
+    private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
+    private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
+    private bool _suppressList;
+    private bool _binding;
+
+    public event Action<string>? StatusChanged;
+
+    public bool IsDirty => _session.IsDirty;
+
+    public ClassEditorPanel(
+        ClassWorkspaceSession session,
+        IPublishedSpellCatalog spellCatalog,
+        ContentRepositoryCapabilities capabilities)
+    {
+        _session = session;
+        _spellCatalog = spellCatalog;
+        _capabilities = capabilities;
+
+        _statusFilter.Items.AddRange(new object[] { "Tous", "Brouillon", "Publié" });
+        _statusFilter.SelectedIndex = 0;
+        _startingSpell.Items.Add(new SpellChoice(null, "Aucun"));
+        _startingSpell.SelectedIndex = 0;
+
+        var left = new Panel { Dock = DockStyle.Left, Width = 260, Padding = new Padding(4) };
+        left.Controls.Add(_list);
+        left.Controls.Add(_search);
+        left.Controls.Add(_statusFilter);
+
+        var form = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            Padding = new Padding(12),
+            AutoScroll = true,
+        };
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        void Row(string label, Control control)
+        {
+            var row = form.RowCount++;
+            form.Controls.Add(
+                new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left },
+                0,
+                row);
+            form.Controls.Add(control, 1, row);
+        }
+
+        Row("Nom", _name);
+        Row("Description", _description);
+        Row("PV de base", _baseHp);
+        Row("PM de base", _baseMp);
+        Row("FOR", _str);
+        Row("AGI", _agi);
+        Row("VIT", _vit);
+        Row("INT", _int);
+        Row("DEX", _dex);
+        Row("CHANCE", _luck);
+        Row("Sort de départ", _startingSpell);
+        Row("État", _meta);
+        Row("", _validation);
+
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 40,
+            FlowDirection = FlowDirection.LeftToRight,
+        };
+        buttons.Controls.AddRange(
+            new Control[] { _btnNew, _btnDup, _btnSave, _btnPublish, _btnDelete });
+
+        Controls.Add(form);
+        Controls.Add(buttons);
+        Controls.Add(left);
+
+        _search.TextChanged += async (_, _) =>
+        {
+            _session.SearchFilter = _search.Text;
+            await RefreshListAsync().ConfigureAwait(true);
+        };
+        _statusFilter.SelectedIndexChanged += async (_, _) =>
+        {
+            _session.StatusFilter = _statusFilter.SelectedIndex switch
+            {
+                1 => ContentPublishStatus.Draft,
+                2 => ContentPublishStatus.Published,
+                _ => null,
+            };
+            await RefreshListAsync().ConfigureAwait(true);
+        };
+        _list.SelectedIndexChanged += async (_, _) =>
+        {
+            if (_suppressList || _list.SelectedItem is not CatalogItem item)
+            {
+                return;
+            }
+
+            if (_session.IsDirty)
+            {
+                var result = MessageBox.Show(
+                    this,
+                    "Modifications non enregistrées. Continuer ?",
+                    "Classes",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+                if (result != DialogResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            await _session.OpenAsync(item.Id).ConfigureAwait(true);
+            BindForm();
+        };
+
+        void Mark()
+        {
+            if (_binding)
+            {
+                return;
+            }
+
+            ApplyFormToSession();
+            _session.MarkDirty();
+            LiveValidate();
+            StatusChanged?.Invoke("Modifié (non enregistré)");
+        }
+
+        _name.TextChanged += (_, _) => Mark();
+        _description.TextChanged += (_, _) => Mark();
+        _baseHp.ValueChanged += (_, _) => Mark();
+        _baseMp.ValueChanged += (_, _) => Mark();
+        _str.ValueChanged += (_, _) => Mark();
+        _agi.ValueChanged += (_, _) => Mark();
+        _vit.ValueChanged += (_, _) => Mark();
+        _int.ValueChanged += (_, _) => Mark();
+        _dex.ValueChanged += (_, _) => Mark();
+        _luck.ValueChanged += (_, _) => Mark();
+        _startingSpell.SelectedIndexChanged += (_, _) => Mark();
+
+        _btnNew.Click += (_, _) =>
+        {
+            _session.AdoptNewDraft(new ClassDefinition
+            {
+                Id = Guid.NewGuid(),
+                Name = "Nouvelle classe",
+                BaseHp = 100,
+                BaseMp = 50,
+                Str = 10,
+                Agi = 10,
+                Vit = 10,
+                Int = 10,
+                Dex = 10,
+                Luck = 10,
+            });
+            BindForm();
+            StatusChanged?.Invoke("Nouveau brouillon");
+        };
+        _btnDup.Click += (_, _) =>
+        {
+            if (_session.Current is null)
+            {
+                return;
+            }
+
+            _session.DuplicateCurrent();
+            BindForm();
+            StatusChanged?.Invoke("Copie créée");
+        };
+        _btnSave.Click += async (_, _) =>
+            await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
+        _btnPublish.Click += async (_, _) =>
+            await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
+        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+
+        var canWrite = _capabilities.AllowsSave;
+        _btnSave.Enabled = canWrite;
+        _btnPublish.Enabled = canWrite;
+        _btnDelete.Enabled = canWrite;
+    }
+
+    public async Task InitializeAsync()
+    {
+        await RefreshStartingSpellsAsync().ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend classes : {_capabilities.DisplayLabel}");
+    }
+
+    private async Task RefreshStartingSpellsAsync()
+    {
+        var selectedId = (_startingSpell.SelectedItem as SpellChoice)?.Id;
+        var spells = await _spellCatalog.ListPublishedAsync().ConfigureAwait(true);
+        _binding = true;
+        try
+        {
+            _startingSpell.Items.Clear();
+            _startingSpell.Items.Add(new SpellChoice(null, "Aucun"));
+            foreach (var spell in spells.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                _startingSpell.Items.Add(new SpellChoice(spell.Id, spell.Name));
+            }
+
+            _startingSpell.SelectedItem = _startingSpell.Items
+                .Cast<SpellChoice>()
+                .FirstOrDefault(choice => choice.Id == selectedId)
+                ?? (SpellChoice)_startingSpell.Items[0];
+        }
+        finally
+        {
+            _binding = false;
+        }
+    }
+
+    private async Task RefreshListAsync()
+    {
+        await _session.RefreshCatalogAsync().ConfigureAwait(true);
+        _suppressList = true;
+        _list.Items.Clear();
+        foreach (var entry in _session.Catalog)
+        {
+            _list.Items.Add(new CatalogItem(
+                entry.ClassId,
+                $"{entry.Name} (PV {entry.BaseHp}, PM {entry.BaseMp}) [{entry.Status}]"));
+        }
+
+        _suppressList = false;
+    }
+
+    private void BindForm()
+    {
+        var definition = _session.Current;
+        if (definition is null)
+        {
+            return;
+        }
+
+        _binding = true;
+        try
+        {
+            _name.Text = definition.Name;
+            _description.Text = definition.Description ?? string.Empty;
+            _baseHp.Value = Math.Clamp(definition.BaseHp, 1, int.MaxValue);
+            _baseMp.Value = Math.Clamp(definition.BaseMp, 1, int.MaxValue);
+            _str.Value = Math.Clamp(definition.Str, ClassDefinition.MinStat, ClassDefinition.MaxStat);
+            _agi.Value = Math.Clamp(definition.Agi, ClassDefinition.MinStat, ClassDefinition.MaxStat);
+            _vit.Value = Math.Clamp(definition.Vit, ClassDefinition.MinStat, ClassDefinition.MaxStat);
+            _int.Value = Math.Clamp(definition.Int, ClassDefinition.MinStat, ClassDefinition.MaxStat);
+            _dex.Value = Math.Clamp(definition.Dex, ClassDefinition.MinStat, ClassDefinition.MaxStat);
+            _luck.Value = Math.Clamp(definition.Luck, ClassDefinition.MinStat, ClassDefinition.MaxStat);
+            _startingSpell.SelectedItem = _startingSpell.Items
+                .Cast<SpellChoice>()
+                .FirstOrDefault(choice => choice.Id == definition.StartingSpellId)
+                ?? (SpellChoice)_startingSpell.Items[0];
+            _meta.Text =
+                $"Id={definition.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
+        }
+        finally
+        {
+            _binding = false;
+        }
+
+        LiveValidate();
+    }
+
+    private void ApplyFormToSession()
+    {
+        if (_session.Current is null)
+        {
+            return;
+        }
+
+        _session.Current.Name = _name.Text.Trim();
+        _session.Current.Description = string.IsNullOrWhiteSpace(_description.Text)
+            ? null
+            : _description.Text.Trim();
+        _session.Current.BaseHp = (int)_baseHp.Value;
+        _session.Current.BaseMp = (int)_baseMp.Value;
+        _session.Current.Str = (int)_str.Value;
+        _session.Current.Agi = (int)_agi.Value;
+        _session.Current.Vit = (int)_vit.Value;
+        _session.Current.Int = (int)_int.Value;
+        _session.Current.Dex = (int)_dex.Value;
+        _session.Current.Luck = (int)_luck.Value;
+        _session.Current.StartingSpellId = (_startingSpell.SelectedItem as SpellChoice)?.Id;
+    }
+
+    private void LiveValidate()
+    {
+        if (_session.Current is null)
+        {
+            _validation.Text = string.Empty;
+            return;
+        }
+
+        ApplyFormToSession();
+        _validation.Text = _session.Current.Validate(out var error) ? string.Empty : error;
+    }
+
+    private async Task SaveAsync(SaveContentIntent intent)
+    {
+        ApplyFormToSession();
+        var result = await _session.SaveCurrentAsync(intent).ConfigureAwait(true);
+        switch (result)
+        {
+            case SaveClassResult.Success success:
+                StatusChanged?.Invoke(
+                    intent == SaveContentIntent.Publish
+                        ? $"Publié rev={success.PublishedRevision}"
+                        : $"Brouillon enregistré rev={success.NewRevision}");
+                await RefreshListAsync().ConfigureAwait(true);
+                BindForm();
+                break;
+            case SaveClassResult.ValidationFailed validation:
+                MessageBox.Show(
+                    this,
+                    validation.Error,
+                    "Validation",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                break;
+            case SaveClassResult.Conflict conflict:
+                MessageBox.Show(
+                    this,
+                    $"Conflit de révision (courante={conflict.CurrentRevision}).",
+                    "Conflit");
+                break;
+            case SaveClassResult.NotDurable notDurable:
+                MessageBox.Show(this, notDurable.Message, "Persistance");
+                break;
+            case SaveClassResult.PersistenceFailed persistence:
+                MessageBox.Show(this, persistence.Error, "Erreur");
+                break;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        var result = await _session.DeleteCurrentAsync().ConfigureAwait(true);
+        switch (result)
+        {
+            case DeleteClassResult.Success:
+                StatusChanged?.Invoke("Supprimée");
+                await RefreshListAsync().ConfigureAwait(true);
+                break;
+            case DeleteClassResult.NotFound:
+                MessageBox.Show(this, "Classe introuvable.");
+                break;
+            case DeleteClassResult.PersistenceFailed persistence:
+                MessageBox.Show(this, persistence.Error, "Erreur");
+                break;
+        }
+    }
+
+    private static NumericUpDown StatControl() => new()
+    {
+        Minimum = ClassDefinition.MinStat,
+        Maximum = ClassDefinition.MaxStat,
+        Value = 10,
+        Width = 80,
+    };
+
+    private sealed record CatalogItem(Guid Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    private sealed record SpellChoice(Guid? Id, string Label)
     {
         public override string ToString() => Label;
     }

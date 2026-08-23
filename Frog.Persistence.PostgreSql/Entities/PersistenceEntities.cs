@@ -238,6 +238,59 @@ public sealed class SpellPublicationHistoryEntity
     public SpellEntity Spell { get; set; } = null!;
 }
 
+public sealed class ClassEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int BaseHp { get; set; }
+    public int BaseMp { get; set; }
+    public int Str { get; set; }
+    public int Agi { get; set; }
+    public int Vit { get; set; }
+    public int Int { get; set; }
+    public int Dex { get; set; }
+    public int Luck { get; set; }
+    public Guid? StartingSpellId { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’une classe publiée.</summary>
+public sealed class ClassPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid ClassId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int BaseHp { get; set; }
+    public int BaseMp { get; set; }
+    public int Str { get; set; }
+    public int Agi { get; set; }
+    public int Vit { get; set; }
+    public int Int { get; set; }
+    public int Dex { get; set; }
+    public int Luck { get; set; }
+    public Guid? StartingSpellId { get; set; }
+    public ClassEntity Class { get; set; } = null!;
+}
+
+public sealed class ClassPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid ClassId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public ClassEntity Class { get; set; } = null!;
+}
+
 public sealed class LegacyImportEntity
 {
     public Guid Id { get; set; }

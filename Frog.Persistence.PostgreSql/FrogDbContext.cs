@@ -1,3 +1,4 @@
+using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +31,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<SpellEntity> Spells => Set<SpellEntity>();
     public DbSet<SpellPublishedSnapshotEntity> SpellPublishedSnapshots => Set<SpellPublishedSnapshotEntity>();
     public DbSet<SpellPublicationHistoryEntity> SpellPublicationHistory => Set<SpellPublicationHistoryEntity>();
+    public DbSet<ClassEntity> Classes => Set<ClassEntity>();
+    public DbSet<ClassPublishedSnapshotEntity> ClassPublishedSnapshots => Set<ClassPublishedSnapshotEntity>();
+    public DbSet<ClassPublicationHistoryEntity> ClassPublicationHistory => Set<ClassPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -295,6 +299,69 @@ public sealed class FrogDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SpellId);
             e.HasOne(x => x.Spell).WithMany().HasForeignKey(x => x.SpellId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ClassEntity>(e =>
+        {
+            e.ToTable("classes", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(ClassDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(ClassDefinition.MaxDescriptionLength);
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<SpellEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.StartingSpellId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_classes_positive_resources", "base_hp > 0 AND base_mp > 0");
+                t.HasCheckConstraint(
+                    "ck_classes_stats",
+                    "str >= 1 AND str <= 99 AND agi >= 1 AND agi <= 99 "
+                    + "AND vit >= 1 AND vit <= 99 AND int >= 1 AND int <= 99 "
+                    + "AND dex >= 1 AND dex <= 99 AND luck >= 1 AND luck <= 99");
+                t.HasCheckConstraint("ck_classes_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<ClassPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("class_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ClassId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(ClassDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(ClassDefinition.MaxDescriptionLength);
+            e.HasOne(x => x.Class)
+                .WithMany()
+                .HasForeignKey(x => x.ClassId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<SpellEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.StartingSpellId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_class_published_snapshots_positive_resources",
+                    "base_hp > 0 AND base_mp > 0");
+                t.HasCheckConstraint(
+                    "ck_class_published_snapshots_stats",
+                    "str >= 1 AND str <= 99 AND agi >= 1 AND agi <= 99 "
+                    + "AND vit >= 1 AND vit <= 99 AND int >= 1 AND int <= 99 "
+                    + "AND dex >= 1 AND dex <= 99 AND luck >= 1 AND luck <= 99");
+            });
+        });
+
+        modelBuilder.Entity<ClassPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("class_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ClassId);
+            e.HasOne(x => x.Class)
+                .WithMany()
+                .HasForeignKey(x => x.ClassId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LegacyImportEntity>(e =>
