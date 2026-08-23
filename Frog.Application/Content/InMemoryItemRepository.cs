@@ -8,6 +8,7 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
     private readonly ConcurrentDictionary<Guid, DraftRecord> _drafts = new();
     private readonly ConcurrentDictionary<Guid, PublishedRecord> _published = new();
     private IShopItemReferenceCatalog? _shopReferences;
+    private IResourceItemReferenceCatalog? _resourceReferences;
 
     public InMemoryItemRepository(ContentRepositoryCapabilities? capabilities = null)
     {
@@ -19,6 +20,12 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
     internal void RegisterShopReferences(IShopItemReferenceCatalog shopReferences)
     {
         _shopReferences = shopReferences ?? throw new ArgumentNullException(nameof(shopReferences));
+    }
+
+    internal void RegisterResourceReferences(IResourceItemReferenceCatalog resourceReferences)
+    {
+        _resourceReferences =
+            resourceReferences ?? throw new ArgumentNullException(nameof(resourceReferences));
     }
 
     public Task<SaveItemResult> SaveAsync(
@@ -188,6 +195,14 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
         {
             return new DeleteItemResult.Referenced(
                 "L’objet est référencé par un brouillon ou un snapshot publié de boutique.");
+        }
+
+        if (_resourceReferences is not null
+            && await _resourceReferences.IsItemReferencedAsync(itemId, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            return new DeleteItemResult.Referenced(
+                "L’objet est référencé par un brouillon ou un snapshot publié de ressource.");
         }
 
         if (!_drafts.TryRemove(itemId, out _))

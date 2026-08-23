@@ -294,6 +294,24 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
                 "L’objet est référencé par un brouillon ou un snapshot publié de boutique.");
         }
 
+        var resourceReferenced = await _db.Resources.AsNoTracking()
+                .AnyAsync(
+                    resource =>
+                        resource.YieldItemId == itemId || resource.ToolItemId == itemId,
+                    cancellationToken)
+                .ConfigureAwait(false)
+            || await _db.ResourcePublishedSnapshots.AsNoTracking()
+                .AnyAsync(
+                    snapshot =>
+                        snapshot.YieldItemId == itemId || snapshot.ToolItemId == itemId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        if (resourceReferenced)
+        {
+            return new DeleteItemResult.Referenced(
+                "L’objet est référencé par un brouillon ou un snapshot publié de ressource.");
+        }
+
         await using var transaction = await _db.Database
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);

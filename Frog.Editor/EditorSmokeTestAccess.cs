@@ -28,6 +28,8 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideSpellRepository = null;
         EditorTestHooks.OverrideClassRepository = null;
         EditorTestHooks.OverrideShopRepository = null;
+        EditorTestHooks.OverrideResourceRepository = null;
+        EditorTestHooks.OverrideResourceSpawnRepository = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
@@ -42,7 +44,8 @@ internal static class EditorSmokeTestAccess
     public static void ConfigureInMemoryRepository()
     {
         ResetHooks();
-        EditorTestHooks.OverrideMapRepository = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        var mapRepository = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideMapRepository = mapRepository;
         EditorTestHooks.OverrideTilesetRepository =
             new Frog.Application.Content.InMemoryTilesetRepository(
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
@@ -62,6 +65,15 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideShopRepository =
             new Frog.Application.Content.InMemoryShopRepository(
                 itemRepository,
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        var resourceRepository = new Frog.Application.Content.InMemoryResourceRepository(
+            itemRepository,
+            Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideResourceRepository = resourceRepository;
+        EditorTestHooks.OverrideResourceSpawnRepository =
+            new Frog.Application.Content.InMemoryResourceSpawnRepository(
+                mapRepository,
+                resourceRepository,
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
     }
@@ -326,6 +338,108 @@ internal static class EditorSmokeTestAccess
         if (catalog.All(shop => shop.Name != "SmokeShop"))
         {
             throw new InvalidOperationException("Published shop missing from catalog after smoke publish.");
+        }
+    }
+
+    public static async Task OpenGameDataAndSaveSampleResourceAndSpawnAsync(MainWindow window)
+    {
+        using var form = new Forms.GameData.GameDataForm();
+        var itemBundle = Services.EditorItemRepositoryFactory.CreateBundle();
+        var itemSession = new Frog.Application.Content.ItemWorkspaceSession(itemBundle.Repository);
+        itemSession.AdoptNewDraft(new Frog.Core.Models.ItemDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeResourceYield",
+            Kind = ItemType.Quest,
+            IconLogicalPath = "icons/items/smoke-resource-yield.png",
+            MaxStack = 99,
+            BuyPrice = 0,
+            SellPrice = 1,
+        });
+        var itemPublished = await itemSession.SaveCurrentAsync(
+            Frog.Application.Content.SaveContentIntent.Publish);
+        if (itemPublished is not Frog.Application.Content.SaveItemResult.Success itemSuccess)
+        {
+            throw new InvalidOperationException(
+                $"Resource smoke prerequisite item failed: {itemPublished}");
+        }
+
+        var resourceBundle =
+            Services.EditorResourceRepositoryFactory.CreateBundle(itemBundle.PublishedCatalog);
+        var resourceSession =
+            new Frog.Application.Content.ResourceWorkspaceSession(resourceBundle.Repository);
+        resourceSession.AdoptNewDraft(new Frog.Core.Models.ResourceDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeTree",
+            Description = "Resource content smoke test",
+            SpriteLogicalPath = "sprites/resources/smoke-tree.png",
+            RespawnSeconds = 30,
+            YieldItemId = itemSuccess.ItemId,
+            YieldQuantity = 2,
+        });
+        var resourceSaved = await resourceSession.SaveCurrentAsync(
+            Frog.Application.Content.SaveContentIntent.SaveDraft);
+        if (resourceSaved is not Frog.Application.Content.SaveResourceResult.Success)
+        {
+            throw new InvalidOperationException($"Resource smoke save failed: {resourceSaved}");
+        }
+
+        resourceSession.MarkDirty();
+        var resourcePublished = await resourceSession.SaveCurrentAsync(
+            Frog.Application.Content.SaveContentIntent.Publish);
+        if (resourcePublished
+            is not Frog.Application.Content.SaveResourceResult.Success resourceSuccess)
+        {
+            throw new InvalidOperationException(
+                $"Resource smoke publish failed: {resourcePublished}");
+        }
+
+        var mapBundle = Services.EditorMapRepositoryFactory.CreateBundle();
+        var map = (await mapBundle.Repository.ListSummariesAsync()).FirstOrDefault()
+                  ?? throw new InvalidOperationException(
+                      "Resource spawn smoke requires the initialized editor map.");
+        var spawnBundle = Services.EditorResourceSpawnRepositoryFactory.CreateBundle(
+            mapBundle.Repository,
+            resourceBundle.PublishedCatalog,
+            resourceBundle.Capabilities);
+        var spawnSession =
+            new Frog.Application.Content.ResourceSpawnWorkspaceSession(spawnBundle.Repository);
+        spawnSession.AdoptNewDraft(new Frog.Core.Models.ResourceSpawnDefinition
+        {
+            Id = Guid.NewGuid(),
+            MapId = map.MapId,
+            ResourceId = resourceSuccess.ResourceId,
+            TileX = 2,
+            TileY = 3,
+        });
+        var spawnSaved = await spawnSession.SaveCurrentAsync(
+            Frog.Application.Content.SaveContentIntent.SaveDraft);
+        if (spawnSaved is not Frog.Application.Content.SaveResourceSpawnResult.Success)
+        {
+            throw new InvalidOperationException($"Resource spawn smoke save failed: {spawnSaved}");
+        }
+
+        spawnSession.MarkDirty();
+        var spawnPublished = await spawnSession.SaveCurrentAsync(
+            Frog.Application.Content.SaveContentIntent.Publish);
+        if (spawnPublished is not Frog.Application.Content.SaveResourceSpawnResult.Success)
+        {
+            throw new InvalidOperationException(
+                $"Resource spawn smoke publish failed: {spawnPublished}");
+        }
+
+        if ((await resourceBundle.PublishedCatalog.ListPublishedAsync())
+            .All(resource => resource.Name != "SmokeTree"))
+        {
+            throw new InvalidOperationException(
+                "Published resource missing from catalog after smoke publish.");
+        }
+
+        if ((await spawnBundle.PublishedCatalog.ListPublishedAsync(map.MapId)).Count != 1)
+        {
+            throw new InvalidOperationException(
+                "Published resource spawn missing from map catalog after smoke publish.");
         }
     }
 

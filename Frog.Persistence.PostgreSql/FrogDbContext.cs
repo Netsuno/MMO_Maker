@@ -37,6 +37,16 @@ public sealed class FrogDbContext : DbContext
     public DbSet<ShopEntity> Shops => Set<ShopEntity>();
     public DbSet<ShopPublishedSnapshotEntity> ShopPublishedSnapshots => Set<ShopPublishedSnapshotEntity>();
     public DbSet<ShopPublicationHistoryEntity> ShopPublicationHistory => Set<ShopPublicationHistoryEntity>();
+    public DbSet<ResourceEntity> Resources => Set<ResourceEntity>();
+    public DbSet<ResourcePublishedSnapshotEntity> ResourcePublishedSnapshots =>
+        Set<ResourcePublishedSnapshotEntity>();
+    public DbSet<ResourcePublicationHistoryEntity> ResourcePublicationHistory =>
+        Set<ResourcePublicationHistoryEntity>();
+    public DbSet<ResourceSpawnEntity> ResourceSpawns => Set<ResourceSpawnEntity>();
+    public DbSet<ResourceSpawnPublishedSnapshotEntity> ResourceSpawnPublishedSnapshots =>
+        Set<ResourceSpawnPublishedSnapshotEntity>();
+    public DbSet<ResourceSpawnPublicationHistoryEntity> ResourceSpawnPublicationHistory =>
+        Set<ResourceSpawnPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -402,6 +412,133 @@ public sealed class FrogDbContext : DbContext
             e.HasOne(x => x.Shop)
                 .WithMany()
                 .HasForeignKey(x => x.ShopId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ResourceEntity>(e =>
+        {
+            e.ToTable("resources", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(ResourceDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(ResourceDefinition.MaxDescriptionLength);
+            e.Property(x => x.SpriteLogicalPath)
+                .HasMaxLength(ResourceDefinition.MaxLogicalPathLength)
+                .IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ToolItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.YieldItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_resources_non_negative_respawn_revision",
+                    "respawn_seconds >= 0 AND revision >= 0");
+                t.HasCheckConstraint(
+                    "ck_resources_yield_quantity",
+                    "yield_quantity >= 1 AND yield_quantity <= 999");
+            });
+        });
+
+        modelBuilder.Entity<ResourcePublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("resource_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ResourceId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(ResourceDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(ResourceDefinition.MaxDescriptionLength);
+            e.Property(x => x.SpriteLogicalPath)
+                .HasMaxLength(ResourceDefinition.MaxLogicalPathLength)
+                .IsRequired();
+            e.HasOne(x => x.Resource)
+                .WithMany()
+                .HasForeignKey(x => x.ResourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ToolItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.YieldItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_resource_published_snapshots_non_negative_respawn",
+                    "respawn_seconds >= 0");
+                t.HasCheckConstraint(
+                    "ck_resource_published_snapshots_yield_quantity",
+                    "yield_quantity >= 1 AND yield_quantity <= 999");
+            });
+        });
+
+        modelBuilder.Entity<ResourcePublicationHistoryEntity>(e =>
+        {
+            e.ToTable("resource_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ResourceId);
+            e.HasOne(x => x.Resource)
+                .WithMany()
+                .HasForeignKey(x => x.ResourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ResourceSpawnEntity>(e =>
+        {
+            e.ToTable("resource_spawns", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.MapId, x.TileX, x.TileY });
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<MapEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.MapId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ResourceEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ResourceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint(
+                "ck_resource_spawns_coordinates_revision",
+                "tile_x >= 0 AND tile_y >= 0 AND revision >= 0"));
+        });
+
+        modelBuilder.Entity<ResourceSpawnPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("resource_spawn_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SpawnId, x.Revision }).IsUnique();
+            e.HasOne(x => x.Spawn)
+                .WithMany()
+                .HasForeignKey(x => x.SpawnId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<MapEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.MapId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ResourceEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ResourceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint(
+                "ck_resource_spawn_published_snapshots_coordinates",
+                "tile_x >= 0 AND tile_y >= 0"));
+        });
+
+        modelBuilder.Entity<ResourceSpawnPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("resource_spawn_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SpawnId);
+            e.HasOne(x => x.Spawn)
+                .WithMany()
+                .HasForeignKey(x => x.SpawnId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

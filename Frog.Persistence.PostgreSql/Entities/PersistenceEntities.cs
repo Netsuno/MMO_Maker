@@ -328,6 +328,90 @@ public sealed class ShopPublicationHistoryEntity
     public ShopEntity Shop { get; set; } = null!;
 }
 
+public sealed class ResourceEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string SpriteLogicalPath { get; set; } = string.Empty;
+    public int RespawnSeconds { get; set; }
+    public Guid? ToolItemId { get; set; }
+    public Guid YieldItemId { get; set; }
+    public int YieldQuantity { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’une ressource publiée.</summary>
+public sealed class ResourcePublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid ResourceId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string SpriteLogicalPath { get; set; } = string.Empty;
+    public int RespawnSeconds { get; set; }
+    public Guid? ToolItemId { get; set; }
+    public Guid YieldItemId { get; set; }
+    public int YieldQuantity { get; set; }
+    public ResourceEntity Resource { get; set; } = null!;
+}
+
+public sealed class ResourcePublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid ResourceId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public ResourceEntity Resource { get; set; } = null!;
+}
+
+public sealed class ResourceSpawnEntity
+{
+    public Guid Id { get; set; }
+    public Guid MapId { get; set; }
+    public Guid ResourceId { get; set; }
+    public int TileX { get; set; }
+    public int TileY { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’un placement de ressource publié.</summary>
+public sealed class ResourceSpawnPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid SpawnId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public Guid MapId { get; set; }
+    public Guid ResourceId { get; set; }
+    public int TileX { get; set; }
+    public int TileY { get; set; }
+    public ResourceSpawnEntity Spawn { get; set; } = null!;
+}
+
+public sealed class ResourceSpawnPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid SpawnId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public ResourceSpawnEntity Spawn { get; set; } = null!;
+}
+
 public sealed class LegacyImportEntity
 {
     public Guid Id { get; set; }

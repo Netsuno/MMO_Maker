@@ -19,6 +19,7 @@ public sealed class GameDataForm : Form
     private readonly SpellEditorPanel _spells;
     private readonly ClassEditorPanel _classes;
     private readonly ShopEditorPanel _shops;
+    private readonly ResourceAndSpawnEditorPanel _resourcesAndSpawns;
     private readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft };
 
     public GameDataForm()
@@ -29,6 +30,7 @@ public sealed class GameDataForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
 
+        var mapBundle = EditorMapRepositoryFactory.CreateBundle();
         var tilesetBundle = EditorTilesetRepositoryFactory.CreateBundle();
         _tilesets = new TilesetEditorPanel(
             new TilesetWorkspaceSession(tilesetBundle.Repository),
@@ -61,6 +63,21 @@ public sealed class GameDataForm : Form
             itemBundle.PublishedCatalog,
             shopBundle.Capabilities);
         _shops.StatusChanged += msg => _status.Text = msg;
+        var resourceBundle =
+            EditorResourceRepositoryFactory.CreateBundle(itemBundle.PublishedCatalog);
+        var spawnBundle = EditorResourceSpawnRepositoryFactory.CreateBundle(
+            mapBundle.Repository,
+            resourceBundle.PublishedCatalog,
+            resourceBundle.Capabilities);
+        _resourcesAndSpawns = new ResourceAndSpawnEditorPanel(
+            new ResourceWorkspaceSession(resourceBundle.Repository),
+            new ResourceSpawnWorkspaceSession(spawnBundle.Repository),
+            itemBundle.PublishedCatalog,
+            resourceBundle.PublishedCatalog,
+            mapBundle.Repository,
+            resourceBundle.Capabilities,
+            spawnBundle.Capabilities);
+        _resourcesAndSpawns.StatusChanged += msg => _status.Text = msg;
 
         _categoryList.Items.AddRange(new object[]
         {
@@ -70,7 +87,7 @@ public sealed class GameDataForm : Form
             "Sorts / compétences",
             "Classes",
             "Boutiques",
-            "Ressources / spawns (Phase 6 — à venir)",
+            "Ressources / spawns",
         });
         _categoryList.SelectedIndex = 0;
         _categoryList.SelectedIndexChanged += (_, _) => ShowCategory();
@@ -91,6 +108,7 @@ public sealed class GameDataForm : Form
             await _spells.InitializeAsync().ConfigureAwait(true);
             await _classes.InitializeAsync().ConfigureAwait(true);
             await _shops.InitializeAsync().ConfigureAwait(true);
+            await _resourcesAndSpawns.InitializeAsync().ConfigureAwait(true);
         };
     }
 
@@ -129,12 +147,8 @@ public sealed class GameDataForm : Form
         }
         else
         {
-            _host.Controls.Add(new Label
-            {
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Text = "Cette catégorie sera livrée dans une prochaine tranche Phase 6.",
-            });
+            _resourcesAndSpawns.Dock = DockStyle.Fill;
+            _host.Controls.Add(_resourcesAndSpawns);
         }
     }
 
@@ -145,7 +159,8 @@ public sealed class GameDataForm : Form
             || _items.IsDirty
             || _spells.IsDirty
             || _classes.IsDirty
-            || _shops.IsDirty)
+            || _shops.IsDirty
+            || _resourcesAndSpawns.IsDirty)
         {
             var r = MessageBox.Show(
                 this,
