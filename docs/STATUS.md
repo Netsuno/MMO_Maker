@@ -15,7 +15,7 @@
   - Slice 7 Resources/spawns : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_07_RESOURCES.md`)
 - Phase 7 : not started
 
-## Local verification inventory (Phase 6 through slice 7)
+## Local verification (Phase 6 through slice 7)
 
 | Suite | Passed |
 | --- | ---: |

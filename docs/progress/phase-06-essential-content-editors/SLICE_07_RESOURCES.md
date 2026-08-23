@@ -43,13 +43,13 @@ dotnet build tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.c
   -c Release -p:EnableWindowsTargeting=true --nologo
 ```
 
-## Expected test inventory
+## Test results
 
-| Suite | Expected after this slice |
+| Suite | Result |
 | --- | ---: |
-| Frog.Tests | 240 |
-| PostgreSQL | 31 |
-| Windows smoke | project cross-build on Linux; execution delegated to Windows CI |
+| Frog.Tests | 240 passed |
+| PostgreSQL | 31 passed |
+| Windows smoke | project cross-build green; execution delegated to Windows CI |
 
 ## Scope boundary
 
