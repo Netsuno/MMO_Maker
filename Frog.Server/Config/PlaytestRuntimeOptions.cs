@@ -3,7 +3,7 @@ using Frog.Application.Playtest;
 namespace Frog.Server.Config;
 
 /// <summary>Options runtime playtest (env / manifeste). Désactivé si <see cref="Enabled"/> est faux.</summary>
-public sealed class PlaytestRuntimeOptions
+public sealed record PlaytestRuntimeOptions
 {
     public const string ManifestPathEnvironmentVariable = "FROG_PLAYTEST_MANIFEST_PATH";
     public const string CorrelationIdEnvironmentVariable = "FROG_PLAYTEST_CORRELATION_ID";
@@ -23,6 +23,12 @@ public sealed class PlaytestRuntimeOptions
     public int Port { get; init; }
     /// <summary>Jeton playtest (env uniquement — jamais loggé).</summary>
     public string? AuthToken { get; init; }
+
+    /// <summary>
+    /// Seam de test uniquement : lever une exception immédiatement après l’envoi du LoginResult positif.
+    /// Ne jamais activer en production.
+    /// </summary>
+    public bool FailAfterSuccessfulLoginResult { get; init; }
 
     public static PlaytestRuntimeOptions FromEnvironment()
     {

@@ -12,6 +12,7 @@ using Frog.Core.Enums;
 using Frog.Core.Protocol;
 using Frog.Server;
 using Frog.Server.Config;
+using Frog.Server.Database;
 using Frog.Server.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -21,8 +22,11 @@ namespace Frog.Tests;
 
 public sealed class PlaytestTokenReuseTests
 {
-    [Fact]
-    public async Task Tcp_ReservedRegistration_Rejected()
+    [Theory]
+    [InlineData("__frog_playtest__")]
+    [InlineData("__FROG_PLAYTEST__")]
+    [InlineData("__FRoG_PlayTest__")]
+    public async Task Tcp_ReservedRegistration_Rejected_AllCasings(string reservedUsername)
     {
         var ctx = await StartPlaytestHostAsync();
         try
@@ -30,9 +34,11 @@ public sealed class PlaytestTokenReuseTests
             await using var tcp = new TokenTcpClient();
             await tcp.ConnectAsync("127.0.0.1", ctx.Port);
             _ = await tcp.ReadFrameAsync();
-            await tcp.SendFrameAsync(BuildRegister(PlaytestAuthToken.Username, ctx.Plan.AuthToken));
+            await tcp.SendFrameAsync(BuildRegister(reservedUsername, ctx.Plan.AuthToken));
             var reg = await tcp.ReadUntilAsync(PacketId.RegisterResult);
             Assert.Equal(0, reg[1]);
+            var payload = Encoding.UTF8.GetString(reg);
+            Assert.DoesNotContain(ctx.Plan.AuthToken, payload, StringComparison.Ordinal);
         }
         finally
         {
@@ -62,6 +68,44 @@ public sealed class PlaytestTokenReuseTests
                 await tcp2.SendFrameAsync(BuildLogin(PlaytestAuthToken.Username, ctx.Plan.AuthToken));
                 var login2 = await tcp2.ReadUntilAsync(PacketId.LoginResult);
                 Assert.Equal(0, login2[1]);
+            }
+        }
+        finally
+        {
+            await ctx.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Tcp_MixedCaseSeededAccount_CannotReuseTokenAfterConsume()
+    {
+        const string mixedCase = "__FRoG_PlayTest__";
+        var ctx = await StartPlaytestHostAsync();
+        try
+        {
+            var accounts = ctx.Host.Services.GetRequiredService<AccountRepository>();
+            Assert.True(accounts.Create(mixedCase, ctx.Plan.AuthToken));
+
+            await using (var tcp1 = new TokenTcpClient())
+            {
+                await tcp1.ConnectAsync("127.0.0.1", ctx.Port);
+                _ = await tcp1.ReadFrameAsync();
+                await tcp1.SendFrameAsync(BuildLogin(PlaytestAuthToken.Username, ctx.Plan.AuthToken));
+                Assert.NotEqual(0, (await tcp1.ReadUntilAsync(PacketId.LoginResult))[1]);
+            }
+
+            var gate = ctx.Host.Services.GetRequiredService<PlaytestAuthTokenGate>();
+            Assert.False(gate.HasRemainingToken);
+
+            await using (var tcp2 = new TokenTcpClient())
+            {
+                await tcp2.ConnectAsync("127.0.0.1", ctx.Port);
+                _ = await tcp2.ReadFrameAsync();
+                await tcp2.SendFrameAsync(BuildLogin(mixedCase, ctx.Plan.AuthToken));
+                var login2 = await tcp2.ReadUntilAsync(PacketId.LoginResult);
+                Assert.Equal(0, login2[1]);
+                var payload = Encoding.UTF8.GetString(login2);
+                Assert.DoesNotContain(ctx.Plan.AuthToken, payload, StringComparison.Ordinal);
             }
         }
         finally
@@ -180,6 +224,74 @@ public sealed class PlaytestTokenReuseTests
     }
 
     [Fact]
+    public async Task Tcp_AbortAfterPositiveLoginResult_TokenRemainsConsumed()
+    {
+        var ctx = await StartPlaytestHostAsync();
+        try
+        {
+            await using (var tcp1 = new TokenTcpClient())
+            {
+                await tcp1.ConnectAsync("127.0.0.1", ctx.Port);
+                _ = await tcp1.ReadFrameAsync();
+                await tcp1.SendFrameAsync(BuildLogin(PlaytestAuthToken.Username, ctx.Plan.AuthToken));
+                var login1 = await tcp1.ReadUntilAsync(PacketId.LoginResult);
+                Assert.NotEqual(0, login1[1]);
+                tcp1.Abort();
+            }
+
+            var gate = ctx.Host.Services.GetRequiredService<PlaytestAuthTokenGate>();
+            Assert.False(gate.HasRemainingToken);
+
+            await using (var tcp2 = new TokenTcpClient())
+            {
+                await tcp2.ConnectAsync("127.0.0.1", ctx.Port);
+                _ = await tcp2.ReadFrameAsync();
+                await tcp2.SendFrameAsync(BuildLogin(PlaytestAuthToken.Username, ctx.Plan.AuthToken));
+                Assert.Equal(0, (await tcp2.ReadUntilAsync(PacketId.LoginResult))[1]);
+            }
+        }
+        finally
+        {
+            await ctx.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Tcp_InjectedFailureAfterLoginResult_TokenRemainsConsumed()
+    {
+        var ctx = await StartPlaytestHostAsync(o => o with { FailAfterSuccessfulLoginResult = true });
+        try
+        {
+            await using (var tcp1 = new TokenTcpClient())
+            {
+                await tcp1.ConnectAsync("127.0.0.1", ctx.Port);
+                _ = await tcp1.ReadFrameAsync();
+                await tcp1.SendFrameAsync(BuildLogin(PlaytestAuthToken.Username, ctx.Plan.AuthToken));
+                var login1 = await tcp1.ReadUntilAsync(PacketId.LoginResult);
+                Assert.NotEqual(0, login1[1]);
+            }
+
+            // Laisser le serveur traiter l’échec injecté post-LoginResult.
+            await Task.Delay(200);
+
+            var gate = ctx.Host.Services.GetRequiredService<PlaytestAuthTokenGate>();
+            Assert.False(gate.HasRemainingToken);
+
+            await using (var tcp2 = new TokenTcpClient())
+            {
+                await tcp2.ConnectAsync("127.0.0.1", ctx.Port);
+                _ = await tcp2.ReadFrameAsync();
+                await tcp2.SendFrameAsync(BuildLogin(PlaytestAuthToken.Username, ctx.Plan.AuthToken));
+                Assert.Equal(0, (await tcp2.ReadUntilAsync(PacketId.LoginResult))[1]);
+            }
+        }
+        finally
+        {
+            await ctx.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Tcp_TokenNeverAppearsInLoginFailureMessage()
     {
         var ctx = await StartPlaytestHostAsync();
@@ -209,7 +321,8 @@ public sealed class PlaytestTokenReuseTests
         }
     }
 
-    private static async Task<PlaytestHostContext> StartPlaytestHostAsync()
+    private static async Task<PlaytestHostContext> StartPlaytestHostAsync(
+        Func<PlaytestRuntimeOptions, PlaytestRuntimeOptions>? mutateOptions = null)
     {
         var repo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
         var workspace = new MapWorkspaceSession(repo);
@@ -230,6 +343,11 @@ public sealed class PlaytestTokenReuseTests
             });
         var plan = Assert.IsType<PlaytestPreparationResult.Success>(prepared).Plan;
         var playtestOpts = FrogServerHostFactory.CreatePlaytestOptionsFromPlan(plan);
+        if (mutateOptions is not null)
+        {
+            playtestOpts = mutateOptions(playtestOpts);
+        }
+
         var host = FrogServerHostFactory.Create(playtestOpts);
         await host.StartAsync();
         return new PlaytestHostContext(host, plan, port);
@@ -321,6 +439,25 @@ public sealed class PlaytestTokenReuseTests
                     return f;
                 }
             }
+        }
+
+        public void Abort()
+        {
+            try
+            {
+                if (_tcp?.Client is { } socket)
+                {
+                    socket.LingerState = new LingerOption(true, 0);
+                    socket.Close();
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            _stream = null;
+            _tcp = null;
         }
 
         private async Task ReadExactAsync(byte[] buf)

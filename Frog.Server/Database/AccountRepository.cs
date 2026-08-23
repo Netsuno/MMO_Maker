@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Frog.Core.Identity;
 using Frog.Core.Utils;
 using Frog.Server.Models;
 
@@ -6,7 +7,7 @@ namespace Frog.Server.Database;
 
 public sealed class AccountRepository : IAccountRepository
 {
-    private readonly ConcurrentDictionary<string, Account> _accounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Account> _accounts = new(AccountUsername.Comparer);
 
     public AccountRepository()
     {

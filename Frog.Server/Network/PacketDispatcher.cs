@@ -228,24 +228,53 @@ public sealed class PacketDispatcher(
             return;
         }
 
+        var claimCommitted = false;
         try
         {
-            await CompleteLoginAsync(clientSession, PlaytestAuthToken.Username, playtestSpawn: true, cancellationToken)
+            await CompleteLoginAsync(
+                    clientSession,
+                    PlaytestAuthToken.Username,
+                    playtestSpawn: true,
+                    beforeSuccessfulLoginResult: () =>
+                    {
+                        _playtestAuthTokenGate.CommitClaim();
+                        claimCommitted = true;
+                    },
+                    cancellationToken)
                 .ConfigureAwait(false);
-            _playtestAuthTokenGate.CommitClaim();
         }
         catch
         {
-            _playtestAuthTokenGate.ReleaseClaim();
+            // Après CommitClaim, ne jamais restaurer le jeton — nettoyer seulement la session.
+            if (!claimCommitted)
+            {
+                _playtestAuthTokenGate.ReleaseClaim();
+            }
+
+            _clientRegistry.Unregister(session.Id);
             _connectionManager.RemoveSession(session.Id);
+            clientSession.AuthenticatedSession = null;
             throw;
         }
     }
+
+    private Task CompleteLoginAsync(
+        ClientSession clientSession,
+        string sessionName,
+        bool playtestSpawn,
+        CancellationToken cancellationToken)
+        => CompleteLoginAsync(
+            clientSession,
+            sessionName,
+            playtestSpawn,
+            beforeSuccessfulLoginResult: null,
+            cancellationToken);
 
     private async Task CompleteLoginAsync(
         ClientSession clientSession,
         string sessionName,
         bool playtestSpawn,
+        Action? beforeSuccessfulLoginResult,
         CancellationToken cancellationToken)
     {
         if (!_connectionManager.TryGetSessionByUsername(sessionName, out var session) || session is null)
@@ -305,8 +334,17 @@ public sealed class PacketDispatcher(
 
         _clientRegistry.Register(session.Id, clientSession);
         _connectionManager.TryTouchSession(session.Id);
+
+        // Consommer le jeton avant d’exposer un LoginResult positif (évite réutilisation si déconnexion / échec post-login).
+        beforeSuccessfulLoginResult?.Invoke();
+
         await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
         ServerNetworkLogs.LoginSucceeded(_logger, sessionName);
+
+        if (playtestSpawn && _playtest.FailAfterSuccessfulLoginResult)
+        {
+            throw new InvalidOperationException("playtest-injected-fail-after-login-result");
+        }
 
         await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
 

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Frog.Core.Identity;
 using Frog.Server.Models;
 
 namespace Frog.Server.Services;
@@ -6,7 +7,7 @@ namespace Frog.Server.Services;
 public sealed class ConnectionManager
 {
     private readonly ConcurrentDictionary<Guid, Session> _sessionsById = new();
-    private readonly ConcurrentDictionary<string, Guid> _sessionIdByUsername = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Guid> _sessionIdByUsername = new(AccountUsername.Comparer);
 
     public bool TryCreateSession(string username, out Session? session)
     {

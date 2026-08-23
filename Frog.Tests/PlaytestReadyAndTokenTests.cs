@@ -85,6 +85,22 @@ public sealed class PlaytestReadyMarkerTests
 
 public sealed class PlaytestAuthTokenGateTests
 {
+    [Theory]
+    [InlineData("__frog_playtest__")]
+    [InlineData("__FROG_PLAYTEST__")]
+    [InlineData("__FRoG_PlayTest__")]
+    public void IsReservedUsername_Matches_AllCasings(string username)
+    {
+        Assert.True(PlaytestAuthToken.IsReservedUsername(username));
+    }
+
+    [Fact]
+    public void IsReservedUsername_Rejects_Unrelated()
+    {
+        Assert.False(PlaytestAuthToken.IsReservedUsername("demo"));
+        Assert.False(PlaytestAuthToken.IsReservedUsername(null));
+    }
+
     [Fact]
     public void TryClaim_Commit_FirstSucceeds_SecondFails()
     {

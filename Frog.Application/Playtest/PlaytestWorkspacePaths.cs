@@ -165,8 +165,11 @@ public static class PlaytestAuthToken
         return CryptographicOperations.FixedTimeEquals(ba, bb);
     }
 
+    /// <summary>
+    /// Réservé quelle que soit la casse (même règle que comptes/sessions : OrdinalIgnoreCase).
+    /// </summary>
     public static bool IsReservedUsername(string? username)
-        => string.Equals(username, Username, StringComparison.Ordinal);
+        => Frog.Core.Identity.AccountUsername.Equals(username, Username);
 }
 
 /// <summary>Redaction de secrets dans les logs (retire la valeur complète, jamais un suffixe exposé).</summary>

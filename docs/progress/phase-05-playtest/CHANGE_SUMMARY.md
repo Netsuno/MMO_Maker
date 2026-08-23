@@ -1,23 +1,23 @@
-# Phase 5 — CHANGE SUMMARY (fourth rejection corrections)
+# Phase 5 — CHANGE SUMMARY (fifth rejection corrections)
 
-## Playtest token (blocker 1)
+## Token security (blockers)
 
-- `PlaytestAuthToken.IsReservedUsername()` — rejects registration of `__frog_playtest__`
-- `PacketDispatcher`: reserved username routes only through playtest gate; **no** fallback to `AuthService.ValidateCredentials`
-- `PlaytestAuthTokenGate`: **TryClaim / CommitClaim / ReleaseClaim** — token consumed only after successful session + login; released on session-creation failure
-- TCP integration tests in `PlaytestTokenReuseTests`
+### Case-insensitive reserved identity
 
-## READY map authority (blocker 2)
+- Shared `Frog.Core.Identity.AccountUsername` (`OrdinalIgnoreCase`) used by:
+  - `PlaytestAuthToken.IsReservedUsername`
+  - `AccountRepository`
+  - `ConnectionManager`
+- Every casing of `__frog_playtest__` routes exclusively through the playtest gate; registration rejected for all casings.
 
-- `PlaytestClientReadyState`: tracks `PositionMapId` (PositionUpdate) and `LoadedMapId` (MapData / MapAlreadySynced) separately
-- `MainShellForm`: emits READY only when both IDs exist and match; sanitized failure on mismatch
-- Unit tests in `PlaytestClientReadyStateTests`
+### Commit before LoginResult
 
-## Preserved (third rejection)
+- `HandlePlaytestLoginAsync` commits the claim via `beforeSuccessfulLoginResult` **before** sending a positive `LoginResult`.
+- `claimCommitted` flag: release only when failure occurs before commit; post-commit errors clean up the session but never restore the token.
+- Test seam: `PlaytestRuntimeOptions.FailAfterSuccessfulLoginResult`.
 
-- Strict READY marker parsing and plan validation
-- Real Frog.Server + Frog.Client production smoke ×3
-- Token removed from command-line arguments
-- Early-exit PID, stderr, exit code 7; stop ownership retention
-- Child environment isolation; invalid WorkDirectory no-leak
+## Preserved
+
+- READY map authority (`PositionMapId` / `LoadedMapId`)
+- Real Frog.Client smoke ×3, env-only token, early-exit/stop ownership, env isolation, workspace no-leak
 - Screenshots **NOT RUN**
