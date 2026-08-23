@@ -7,6 +7,7 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
 {
     private readonly ConcurrentDictionary<Guid, DraftRecord> _drafts = new();
     private readonly ConcurrentDictionary<Guid, PublishedRecord> _published = new();
+    private IShopItemReferenceCatalog? _shopReferences;
 
     public InMemoryItemRepository(ContentRepositoryCapabilities? capabilities = null)
     {
@@ -14,6 +15,11 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
     }
 
     public ContentRepositoryCapabilities Capabilities { get; }
+
+    internal void RegisterShopReferences(IShopItemReferenceCatalog shopReferences)
+    {
+        _shopReferences = shopReferences ?? throw new ArgumentNullException(nameof(shopReferences));
+    }
 
     public Task<SaveItemResult> SaveAsync(
         SaveItemRequest request,
@@ -172,17 +178,25 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
         return Task.FromResult<IReadOnlyList<ItemCatalogEntry>>(list);
     }
 
-    public Task<DeleteItemResult> DeleteAsync(
+    public async Task<DeleteItemResult> DeleteAsync(
         Guid itemId,
         CancellationToken cancellationToken = default)
     {
+        if (_shopReferences is not null
+            && await _shopReferences.IsItemReferencedAsync(itemId, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            return new DeleteItemResult.Referenced(
+                "L’objet est référencé par un brouillon ou un snapshot publié de boutique.");
+        }
+
         if (!_drafts.TryRemove(itemId, out _))
         {
-            return Task.FromResult<DeleteItemResult>(new DeleteItemResult.NotFound());
+            return new DeleteItemResult.NotFound();
         }
 
         _published.TryRemove(itemId, out _);
-        return Task.FromResult<DeleteItemResult>(new DeleteItemResult.Success());
+        return new DeleteItemResult.Success();
     }
 
     public Task<IReadOnlyList<ItemDefinition>> ListPublishedAsync(
@@ -193,6 +207,14 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
             .Select(p => ItemWorkspaceSession.Clone(p.Definition))
             .ToList();
         return Task.FromResult<IReadOnlyList<ItemDefinition>>(list);
+    }
+
+    async Task<ItemDefinition?> IPublishedItemCatalog.LoadPublishedByIdAsync(
+        Guid itemId,
+        CancellationToken cancellationToken)
+    {
+        var stored = await LoadPublishedByIdAsync(itemId, cancellationToken).ConfigureAwait(false);
+        return stored is null ? null : ItemWorkspaceSession.Clone(stored.Definition);
     }
 
     private sealed record DraftRecord(

@@ -27,6 +27,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideItemRepository = null;
         EditorTestHooks.OverrideSpellRepository = null;
         EditorTestHooks.OverrideClassRepository = null;
+        EditorTestHooks.OverrideShopRepository = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
@@ -48,15 +49,19 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideNpcRepository =
             new Frog.Application.Content.InMemoryNpcRepository(
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
-        EditorTestHooks.OverrideItemRepository =
-            new Frog.Application.Content.InMemoryItemRepository(
-                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        var itemRepository = new Frog.Application.Content.InMemoryItemRepository(
+            Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideItemRepository = itemRepository;
         var spellRepository = new Frog.Application.Content.InMemorySpellRepository(
             Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideSpellRepository = spellRepository;
         EditorTestHooks.OverrideClassRepository =
             new Frog.Application.Content.InMemoryClassRepository(
                 spellRepository,
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideShopRepository =
+            new Frog.Application.Content.InMemoryShopRepository(
+                itemRepository,
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
     }
@@ -262,6 +267,65 @@ internal static class EditorSmokeTestAccess
         if (catalog.All(characterClass => characterClass.Name != "SmokeWarrior"))
         {
             throw new InvalidOperationException("Published class missing from catalog after smoke publish.");
+        }
+    }
+
+    public static async Task OpenGameDataAndSaveSampleShopAsync(MainWindow window)
+    {
+        using var form = new Forms.GameData.GameDataForm();
+        var itemBundle = Services.EditorItemRepositoryFactory.CreateBundle();
+        var itemSession = new Frog.Application.Content.ItemWorkspaceSession(itemBundle.Repository);
+        itemSession.AdoptNewDraft(new Frog.Core.Models.ItemDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeShopPotion",
+            Kind = ItemType.Consumable,
+            IconLogicalPath = "icons/items/smoke-shop-potion.png",
+            MaxStack = 20,
+            BuyPrice = 50,
+            SellPrice = 15,
+        });
+        var itemPublished = await itemSession.SaveCurrentAsync(
+            Frog.Application.Content.SaveContentIntent.Publish);
+        if (itemPublished is not Frog.Application.Content.SaveItemResult.Success itemSuccess)
+        {
+            throw new InvalidOperationException($"Shop smoke prerequisite item failed: {itemPublished}");
+        }
+
+        var bundle = Services.EditorShopRepositoryFactory.CreateBundle(itemBundle.PublishedCatalog);
+        var session = new Frog.Application.Content.ShopWorkspaceSession(bundle.Repository);
+        session.AdoptNewDraft(new Frog.Core.Models.ShopDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeShop",
+            Description = "Shop content smoke test",
+            Listings =
+            {
+                new Frog.Core.Models.ShopListing
+                {
+                    ItemId = itemSuccess.ItemId,
+                    Price = 75,
+                    Stock = null,
+                },
+            },
+        });
+        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
+        if (saved is not Frog.Application.Content.SaveShopResult.Success)
+        {
+            throw new InvalidOperationException($"Shop smoke save failed: {saved}");
+        }
+
+        session.MarkDirty();
+        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
+        if (published is not Frog.Application.Content.SaveShopResult.Success)
+        {
+            throw new InvalidOperationException($"Shop smoke publish failed: {published}");
+        }
+
+        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
+        if (catalog.All(shop => shop.Name != "SmokeShop"))
+        {
+            throw new InvalidOperationException("Published shop missing from catalog after smoke publish.");
         }
     }
 

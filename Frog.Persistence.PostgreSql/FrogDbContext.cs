@@ -34,6 +34,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<ClassEntity> Classes => Set<ClassEntity>();
     public DbSet<ClassPublishedSnapshotEntity> ClassPublishedSnapshots => Set<ClassPublishedSnapshotEntity>();
     public DbSet<ClassPublicationHistoryEntity> ClassPublicationHistory => Set<ClassPublicationHistoryEntity>();
+    public DbSet<ShopEntity> Shops => Set<ShopEntity>();
+    public DbSet<ShopPublishedSnapshotEntity> ShopPublishedSnapshots => Set<ShopPublishedSnapshotEntity>();
+    public DbSet<ShopPublicationHistoryEntity> ShopPublicationHistory => Set<ShopPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -361,6 +364,44 @@ public sealed class FrogDbContext : DbContext
             e.HasOne(x => x.Class)
                 .WithMany()
                 .HasForeignKey(x => x.ClassId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ShopEntity>(e =>
+        {
+            e.ToTable("shops", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(ShopDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(ShopDefinition.MaxDescriptionLength);
+            e.Property(x => x.ListingsJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+                t.HasCheckConstraint("ck_shops_non_negative_revision", "revision >= 0"));
+        });
+
+        modelBuilder.Entity<ShopPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("shop_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ShopId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(ShopDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(ShopDefinition.MaxDescriptionLength);
+            e.Property(x => x.ListingsJson).HasColumnType("jsonb").IsRequired();
+            e.HasOne(x => x.Shop)
+                .WithMany()
+                .HasForeignKey(x => x.ShopId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ShopPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("shop_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ShopId);
+            e.HasOne(x => x.Shop)
+                .WithMany()
+                .HasForeignKey(x => x.ShopId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

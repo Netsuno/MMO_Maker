@@ -18,6 +18,7 @@ public sealed class GameDataForm : Form
     private readonly ItemEditorPanel _items;
     private readonly SpellEditorPanel _spells;
     private readonly ClassEditorPanel _classes;
+    private readonly ShopEditorPanel _shops;
     private readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft };
 
     public GameDataForm()
@@ -54,6 +55,12 @@ public sealed class GameDataForm : Form
             spellBundle.PublishedCatalog,
             classBundle.Capabilities);
         _classes.StatusChanged += msg => _status.Text = msg;
+        var shopBundle = EditorShopRepositoryFactory.CreateBundle(itemBundle.PublishedCatalog);
+        _shops = new ShopEditorPanel(
+            new ShopWorkspaceSession(shopBundle.Repository),
+            itemBundle.PublishedCatalog,
+            shopBundle.Capabilities);
+        _shops.StatusChanged += msg => _status.Text = msg;
 
         _categoryList.Items.AddRange(new object[]
         {
@@ -62,7 +69,7 @@ public sealed class GameDataForm : Form
             "Objets",
             "Sorts / compétences",
             "Classes",
-            "Boutiques (Phase 6 — à venir)",
+            "Boutiques",
             "Ressources / spawns (Phase 6 — à venir)",
         });
         _categoryList.SelectedIndex = 0;
@@ -83,6 +90,7 @@ public sealed class GameDataForm : Form
             await _items.InitializeAsync().ConfigureAwait(true);
             await _spells.InitializeAsync().ConfigureAwait(true);
             await _classes.InitializeAsync().ConfigureAwait(true);
+            await _shops.InitializeAsync().ConfigureAwait(true);
         };
     }
 
@@ -114,6 +122,11 @@ public sealed class GameDataForm : Form
             _classes.Dock = DockStyle.Fill;
             _host.Controls.Add(_classes);
         }
+        else if (_categoryList.SelectedIndex == 5)
+        {
+            _shops.Dock = DockStyle.Fill;
+            _host.Controls.Add(_shops);
+        }
         else
         {
             _host.Controls.Add(new Label
@@ -131,7 +144,8 @@ public sealed class GameDataForm : Form
             || _npcs.IsDirty
             || _items.IsDirty
             || _spells.IsDirty
-            || _classes.IsDirty)
+            || _classes.IsDirty
+            || _shops.IsDirty)
         {
             var r = MessageBox.Show(
                 this,
@@ -1046,6 +1060,14 @@ public sealed class ItemEditorPanel : UserControl
                 break;
             case DeleteItemResult.NotFound:
                 MessageBox.Show(this, "Objet introuvable.");
+                break;
+            case DeleteItemResult.Referenced referenced:
+                MessageBox.Show(
+                    this,
+                    referenced.Error,
+                    "Référence",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
                 break;
             case DeleteItemResult.PersistenceFailed persistence:
                 MessageBox.Show(this, persistence.Error, "Erreur");

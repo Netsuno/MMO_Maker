@@ -24,6 +24,7 @@ public abstract record DeleteItemResult
 {
     public sealed record Success : DeleteItemResult;
     public sealed record NotFound : DeleteItemResult;
+    public sealed record Referenced(string Error) : DeleteItemResult;
     public sealed record PersistenceFailed(string Error) : DeleteItemResult;
 }
 
@@ -72,4 +73,8 @@ public interface IItemRepository
 public interface IPublishedItemCatalog
 {
     Task<IReadOnlyList<ItemDefinition>> ListPublishedAsync(CancellationToken cancellationToken = default);
+
+    Task<ItemDefinition?> LoadPublishedByIdAsync(
+        Guid itemId,
+        CancellationToken cancellationToken = default);
 }

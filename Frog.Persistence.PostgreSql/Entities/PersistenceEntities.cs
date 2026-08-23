@@ -291,6 +291,43 @@ public sealed class ClassPublicationHistoryEntity
     public ClassEntity Class { get; set; } = null!;
 }
 
+public sealed class ShopEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string ListingsJson { get; set; } = "[]";
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’une boutique publiée.</summary>
+public sealed class ShopPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid ShopId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string ListingsJson { get; set; } = "[]";
+    public ShopEntity Shop { get; set; } = null!;
+}
+
+public sealed class ShopPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid ShopId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public ShopEntity Shop { get; set; } = null!;
+}
+
 public sealed class LegacyImportEntity
 {
     public Guid Id { get; set; }
