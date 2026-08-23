@@ -9,15 +9,16 @@
   - Slice 1 Tilesets : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_01_TILESETS.md`)
   - Slice 2 NPCs/monsters : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_02_NPCS.md`)
   - Slice 3 Items : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_03_ITEMS.md`)
-  - Remaining : Spells/skills → Classes → Shops → Resources/spawns
+  - Slice 4 Spells/skills : **COMPLETE** (see `docs/progress/phase-06-essential-content-editors/SLICE_04_SPELLS.md`)
+  - Remaining : Classes → Shops → Resources/spawns
 - Phase 7 : not started
 
-## Local verification (Phase 6 through slice 3)
+## Local verification (Phase 6 through slice 4)
 
 | Suite | Passed |
 | --- | ---: |
-| Frog.Tests | 217 |
-| PostgreSQL | 24 |
+| Frog.Tests | 223 |
+| PostgreSQL | 26 |
 
 ## Known issues carried forward
 
@@ -25,3 +26,4 @@
 - Tileset↔map references via EditorPaletteId JSON (not Guid FK yet)
 - NPC↔map spawn references use legacy integer `EditorAliasId` (not Guid FK yet)
 - Legacy integer gameplay items are not yet migrated to `ItemDefinition` GUID references
+- Spell effects and gameplay execution are not yet wired to `SpellDefinition`

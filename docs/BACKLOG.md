@@ -38,7 +38,7 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 - [x] Tilesets
 - [x] NPCs and monsters
 - [x] Items
-- [ ] Spells and skills
+- [x] Spells and skills
 - [ ] Classes
 - [ ] Shops
 - [ ] Resources and spawns
