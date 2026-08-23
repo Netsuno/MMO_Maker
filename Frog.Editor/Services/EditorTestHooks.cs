@@ -16,6 +16,8 @@ internal static class EditorTestHooks
 
     public static IItemRepository? OverrideItemRepository { get; set; }
 
+    public static ISpellRepository? OverrideSpellRepository { get; set; }
+
     public static IEditorDialogService? OverrideDialogService { get; set; }
 
     public static IPlaytestProcessLauncher? OverridePlaytestProcessLauncher { get; set; }

@@ -27,6 +27,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<ItemEntity> Items => Set<ItemEntity>();
     public DbSet<ItemPublishedSnapshotEntity> ItemPublishedSnapshots => Set<ItemPublishedSnapshotEntity>();
     public DbSet<ItemPublicationHistoryEntity> ItemPublicationHistory => Set<ItemPublicationHistoryEntity>();
+    public DbSet<SpellEntity> Spells => Set<SpellEntity>();
+    public DbSet<SpellPublishedSnapshotEntity> SpellPublishedSnapshots => Set<SpellPublishedSnapshotEntity>();
+    public DbSet<SpellPublicationHistoryEntity> SpellPublicationHistory => Set<SpellPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -237,6 +240,61 @@ public sealed class FrogDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.ItemId);
             e.HasOne(x => x.Item).WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SpellEntity>(e =>
+        {
+            e.ToTable("spells", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.TargetType).HasConversion<byte>();
+            e.Property(x => x.IconLogicalPath).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(4000);
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_spells_kind", "kind >= 1 AND kind <= 2");
+                t.HasCheckConstraint("ck_spells_target_type", "target_type >= 1 AND target_type <= 4");
+                t.HasCheckConstraint(
+                    "ck_spells_non_negative_cost_cooldown",
+                    "mana_cost >= 0 AND cooldown_ms >= 0");
+                t.HasCheckConstraint("ck_spells_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<SpellPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("spell_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SpellId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.TargetType).HasConversion<byte>();
+            e.Property(x => x.IconLogicalPath).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(4000);
+            e.HasOne(x => x.Spell).WithMany().HasForeignKey(x => x.SpellId).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_spell_published_snapshots_kind",
+                    "kind >= 1 AND kind <= 2");
+                t.HasCheckConstraint(
+                    "ck_spell_published_snapshots_target_type",
+                    "target_type >= 1 AND target_type <= 4");
+                t.HasCheckConstraint(
+                    "ck_spell_published_snapshots_non_negative_cost_cooldown",
+                    "mana_cost >= 0 AND cooldown_ms >= 0");
+            });
+        });
+
+        modelBuilder.Entity<SpellPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("spell_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SpellId);
+            e.HasOne(x => x.Spell).WithMany().HasForeignKey(x => x.SpellId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LegacyImportEntity>(e =>

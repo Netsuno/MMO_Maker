@@ -25,6 +25,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideTilesetRepository = null;
         EditorTestHooks.OverrideNpcRepository = null;
         EditorTestHooks.OverrideItemRepository = null;
+        EditorTestHooks.OverrideSpellRepository = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
@@ -48,6 +49,9 @@ internal static class EditorSmokeTestAccess
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideItemRepository =
             new Frog.Application.Content.InMemoryItemRepository(
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideSpellRepository =
+            new Frog.Application.Content.InMemorySpellRepository(
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
     }
@@ -158,6 +162,42 @@ internal static class EditorSmokeTestAccess
         if (catalog.All(item => item.Name != "SmokePotion"))
         {
             throw new InvalidOperationException("Published item missing from catalog after smoke publish.");
+        }
+    }
+
+    public static async Task OpenGameDataAndSaveSampleSpellAsync(MainWindow window)
+    {
+        using var form = new Forms.GameData.GameDataForm();
+        var bundle = Services.EditorSpellRepositoryFactory.CreateBundle();
+        var session = new Frog.Application.Content.SpellWorkspaceSession(bundle.Repository);
+        session.AdoptNewDraft(new Frog.Core.Models.SpellDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "SmokeFireball",
+            Kind = SpellKind.Spell,
+            ManaCost = 20,
+            CooldownMs = 1500,
+            TargetType = TargetType.SingleEnemy,
+            IconLogicalPath = "icons/spells/smoke-fireball.png",
+            Description = "Spell smoke test",
+        });
+        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
+        if (saved is not Frog.Application.Content.SaveSpellResult.Success)
+        {
+            throw new InvalidOperationException($"Spell smoke save failed: {saved}");
+        }
+
+        session.MarkDirty();
+        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
+        if (published is not Frog.Application.Content.SaveSpellResult.Success)
+        {
+            throw new InvalidOperationException($"Spell smoke publish failed: {published}");
+        }
+
+        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
+        if (catalog.All(spell => spell.Name != "SmokeFireball"))
+        {
+            throw new InvalidOperationException("Published spell missing from catalog after smoke publish.");
         }
     }
 

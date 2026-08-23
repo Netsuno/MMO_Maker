@@ -193,6 +193,51 @@ public sealed class ItemPublicationHistoryEntity
     public ItemEntity Item { get; set; } = null!;
 }
 
+public sealed class SpellEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public SpellKind Kind { get; set; }
+    public int ManaCost { get; set; }
+    public int CooldownMs { get; set; }
+    public TargetType TargetType { get; set; }
+    public string IconLogicalPath { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’un sort ou d’une compétence publié.</summary>
+public sealed class SpellPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid SpellId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public SpellKind Kind { get; set; }
+    public int ManaCost { get; set; }
+    public int CooldownMs { get; set; }
+    public TargetType TargetType { get; set; }
+    public string IconLogicalPath { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public SpellEntity Spell { get; set; } = null!;
+}
+
+public sealed class SpellPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid SpellId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public SpellEntity Spell { get; set; } = null!;
+}
+
 public sealed class LegacyImportEntity
 {
     public Guid Id { get; set; }
