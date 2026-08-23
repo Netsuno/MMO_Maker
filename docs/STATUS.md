@@ -6,18 +6,18 @@
 - **Phase 4 : ACCEPTED** — `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - **Phase 5 : ACCEPTED** — `1944d73b6fffa84799d288da555f1005b82f2698`
 - **Phase 6 : GATE REACHED — WAITING FOR REVIEW**
-  - All 7 content slices complete
+  - Gate HEAD : `f5cf41c4180bf649dd3adca83d7a252d760658e7`
+  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32674090607 (success)
   - Evidence : `docs/progress/phase-06-essential-content-editors/`
-  - Gate HEAD / CI : _pending gate docs commit + green CI_
 - Phase 7 : **not started**
 
-## Local verification (Phase 6 complete)
+## CI counts (`f5cf41c`)
 
 | Suite | Passed |
 | --- | ---: |
 | Frog.Tests | 240 |
 | PostgreSQL | 31 |
-| Windows smoke | 20 (expected ×3 in CI) |
+| Windows smoke | 20 × 3 |
 
 ## Known issues
 

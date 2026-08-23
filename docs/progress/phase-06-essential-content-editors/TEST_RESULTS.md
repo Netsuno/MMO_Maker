@@ -18,7 +18,7 @@ dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.cs
 | Frog.Persistence.IntegrationTests | 31 | 0 |
 | Frog.Editor.WindowsSmokeTests | 20 (expected in CI ×3) | 0 |
 
-CI URL and exact Windows counts: see `docs/STATUS.md` after green HEAD run.
+CI URL and exact Windows counts: https://github.com/Netsuno/MMO_Maker/actions/runs/32674090607 — 240 unit / 31 PostgreSQL / 20 Windows smoke ×3.
 
 ## Slice coverage (representative)
 
