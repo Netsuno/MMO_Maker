@@ -1642,7 +1642,7 @@ public sealed class ClassEditorPanel : UserControl
             _startingSpell.SelectedItem = _startingSpell.Items
                 .Cast<SpellChoice>()
                 .FirstOrDefault(choice => choice.Id == selectedId)
-                ?? (SpellChoice)_startingSpell.Items[0];
+                ?? _startingSpell.Items.Cast<SpellChoice>().First();
         }
         finally
         {
@@ -1689,7 +1689,7 @@ public sealed class ClassEditorPanel : UserControl
             _startingSpell.SelectedItem = _startingSpell.Items
                 .Cast<SpellChoice>()
                 .FirstOrDefault(choice => choice.Id == definition.StartingSpellId)
-                ?? (SpellChoice)_startingSpell.Items[0];
+                ?? _startingSpell.Items.Cast<SpellChoice>().First();
             _meta.Text =
                 $"Id={definition.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
         }
