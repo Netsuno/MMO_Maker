@@ -36,7 +36,11 @@ dotnet build tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.c
 
 ## Test results
 
-Verification results are recorded after the implementation commit is pushed.
+| Suite | Result |
+| --- | ---: |
+| Frog.Tests | 234 passed |
+| PostgreSQL | 30 passed |
+| Windows smoke | project build green; execution delegated to Windows CI |
 
 ## Remaining Phase 6 slices
 
