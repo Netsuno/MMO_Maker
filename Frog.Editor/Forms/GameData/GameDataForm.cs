@@ -241,7 +241,7 @@ public sealed class GameDataForm : Form
         ShowCategory();
     }
 
-    private async void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
+    private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
         if (_allowCloseAfterCleanup)
         {
@@ -277,28 +277,54 @@ public sealed class GameDataForm : Form
         }
 
         _cleanupRunning = true;
-        await RunCloseCleanupAsync().ConfigureAwait(true);
-        _allowCloseAfterCleanup = true;
-        _cleanupRunning = false;
-        if (!IsDisposed)
+        try
         {
-            Close();
+            RunCloseCleanupSynchronously();
+        }
+        finally
+        {
+            _cleanupRunning = false;
+            _allowCloseAfterCleanup = true;
+            if (!IsDisposed)
+            {
+                BeginInvoke(new Action(Close));
+            }
         }
     }
 
-    private async Task RunCloseCleanupAsync()
+    private void RunCloseCleanupSynchronously()
     {
         try
         {
             _initCts?.Cancel();
+            BeginClosePanels();
+
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (DateTime.UtcNow < deadline)
+            {
+                System.Windows.Forms.Application.DoEvents();
+                var panelsIdle = (!_initialized
+                                  || ((_tilesets?.LifecycleForTest.IsIdle ?? true)
+                                      && (_npcs?.LifecycleForTest.IsIdle ?? true)
+                                      && (_items?.LifecycleForTest.IsIdle ?? true)
+                                      && (_spells?.LifecycleForTest.IsIdle ?? true)
+                                      && (_classes?.LifecycleForTest.IsIdle ?? true)
+                                      && (_shops?.LifecycleForTest.IsIdle ?? true)
+                                      && (_resourcesAndSpawns?.ResourcesPanelForTest.LifecycleForTest.IsIdle ?? true)
+                                      && (_resourcesAndSpawns?.SpawnsPanelForTest.LifecycleForTest.IsIdle ?? true)));
+                if (panelsIdle)
+                {
+                    break;
+                }
+
+                Thread.Sleep(10);
+            }
+
             if (_initializationTask is { IsCompleted: false })
             {
                 try
                 {
-                    await _initializationTask.ConfigureAwait(true);
-                }
-                catch (OperationCanceledException)
-                {
+                    _initializationTask.Wait(TimeSpan.FromSeconds(2));
                 }
                 catch (Exception ex)
                 {
@@ -306,17 +332,11 @@ public sealed class GameDataForm : Form
                 }
             }
 
-            BeginClosePanels();
-            if (_initialized)
-            {
-                await DrainPanelsAsync().ConfigureAwait(true);
-            }
-
             if (_repositorySet?.DatabaseScope is { } scope)
             {
                 try
                 {
-                    await scope.DrainAsync().ConfigureAwait(true);
+                    scope.DrainAsync().ConfigureAwait(false).GetAwaiter().GetResult();
                 }
                 catch (Exception ex)
                 {
@@ -370,44 +390,6 @@ public sealed class GameDataForm : Form
         finally
         {
             _repositorySet = null;
-        }
-    }
-
-    private async Task DrainPanelsAsync()
-    {
-        if (_tilesets is not null)
-        {
-            await _tilesets.DrainAsync().ConfigureAwait(true);
-        }
-
-        if (_npcs is not null)
-        {
-            await _npcs.DrainAsync().ConfigureAwait(true);
-        }
-
-        if (_items is not null)
-        {
-            await _items.DrainAsync().ConfigureAwait(true);
-        }
-
-        if (_spells is not null)
-        {
-            await _spells.DrainAsync().ConfigureAwait(true);
-        }
-
-        if (_classes is not null)
-        {
-            await _classes.DrainAsync().ConfigureAwait(true);
-        }
-
-        if (_shops is not null)
-        {
-            await _shops.DrainAsync().ConfigureAwait(true);
-        }
-
-        if (_resourcesAndSpawns is not null)
-        {
-            await _resourcesAndSpawns.DrainAsync().ConfigureAwait(true);
         }
     }
 
