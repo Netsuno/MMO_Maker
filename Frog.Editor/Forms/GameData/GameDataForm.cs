@@ -34,6 +34,9 @@ public sealed class GameDataForm : Form
     private CancellationTokenSource? _initCts;
     private Task? _initializationTask;
     private bool _initialized;
+    private bool _allowCloseAfterCleanup;
+    private bool _cleanupRunning;
+    private Exception? _closeCleanupException;
 
     internal Task InitializationTask => _initializationTask ?? Task.CompletedTask;
 
@@ -88,7 +91,6 @@ public sealed class GameDataForm : Form
         Controls.Add(left);
 
         FormClosing += GameDataForm_FormClosing;
-        FormClosed += GameDataForm_FormClosed;
         Shown += GameDataForm_Shown;
         Load += GameDataForm_LoadAsync;
     }
@@ -239,16 +241,139 @@ public sealed class GameDataForm : Form
         ShowCategory();
     }
 
-    private async void GameDataForm_FormClosed(object? sender, FormClosedEventArgs e)
+    private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        _initCts?.Cancel();
-        if (_initialized)
+        if (_allowCloseAfterCleanup)
         {
-            await DrainPanelsAsync().ConfigureAwait(true);
+            return;
         }
 
-        _repositorySet?.Dispose();
-        _repositorySet = null;
+        if (_initialized
+            && (_tilesets!.IsDirty
+                || _npcs!.IsDirty
+                || _items!.IsDirty
+                || _spells!.IsDirty
+                || _classes!.IsDirty
+                || _shops!.IsDirty
+                || _resourcesAndSpawns!.IsDirty))
+        {
+            var r = GameDataUiMessageBox.Show(
+                this,
+                "Modifications non enregistrées. Fermer quand même ?",
+                "Données de jeu",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+            if (r != DialogResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+
+        e.Cancel = true;
+        if (_cleanupRunning)
+        {
+            return;
+        }
+
+        _cleanupRunning = true;
+        _ = RunCloseCleanupAsync();
+    }
+
+    private async Task RunCloseCleanupAsync()
+    {
+        try
+        {
+            _initCts?.Cancel();
+            if (_initializationTask is { IsCompleted: false })
+            {
+                try
+                {
+                    await _initializationTask.ConfigureAwait(true);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    _closeCleanupException = ex;
+                }
+            }
+
+            BeginClosePanels();
+            if (_initialized)
+            {
+                await DrainPanelsAsync().ConfigureAwait(true);
+            }
+
+            if (_repositorySet?.DatabaseScope is { } scope)
+            {
+                try
+                {
+                    await scope.DrainAsync().ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    _closeCleanupException ??= ex;
+                }
+            }
+
+            DisposeRepositorySetSafely();
+            DisposePanelLifecycles();
+        }
+        catch (Exception ex)
+        {
+            _closeCleanupException = ex;
+            DisposeRepositorySetSafely();
+            DisposePanelLifecycles();
+        }
+        finally
+        {
+            _allowCloseAfterCleanup = true;
+            _cleanupRunning = false;
+            if (!IsDisposed)
+            {
+                BeginInvoke(new Action(Close));
+            }
+        }
+    }
+
+    private void BeginClosePanels()
+    {
+        _tilesets?.BeginClosing();
+        _npcs?.BeginClosing();
+        _items?.BeginClosing();
+        _spells?.BeginClosing();
+        _classes?.BeginClosing();
+        _shops?.BeginClosing();
+        _resourcesAndSpawns?.BeginClosing();
+    }
+
+    private void DisposePanelLifecycles()
+    {
+        _tilesets?.DisposeLifecycle();
+        _npcs?.DisposeLifecycle();
+        _items?.DisposeLifecycle();
+        _spells?.DisposeLifecycle();
+        _classes?.DisposeLifecycle();
+        _shops?.DisposeLifecycle();
+        _resourcesAndSpawns?.DisposeLifecycle();
+    }
+
+    private void DisposeRepositorySetSafely()
+    {
+        try
+        {
+            _repositorySet?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _closeCleanupException ??= ex;
+        }
+        finally
+        {
+            _repositorySet = null;
+        }
     }
 
     private async Task DrainPanelsAsync()
@@ -287,42 +412,11 @@ public sealed class GameDataForm : Form
         {
             await _resourcesAndSpawns.DrainAsync().ConfigureAwait(true);
         }
-
-        if (_repositorySet?.DatabaseScope is { } scope)
-        {
-            await scope.DrainAsync().ConfigureAwait(true);
-        }
     }
 
-    private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
-    {
-        _initCts?.Cancel();
+    internal Exception? CloseCleanupExceptionForTest => _closeCleanupException;
 
-        if (!_initialized)
-        {
-            return;
-        }
-
-        if (_tilesets!.IsDirty
-            || _npcs!.IsDirty
-            || _items!.IsDirty
-            || _spells!.IsDirty
-            || _classes!.IsDirty
-            || _shops!.IsDirty
-            || _resourcesAndSpawns!.IsDirty)
-        {
-            var r = GameDataUiMessageBox.Show(
-                this,
-                "Modifications non enregistrées. Fermer quand même ?",
-                "Données de jeu",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
-            if (r != DialogResult.Yes)
-            {
-                e.Cancel = true;
-            }
-        }
-    }
+    internal string StatusTextForTest => _status.Text;
 
     private void ShowCategory()
     {
@@ -373,7 +467,7 @@ public sealed class GameDataForm : Form
 /// <summary>Liste + formulaire tileset (brouillon / publication).</summary>
 public sealed class TilesetEditorPanel : UserControl
 {
-    private readonly GameDataPanelAsyncGate _asyncGate = new();
+    private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly TilesetWorkspaceSession _session;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
@@ -401,7 +495,19 @@ public sealed class TilesetEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
-    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+    internal long CurrentRevisionForTest => _session.CurrentRevision;
+
+    internal long? PublishedRevisionForTest => _session.PublishedRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _session.CurrentStatus;
+
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+
+    internal void BeginClosing() => _lifecycle.BeginClosing();
+
+    internal void DisposeLifecycle() => _lifecycle.Dispose();
 
     internal string CapabilitiesLabelForTest => _capabilities.DisplayLabel;
 
@@ -424,6 +530,8 @@ public sealed class TilesetEditorPanel : UserControl
     internal ComboBox StatusFilterForTest => _statusFilter;
 
     internal ListBox ListForTest => _list;
+
+    internal Label ValidationForTest => _validation;
 
     internal AssetPreviewControl PreviewForTest => _preview;
 
@@ -475,12 +583,12 @@ public sealed class TilesetEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _search.TextChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -490,7 +598,7 @@ public sealed class TilesetEditorPanel : UserControl
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
+        _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
@@ -563,9 +671,9 @@ public sealed class TilesetEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += async (_, _) => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
-        _btnPublish.Click += async (_, _) => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
-        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -575,8 +683,11 @@ public sealed class TilesetEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await RefreshListAsync().ConfigureAwait(true);
-        StatusChanged?.Invoke($"Backend : {_capabilities.DisplayLabel}");
+        await _lifecycle.RunAsync(async ct =>
+        {
+            await RefreshListAsync(ct).ConfigureAwait(true);
+            StatusChanged?.Invoke($"Backend : {_capabilities.DisplayLabel}");
+        }, "initialize").ConfigureAwait(true);
     }
 
     private async Task RefreshListAsync(CancellationToken ct = default)
@@ -720,7 +831,7 @@ public sealed class TilesetEditorPanel : UserControl
 /// <summary>Liste + formulaire NPC/monstre (brouillon / publication).</summary>
 public sealed class NpcEditorPanel : UserControl
 {
-    private readonly GameDataPanelAsyncGate _asyncGate = new();
+    private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly NpcWorkspaceSession _session;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
@@ -747,7 +858,19 @@ public sealed class NpcEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
-    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+    internal long CurrentRevisionForTest => _session.CurrentRevision;
+
+    internal long? PublishedRevisionForTest => _session.PublishedRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _session.CurrentStatus;
+
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+
+    internal void BeginClosing() => _lifecycle.BeginClosing();
+
+    internal void DisposeLifecycle() => _lifecycle.Dispose();
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -768,6 +891,8 @@ public sealed class NpcEditorPanel : UserControl
     internal ComboBox StatusFilterForTest => _statusFilter;
 
     internal ListBox ListForTest => _list;
+
+    internal Label ValidationForTest => _validation;
 
     internal AssetPreviewControl PreviewForTest => _preview;
 
@@ -825,12 +950,12 @@ public sealed class NpcEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _search.TextChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -840,7 +965,7 @@ public sealed class NpcEditorPanel : UserControl
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
+        _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
@@ -909,9 +1034,9 @@ public sealed class NpcEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += async (_, _) => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
-        _btnPublish.Click += async (_, _) => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
-        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -921,8 +1046,11 @@ public sealed class NpcEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await RefreshListAsync().ConfigureAwait(true);
-        StatusChanged?.Invoke($"Backend NPC : {_capabilities.DisplayLabel}");
+        await _lifecycle.RunAsync(async ct =>
+        {
+            await RefreshListAsync(ct).ConfigureAwait(true);
+            StatusChanged?.Invoke($"Backend NPC : {_capabilities.DisplayLabel}");
+        }, "initialize").ConfigureAwait(true);
     }
 
     private async Task RefreshListAsync(CancellationToken ct = default)
@@ -1074,7 +1202,7 @@ public sealed class NpcEditorPanel : UserControl
 /// <summary>Liste + formulaire objet (brouillon / publication).</summary>
 public sealed class ItemEditorPanel : UserControl
 {
-    private readonly GameDataPanelAsyncGate _asyncGate = new();
+    private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly ItemWorkspaceSession _session;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
@@ -1108,7 +1236,19 @@ public sealed class ItemEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
-    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+    internal long CurrentRevisionForTest => _session.CurrentRevision;
+
+    internal long? PublishedRevisionForTest => _session.PublishedRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _session.CurrentStatus;
+
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+
+    internal void BeginClosing() => _lifecycle.BeginClosing();
+
+    internal void DisposeLifecycle() => _lifecycle.Dispose();
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -1129,6 +1269,8 @@ public sealed class ItemEditorPanel : UserControl
     internal ComboBox StatusFilterForTest => _statusFilter;
 
     internal ListBox ListForTest => _list;
+
+    internal Label ValidationForTest => _validation;
 
     internal AssetPreviewControl PreviewForTest => _preview;
 
@@ -1191,12 +1333,12 @@ public sealed class ItemEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _search.TextChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -1206,7 +1348,7 @@ public sealed class ItemEditorPanel : UserControl
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
+        _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
@@ -1276,9 +1418,9 @@ public sealed class ItemEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += async (_, _) => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
-        _btnPublish.Click += async (_, _) => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
-        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -1288,8 +1430,11 @@ public sealed class ItemEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await RefreshListAsync().ConfigureAwait(true);
-        StatusChanged?.Invoke($"Backend objets : {_capabilities.DisplayLabel}");
+        await _lifecycle.RunAsync(async ct =>
+        {
+            await RefreshListAsync(ct).ConfigureAwait(true);
+            StatusChanged?.Invoke($"Backend objets : {_capabilities.DisplayLabel}");
+        }, "initialize").ConfigureAwait(true);
     }
 
     private async Task RefreshListAsync(CancellationToken ct = default)
@@ -1439,7 +1584,7 @@ public sealed class ItemEditorPanel : UserControl
 /// <summary>Liste + formulaire sort/compétence (brouillon / publication).</summary>
 public sealed class SpellEditorPanel : UserControl
 {
-    private readonly GameDataPanelAsyncGate _asyncGate = new();
+    private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly SpellWorkspaceSession _session;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
@@ -1473,7 +1618,19 @@ public sealed class SpellEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
-    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+    internal long CurrentRevisionForTest => _session.CurrentRevision;
+
+    internal long? PublishedRevisionForTest => _session.PublishedRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _session.CurrentStatus;
+
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+
+    internal void BeginClosing() => _lifecycle.BeginClosing();
+
+    internal void DisposeLifecycle() => _lifecycle.Dispose();
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -1494,6 +1651,8 @@ public sealed class SpellEditorPanel : UserControl
     internal ComboBox StatusFilterForTest => _statusFilter;
 
     internal ListBox ListForTest => _list;
+
+    internal Label ValidationForTest => _validation;
 
     internal AssetPreviewControl PreviewForTest => _preview;
 
@@ -1560,12 +1719,12 @@ public sealed class SpellEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _search.TextChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -1575,7 +1734,7 @@ public sealed class SpellEditorPanel : UserControl
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
+        _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
@@ -1645,11 +1804,9 @@ public sealed class SpellEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
-        _btnPublish.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
-        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -1659,8 +1816,11 @@ public sealed class SpellEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await RefreshListAsync().ConfigureAwait(true);
-        StatusChanged?.Invoke($"Backend sorts/compétences : {_capabilities.DisplayLabel}");
+        await _lifecycle.RunAsync(async ct =>
+        {
+            await RefreshListAsync(ct).ConfigureAwait(true);
+            StatusChanged?.Invoke($"Backend sorts/compétences : {_capabilities.DisplayLabel}");
+        }, "initialize").ConfigureAwait(true);
     }
 
     private async Task RefreshListAsync(CancellationToken ct = default)
@@ -1817,7 +1977,7 @@ public sealed class SpellEditorPanel : UserControl
 /// <summary>Liste + formulaire classe (brouillon / publication).</summary>
 public sealed class ClassEditorPanel : UserControl
 {
-    private readonly GameDataPanelAsyncGate _asyncGate = new();
+    private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly ClassWorkspaceSession _session;
     private readonly IPublishedSpellCatalog _spellCatalog;
     private readonly ContentRepositoryCapabilities _capabilities;
@@ -1859,7 +2019,19 @@ public sealed class ClassEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
-    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+    internal long CurrentRevisionForTest => _session.CurrentRevision;
+
+    internal long? PublishedRevisionForTest => _session.PublishedRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _session.CurrentStatus;
+
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+
+    internal void BeginClosing() => _lifecycle.BeginClosing();
+
+    internal void DisposeLifecycle() => _lifecycle.Dispose();
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -1880,6 +2052,8 @@ public sealed class ClassEditorPanel : UserControl
     internal ComboBox StartingSpellForTest => _startingSpell;
 
     internal ListBox ListForTest => _list;
+
+    internal Label ValidationForTest => _validation;
 
     public ClassEditorPanel(
         ClassWorkspaceSession session,
@@ -1946,12 +2120,12 @@ public sealed class ClassEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _search.TextChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -1961,7 +2135,7 @@ public sealed class ClassEditorPanel : UserControl
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
+        _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
@@ -2036,11 +2210,9 @@ public sealed class ClassEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
-        _btnPublish.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
-        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -2050,9 +2222,12 @@ public sealed class ClassEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await RefreshStartingSpellsAsync().ConfigureAwait(true);
-        await RefreshListAsync().ConfigureAwait(true);
-        StatusChanged?.Invoke($"Backend classes : {_capabilities.DisplayLabel}");
+        await _lifecycle.RunAsync(async ct =>
+        {
+            await RefreshStartingSpellsAsync().ConfigureAwait(true);
+            await RefreshListAsync(ct).ConfigureAwait(true);
+            StatusChanged?.Invoke($"Backend classes : {_capabilities.DisplayLabel}");
+        }, "initialize").ConfigureAwait(true);
     }
 
     private async Task RefreshStartingSpellsAsync()

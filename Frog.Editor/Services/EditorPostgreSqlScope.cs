@@ -40,6 +40,12 @@ public sealed class EditorPostgreSqlScope : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         Interlocked.Increment(ref _migrateCallCount);
+        if (EditorTestHooks.OverridePostgreSqlMigrateForTest is { } overrideMigrate)
+        {
+            await overrideMigrate(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         await Gate.ExecuteAsync(
             static (db, ct) => db.Database.MigrateAsync(ct),
             cancellationToken).ConfigureAwait(false);

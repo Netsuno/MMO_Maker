@@ -48,6 +48,11 @@ public static class EditorMapRepositoryFactory
 
     internal static string? ResolveConnectionString()
     {
+        if (!string.IsNullOrWhiteSpace(EditorTestHooks.OverridePostgreSqlConnectionString))
+        {
+            return EditorTestHooks.OverridePostgreSqlConnectionString.Trim();
+        }
+
         var fromEnv = Environment.GetEnvironmentVariable(EnvConnectionString);
         if (!string.IsNullOrWhiteSpace(fromEnv))
         {

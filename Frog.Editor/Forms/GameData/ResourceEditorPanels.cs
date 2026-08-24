@@ -74,11 +74,23 @@ public sealed class ResourceAndSpawnEditorPanel : UserControl
 
     internal Task DrainAsync() =>
         Task.WhenAll(_resources.DrainAsync(), _spawns.DrainAsync());
+
+    internal void BeginClosing()
+    {
+        _resources.BeginClosing();
+        _spawns.BeginClosing();
+    }
+
+    internal void DisposeLifecycle()
+    {
+        _resources.DisposeLifecycle();
+        _spawns.DisposeLifecycle();
+    }
 }
 
 public sealed class ResourceEditorPanel : UserControl
 {
-    private readonly GameDataPanelAsyncGate _asyncGate = new();
+    private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly ResourceWorkspaceSession _session;
     private readonly IPublishedItemCatalog _itemCatalog;
     private readonly ContentRepositoryCapabilities _capabilities;
@@ -126,7 +138,19 @@ public sealed class ResourceEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
-    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+    internal long CurrentRevisionForTest => _session.CurrentRevision;
+
+    internal long? PublishedRevisionForTest => _session.PublishedRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _session.CurrentStatus;
+
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+
+    internal void BeginClosing() => _lifecycle.BeginClosing();
+
+    internal void DisposeLifecycle() => _lifecycle.Dispose();
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -149,6 +173,8 @@ public sealed class ResourceEditorPanel : UserControl
     internal ComboBox YieldItemForTest => _yieldItem;
 
     internal ListBox ListForTest => _list;
+
+    internal Label ValidationForTest => _validation;
 
     internal AssetPreviewControl PreviewForTest => _preview;
 
@@ -206,17 +232,17 @@ public sealed class ResourceEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _search.TextChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = StatusFromIndex(_statusFilter.SelectedIndex);
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
+        _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogChoice choice)
             {
@@ -287,11 +313,9 @@ public sealed class ResourceEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie de ressource créée");
         };
-        _btnSave.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
-        _btnPublish.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
-        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         _btnSave.Enabled = capabilities.AllowsSave;
         _btnPublish.Enabled = capabilities.AllowsSave;
@@ -302,9 +326,12 @@ public sealed class ResourceEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await RefreshItemsAsync().ConfigureAwait(true);
-        await RefreshListAsync().ConfigureAwait(true);
-        StatusChanged?.Invoke($"Backend ressources : {_capabilities.DisplayLabel}");
+        await _lifecycle.RunAsync(async ct =>
+        {
+            await RefreshItemsAsync().ConfigureAwait(true);
+            await RefreshListAsync(ct).ConfigureAwait(true);
+            StatusChanged?.Invoke($"Backend ressources : {_capabilities.DisplayLabel}");
+        }, "initialize").ConfigureAwait(true);
     }
 
     private async Task RefreshItemsAsync()
@@ -511,7 +538,7 @@ public sealed class ResourceEditorPanel : UserControl
 
 public sealed class ResourceSpawnEditorPanel : UserControl
 {
-    private readonly GameDataPanelAsyncGate _asyncGate = new();
+    private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly ResourceSpawnWorkspaceSession _session;
     private readonly IMapRepository _maps;
     private readonly IPublishedResourceCatalog _resources;
@@ -598,7 +625,7 @@ public sealed class ResourceSpawnEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -608,17 +635,17 @@ public sealed class ResourceSpawnEditorPanel : UserControl
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _mapFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _mapFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.MapFilter = NormalizeFilterId((_mapFilter.SelectedItem as EntityChoice)?.Id);
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _resourceFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _resourceFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.ResourceFilter = NormalizeFilterId((_resourceFilter.SelectedItem as EntityChoice)?.Id);
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
+        _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not SpawnChoice choice)
             {
@@ -678,11 +705,9 @@ public sealed class ResourceSpawnEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie de spawn créée");
         };
-        _btnSave.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
-        _btnPublish.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
-        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         _btnSave.Enabled = capabilities.AllowsSave;
         _btnPublish.Enabled = capabilities.AllowsSave;
@@ -693,7 +718,19 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
-    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+    internal long CurrentRevisionForTest => _session.CurrentRevision;
+
+    internal long? PublishedRevisionForTest => _session.PublishedRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _session.CurrentStatus;
+
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+
+    internal void BeginClosing() => _lifecycle.BeginClosing();
+
+    internal void DisposeLifecycle() => _lifecycle.Dispose();
 
     internal ComboBox MapFilterForTest => _mapFilter;
 
@@ -713,11 +750,16 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
     internal ListBox ListForTest => _list;
 
+    internal Label ValidationForTest => _validation;
+
     public async Task InitializeAsync()
     {
-        await RefreshReferencesAsync().ConfigureAwait(true);
-        await RefreshListAsync().ConfigureAwait(true);
-        StatusChanged?.Invoke($"Backend spawns de ressources : {_capabilities.DisplayLabel}");
+        await _lifecycle.RunAsync(async ct =>
+        {
+            await RefreshReferencesAsync().ConfigureAwait(true);
+            await RefreshListAsync(ct).ConfigureAwait(true);
+            StatusChanged?.Invoke($"Backend spawns de ressources : {_capabilities.DisplayLabel}");
+        }, "initialize").ConfigureAwait(true);
     }
 
     private async Task RefreshReferencesAsync()

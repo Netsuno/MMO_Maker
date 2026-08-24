@@ -7,7 +7,7 @@ namespace Frog.Editor.Forms.GameData;
 /// <summary>Liste + formulaire boutique (contenu uniquement, sans gameplay commercial).</summary>
 public sealed class ShopEditorPanel : UserControl
 {
-    private readonly GameDataPanelAsyncGate _asyncGate = new();
+    private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly ShopWorkspaceSession _session;
     private readonly IPublishedItemCatalog _itemCatalog;
     private readonly ContentRepositoryCapabilities _capabilities;
@@ -74,6 +74,8 @@ public sealed class ShopEditorPanel : UserControl
     internal DataGridView ListingsForTest => _listings;
 
     internal ListBox ListForTest => _list;
+
+    internal Label ValidationForTest => _validation;
 
     public ShopEditorPanel(
         ShopWorkspaceSession session,
@@ -152,12 +154,12 @@ public sealed class ShopEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _search.TextChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -167,7 +169,7 @@ public sealed class ShopEditorPanel : UserControl
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
         });
-        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
+        _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
@@ -256,11 +258,9 @@ public sealed class ShopEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true);
-        _btnPublish.Click += async (_, _) =>
-            await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true);
-        _btnDelete.Click += async (_, _) => await DeleteAsync().ConfigureAwait(true);
+        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -274,13 +274,28 @@ public sealed class ShopEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
-    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+    internal long CurrentRevisionForTest => _session.CurrentRevision;
+
+    internal long? PublishedRevisionForTest => _session.PublishedRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _session.CurrentStatus;
+
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+
+    internal void BeginClosing() => _lifecycle.BeginClosing();
+
+    internal void DisposeLifecycle() => _lifecycle.Dispose();
 
     public async Task InitializeAsync()
     {
-        await RefreshPublishedItemsAsync().ConfigureAwait(true);
-        await RefreshListAsync().ConfigureAwait(true);
-        StatusChanged?.Invoke($"Backend boutiques : {_capabilities.DisplayLabel}");
+        await _lifecycle.RunAsync(async ct =>
+        {
+            await RefreshPublishedItemsAsync().ConfigureAwait(true);
+            await RefreshListAsync(ct).ConfigureAwait(true);
+            StatusChanged?.Invoke($"Backend boutiques : {_capabilities.DisplayLabel}");
+        }, "initialize").ConfigureAwait(true);
     }
 
     private async Task RefreshPublishedItemsAsync()

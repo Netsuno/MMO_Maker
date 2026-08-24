@@ -59,4 +59,18 @@ internal static class EditorTestHooks
 
     /// <summary>Smoke : initialisation synchrone (évite les continuations async sur le dispatcher).</summary>
     public static bool UseSynchronousGameDataInitForTest { get; set; }
+
+    /// <summary>
+    /// Smoke : barrière injectée avant chaque opération panneau (permet de bloquer Refresh/Save/Publish/Delete).
+    /// </summary>
+    public static Func<string, CancellationToken, Task>? PanelOperationBarrierForTest { get; set; }
+
+    /// <summary>Smoke : exceptions observées par les cycle-of-life panneau.</summary>
+    public static Action<Exception>? OnPanelLifecycleExceptionForTest { get; set; }
+
+    /// <summary>Smoke / intégration : force la chaîne PostgreSQL pour l’init Données de jeu.</summary>
+    public static string? OverridePostgreSqlConnectionString { get; set; }
+
+    /// <summary>Smoke / intégration : remplace MigrateAsync (échec déterministe).</summary>
+    public static Func<CancellationToken, Task>? OverridePostgreSqlMigrateForTest { get; set; }
 }
