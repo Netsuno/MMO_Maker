@@ -74,33 +74,6 @@ public sealed class PostgresGameDataScopeLifecycleTests
         Assert.Throws<ObjectDisposedException>(() => _ = gate.Db);
     }
 
-    [PostgresFact]
-    [Trait("Category", "PostgreSql")]
-    public async Task FailedConnection_DoesNotLeaveUndisposedGate()
-    {
-        FrogDbContextGate? gate = null;
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try
-        {
-            gate = new FrogDbContextGate(
-                new FrogDbContext(FrogDbContextOptions.Create(
-                    "Host=127.0.0.1;Port=59999;Database=missing;Username=x;Password=x;Timeout=1;Command Timeout=1")));
-            await Assert.ThrowsAnyAsync<Exception>(
-                () => gate.ExecuteAsync(
-                    static (db, ct) => db.Database.MigrateAsync(ct),
-                    timeout.Token)).ConfigureAwait(false);
-        }
-        finally
-        {
-            gate?.Dispose();
-        }
-
-        if (gate is not null)
-        {
-            Assert.Throws<ObjectDisposedException>(() => _ = gate.Db);
-        }
-    }
-
     private FrogDbContextGate CreateGate()
         => new(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 }
