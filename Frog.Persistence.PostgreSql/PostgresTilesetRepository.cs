@@ -7,16 +7,16 @@ namespace Frog.Persistence.PostgreSql;
 
 public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTilesetCatalog
 {
-    private readonly FrogDbContext _db;
+    private readonly FrogDbContextGate _gate;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
 
     /// <summary>Seam de test : appelée après SaveChanges du brouillon, avant commit (publication).</summary>
     internal Func<CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
 
-    public PostgresTilesetRepository(FrogDbContext db, TimeProvider? clock = null)
+    public PostgresTilesetRepository(FrogDbContextGate gate, TimeProvider? clock = null)
     {
-        _db = db;
+        _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -26,6 +26,8 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
         SaveTilesetRequest request,
         CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<SaveTilesetResult>(async (db, ct) =>
+        {
         ArgumentNullException.ThrowIfNull(request);
 
         if (!request.Definition.Validate(out var error))
@@ -33,27 +35,28 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             return new SaveTilesetResult.ValidationFailed(error ?? "Tileset invalide.");
         }
 
-        if (!await _saveGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        if (!await _saveGate.WaitAsync(0, ct).ConfigureAwait(false))
         {
             return new SaveTilesetResult.ValidationFailed("Une opération d’enregistrement est déjà en cours.");
         }
 
         try
         {
-            return await SaveCoreAsync(request, cancellationToken).ConfigureAwait(false);
+            return await SaveCoreAsync(db, request, ct).ConfigureAwait(false);
         }
         finally
         {
             _saveGate.Release();
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<SaveTilesetResult> SaveCoreAsync(
-        SaveTilesetRequest request,
+    private async Task<SaveTilesetResult> SaveCoreAsync(FrogDbContext db, SaveTilesetRequest request,
         CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
-        await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -68,14 +71,14 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
                     return new SaveTilesetResult.Conflict(0);
                 }
 
-                if (await PathTakenAsync(request.Definition.LogicalPath, excludeId: null, cancellationToken)
+                if (await PathTakenAsync(db, request.Definition.LogicalPath, excludeId: null, cancellationToken)
                         .ConfigureAwait(false))
                 {
                     return new SaveTilesetResult.ValidationFailed("Chemin logique déjà utilisé.");
                 }
 
                 if (request.Definition.EditorPaletteId is int palette
-                    && await PaletteTakenAsync(palette, excludeId: null, cancellationToken).ConfigureAwait(false))
+                    && await PaletteTakenAsync(db, palette, excludeId: null, cancellationToken).ConfigureAwait(false))
                 {
                     return new SaveTilesetResult.ValidationFailed("EditorPaletteId déjà utilisé.");
                 }
@@ -84,14 +87,14 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
                 var entity = ToEntity(request.Definition, id, now);
                 entity.Revision = 1;
                 entity.Status = ContentPublishStatus.Draft;
-                _db.Tilesets.Add(entity);
-                await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                db.Tilesets.Add(entity);
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 newRevision = 1;
                 savedId = id;
 
                 if (request.Intent == SaveContentIntent.Publish)
                 {
-                    publishedRevision = await PublishSnapshotAsync(entity, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(db, entity, now, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -101,19 +104,19 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             }
             else
             {
-                if (await PathTakenAsync(request.Definition.LogicalPath, tilesetId, cancellationToken)
+                if (await PathTakenAsync(db, request.Definition.LogicalPath, tilesetId, cancellationToken)
                         .ConfigureAwait(false))
                 {
                     return new SaveTilesetResult.ValidationFailed("Chemin logique déjà utilisé.");
                 }
 
                 if (request.Definition.EditorPaletteId is int palette
-                    && await PaletteTakenAsync(palette, tilesetId, cancellationToken).ConfigureAwait(false))
+                    && await PaletteTakenAsync(db, palette, tilesetId, cancellationToken).ConfigureAwait(false))
                 {
                     return new SaveTilesetResult.ValidationFailed("EditorPaletteId déjà utilisé.");
                 }
 
-                var updatedRows = await _db.Tilesets
+                var updatedRows = await db.Tilesets
                     .Where(t => t.Id == tilesetId && t.Revision == request.ExpectedRevision)
                     .ExecuteUpdateAsync(
                         s => s
@@ -133,7 +136,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
                 if (updatedRows == 0)
                 {
                     return new SaveTilesetResult.Conflict(
-                        await ReadRevisionAsync(tilesetId, cancellationToken).ConfigureAwait(false));
+                        await ReadRevisionAsync(db, tilesetId, cancellationToken).ConfigureAwait(false));
                 }
 
                 newRevision = request.ExpectedRevision + 1;
@@ -141,10 +144,10 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
 
                 if (request.Intent == SaveContentIntent.Publish)
                 {
-                    var entity = await _db.Tilesets.AsNoTracking()
+                    var entity = await db.Tilesets.AsNoTracking()
                         .FirstAsync(t => t.Id == tilesetId, cancellationToken)
                         .ConfigureAwait(false);
-                    publishedRevision = await PublishSnapshotAsync(entity, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(db, entity, now, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -159,19 +162,18 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             }
 
             await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveTilesetResult.Success(newRevision, savedId, publishedRevision);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await tx.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveTilesetResult.PersistenceFailed(Sanitize(ex.Message));
         }
     }
 
-    private async Task<long> PublishSnapshotAsync(
-        TilesetEntity entity,
+    private async Task<long> PublishSnapshotAsync(FrogDbContext db, TilesetEntity entity,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -190,8 +192,8 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             Sha256Hex = entity.Sha256Hex,
             EditorPaletteId = entity.EditorPaletteId,
         };
-        _db.TilesetPublishedSnapshots.Add(snapshot);
-        _db.TilesetPublicationHistory.Add(new TilesetPublicationHistoryEntity
+        db.TilesetPublishedSnapshots.Add(snapshot);
+        db.TilesetPublicationHistory.Add(new TilesetPublicationHistoryEntity
         {
             Id = Guid.NewGuid(),
             TilesetId = entity.Id,
@@ -200,7 +202,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             PublishedAtUtc = now,
         });
 
-        await _db.Tilesets
+        await db.Tilesets
             .Where(t => t.Id == entity.Id)
             .ExecuteUpdateAsync(
                 s => s
@@ -211,32 +213,38 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Revision;
     }
 
     public async Task<StoredTileset?> LoadByIdAsync(Guid tilesetId, CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Tilesets.AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == tilesetId, cancellationToken)
+        return await _gate.ExecuteAsync<StoredTileset?>(async (db, ct) =>
+        {
+        var entity = await db.Tilesets.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tilesetId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<StoredTileset?> LoadPublishedByIdAsync(
         Guid tilesetId,
         CancellationToken cancellationToken = default)
     {
-        var tip = await _db.Tilesets.AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == tilesetId, cancellationToken)
+        return await _gate.ExecuteAsync<StoredTileset?>(async (db, ct) =>
+        {
+        var tip = await db.Tilesets.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tilesetId, ct)
             .ConfigureAwait(false);
         if (tip?.PublishedSnapshotId is not Guid snapId)
         {
             return null;
         }
 
-        var snap = await _db.TilesetPublishedSnapshots.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == snapId, cancellationToken)
+        var snap = await db.TilesetPublishedSnapshots.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == snapId, ct)
             .ConfigureAwait(false);
         if (snap is null)
         {
@@ -251,6 +259,8 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             Status = ContentPublishStatus.Published,
             PublishedRevision = snap.Revision,
         };
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<TilesetCatalogEntry>> ListSummariesAsync(
@@ -258,7 +268,9 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
         ContentPublishStatus? statusFilter = null,
         CancellationToken cancellationToken = default)
     {
-        var q = _db.Tilesets.AsNoTracking().AsQueryable();
+        return await _gate.ExecuteAsync<IReadOnlyList<TilesetCatalogEntry>>(async (db, ct) =>
+        {
+        var q = db.Tilesets.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
@@ -283,16 +295,20 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
                 PublishedRevision = t.PublishedRevision,
                 EditorPaletteId = t.EditorPaletteId,
             })
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DeleteTilesetResult> DeleteAsync(
         Guid tilesetId,
         CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Tilesets.AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == tilesetId, cancellationToken)
+        return await _gate.ExecuteAsync<DeleteTilesetResult>(async (db, ct) =>
+        {
+        var entity = await db.Tilesets.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tilesetId, ct)
             .ConfigureAwait(false);
         if (entity is null)
         {
@@ -300,22 +316,22 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
         }
 
         if (entity.EditorPaletteId is int palette
-            && await IsPaletteIdReferencedByMapsAsync(palette, cancellationToken).ConfigureAwait(false))
+            && await IsPaletteIdReferencedByMapsAsync(palette, ct).ConfigureAwait(false))
         {
             return new DeleteTilesetResult.Referenced(
                 $"Tileset référencé par des cartes (palette {palette}).");
         }
 
-        await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var tx = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
         try
         {
-            await _db.TilesetPublicationHistory.Where(h => h.TilesetId == tilesetId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await _db.TilesetPublishedSnapshots.Where(s => s.TilesetId == tilesetId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await _db.Tilesets.Where(t => t.Id == tilesetId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await db.TilesetPublicationHistory.Where(h => h.TilesetId == tilesetId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await db.TilesetPublishedSnapshots.Where(s => s.TilesetId == tilesetId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await db.Tilesets.Where(t => t.Id == tilesetId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
             return new DeleteTilesetResult.Success();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -323,19 +339,23 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             await tx.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteTilesetResult.PersistenceFailed(Sanitize(ex.Message));
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> IsPaletteIdReferencedByMapsAsync(
         int editorPaletteId,
         CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<bool>(async (db, ct) =>
+        {
         // layers_json est jsonb : caster en text pour LIKE (évite like_escape(jsonb)).
         var needleA = $"%\"tilesetId\":{editorPaletteId}%";
         var needleB = $"%\"tilesetId\": {editorPaletteId}%";
-        var connection = _db.Database.GetDbConnection();
+        var connection = db.Database.GetDbConnection();
         if (connection.State != System.Data.ConnectionState.Open)
         {
-            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await connection.OpenAsync(ct).ConfigureAwait(false);
         }
 
         await using var cmd = connection.CreateCommand();
@@ -354,17 +374,21 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
         pB.ParameterName = "b";
         pB.Value = needleB;
         cmd.Parameters.Add(pB);
-        var result = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
         return result is bool flag && flag;
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<TilesetDefinition>> ListPublishedAsync(
         CancellationToken cancellationToken = default)
     {
-        var tips = await _db.Tilesets.AsNoTracking()
+        return await _gate.ExecuteAsync<IReadOnlyList<TilesetDefinition>>(async (db, ct) =>
+        {
+        var tips = await db.Tilesets.AsNoTracking()
             .Where(t => t.PublishedSnapshotId != null)
             .Select(t => t.PublishedSnapshotId!.Value)
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
 
         if (tips.Count == 0)
@@ -372,32 +396,34 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             return Array.Empty<TilesetDefinition>();
         }
 
-        var snaps = await _db.TilesetPublishedSnapshots.AsNoTracking()
+        var snaps = await db.TilesetPublishedSnapshots.AsNoTracking()
             .Where(s => tips.Contains(s.Id))
             .OrderBy(s => s.Name)
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
 
         return snaps.Select(FromSnapshot).ToList();
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<bool> PathTakenAsync(string path, Guid? excludeId, CancellationToken ct)
-        => await _db.Tilesets.AsNoTracking()
+    private async Task<bool> PathTakenAsync(FrogDbContext db, string path, Guid? excludeId, CancellationToken ct)
+        => await db.Tilesets.AsNoTracking()
             .AnyAsync(
                 t => t.LogicalPath == path && (excludeId == null || t.Id != excludeId),
                 ct)
             .ConfigureAwait(false);
 
-    private async Task<bool> PaletteTakenAsync(int palette, Guid? excludeId, CancellationToken ct)
-        => await _db.Tilesets.AsNoTracking()
+    private async Task<bool> PaletteTakenAsync(FrogDbContext db, int palette, Guid? excludeId, CancellationToken ct)
+        => await db.Tilesets.AsNoTracking()
             .AnyAsync(
                 t => t.EditorPaletteId == palette && (excludeId == null || t.Id != excludeId),
                 ct)
             .ConfigureAwait(false);
 
-    private async Task<long> ReadRevisionAsync(Guid id, CancellationToken ct)
+    private async Task<long> ReadRevisionAsync(FrogDbContext db, Guid id, CancellationToken ct)
     {
-        var rev = await _db.Tilesets.AsNoTracking()
+        var rev = await db.Tilesets.AsNoTracking()
             .Where(t => t.Id == id)
             .Select(t => (long?)t.Revision)
             .FirstOrDefaultAsync(ct)

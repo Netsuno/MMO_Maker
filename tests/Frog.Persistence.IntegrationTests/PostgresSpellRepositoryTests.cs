@@ -19,8 +19,8 @@ public sealed class PostgresSpellRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Save_Publish_Reload_DraftDistinct_Conflict_InvalidPublish_Rollback()
     {
-        await using var db = CreateDb();
-        var repository = new PostgresSpellRepository(db);
+        using var gate = CreateGate();
+        var repository = new PostgresSpellRepository(gate);
         var definition = CreateDefinition(
             "Boule de feu PG",
             SpellKind.Spell,
@@ -50,8 +50,8 @@ public sealed class PostgresSpellRepositoryTests
         Assert.Equal(2, published.NewRevision);
         Assert.Equal(2, published.PublishedRevision);
 
-        await using var db2 = CreateDb();
-        var repository2 = new PostgresSpellRepository(db2);
+        using var gate2 = CreateGate();
+        var repository2 = new PostgresSpellRepository(gate2);
         var draft = await repository2.LoadByIdAsync(created.SpellId);
         var snapshot = await repository2.LoadPublishedByIdAsync(created.SpellId);
         Assert.NotNull(draft);
@@ -69,8 +69,8 @@ public sealed class PostgresSpellRepositoryTests
             Intent = SaveContentIntent.SaveDraft,
         }));
 
-        await using var db3 = CreateDb();
-        var repository3 = new PostgresSpellRepository(db3);
+        using var gate3 = CreateGate();
+        var repository3 = new PostgresSpellRepository(gate3);
         Assert.Equal(
             "Boule de feu brouillon PG",
             (await repository3.LoadByIdAsync(created.SpellId))!.Definition.Name);
@@ -99,8 +99,8 @@ public sealed class PostgresSpellRepositoryTests
                 Intent = SaveContentIntent.Publish,
             }));
 
-        await using var db4 = CreateDb();
-        var failing = new PostgresSpellRepository(db4)
+        using var gate4 = CreateGate();
+        var failing = new PostgresSpellRepository(gate4)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injected-fail"),
         };
@@ -118,8 +118,8 @@ public sealed class PostgresSpellRepositoryTests
         });
         Assert.IsType<SaveSpellResult.PersistenceFailed>(failed);
 
-        await using var db5 = CreateDb();
-        var afterRepository = new PostgresSpellRepository(db5);
+        using var gate5 = CreateGate();
+        var afterRepository = new PostgresSpellRepository(gate5);
         Assert.Empty(await afterRepository.ListSummariesAsync(search: "Sort rollback PG"));
         Assert.Equal(before.Count, (await afterRepository.ListSummariesAsync()).Count);
         Assert.Contains(
@@ -131,8 +131,8 @@ public sealed class PostgresSpellRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Search_StatusFilter_AndDelete()
     {
-        await using var db = CreateDb();
-        var repository = new PostgresSpellRepository(db);
+        using var gate = CreateGate();
+        var repository = new PostgresSpellRepository(gate);
         var published = Assert.IsType<SaveSpellResult.Success>(await repository.SaveAsync(
             new SaveSpellRequest
             {
@@ -174,8 +174,8 @@ public sealed class PostgresSpellRepositoryTests
         Assert.IsType<DeleteSpellResult.NotFound>(await repository.DeleteAsync(draft.SpellId));
     }
 
-    private FrogDbContext CreateDb()
-        => new(FrogDbContextOptions.Create(_fixture.ConnectionString));
+    private FrogDbContextGate CreateGate()
+        => new(new(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 
     private static SpellDefinition CreateDefinition(
         string name,

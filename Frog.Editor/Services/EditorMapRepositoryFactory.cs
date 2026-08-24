@@ -38,9 +38,9 @@ public static class EditorMapRepositoryFactory
             return new EditorMapRepositoryBundle(demoRepo, demoRepo.Capabilities);
         }
 
-        var db = new FrogDbContext(FrogDbContextOptions.Create(cs));
-        db.Database.Migrate();
-        var pgRepo = new PostgresMapRepository(db);
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(cs)));
+        gate.Db.Database.Migrate();
+        var pgRepo = new PostgresMapRepository(gate);
         return new EditorMapRepositoryBundle(pgRepo, pgRepo.Capabilities);
     }
 

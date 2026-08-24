@@ -19,10 +19,10 @@ public sealed class PostgresShopRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Save_Publish_Reload_DraftDistinct_Conflict_InvalidReference_Rollback()
     {
-        await using var db = CreateDb();
-        var items = new PostgresItemRepository(db);
+        using var gate = CreateGate();
+        var items = new PostgresItemRepository(gate);
         var itemId = await PublishItemAsync(items, "Potion boutique PG");
-        var repository = new PostgresShopRepository(db, items);
+        var repository = new PostgresShopRepository(gate, items);
         var definition = CreateDefinition(
             "Apothicaire PG",
             new ShopListing { ItemId = itemId, Price = 75, Stock = null });
@@ -49,8 +49,8 @@ public sealed class PostgresShopRepositoryTests
         Assert.Equal(2, published.NewRevision);
         Assert.Equal(2, published.PublishedRevision);
 
-        await using var db2 = CreateDb();
-        var repository2 = new PostgresShopRepository(db2);
+        using var gate2 = CreateGate();
+        var repository2 = new PostgresShopRepository(gate2);
         var draft = await repository2.LoadByIdAsync(created.ShopId);
         var snapshot = await repository2.LoadPublishedByIdAsync(created.ShopId);
         Assert.NotNull(draft);
@@ -68,8 +68,8 @@ public sealed class PostgresShopRepositoryTests
             Intent = SaveContentIntent.SaveDraft,
         }));
 
-        await using var db3 = CreateDb();
-        var repository3 = new PostgresShopRepository(db3);
+        using var gate3 = CreateGate();
+        var repository3 = new PostgresShopRepository(gate3);
         Assert.Equal(
             "Apothicaire brouillon PG",
             (await repository3.LoadByIdAsync(created.ShopId))!.Definition.Name);
@@ -102,8 +102,8 @@ public sealed class PostgresShopRepositoryTests
                 Intent = SaveContentIntent.Publish,
             }));
 
-        await using var db4 = CreateDb();
-        var draftItems = new PostgresItemRepository(db4);
+        using var gate4 = CreateGate();
+        var draftItems = new PostgresItemRepository(gate4);
         var draftItem = CreateItem("Objet non publié PG");
         var draftItemSaved = Assert.IsType<SaveItemResult.Success>(await draftItems.SaveAsync(
             new SaveItemRequest
@@ -115,7 +115,7 @@ public sealed class PostgresShopRepositoryTests
         var invalidDraftReference = CreateDefinition(
             "Boutique objet brouillon PG",
             new ShopListing { ItemId = draftItemSaved.ItemId, Price = 1 });
-        var draftReferenceRepository = new PostgresShopRepository(db4, draftItems);
+        var draftReferenceRepository = new PostgresShopRepository(gate4, draftItems);
         Assert.IsType<SaveShopResult.ValidationFailed>(await draftReferenceRepository.SaveAsync(
             new SaveShopRequest
             {
@@ -124,8 +124,8 @@ public sealed class PostgresShopRepositoryTests
                 Intent = SaveContentIntent.Publish,
             }));
 
-        await using var db5 = CreateDb();
-        var failing = new PostgresShopRepository(db5)
+        using var gate5 = CreateGate();
+        var failing = new PostgresShopRepository(gate5)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injected-fail"),
         };
@@ -138,8 +138,8 @@ public sealed class PostgresShopRepositoryTests
         });
         Assert.IsType<SaveShopResult.PersistenceFailed>(failed);
 
-        await using var db6 = CreateDb();
-        var afterRepository = new PostgresShopRepository(db6);
+        using var gate6 = CreateGate();
+        var afterRepository = new PostgresShopRepository(gate6);
         Assert.Empty(await afterRepository.ListSummariesAsync(search: "Boutique rollback PG"));
         Assert.Equal(before.Count, (await afterRepository.ListSummariesAsync()).Count);
         Assert.Contains(
@@ -151,11 +151,11 @@ public sealed class PostgresShopRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Search_StatusFilter_Delete_AndPreventItemDeleteFromDraftOrSnapshot()
     {
-        await using var db = CreateDb();
-        var items = new PostgresItemRepository(db);
+        using var gate = CreateGate();
+        var items = new PostgresItemRepository(gate);
         var draftItemId = await PublishItemAsync(items, "Objet draft protégé PG");
         var snapshotItemId = await PublishItemAsync(items, "Objet snapshot protégé PG");
-        var repository = new PostgresShopRepository(db, items);
+        var repository = new PostgresShopRepository(gate, items);
 
         var draft = Assert.IsType<SaveShopResult.Success>(await repository.SaveAsync(
             new SaveShopRequest
@@ -201,8 +201,8 @@ public sealed class PostgresShopRepositoryTests
         Assert.IsType<DeleteShopResult.NotFound>(await repository.DeleteAsync(published.ShopId));
     }
 
-    private FrogDbContext CreateDb()
-        => new(FrogDbContextOptions.Create(_fixture.ConnectionString));
+    private FrogDbContextGate CreateGate()
+        => new(new(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 
     private static async Task<Guid> PublishItemAsync(
         PostgresItemRepository repository,

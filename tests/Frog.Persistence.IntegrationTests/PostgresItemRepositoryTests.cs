@@ -19,8 +19,8 @@ public sealed class PostgresItemRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Save_Publish_Reload_DraftDistinct_Conflict_InvalidPublish_Rollback()
     {
-        await using var db = CreateDb();
-        var repository = new PostgresItemRepository(db);
+        using var gate = CreateGate();
+        var repository = new PostgresItemRepository(gate);
         var definition = CreateDefinition(
             "Potion majeure PG",
             ItemType.Consumable,
@@ -51,8 +51,8 @@ public sealed class PostgresItemRepositoryTests
         Assert.Equal(2, published.NewRevision);
         Assert.Equal(2, published.PublishedRevision);
 
-        await using var db2 = CreateDb();
-        var repository2 = new PostgresItemRepository(db2);
+        using var gate2 = CreateGate();
+        var repository2 = new PostgresItemRepository(gate2);
         var draft = await repository2.LoadByIdAsync(created.ItemId);
         var snapshot = await repository2.LoadPublishedByIdAsync(created.ItemId);
         Assert.NotNull(draft);
@@ -70,8 +70,8 @@ public sealed class PostgresItemRepositoryTests
             Intent = SaveContentIntent.SaveDraft,
         }));
 
-        await using var db3 = CreateDb();
-        var repository3 = new PostgresItemRepository(db3);
+        using var gate3 = CreateGate();
+        var repository3 = new PostgresItemRepository(gate3);
         Assert.Equal(
             "Potion brouillon PG",
             (await repository3.LoadByIdAsync(created.ItemId))!.Definition.Name);
@@ -102,8 +102,8 @@ public sealed class PostgresItemRepositoryTests
                 Intent = SaveContentIntent.Publish,
             }));
 
-        await using var db4 = CreateDb();
-        var failing = new PostgresItemRepository(db4)
+        using var gate4 = CreateGate();
+        var failing = new PostgresItemRepository(gate4)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injected-fail"),
         };
@@ -122,8 +122,8 @@ public sealed class PostgresItemRepositoryTests
         });
         Assert.IsType<SaveItemResult.PersistenceFailed>(failed);
 
-        await using var db5 = CreateDb();
-        var afterRepository = new PostgresItemRepository(db5);
+        using var gate5 = CreateGate();
+        var afterRepository = new PostgresItemRepository(gate5);
         Assert.Empty(await afterRepository.ListSummariesAsync(search: "Objet rollback PG"));
         Assert.Equal(before.Count, (await afterRepository.ListSummariesAsync()).Count);
         Assert.Contains(
@@ -135,8 +135,8 @@ public sealed class PostgresItemRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Search_StatusFilter_AndDelete()
     {
-        await using var db = CreateDb();
-        var repository = new PostgresItemRepository(db);
+        using var gate = CreateGate();
+        var repository = new PostgresItemRepository(gate);
         var published = Assert.IsType<SaveItemResult.Success>(await repository.SaveAsync(
             new SaveItemRequest
             {
@@ -180,8 +180,8 @@ public sealed class PostgresItemRepositoryTests
         Assert.IsType<DeleteItemResult.NotFound>(await repository.DeleteAsync(draft.ItemId));
     }
 
-    private FrogDbContext CreateDb()
-        => new(FrogDbContextOptions.Create(_fixture.ConnectionString));
+    private FrogDbContextGate CreateGate()
+        => new(new(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 
     private static ItemDefinition CreateDefinition(
         string name,

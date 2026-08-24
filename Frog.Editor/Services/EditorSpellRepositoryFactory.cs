@@ -46,9 +46,9 @@ public static class EditorSpellRepositoryFactory
             return new EditorSpellRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var db = new FrogDbContext(FrogDbContextOptions.Create(connectionString));
-        db.Database.Migrate();
-        var postgres = new PostgresSpellRepository(db);
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        gate.Db.Database.Migrate();
+        var postgres = new PostgresSpellRepository(gate);
         return new EditorSpellRepositoryBundle(postgres, postgres, postgres.Capabilities);
     }
 }

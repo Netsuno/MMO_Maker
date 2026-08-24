@@ -46,9 +46,9 @@ public static class EditorNpcRepositoryFactory
             return new EditorNpcRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var db = new FrogDbContext(FrogDbContextOptions.Create(connectionString));
-        db.Database.Migrate();
-        var postgres = new PostgresNpcRepository(db);
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        gate.Db.Database.Migrate();
+        var postgres = new PostgresNpcRepository(gate);
         return new EditorNpcRepositoryBundle(postgres, postgres, postgres.Capabilities);
     }
 }

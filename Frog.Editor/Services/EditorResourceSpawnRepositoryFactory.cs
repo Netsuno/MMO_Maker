@@ -70,9 +70,9 @@ public static class EditorResourceSpawnRepositoryFactory
             return new EditorResourceSpawnRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var db = new FrogDbContext(FrogDbContextOptions.Create(connectionString));
-        db.Database.Migrate();
-        var postgres = new PostgresResourceSpawnRepository(db, mapRepository, resourceCatalog);
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        gate.Db.Database.Migrate();
+        var postgres = new PostgresResourceSpawnRepository(gate, mapRepository, resourceCatalog);
         return new EditorResourceSpawnRepositoryBundle(postgres, postgres, postgres.Capabilities);
     }
 }
