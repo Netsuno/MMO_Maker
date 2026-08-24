@@ -8,9 +8,9 @@
 
 `cursor/phase0-baseline-audit-02c7`
 
-## Implementation SHA
+## Branch tip / implementation SHA
 
-`1a09213`
+`3d8ff73044f72963836ad8cb0bf43c1870811f50`
 
 ## PR
 
@@ -18,7 +18,13 @@
 
 ## CI
 
-Update on final tip — see `TEST_RESULTS.md`
+https://github.com/Netsuno/MMO_Maker/actions/runs/32785847198
+
+| Suite | Count |
+| --- | ---: |
+| Unit | 244 |
+| PostgreSQL | 36 |
+| Windows smoke | 26 × 3 |
 
 ## Blocker responses (P6-B1…B8)
 

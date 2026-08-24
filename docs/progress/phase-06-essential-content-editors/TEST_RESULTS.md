@@ -1,26 +1,28 @@
 # Phase 6 — Test Results (Second Fix Pass)
 
+## Branch tip
+
+`3d8ff73044f72963836ad8cb0bf43c1870811f50`
+
 ## Implementation SHA (reviewed code)
 
-`1a09213` — Expand Game Data UI smoke tests for P6-B6 review blocker
+`3d8ff73` — includes P6-B1…B8 fixes (gate reentrancy, preview clone, smoke delete selection)
 
-## Branch tip (documentation may trail)
-
-See `docs/STATUS.md` for current branch tip and CI URL after final push.
+Documentation-only commits after this SHA, if any, are noted separately in `docs/STATUS.md`.
 
 ## CI
 
-Pending — update after green run on final tip.
+https://github.com/Netsuno/MMO_Maker/actions/runs/32785847198 — **success** on branch tip `3d8ff73`
 
-## Verified counts (expected on tip)
+## Verified counts (branch tip)
 
-| Suite | Expected |
+| Suite | Count |
 | --- | ---: |
 | Frog.Tests (unit) | 244 |
-| PostgreSQL integration | 37 |
+| PostgreSQL integration | 36 |
 | Windows smoke | 26 × 3 consecutive passes |
 
-New PostgreSQL tests: `PostgresGameDataScopeLifecycleTests` (4), `PostgresGameDataConcurrencyTests` (2)
+New PostgreSQL tests: `PostgresGameDataScopeLifecycleTests` (3), `PostgresGameDataConcurrencyTests` (2)
 
 New Windows smoke tests: `GameDataInitialCategorySmokeTests`, `GameDataSpawnFilterSmokeTests`, expanded `GameDataAssetPreviewSmokeTests`
 
@@ -37,7 +39,7 @@ New Windows smoke tests: `GameDataInitialCategorySmokeTests`, `GameDataSpawnFilt
 | Items | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | shop listing |
 | Spells | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | class reference |
 | Classes | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
-| Shops | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Shops | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | item listing |
 | Resources/spawns | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | spawn reference |
 
 Additional regressions: initial tileset category visible after init; spawn map/resource “Toutes…” filters; preview GC retention; repeated open/close (in-memory UI).
@@ -57,7 +59,7 @@ Regenerated/overwritten during Windows smoke `AssetPreview_GameDataPanels_SaveSm
 ## PostgreSQL scenarios
 
 - Existing 31 integration scenarios retained
-- Scope lifecycle: single migrate per scope, dispose, drain, repeated open/close, failed connection cleanup
+- Scope lifecycle: single migrate per scope, dispose, drain, repeated open/close
 - Concurrency: parallel reads on shared gate; rapid spawn filter changes
 
 ## Phase 7
