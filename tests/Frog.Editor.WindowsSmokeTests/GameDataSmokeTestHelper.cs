@@ -6,7 +6,7 @@ internal static class GameDataSmokeTestHelper
 {
     public static void ConfigureInMemory()
     {
-        GameDataSmokeTestHelper.ConfigureInMemory();
+        EditorSmokeTestAccess.ConfigureInMemoryRepository();
         EditorSmokeTestAccess.SetPumpUntilForTest(StaTestRunner.PumpUntil);
     }
 }
