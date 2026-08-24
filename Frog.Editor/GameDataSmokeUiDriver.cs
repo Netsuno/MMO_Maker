@@ -371,35 +371,48 @@ internal static class GameDataSmokeUiDriver
     {
         var form = OpenViaMainWindowCommand(window, timeout);
         var panel = form.TilesetsForTest;
-        Click(panel.BtnNewForTest);
-        ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
-        if (panel.IsDirty)
+
+        static void CreatePublish(TilesetEditorPanel p, string suffix, TimeSpan t)
         {
-            throw new InvalidOperationException("Expected clean state after save.");
+            Click(p.BtnNewForTest);
+            SetText(p.NameForTest, $"SmokeDirty{suffix}");
+            ClickAndWait(p.BtnSaveForTest, () => !p.IsDirty, t);
+            ClickAndWait(p.BtnPublishForTest, () => !p.IsDirty, t);
         }
 
-        ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
-        if (panel.IsDirty)
-        {
-            throw new InvalidOperationException("Expected clean state after publish.");
-        }
+        CreatePublish(panel, "A", timeout);
+        CreatePublish(panel, "B", timeout);
+        PumpUntil(() => panel.ListForTest.Items.Count >= 2, timeout);
+
+        SelectListItemContaining(panel.ListForTest, "SmokeDirtyA");
+        PumpUntil(() => !panel.IsDirty, timeout);
 
         var beforeName = panel.NameForTest.Text;
-        SetText(panel.NameForTest, beforeName + "X");
+        var editedName = beforeName + "X";
+        SetText(panel.NameForTest, editedName);
         PumpUntil(() => panel.IsDirty, timeout);
 
+        var stayIndex = panel.ListForTest.SelectedIndex;
         EditorTestHooks.OverrideMessageBoxResult = DialogResult.No;
-        if (panel.ListForTest.Items.Count > 0)
+        try
         {
-            var previousIndex = panel.ListForTest.SelectedIndex;
-            panel.ListForTest.SelectedIndex = panel.ListForTest.Items.Count > 1 ? 0 : 0;
-            if (panel.ListForTest.SelectedIndex != previousIndex)
+            panel.ListForTest.SelectedIndex = stayIndex == 0 ? 1 : 0;
+            PumpUntil(() => panel.ListForTest.SelectedIndex == stayIndex, timeout);
+            if (!string.Equals(panel.NameForTest.Text, editedName, StringComparison.Ordinal))
             {
-                PumpUntil(() => string.Equals(panel.NameForTest.Text, beforeName, StringComparison.Ordinal), timeout);
+                throw new InvalidOperationException("Dirty edits should be preserved after canceling navigation.");
+            }
+
+            if (!panel.IsDirty)
+            {
+                throw new InvalidOperationException("Session should remain dirty after canceling navigation.");
             }
         }
+        finally
+        {
+            EditorTestHooks.OverrideMessageBoxResult = null;
+        }
 
-        EditorTestHooks.OverrideMessageBoxResult = null;
         CloseForm(form, timeout);
     }
 

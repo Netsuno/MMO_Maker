@@ -437,6 +437,7 @@ public sealed class TilesetEditorPanel : UserControl
                     MessageBoxIcon.Warning);
                 if (r != DialogResult.Yes)
                 {
+                    RevertListSelectionToCurrent();
                     return;
                 }
             }
@@ -645,6 +646,31 @@ public sealed class TilesetEditorPanel : UserControl
             case DeleteTilesetResult.PersistenceFailed p:
                 GameDataUiMessageBox.Show(this, p.Error, "Erreur");
                 break;
+        }
+    }
+
+    private void RevertListSelectionToCurrent()
+    {
+        if (_session.CurrentId is not Guid currentId)
+        {
+            return;
+        }
+
+        _suppressList = true;
+        try
+        {
+            for (var i = 0; i < _list.Items.Count; i++)
+            {
+                if (_list.Items[i] is CatalogItem entry && entry.Id == currentId)
+                {
+                    _list.SelectedIndex = i;
+                    return;
+                }
+            }
+        }
+        finally
+        {
+            _suppressList = false;
         }
     }
 
