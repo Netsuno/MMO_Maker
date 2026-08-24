@@ -1,64 +1,29 @@
-# Phase 6 — Essential Content Editors (Gate Resubmission)
+# Phase 6 — Essential Content Editors (Second Fix Pass)
 
 ## Status
 
 **GATE REACHED — WAITING FOR REVIEW**
 
-## Branch tip (evidence HEAD)
+## Implementation SHA
 
-`c55f74e` — fix(phase-06): correct dirty-state cancel navigation smoke regression
+`1a09213` — code under review for P6-B1…B7 fixes (subsequent commits may be documentation-only)
 
-## CI
-
-https://github.com/Netsuno/MMO_Maker/actions/runs/32694236854 — success
-
-| Suite | Count |
-| --- | ---: |
-| Frog.Tests | 244 |
-| PostgreSQL | 31 |
-| Windows smoke | 23 × 3 |
-
-## Review blocker fixes
+## Second-pass blocker fixes
 
 | Blocker | Fix |
 | --- | --- |
-| 1 — Game Data smokes not UI | `GameDataSmokeUiDriver` drives `MainWindow.CmdGameData`, real panels/buttons, search/status filters, close/reopen for all 7 slices |
-| 2 — Tileset/NPC dirty on bind | `_binding` guards on Tileset/NPC panels; `GameDataDirtyStateSmokeTests` |
-| 3 — Visual previews missing | `AssetPreviewControl` + `ProjectAssetPathResolver` on tilesets, NPCs, items, spells, resources |
-| 4 — Spawn filters incomplete | Map + resource catalog filters on `ResourceSpawnEditorPanel` |
-| 5 — Init blocks UI / leaks DbContext | `GameDataInitializationService` — single async migrate, loading overlay, cancellation, `EditorPostgreSqlScope` disposal |
+| P6-B1 Initial category blank | `ShowInitialCategory()` after `_initialized = true`; smoke asserts tileset panel visible without manual category change |
+| P6-B2 DbContext leak smoke ineffective | `PostgresGameDataScopeLifecycleTests` on real PostgreSQL (migrate once, dispose, drain, repeated open/close) |
+| P6-B3 Shared DbContext concurrency | `FrogDbContextGate` serializes EF operations; `GameDataPanelAsyncGate` serializes panel UI async; form close drains panels + scope |
+| P6-B4 “Toutes…” spawn filters | `NormalizeFilterId` converts `Guid.Empty` → `null`; spawn filter UI smoke |
+| P6-B5 Dirty navigation desync | `GameDataListNavigation` helper on all panels (revert list selection, preserve dirty edits) |
+| P6-B6 UI smoke coverage | Full matrix per editor: dup/delete, invalid publish, search/filter, close/reopen, cancel nav, protected delete |
+| P6-B7 Preview lifetime + evidence | Bitmap clone after `Image.FromStream`; GC retention smoke; checked-in + regenerated screenshots |
+| P6-B8 Stale docs | This update; distinguish implementation SHA from branch tip |
 
-## Post-review CI fixes (this tip)
+## Schema / migrations
 
-- Restored `ConfigureInMemoryRepository` in smoke helper (stack overflow)
-- Routed all Game Data `MessageBox.Show` through `GameDataUiMessageBox` (smoke hook; prevents modal hang)
-- WinForms `DoEvents` in `StaTestRunner.PumpUntil` for Game Data message delivery
-- Tileset list selection revert on unsaved navigation cancel; corrected dirty-state smoke expectations
-
-## UI scenarios verified (Windows smoke)
-
-See `TEST_RESULTS.md` for per-slice detail. Summary:
-
-- Create, edit, duplicate path, Save draft, Publish via real buttons for all seven categories
-- Search and status filters exercised (spawn map/resource filters on resource tab)
-- Close/reopen verifies persisted catalog state
-- Dirty-state regression: clean after open/save/publish; dirty after control edit; cancel keeps record synchronized
-- Init open/close ×3 without DbContext leak
-- Asset preview states: loaded, missing, corrupt, traversal rejected, refresh, disposal
-
-## PostgreSQL scenarios
-
-All existing integration tests retained (31 scenarios) — draft/publish round trips, reference validation, published catalog consumers.
-
-## Fixed regressions
-
-- Tileset/NPC marked dirty on `BindForm()` without user input
-- Session-direct smoke saves bypassing UI
-- Missing visual previews
-- Resource spawn map/resource filters not exposed
-- Synchronous per-factory migrate on UI thread; DbContext lifetime leak
-- Modal MessageBox blocking Windows smokes
-- Dirty-state cancel navigation test timeout / incorrect expectations
+No new migrations in this pass (uses existing Phase 6 content schema).
 
 ## Remaining known issues
 

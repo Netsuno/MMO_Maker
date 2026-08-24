@@ -22,6 +22,22 @@ internal static class EditorSmokeTestAccess
 
     private static bool _wpfThemeLoaded;
 
+    internal static string FindRepositoryRootForTest()
+    {
+        var dir = Directory.GetCurrentDirectory();
+        while (!string.IsNullOrEmpty(dir))
+        {
+            if (File.Exists(Path.Combine(dir, "Frog.Creator.sln")))
+            {
+                return dir;
+            }
+
+            dir = Directory.GetParent(dir)?.FullName ?? string.Empty;
+        }
+
+        return Directory.GetCurrentDirectory();
+    }
+
     public static void SetPumpUntilForTest(Action<Func<bool>, TimeSpan> pumpUntil)
     {
         _pumpUntil = pumpUntil;

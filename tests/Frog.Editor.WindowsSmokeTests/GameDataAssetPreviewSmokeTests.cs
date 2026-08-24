@@ -106,7 +106,7 @@ public sealed class GameDataAssetPreviewSmokeTests
                 }
 
                 var screenshotDir = Path.Combine(
-                    "/workspace",
+                    EditorSmokeTestAccess.FindRepositoryRootForTest(),
                     "docs",
                     "progress",
                     "phase-06-essential-content-editors",

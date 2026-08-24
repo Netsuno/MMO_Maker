@@ -1,25 +1,21 @@
-# Phase 6 — Known Issues (Gate Resubmission)
+# Phase 6 — Known Issues (Second Fix Pass)
 
-## Fixed regressions (this gate)
+## Fixed in this pass
 
-- Tileset/NPC panels marked dirty on `BindForm()` without user input
-- Game Data smoke tests bypassed UI (session save/publish direct calls)
-- Missing visual asset previews on applicable editor panels
-- Resource spawn catalog exposed status filter only
-- Synchronous per-factory `Database.Migrate()` on UI thread; no DbContext disposal
-- Raw `MessageBox.Show` in Game Data panels blocked Windows smokes (modal hang)
-- Dirty-state cancel navigation smoke timeout / incorrect expectations
-- Tileset list selection not reverted when declining unsaved navigation
+- Initial Game Data category showed blank host (Tilesets not parented until manual switch)
+- In-memory leak smoke could not validate PostgreSQL scope disposal
+- Concurrent EF operations on shared `FrogDbContext` from overlapping panel refreshes
+- Resource spawn “Toutes les cartes/ressources” filtered on `Guid.Empty`
+- Dirty navigation cancel desynchronized list selection on non-tileset panels
+- UI smoke matrix incomplete (no duplicate/delete/protected-delete/search on most editors)
+- Preview image tied to closed stream; missing checked-in screenshot evidence
+- Stale gate documentation referencing older SHA/CI
 
 ## Remaining known issues
 
-- Preview screenshots in docs rely on smoke programmatic verification; no checked-in PNG artifacts yet
-- Class/shop UI smokes use minimal field sets (no protected-deletion UI scenarios unless referenced content exists)
-- NPC/Item/Spell/Class/Shop panels do not yet revert list selection on unsaved navigation cancel (tileset only)
-
-## Implemented but not separately verified
-
-- PostgreSQL durable path for `GameDataInitializationService` single-migrate (covered by existing PG integration suite)
+- Windows `GameDataInitializationLeakSmokeTests` uses in-memory repositories (PostgreSQL lifecycle covered by integration tests)
+- Preview screenshots in repo are placeholders until overwritten by Windows smoke on CI
+- Shop listing / class spell reference protected-delete smokes use minimal published prerequisites
 
 ## Phase 7
 

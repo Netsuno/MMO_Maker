@@ -13,12 +13,28 @@ namespace Frog.Editor;
 /// <summary>Automatisation UI réelle pour les smokes Données de jeu (boutons/contrôles WinForms).</summary>
 internal static class GameDataSmokeUiDriver
 {
-    private static readonly string PreviewScreenshotDirectory = Path.Combine(
-        "/workspace",
+    private static string PreviewScreenshotDirectory => Path.Combine(
+        FindRepositoryRoot(),
         "docs",
         "progress",
         "phase-06-essential-content-editors",
         "screenshots");
+
+    private static string FindRepositoryRoot()
+    {
+        var dir = Directory.GetCurrentDirectory();
+        while (!string.IsNullOrEmpty(dir))
+        {
+            if (File.Exists(Path.Combine(dir, "Frog.Creator.sln")))
+            {
+                return dir;
+            }
+
+            dir = Directory.GetParent(dir)?.FullName ?? string.Empty;
+        }
+
+        return Directory.GetCurrentDirectory();
+    }
 
     public static GameDataForm OpenViaMainWindowCommand(MainWindow window, TimeSpan timeout)
     {

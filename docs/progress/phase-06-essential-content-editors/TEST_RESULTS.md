@@ -1,54 +1,64 @@
-# Phase 6 — Test Results (Gate Resubmission)
+# Phase 6 — Test Results (Second Fix Pass)
 
-## HEAD
+## Implementation SHA (reviewed code)
 
-`c55f74e`
+`1a09213` — Expand Game Data UI smoke tests for P6-B6 review blocker
 
-## CI run
+## Branch tip (documentation may trail)
 
-https://github.com/Netsuno/MMO_Maker/actions/runs/32694236854 — **success**
+See `docs/STATUS.md` for current branch tip and CI URL after final push.
 
-## Verified counts (CI tip)
+## CI
 
-| Suite | Count |
+Pending — update after green run on final tip.
+
+## Verified counts (expected on tip)
+
+| Suite | Expected |
 | --- | ---: |
 | Frog.Tests (unit) | 244 |
-| PostgreSQL integration | 31 |
-| Windows smoke | 23 × 3 consecutive passes |
+| PostgreSQL integration | 37 |
+| Windows smoke | 26 × 3 consecutive passes |
 
-New smoke tests: `GameDataDirtyStateSmokeTests`, `GameDataInitializationLeakSmokeTests`, `GameDataAssetPreviewSmokeTests`
+New PostgreSQL tests: `PostgresGameDataScopeLifecycleTests` (4), `PostgresGameDataConcurrencyTests` (2)
+
+New Windows smoke tests: `GameDataInitialCategorySmokeTests`, `GameDataSpawnFilterSmokeTests`, expanded `GameDataAssetPreviewSmokeTests`
 
 ## Build
 
 0 errors, 0 warnings (Release)
 
-## UI smoke scenarios (real controls)
+## UI smoke matrix (real controls via `GameDataSmokeUiDriver`)
 
-All seven slices via `MainWindow` → Données de jeu (`GameDataSmokeUiDriver`):
+| Editor | Create | Edit | Duplicate | Save | Publish | Invalid publish | Search/filter | Close/reopen | Cancel dirty nav | Delete | Protected delete |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Tilesets | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| NPCs | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Items | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | shop listing |
+| Spells | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | class reference |
+| Classes | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Shops | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Resources/spawns | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | spawn reference |
 
-1. **Tilesets** — New, edit path/preview, Save draft, Publish, search/status filter, close/reopen
-2. **NPCs** — New, sprite path/preview, Save, Publish
-3. **Items** — New, icon path/preview, Save, Publish
-4. **Spells** — New, icon path/preview, Save, Publish
-5. **Classes** — Prerequisite spell publish, New class, Save, Publish
-6. **Shops** — Prerequisite item publish, New shop, Save, Publish
-7. **Resources/spawns** — Yield item, resource publish, spawn tab map/resource filters, Save, Publish
+Additional regressions: initial tileset category visible after init; spawn map/resource “Toutes…” filters; preview GC retention; repeated open/close (in-memory UI).
 
-Additional UI regressions:
+## Preview screenshots
 
-- **Dirty state** — clean after open/save/publish; dirty after edit; cancel navigation preserves edits and list selection
-- **Init leak** — open/close Game Data ×3 without failure
-- **Asset preview** — valid/missing/corrupt/traversal/refresh/disposal (`AssetPreviewControl`)
+`docs/progress/phase-06-essential-content-editors/screenshots/`
 
-## Preview verification
+- `tileset-preview-smoke.png`
+- `npc-preview-smoke.png`
+- `item-preview-smoke.png`
+- `spell-preview-smoke.png`
+- `resource-preview-smoke.png`
 
-- Unit: `ProjectAssetPathResolverTests` (valid, missing, traversal, absolute rejection)
-- Smoke: `GameDataAssetPreviewSmokeTests` — programmatic `AssetPreviewState` assertions
-- Runtime: preview controls wired on tileset, NPC, item, spell, resource panels during smokes
+Regenerated/overwritten during Windows smoke `AssetPreview_GameDataPanels_SaveSmokeScreenshots`.
 
-## PostgreSQL
+## PostgreSQL scenarios
 
-All 31 integration scenarios retained and passing on CI.
+- Existing 31 integration scenarios retained
+- Scope lifecycle: single migrate per scope, dispose, drain, repeated open/close, failed connection cleanup
+- Concurrency: parallel reads on shared gate; rapid spawn filter changes
 
 ## Phase 7
 

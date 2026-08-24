@@ -5,20 +5,19 @@
 - PR : #2 (Draft)
 - **Phase 4 : ACCEPTED** — `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - **Phase 5 : ACCEPTED** — `1944d73b6fffa84799d288da555f1005b82f2698`
-- **Phase 6 : GATE REACHED — WAITING FOR REVIEW (resubmission)**
-  - Evidence HEAD : `c55f74e`
-  - Branch tip : `c55f74e`
-  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32694236854
+- **Phase 6 : GATE REACHED — WAITING FOR REVIEW (second fix pass)**
+  - Implementation SHA : `1a09213`
   - Evidence : `docs/progress/phase-06-essential-content-editors/`
+  - CI : pending on final tip — see `TEST_RESULTS.md`
 - Phase 7 : **not started**
 
-## CI counts (verified on tip)
+## CI counts (expected on tip)
 
-| Suite | Count |
+| Suite | Expected |
 | --- | ---: |
 | Frog.Tests | 244 |
-| PostgreSQL | 31 |
-| Windows smoke | 23 × 3 |
+| PostgreSQL | 37 |
+| Windows smoke | 26 × 3 |
 
 ## Known issues
 

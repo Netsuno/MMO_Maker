@@ -1,4 +1,4 @@
-# Phase 6 — Review Request (Gate Resubmission)
+# Phase 6 — Review Request (Second Fix Pass)
 
 ## Verdict requested
 
@@ -6,7 +6,11 @@
 
 ## Branch
 
-`cursor/phase0-baseline-audit-02c7` @ `c55f74e`
+`cursor/phase0-baseline-audit-02c7`
+
+## Implementation SHA
+
+`1a09213`
 
 ## PR
 
@@ -14,21 +18,11 @@
 
 ## CI
 
-https://github.com/Netsuno/MMO_Maker/actions/runs/32694236854
+Update on final tip — see `TEST_RESULTS.md`
 
-| Suite | Count |
-| --- | ---: |
-| Frog.Tests | 244 |
-| PostgreSQL | 31 |
-| Windows smoke | 23 × 3 |
+## Blocker responses (P6-B1…B8)
 
-## Blocker responses
-
-1. **UI smokes** — `GameDataSmokeUiDriver` opens via `CmdGameData`, clicks real buttons, uses search/status (and spawn map/resource) filters, close/reopen
-2. **Dirty bind** — `_binding` on Tileset/NPC; `GameDataDirtyStateSmokeTests`
-3. **Previews** — `AssetPreviewControl` on 5 categories; resolver tests + preview smoke
-4. **Spawn filters** — map + resource catalog comboboxes wired to `MapFilter`/`ResourceFilter`
-5. **Init/dispose** — `GameDataInitializationService`, loading UI, cancel on close, `EditorPostgreSqlScope`; leak smoke ×3
+See `PHASE_REPORT.md` and `TEST_RESULTS.md` for matrix, screenshots, and PostgreSQL lifecycle coverage.
 
 ## Phase 7
 
