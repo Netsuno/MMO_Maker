@@ -18,7 +18,25 @@ internal static class EditorSmokeTestAccess
 {
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(45);
 
+    private static Action<Func<bool>, TimeSpan>? _pumpUntil;
+
     private static bool _wpfThemeLoaded;
+
+    public static void SetPumpUntilForTest(Action<Func<bool>, TimeSpan> pumpUntil)
+    {
+        _pumpUntil = pumpUntil;
+    }
+
+    internal static void PumpUntilForTest(Func<bool> predicate, TimeSpan timeout)
+    {
+        if (_pumpUntil is { } pump)
+        {
+            pump(predicate, timeout);
+            return;
+        }
+
+        GameDataSmokeUiDriver.PumpUntilFallback(predicate, timeout);
+    }
 
     public static void ResetHooks()
     {
@@ -43,6 +61,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideProjectAssetRoot = null;
         EditorTestHooks.OverrideMessageBoxResult = null;
         EditorTestHooks.UseSynchronousGameDataInitForTest = false;
+        _pumpUntil = null;
         TilesetCache.Clear();
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");
     }

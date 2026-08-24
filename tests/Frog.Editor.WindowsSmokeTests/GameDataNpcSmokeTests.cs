@@ -11,7 +11,7 @@ public sealed class GameDataNpcSmokeTests
     {
         StaTestRunner.Run(() =>
         {
-            EditorSmokeTestAccess.ConfigureInMemoryRepository();
+            GameDataSmokeTestHelper.ConfigureInMemory();
             MainWindow? window = null;
             try
             {
