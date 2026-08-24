@@ -171,13 +171,13 @@ public sealed class GameDataForm : Form
 
         _repositorySet = GameDataInitializationService.CreateInjectedSet();
         BuildPanels(_repositorySet);
-        _tilesets!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
-        _npcs!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
-        _items!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
-        _spells!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
-        _classes!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
-        _shops!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
-        _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        _tilesets!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _npcs!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _items!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _spells!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _classes!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _shops!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _initialized = true;
         _initializationTask = Task.CompletedTask;
         _status.Text = $"Prêt — {_tilesets.CapabilitiesLabelForTest}";
