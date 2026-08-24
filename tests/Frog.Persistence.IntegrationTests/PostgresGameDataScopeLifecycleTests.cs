@@ -79,14 +79,16 @@ public sealed class PostgresGameDataScopeLifecycleTests
     public async Task FailedConnection_DoesNotLeaveUndisposedGate()
     {
         FrogDbContextGate? gate = null;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
             gate = new FrogDbContextGate(
-                new FrogDbContext(FrogDbContextOptions.Create("Host=127.0.0.1;Port=59999;Database=missing;Username=x;Password=x")));
+                new FrogDbContext(FrogDbContextOptions.Create(
+                    "Host=127.0.0.1;Port=59999;Database=missing;Username=x;Password=x;Timeout=1;Command Timeout=1")));
             await Assert.ThrowsAnyAsync<Exception>(
                 () => gate.ExecuteAsync(
                     static (db, ct) => db.Database.MigrateAsync(ct),
-                    CancellationToken.None)).ConfigureAwait(false);
+                    timeout.Token)).ConfigureAwait(false);
         }
         finally
         {
