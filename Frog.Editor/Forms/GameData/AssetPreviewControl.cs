@@ -93,7 +93,8 @@ public sealed class AssetPreviewControl : UserControl
                 try
                 {
                     using var stream = File.OpenRead(resolved.AbsolutePath!);
-                    _loadedImage = Image.FromStream(stream);
+                    using var temporary = Image.FromStream(stream);
+                    _loadedImage = new Bitmap(temporary);
                     _picture.Image = _loadedImage;
                     PreviewState = AssetPreviewState.Loaded;
                     _caption.Text = Path.GetFileName(resolved.AbsolutePath!);

@@ -7,6 +7,7 @@ public sealed class FrogDbContextGate : IDisposable
 {
     private readonly FrogDbContext _db;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly AsyncLocal<int> _reentrancyDepth = new();
     private bool _disposed;
 
     public FrogDbContextGate(FrogDbContext db)
@@ -28,13 +29,20 @@ public sealed class FrogDbContextGate : IDisposable
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_reentrancyDepth.Value > 0)
+        {
+            return await action(_db, cancellationToken).ConfigureAwait(false);
+        }
+
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _reentrancyDepth.Value++;
         try
         {
             return await action(_db, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
+            _reentrancyDepth.Value--;
             _gate.Release();
         }
     }
@@ -44,13 +52,21 @@ public sealed class FrogDbContextGate : IDisposable
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_reentrancyDepth.Value > 0)
+        {
+            await action(_db, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _reentrancyDepth.Value++;
         try
         {
             await action(_db, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
+            _reentrancyDepth.Value--;
             _gate.Release();
         }
     }
@@ -58,6 +74,11 @@ public sealed class FrogDbContextGate : IDisposable
     public async Task DrainAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_reentrancyDepth.Value > 0)
+        {
+            return;
+        }
+
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         _gate.Release();
     }
