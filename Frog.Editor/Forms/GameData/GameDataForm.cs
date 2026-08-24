@@ -1,6 +1,7 @@
 using Frog.Application.Content;
 using Frog.Core.Enums;
 using Frog.Core.Models;
+using Frog.Editor.Assets;
 using Frog.Editor.Services;
 
 namespace Frog.Editor.Forms.GameData;
@@ -13,14 +14,47 @@ public sealed class GameDataForm : Form
 {
     private readonly ListBox _categoryList = new() { Dock = DockStyle.Fill };
     private readonly Panel _host = new() { Dock = DockStyle.Fill };
-    private readonly TilesetEditorPanel _tilesets;
-    private readonly NpcEditorPanel _npcs;
-    private readonly ItemEditorPanel _items;
-    private readonly SpellEditorPanel _spells;
-    private readonly ClassEditorPanel _classes;
-    private readonly ShopEditorPanel _shops;
-    private readonly ResourceAndSpawnEditorPanel _resourcesAndSpawns;
+    private readonly Panel _loading = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(245, 245, 245) };
+    private readonly Label _loadingLabel = new()
+    {
+        Dock = DockStyle.Fill,
+        TextAlign = ContentAlignment.MiddleCenter,
+        Text = "Initialisation des données de jeu…",
+    };
     private readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft };
+
+    private TilesetEditorPanel? _tilesets;
+    private NpcEditorPanel? _npcs;
+    private ItemEditorPanel? _items;
+    private SpellEditorPanel? _spells;
+    private ClassEditorPanel? _classes;
+    private ShopEditorPanel? _shops;
+    private ResourceAndSpawnEditorPanel? _resourcesAndSpawns;
+    private GameDataRepositorySet? _repositorySet;
+    private CancellationTokenSource? _initCts;
+    private Task? _initializationTask;
+    private bool _initialized;
+
+    internal Task InitializationTask => _initializationTask ?? Task.CompletedTask;
+
+    internal bool IsInitializedForTest => _initialized;
+
+    internal GameDataRepositorySet? RepositorySetForTest => _repositorySet;
+
+    internal TilesetEditorPanel TilesetsForTest => _tilesets ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal NpcEditorPanel NpcsForTest => _npcs ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal ItemEditorPanel ItemsForTest => _items ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal SpellEditorPanel SpellsForTest => _spells ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal ClassEditorPanel ClassesForTest => _classes ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal ShopEditorPanel ShopsForTest => _shops ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal ResourceAndSpawnEditorPanel ResourcesForTest =>
+        _resourcesAndSpawns ?? throw new InvalidOperationException("Game Data not initialized.");
 
     public GameDataForm()
     {
@@ -30,54 +64,8 @@ public sealed class GameDataForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
 
-        var mapBundle = EditorMapRepositoryFactory.CreateBundle();
-        var tilesetBundle = EditorTilesetRepositoryFactory.CreateBundle();
-        _tilesets = new TilesetEditorPanel(
-            new TilesetWorkspaceSession(tilesetBundle.Repository),
-            tilesetBundle.Capabilities);
-        _tilesets.StatusChanged += msg => _status.Text = msg;
-        var npcBundle = EditorNpcRepositoryFactory.CreateBundle();
-        _npcs = new NpcEditorPanel(
-            new NpcWorkspaceSession(npcBundle.Repository),
-            npcBundle.Capabilities);
-        _npcs.StatusChanged += msg => _status.Text = msg;
-        var itemBundle = EditorItemRepositoryFactory.CreateBundle();
-        _items = new ItemEditorPanel(
-            new ItemWorkspaceSession(itemBundle.Repository),
-            itemBundle.Capabilities);
-        _items.StatusChanged += msg => _status.Text = msg;
-        var spellBundle = EditorSpellRepositoryFactory.CreateBundle();
-        _spells = new SpellEditorPanel(
-            new SpellWorkspaceSession(spellBundle.Repository),
-            spellBundle.Capabilities);
-        _spells.StatusChanged += msg => _status.Text = msg;
-        var classBundle = EditorClassRepositoryFactory.CreateBundle(spellBundle.Repository);
-        _classes = new ClassEditorPanel(
-            new ClassWorkspaceSession(classBundle.Repository),
-            spellBundle.PublishedCatalog,
-            classBundle.Capabilities);
-        _classes.StatusChanged += msg => _status.Text = msg;
-        var shopBundle = EditorShopRepositoryFactory.CreateBundle(itemBundle.PublishedCatalog);
-        _shops = new ShopEditorPanel(
-            new ShopWorkspaceSession(shopBundle.Repository),
-            itemBundle.PublishedCatalog,
-            shopBundle.Capabilities);
-        _shops.StatusChanged += msg => _status.Text = msg;
-        var resourceBundle =
-            EditorResourceRepositoryFactory.CreateBundle(itemBundle.PublishedCatalog);
-        var spawnBundle = EditorResourceSpawnRepositoryFactory.CreateBundle(
-            mapBundle.Repository,
-            resourceBundle.PublishedCatalog,
-            resourceBundle.Capabilities);
-        _resourcesAndSpawns = new ResourceAndSpawnEditorPanel(
-            new ResourceWorkspaceSession(resourceBundle.Repository),
-            new ResourceSpawnWorkspaceSession(spawnBundle.Repository),
-            itemBundle.PublishedCatalog,
-            resourceBundle.PublishedCatalog,
-            mapBundle.Repository,
-            resourceBundle.Capabilities,
-            spawnBundle.Capabilities);
-        _resourcesAndSpawns.StatusChanged += msg => _status.Text = msg;
+        _loading.Controls.Add(_loadingLabel);
+        _host.Controls.Add(_loading);
 
         _categoryList.Items.AddRange(new object[]
         {
@@ -90,6 +78,7 @@ public sealed class GameDataForm : Form
             "Ressources / spawns",
         });
         _categoryList.SelectedIndex = 0;
+        _categoryList.Enabled = false;
         _categoryList.SelectedIndexChanged += (_, _) => ShowCategory();
 
         var left = new Panel { Dock = DockStyle.Left, Width = 200, Padding = new Padding(4) };
@@ -98,69 +87,122 @@ public sealed class GameDataForm : Form
         Controls.Add(_status);
         Controls.Add(left);
 
-        ShowCategory();
         FormClosing += GameDataForm_FormClosing;
-        Load += async (_, _) =>
-        {
-            await _tilesets.InitializeAsync().ConfigureAwait(true);
-            await _npcs.InitializeAsync().ConfigureAwait(true);
-            await _items.InitializeAsync().ConfigureAwait(true);
-            await _spells.InitializeAsync().ConfigureAwait(true);
-            await _classes.InitializeAsync().ConfigureAwait(true);
-            await _shops.InitializeAsync().ConfigureAwait(true);
-            await _resourcesAndSpawns.InitializeAsync().ConfigureAwait(true);
-        };
+        FormClosed += (_, _) => _repositorySet?.Dispose();
+        Load += GameDataForm_LoadAsync;
     }
 
-    private void ShowCategory()
+    internal void SelectCategoryForTest(int index)
     {
-        _host.Controls.Clear();
-        if (_categoryList.SelectedIndex == 0)
+        _categoryList.SelectedIndex = index;
+        ShowCategory();
+    }
+
+    private async void GameDataForm_LoadAsync(object? sender, EventArgs e)
+    {
+        _initCts = new CancellationTokenSource();
+        _initializationTask = InitializeCoreAsync(_initCts.Token);
+        try
         {
-            _tilesets.Dock = DockStyle.Fill;
-            _host.Controls.Add(_tilesets);
+            await _initializationTask.ConfigureAwait(true);
         }
-        else if (_categoryList.SelectedIndex == 1)
+        catch (OperationCanceledException)
         {
-            _npcs.Dock = DockStyle.Fill;
-            _host.Controls.Add(_npcs);
+            Close();
         }
-        else if (_categoryList.SelectedIndex == 2)
+        catch (Exception ex)
         {
-            _items.Dock = DockStyle.Fill;
-            _host.Controls.Add(_items);
+            GameDataUiMessageBox.Show(this, ex.Message, "Données de jeu", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Close();
         }
-        else if (_categoryList.SelectedIndex == 3)
+    }
+
+    private async Task InitializeCoreAsync(CancellationToken cancellationToken)
+    {
+        var progress = new Progress<string>(message =>
         {
-            _spells.Dock = DockStyle.Fill;
-            _host.Controls.Add(_spells);
-        }
-        else if (_categoryList.SelectedIndex == 4)
-        {
-            _classes.Dock = DockStyle.Fill;
-            _host.Controls.Add(_classes);
-        }
-        else if (_categoryList.SelectedIndex == 5)
-        {
-            _shops.Dock = DockStyle.Fill;
-            _host.Controls.Add(_shops);
-        }
-        else
-        {
-            _resourcesAndSpawns.Dock = DockStyle.Fill;
-            _host.Controls.Add(_resourcesAndSpawns);
-        }
+            if (!IsDisposed)
+            {
+                _loadingLabel.Text = message;
+                _status.Text = message;
+            }
+        });
+
+        _repositorySet = await GameDataInitializationService
+            .InitializeAsync(progress, cancellationToken)
+            .ConfigureAwait(true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var set = _repositorySet;
+        _tilesets = new TilesetEditorPanel(
+            new TilesetWorkspaceSession(set.Tileset.Repository),
+            set.Tileset.Capabilities);
+        _tilesets.StatusChanged += msg => _status.Text = msg;
+        _npcs = new NpcEditorPanel(
+            new NpcWorkspaceSession(set.Npc.Repository),
+            set.Npc.Capabilities);
+        _npcs.StatusChanged += msg => _status.Text = msg;
+        _items = new ItemEditorPanel(
+            new ItemWorkspaceSession(set.Item.Repository),
+            set.Item.Capabilities);
+        _items.StatusChanged += msg => _status.Text = msg;
+        _spells = new SpellEditorPanel(
+            new SpellWorkspaceSession(set.Spell.Repository),
+            set.Spell.Capabilities);
+        _spells.StatusChanged += msg => _status.Text = msg;
+        _classes = new ClassEditorPanel(
+            new ClassWorkspaceSession(set.Class.Repository),
+            set.Spell.PublishedCatalog,
+            set.Class.Capabilities);
+        _classes.StatusChanged += msg => _status.Text = msg;
+        _shops = new ShopEditorPanel(
+            new ShopWorkspaceSession(set.Shop.Repository),
+            set.Item.PublishedCatalog,
+            set.Shop.Capabilities);
+        _shops.StatusChanged += msg => _status.Text = msg;
+        _resourcesAndSpawns = new ResourceAndSpawnEditorPanel(
+            new ResourceWorkspaceSession(set.Resource.Repository),
+            new ResourceSpawnWorkspaceSession(set.ResourceSpawn.Repository),
+            set.Item.PublishedCatalog,
+            set.Resource.PublishedCatalog,
+            set.Map.Repository,
+            set.Resource.Capabilities,
+            set.ResourceSpawn.Capabilities);
+        _resourcesAndSpawns.StatusChanged += msg => _status.Text = msg;
+
+        _host.Controls.Remove(_loading);
+        _categoryList.Enabled = true;
+        ShowCategory();
+
+        await _tilesets.InitializeAsync().ConfigureAwait(true);
+        await _npcs.InitializeAsync().ConfigureAwait(true);
+        await _items.InitializeAsync().ConfigureAwait(true);
+        await _spells.InitializeAsync().ConfigureAwait(true);
+        await _classes.InitializeAsync().ConfigureAwait(true);
+        await _shops.InitializeAsync().ConfigureAwait(true);
+        await _resourcesAndSpawns.InitializeAsync().ConfigureAwait(true);
+
+        _initialized = true;
+        _status.Text = $"Prêt — {_tilesets.CapabilitiesLabelForTest}";
     }
 
     private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (_tilesets.IsDirty
-            || _npcs.IsDirty
-            || _items.IsDirty
-            || _spells.IsDirty
-            || _classes.IsDirty
-            || _shops.IsDirty
-            || _resourcesAndSpawns.IsDirty)
+        _initCts?.Cancel();
+
+        if (!_initialized)
+        {
+            return;
+        }
+
+        if (_tilesets!.IsDirty
+            || _npcs!.IsDirty
+            || _items!.IsDirty
+            || _spells!.IsDirty
+            || _classes!.IsDirty
+            || _shops!.IsDirty
+            || _resourcesAndSpawns!.IsDirty)
         {
             var r = MessageBox.Show(
                 this,
@@ -172,6 +214,51 @@ public sealed class GameDataForm : Form
             {
                 e.Cancel = true;
             }
+        }
+    }
+
+    private void ShowCategory()
+    {
+        if (!_initialized || _tilesets is null)
+        {
+            return;
+        }
+
+        _host.Controls.Clear();
+        if (_categoryList.SelectedIndex == 0)
+        {
+            _tilesets.Dock = DockStyle.Fill;
+            _host.Controls.Add(_tilesets);
+        }
+        else if (_categoryList.SelectedIndex == 1)
+        {
+            _npcs!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_npcs);
+        }
+        else if (_categoryList.SelectedIndex == 2)
+        {
+            _items!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_items);
+        }
+        else if (_categoryList.SelectedIndex == 3)
+        {
+            _spells!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_spells);
+        }
+        else if (_categoryList.SelectedIndex == 4)
+        {
+            _classes!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_classes);
+        }
+        else if (_categoryList.SelectedIndex == 5)
+        {
+            _shops!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_shops);
+        }
+        else
+        {
+            _resourcesAndSpawns!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_resourcesAndSpawns);
         }
     }
 }
@@ -198,16 +285,44 @@ public sealed class TilesetEditorPanel : UserControl
     private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
     private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
     private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
+    private readonly AssetPreviewControl _preview = new() { Width = 128, Height = 128 };
     private bool _suppressList;
+    private bool _binding;
+    private CancellationTokenSource? _refreshCts;
 
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
 
+    internal string CapabilitiesLabelForTest => _capabilities.DisplayLabel;
+
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnDupForTest => _btnDup;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal Button BtnDeleteForTest => _btnDelete;
+
+    internal TextBox NameForTest => _name;
+
+    internal TextBox PathForTest => _path;
+
+    internal TextBox SearchForTest => _search;
+
+    internal ComboBox StatusFilterForTest => _statusFilter;
+
+    internal ListBox ListForTest => _list;
+
+    internal AssetPreviewControl PreviewForTest => _preview;
+
     public TilesetEditorPanel(TilesetWorkspaceSession session, ContentRepositoryCapabilities capabilities)
     {
         _session = session;
         _capabilities = capabilities;
+        _preview.AssetRoot = EditorTestHooks.OverrideProjectAssetRoot ?? ProjectAssetRoot.Resolve();
 
         _statusFilter.Items.AddRange(new object[] { "Tous", "Brouillon", "Publié" });
         _statusFilter.SelectedIndex = 0;
@@ -235,6 +350,7 @@ public sealed class TilesetEditorPanel : UserControl
 
         Row("Nom", _name);
         Row("Chemin logique", _path);
+        Row("Aperçu", _preview);
         Row("Taille tuile", _tileSize);
         Row("Largeur px", _width);
         Row("Hauteur px", _height);
@@ -292,6 +408,11 @@ public sealed class TilesetEditorPanel : UserControl
 
         void Mark()
         {
+            if (_binding)
+            {
+                return;
+            }
+
             ApplyFormToSession();
             _session.MarkDirty();
             LiveValidate();
@@ -299,7 +420,11 @@ public sealed class TilesetEditorPanel : UserControl
         }
 
         _name.TextChanged += (_, _) => Mark();
-        _path.TextChanged += (_, _) => Mark();
+        _path.TextChanged += (_, _) =>
+        {
+            Mark();
+            _preview.LogicalPath = _path.Text.Trim();
+        };
         _tileSize.ValueChanged += (_, _) => Mark();
         _width.ValueChanged += (_, _) => Mark();
         _height.ValueChanged += (_, _) => Mark();
@@ -351,15 +476,29 @@ public sealed class TilesetEditorPanel : UserControl
 
     private async Task RefreshListAsync()
     {
-        await _session.RefreshCatalogAsync().ConfigureAwait(true);
-        _suppressList = true;
-        _list.Items.Clear();
-        foreach (var e in _session.Catalog)
+        _refreshCts?.Cancel();
+        _refreshCts = new CancellationTokenSource();
+        var token = _refreshCts.Token;
+        try
         {
-            _list.Items.Add(new CatalogItem(e.TilesetId, $"{e.Name} [{e.Status}]"));
-        }
+            await _session.RefreshCatalogAsync(token).ConfigureAwait(true);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
 
-        _suppressList = false;
+            _suppressList = true;
+            _list.Items.Clear();
+            foreach (var e in _session.Catalog)
+            {
+                _list.Items.Add(new CatalogItem(e.TilesetId, $"{e.Name} [{e.Status}]"));
+            }
+
+            _suppressList = false;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
     }
 
     private void BindForm()
@@ -370,15 +509,25 @@ public sealed class TilesetEditorPanel : UserControl
             return;
         }
 
-        _name.Text = d.Name;
-        _path.Text = d.LogicalPath;
-        _tileSize.Value = Math.Clamp(d.TileSizePixels, 8, 256);
-        _width.Value = Math.Clamp(d.WidthPixels, 8, 8192);
-        _height.Value = Math.Clamp(d.HeightPixels, 8, 8192);
-        _sha.Text = d.Sha256Hex;
-        _palette.Value = d.EditorPaletteId ?? 0;
-        _meta.Text =
-            $"Id={d.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
+        _binding = true;
+        try
+        {
+            _name.Text = d.Name;
+            _path.Text = d.LogicalPath;
+            _tileSize.Value = Math.Clamp(d.TileSizePixels, 8, 256);
+            _width.Value = Math.Clamp(d.WidthPixels, 8, 8192);
+            _height.Value = Math.Clamp(d.HeightPixels, 8, 8192);
+            _sha.Text = d.Sha256Hex;
+            _palette.Value = d.EditorPaletteId ?? 0;
+            _preview.SetLogicalPathSilently(d.LogicalPath);
+            _meta.Text =
+                $"Id={d.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
+        }
+        finally
+        {
+            _binding = false;
+        }
+
         LiveValidate();
     }
 
@@ -425,16 +574,16 @@ public sealed class TilesetEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveTilesetResult.ValidationFailed v:
-                MessageBox.Show(this, v.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                GameDataUiMessageBox.Show(this, v.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case SaveTilesetResult.Conflict c:
-                MessageBox.Show(this, $"Conflit de révision (courante={c.CurrentRevision}).", "Conflit");
+                GameDataUiMessageBox.Show(this, $"Conflit de révision (courante={c.CurrentRevision}).", "Conflit");
                 break;
             case SaveTilesetResult.NotDurable n:
-                MessageBox.Show(this, n.Message, "Persistance");
+                GameDataUiMessageBox.Show(this, n.Message, "Persistance");
                 break;
             case SaveTilesetResult.PersistenceFailed p:
-                MessageBox.Show(this, p.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, p.Error, "Erreur");
                 break;
         }
     }
@@ -449,13 +598,13 @@ public sealed class TilesetEditorPanel : UserControl
                 await RefreshListAsync().ConfigureAwait(true);
                 break;
             case DeleteTilesetResult.Referenced r:
-                MessageBox.Show(this, r.Error, "Référence", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                GameDataUiMessageBox.Show(this, r.Error, "Référence", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case DeleteTilesetResult.NotFound:
-                MessageBox.Show(this, "Tileset introuvable.");
+                GameDataUiMessageBox.Show(this, "Tileset introuvable.");
                 break;
             case DeleteTilesetResult.PersistenceFailed p:
-                MessageBox.Show(this, p.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, p.Error, "Erreur");
                 break;
         }
     }
@@ -487,16 +636,38 @@ public sealed class NpcEditorPanel : UserControl
     private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
     private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
     private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
+    private readonly AssetPreviewControl _preview = new() { Width = 128, Height = 128 };
     private bool _suppressList;
+    private bool _binding;
+    private CancellationTokenSource? _refreshCts;
 
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
 
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal TextBox NameForTest => _name;
+
+    internal TextBox SpritePathForTest => _spritePath;
+
+    internal TextBox SearchForTest => _search;
+
+    internal ComboBox StatusFilterForTest => _statusFilter;
+
+    internal ListBox ListForTest => _list;
+
+    internal AssetPreviewControl PreviewForTest => _preview;
+
     public NpcEditorPanel(NpcWorkspaceSession session, ContentRepositoryCapabilities capabilities)
     {
         _session = session;
         _capabilities = capabilities;
+        _preview.AssetRoot = EditorTestHooks.OverrideProjectAssetRoot ?? ProjectAssetRoot.Resolve();
 
         _statusFilter.Items.AddRange(new object[] { "Tous", "Brouillon", "Publié" });
         _statusFilter.SelectedIndex = 0;
@@ -527,6 +698,7 @@ public sealed class NpcEditorPanel : UserControl
         Row("Nom", _name);
         Row("Type", _kind);
         Row("Chemin sprite", _spritePath);
+        Row("Aperçu", _preview);
         Row("Niveau", _level);
         Row("Notes", _notes);
         Row("Alias éditeur", _alias);
@@ -587,6 +759,11 @@ public sealed class NpcEditorPanel : UserControl
 
         void Mark()
         {
+            if (_binding)
+            {
+                return;
+            }
+
             ApplyFormToSession();
             _session.MarkDirty();
             LiveValidate();
@@ -595,7 +772,11 @@ public sealed class NpcEditorPanel : UserControl
 
         _name.TextChanged += (_, _) => Mark();
         _kind.SelectedIndexChanged += (_, _) => Mark();
-        _spritePath.TextChanged += (_, _) => Mark();
+        _spritePath.TextChanged += (_, _) =>
+        {
+            Mark();
+            _preview.LogicalPath = _spritePath.Text.Trim();
+        };
         _level.ValueChanged += (_, _) => Mark();
         _notes.TextChanged += (_, _) => Mark();
         _alias.ValueChanged += (_, _) => Mark();
@@ -642,17 +823,31 @@ public sealed class NpcEditorPanel : UserControl
 
     private async Task RefreshListAsync()
     {
-        await _session.RefreshCatalogAsync().ConfigureAwait(true);
-        _suppressList = true;
-        _list.Items.Clear();
-        foreach (var entry in _session.Catalog)
+        _refreshCts?.Cancel();
+        _refreshCts = new CancellationTokenSource();
+        var token = _refreshCts.Token;
+        try
         {
-            _list.Items.Add(new CatalogItem(
-                entry.NpcId,
-                $"{entry.Name} ({entry.Kind}, niv. {entry.Level}) [{entry.Status}]"));
-        }
+            await _session.RefreshCatalogAsync(token).ConfigureAwait(true);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
 
-        _suppressList = false;
+            _suppressList = true;
+            _list.Items.Clear();
+            foreach (var entry in _session.Catalog)
+            {
+                _list.Items.Add(new CatalogItem(
+                    entry.NpcId,
+                    $"{entry.Name} ({entry.Kind}, niv. {entry.Level}) [{entry.Status}]"));
+            }
+
+            _suppressList = false;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
     }
 
     private void BindForm()
@@ -663,14 +858,24 @@ public sealed class NpcEditorPanel : UserControl
             return;
         }
 
-        _name.Text = definition.Name;
-        _kind.SelectedItem = definition.Kind;
-        _spritePath.Text = definition.SpriteLogicalPath;
-        _level.Value = Math.Clamp(definition.Level, 1, 99);
-        _notes.Text = definition.Notes ?? string.Empty;
-        _alias.Value = definition.EditorAliasId ?? 0;
-        _meta.Text =
-            $"Id={definition.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
+        _binding = true;
+        try
+        {
+            _name.Text = definition.Name;
+            _kind.SelectedItem = definition.Kind;
+            _spritePath.Text = definition.SpriteLogicalPath;
+            _level.Value = Math.Clamp(definition.Level, 1, 99);
+            _notes.Text = definition.Notes ?? string.Empty;
+            _alias.Value = definition.EditorAliasId ?? 0;
+            _preview.SetLogicalPathSilently(definition.SpriteLogicalPath);
+            _meta.Text =
+                $"Id={definition.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
+        }
+        finally
+        {
+            _binding = false;
+        }
+
         LiveValidate();
     }
 
@@ -716,7 +921,7 @@ public sealed class NpcEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveNpcResult.ValidationFailed validation:
-                MessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                GameDataUiMessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case SaveNpcResult.Conflict conflict:
                 MessageBox.Show(
@@ -725,10 +930,10 @@ public sealed class NpcEditorPanel : UserControl
                     "Conflit");
                 break;
             case SaveNpcResult.NotDurable notDurable:
-                MessageBox.Show(this, notDurable.Message, "Persistance");
+                GameDataUiMessageBox.Show(this, notDurable.Message, "Persistance");
                 break;
             case SaveNpcResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -751,10 +956,10 @@ public sealed class NpcEditorPanel : UserControl
                     MessageBoxIcon.Warning);
                 break;
             case DeleteNpcResult.NotFound:
-                MessageBox.Show(this, "NPC introuvable.");
+                GameDataUiMessageBox.Show(this, "NPC introuvable.");
                 break;
             case DeleteNpcResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -793,6 +998,7 @@ public sealed class ItemEditorPanel : UserControl
     private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
     private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
     private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
+    private readonly AssetPreviewControl _preview = new() { Width = 128, Height = 128 };
     private bool _suppressList;
     private bool _binding;
 
@@ -800,10 +1006,25 @@ public sealed class ItemEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal TextBox NameForTest => _name;
+
+    internal TextBox IconPathForTest => _iconPath;
+
+    internal ListBox ListForTest => _list;
+
+    internal AssetPreviewControl PreviewForTest => _preview;
+
     public ItemEditorPanel(ItemWorkspaceSession session, ContentRepositoryCapabilities capabilities)
     {
         _session = session;
         _capabilities = capabilities;
+        _preview.AssetRoot = EditorTestHooks.OverrideProjectAssetRoot ?? ProjectAssetRoot.Resolve();
 
         _statusFilter.Items.AddRange(new object[] { "Tous", "Brouillon", "Publié" });
         _statusFilter.SelectedIndex = 0;
@@ -838,6 +1059,7 @@ public sealed class ItemEditorPanel : UserControl
         Row("Nom", _name);
         Row("Type", _kind);
         Row("Chemin icône", _iconPath);
+        Row("Aperçu", _preview);
         Row("Pile maximum", _maxStack);
         Row("Prix d’achat", _buyPrice);
         Row("Prix de vente", _sellPrice);
@@ -912,7 +1134,11 @@ public sealed class ItemEditorPanel : UserControl
 
         _name.TextChanged += (_, _) => Mark();
         _kind.SelectedIndexChanged += (_, _) => Mark();
-        _iconPath.TextChanged += (_, _) => Mark();
+        _iconPath.TextChanged += (_, _) =>
+        {
+            Mark();
+            _preview.LogicalPath = _iconPath.Text.Trim();
+        };
         _maxStack.ValueChanged += (_, _) => Mark();
         _buyPrice.ValueChanged += (_, _) => Mark();
         _sellPrice.ValueChanged += (_, _) => Mark();
@@ -987,6 +1213,7 @@ public sealed class ItemEditorPanel : UserControl
             _name.Text = definition.Name;
             _kind.SelectedItem = definition.Kind;
             _iconPath.Text = definition.IconLogicalPath;
+            _preview.SetLogicalPathSilently(definition.IconLogicalPath);
             _maxStack.Value = Math.Clamp(definition.MaxStack, 1, 999);
             _buyPrice.Value = Math.Clamp(definition.BuyPrice, 0, 999999999);
             _sellPrice.Value = Math.Clamp(definition.SellPrice, 0, 999999999);
@@ -1047,7 +1274,7 @@ public sealed class ItemEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveItemResult.ValidationFailed validation:
-                MessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                GameDataUiMessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case SaveItemResult.Conflict conflict:
                 MessageBox.Show(
@@ -1056,10 +1283,10 @@ public sealed class ItemEditorPanel : UserControl
                     "Conflit");
                 break;
             case SaveItemResult.NotDurable notDurable:
-                MessageBox.Show(this, notDurable.Message, "Persistance");
+                GameDataUiMessageBox.Show(this, notDurable.Message, "Persistance");
                 break;
             case SaveItemResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -1074,7 +1301,7 @@ public sealed class ItemEditorPanel : UserControl
                 await RefreshListAsync().ConfigureAwait(true);
                 break;
             case DeleteItemResult.NotFound:
-                MessageBox.Show(this, "Objet introuvable.");
+                GameDataUiMessageBox.Show(this, "Objet introuvable.");
                 break;
             case DeleteItemResult.Referenced referenced:
                 MessageBox.Show(
@@ -1085,7 +1312,7 @@ public sealed class ItemEditorPanel : UserControl
                     MessageBoxIcon.Warning);
                 break;
             case DeleteItemResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -1124,6 +1351,7 @@ public sealed class SpellEditorPanel : UserControl
     private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
     private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
     private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
+    private readonly AssetPreviewControl _preview = new() { Width = 128, Height = 128 };
     private bool _suppressList;
     private bool _binding;
 
@@ -1131,12 +1359,27 @@ public sealed class SpellEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal TextBox NameForTest => _name;
+
+    internal TextBox IconPathForTest => _iconPath;
+
+    internal ListBox ListForTest => _list;
+
+    internal AssetPreviewControl PreviewForTest => _preview;
+
     public SpellEditorPanel(
         SpellWorkspaceSession session,
         ContentRepositoryCapabilities capabilities)
     {
         _session = session;
         _capabilities = capabilities;
+        _preview.AssetRoot = EditorTestHooks.OverrideProjectAssetRoot ?? ProjectAssetRoot.Resolve();
 
         _statusFilter.Items.AddRange(new object[] { "Tous", "Brouillon", "Publié" });
         _statusFilter.SelectedIndex = 0;
@@ -1175,6 +1418,7 @@ public sealed class SpellEditorPanel : UserControl
         Row("Recharge (ms)", _cooldown);
         Row("Cible", _targetType);
         Row("Chemin icône", _iconPath);
+        Row("Aperçu", _preview);
         Row("Description", _description);
         Row("État", _meta);
         Row("", _validation);
@@ -1250,7 +1494,11 @@ public sealed class SpellEditorPanel : UserControl
         _manaCost.ValueChanged += (_, _) => Mark();
         _cooldown.ValueChanged += (_, _) => Mark();
         _targetType.SelectedIndexChanged += (_, _) => Mark();
-        _iconPath.TextChanged += (_, _) => Mark();
+        _iconPath.TextChanged += (_, _) =>
+        {
+            Mark();
+            _preview.LogicalPath = _iconPath.Text.Trim();
+        };
         _description.TextChanged += (_, _) => Mark();
 
         _btnNew.Click += (_, _) =>
@@ -1327,6 +1575,7 @@ public sealed class SpellEditorPanel : UserControl
             _cooldown.Value = Math.Clamp(definition.CooldownMs, 0, int.MaxValue);
             _targetType.SelectedItem = definition.TargetType;
             _iconPath.Text = definition.IconLogicalPath;
+            _preview.SetLogicalPathSilently(definition.IconLogicalPath);
             _description.Text = definition.Description ?? string.Empty;
             _meta.Text =
                 $"Id={definition.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
@@ -1400,10 +1649,10 @@ public sealed class SpellEditorPanel : UserControl
                     "Conflit");
                 break;
             case SaveSpellResult.NotDurable notDurable:
-                MessageBox.Show(this, notDurable.Message, "Persistance");
+                GameDataUiMessageBox.Show(this, notDurable.Message, "Persistance");
                 break;
             case SaveSpellResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -1418,7 +1667,7 @@ public sealed class SpellEditorPanel : UserControl
                 await RefreshListAsync().ConfigureAwait(true);
                 break;
             case DeleteSpellResult.NotFound:
-                MessageBox.Show(this, "Sort ou compétence introuvable.");
+                GameDataUiMessageBox.Show(this, "Sort ou compétence introuvable.");
                 break;
             case DeleteSpellResult.Referenced referenced:
                 MessageBox.Show(
@@ -1429,7 +1678,7 @@ public sealed class SpellEditorPanel : UserControl
                     MessageBoxIcon.Warning);
                 break;
             case DeleteSpellResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -1483,6 +1732,16 @@ public sealed class ClassEditorPanel : UserControl
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
+
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal TextBox NameForTest => _name;
+
+    internal ListBox ListForTest => _list;
 
     public ClassEditorPanel(
         ClassWorkspaceSession session,
@@ -1801,10 +2060,10 @@ public sealed class ClassEditorPanel : UserControl
                     "Conflit");
                 break;
             case SaveClassResult.NotDurable notDurable:
-                MessageBox.Show(this, notDurable.Message, "Persistance");
+                GameDataUiMessageBox.Show(this, notDurable.Message, "Persistance");
                 break;
             case SaveClassResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -1819,10 +2078,10 @@ public sealed class ClassEditorPanel : UserControl
                 await RefreshListAsync().ConfigureAwait(true);
                 break;
             case DeleteClassResult.NotFound:
-                MessageBox.Show(this, "Classe introuvable.");
+                GameDataUiMessageBox.Show(this, "Classe introuvable.");
                 break;
             case DeleteClassResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }

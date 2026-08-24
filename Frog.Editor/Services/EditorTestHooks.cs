@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Windows.Forms;
 using Frog.Application.Content;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
@@ -43,4 +44,16 @@ internal static class EditorTestHooks
 
     /// <summary>Smoke : force la tuile de spawn sans dialogue modal.</summary>
     public static Point? OverrideSpawnTile { get; set; }
+
+    /// <summary>Smoke : ouvre Données de jeu en non-modal pour automatisation UI.</summary>
+    public static bool GameDataNonModalForTest { get; set; }
+
+    /// <summary>Smoke : appelé quand la fenêtre Données de jeu est affichée.</summary>
+    public static Action<System.Windows.Forms.Form>? OnGameDataFormShown { get; set; }
+
+    /// <summary>Smoke : racine assets injectée pour les aperçus.</summary>
+    public static string? OverrideProjectAssetRoot { get; set; }
+
+    /// <summary>Smoke : réponse injectée pour MessageBox Données de jeu.</summary>
+    public static DialogResult? OverrideMessageBoxResult { get; set; }
 }

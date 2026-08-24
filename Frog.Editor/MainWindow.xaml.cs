@@ -186,8 +186,18 @@ public partial class MainWindow : Window
 
     private void OpenGameData()
     {
-        using var dlg = new Forms.GameData.GameDataForm();
-        dlg.ShowDialog();
+        var dlg = new Forms.GameData.GameDataForm();
+        if (EditorTestHooks.GameDataNonModalForTest)
+        {
+            dlg.Shown += (_, _) => EditorTestHooks.OnGameDataFormShown?.Invoke(dlg);
+            dlg.Show();
+            return;
+        }
+
+        using (dlg)
+        {
+            dlg.ShowDialog();
+        }
     }
 
     internal void AllowCloseWithoutPromptForTest()

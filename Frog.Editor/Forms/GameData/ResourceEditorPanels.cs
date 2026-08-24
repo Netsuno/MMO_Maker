@@ -1,6 +1,8 @@
 using Frog.Application.Content;
 using Frog.Application.Maps;
 using Frog.Core.Models;
+using Frog.Editor.Assets;
+using Frog.Editor.Services;
 
 namespace Frog.Editor.Forms.GameData;
 
@@ -58,6 +60,12 @@ public sealed class ResourceAndSpawnEditorPanel : UserControl
 
     public bool IsDirty => _resources.IsDirty || _spawns.IsDirty;
 
+    internal ResourceEditorPanel ResourcesPanelForTest => _resources;
+
+    internal ResourceSpawnEditorPanel SpawnsPanelForTest => _spawns;
+
+    internal TabControl TabsForTest => _tabs;
+
     public async Task InitializeAsync()
     {
         await _resources.InitializeAsync().ConfigureAwait(true);
@@ -86,6 +94,7 @@ public sealed class ResourceEditorPanel : UserControl
         ScrollBars = ScrollBars.Vertical,
     };
     private readonly TextBox _spritePath = new() { Width = 300 };
+    private readonly AssetPreviewControl _preview = new() { Width = 128, Height = 128 };
     private readonly NumericUpDown _respawn = new()
     {
         Minimum = 0,
@@ -111,6 +120,22 @@ public sealed class ResourceEditorPanel : UserControl
     private bool _suppressList;
     private bool _binding;
 
+    public bool IsDirty => _session.IsDirty;
+
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal TextBox NameForTest => _name;
+
+    internal TextBox SpritePathForTest => _spritePath;
+
+    internal ListBox ListForTest => _list;
+
+    internal AssetPreviewControl PreviewForTest => _preview;
+
     public ResourceEditorPanel(
         ResourceWorkspaceSession session,
         IPublishedItemCatalog itemCatalog,
@@ -119,6 +144,7 @@ public sealed class ResourceEditorPanel : UserControl
         _session = session;
         _itemCatalog = itemCatalog;
         _capabilities = capabilities;
+        _preview.AssetRoot = EditorTestHooks.OverrideProjectAssetRoot ?? ProjectAssetRoot.Resolve();
         _statusFilter.Items.AddRange(new object[] { "Tous", "Brouillon", "Publié" });
         _statusFilter.SelectedIndex = 0;
 
@@ -149,6 +175,7 @@ public sealed class ResourceEditorPanel : UserControl
         Row("Nom", _name);
         Row("Description", _description);
         Row("Chemin sprite", _spritePath);
+        Row("Aperçu", _preview);
         Row("Réapparition (s)", _respawn);
         Row("Outil publié", _tool);
         Row("Objet produit", _yieldItem);
@@ -210,7 +237,11 @@ public sealed class ResourceEditorPanel : UserControl
 
         _name.TextChanged += (_, _) => Mark();
         _description.TextChanged += (_, _) => Mark();
-        _spritePath.TextChanged += (_, _) => Mark();
+        _spritePath.TextChanged += (_, _) =>
+        {
+            Mark();
+            _preview.LogicalPath = _spritePath.Text.Trim();
+        };
         _respawn.ValueChanged += (_, _) => Mark();
         _tool.SelectedIndexChanged += (_, _) => Mark();
         _yieldItem.SelectedIndexChanged += (_, _) => Mark();
@@ -253,8 +284,6 @@ public sealed class ResourceEditorPanel : UserControl
     }
 
     public event Action<string>? StatusChanged;
-
-    public bool IsDirty => _session.IsDirty;
 
     public async Task InitializeAsync()
     {
@@ -322,6 +351,7 @@ public sealed class ResourceEditorPanel : UserControl
             _name.Text = definition.Name;
             _description.Text = definition.Description ?? string.Empty;
             _spritePath.Text = definition.SpriteLogicalPath;
+            _preview.SetLogicalPathSilently(definition.SpriteLogicalPath);
             _respawn.Value = Math.Clamp(definition.RespawnSeconds, 0, int.MaxValue);
             SelectItem(_tool, definition.ToolItemId, optional: true);
             SelectItem(_yieldItem, definition.YieldItemId, optional: false);
@@ -400,16 +430,16 @@ public sealed class ResourceEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveResourceResult.ValidationFailed validation:
-                MessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                GameDataUiMessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case SaveResourceResult.Conflict conflict:
-                MessageBox.Show(this, $"Conflit de révision (courante={conflict.CurrentRevision}).", "Conflit");
+                GameDataUiMessageBox.Show(this, $"Conflit de révision (courante={conflict.CurrentRevision}).", "Conflit");
                 break;
             case SaveResourceResult.NotDurable notDurable:
-                MessageBox.Show(this, notDurable.Message, "Persistance");
+                GameDataUiMessageBox.Show(this, notDurable.Message, "Persistance");
                 break;
             case SaveResourceResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -424,13 +454,13 @@ public sealed class ResourceEditorPanel : UserControl
                 await RefreshListAsync().ConfigureAwait(true);
                 break;
             case DeleteResourceResult.Referenced referenced:
-                MessageBox.Show(this, referenced.Error, "Référence", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                GameDataUiMessageBox.Show(this, referenced.Error, "Référence", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case DeleteResourceResult.NotFound:
-                MessageBox.Show(this, "Ressource introuvable.");
+                GameDataUiMessageBox.Show(this, "Ressource introuvable.");
                 break;
             case DeleteResourceResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -466,6 +496,16 @@ public sealed class ResourceSpawnEditorPanel : UserControl
     private readonly IPublishedResourceCatalog _resources;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
+    private readonly ComboBox _mapFilter = new()
+    {
+        Dock = DockStyle.Top,
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
+    private readonly ComboBox _resourceFilter = new()
+    {
+        Dock = DockStyle.Top,
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
     private readonly ComboBox _statusFilter = new()
     {
         Dock = DockStyle.Top,
@@ -500,6 +540,8 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
         var left = new Panel { Dock = DockStyle.Left, Width = 320, Padding = new Padding(4) };
         left.Controls.Add(_list);
+        left.Controls.Add(_mapFilter);
+        left.Controls.Add(_resourceFilter);
         left.Controls.Add(_statusFilter);
 
         var form = new TableLayoutPanel
@@ -543,6 +585,16 @@ public sealed class ResourceSpawnEditorPanel : UserControl
                 2 => ContentPublishStatus.Published,
                 _ => null,
             };
+            await RefreshListAsync().ConfigureAwait(true);
+        };
+        _mapFilter.SelectedIndexChanged += async (_, _) =>
+        {
+            _session.MapFilter = (_mapFilter.SelectedItem as EntityChoice)?.Id;
+            await RefreshListAsync().ConfigureAwait(true);
+        };
+        _resourceFilter.SelectedIndexChanged += async (_, _) =>
+        {
+            _session.ResourceFilter = (_resourceFilter.SelectedItem as EntityChoice)?.Id;
             await RefreshListAsync().ConfigureAwait(true);
         };
         _list.SelectedIndexChanged += async (_, _) =>
@@ -621,6 +673,20 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
+    internal ComboBox MapFilterForTest => _mapFilter;
+
+    internal ComboBox ResourceFilterForTest => _resourceFilter;
+
+    internal ComboBox StatusFilterForTest => _statusFilter;
+
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal ListBox ListForTest => _list;
+
     public async Task InitializeAsync()
     {
         await RefreshReferencesAsync().ConfigureAwait(true);
@@ -632,6 +698,8 @@ public sealed class ResourceSpawnEditorPanel : UserControl
     {
         var mapId = (_map.SelectedItem as EntityChoice)?.Id;
         var resourceId = (_resource.SelectedItem as EntityChoice)?.Id;
+        var mapFilterId = (_mapFilter.SelectedItem as EntityChoice)?.Id;
+        var resourceFilterId = (_resourceFilter.SelectedItem as EntityChoice)?.Id;
         var maps = await _maps.ListSummariesAsync().ConfigureAwait(true);
         var resources = await _resources.ListPublishedAsync().ConfigureAwait(true);
         _binding = true;
@@ -650,6 +718,37 @@ public sealed class ResourceSpawnEditorPanel : UserControl
             {
                 _resource.Items.Add(new EntityChoice(definition.Id, definition.Name));
             }
+
+            _mapFilter.Items.Clear();
+            _mapFilter.Items.Add(new EntityChoice(Guid.Empty, "Toutes les cartes"));
+            foreach (var entry in maps.OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                _mapFilter.Items.Add(new EntityChoice(entry.MapId, entry.Name));
+            }
+
+            _resourceFilter.Items.Clear();
+            _resourceFilter.Items.Add(new EntityChoice(Guid.Empty, "Toutes les ressources"));
+            foreach (var definition in resources.OrderBy(
+                         definition => definition.Name,
+                         StringComparer.OrdinalIgnoreCase))
+            {
+                _resourceFilter.Items.Add(new EntityChoice(definition.Id, definition.Name));
+            }
+
+            _mapFilter.SelectedItem = _mapFilter.Items.Cast<EntityChoice>()
+                .FirstOrDefault(choice => choice.Id == mapFilterId)
+                ?? _mapFilter.Items[0];
+            _resourceFilter.SelectedItem = _resourceFilter.Items.Cast<EntityChoice>()
+                .FirstOrDefault(choice => choice.Id == resourceFilterId)
+                ?? _resourceFilter.Items[0];
+            _session.MapFilter = (_mapFilter.SelectedItem as EntityChoice)?.Id is Guid mapGuid
+                                 && mapGuid != Guid.Empty
+                ? mapGuid
+                : null;
+            _session.ResourceFilter = (_resourceFilter.SelectedItem as EntityChoice)?.Id is Guid resourceGuid
+                                      && resourceGuid != Guid.Empty
+                ? resourceGuid
+                : null;
 
             _map.SelectedItem = _map.Items.Cast<EntityChoice>()
                 .FirstOrDefault(choice => choice.Id == mapId)
@@ -763,16 +862,16 @@ public sealed class ResourceSpawnEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveResourceSpawnResult.ValidationFailed validation:
-                MessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                GameDataUiMessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case SaveResourceSpawnResult.Conflict conflict:
-                MessageBox.Show(this, $"Conflit de révision (courante={conflict.CurrentRevision}).", "Conflit");
+                GameDataUiMessageBox.Show(this, $"Conflit de révision (courante={conflict.CurrentRevision}).", "Conflit");
                 break;
             case SaveResourceSpawnResult.NotDurable notDurable:
-                MessageBox.Show(this, notDurable.Message, "Persistance");
+                GameDataUiMessageBox.Show(this, notDurable.Message, "Persistance");
                 break;
             case SaveResourceSpawnResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -787,10 +886,10 @@ public sealed class ResourceSpawnEditorPanel : UserControl
                 await RefreshListAsync().ConfigureAwait(true);
                 break;
             case DeleteResourceSpawnResult.NotFound:
-                MessageBox.Show(this, "Spawn de ressource introuvable.");
+                GameDataUiMessageBox.Show(this, "Spawn de ressource introuvable.");
                 break;
             case DeleteResourceSpawnResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }

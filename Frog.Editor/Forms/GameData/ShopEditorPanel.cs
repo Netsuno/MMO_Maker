@@ -52,6 +52,16 @@ public sealed class ShopEditorPanel : UserControl
     private bool _suppressList;
     private bool _binding;
 
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal TextBox NameForTest => _name;
+
+    internal ListBox ListForTest => _list;
+
     public ShopEditorPanel(
         ShopWorkspaceSession session,
         IPublishedItemCatalog itemCatalog,
@@ -426,10 +436,10 @@ public sealed class ShopEditorPanel : UserControl
                     "Conflit");
                 break;
             case SaveShopResult.NotDurable notDurable:
-                MessageBox.Show(this, notDurable.Message, "Persistance");
+                GameDataUiMessageBox.Show(this, notDurable.Message, "Persistance");
                 break;
             case SaveShopResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }
@@ -444,10 +454,10 @@ public sealed class ShopEditorPanel : UserControl
                 await RefreshListAsync().ConfigureAwait(true);
                 break;
             case DeleteShopResult.NotFound:
-                MessageBox.Show(this, "Boutique introuvable.");
+                GameDataUiMessageBox.Show(this, "Boutique introuvable.");
                 break;
             case DeleteShopResult.PersistenceFailed persistence:
-                MessageBox.Show(this, persistence.Error, "Erreur");
+                GameDataUiMessageBox.Show(this, persistence.Error, "Erreur");
                 break;
         }
     }

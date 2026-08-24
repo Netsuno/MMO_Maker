@@ -37,6 +37,10 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideSpawnTile = null;
         EditorTestHooks.AllowNonDurablePlaytest = false;
         EditorTestHooks.SkipMariaDbOnStartup = true;
+        EditorTestHooks.GameDataNonModalForTest = false;
+        EditorTestHooks.OnGameDataFormShown = null;
+        EditorTestHooks.OverrideProjectAssetRoot = null;
+        EditorTestHooks.OverrideMessageBoxResult = null;
         TilesetCache.Clear();
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");
     }
@@ -78,370 +82,53 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
     }
 
-    public static async Task OpenGameDataAndSaveSampleTilesetAsync(MainWindow window)
+    public static Task OpenGameDataAndSaveSampleTilesetAsync(MainWindow window)
     {
-        using var form = new Forms.GameData.GameDataForm();
-        // Accès interne via type public : on valide create/save via session injectée.
-        var bundle = Services.EditorTilesetRepositoryFactory.CreateBundle();
-        var session = new Frog.Application.Content.TilesetWorkspaceSession(bundle.Repository);
-        var def = new Frog.Core.Models.TilesetDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeTileset",
-            LogicalPath = "tiles/smoke.png",
-            TileSizePixels = 32,
-            WidthPixels = 32,
-            HeightPixels = 32,
-            Sha256Hex = new string('A', 64),
-            EditorPaletteId = 1,
-        };
-        session.AdoptNewDraft(def);
-        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
-        if (saved is not Frog.Application.Content.SaveTilesetResult.Success)
-        {
-            throw new InvalidOperationException($"Tileset smoke save failed: {saved}");
-        }
-
-        session.MarkDirty();
-        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
-        if (published is not Frog.Application.Content.SaveTilesetResult.Success)
-        {
-            throw new InvalidOperationException($"Tileset smoke publish failed: {published}");
-        }
-
-        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
-        if (catalog.All(t => t.Name != "SmokeTileset"))
-        {
-            throw new InvalidOperationException("Published tileset missing from catalog after smoke publish.");
-        }
+        GameDataSmokeUiDriver.RunTilesetScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
     }
 
-    public static async Task OpenGameDataAndSaveSampleNpcAsync(MainWindow window)
+    public static Task OpenGameDataAndSaveSampleNpcAsync(MainWindow window)
     {
-        using var form = new Forms.GameData.GameDataForm();
-        var bundle = Services.EditorNpcRepositoryFactory.CreateBundle();
-        var session = new Frog.Application.Content.NpcWorkspaceSession(bundle.Repository);
-        session.AdoptNewDraft(new Frog.Core.Models.NpcDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeMonster",
-            Kind = Frog.Core.Models.NpcKind.Monster,
-            SpriteLogicalPath = "sprites/npcs/smoke-monster.png",
-            Level = 12,
-            Notes = "NPC smoke test",
-            EditorAliasId = 2,
-        });
-        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
-        if (saved is not Frog.Application.Content.SaveNpcResult.Success)
-        {
-            throw new InvalidOperationException($"NPC smoke save failed: {saved}");
-        }
-
-        session.MarkDirty();
-        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
-        if (published is not Frog.Application.Content.SaveNpcResult.Success)
-        {
-            throw new InvalidOperationException($"NPC smoke publish failed: {published}");
-        }
-
-        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
-        if (catalog.All(n => n.Name != "SmokeMonster"))
-        {
-            throw new InvalidOperationException("Published NPC missing from catalog after smoke publish.");
-        }
+        GameDataSmokeUiDriver.RunNpcScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
     }
 
-    public static async Task OpenGameDataAndSaveSampleItemAsync(MainWindow window)
+    public static Task OpenGameDataAndSaveSampleItemAsync(MainWindow window)
     {
-        using var form = new Forms.GameData.GameDataForm();
-        var bundle = Services.EditorItemRepositoryFactory.CreateBundle();
-        var session = new Frog.Application.Content.ItemWorkspaceSession(bundle.Repository);
-        session.AdoptNewDraft(new Frog.Core.Models.ItemDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokePotion",
-            Kind = ItemType.Consumable,
-            IconLogicalPath = "icons/items/smoke-potion.png",
-            MaxStack = 20,
-            BuyPrice = 50,
-            SellPrice = 15,
-            Description = "Item smoke test",
-        });
-        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
-        if (saved is not Frog.Application.Content.SaveItemResult.Success)
-        {
-            throw new InvalidOperationException($"Item smoke save failed: {saved}");
-        }
-
-        session.MarkDirty();
-        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
-        if (published is not Frog.Application.Content.SaveItemResult.Success)
-        {
-            throw new InvalidOperationException($"Item smoke publish failed: {published}");
-        }
-
-        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
-        if (catalog.All(item => item.Name != "SmokePotion"))
-        {
-            throw new InvalidOperationException("Published item missing from catalog after smoke publish.");
-        }
+        GameDataSmokeUiDriver.RunItemScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
     }
 
-    public static async Task OpenGameDataAndSaveSampleSpellAsync(MainWindow window)
+    public static Task OpenGameDataAndSaveSampleSpellAsync(MainWindow window)
     {
-        using var form = new Forms.GameData.GameDataForm();
-        var bundle = Services.EditorSpellRepositoryFactory.CreateBundle();
-        var session = new Frog.Application.Content.SpellWorkspaceSession(bundle.Repository);
-        session.AdoptNewDraft(new Frog.Core.Models.SpellDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeFireball",
-            Kind = SpellKind.Spell,
-            ManaCost = 20,
-            CooldownMs = 1500,
-            TargetType = TargetType.SingleEnemy,
-            IconLogicalPath = "icons/spells/smoke-fireball.png",
-            Description = "Spell smoke test",
-        });
-        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
-        if (saved is not Frog.Application.Content.SaveSpellResult.Success)
-        {
-            throw new InvalidOperationException($"Spell smoke save failed: {saved}");
-        }
-
-        session.MarkDirty();
-        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
-        if (published is not Frog.Application.Content.SaveSpellResult.Success)
-        {
-            throw new InvalidOperationException($"Spell smoke publish failed: {published}");
-        }
-
-        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
-        if (catalog.All(spell => spell.Name != "SmokeFireball"))
-        {
-            throw new InvalidOperationException("Published spell missing from catalog after smoke publish.");
-        }
+        GameDataSmokeUiDriver.RunSpellScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
     }
 
-    public static async Task OpenGameDataAndSaveSampleClassAsync(MainWindow window)
+    public static Task OpenGameDataAndSaveSampleClassAsync(MainWindow window)
     {
-        using var form = new Forms.GameData.GameDataForm();
-        var spellBundle = Services.EditorSpellRepositoryFactory.CreateBundle();
-        var spellSession = new Frog.Application.Content.SpellWorkspaceSession(spellBundle.Repository);
-        spellSession.AdoptNewDraft(new Frog.Core.Models.SpellDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeClassStarter",
-            Kind = SpellKind.Skill,
-            ManaCost = 0,
-            CooldownMs = 500,
-            TargetType = TargetType.Self,
-            IconLogicalPath = "icons/spells/smoke-class-starter.png",
-        });
-        var spellPublished = await spellSession.SaveCurrentAsync(
-            Frog.Application.Content.SaveContentIntent.Publish);
-        if (spellPublished is not Frog.Application.Content.SaveSpellResult.Success spellSuccess)
-        {
-            throw new InvalidOperationException($"Class smoke prerequisite spell failed: {spellPublished}");
-        }
-
-        var bundle = Services.EditorClassRepositoryFactory.CreateBundle(spellBundle.Repository);
-        var session = new Frog.Application.Content.ClassWorkspaceSession(bundle.Repository);
-        session.AdoptNewDraft(new Frog.Core.Models.ClassDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeWarrior",
-            Description = "Class smoke test",
-            BaseHp = 120,
-            BaseMp = 30,
-            Str = 15,
-            Agi = 9,
-            Vit = 14,
-            Int = 5,
-            Dex = 10,
-            Luck = 7,
-            StartingSpellId = spellSuccess.SpellId,
-        });
-        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
-        if (saved is not Frog.Application.Content.SaveClassResult.Success)
-        {
-            throw new InvalidOperationException($"Class smoke save failed: {saved}");
-        }
-
-        session.MarkDirty();
-        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
-        if (published is not Frog.Application.Content.SaveClassResult.Success)
-        {
-            throw new InvalidOperationException($"Class smoke publish failed: {published}");
-        }
-
-        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
-        if (catalog.All(characterClass => characterClass.Name != "SmokeWarrior"))
-        {
-            throw new InvalidOperationException("Published class missing from catalog after smoke publish.");
-        }
+        GameDataSmokeUiDriver.RunClassScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
     }
 
-    public static async Task OpenGameDataAndSaveSampleShopAsync(MainWindow window)
+    public static Task OpenGameDataAndSaveSampleShopAsync(MainWindow window)
     {
-        using var form = new Forms.GameData.GameDataForm();
-        var itemBundle = Services.EditorItemRepositoryFactory.CreateBundle();
-        var itemSession = new Frog.Application.Content.ItemWorkspaceSession(itemBundle.Repository);
-        itemSession.AdoptNewDraft(new Frog.Core.Models.ItemDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeShopPotion",
-            Kind = ItemType.Consumable,
-            IconLogicalPath = "icons/items/smoke-shop-potion.png",
-            MaxStack = 20,
-            BuyPrice = 50,
-            SellPrice = 15,
-        });
-        var itemPublished = await itemSession.SaveCurrentAsync(
-            Frog.Application.Content.SaveContentIntent.Publish);
-        if (itemPublished is not Frog.Application.Content.SaveItemResult.Success itemSuccess)
-        {
-            throw new InvalidOperationException($"Shop smoke prerequisite item failed: {itemPublished}");
-        }
-
-        var bundle = Services.EditorShopRepositoryFactory.CreateBundle(itemBundle.PublishedCatalog);
-        var session = new Frog.Application.Content.ShopWorkspaceSession(bundle.Repository);
-        session.AdoptNewDraft(new Frog.Core.Models.ShopDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeShop",
-            Description = "Shop content smoke test",
-            Listings =
-            {
-                new Frog.Core.Models.ShopListing
-                {
-                    ItemId = itemSuccess.ItemId,
-                    Price = 75,
-                    Stock = null,
-                },
-            },
-        });
-        var saved = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.SaveDraft);
-        if (saved is not Frog.Application.Content.SaveShopResult.Success)
-        {
-            throw new InvalidOperationException($"Shop smoke save failed: {saved}");
-        }
-
-        session.MarkDirty();
-        var published = await session.SaveCurrentAsync(Frog.Application.Content.SaveContentIntent.Publish);
-        if (published is not Frog.Application.Content.SaveShopResult.Success)
-        {
-            throw new InvalidOperationException($"Shop smoke publish failed: {published}");
-        }
-
-        var catalog = await bundle.PublishedCatalog.ListPublishedAsync();
-        if (catalog.All(shop => shop.Name != "SmokeShop"))
-        {
-            throw new InvalidOperationException("Published shop missing from catalog after smoke publish.");
-        }
+        GameDataSmokeUiDriver.RunShopScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
     }
 
-    public static async Task OpenGameDataAndSaveSampleResourceAndSpawnAsync(MainWindow window)
+    public static Task OpenGameDataAndSaveSampleResourceAndSpawnAsync(MainWindow window)
     {
-        using var form = new Forms.GameData.GameDataForm();
-        var itemBundle = Services.EditorItemRepositoryFactory.CreateBundle();
-        var itemSession = new Frog.Application.Content.ItemWorkspaceSession(itemBundle.Repository);
-        itemSession.AdoptNewDraft(new Frog.Core.Models.ItemDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeResourceYield",
-            Kind = ItemType.Quest,
-            IconLogicalPath = "icons/items/smoke-resource-yield.png",
-            MaxStack = 99,
-            BuyPrice = 0,
-            SellPrice = 1,
-        });
-        var itemPublished = await itemSession.SaveCurrentAsync(
-            Frog.Application.Content.SaveContentIntent.Publish);
-        if (itemPublished is not Frog.Application.Content.SaveItemResult.Success itemSuccess)
-        {
-            throw new InvalidOperationException(
-                $"Resource smoke prerequisite item failed: {itemPublished}");
-        }
-
-        var resourceBundle =
-            Services.EditorResourceRepositoryFactory.CreateBundle(itemBundle.PublishedCatalog);
-        var resourceSession =
-            new Frog.Application.Content.ResourceWorkspaceSession(resourceBundle.Repository);
-        resourceSession.AdoptNewDraft(new Frog.Core.Models.ResourceDefinition
-        {
-            Id = Guid.NewGuid(),
-            Name = "SmokeTree",
-            Description = "Resource content smoke test",
-            SpriteLogicalPath = "sprites/resources/smoke-tree.png",
-            RespawnSeconds = 30,
-            YieldItemId = itemSuccess.ItemId,
-            YieldQuantity = 2,
-        });
-        var resourceSaved = await resourceSession.SaveCurrentAsync(
-            Frog.Application.Content.SaveContentIntent.SaveDraft);
-        if (resourceSaved is not Frog.Application.Content.SaveResourceResult.Success)
-        {
-            throw new InvalidOperationException($"Resource smoke save failed: {resourceSaved}");
-        }
-
-        resourceSession.MarkDirty();
-        var resourcePublished = await resourceSession.SaveCurrentAsync(
-            Frog.Application.Content.SaveContentIntent.Publish);
-        if (resourcePublished
-            is not Frog.Application.Content.SaveResourceResult.Success resourceSuccess)
-        {
-            throw new InvalidOperationException(
-                $"Resource smoke publish failed: {resourcePublished}");
-        }
-
-        var mapBundle = Services.EditorMapRepositoryFactory.CreateBundle();
-        var map = (await mapBundle.Repository.ListSummariesAsync()).FirstOrDefault()
-                  ?? throw new InvalidOperationException(
-                      "Resource spawn smoke requires the initialized editor map.");
-        var spawnBundle = Services.EditorResourceSpawnRepositoryFactory.CreateBundle(
-            mapBundle.Repository,
-            resourceBundle.PublishedCatalog,
-            resourceBundle.Capabilities);
-        var spawnSession =
-            new Frog.Application.Content.ResourceSpawnWorkspaceSession(spawnBundle.Repository);
-        spawnSession.AdoptNewDraft(new Frog.Core.Models.ResourceSpawnDefinition
-        {
-            Id = Guid.NewGuid(),
-            MapId = map.MapId,
-            ResourceId = resourceSuccess.ResourceId,
-            TileX = 2,
-            TileY = 3,
-        });
-        var spawnSaved = await spawnSession.SaveCurrentAsync(
-            Frog.Application.Content.SaveContentIntent.SaveDraft);
-        if (spawnSaved is not Frog.Application.Content.SaveResourceSpawnResult.Success)
-        {
-            throw new InvalidOperationException($"Resource spawn smoke save failed: {spawnSaved}");
-        }
-
-        spawnSession.MarkDirty();
-        var spawnPublished = await spawnSession.SaveCurrentAsync(
-            Frog.Application.Content.SaveContentIntent.Publish);
-        if (spawnPublished is not Frog.Application.Content.SaveResourceSpawnResult.Success)
-        {
-            throw new InvalidOperationException(
-                $"Resource spawn smoke publish failed: {spawnPublished}");
-        }
-
-        if ((await resourceBundle.PublishedCatalog.ListPublishedAsync())
-            .All(resource => resource.Name != "SmokeTree"))
-        {
-            throw new InvalidOperationException(
-                "Published resource missing from catalog after smoke publish.");
-        }
-
-        if ((await spawnBundle.PublishedCatalog.ListPublishedAsync(map.MapId)).Count != 1)
-        {
-            throw new InvalidOperationException(
-                "Published resource spawn missing from map catalog after smoke publish.");
-        }
+        GameDataSmokeUiDriver.RunResourceAndSpawnScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
     }
+
+    public static void OpenGameDataDirtyStateRegression(MainWindow window) =>
+        GameDataSmokeUiDriver.RunDirtyStateRegression(window, DefaultTimeout);
+
+    public static void OpenGameDataRepeatedOpenClose(MainWindow window) =>
+        GameDataSmokeUiDriver.RunInitializationOpenCloseLeak(window, DefaultTimeout);
 
     public static void EnsureWinFormsInitialized()
     {
