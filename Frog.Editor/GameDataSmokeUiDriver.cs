@@ -116,23 +116,12 @@ internal static class GameDataSmokeUiDriver
     {
         System.Windows.Forms.Application.DoEvents();
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null)
+        if (dispatcher is null || dispatcher.CheckAccess())
         {
             return;
         }
 
-        if (dispatcher.CheckAccess())
-        {
-            var frame = new System.Windows.Threading.DispatcherFrame();
-            dispatcher.BeginInvoke(
-                System.Windows.Threading.DispatcherPriority.Background,
-                new Action(() => frame.Continue = false));
-            System.Windows.Threading.Dispatcher.PushFrame(frame);
-        }
-        else
-        {
-            dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, static () => { });
-        }
+        dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, static () => { });
     }
 
     private static void WaitForTask(Task task, TimeSpan timeout)
