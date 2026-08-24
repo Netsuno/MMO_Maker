@@ -270,6 +270,7 @@ public sealed class GameDataForm : Form
             }
         }
 
+        // User-initiated close: cancel once, cleanup synchronously, then allow the follow-up Close.
         e.Cancel = true;
         if (_cleanupRunning)
         {
@@ -280,16 +281,20 @@ public sealed class GameDataForm : Form
         try
         {
             RunCloseCleanupSynchronously();
+            _allowCloseAfterCleanup = true;
         }
         finally
         {
             _cleanupRunning = false;
-            _allowCloseAfterCleanup = true;
+        }
+
+        BeginInvoke(new Action(() =>
+        {
             if (!IsDisposed)
             {
-                BeginInvoke(new Action(Close));
+                Close();
             }
-        }
+        }));
     }
 
     private void RunCloseCleanupSynchronously()
@@ -396,6 +401,21 @@ public sealed class GameDataForm : Form
     internal Exception? CloseCleanupExceptionForTest => _closeCleanupException;
 
     internal string StatusTextForTest => _status.Text;
+
+    /// <summary>Smoke : nettoie et ferme sans dépendre de BeginInvoke.</summary>
+    internal void ForceCloseAfterCleanupForTest()
+    {
+        if (!_allowCloseAfterCleanup)
+        {
+            RunCloseCleanupSynchronously();
+            _allowCloseAfterCleanup = true;
+        }
+
+        if (!IsDisposed)
+        {
+            Close();
+        }
+    }
 
     private void ShowCategory()
     {

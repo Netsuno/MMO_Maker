@@ -80,7 +80,7 @@ internal static class GameDataSmokeUiDriver
         EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
         try
         {
-            form.Close();
+            form.ForceCloseAfterCleanupForTest();
             PumpUntil(() => form.IsDisposed, timeout);
         }
         finally
