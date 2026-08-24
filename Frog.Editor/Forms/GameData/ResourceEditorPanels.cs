@@ -71,10 +71,14 @@ public sealed class ResourceAndSpawnEditorPanel : UserControl
         await _resources.InitializeAsync().ConfigureAwait(true);
         await _spawns.InitializeAsync().ConfigureAwait(true);
     }
+
+    internal Task DrainAsync() =>
+        Task.WhenAll(_resources.DrainAsync(), _spawns.DrainAsync());
 }
 
 public sealed class ResourceEditorPanel : UserControl
 {
+    private readonly GameDataPanelAsyncGate _asyncGate = new();
     private readonly ResourceWorkspaceSession _session;
     private readonly IPublishedItemCatalog _itemCatalog;
     private readonly ContentRepositoryCapabilities _capabilities;
@@ -121,6 +125,8 @@ public sealed class ResourceEditorPanel : UserControl
     private bool _binding;
 
     public bool IsDirty => _session.IsDirty;
+
+    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -190,37 +196,36 @@ public sealed class ResourceEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += async (_, _) =>
+        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _statusFilter.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.StatusFilter = StatusFromIndex(_statusFilter.SelectedIndex);
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _list.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogChoice choice)
             {
                 return;
             }
 
-            if (_session.IsDirty
-                && GameDataUiMessageBox.Show(
-                    this,
-                    "Modifications non enregistrées. Continuer ?",
-                    "Ressources",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning) != DialogResult.Yes)
+            if (!GameDataListNavigation.ConfirmDiscardUnsavedChanges(this, "Ressources", _session.IsDirty))
             {
+                GameDataListNavigation.RevertListSelection(
+                    _list,
+                    ref _suppressList,
+                    _session.CurrentId,
+                    listItem => ((CatalogChoice)listItem).Id);
                 return;
             }
 
             await _session.OpenAsync(choice.Id).ConfigureAwait(true);
             BindForm();
-        };
+        });
 
         void Mark()
         {
@@ -322,9 +327,14 @@ public sealed class ResourceEditorPanel : UserControl
         }
     }
 
-    private async Task RefreshListAsync()
+    private async Task RefreshListAsync(CancellationToken ct = default)
     {
-        await _session.RefreshCatalogAsync().ConfigureAwait(true);
+        await _session.RefreshCatalogAsync(ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
         _suppressList = true;
         _list.Items.Clear();
         foreach (var entry in _session.Catalog)
@@ -491,6 +501,7 @@ public sealed class ResourceEditorPanel : UserControl
 
 public sealed class ResourceSpawnEditorPanel : UserControl
 {
+    private readonly GameDataPanelAsyncGate _asyncGate = new();
     private readonly ResourceSpawnWorkspaceSession _session;
     private readonly IMapRepository _maps;
     private readonly IPublishedResourceCatalog _resources;
@@ -577,7 +588,7 @@ public sealed class ResourceSpawnEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _statusFilter.SelectedIndexChanged += async (_, _) =>
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -585,39 +596,38 @@ public sealed class ResourceSpawnEditorPanel : UserControl
                 2 => ContentPublishStatus.Published,
                 _ => null,
             };
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _mapFilter.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _mapFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
-            _session.MapFilter = (_mapFilter.SelectedItem as EntityChoice)?.Id;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _resourceFilter.SelectedIndexChanged += async (_, _) =>
+            _session.MapFilter = NormalizeFilterId((_mapFilter.SelectedItem as EntityChoice)?.Id);
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _resourceFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
-            _session.ResourceFilter = (_resourceFilter.SelectedItem as EntityChoice)?.Id;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _list.SelectedIndexChanged += async (_, _) =>
+            _session.ResourceFilter = NormalizeFilterId((_resourceFilter.SelectedItem as EntityChoice)?.Id);
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not SpawnChoice choice)
             {
                 return;
             }
 
-            if (_session.IsDirty
-                && GameDataUiMessageBox.Show(
-                    this,
-                    "Modifications non enregistrées. Continuer ?",
-                    "Spawns de ressources",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning) != DialogResult.Yes)
+            if (!GameDataListNavigation.ConfirmDiscardUnsavedChanges(this, "Spawns de ressources", _session.IsDirty))
             {
+                GameDataListNavigation.RevertListSelection(
+                    _list,
+                    ref _suppressList,
+                    _session.CurrentId,
+                    listItem => ((SpawnChoice)listItem).Id);
                 return;
             }
 
             await _session.OpenAsync(choice.Id).ConfigureAwait(true);
             BindForm();
-        };
+        });
 
         void Mark()
         {
@@ -672,6 +682,8 @@ public sealed class ResourceSpawnEditorPanel : UserControl
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
+
+    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
 
     internal ComboBox MapFilterForTest => _mapFilter;
 
@@ -741,14 +753,8 @@ public sealed class ResourceSpawnEditorPanel : UserControl
             _resourceFilter.SelectedItem = _resourceFilter.Items.Cast<EntityChoice>()
                 .FirstOrDefault(choice => choice.Id == resourceFilterId)
                 ?? _resourceFilter.Items[0];
-            _session.MapFilter = (_mapFilter.SelectedItem as EntityChoice)?.Id is Guid mapGuid
-                                 && mapGuid != Guid.Empty
-                ? mapGuid
-                : null;
-            _session.ResourceFilter = (_resourceFilter.SelectedItem as EntityChoice)?.Id is Guid resourceGuid
-                                      && resourceGuid != Guid.Empty
-                ? resourceGuid
-                : null;
+            _session.MapFilter = NormalizeFilterId((_mapFilter.SelectedItem as EntityChoice)?.Id);
+            _session.ResourceFilter = NormalizeFilterId((_resourceFilter.SelectedItem as EntityChoice)?.Id);
 
             _map.SelectedItem = _map.Items.Cast<EntityChoice>()
                 .FirstOrDefault(choice => choice.Id == mapId)
@@ -763,9 +769,14 @@ public sealed class ResourceSpawnEditorPanel : UserControl
         }
     }
 
-    private async Task RefreshListAsync()
+    private async Task RefreshListAsync(CancellationToken ct = default)
     {
-        await _session.RefreshCatalogAsync().ConfigureAwait(true);
+        await _session.RefreshCatalogAsync(ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
         _suppressList = true;
         _list.Items.Clear();
         foreach (var entry in _session.Catalog)
@@ -906,6 +917,8 @@ public sealed class ResourceSpawnEditorPanel : UserControl
         Maximum = int.MaxValue,
         Width = 120,
     };
+
+    private static Guid? NormalizeFilterId(Guid? id) => id is null || id == Guid.Empty ? null : id;
 
     private sealed record SpawnChoice(Guid Id, string Label)
     {

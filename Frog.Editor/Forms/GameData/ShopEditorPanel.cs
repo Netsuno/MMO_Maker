@@ -7,6 +7,7 @@ namespace Frog.Editor.Forms.GameData;
 /// <summary>Liste + formulaire boutique (contenu uniquement, sans gameplay commercial).</summary>
 public sealed class ShopEditorPanel : UserControl
 {
+    private readonly GameDataPanelAsyncGate _asyncGate = new();
     private readonly ShopWorkspaceSession _session;
     private readonly IPublishedItemCatalog _itemCatalog;
     private readonly ContentRepositoryCapabilities _capabilities;
@@ -139,12 +140,12 @@ public sealed class ShopEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += async (_, _) =>
+        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _statusFilter.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -152,32 +153,28 @@ public sealed class ShopEditorPanel : UserControl
                 2 => ContentPublishStatus.Published,
                 _ => null,
             };
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _list.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
                 return;
             }
 
-            if (_session.IsDirty)
+            if (!GameDataListNavigation.ConfirmDiscardUnsavedChanges(this, "Boutiques", _session.IsDirty))
             {
-                var result = GameDataUiMessageBox.Show(
-                    this,
-                    "Modifications non enregistrées. Continuer ?",
-                    "Boutiques",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-                if (result != DialogResult.Yes)
-                {
-                    return;
-                }
+                GameDataListNavigation.RevertListSelection(
+                    _list,
+                    ref _suppressList,
+                    _session.CurrentId,
+                    listItem => ((CatalogItem)listItem).Id);
+                return;
             }
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        };
+        });
 
         void Mark()
         {
@@ -265,6 +262,8 @@ public sealed class ShopEditorPanel : UserControl
 
     public bool IsDirty => _session.IsDirty;
 
+    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
+
     public async Task InitializeAsync()
     {
         await RefreshPublishedItemsAsync().ConfigureAwait(true);
@@ -292,9 +291,14 @@ public sealed class ShopEditorPanel : UserControl
         }
     }
 
-    private async Task RefreshListAsync()
+    private async Task RefreshListAsync(CancellationToken ct = default)
     {
-        await _session.RefreshCatalogAsync().ConfigureAwait(true);
+        await _session.RefreshCatalogAsync(ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
         _suppressList = true;
         _list.Items.Clear();
         foreach (var entry in _session.Catalog)

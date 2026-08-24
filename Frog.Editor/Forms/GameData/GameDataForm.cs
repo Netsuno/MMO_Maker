@@ -88,7 +88,7 @@ public sealed class GameDataForm : Form
         Controls.Add(left);
 
         FormClosing += GameDataForm_FormClosing;
-        FormClosed += (_, _) => _repositorySet?.Dispose();
+        FormClosed += GameDataForm_FormClosed;
         Shown += GameDataForm_Shown;
         Load += GameDataForm_LoadAsync;
     }
@@ -159,8 +159,12 @@ public sealed class GameDataForm : Form
         await _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(true);
 
         _initialized = true;
+        ShowInitialCategory();
         _status.Text = $"Prêt — {_tilesets!.CapabilitiesLabelForTest}";
     }
+
+    internal bool IsTilesetPanelVisibleForTest =>
+        _initialized && _host.Controls.Contains(_tilesets!);
 
     internal void EnsureInitializedSynchronouslyForTest()
     {
@@ -180,6 +184,7 @@ public sealed class GameDataForm : Form
         _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _initialized = true;
         _initializationTask = Task.CompletedTask;
+        ShowInitialCategory();
         _status.Text = $"Prêt — {_tilesets.CapabilitiesLabelForTest}";
     }
 
@@ -223,7 +228,66 @@ public sealed class GameDataForm : Form
 
         _host.Controls.Remove(_loading);
         _categoryList.Enabled = true;
+    }
+
+    private void ShowInitialCategory()
+    {
         ShowCategory();
+    }
+
+    private async void GameDataForm_FormClosed(object? sender, FormClosedEventArgs e)
+    {
+        _initCts?.Cancel();
+        if (_initialized)
+        {
+            await DrainPanelsAsync().ConfigureAwait(true);
+        }
+
+        _repositorySet?.Dispose();
+        _repositorySet = null;
+    }
+
+    private async Task DrainPanelsAsync()
+    {
+        if (_tilesets is not null)
+        {
+            await _tilesets.DrainAsync().ConfigureAwait(true);
+        }
+
+        if (_npcs is not null)
+        {
+            await _npcs.DrainAsync().ConfigureAwait(true);
+        }
+
+        if (_items is not null)
+        {
+            await _items.DrainAsync().ConfigureAwait(true);
+        }
+
+        if (_spells is not null)
+        {
+            await _spells.DrainAsync().ConfigureAwait(true);
+        }
+
+        if (_classes is not null)
+        {
+            await _classes.DrainAsync().ConfigureAwait(true);
+        }
+
+        if (_shops is not null)
+        {
+            await _shops.DrainAsync().ConfigureAwait(true);
+        }
+
+        if (_resourcesAndSpawns is not null)
+        {
+            await _resourcesAndSpawns.DrainAsync().ConfigureAwait(true);
+        }
+
+        if (_repositorySet?.DatabaseScope is { } scope)
+        {
+            await scope.DrainAsync().ConfigureAwait(true);
+        }
     }
 
     private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
@@ -305,6 +369,7 @@ public sealed class GameDataForm : Form
 /// <summary>Liste + formulaire tileset (brouillon / publication).</summary>
 public sealed class TilesetEditorPanel : UserControl
 {
+    private readonly GameDataPanelAsyncGate _asyncGate = new();
     private readonly TilesetWorkspaceSession _session;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
@@ -327,11 +392,12 @@ public sealed class TilesetEditorPanel : UserControl
     private readonly AssetPreviewControl _preview = new() { Width = 128, Height = 128 };
     private bool _suppressList;
     private bool _binding;
-    private CancellationTokenSource? _refreshCts;
 
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
+
+    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
 
     internal string CapabilitiesLabelForTest => _capabilities.DisplayLabel;
 
@@ -405,12 +471,12 @@ public sealed class TilesetEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += async (_, _) =>
+        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _statusFilter.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -418,33 +484,28 @@ public sealed class TilesetEditorPanel : UserControl
                 2 => ContentPublishStatus.Published,
                 _ => null,
             };
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _list.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
                 return;
             }
 
-            if (_session.IsDirty)
+            if (!GameDataListNavigation.ConfirmDiscardUnsavedChanges(this, "Tilesets", _session.IsDirty))
             {
-                var r = GameDataUiMessageBox.Show(
-                    this,
-                    "Modifications non enregistrées. Continuer ?",
-                    "Tilesets",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-                if (r != DialogResult.Yes)
-                {
-                    RevertListSelectionToCurrent();
-                    return;
-                }
+                GameDataListNavigation.RevertListSelection(
+                    _list,
+                    ref _suppressList,
+                    _session.CurrentId,
+                    listItem => ((CatalogItem)listItem).Id);
+                return;
             }
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        };
+        });
 
         void Mark()
         {
@@ -514,15 +575,12 @@ public sealed class TilesetEditorPanel : UserControl
         StatusChanged?.Invoke($"Backend : {_capabilities.DisplayLabel}");
     }
 
-    private async Task RefreshListAsync()
+    private async Task RefreshListAsync(CancellationToken ct = default)
     {
-        _refreshCts?.Cancel();
-        _refreshCts = new CancellationTokenSource();
-        var token = _refreshCts.Token;
         try
         {
-            await _session.RefreshCatalogAsync(token).ConfigureAwait(true);
-            if (token.IsCancellationRequested)
+            await _session.RefreshCatalogAsync(ct).ConfigureAwait(true);
+            if (ct.IsCancellationRequested)
             {
                 return;
             }
@@ -536,7 +594,7 @@ public sealed class TilesetEditorPanel : UserControl
 
             _suppressList = false;
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
         }
     }
@@ -649,31 +707,6 @@ public sealed class TilesetEditorPanel : UserControl
         }
     }
 
-    private void RevertListSelectionToCurrent()
-    {
-        if (_session.CurrentId is not Guid currentId)
-        {
-            return;
-        }
-
-        _suppressList = true;
-        try
-        {
-            for (var i = 0; i < _list.Items.Count; i++)
-            {
-                if (_list.Items[i] is CatalogItem entry && entry.Id == currentId)
-                {
-                    _list.SelectedIndex = i;
-                    return;
-                }
-            }
-        }
-        finally
-        {
-            _suppressList = false;
-        }
-    }
-
     private sealed record CatalogItem(Guid Id, string Label)
     {
         public override string ToString() => Label;
@@ -683,6 +716,7 @@ public sealed class TilesetEditorPanel : UserControl
 /// <summary>Liste + formulaire NPC/monstre (brouillon / publication).</summary>
 public sealed class NpcEditorPanel : UserControl
 {
+    private readonly GameDataPanelAsyncGate _asyncGate = new();
     private readonly NpcWorkspaceSession _session;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
@@ -704,11 +738,12 @@ public sealed class NpcEditorPanel : UserControl
     private readonly AssetPreviewControl _preview = new() { Width = 128, Height = 128 };
     private bool _suppressList;
     private bool _binding;
-    private CancellationTokenSource? _refreshCts;
 
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
+
+    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -782,12 +817,12 @@ public sealed class NpcEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += async (_, _) =>
+        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _statusFilter.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -795,32 +830,28 @@ public sealed class NpcEditorPanel : UserControl
                 2 => ContentPublishStatus.Published,
                 _ => null,
             };
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _list.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
                 return;
             }
 
-            if (_session.IsDirty)
+            if (!GameDataListNavigation.ConfirmDiscardUnsavedChanges(this, "NPCs / monstres", _session.IsDirty))
             {
-                var result = GameDataUiMessageBox.Show(
-                    this,
-                    "Modifications non enregistrées. Continuer ?",
-                    "NPCs / monstres",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-                if (result != DialogResult.Yes)
-                {
-                    return;
-                }
+                GameDataListNavigation.RevertListSelection(
+                    _list,
+                    ref _suppressList,
+                    _session.CurrentId,
+                    listItem => ((CatalogItem)listItem).Id);
+                return;
             }
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        };
+        });
 
         void Mark()
         {
@@ -886,15 +917,12 @@ public sealed class NpcEditorPanel : UserControl
         StatusChanged?.Invoke($"Backend NPC : {_capabilities.DisplayLabel}");
     }
 
-    private async Task RefreshListAsync()
+    private async Task RefreshListAsync(CancellationToken ct = default)
     {
-        _refreshCts?.Cancel();
-        _refreshCts = new CancellationTokenSource();
-        var token = _refreshCts.Token;
         try
         {
-            await _session.RefreshCatalogAsync(token).ConfigureAwait(true);
-            if (token.IsCancellationRequested)
+            await _session.RefreshCatalogAsync(ct).ConfigureAwait(true);
+            if (ct.IsCancellationRequested)
             {
                 return;
             }
@@ -910,7 +938,7 @@ public sealed class NpcEditorPanel : UserControl
 
             _suppressList = false;
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
         }
     }
@@ -1038,6 +1066,7 @@ public sealed class NpcEditorPanel : UserControl
 /// <summary>Liste + formulaire objet (brouillon / publication).</summary>
 public sealed class ItemEditorPanel : UserControl
 {
+    private readonly GameDataPanelAsyncGate _asyncGate = new();
     private readonly ItemWorkspaceSession _session;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
@@ -1070,6 +1099,8 @@ public sealed class ItemEditorPanel : UserControl
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
+
+    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -1144,12 +1175,12 @@ public sealed class ItemEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += async (_, _) =>
+        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _statusFilter.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -1157,32 +1188,28 @@ public sealed class ItemEditorPanel : UserControl
                 2 => ContentPublishStatus.Published,
                 _ => null,
             };
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _list.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
                 return;
             }
 
-            if (_session.IsDirty)
+            if (!GameDataListNavigation.ConfirmDiscardUnsavedChanges(this, "Objets", _session.IsDirty))
             {
-                var result = GameDataUiMessageBox.Show(
-                    this,
-                    "Modifications non enregistrées. Continuer ?",
-                    "Objets",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-                if (result != DialogResult.Yes)
-                {
-                    return;
-                }
+                GameDataListNavigation.RevertListSelection(
+                    _list,
+                    ref _suppressList,
+                    _session.CurrentId,
+                    listItem => ((CatalogItem)listItem).Id);
+                return;
             }
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        };
+        });
 
         void Mark()
         {
@@ -1249,9 +1276,14 @@ public sealed class ItemEditorPanel : UserControl
         StatusChanged?.Invoke($"Backend objets : {_capabilities.DisplayLabel}");
     }
 
-    private async Task RefreshListAsync()
+    private async Task RefreshListAsync(CancellationToken ct = default)
     {
-        await _session.RefreshCatalogAsync().ConfigureAwait(true);
+        await _session.RefreshCatalogAsync(ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
         _suppressList = true;
         _list.Items.Clear();
         foreach (var entry in _session.Catalog)
@@ -1391,6 +1423,7 @@ public sealed class ItemEditorPanel : UserControl
 /// <summary>Liste + formulaire sort/compétence (brouillon / publication).</summary>
 public sealed class SpellEditorPanel : UserControl
 {
+    private readonly GameDataPanelAsyncGate _asyncGate = new();
     private readonly SpellWorkspaceSession _session;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
@@ -1423,6 +1456,8 @@ public sealed class SpellEditorPanel : UserControl
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
+
+    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -1501,12 +1536,12 @@ public sealed class SpellEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += async (_, _) =>
+        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _statusFilter.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -1514,32 +1549,28 @@ public sealed class SpellEditorPanel : UserControl
                 2 => ContentPublishStatus.Published,
                 _ => null,
             };
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _list.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
                 return;
             }
 
-            if (_session.IsDirty)
+            if (!GameDataListNavigation.ConfirmDiscardUnsavedChanges(this, "Sorts / compétences", _session.IsDirty))
             {
-                var result = GameDataUiMessageBox.Show(
-                    this,
-                    "Modifications non enregistrées. Continuer ?",
-                    "Sorts / compétences",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-                if (result != DialogResult.Yes)
-                {
-                    return;
-                }
+                GameDataListNavigation.RevertListSelection(
+                    _list,
+                    ref _suppressList,
+                    _session.CurrentId,
+                    listItem => ((CatalogItem)listItem).Id);
+                return;
             }
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        };
+        });
 
         void Mark()
         {
@@ -1608,9 +1639,14 @@ public sealed class SpellEditorPanel : UserControl
         StatusChanged?.Invoke($"Backend sorts/compétences : {_capabilities.DisplayLabel}");
     }
 
-    private async Task RefreshListAsync()
+    private async Task RefreshListAsync(CancellationToken ct = default)
     {
-        await _session.RefreshCatalogAsync().ConfigureAwait(true);
+        await _session.RefreshCatalogAsync(ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
         _suppressList = true;
         _list.Items.Clear();
         foreach (var entry in _session.Catalog)
@@ -1757,6 +1793,7 @@ public sealed class SpellEditorPanel : UserControl
 /// <summary>Liste + formulaire classe (brouillon / publication).</summary>
 public sealed class ClassEditorPanel : UserControl
 {
+    private readonly GameDataPanelAsyncGate _asyncGate = new();
     private readonly ClassWorkspaceSession _session;
     private readonly IPublishedSpellCatalog _spellCatalog;
     private readonly ContentRepositoryCapabilities _capabilities;
@@ -1797,6 +1834,8 @@ public sealed class ClassEditorPanel : UserControl
     public event Action<string>? StatusChanged;
 
     public bool IsDirty => _session.IsDirty;
+
+    internal Task DrainAsync() => _asyncGate.DrainAsync(TimeSpan.FromSeconds(5));
 
     internal Button BtnNewForTest => _btnNew;
 
@@ -1873,12 +1912,12 @@ public sealed class ClassEditorPanel : UserControl
         Controls.Add(buttons);
         Controls.Add(left);
 
-        _search.TextChanged += async (_, _) =>
+        _search.TextChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.SearchFilter = _search.Text;
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _statusFilter.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _statusFilter.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
             {
@@ -1886,32 +1925,28 @@ public sealed class ClassEditorPanel : UserControl
                 2 => ContentPublishStatus.Published,
                 _ => null,
             };
-            await RefreshListAsync().ConfigureAwait(true);
-        };
-        _list.SelectedIndexChanged += async (_, _) =>
+            await RefreshListAsync(ct).ConfigureAwait(true);
+        });
+        _list.SelectedIndexChanged += (_, _) => _ = _asyncGate.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
             {
                 return;
             }
 
-            if (_session.IsDirty)
+            if (!GameDataListNavigation.ConfirmDiscardUnsavedChanges(this, "Classes", _session.IsDirty))
             {
-                var result = GameDataUiMessageBox.Show(
-                    this,
-                    "Modifications non enregistrées. Continuer ?",
-                    "Classes",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-                if (result != DialogResult.Yes)
-                {
-                    return;
-                }
+                GameDataListNavigation.RevertListSelection(
+                    _list,
+                    ref _suppressList,
+                    _session.CurrentId,
+                    listItem => ((CatalogItem)listItem).Id);
+                return;
             }
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        };
+        });
 
         void Mark()
         {
@@ -2011,9 +2046,14 @@ public sealed class ClassEditorPanel : UserControl
         }
     }
 
-    private async Task RefreshListAsync()
+    private async Task RefreshListAsync(CancellationToken ct = default)
     {
-        await _session.RefreshCatalogAsync().ConfigureAwait(true);
+        await _session.RefreshCatalogAsync(ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
         _suppressList = true;
         _list.Items.Clear();
         foreach (var entry in _session.Catalog)
