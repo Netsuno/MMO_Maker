@@ -19,7 +19,14 @@ internal static class GameDataSmokeUiDriver
         GameDataForm? form = null;
         EditorTestHooks.OnGameDataFormShown = opened => form = (GameDataForm)opened;
 
-        window.Dispatcher.Invoke(() => MainWindow.CmdGameData.Execute(null, window));
+        if (window.Dispatcher.CheckAccess())
+        {
+            MainWindow.CmdGameData.Execute(null, window);
+        }
+        else
+        {
+            window.Dispatcher.Invoke(() => MainWindow.CmdGameData.Execute(null, window));
+        }
         PumpUntil(() => form is not null && form.IsInitializedForTest, timeout);
         return form ?? throw new InvalidOperationException("Game Data form did not open.");
     }
