@@ -114,14 +114,9 @@ internal static class GameDataSmokeUiDriver
 
     private static void PumpOnce()
     {
-        System.Windows.Forms.Application.DoEvents();
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
-        {
-            return;
-        }
-
+        var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, static () => { });
+        System.Windows.Forms.Application.DoEvents();
     }
 
     private static void WaitForTask(Task task, TimeSpan timeout)
