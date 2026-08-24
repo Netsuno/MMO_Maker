@@ -208,7 +208,7 @@ public sealed class ResourceEditorPanel : UserControl
             }
 
             if (_session.IsDirty
-                && MessageBox.Show(
+                && GameDataUiMessageBox.Show(
                     this,
                     "Modifications non enregistrées. Continuer ?",
                     "Ressources",
@@ -605,7 +605,7 @@ public sealed class ResourceSpawnEditorPanel : UserControl
             }
 
             if (_session.IsDirty
-                && MessageBox.Show(
+                && GameDataUiMessageBox.Show(
                     this,
                     "Modifications non enregistrées. Continuer ?",
                     "Spawns de ressources",

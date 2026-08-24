@@ -163,7 +163,7 @@ public sealed class ShopEditorPanel : UserControl
 
             if (_session.IsDirty)
             {
-                var result = MessageBox.Show(
+                var result = GameDataUiMessageBox.Show(
                     this,
                     "Modifications non enregistrées. Continuer ?",
                     "Boutiques",
@@ -422,7 +422,7 @@ public sealed class ShopEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveShopResult.ValidationFailed validation:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     validation.Error,
                     "Validation",
@@ -430,7 +430,7 @@ public sealed class ShopEditorPanel : UserControl
                     MessageBoxIcon.Warning);
                 break;
             case SaveShopResult.Conflict conflict:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     $"Conflit de révision (courante={conflict.CurrentRevision}).",
                     "Conflit");

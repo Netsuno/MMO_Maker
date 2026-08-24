@@ -49,6 +49,7 @@ internal static class StaTestRunner
         while (!predicate() && DateTime.UtcNow < deadline)
         {
             dispatcher.Invoke(DispatcherPriority.Background, static () => { });
+            System.Windows.Forms.Application.DoEvents();
             Thread.Sleep(10);
         }
 

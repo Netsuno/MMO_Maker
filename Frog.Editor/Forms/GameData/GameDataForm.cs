@@ -243,7 +243,7 @@ public sealed class GameDataForm : Form
             || _shops!.IsDirty
             || _resourcesAndSpawns!.IsDirty)
         {
-            var r = MessageBox.Show(
+            var r = GameDataUiMessageBox.Show(
                 this,
                 "Modifications non enregistrées. Fermer quand même ?",
                 "Données de jeu",
@@ -429,7 +429,7 @@ public sealed class TilesetEditorPanel : UserControl
 
             if (_session.IsDirty)
             {
-                var r = MessageBox.Show(
+                var r = GameDataUiMessageBox.Show(
                     this,
                     "Modifications non enregistrées. Continuer ?",
                     "Tilesets",
@@ -780,7 +780,7 @@ public sealed class NpcEditorPanel : UserControl
 
             if (_session.IsDirty)
             {
-                var result = MessageBox.Show(
+                var result = GameDataUiMessageBox.Show(
                     this,
                     "Modifications non enregistrées. Continuer ?",
                     "NPCs / monstres",
@@ -963,7 +963,7 @@ public sealed class NpcEditorPanel : UserControl
                 GameDataUiMessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case SaveNpcResult.Conflict conflict:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     $"Conflit de révision (courante={conflict.CurrentRevision}).",
                     "Conflit");
@@ -987,7 +987,7 @@ public sealed class NpcEditorPanel : UserControl
                 await RefreshListAsync().ConfigureAwait(true);
                 break;
             case DeleteNpcResult.Referenced referenced:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     referenced.Error,
                     "Référence",
@@ -1142,7 +1142,7 @@ public sealed class ItemEditorPanel : UserControl
 
             if (_session.IsDirty)
             {
-                var result = MessageBox.Show(
+                var result = GameDataUiMessageBox.Show(
                     this,
                     "Modifications non enregistrées. Continuer ?",
                     "Objets",
@@ -1316,7 +1316,7 @@ public sealed class ItemEditorPanel : UserControl
                 GameDataUiMessageBox.Show(this, validation.Error, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case SaveItemResult.Conflict conflict:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     $"Conflit de révision (courante={conflict.CurrentRevision}).",
                     "Conflit");
@@ -1343,7 +1343,7 @@ public sealed class ItemEditorPanel : UserControl
                 GameDataUiMessageBox.Show(this, "Objet introuvable.");
                 break;
             case DeleteItemResult.Referenced referenced:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     referenced.Error,
                     "Référence",
@@ -1499,7 +1499,7 @@ public sealed class SpellEditorPanel : UserControl
 
             if (_session.IsDirty)
             {
-                var result = MessageBox.Show(
+                var result = GameDataUiMessageBox.Show(
                     this,
                     "Modifications non enregistrées. Continuer ?",
                     "Sorts / compétences",
@@ -1674,7 +1674,7 @@ public sealed class SpellEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveSpellResult.ValidationFailed validation:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     validation.Error,
                     "Validation",
@@ -1682,7 +1682,7 @@ public sealed class SpellEditorPanel : UserControl
                     MessageBoxIcon.Warning);
                 break;
             case SaveSpellResult.Conflict conflict:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     $"Conflit de révision (courante={conflict.CurrentRevision}).",
                     "Conflit");
@@ -1709,7 +1709,7 @@ public sealed class SpellEditorPanel : UserControl
                 GameDataUiMessageBox.Show(this, "Sort ou compétence introuvable.");
                 break;
             case DeleteSpellResult.Referenced referenced:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     referenced.Error,
                     "Référence",
@@ -1871,7 +1871,7 @@ public sealed class ClassEditorPanel : UserControl
 
             if (_session.IsDirty)
             {
-                var result = MessageBox.Show(
+                var result = GameDataUiMessageBox.Show(
                     this,
                     "Modifications non enregistrées. Continuer ?",
                     "Classes",
@@ -2085,7 +2085,7 @@ public sealed class ClassEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveClassResult.ValidationFailed validation:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     validation.Error,
                     "Validation",
@@ -2093,7 +2093,7 @@ public sealed class ClassEditorPanel : UserControl
                     MessageBoxIcon.Warning);
                 break;
             case SaveClassResult.Conflict conflict:
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     $"Conflit de révision (courante={conflict.CurrentRevision}).",
                     "Conflit");
