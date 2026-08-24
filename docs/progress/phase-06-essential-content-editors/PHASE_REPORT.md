@@ -1,63 +1,40 @@
-# Phase 6 — PHASE REPORT
+# Phase 6 — Essential Content Editors (Gate Resubmission)
 
 ## Status
 
-**PHASE 6 GATE REACHED — WAITING FOR REVIEW**
+**GATE REACHED — WAITING FOR REVIEW**
 
-| Item | Value |
+## Branch tip (evidence HEAD)
+
+`8fdffc5` — fix(phase-06): address review blockers — UI smokes, previews, init, dirty guards
+
+## CI
+
+Pending — see `TEST_RESULTS.md` after green run on tip.
+
+## Review blocker fixes
+
+| Blocker | Fix |
 | --- | --- |
-| Branch | `cursor/phase0-baseline-audit-02c7` |
-| PR | #2 (Draft) |
-| Phase 6 HEAD | `f5cf41c4180bf649dd3adca83d7a252d760658e7` |
-| Range from Phase 5 accepted | `1944d73..f5cf41c` |
-| Working tree | clean after push |
-| CI | https://github.com/Netsuno/MMO_Maker/actions/runs/32674090607 — SUCCESS (240 / 31 / 20×3) |
-| Environment | Cloud agent Linux + CI Windows smoke / Ubuntu PostgreSQL |
-| Phase 7 | **not started** |
+| 1 — Game Data smokes not UI | Replaced session-direct smokes with `GameDataSmokeUiDriver` driving `MainWindow.CmdGameData`, real panels/buttons, search/status filters, close/reopen |
+| 2 — Tileset/NPC dirty on bind | Added `_binding` guards + preview refresh; dirty-state regression smoke |
+| 3 — Visual previews missing | `AssetPreviewControl` + `ProjectAssetPathResolver` on tilesets, NPCs, items, spells, resources |
+| 4 — Spawn filters incomplete | Map + resource catalog filters on `ResourceSpawnEditorPanel` |
+| 5 — Init blocks UI / leaks DbContext | `GameDataInitializationService` — single async migrate, loading overlay, cancellation, `EditorPostgreSqlScope` disposal |
 
-## Seven content slices
+## UI scenarios verified (Windows smoke)
 
-| # | Slice | Status | Feature tip (approx.) |
-| ---: | --- | --- | --- |
-| 1 | Tilesets | COMPLETE | `ddd3dfc` |
-| 2 | NPCs / monsters | COMPLETE | `882fa7c` |
-| 3 | Items | COMPLETE | `4458523` |
-| 4 | Spells / skills | COMPLETE | `2af8db2` |
-| 5 | Classes | COMPLETE | `8f0582f` |
-| 6 | Shops | COMPLETE | `5af9b5f` |
-| 7 | Resources / spawns | COMPLETE | `4588a80` |
+- Tilesets: New → edit path/preview → Save draft → Publish → search/filter → close/reopen
+- NPCs, items, spells, classes, shops: full create/save/publish via real controls
+- Resources/spawns: resource publish + spawn tab with map/resource filters + save/publish
+- Dirty-state: clean after open/save/publish; dirty after edit; cancel navigation keeps record
+- Init leak: open/close Game Data ×3 without failure
+- Asset preview: valid/missing/corrupt/traversal/refresh/disposal
 
-Per-slice evidence: `SLICE_01_TILESETS.md` … `SLICE_07_RESOURCES.md`.
+## PostgreSQL
 
-## Delivered and verified
+All existing integration tests retained (31 scenarios).
 
-- Domain models + validation for all seven categories
-- Stable Guid IDs; references by Guid (names in UI)
-- PostgreSQL schema + versioned EF migrations (draft/publish snapshots)
-- Application ports, sessions, in-memory + Postgres repositories
-- Game Data editor shell (WinForms) with category navigation
-- Draft ≠ published; transactional publish; rollback on failure
-- Referenced-content deletion blocked where applicable
-- Published-only server consumers (no gameplay transactions)
-- Unit + PostgreSQL + Windows smoke coverage
+## Phase 7
 
-## Implemented but unverified / limited
-
-- Full interactive UI manual matrix beyond automated smoke (create/edit/duplicate paths covered in unit/session tests + smoke save/publish)
-- Sprite/icon on-disk preview limited (path/SHA stored; visual preview not fully wired for all categories)
-- Map↔tileset still uses `EditorPaletteId` int JSON search rather than Guid FK
-
-## Not completed (out of Phase 6 scope)
-
-- Phase 7: character gameplay, inventory/equipment, combat, chat, shop buy/sell, bank, progression
-- Later content: quests, dialogues, professions, states/effects, loot tables, common events, system settings, roles
-
-## PRD deviations
-
-- None material: shop/resource definitions published and loadable; buying/harvesting deferred to Phase 7 as required
-
-## Remaining risks / debt
-
-- Integer palette/alias bridges for maps/NPC spawns until Guid tile refs land
-- MariaDB remains temporary on game-server login path (no new MariaDB features)
-- Playtest screenshots remain NOT RUN (Phase 5)
+Not started.

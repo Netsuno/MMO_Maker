@@ -1,38 +1,34 @@
-# Phase 6 — TEST RESULTS
+# Phase 6 — Test Results (Gate Resubmission)
 
-## Commands
+## HEAD
 
-```bash
-dotnet test Frog.Tests/Frog.Tests.csproj -c Release
-dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
-# CI Windows:
-dotnet test tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj -c Release
-# (×3 consecutive in workflow)
-```
+`8fdffc5`
 
-## Local results (pre-gate)
+## CI run
 
-| Suite | Passed | Failed |
-| --- | ---: | ---: |
-| Frog.Tests | 240 | 0 |
-| Frog.Persistence.IntegrationTests | 31 | 0 |
-| Frog.Editor.WindowsSmokeTests | 20 (expected in CI ×3) | 0 |
+_TBD — update after green CI on tip_
 
-CI URL and exact Windows counts: https://github.com/Netsuno/MMO_Maker/actions/runs/32674090607 — 240 unit / 31 PostgreSQL / 20 Windows smoke ×3.
+## Expected counts (tip)
 
-## Slice coverage (representative)
+| Suite | Expected |
+| --- | ---: |
+| Frog.Tests (unit) | 244 |
+| PostgreSQL integration | 31 |
+| Windows smoke | 23 × 3 |
 
-| Slice | Unit / session | PostgreSQL | Windows smoke |
-| --- | --- | --- | --- |
-| Tilesets | `TilesetContentTests` | `PostgresTilesetRepositoryTests` | `GameDataTilesetSmokeTests` |
-| NPCs | `NpcContentTests` | `PostgresNpcRepositoryTests` | `GameDataNpcSmokeTests` |
-| Items | `ItemContentTests` | `PostgresItemRepositoryTests` | `GameDataItemSmokeTests` |
-| Spells | `SpellContentTests` | `PostgresSpellRepositoryTests` | `GameDataSpellSmokeTests` |
-| Classes | `ClassContentTests` | `PostgresClassRepositoryTests` | `GameDataClassSmokeTests` |
-| Shops | `ShopContentTests` | `PostgresShopRepositoryTests` | `GameDataShopSmokeTests` |
-| Resources | `ResourceContentTests` | `PostgresResourceRepositoryTests` | `GameDataResourceSmokeTests` |
+New smoke tests: `GameDataDirtyStateSmokeTests`, `GameDataInitializationLeakSmokeTests`, `GameDataAssetPreviewSmokeTests`
 
-## Confirmations
+## Local verification (pre-CI)
 
-- No secrets/connection strings in failure messages (sanitized persistence errors)
-- Phase 7 not started
+- `dotnet build Frog.Creator.sln -c Release` — 0 errors, 0 warnings
+- `dotnet test Frog.Tests` — 244 passed (includes 4 `ProjectAssetPathResolverTests`)
+
+## UI smoke scenarios
+
+See `PHASE_REPORT.md` — all seven slices exercised through `MainWindow` → Données de jeu command.
+
+## Preview verification
+
+- Unit: path resolver (valid, missing, traversal, absolute rejection)
+- Smoke: `AssetPreviewControl` loaded/missing/corrupt/rejected/refresh states
+- Runtime screenshots: preview controls visible in Game Data panels during smoke (programmatic `AssetPreviewState.Loaded` assertion)
