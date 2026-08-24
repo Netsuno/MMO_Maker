@@ -100,21 +100,38 @@ internal static class GameDataSmokeUiDriver
     public static void PumpUntil(Func<bool> predicate, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
-        var wpf = System.Windows.Application.Current?.Dispatcher;
         while (!predicate() && DateTime.UtcNow < deadline)
         {
-            if (wpf is not null)
-            {
-                wpf.Invoke(System.Windows.Threading.DispatcherPriority.Background, static () => { });
-            }
-
-            System.Windows.Forms.Application.DoEvents();
+            PumpOnce();
             Thread.Sleep(10);
         }
 
         if (!predicate())
         {
             throw new TimeoutException("UI condition not met before timeout.");
+        }
+    }
+
+    private static void PumpOnce()
+    {
+        System.Windows.Forms.Application.DoEvents();
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            return;
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Background,
+                new Action(() => frame.Continue = false));
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+        }
+        else
+        {
+            dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, static () => { });
         }
     }
 
