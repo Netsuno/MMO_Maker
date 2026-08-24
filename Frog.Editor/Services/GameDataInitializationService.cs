@@ -13,12 +13,13 @@ public static class GameDataInitializationService
         CancellationToken cancellationToken = default)
         => InitializeCoreAsync(progress, cancellationToken);
 
+    public static GameDataRepositorySet CreateInjectedSet() => CreateFromInjected();
+
     private static async Task<GameDataRepositorySet> InitializeCoreAsync(
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
         progress?.Report("Préparation des dépôts…");
-        await Task.Yield();
 
         if (HasInjectedRepositories())
         {
@@ -55,7 +56,7 @@ public static class GameDataInitializationService
         }
     }
 
-    private static bool HasInjectedRepositories()
+    internal static bool HasInjectedRepositories()
         => EditorTestHooks.OverrideMapRepository is not null
            || EditorTestHooks.OverrideTilesetRepository is not null
            || EditorTestHooks.OverrideNpcRepository is not null

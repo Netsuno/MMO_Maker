@@ -42,6 +42,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OnGameDataFormShown = null;
         EditorTestHooks.OverrideProjectAssetRoot = null;
         EditorTestHooks.OverrideMessageBoxResult = null;
+        EditorTestHooks.UseSynchronousGameDataInitForTest = false;
         TilesetCache.Clear();
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");
     }
@@ -82,6 +83,7 @@ internal static class EditorSmokeTestAccess
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
         EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+        EditorTestHooks.UseSynchronousGameDataInitForTest = true;
     }
 
     public static Task OpenGameDataAndSaveSampleTilesetAsync(MainWindow window)

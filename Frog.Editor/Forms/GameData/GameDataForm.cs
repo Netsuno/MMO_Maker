@@ -89,7 +89,16 @@ public sealed class GameDataForm : Form
 
         FormClosing += GameDataForm_FormClosing;
         FormClosed += (_, _) => _repositorySet?.Dispose();
+        Shown += GameDataForm_Shown;
         Load += GameDataForm_LoadAsync;
+    }
+
+    private void GameDataForm_Shown(object? sender, EventArgs e)
+    {
+        if (EditorTestHooks.UseSynchronousGameDataInitForTest)
+        {
+            EnsureInitializedSynchronouslyForTest();
+        }
     }
 
     internal void SelectCategoryForTest(int index)
@@ -100,6 +109,11 @@ public sealed class GameDataForm : Form
 
     private async void GameDataForm_LoadAsync(object? sender, EventArgs e)
     {
+        if (EditorTestHooks.UseSynchronousGameDataInitForTest)
+        {
+            return;
+        }
+
         _initCts = new CancellationTokenSource();
         _initializationTask = InitializeCoreAsync(_initCts.Token);
         try
@@ -134,7 +148,43 @@ public sealed class GameDataForm : Form
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var set = _repositorySet;
+        BuildPanels(_repositorySet);
+
+        await _tilesets!.InitializeAsync().ConfigureAwait(true);
+        await _npcs!.InitializeAsync().ConfigureAwait(true);
+        await _items!.InitializeAsync().ConfigureAwait(true);
+        await _spells!.InitializeAsync().ConfigureAwait(true);
+        await _classes!.InitializeAsync().ConfigureAwait(true);
+        await _shops!.InitializeAsync().ConfigureAwait(true);
+        await _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(true);
+
+        _initialized = true;
+        _status.Text = $"Prêt — {_tilesets!.CapabilitiesLabelForTest}";
+    }
+
+    internal void EnsureInitializedSynchronouslyForTest()
+    {
+        if (_initialized)
+        {
+            return;
+        }
+
+        _repositorySet = GameDataInitializationService.CreateInjectedSet();
+        BuildPanels(_repositorySet);
+        _tilesets!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        _npcs!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        _items!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        _spells!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        _classes!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        _shops!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        _initialized = true;
+        _initializationTask = Task.CompletedTask;
+        _status.Text = $"Prêt — {_tilesets.CapabilitiesLabelForTest}";
+    }
+
+    private void BuildPanels(GameDataRepositorySet set)
+    {
         _tilesets = new TilesetEditorPanel(
             new TilesetWorkspaceSession(set.Tileset.Repository),
             set.Tileset.Capabilities);
@@ -174,17 +224,6 @@ public sealed class GameDataForm : Form
         _host.Controls.Remove(_loading);
         _categoryList.Enabled = true;
         ShowCategory();
-
-        await _tilesets.InitializeAsync().ConfigureAwait(true);
-        await _npcs.InitializeAsync().ConfigureAwait(true);
-        await _items.InitializeAsync().ConfigureAwait(true);
-        await _spells.InitializeAsync().ConfigureAwait(true);
-        await _classes.InitializeAsync().ConfigureAwait(true);
-        await _shops.InitializeAsync().ConfigureAwait(true);
-        await _resourcesAndSpawns.InitializeAsync().ConfigureAwait(true);
-
-        _initialized = true;
-        _status.Text = $"Prêt — {_tilesets.CapabilitiesLabelForTest}";
     }
 
     private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)

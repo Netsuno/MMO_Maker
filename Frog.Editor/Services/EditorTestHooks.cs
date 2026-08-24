@@ -56,4 +56,7 @@ internal static class EditorTestHooks
 
     /// <summary>Smoke : réponse injectée pour MessageBox Données de jeu.</summary>
     public static DialogResult? OverrideMessageBoxResult { get; set; }
+
+    /// <summary>Smoke : initialisation synchrone (évite les continuations async sur le dispatcher).</summary>
+    public static bool UseSynchronousGameDataInitForTest { get; set; }
 }
