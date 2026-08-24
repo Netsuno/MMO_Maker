@@ -6,7 +6,7 @@
 
 ## Branch
 
-`cursor/phase0-baseline-audit-02c7` @ `e29b188`
+`cursor/phase0-baseline-audit-02c7` @ `dccc8a4`
 
 ## PR
 
@@ -14,7 +14,7 @@
 
 ## CI
 
-https://github.com/Netsuno/MMO_Maker/actions/runs/32693883134
+https://github.com/Netsuno/MMO_Maker/actions/runs/32694077522
 
 | Suite | Count |
 | --- | ---: |
