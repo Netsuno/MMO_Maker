@@ -6,11 +6,21 @@
 
 ## Branch
 
-`cursor/phase0-baseline-audit-02c7` @ `8fdffc5`
+`cursor/phase0-baseline-audit-02c7` @ `465d6c6`
 
 ## PR
 
 #2 (Draft)
+
+## CI
+
+https://github.com/Netsuno/MMO_Maker/actions/runs/32693724623
+
+| Suite | Count |
+| --- | ---: |
+| Frog.Tests | 244 |
+| PostgreSQL | 31 |
+| Windows smoke | 23 × 3 |
 
 ## Blocker responses
 

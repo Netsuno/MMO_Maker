@@ -2,33 +2,54 @@
 
 ## HEAD
 
-`8fdffc5`
+`465d6c6`
 
 ## CI run
 
-_TBD — update after green CI on tip_
+https://github.com/Netsuno/MMO_Maker/actions/runs/32693724623 — **success**
 
-## Expected counts (tip)
+## Verified counts (CI tip)
 
-| Suite | Expected |
+| Suite | Count |
 | --- | ---: |
 | Frog.Tests (unit) | 244 |
 | PostgreSQL integration | 31 |
-| Windows smoke | 23 × 3 |
+| Windows smoke | 23 × 3 consecutive passes |
 
 New smoke tests: `GameDataDirtyStateSmokeTests`, `GameDataInitializationLeakSmokeTests`, `GameDataAssetPreviewSmokeTests`
 
-## Local verification (pre-CI)
+## Build
 
-- `dotnet build Frog.Creator.sln -c Release` — 0 errors, 0 warnings
-- `dotnet test Frog.Tests` — 244 passed (includes 4 `ProjectAssetPathResolverTests`)
+0 errors, 0 warnings (Release)
 
-## UI smoke scenarios
+## UI smoke scenarios (real controls)
 
-See `PHASE_REPORT.md` — all seven slices exercised through `MainWindow` → Données de jeu command.
+All seven slices via `MainWindow` → Données de jeu (`GameDataSmokeUiDriver`):
+
+1. **Tilesets** — New, edit path/preview, Save draft, Publish, search/status filter, close/reopen
+2. **NPCs** — New, sprite path/preview, Save, Publish
+3. **Items** — New, icon path/preview, Save, Publish
+4. **Spells** — New, icon path/preview, Save, Publish
+5. **Classes** — Prerequisite spell publish, New class, Save, Publish
+6. **Shops** — Prerequisite item publish, New shop, Save, Publish
+7. **Resources/spawns** — Yield item, resource publish, spawn tab map/resource filters, Save, Publish
+
+Additional UI regressions:
+
+- **Dirty state** — clean after open/save/publish; dirty after edit; cancel navigation preserves edits and list selection
+- **Init leak** — open/close Game Data ×3 without failure
+- **Asset preview** — valid/missing/corrupt/traversal/refresh/disposal (`AssetPreviewControl`)
 
 ## Preview verification
 
-- Unit: path resolver (valid, missing, traversal, absolute rejection)
-- Smoke: `AssetPreviewControl` loaded/missing/corrupt/rejected/refresh states
-- Runtime screenshots: preview controls visible in Game Data panels during smoke (programmatic `AssetPreviewState.Loaded` assertion)
+- Unit: `ProjectAssetPathResolverTests` (valid, missing, traversal, absolute rejection)
+- Smoke: `GameDataAssetPreviewSmokeTests` — programmatic `AssetPreviewState` assertions
+- Runtime: preview controls wired on tileset, NPC, item, spell, resource panels during smokes
+
+## PostgreSQL
+
+All 31 integration scenarios retained and passing on CI.
+
+## Phase 7
+
+Not started.

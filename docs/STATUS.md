@@ -6,15 +6,15 @@
 - **Phase 4 : ACCEPTED** — `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - **Phase 5 : ACCEPTED** — `1944d73b6fffa84799d288da555f1005b82f2698`
 - **Phase 6 : GATE REACHED — WAITING FOR REVIEW (resubmission)**
-  - Evidence HEAD : `8fdffc5`
-  - Branch tip : `8fdffc5`
-  - CI : _pending — see `docs/progress/phase-06-essential-content-editors/TEST_RESULTS.md`_
+  - Evidence HEAD : `465d6c6`
+  - Branch tip : `465d6c6`
+  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32693724623
   - Evidence : `docs/progress/phase-06-essential-content-editors/`
 - Phase 7 : **not started**
 
-## CI counts (expected on tip)
+## CI counts (verified on tip)
 
-| Suite | Expected |
+| Suite | Count |
 | --- | ---: |
 | Frog.Tests | 244 |
 | PostgreSQL | 31 |
