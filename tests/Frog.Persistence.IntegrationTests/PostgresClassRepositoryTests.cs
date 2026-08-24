@@ -19,10 +19,10 @@ public sealed class PostgresClassRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Save_Publish_Reload_DraftDistinct_Conflict_InvalidReference_Rollback()
     {
-        await using var db = CreateDb();
-        var spells = new PostgresSpellRepository(db);
+        using var gate = CreateGate();
+        var spells = new PostgresSpellRepository(gate);
         var spellId = await PublishSpellAsync(spells, "Compétence de classe PG");
-        var repository = new PostgresClassRepository(db, spells);
+        var repository = new PostgresClassRepository(gate, spells);
         var definition = CreateDefinition("Guerrier PG", spellId);
 
         var created = Assert.IsType<SaveClassResult.Success>(await repository.SaveAsync(
@@ -47,8 +47,8 @@ public sealed class PostgresClassRepositoryTests
         Assert.Equal(2, published.NewRevision);
         Assert.Equal(2, published.PublishedRevision);
 
-        await using var db2 = CreateDb();
-        var repository2 = new PostgresClassRepository(db2);
+        using var gate2 = CreateGate();
+        var repository2 = new PostgresClassRepository(gate2);
         var draft = await repository2.LoadByIdAsync(created.ClassId);
         var snapshot = await repository2.LoadPublishedByIdAsync(created.ClassId);
         Assert.NotNull(draft);
@@ -66,8 +66,8 @@ public sealed class PostgresClassRepositoryTests
             Intent = SaveContentIntent.SaveDraft,
         }));
 
-        await using var db3 = CreateDb();
-        var repository3 = new PostgresClassRepository(db3);
+        using var gate3 = CreateGate();
+        var repository3 = new PostgresClassRepository(gate3);
         Assert.Equal(
             "Guerrier brouillon PG",
             (await repository3.LoadByIdAsync(created.ClassId))!.Definition.Name);
@@ -91,8 +91,8 @@ public sealed class PostgresClassRepositoryTests
                 Intent = SaveContentIntent.Publish,
             }));
 
-        await using var db4 = CreateDb();
-        var failing = new PostgresClassRepository(db4)
+        using var gate4 = CreateGate();
+        var failing = new PostgresClassRepository(gate4)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injected-fail"),
         };
@@ -105,8 +105,8 @@ public sealed class PostgresClassRepositoryTests
         });
         Assert.IsType<SaveClassResult.PersistenceFailed>(failed);
 
-        await using var db5 = CreateDb();
-        var afterRepository = new PostgresClassRepository(db5);
+        using var gate5 = CreateGate();
+        var afterRepository = new PostgresClassRepository(gate5);
         Assert.Empty(await afterRepository.ListSummariesAsync(search: "Classe rollback PG"));
         Assert.Equal(before.Count, (await afterRepository.ListSummariesAsync()).Count);
         Assert.Contains(
@@ -120,10 +120,10 @@ public sealed class PostgresClassRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Search_StatusFilter_Delete_AndPreventReferencedSpellDelete()
     {
-        await using var db = CreateDb();
-        var spells = new PostgresSpellRepository(db);
+        using var gate = CreateGate();
+        var spells = new PostgresSpellRepository(gate);
         var spellId = await PublishSpellAsync(spells, "Sort protégé par classe PG");
-        var repository = new PostgresClassRepository(db, spells);
+        var repository = new PostgresClassRepository(gate, spells);
         var published = Assert.IsType<SaveClassResult.Success>(await repository.SaveAsync(
             new SaveClassRequest
             {
@@ -157,8 +157,8 @@ public sealed class PostgresClassRepositoryTests
         Assert.IsType<DeleteClassResult.NotFound>(await repository.DeleteAsync(draft.ClassId));
     }
 
-    private FrogDbContext CreateDb()
-        => new(FrogDbContextOptions.Create(_fixture.ConnectionString));
+    private FrogDbContextGate CreateGate()
+        => new(new(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 
     private static async Task<Guid> PublishSpellAsync(PostgresSpellRepository repository, string name)
     {

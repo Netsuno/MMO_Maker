@@ -28,8 +28,8 @@ public sealed class PostgresHealthTests
     [Trait("Category", "PostgreSql")]
     public async Task EmptyDatabase_Migrates_AndHealthPasses()
     {
-        await using var db = new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString));
-        var health = new PostgresDatabaseHealth(db);
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var health = new PostgresDatabaseHealth(gate.Db);
         var result = await health.CheckAsync();
         Assert.True(result.Ok, result.Detail);
 

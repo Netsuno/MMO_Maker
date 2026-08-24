@@ -20,11 +20,11 @@ public sealed class PostgresResourceRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task ResourcesAndSpawns_DraftPublish_Refs_InvalidPublish_ReloadAndRollback()
     {
-        await using var db = CreateDb();
-        var items = new PostgresItemRepository(db);
+        using var gate = CreateGate();
+        var items = new PostgresItemRepository(gate);
         var yieldItemId = await PublishItemAsync(items, "Bois PG");
         var toolItemId = await PublishItemAsync(items, "Hache PG");
-        var resources = new PostgresResourceRepository(db, items);
+        var resources = new PostgresResourceRepository(gate, items);
         var definition = CreateResource(yieldItemId, toolItemId, "Chêne PG");
 
         var draft = Assert.IsType<SaveResourceResult.Success>(await resources.SaveAsync(
@@ -56,8 +56,8 @@ public sealed class PostgresResourceRepositoryTests
                 Intent = SaveContentIntent.SaveDraft,
             }));
 
-        await using var db2 = CreateDb();
-        var resources2 = new PostgresResourceRepository(db2);
+        using var gate2 = CreateGate();
+        var resources2 = new PostgresResourceRepository(gate2);
         Assert.Equal(
             "Brouillon distinct PG",
             (await resources2.LoadByIdAsync(draft.ResourceId))!.Definition.Description);
@@ -84,7 +84,7 @@ public sealed class PostgresResourceRepositoryTests
             }));
         var draftItem = CreateItem("Objet brouillon PG");
         var draftItemSaved = Assert.IsType<SaveItemResult.Success>(
-            await new PostgresItemRepository(db2).SaveAsync(new SaveItemRequest
+            await new PostgresItemRepository(gate2).SaveAsync(new SaveItemRequest
             {
                 Definition = draftItem,
                 ExpectedRevision = 0,
@@ -99,9 +99,9 @@ public sealed class PostgresResourceRepositoryTests
                 Intent = SaveContentIntent.Publish,
             }));
 
-        var maps = new PostgresMapRepository(db2);
+        var maps = new PostgresMapRepository(gate2);
         var mapId = await SaveMapAsync(maps);
-        var spawns = new PostgresResourceSpawnRepository(db2, maps, resources2);
+        var spawns = new PostgresResourceSpawnRepository(gate2, maps, resources2);
         var spawnDefinition = CreateSpawn(mapId, draft.ResourceId, 2, 3);
         var spawnDraft = Assert.IsType<SaveResourceSpawnResult.Success>(
             await spawns.SaveAsync(new SaveResourceSpawnRequest
@@ -131,8 +131,8 @@ public sealed class PostgresResourceRepositoryTests
                 Intent = SaveContentIntent.SaveDraft,
             }));
 
-        await using var db3 = CreateDb();
-        var spawns3 = new PostgresResourceSpawnRepository(db3);
+        using var gate3 = CreateGate();
+        var spawns3 = new PostgresResourceSpawnRepository(gate3);
         Assert.Equal(7, (await spawns3.LoadByIdAsync(spawnDraft.SpawnId))!.Definition.TileX);
         Assert.Equal(
             4,
@@ -154,16 +154,16 @@ public sealed class PostgresResourceRepositoryTests
                 Intent = SaveContentIntent.Publish,
             }));
 
-        var itemDeleteRepository = new PostgresItemRepository(db3);
+        var itemDeleteRepository = new PostgresItemRepository(gate3);
         Assert.IsType<DeleteItemResult.Referenced>(
             await itemDeleteRepository.DeleteAsync(toolItemId));
-        var resourceDeleteRepository = new PostgresResourceRepository(db3);
+        var resourceDeleteRepository = new PostgresResourceRepository(gate3);
         Assert.IsType<DeleteResourceResult.Referenced>(
             await resourceDeleteRepository.DeleteAsync(draft.ResourceId));
 
         var beforeResourceCount = (await resources2.ListSummariesAsync()).Count;
-        await using var db4 = CreateDb();
-        var failingResource = new PostgresResourceRepository(db4)
+        using var gate4 = CreateGate();
+        var failingResource = new PostgresResourceRepository(gate4)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("resource-fail"),
         };
@@ -175,12 +175,12 @@ public sealed class PostgresResourceRepositoryTests
         });
         Assert.IsType<SaveResourceResult.PersistenceFailed>(failedResource);
 
-        await using var db5 = CreateDb();
-        var afterResourceRollback = new PostgresResourceRepository(db5);
+        using var gate5 = CreateGate();
+        var afterResourceRollback = new PostgresResourceRepository(gate5);
         Assert.Empty(await afterResourceRollback.ListSummariesAsync("Ressource rollback PG"));
         Assert.Equal(beforeResourceCount, (await afterResourceRollback.ListSummariesAsync()).Count);
 
-        var failingSpawn = new PostgresResourceSpawnRepository(db5)
+        var failingSpawn = new PostgresResourceSpawnRepository(gate5)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("spawn-fail"),
         };
@@ -193,16 +193,16 @@ public sealed class PostgresResourceRepositoryTests
         });
         Assert.IsType<SaveResourceSpawnResult.PersistenceFailed>(failedSpawn);
 
-        await using var db6 = CreateDb();
-        var afterSpawnRollback = new PostgresResourceSpawnRepository(db6);
+        using var gate6 = CreateGate();
+        var afterSpawnRollback = new PostgresResourceSpawnRepository(gate6);
         Assert.Equal(beforeSpawnCount, (await afterSpawnRollback.ListSummariesAsync()).Count);
         Assert.DoesNotContain(
             await afterSpawnRollback.ListPublishedAsync(mapId),
             spawn => spawn.TileX == 8 && spawn.TileY == 8);
     }
 
-    private FrogDbContext CreateDb()
-        => new(FrogDbContextOptions.Create(_fixture.ConnectionString));
+    private FrogDbContextGate CreateGate()
+        => new(new(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 
     private static async Task<Guid> PublishItemAsync(
         PostgresItemRepository repository,

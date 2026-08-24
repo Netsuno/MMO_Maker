@@ -10,7 +10,7 @@ public sealed class PostgresResourceRepository :
     IPublishedResourceCatalog,
     IResourceItemReferenceCatalog
 {
-    private readonly FrogDbContext _db;
+    private readonly FrogDbContextGate _gate;
     private readonly IPublishedItemCatalog _items;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
@@ -19,12 +19,12 @@ public sealed class PostgresResourceRepository :
     internal Func<CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
 
     public PostgresResourceRepository(
-        FrogDbContext db,
+        FrogDbContextGate gate,
         IPublishedItemCatalog? items = null,
         TimeProvider? clock = null)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
-        _items = items ?? new PostgresItemRepository(db);
+        _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+        _items = items ?? new PostgresItemRepository(gate);
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -34,13 +34,15 @@ public sealed class PostgresResourceRepository :
         SaveResourceRequest request,
         CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<SaveResourceResult>(async (db, ct) =>
+        {
         ArgumentNullException.ThrowIfNull(request);
         if (!request.Definition.Validate(out var error))
         {
             return new SaveResourceResult.ValidationFailed(error ?? "Ressource invalide.");
         }
 
-        if (await _items.LoadPublishedByIdAsync(request.Definition.YieldItemId, cancellationToken)
+        if (await _items.LoadPublishedByIdAsync(request.Definition.YieldItemId, ct)
                 .ConfigureAwait(false) is null)
         {
             return new SaveResourceResult.ValidationFailed(
@@ -48,14 +50,14 @@ public sealed class PostgresResourceRepository :
         }
 
         if (request.Definition.ToolItemId is Guid toolItemId
-            && await _items.LoadPublishedByIdAsync(toolItemId, cancellationToken)
+            && await _items.LoadPublishedByIdAsync(toolItemId, ct)
                 .ConfigureAwait(false) is null)
         {
             return new SaveResourceResult.ValidationFailed(
                 $"L’outil {toolItemId:N} doit exister dans le catalogue publié.");
         }
 
-        if (!await _saveGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        if (!await _saveGate.WaitAsync(0, ct).ConfigureAwait(false))
         {
             return new SaveResourceResult.ValidationFailed(
                 "Une opération d’enregistrement est déjà en cours.");
@@ -63,20 +65,21 @@ public sealed class PostgresResourceRepository :
 
         try
         {
-            return await SaveCoreAsync(request, cancellationToken).ConfigureAwait(false);
+            return await SaveCoreAsync(db, request, ct).ConfigureAwait(false);
         }
         finally
         {
             _saveGate.Release();
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<SaveResourceResult> SaveCoreAsync(
-        SaveResourceRequest request,
+    private async Task<SaveResourceResult> SaveCoreAsync(FrogDbContext db, SaveResourceRequest request,
         CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
-        await using var transaction = await _db.Database
+        await using var transaction = await db.Database
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         try
@@ -98,16 +101,16 @@ public sealed class PostgresResourceRepository :
                 var entity = ToEntity(request.Definition, savedId, now);
                 entity.Revision = 1;
                 entity.Status = ContentPublishStatus.Draft;
-                _db.Resources.Add(entity);
-                await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                db.Resources.Add(entity);
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 newRevision = 1;
                 publishedRevision = request.Intent == SaveContentIntent.Publish
-                    ? await PublishSnapshotAsync(entity, now, cancellationToken).ConfigureAwait(false)
+                    ? await PublishSnapshotAsync(db, entity, now, cancellationToken).ConfigureAwait(false)
                     : null;
             }
             else
             {
-                var updatedRows = await _db.Resources
+                var updatedRows = await db.Resources
                     .Where(resource =>
                         resource.Id == resourceId
                         && resource.Revision == request.ExpectedRevision)
@@ -147,17 +150,17 @@ public sealed class PostgresResourceRepository :
                 if (updatedRows == 0)
                 {
                     return new SaveResourceResult.Conflict(
-                        await ReadRevisionAsync(resourceId, cancellationToken).ConfigureAwait(false));
+                        await ReadRevisionAsync(db, resourceId, cancellationToken).ConfigureAwait(false));
                 }
 
                 savedId = resourceId;
                 newRevision = request.ExpectedRevision + 1;
                 if (request.Intent == SaveContentIntent.Publish)
                 {
-                    var entity = await _db.Resources.AsNoTracking()
+                    var entity = await db.Resources.AsNoTracking()
                         .FirstAsync(resource => resource.Id == resourceId, cancellationToken)
                         .ConfigureAwait(false);
-                    publishedRevision = await PublishSnapshotAsync(entity, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(db, entity, now, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -172,24 +175,23 @@ public sealed class PostgresResourceRepository :
             }
 
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveResourceResult.Success(newRevision, savedId, publishedRevision);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveResourceResult.PersistenceFailed(Sanitize(ex.Message));
         }
     }
 
-    private async Task<long> PublishSnapshotAsync(
-        ResourceEntity entity,
+    private async Task<long> PublishSnapshotAsync(FrogDbContext db, ResourceEntity entity,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var snapshotId = Guid.NewGuid();
-        _db.ResourcePublishedSnapshots.Add(new ResourcePublishedSnapshotEntity
+        db.ResourcePublishedSnapshots.Add(new ResourcePublishedSnapshotEntity
         {
             Id = snapshotId,
             ResourceId = entity.Id,
@@ -203,7 +205,7 @@ public sealed class PostgresResourceRepository :
             YieldItemId = entity.YieldItemId,
             YieldQuantity = entity.YieldQuantity,
         });
-        _db.ResourcePublicationHistory.Add(new ResourcePublicationHistoryEntity
+        db.ResourcePublicationHistory.Add(new ResourcePublicationHistoryEntity
         {
             Id = Guid.NewGuid(),
             ResourceId = entity.Id,
@@ -212,7 +214,7 @@ public sealed class PostgresResourceRepository :
             PublishedAtUtc = now,
         });
 
-        await _db.Resources
+        await db.Resources
             .Where(resource => resource.Id == entity.Id)
             .ExecuteUpdateAsync(
                 setters => setters
@@ -222,7 +224,7 @@ public sealed class PostgresResourceRepository :
                     .SetProperty(resource => resource.UpdatedAtUtc, now),
                 cancellationToken)
             .ConfigureAwait(false);
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Revision;
     }
 
@@ -230,28 +232,34 @@ public sealed class PostgresResourceRepository :
         Guid resourceId,
         CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Resources.AsNoTracking()
-            .FirstOrDefaultAsync(resource => resource.Id == resourceId, cancellationToken)
+        return await _gate.ExecuteAsync<StoredResource?>(async (db, ct) =>
+        {
+        var entity = await db.Resources.AsNoTracking()
+            .FirstOrDefaultAsync(resource => resource.Id == resourceId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<StoredResource?> LoadPublishedByIdAsync(
         Guid resourceId,
         CancellationToken cancellationToken = default)
     {
-        var snapshotId = await _db.Resources.AsNoTracking()
+        return await _gate.ExecuteAsync<StoredResource?>(async (db, ct) =>
+        {
+        var snapshotId = await db.Resources.AsNoTracking()
             .Where(resource => resource.Id == resourceId)
             .Select(resource => resource.PublishedSnapshotId)
-            .FirstOrDefaultAsync(cancellationToken)
+            .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false);
         if (snapshotId is not Guid id)
         {
             return null;
         }
 
-        var snapshot = await _db.ResourcePublishedSnapshots.AsNoTracking()
-            .FirstOrDefaultAsync(resource => resource.Id == id, cancellationToken)
+        var snapshot = await db.ResourcePublishedSnapshots.AsNoTracking()
+            .FirstOrDefaultAsync(resource => resource.Id == id, ct)
             .ConfigureAwait(false);
         return snapshot is null
             ? null
@@ -263,6 +271,8 @@ public sealed class PostgresResourceRepository :
                 Status = ContentPublishStatus.Published,
                 PublishedRevision = snapshot.Revision,
             };
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<ResourceCatalogEntry>> ListSummariesAsync(
@@ -270,7 +280,9 @@ public sealed class PostgresResourceRepository :
         ContentPublishStatus? statusFilter = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.Resources.AsNoTracking().AsQueryable();
+        return await _gate.ExecuteAsync<IReadOnlyList<ResourceCatalogEntry>>(async (db, ct) =>
+        {
+        var query = db.Resources.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var value = search.Trim();
@@ -298,44 +310,48 @@ public sealed class PostgresResourceRepository :
                 Status = resource.Status,
                 PublishedRevision = resource.PublishedRevision,
             })
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DeleteResourceResult> DeleteAsync(
         Guid resourceId,
         CancellationToken cancellationToken = default)
     {
-        if (!await _db.Resources.AsNoTracking()
-                .AnyAsync(resource => resource.Id == resourceId, cancellationToken)
+        return await _gate.ExecuteAsync<DeleteResourceResult>(async (db, ct) =>
+        {
+        if (!await db.Resources.AsNoTracking()
+                .AnyAsync(resource => resource.Id == resourceId, ct)
                 .ConfigureAwait(false))
         {
             return new DeleteResourceResult.NotFound();
         }
 
-        if (await IsResourceSpawnReferenceAsync(resourceId, cancellationToken).ConfigureAwait(false))
+        if (await IsResourceSpawnReferenceAsync(db, resourceId, ct).ConfigureAwait(false))
         {
             return new DeleteResourceResult.Referenced(
                 "La ressource est référencée par un brouillon ou un snapshot publié de spawn.");
         }
 
-        await using var transaction = await _db.Database
-            .BeginTransactionAsync(cancellationToken)
+        await using var transaction = await db.Database
+            .BeginTransactionAsync(ct)
             .ConfigureAwait(false);
         try
         {
-            await _db.ResourcePublicationHistory
+            await db.ResourcePublicationHistory
                 .Where(history => history.ResourceId == resourceId)
-                .ExecuteDeleteAsync(cancellationToken)
+                .ExecuteDeleteAsync(ct)
                 .ConfigureAwait(false);
-            await _db.ResourcePublishedSnapshots
+            await db.ResourcePublishedSnapshots
                 .Where(snapshot => snapshot.ResourceId == resourceId)
-                .ExecuteDeleteAsync(cancellationToken)
+                .ExecuteDeleteAsync(ct)
                 .ConfigureAwait(false);
-            await _db.Resources.Where(resource => resource.Id == resourceId)
-                .ExecuteDeleteAsync(cancellationToken)
+            await db.Resources.Where(resource => resource.Id == resourceId)
+                .ExecuteDeleteAsync(ct)
                 .ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(ct).ConfigureAwait(false);
             return new DeleteResourceResult.Success();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -343,27 +359,33 @@ public sealed class PostgresResourceRepository :
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteResourceResult.PersistenceFailed(Sanitize(ex.Message));
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<ResourceDefinition>> ListPublishedAsync(
         CancellationToken cancellationToken = default)
     {
-        var tips = await _db.Resources.AsNoTracking()
+        return await _gate.ExecuteAsync<IReadOnlyList<ResourceDefinition>>(async (db, ct) =>
+        {
+        var tips = await db.Resources.AsNoTracking()
             .Where(resource => resource.PublishedSnapshotId != null)
             .Select(resource => resource.PublishedSnapshotId!.Value)
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
         if (tips.Count == 0)
         {
             return Array.Empty<ResourceDefinition>();
         }
 
-        var snapshots = await _db.ResourcePublishedSnapshots.AsNoTracking()
+        var snapshots = await db.ResourcePublishedSnapshots.AsNoTracking()
             .Where(snapshot => tips.Contains(snapshot.Id))
             .OrderBy(snapshot => snapshot.Name)
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
         return snapshots.Select(FromSnapshot).ToList();
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     async Task<ResourceDefinition?> IPublishedResourceCatalog.LoadPublishedByIdAsync(
@@ -378,32 +400,34 @@ public sealed class PostgresResourceRepository :
     public async Task<bool> IsItemReferencedAsync(
         Guid itemId,
         CancellationToken cancellationToken = default)
-        => await _db.Resources.AsNoTracking()
+    {
+        return await _gate.ExecuteAsync<bool>(async (db, ct) =>
+            await db.Resources.AsNoTracking()
                 .AnyAsync(
                     resource =>
                         resource.YieldItemId == itemId || resource.ToolItemId == itemId,
-                    cancellationToken)
+                    ct)
                 .ConfigureAwait(false)
-            || await _db.ResourcePublishedSnapshots.AsNoTracking()
+            || await db.ResourcePublishedSnapshots.AsNoTracking()
                 .AnyAsync(
                     snapshot =>
                         snapshot.YieldItemId == itemId || snapshot.ToolItemId == itemId,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                    ct)
+                .ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+    }
 
-    private async Task<bool> IsResourceSpawnReferenceAsync(
-        Guid resourceId,
+    private async Task<bool> IsResourceSpawnReferenceAsync(FrogDbContext db, Guid resourceId,
         CancellationToken cancellationToken)
-        => await _db.ResourceSpawns.AsNoTracking()
+        => await db.ResourceSpawns.AsNoTracking()
                 .AnyAsync(spawn => spawn.ResourceId == resourceId, cancellationToken)
                 .ConfigureAwait(false)
-            || await _db.ResourceSpawnPublishedSnapshots.AsNoTracking()
+            || await db.ResourceSpawnPublishedSnapshots.AsNoTracking()
                 .AnyAsync(snapshot => snapshot.ResourceId == resourceId, cancellationToken)
                 .ConfigureAwait(false);
 
-    private async Task<long> ReadRevisionAsync(Guid id, CancellationToken cancellationToken)
+    private async Task<long> ReadRevisionAsync(FrogDbContext db, Guid id, CancellationToken cancellationToken)
     {
-        var revision = await _db.Resources.AsNoTracking()
+        var revision = await db.Resources.AsNoTracking()
             .Where(resource => resource.Id == id)
             .Select(resource => (long?)resource.Revision)
             .FirstOrDefaultAsync(cancellationToken)

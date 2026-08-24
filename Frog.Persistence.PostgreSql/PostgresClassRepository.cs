@@ -7,7 +7,7 @@ namespace Frog.Persistence.PostgreSql;
 
 public sealed class PostgresClassRepository : IClassRepository, IPublishedClassCatalog
 {
-    private readonly FrogDbContext _db;
+    private readonly FrogDbContextGate _gate;
     private readonly ISpellRepository _spells;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
@@ -16,12 +16,12 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
     internal Func<CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
 
     public PostgresClassRepository(
-        FrogDbContext db,
+        FrogDbContextGate gate,
         ISpellRepository? spells = null,
         TimeProvider? clock = null)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
-        _spells = spells ?? new PostgresSpellRepository(db);
+        _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+        _spells = spells ?? new PostgresSpellRepository(gate);
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -31,6 +31,8 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
         SaveClassRequest request,
         CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<SaveClassResult>(async (db, ct) =>
+        {
         ArgumentNullException.ThrowIfNull(request);
         if (!request.Definition.Validate(out var error))
         {
@@ -38,14 +40,14 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
         }
 
         if (request.Definition.StartingSpellId is Guid startingSpellId
-            && await _spells.LoadPublishedByIdAsync(startingSpellId, cancellationToken)
+            && await _spells.LoadPublishedByIdAsync(startingSpellId, ct)
                 .ConfigureAwait(false) is null)
         {
             return new SaveClassResult.ValidationFailed(
                 "Le sort de départ doit exister dans le catalogue publié.");
         }
 
-        if (!await _saveGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        if (!await _saveGate.WaitAsync(0, ct).ConfigureAwait(false))
         {
             return new SaveClassResult.ValidationFailed(
                 "Une opération d’enregistrement est déjà en cours.");
@@ -53,20 +55,21 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
 
         try
         {
-            return await SaveCoreAsync(request, cancellationToken).ConfigureAwait(false);
+            return await SaveCoreAsync(db, request, ct).ConfigureAwait(false);
         }
         finally
         {
             _saveGate.Release();
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<SaveClassResult> SaveCoreAsync(
-        SaveClassRequest request,
+    private async Task<SaveClassResult> SaveCoreAsync(FrogDbContext db, SaveClassRequest request,
         CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
-        await using var transaction = await _db.Database
+        await using var transaction = await db.Database
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -87,17 +90,17 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
                 var entity = ToEntity(request.Definition, id, now);
                 entity.Revision = 1;
                 entity.Status = ContentPublishStatus.Draft;
-                _db.Classes.Add(entity);
-                await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                db.Classes.Add(entity);
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 newRevision = 1;
                 savedId = id;
                 publishedRevision = request.Intent == SaveContentIntent.Publish
-                    ? await PublishSnapshotAsync(entity, now, cancellationToken).ConfigureAwait(false)
+                    ? await PublishSnapshotAsync(db, entity, now, cancellationToken).ConfigureAwait(false)
                     : null;
             }
             else
             {
-                var updatedRows = await _db.Classes
+                var updatedRows = await db.Classes
                     .Where(c => c.Id == classId && c.Revision == request.ExpectedRevision)
                     .ExecuteUpdateAsync(
                         setters => setters
@@ -121,17 +124,17 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
                 if (updatedRows == 0)
                 {
                     return new SaveClassResult.Conflict(
-                        await ReadRevisionAsync(classId, cancellationToken).ConfigureAwait(false));
+                        await ReadRevisionAsync(db, classId, cancellationToken).ConfigureAwait(false));
                 }
 
                 newRevision = request.ExpectedRevision + 1;
                 savedId = classId;
                 if (request.Intent == SaveContentIntent.Publish)
                 {
-                    var entity = await _db.Classes.AsNoTracking()
+                    var entity = await db.Classes.AsNoTracking()
                         .FirstAsync(c => c.Id == classId, cancellationToken)
                         .ConfigureAwait(false);
-                    publishedRevision = await PublishSnapshotAsync(entity, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(db, entity, now, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -146,24 +149,23 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             }
 
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveClassResult.Success(newRevision, savedId, publishedRevision);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveClassResult.PersistenceFailed(Sanitize(ex.Message));
         }
     }
 
-    private async Task<long> PublishSnapshotAsync(
-        ClassEntity entity,
+    private async Task<long> PublishSnapshotAsync(FrogDbContext db, ClassEntity entity,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var snapshotId = Guid.NewGuid();
-        _db.ClassPublishedSnapshots.Add(new ClassPublishedSnapshotEntity
+        db.ClassPublishedSnapshots.Add(new ClassPublishedSnapshotEntity
         {
             Id = snapshotId,
             ClassId = entity.Id,
@@ -181,7 +183,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             Luck = entity.Luck,
             StartingSpellId = entity.StartingSpellId,
         });
-        _db.ClassPublicationHistory.Add(new ClassPublicationHistoryEntity
+        db.ClassPublicationHistory.Add(new ClassPublicationHistoryEntity
         {
             Id = Guid.NewGuid(),
             ClassId = entity.Id,
@@ -190,7 +192,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             PublishedAtUtc = now,
         });
 
-        await _db.Classes
+        await db.Classes
             .Where(c => c.Id == entity.Id)
             .ExecuteUpdateAsync(
                 setters => setters
@@ -201,7 +203,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Revision;
     }
 
@@ -209,26 +211,32 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
         Guid classId,
         CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Classes.AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == classId, cancellationToken)
+        return await _gate.ExecuteAsync<StoredClass?>(async (db, ct) =>
+        {
+        var entity = await db.Classes.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == classId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<StoredClass?> LoadPublishedByIdAsync(
         Guid classId,
         CancellationToken cancellationToken = default)
     {
-        var tip = await _db.Classes.AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == classId, cancellationToken)
+        return await _gate.ExecuteAsync<StoredClass?>(async (db, ct) =>
+        {
+        var tip = await db.Classes.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == classId, ct)
             .ConfigureAwait(false);
         if (tip?.PublishedSnapshotId is not Guid snapshotId)
         {
             return null;
         }
 
-        var snapshot = await _db.ClassPublishedSnapshots.AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == snapshotId, cancellationToken)
+        var snapshot = await db.ClassPublishedSnapshots.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == snapshotId, ct)
             .ConfigureAwait(false);
         if (snapshot is null)
         {
@@ -243,6 +251,8 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             Status = ContentPublishStatus.Published,
             PublishedRevision = snapshot.Revision,
         };
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<ClassCatalogEntry>> ListSummariesAsync(
@@ -250,7 +260,9 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
         ContentPublishStatus? statusFilter = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.Classes.AsNoTracking().AsQueryable();
+        return await _gate.ExecuteAsync<IReadOnlyList<ClassCatalogEntry>>(async (db, ct) =>
+        {
+        var query = db.Classes.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var value = search.Trim();
@@ -277,32 +289,36 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
                 Status = c.Status,
                 PublishedRevision = c.PublishedRevision,
             })
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DeleteClassResult> DeleteAsync(
         Guid classId,
         CancellationToken cancellationToken = default)
     {
-        if (!await _db.Classes.AsNoTracking().AnyAsync(c => c.Id == classId, cancellationToken)
+        return await _gate.ExecuteAsync<DeleteClassResult>(async (db, ct) =>
+        {
+        if (!await db.Classes.AsNoTracking().AnyAsync(c => c.Id == classId, ct)
                 .ConfigureAwait(false))
         {
             return new DeleteClassResult.NotFound();
         }
 
-        await using var transaction = await _db.Database
-            .BeginTransactionAsync(cancellationToken)
+        await using var transaction = await db.Database
+            .BeginTransactionAsync(ct)
             .ConfigureAwait(false);
         try
         {
-            await _db.ClassPublicationHistory.Where(h => h.ClassId == classId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await _db.ClassPublishedSnapshots.Where(s => s.ClassId == classId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await _db.Classes.Where(c => c.Id == classId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await db.ClassPublicationHistory.Where(h => h.ClassId == classId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await db.ClassPublishedSnapshots.Where(s => s.ClassId == classId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await db.Classes.Where(c => c.Id == classId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await transaction.CommitAsync(ct).ConfigureAwait(false);
             return new DeleteClassResult.Success();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -310,32 +326,38 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteClassResult.PersistenceFailed(Sanitize(ex.Message));
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<ClassDefinition>> ListPublishedAsync(
         CancellationToken cancellationToken = default)
     {
-        var tips = await _db.Classes.AsNoTracking()
+        return await _gate.ExecuteAsync<IReadOnlyList<ClassDefinition>>(async (db, ct) =>
+        {
+        var tips = await db.Classes.AsNoTracking()
             .Where(c => c.PublishedSnapshotId != null)
             .Select(c => c.PublishedSnapshotId!.Value)
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
         if (tips.Count == 0)
         {
             return Array.Empty<ClassDefinition>();
         }
 
-        var snapshots = await _db.ClassPublishedSnapshots.AsNoTracking()
+        var snapshots = await db.ClassPublishedSnapshots.AsNoTracking()
             .Where(c => tips.Contains(c.Id))
             .OrderBy(c => c.Name)
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
         return snapshots.Select(FromSnapshot).ToList();
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<long> ReadRevisionAsync(Guid id, CancellationToken cancellationToken)
+    private async Task<long> ReadRevisionAsync(FrogDbContext db, Guid id, CancellationToken cancellationToken)
     {
-        var revision = await _db.Classes.AsNoTracking()
+        var revision = await db.Classes.AsNoTracking()
             .Where(c => c.Id == id)
             .Select(c => (long?)c.Revision)
             .FirstOrDefaultAsync(cancellationToken)

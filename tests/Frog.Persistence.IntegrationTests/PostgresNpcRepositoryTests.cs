@@ -20,8 +20,8 @@ public sealed class PostgresNpcRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Save_Publish_Reload_DraftDistinct_Conflict_InvalidPublish_Rollback()
     {
-        await using var db = CreateDb();
-        var repository = new PostgresNpcRepository(db);
+        using var gate = CreateGate();
+        var repository = new PostgresNpcRepository(gate);
         var definition = CreateDefinition(
             "Gobelin",
             NpcKind.Monster,
@@ -49,8 +49,8 @@ public sealed class PostgresNpcRepositoryTests
         Assert.Equal(2, published.NewRevision);
         Assert.Equal(2, published.PublishedRevision);
 
-        await using var db2 = CreateDb();
-        var repository2 = new PostgresNpcRepository(db2);
+        using var gate2 = CreateGate();
+        var repository2 = new PostgresNpcRepository(gate2);
         var draft = await repository2.LoadByIdAsync(created.NpcId);
         var snapshot = await repository2.LoadPublishedByIdAsync(created.NpcId);
         Assert.NotNull(draft);
@@ -68,8 +68,8 @@ public sealed class PostgresNpcRepositoryTests
             Intent = SaveContentIntent.SaveDraft,
         }));
 
-        await using var db3 = CreateDb();
-        var repository3 = new PostgresNpcRepository(db3);
+        using var gate3 = CreateGate();
+        var repository3 = new PostgresNpcRepository(gate3);
         Assert.Equal("Gobelin brouillon", (await repository3.LoadByIdAsync(created.NpcId))!.Definition.Name);
         Assert.Equal("Gobelin publié", (await repository3.LoadPublishedByIdAsync(created.NpcId))!.Definition.Name);
 
@@ -93,8 +93,8 @@ public sealed class PostgresNpcRepositoryTests
             Intent = SaveContentIntent.Publish,
         }));
 
-        await using var db4 = CreateDb();
-        var failing = new PostgresNpcRepository(db4)
+        using var gate4 = CreateGate();
+        var failing = new PostgresNpcRepository(gate4)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injected-fail"),
         };
@@ -112,8 +112,8 @@ public sealed class PostgresNpcRepositoryTests
         });
         Assert.IsType<SaveNpcResult.PersistenceFailed>(failedResult);
 
-        await using var db5 = CreateDb();
-        var afterRepository = new PostgresNpcRepository(db5);
+        using var gate5 = CreateGate();
+        var afterRepository = new PostgresNpcRepository(gate5);
         Assert.Empty(await afterRepository.ListSummariesAsync(search: "Publication annulée"));
         Assert.Equal(before.Count, (await afterRepository.ListSummariesAsync()).Count);
         Assert.Contains(
@@ -125,8 +125,8 @@ public sealed class PostgresNpcRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Search_Filter_DeleteBlockedWhenMapReferencesAlias()
     {
-        await using var db = CreateDb();
-        var repository = new PostgresNpcRepository(db);
+        using var gate = CreateGate();
+        var repository = new PostgresNpcRepository(gate);
         var definition = CreateDefinition(
             "Marchand référencé",
             NpcKind.Npc,
@@ -141,7 +141,7 @@ public sealed class PostgresNpcRepositoryTests
         }));
 
         var mapId = Guid.NewGuid();
-        db.Maps.Add(new MapEntity
+        gate.Db.Maps.Add(new MapEntity
         {
             Id = mapId,
             Name = "Carte NPC",
@@ -153,7 +153,7 @@ public sealed class PostgresNpcRepositoryTests
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow,
         });
-        db.MapNpcSpawns.Add(new MapNpcSpawnEntity
+        gate.Db.MapNpcSpawns.Add(new MapNpcSpawnEntity
         {
             Id = Guid.NewGuid(),
             MapId = mapId,
@@ -162,7 +162,7 @@ public sealed class PostgresNpcRepositoryTests
             Y = 3,
             Direction = 1,
         });
-        await db.SaveChangesAsync();
+        await gate.Db.SaveChangesAsync();
 
         var catalog = await repository.ListSummariesAsync(search: "référencé");
         Assert.Contains(catalog, entry => entry.NpcId == saved.NpcId);
@@ -179,8 +179,8 @@ public sealed class PostgresNpcRepositoryTests
         Assert.Contains(await repository.ListPublishedAsync(), npc => npc.Id == saved.NpcId);
     }
 
-    private FrogDbContext CreateDb()
-        => new(FrogDbContextOptions.Create(_fixture.ConnectionString));
+    private FrogDbContextGate CreateGate()
+        => new(new(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 
     private static NpcDefinition CreateDefinition(
         string name,

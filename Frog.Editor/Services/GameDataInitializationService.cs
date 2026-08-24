@@ -141,32 +141,32 @@ public static class GameDataInitializationService
 
     private static GameDataRepositorySet CreatePostgreSqlSet(EditorPostgreSqlScope scope)
     {
-        var db = scope.Db;
-        var mapRepo = new PostgresMapRepository(db);
+        var gate = scope.Gate;
+        var mapRepo = new PostgresMapRepository(gate);
         var map = new EditorMapRepositoryBundle(mapRepo, mapRepo.Capabilities);
 
-        var tilesetRepo = new PostgresTilesetRepository(db);
+        var tilesetRepo = new PostgresTilesetRepository(gate);
         var tileset = new EditorTilesetRepositoryBundle(tilesetRepo, tilesetRepo, tilesetRepo.Capabilities);
 
-        var npcRepo = new PostgresNpcRepository(db);
+        var npcRepo = new PostgresNpcRepository(gate);
         var npc = new EditorNpcRepositoryBundle(npcRepo, npcRepo, npcRepo.Capabilities);
 
-        var itemRepo = new PostgresItemRepository(db);
+        var itemRepo = new PostgresItemRepository(gate);
         var item = new EditorItemRepositoryBundle(itemRepo, itemRepo, itemRepo.Capabilities);
 
-        var spellRepo = new PostgresSpellRepository(db);
+        var spellRepo = new PostgresSpellRepository(gate);
         var spell = new EditorSpellRepositoryBundle(spellRepo, spellRepo, spellRepo.Capabilities);
 
-        var classRepo = new PostgresClassRepository(db);
+        var classRepo = new PostgresClassRepository(gate);
         var classBundle = new EditorClassRepositoryBundle(classRepo, classRepo, classRepo.Capabilities);
 
-        var shopRepo = new PostgresShopRepository(db, itemRepo);
+        var shopRepo = new PostgresShopRepository(gate, itemRepo);
         var shop = new EditorShopRepositoryBundle(shopRepo, shopRepo, shopRepo.Capabilities);
 
-        var resourceRepo = new PostgresResourceRepository(db, itemRepo);
+        var resourceRepo = new PostgresResourceRepository(gate, itemRepo);
         var resource = new EditorResourceRepositoryBundle(resourceRepo, resourceRepo, resourceRepo.Capabilities);
 
-        var spawnRepo = new PostgresResourceSpawnRepository(db, mapRepo, resourceRepo);
+        var spawnRepo = new PostgresResourceSpawnRepository(gate, mapRepo, resourceRepo);
         var spawn = new EditorResourceSpawnRepositoryBundle(spawnRepo, spawnRepo, spawnRepo.Capabilities);
 
         return new GameDataRepositorySet(

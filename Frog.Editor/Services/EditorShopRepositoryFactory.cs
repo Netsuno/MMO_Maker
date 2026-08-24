@@ -53,9 +53,9 @@ public static class EditorShopRepositoryFactory
             return new EditorShopRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var db = new FrogDbContext(FrogDbContextOptions.Create(connectionString));
-        db.Database.Migrate();
-        var postgres = new PostgresShopRepository(db, itemCatalog);
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        gate.Db.Database.Migrate();
+        var postgres = new PostgresShopRepository(gate, itemCatalog);
         return new EditorShopRepositoryBundle(postgres, postgres, postgres.Capabilities);
     }
 }

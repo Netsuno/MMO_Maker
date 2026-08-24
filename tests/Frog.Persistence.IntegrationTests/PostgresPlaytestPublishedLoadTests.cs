@@ -26,8 +26,8 @@ public sealed class PostgresPlaytestPublishedLoadTests
     [Trait("Category", "PostgreSql")]
     public async Task ServerPlaytestPipeline_LoadsPublishedSnapshot_NotNewerDraft()
     {
-        await using var db = new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString));
-        var repo = new PostgresMapRepository(db);
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var repo = new PostgresMapRepository(gate);
 
         var map = CreateBlockedPlaytestMap("PublishedPlaytest");
         var published = await repo.SaveAsync(new SaveMapRequest
@@ -113,8 +113,8 @@ public sealed class PostgresPlaytestPublishedLoadTests
     [Trait("Category", "PostgreSql")]
     public async Task Playtest_BrandNewUnsavedMap_SavesPublishesAndLoadsSnapshot()
     {
-        await using var db = new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString));
-        var repo = new PostgresMapRepository(db);
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var repo = new PostgresMapRepository(gate);
         var workspace = new MapWorkspaceSession(repo);
 
         var map = CreateBlockedPlaytestMap("BrandNewPgPlaytest");

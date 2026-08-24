@@ -7,16 +7,16 @@ namespace Frog.Persistence.PostgreSql;
 
 public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCatalog
 {
-    private readonly FrogDbContext _db;
+    private readonly FrogDbContextGate _gate;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
 
     /// <summary>Seam de test : appelée après SaveChanges du brouillon, avant commit.</summary>
     internal Func<CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
 
-    public PostgresItemRepository(FrogDbContext db, TimeProvider? clock = null)
+    public PostgresItemRepository(FrogDbContextGate gate, TimeProvider? clock = null)
     {
-        _db = db;
+        _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -26,34 +26,38 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
         SaveItemRequest request,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (!request.Definition.Validate(out var error))
+        return await _gate.ExecuteAsync<SaveItemResult>(async (db, ct) =>
         {
-            return new SaveItemResult.ValidationFailed(error ?? "Objet invalide.");
-        }
+            ArgumentNullException.ThrowIfNull(request);
+            if (!request.Definition.Validate(out var error))
+            {
+                return new SaveItemResult.ValidationFailed(error ?? "Objet invalide.");
+            }
 
-        if (!await _saveGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
-        {
-            return new SaveItemResult.ValidationFailed(
-                "Une opération d’enregistrement est déjà en cours.");
-        }
+            if (!await _saveGate.WaitAsync(0, ct).ConfigureAwait(false))
+            {
+                return new SaveItemResult.ValidationFailed(
+                    "Une opération d’enregistrement est déjà en cours.");
+            }
 
-        try
-        {
-            return await SaveCoreAsync(request, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            _saveGate.Release();
-        }
+            try
+            {
+                return await SaveCoreAsync(db, request, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                _saveGate.Release();
+            }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<SaveItemResult> SaveCoreAsync(
+        FrogDbContext db,
         SaveItemRequest request,
         CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
-        await using var transaction = await _db.Database
+        await using var transaction = await db.Database
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -74,17 +78,17 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
                 var entity = ToEntity(request.Definition, id, now);
                 entity.Revision = 1;
                 entity.Status = ContentPublishStatus.Draft;
-                _db.Items.Add(entity);
-                await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                db.Items.Add(entity);
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 newRevision = 1;
                 savedId = id;
                 publishedRevision = request.Intent == SaveContentIntent.Publish
-                    ? await PublishSnapshotAsync(entity, now, cancellationToken).ConfigureAwait(false)
+                    ? await PublishSnapshotAsync(db, entity, now, cancellationToken).ConfigureAwait(false)
                     : null;
             }
             else
             {
-                var updatedRows = await _db.Items
+                var updatedRows = await db.Items
                     .Where(i => i.Id == itemId && i.Revision == request.ExpectedRevision)
                     .ExecuteUpdateAsync(
                         setters => setters
@@ -108,17 +112,17 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
                 if (updatedRows == 0)
                 {
                     return new SaveItemResult.Conflict(
-                        await ReadRevisionAsync(itemId, cancellationToken).ConfigureAwait(false));
+                        await ReadRevisionAsync(db, itemId, cancellationToken).ConfigureAwait(false));
                 }
 
                 newRevision = request.ExpectedRevision + 1;
                 savedId = itemId;
                 if (request.Intent == SaveContentIntent.Publish)
                 {
-                    var entity = await _db.Items.AsNoTracking()
+                    var entity = await db.Items.AsNoTracking()
                         .FirstAsync(i => i.Id == itemId, cancellationToken)
                         .ConfigureAwait(false);
-                    publishedRevision = await PublishSnapshotAsync(entity, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(db, entity, now, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -133,24 +137,25 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
             }
 
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveItemResult.Success(newRevision, savedId, publishedRevision);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveItemResult.PersistenceFailed(Sanitize(ex.Message));
         }
     }
 
     private async Task<long> PublishSnapshotAsync(
+        FrogDbContext db,
         ItemEntity entity,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var snapshotId = Guid.NewGuid();
-        _db.ItemPublishedSnapshots.Add(new ItemPublishedSnapshotEntity
+        db.ItemPublishedSnapshots.Add(new ItemPublishedSnapshotEntity
         {
             Id = snapshotId,
             ItemId = entity.Id,
@@ -164,7 +169,7 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
             SellPrice = entity.SellPrice,
             Description = entity.Description,
         });
-        _db.ItemPublicationHistory.Add(new ItemPublicationHistoryEntity
+        db.ItemPublicationHistory.Add(new ItemPublicationHistoryEntity
         {
             Id = Guid.NewGuid(),
             ItemId = entity.Id,
@@ -173,7 +178,7 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
             PublishedAtUtc = now,
         });
 
-        await _db.Items
+        await db.Items
             .Where(i => i.Id == entity.Id)
             .ExecuteUpdateAsync(
                 setters => setters
@@ -184,7 +189,7 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Revision;
     }
 
@@ -192,40 +197,46 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
         Guid itemId,
         CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Items.AsNoTracking()
-            .FirstOrDefaultAsync(i => i.Id == itemId, cancellationToken)
-            .ConfigureAwait(false);
-        return entity is null ? null : ToStored(entity);
+        return await _gate.ExecuteAsync<StoredItem?>(async (db, ct) =>
+        {
+            var entity = await db.Items.AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == itemId, ct)
+                .ConfigureAwait(false);
+            return entity is null ? null : ToStored(entity);
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<StoredItem?> LoadPublishedByIdAsync(
         Guid itemId,
         CancellationToken cancellationToken = default)
     {
-        var tip = await _db.Items.AsNoTracking()
-            .FirstOrDefaultAsync(i => i.Id == itemId, cancellationToken)
-            .ConfigureAwait(false);
-        if (tip?.PublishedSnapshotId is not Guid snapshotId)
+        return await _gate.ExecuteAsync<StoredItem?>(async (db, ct) =>
         {
-            return null;
-        }
+            var tip = await db.Items.AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == itemId, ct)
+                .ConfigureAwait(false);
+            if (tip?.PublishedSnapshotId is not Guid snapshotId)
+            {
+                return null;
+            }
 
-        var snapshot = await _db.ItemPublishedSnapshots.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == snapshotId, cancellationToken)
-            .ConfigureAwait(false);
-        if (snapshot is null)
-        {
-            return null;
-        }
+            var snapshot = await db.ItemPublishedSnapshots.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == snapshotId, ct)
+                .ConfigureAwait(false);
+            if (snapshot is null)
+            {
+                return null;
+            }
 
-        return new StoredItem
-        {
-            ItemId = snapshot.ItemId,
-            Definition = FromSnapshot(snapshot),
-            Revision = snapshot.Revision,
-            Status = ContentPublishStatus.Published,
-            PublishedRevision = snapshot.Revision,
-        };
+            return new StoredItem
+            {
+                ItemId = snapshot.ItemId,
+                Definition = FromSnapshot(snapshot),
+                Revision = snapshot.Revision,
+                Status = ContentPublishStatus.Published,
+                PublishedRevision = snapshot.Revision,
+            };
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<ItemCatalogEntry>> ListSummariesAsync(
@@ -233,125 +244,134 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
         ContentPublishStatus? statusFilter = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.Items.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(search))
+        return await _gate.ExecuteAsync<IReadOnlyList<ItemCatalogEntry>>(async (db, ct) =>
         {
-            var value = search.Trim();
-            query = query.Where(i =>
-                EF.Functions.ILike(i.Name, $"%{value}%")
-                || EF.Functions.ILike(i.IconLogicalPath, $"%{value}%")
-                || (i.Description != null && EF.Functions.ILike(i.Description, $"%{value}%")));
-        }
-
-        if (statusFilter is { } status)
-        {
-            query = query.Where(i => i.Status == status);
-        }
-
-        return await query
-            .OrderBy(i => i.Name)
-            .Select(i => new ItemCatalogEntry
+            var query = db.Items.AsNoTracking().AsQueryable();
+            if (!string.IsNullOrWhiteSpace(search))
             {
-                ItemId = i.Id,
-                Name = i.Name,
-                Kind = i.Kind,
-                IconLogicalPath = i.IconLogicalPath,
-                MaxStack = i.MaxStack,
-                BuyPrice = i.BuyPrice,
-                SellPrice = i.SellPrice,
-                Revision = i.Revision,
-                Status = i.Status,
-                PublishedRevision = i.PublishedRevision,
-            })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+                var value = search.Trim();
+                query = query.Where(i =>
+                    EF.Functions.ILike(i.Name, $"%{value}%")
+                    || EF.Functions.ILike(i.IconLogicalPath, $"%{value}%")
+                    || (i.Description != null && EF.Functions.ILike(i.Description, $"%{value}%")));
+            }
+
+            if (statusFilter is { } status)
+            {
+                query = query.Where(i => i.Status == status);
+            }
+
+            return await query
+                .OrderBy(i => i.Name)
+                .Select(i => new ItemCatalogEntry
+                {
+                    ItemId = i.Id,
+                    Name = i.Name,
+                    Kind = i.Kind,
+                    IconLogicalPath = i.IconLogicalPath,
+                    MaxStack = i.MaxStack,
+                    BuyPrice = i.BuyPrice,
+                    SellPrice = i.SellPrice,
+                    Revision = i.Revision,
+                    Status = i.Status,
+                    PublishedRevision = i.PublishedRevision,
+                })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DeleteItemResult> DeleteAsync(
         Guid itemId,
         CancellationToken cancellationToken = default)
     {
-        if (!await _db.Items.AsNoTracking().AnyAsync(i => i.Id == itemId, cancellationToken)
-                .ConfigureAwait(false))
+        return await _gate.ExecuteAsync<DeleteItemResult>(async (db, ct) =>
         {
-            return new DeleteItemResult.NotFound();
-        }
+            if (!await db.Items.AsNoTracking().AnyAsync(i => i.Id == itemId, ct)
+                    .ConfigureAwait(false))
+            {
+                return new DeleteItemResult.NotFound();
+            }
 
-        var itemReference = PostgresShopRepository.SerializeItemReference(itemId);
-        var referenced = await _db.Shops.AsNoTracking()
-                .AnyAsync(
-                    shop => EF.Functions.JsonContains(shop.ListingsJson, itemReference),
-                    cancellationToken)
-                .ConfigureAwait(false)
-            || await _db.ShopPublishedSnapshots.AsNoTracking()
-                .AnyAsync(
-                    snapshot => EF.Functions.JsonContains(snapshot.ListingsJson, itemReference),
-                    cancellationToken)
+            var itemReference = PostgresShopRepository.SerializeItemReference(itemId);
+            var referenced = await db.Shops.AsNoTracking()
+                    .AnyAsync(
+                        shop => EF.Functions.JsonContains(shop.ListingsJson, itemReference),
+                        ct)
+                    .ConfigureAwait(false)
+                || await db.ShopPublishedSnapshots.AsNoTracking()
+                    .AnyAsync(
+                        snapshot => EF.Functions.JsonContains(snapshot.ListingsJson, itemReference),
+                        ct)
+                    .ConfigureAwait(false);
+            if (referenced)
+            {
+                return new DeleteItemResult.Referenced(
+                    "L’objet est référencé par un brouillon ou un snapshot publié de boutique.");
+            }
+
+            var resourceReferenced = await db.Resources.AsNoTracking()
+                    .AnyAsync(
+                        resource =>
+                            resource.YieldItemId == itemId || resource.ToolItemId == itemId,
+                        ct)
+                    .ConfigureAwait(false)
+                || await db.ResourcePublishedSnapshots.AsNoTracking()
+                    .AnyAsync(
+                        snapshot =>
+                            snapshot.YieldItemId == itemId || snapshot.ToolItemId == itemId,
+                        ct)
+                    .ConfigureAwait(false);
+            if (resourceReferenced)
+            {
+                return new DeleteItemResult.Referenced(
+                    "L’objet est référencé par un brouillon ou un snapshot publié de ressource.");
+            }
+
+            await using var transaction = await db.Database
+                .BeginTransactionAsync(ct)
                 .ConfigureAwait(false);
-        if (referenced)
-        {
-            return new DeleteItemResult.Referenced(
-                "L’objet est référencé par un brouillon ou un snapshot publié de boutique.");
-        }
-
-        var resourceReferenced = await _db.Resources.AsNoTracking()
-                .AnyAsync(
-                    resource =>
-                        resource.YieldItemId == itemId || resource.ToolItemId == itemId,
-                    cancellationToken)
-                .ConfigureAwait(false)
-            || await _db.ResourcePublishedSnapshots.AsNoTracking()
-                .AnyAsync(
-                    snapshot =>
-                        snapshot.YieldItemId == itemId || snapshot.ToolItemId == itemId,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        if (resourceReferenced)
-        {
-            return new DeleteItemResult.Referenced(
-                "L’objet est référencé par un brouillon ou un snapshot publié de ressource.");
-        }
-
-        await using var transaction = await _db.Database
-            .BeginTransactionAsync(cancellationToken)
-            .ConfigureAwait(false);
-        try
-        {
-            await _db.ItemPublicationHistory.Where(h => h.ItemId == itemId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await _db.ItemPublishedSnapshots.Where(s => s.ItemId == itemId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await _db.Items.Where(i => i.Id == itemId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            return new DeleteItemResult.Success();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-            return new DeleteItemResult.PersistenceFailed(Sanitize(ex.Message));
-        }
+            try
+            {
+                await db.ItemPublicationHistory.Where(h => h.ItemId == itemId)
+                    .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+                await db.ItemPublishedSnapshots.Where(s => s.ItemId == itemId)
+                    .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+                await db.Items.Where(i => i.Id == itemId)
+                    .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+                await transaction.CommitAsync(ct).ConfigureAwait(false);
+                return new DeleteItemResult.Success();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                return new DeleteItemResult.PersistenceFailed(Sanitize(ex.Message));
+            }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<ItemDefinition>> ListPublishedAsync(
         CancellationToken cancellationToken = default)
     {
-        var tips = await _db.Items.AsNoTracking()
-            .Where(i => i.PublishedSnapshotId != null)
-            .Select(i => i.PublishedSnapshotId!.Value)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (tips.Count == 0)
+        return await _gate.ExecuteAsync<IReadOnlyList<ItemDefinition>>(async (db, ct) =>
         {
-            return Array.Empty<ItemDefinition>();
-        }
+            var tips = await db.Items.AsNoTracking()
+                .Where(i => i.PublishedSnapshotId != null)
+                .Select(i => i.PublishedSnapshotId!.Value)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+            if (tips.Count == 0)
+            {
+                return Array.Empty<ItemDefinition>();
+            }
 
-        var snapshots = await _db.ItemPublishedSnapshots.AsNoTracking()
-            .Where(s => tips.Contains(s.Id))
-            .OrderBy(s => s.Name)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-        return snapshots.Select(FromSnapshot).ToList();
+            var snapshots = await db.ItemPublishedSnapshots.AsNoTracking()
+                .Where(s => tips.Contains(s.Id))
+                .OrderBy(s => s.Name)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+            return snapshots.Select(FromSnapshot).ToList();
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     async Task<ItemDefinition?> IPublishedItemCatalog.LoadPublishedByIdAsync(
@@ -362,9 +382,12 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
         return stored?.Definition;
     }
 
-    private async Task<long> ReadRevisionAsync(Guid id, CancellationToken cancellationToken)
+    private static async Task<long> ReadRevisionAsync(
+        FrogDbContext db,
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var revision = await _db.Items.AsNoTracking()
+        var revision = await db.Items.AsNoTracking()
             .Where(i => i.Id == id)
             .Select(i => (long?)i.Revision)
             .FirstOrDefaultAsync(cancellationToken)

@@ -7,16 +7,16 @@ namespace Frog.Persistence.PostgreSql;
 
 public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellCatalog
 {
-    private readonly FrogDbContext _db;
+    private readonly FrogDbContextGate _gate;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
 
     /// <summary>Seam de test : appelée après SaveChanges du brouillon, avant commit.</summary>
     internal Func<CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
 
-    public PostgresSpellRepository(FrogDbContext db, TimeProvider? clock = null)
+    public PostgresSpellRepository(FrogDbContextGate gate, TimeProvider? clock = null)
     {
-        _db = db;
+        _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -26,13 +26,15 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
         SaveSpellRequest request,
         CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<SaveSpellResult>(async (db, ct) =>
+        {
         ArgumentNullException.ThrowIfNull(request);
         if (!request.Definition.Validate(out var error))
         {
             return new SaveSpellResult.ValidationFailed(error ?? "Sort/compétence invalide.");
         }
 
-        if (!await _saveGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        if (!await _saveGate.WaitAsync(0, ct).ConfigureAwait(false))
         {
             return new SaveSpellResult.ValidationFailed(
                 "Une opération d’enregistrement est déjà en cours.");
@@ -40,20 +42,21 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
 
         try
         {
-            return await SaveCoreAsync(request, cancellationToken).ConfigureAwait(false);
+            return await SaveCoreAsync(db, request, ct).ConfigureAwait(false);
         }
         finally
         {
             _saveGate.Release();
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<SaveSpellResult> SaveCoreAsync(
-        SaveSpellRequest request,
+    private async Task<SaveSpellResult> SaveCoreAsync(FrogDbContext db, SaveSpellRequest request,
         CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
-        await using var transaction = await _db.Database
+        await using var transaction = await db.Database
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -74,17 +77,17 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
                 var entity = ToEntity(request.Definition, id, now);
                 entity.Revision = 1;
                 entity.Status = ContentPublishStatus.Draft;
-                _db.Spells.Add(entity);
-                await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                db.Spells.Add(entity);
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 newRevision = 1;
                 savedId = id;
                 publishedRevision = request.Intent == SaveContentIntent.Publish
-                    ? await PublishSnapshotAsync(entity, now, cancellationToken).ConfigureAwait(false)
+                    ? await PublishSnapshotAsync(db, entity, now, cancellationToken).ConfigureAwait(false)
                     : null;
             }
             else
             {
-                var updatedRows = await _db.Spells
+                var updatedRows = await db.Spells
                     .Where(s => s.Id == spellId && s.Revision == request.ExpectedRevision)
                     .ExecuteUpdateAsync(
                         setters => setters
@@ -108,17 +111,17 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
                 if (updatedRows == 0)
                 {
                     return new SaveSpellResult.Conflict(
-                        await ReadRevisionAsync(spellId, cancellationToken).ConfigureAwait(false));
+                        await ReadRevisionAsync(db, spellId, cancellationToken).ConfigureAwait(false));
                 }
 
                 newRevision = request.ExpectedRevision + 1;
                 savedId = spellId;
                 if (request.Intent == SaveContentIntent.Publish)
                 {
-                    var entity = await _db.Spells.AsNoTracking()
+                    var entity = await db.Spells.AsNoTracking()
                         .FirstAsync(s => s.Id == spellId, cancellationToken)
                         .ConfigureAwait(false);
-                    publishedRevision = await PublishSnapshotAsync(entity, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(db, entity, now, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -133,24 +136,23 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             }
 
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveSpellResult.Success(newRevision, savedId, publishedRevision);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-            _db.ChangeTracker.Clear();
+            db.ChangeTracker.Clear();
             return new SaveSpellResult.PersistenceFailed(Sanitize(ex.Message));
         }
     }
 
-    private async Task<long> PublishSnapshotAsync(
-        SpellEntity entity,
+    private async Task<long> PublishSnapshotAsync(FrogDbContext db, SpellEntity entity,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var snapshotId = Guid.NewGuid();
-        _db.SpellPublishedSnapshots.Add(new SpellPublishedSnapshotEntity
+        db.SpellPublishedSnapshots.Add(new SpellPublishedSnapshotEntity
         {
             Id = snapshotId,
             SpellId = entity.Id,
@@ -164,7 +166,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             IconLogicalPath = entity.IconLogicalPath,
             Description = entity.Description,
         });
-        _db.SpellPublicationHistory.Add(new SpellPublicationHistoryEntity
+        db.SpellPublicationHistory.Add(new SpellPublicationHistoryEntity
         {
             Id = Guid.NewGuid(),
             SpellId = entity.Id,
@@ -173,7 +175,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             PublishedAtUtc = now,
         });
 
-        await _db.Spells
+        await db.Spells
             .Where(s => s.Id == entity.Id)
             .ExecuteUpdateAsync(
                 setters => setters
@@ -184,7 +186,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Revision;
     }
 
@@ -192,26 +194,32 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
         Guid spellId,
         CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Spells.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == spellId, cancellationToken)
+        return await _gate.ExecuteAsync<StoredSpell?>(async (db, ct) =>
+        {
+        var entity = await db.Spells.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == spellId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<StoredSpell?> LoadPublishedByIdAsync(
         Guid spellId,
         CancellationToken cancellationToken = default)
     {
-        var tip = await _db.Spells.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == spellId, cancellationToken)
+        return await _gate.ExecuteAsync<StoredSpell?>(async (db, ct) =>
+        {
+        var tip = await db.Spells.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == spellId, ct)
             .ConfigureAwait(false);
         if (tip?.PublishedSnapshotId is not Guid snapshotId)
         {
             return null;
         }
 
-        var snapshot = await _db.SpellPublishedSnapshots.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == snapshotId, cancellationToken)
+        var snapshot = await db.SpellPublishedSnapshots.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == snapshotId, ct)
             .ConfigureAwait(false);
         if (snapshot is null)
         {
@@ -226,6 +234,8 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             Status = ContentPublishStatus.Published,
             PublishedRevision = snapshot.Revision,
         };
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<SpellCatalogEntry>> ListSummariesAsync(
@@ -233,7 +243,9 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
         ContentPublishStatus? statusFilter = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.Spells.AsNoTracking().AsQueryable();
+        return await _gate.ExecuteAsync<IReadOnlyList<SpellCatalogEntry>>(async (db, ct) =>
+        {
+        var query = db.Spells.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var value = search.Trim();
@@ -263,43 +275,47 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
                 Status = s.Status,
                 PublishedRevision = s.PublishedRevision,
             })
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DeleteSpellResult> DeleteAsync(
         Guid spellId,
         CancellationToken cancellationToken = default)
     {
-        if (!await _db.Spells.AsNoTracking().AnyAsync(s => s.Id == spellId, cancellationToken)
+        return await _gate.ExecuteAsync<DeleteSpellResult>(async (db, ct) =>
+        {
+        if (!await db.Spells.AsNoTracking().AnyAsync(s => s.Id == spellId, ct)
                 .ConfigureAwait(false))
         {
             return new DeleteSpellResult.NotFound();
         }
 
-        if (await _db.Classes.AsNoTracking()
-                .AnyAsync(c => c.StartingSpellId == spellId, cancellationToken)
+        if (await db.Classes.AsNoTracking()
+                .AnyAsync(c => c.StartingSpellId == spellId, ct)
                 .ConfigureAwait(false)
-            || await _db.ClassPublishedSnapshots.AsNoTracking()
-                .AnyAsync(c => c.StartingSpellId == spellId, cancellationToken)
+            || await db.ClassPublishedSnapshots.AsNoTracking()
+                .AnyAsync(c => c.StartingSpellId == spellId, ct)
                 .ConfigureAwait(false))
         {
             return new DeleteSpellResult.Referenced(
                 "Sort ou compétence référencé comme sort de départ par une classe.");
         }
 
-        await using var transaction = await _db.Database
-            .BeginTransactionAsync(cancellationToken)
+        await using var transaction = await db.Database
+            .BeginTransactionAsync(ct)
             .ConfigureAwait(false);
         try
         {
-            await _db.SpellPublicationHistory.Where(h => h.SpellId == spellId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await _db.SpellPublishedSnapshots.Where(s => s.SpellId == spellId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await _db.Spells.Where(s => s.Id == spellId)
-                .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await db.SpellPublicationHistory.Where(h => h.SpellId == spellId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await db.SpellPublishedSnapshots.Where(s => s.SpellId == spellId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await db.Spells.Where(s => s.Id == spellId)
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await transaction.CommitAsync(ct).ConfigureAwait(false);
             return new DeleteSpellResult.Success();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -307,32 +323,38 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteSpellResult.PersistenceFailed(Sanitize(ex.Message));
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<SpellDefinition>> ListPublishedAsync(
         CancellationToken cancellationToken = default)
     {
-        var tips = await _db.Spells.AsNoTracking()
+        return await _gate.ExecuteAsync<IReadOnlyList<SpellDefinition>>(async (db, ct) =>
+        {
+        var tips = await db.Spells.AsNoTracking()
             .Where(s => s.PublishedSnapshotId != null)
             .Select(s => s.PublishedSnapshotId!.Value)
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
         if (tips.Count == 0)
         {
             return Array.Empty<SpellDefinition>();
         }
 
-        var snapshots = await _db.SpellPublishedSnapshots.AsNoTracking()
+        var snapshots = await db.SpellPublishedSnapshots.AsNoTracking()
             .Where(s => tips.Contains(s.Id))
             .OrderBy(s => s.Name)
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
         return snapshots.Select(FromSnapshot).ToList();
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<long> ReadRevisionAsync(Guid id, CancellationToken cancellationToken)
+    private async Task<long> ReadRevisionAsync(FrogDbContext db, Guid id, CancellationToken cancellationToken)
     {
-        var revision = await _db.Spells.AsNoTracking()
+        var revision = await db.Spells.AsNoTracking()
             .Where(s => s.Id == id)
             .Select(s => (long?)s.Revision)
             .FirstOrDefaultAsync(cancellationToken)

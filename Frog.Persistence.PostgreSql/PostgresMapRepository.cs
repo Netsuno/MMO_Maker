@@ -7,15 +7,15 @@ namespace Frog.Persistence.PostgreSql;
 
 public sealed class PostgresMapRepository : IMapRepository
 {
-    private readonly FrogDbContext _db;
+    private readonly FrogDbContextGate _gate;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
 
     internal Func<CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
 
-    public PostgresMapRepository(FrogDbContext db, TimeProvider? clock = null)
+    public PostgresMapRepository(FrogDbContextGate gate, TimeProvider? clock = null)
     {
-        _db = db;
+        _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -23,6 +23,8 @@ public sealed class PostgresMapRepository : IMapRepository
 
     public async Task<SaveMapResult> SaveAsync(SaveMapRequest request, CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<SaveMapResult>(async (db, ct) =>
+        {
         ArgumentNullException.ThrowIfNull(request);
 
         if (!request.Map.Validate(out var error))
@@ -30,31 +32,33 @@ public sealed class PostgresMapRepository : IMapRepository
             return new SaveMapResult.ValidationFailed(error ?? "Carte invalide.");
         }
 
-        var targetMaps = await BuildTargetMapIndexAsync(request, cancellationToken).ConfigureAwait(false);
+        var targetMaps = await BuildTargetMapIndexAsync(db, request, ct).ConfigureAwait(false);
         if (!MapWarpValidator.ValidateWarpTargets(request.Map, targetMaps, out var warpError))
         {
             return new SaveMapResult.ValidationFailed(warpError ?? "Warp invalide.");
         }
 
-        if (!await _saveGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        if (!await _saveGate.WaitAsync(0, ct).ConfigureAwait(false))
         {
             return new SaveMapResult.ValidationFailed("Une opération d’enregistrement est déjà en cours.");
         }
 
         try
         {
-            return await SaveCoreAsync(request, cancellationToken).ConfigureAwait(false);
+            return await SaveCoreAsync(db, request, ct).ConfigureAwait(false);
         }
         finally
         {
             _saveGate.Release();
         }
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<SaveMapResult> SaveCoreAsync(SaveMapRequest request, CancellationToken cancellationToken)
+    private async Task<SaveMapResult> SaveCoreAsync(FrogDbContext db, SaveMapRequest request, CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
-        await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -71,14 +75,14 @@ public sealed class PostgresMapRepository : IMapRepository
 
                 var entity = MapPersistenceMapper.ToEntity(request.Map, now);
                 entity.Status = MapPublishStatus.Draft;
-                _db.Maps.Add(entity);
-                await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                db.Maps.Add(entity);
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 newRevision = entity.Revision;
                 savedId = entity.Id;
 
                 if (request.Intent == SaveMapIntent.Publish)
                 {
-                    publishedRevision = await PublishSnapshotAsync(entity, request.Map, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(db, entity, request.Map, now, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -86,11 +90,11 @@ public sealed class PostgresMapRepository : IMapRepository
                     publishedRevision = null;
                 }
 
-                _db.ChangeTracker.Clear();
+                db.ChangeTracker.Clear();
             }
             else
             {
-                var updatedRows = await _db.Maps
+                var updatedRows = await db.Maps
                     .Where(m => m.Id == mapId && m.Revision == request.ExpectedRevision)
                     .ExecuteUpdateAsync(
                         s => s
@@ -108,17 +112,17 @@ public sealed class PostgresMapRepository : IMapRepository
                 if (updatedRows == 0)
                 {
                     return new SaveMapResult.Conflict(
-                        await ReadCurrentRevisionAsync(mapId, cancellationToken).ConfigureAwait(false));
+                        await ReadCurrentRevisionAsync(db, mapId, cancellationToken).ConfigureAwait(false));
                 }
 
                 newRevision = request.ExpectedRevision + 1;
                 savedId = mapId;
 
-                await _db.MapCells.Where(c => c.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
+                await db.MapCells.Where(c => c.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
                     .ConfigureAwait(false);
-                await _db.MapWarps.Where(w => w.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
+                await db.MapWarps.Where(w => w.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
                     .ConfigureAwait(false);
-                await _db.MapNpcSpawns.Where(n => n.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
+                await db.MapNpcSpawns.Where(n => n.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
                     .ConfigureAwait(false);
 
                 var children = MapPersistenceMapper.BuildChildren(mapId, request.Map);
@@ -127,29 +131,29 @@ public sealed class PostgresMapRepository : IMapRepository
                     warp.TargetMap = null;
                 }
 
-                _db.MapCells.AddRange(children.Cells);
-                _db.MapWarps.AddRange(children.Warps);
-                _db.MapNpcSpawns.AddRange(children.NpcSpawns);
-                await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                db.MapCells.AddRange(children.Cells);
+                db.MapWarps.AddRange(children.Warps);
+                db.MapNpcSpawns.AddRange(children.NpcSpawns);
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-                _db.ChangeTracker.Clear();
+                db.ChangeTracker.Clear();
 
                 if (request.Intent == SaveMapIntent.Publish)
                 {
-                    var draft = await _db.Maps.SingleAsync(m => m.Id == mapId, cancellationToken).ConfigureAwait(false);
-                    publishedRevision = await PublishSnapshotAsync(draft, request.Map, now, cancellationToken)
+                    var draft = await db.Maps.SingleAsync(m => m.Id == mapId, cancellationToken).ConfigureAwait(false);
+                    publishedRevision = await PublishSnapshotAsync(db, draft, request.Map, now, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
                 {
-                    publishedRevision = await _db.Maps.AsNoTracking()
+                    publishedRevision = await db.Maps.AsNoTracking()
                         .Where(m => m.Id == mapId)
                         .Select(m => m.PublishedRevision)
                         .SingleAsync(cancellationToken)
                         .ConfigureAwait(false);
                 }
 
-                _db.ChangeTracker.Clear();
+                db.ChangeTracker.Clear();
             }
 
             if (TestBeforeCommitAsync is not null)
@@ -172,7 +176,7 @@ public sealed class PostgresMapRepository : IMapRepository
             if (request.MapId is Guid id && id != Guid.Empty)
             {
                 return new SaveMapResult.Conflict(
-                    await ReadCurrentRevisionAsync(id, cancellationToken).ConfigureAwait(false));
+                    await ReadCurrentRevisionAsync(db, id, cancellationToken).ConfigureAwait(false));
             }
 
             return new SaveMapResult.Conflict(0);
@@ -187,11 +191,10 @@ public sealed class PostgresMapRepository : IMapRepository
         }
     }
 
-    private async Task<Dictionary<Guid, (int Width, int Height)>> BuildTargetMapIndexAsync(
-        SaveMapRequest request,
+    private async Task<Dictionary<Guid, (int Width, int Height)>> BuildTargetMapIndexAsync(FrogDbContext db, SaveMapRequest request,
         CancellationToken cancellationToken)
     {
-        var rows = await _db.Maps.AsNoTracking()
+        var rows = await db.Maps.AsNoTracking()
             .Select(m => new { m.Id, m.Width, m.Height })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -205,15 +208,14 @@ public sealed class PostgresMapRepository : IMapRepository
         return dict;
     }
 
-    private async Task<long> PublishSnapshotAsync(
-        MapEntity draft,
+    private async Task<long> PublishSnapshotAsync(FrogDbContext db, MapEntity draft,
         Map map,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
         var snapshot = MapPersistenceMapper.ToPublishedSnapshot(draft, map, nowUtc);
-        _db.MapPublishedSnapshots.Add(snapshot);
-        _db.MapPublicationHistory.Add(new MapPublicationHistoryEntity
+        db.MapPublishedSnapshots.Add(snapshot);
+        db.MapPublicationHistory.Add(new MapPublicationHistoryEntity
         {
             Id = Guid.NewGuid(),
             MapId = draft.Id,
@@ -226,13 +228,13 @@ public sealed class PostgresMapRepository : IMapRepository
         draft.PublishedSnapshotId = snapshot.Id;
         draft.Status = MapPublishStatus.Published;
 
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return draft.Revision;
     }
 
-    private async Task<long> ReadCurrentRevisionAsync(Guid mapId, CancellationToken cancellationToken)
+    private async Task<long> ReadCurrentRevisionAsync(FrogDbContext db, Guid mapId, CancellationToken cancellationToken)
     {
-        return await _db.Maps.AsNoTracking()
+        return await db.Maps.AsNoTracking()
             .Where(m => m.Id == mapId)
             .Select(m => m.Revision)
             .SingleOrDefaultAsync(cancellationToken)
@@ -241,16 +243,18 @@ public sealed class PostgresMapRepository : IMapRepository
 
     public async Task<StoredMap?> LoadByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<StoredMap?>(async (db, ct) =>
+        {
         if (mapId == Guid.Empty)
         {
             return null;
         }
 
-        var entity = await _db.Maps
+        var entity = await db.Maps
             .AsNoTracking()
             .Include(m => m.Cells)
             .Include(m => m.Warps)
-            .SingleOrDefaultAsync(m => m.Id == mapId, cancellationToken)
+            .SingleOrDefaultAsync(m => m.Id == mapId, ct)
             .ConfigureAwait(false);
 
         if (entity is null)
@@ -259,31 +263,37 @@ public sealed class PostgresMapRepository : IMapRepository
         }
 
         return ToStored(entity);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<StoredMap?> LoadPublishedByIdAsync(Guid mapId, CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<StoredMap?>(async (db, ct) =>
+        {
         if (mapId == Guid.Empty)
         {
             return null;
         }
 
-        var draft = await _db.Maps.AsNoTracking()
-            .SingleOrDefaultAsync(m => m.Id == mapId, cancellationToken)
+        var draft = await db.Maps.AsNoTracking()
+            .SingleOrDefaultAsync(m => m.Id == mapId, ct)
             .ConfigureAwait(false);
         if (draft?.PublishedSnapshotId is not Guid snapshotId)
         {
             return null;
         }
 
-        var snapshot = await _db.MapPublishedSnapshots
+        var snapshot = await db.MapPublishedSnapshots
             .AsNoTracking()
             .Include(s => s.Cells)
             .Include(s => s.Warps)
-            .SingleOrDefaultAsync(s => s.Id == snapshotId, cancellationToken)
+            .SingleOrDefaultAsync(s => s.Id == snapshotId, ct)
             .ConfigureAwait(false);
 
         return snapshot is null ? null : MapPersistenceMapper.ToStoredFromSnapshot(snapshot, draft.PublishedRevision);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<StoredMap?> LoadPublishedByIdAndRevisionAsync(
@@ -291,24 +301,30 @@ public sealed class PostgresMapRepository : IMapRepository
         long publishedRevision,
         CancellationToken cancellationToken = default)
     {
+        return await _gate.ExecuteAsync<StoredMap?>(async (db, ct) =>
+        {
         if (mapId == Guid.Empty || publishedRevision <= 0)
         {
             return null;
         }
 
-        var snapshot = await _db.MapPublishedSnapshots
+        var snapshot = await db.MapPublishedSnapshots
             .AsNoTracking()
             .Include(s => s.Cells)
             .Include(s => s.Warps)
-            .SingleOrDefaultAsync(s => s.MapId == mapId && s.Revision == publishedRevision, cancellationToken)
+            .SingleOrDefaultAsync(s => s.MapId == mapId && s.Revision == publishedRevision, ct)
             .ConfigureAwait(false);
 
         return snapshot is null ? null : MapPersistenceMapper.ToStoredFromSnapshot(snapshot, publishedRevision);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<MapCatalogEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
     {
-        return await _db.Maps
+        return await _gate.ExecuteAsync<IReadOnlyList<MapCatalogEntry>>(async (db, ct) =>
+        {
+        return await db.Maps
             .AsNoTracking()
             .OrderBy(m => m.Name)
             .ThenBy(m => m.Id)
@@ -322,15 +338,19 @@ public sealed class PostgresMapRepository : IMapRepository
                 Status = m.PublishedRevision != null ? MapPublishStatus.Published : MapPublishStatus.Draft,
                 PublishedRevision = m.PublishedRevision,
             })
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<MapPublicationRecord>> ListPublicationHistoryAsync(
         Guid mapId,
         CancellationToken cancellationToken = default)
     {
-        return await _db.MapPublicationHistory
+        return await _gate.ExecuteAsync<IReadOnlyList<MapPublicationRecord>>(async (db, ct) =>
+        {
+        return await db.MapPublicationHistory
             .AsNoTracking()
             .Where(h => h.MapId == mapId)
             .OrderByDescending(h => h.PublishedAtUtc)
@@ -340,8 +360,10 @@ public sealed class PostgresMapRepository : IMapRepository
                 Revision = h.Revision,
                 PublishedAtUtc = h.PublishedAtUtc,
             })
-            .ToListAsync(cancellationToken)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
+    
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private static StoredMap ToStored(MapEntity entity)

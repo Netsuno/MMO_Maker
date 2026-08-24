@@ -20,8 +20,8 @@ public sealed class PostgresTilesetRepositoryTests
     [Trait("Category", "PostgreSql")]
     public async Task Save_Publish_Reload_DraftDistinct_Conflict_Rollback()
     {
-        await using var db = CreateDb();
-        var repo = new PostgresTilesetRepository(db);
+        using var gate = CreateGate();
+        var repo = new PostgresTilesetRepository(gate);
 
         var def = CreateDef("Herbe", "tiles/herbe.png", palette: 11);
         var created = Assert.IsType<SaveTilesetResult.Success>(await repo.SaveAsync(new SaveTilesetRequest
@@ -43,8 +43,8 @@ public sealed class PostgresTilesetRepositoryTests
         Assert.Equal(2, published.NewRevision);
         Assert.Equal(2, published.PublishedRevision);
 
-        await using var db2 = CreateDb();
-        var repo2 = new PostgresTilesetRepository(db2);
+        using var gate2 = CreateGate();
+        var repo2 = new PostgresTilesetRepository(gate2);
         var draft = await repo2.LoadByIdAsync(created.TilesetId);
         var snap = await repo2.LoadPublishedByIdAsync(created.TilesetId);
         Assert.NotNull(draft);
@@ -62,8 +62,8 @@ public sealed class PostgresTilesetRepositoryTests
             Intent = SaveContentIntent.SaveDraft,
         }));
 
-        await using var db3 = CreateDb();
-        var repo3 = new PostgresTilesetRepository(db3);
+        using var gate3 = CreateGate();
+        var repo3 = new PostgresTilesetRepository(gate3);
         Assert.Equal("Brouillon seul", (await repo3.LoadByIdAsync(created.TilesetId))!.Definition.Name);
         Assert.Equal("Herbe publiée", (await repo3.LoadPublishedByIdAsync(created.TilesetId))!.Definition.Name);
 
@@ -86,8 +86,8 @@ public sealed class PostgresTilesetRepositoryTests
         }));
 
         // Rollback : injecter une erreur avant commit de publication.
-        await using var db4 = CreateDb();
-        var failing = new PostgresTilesetRepository(db4)
+        using var gate4 = CreateGate();
+        var failing = new PostgresTilesetRepository(gate4)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injected-fail"),
         };
@@ -100,19 +100,19 @@ public sealed class PostgresTilesetRepositoryTests
             Intent = SaveContentIntent.Publish,
         });
         Assert.IsType<SaveTilesetResult.PersistenceFailed>(failResult);
-        await using var db5 = CreateDb();
-        var after = await new PostgresTilesetRepository(db5).ListSummariesAsync(search: "FailPub");
+        using var gate5 = CreateGate();
+        var after = await new PostgresTilesetRepository(gate5).ListSummariesAsync(search: "FailPub");
         Assert.Empty(after);
-        Assert.Equal(before.Count, (await new PostgresTilesetRepository(db5).ListSummariesAsync()).Count);
+        Assert.Equal(before.Count, (await new PostgresTilesetRepository(gate5).ListSummariesAsync()).Count);
     }
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
     public async Task Search_Filter_DeleteBlockedWhenMapReferencesPalette()
     {
-        await using var db = CreateDb();
-        var tilesets = new PostgresTilesetRepository(db);
-        var maps = new PostgresMapRepository(db);
+        using var gate = CreateGate();
+        var tilesets = new PostgresTilesetRepository(gate);
+        var maps = new PostgresMapRepository(gate);
 
         var def = CreateDef("RefGrass", "tiles/ref.png", palette: 42);
         var saved = Assert.IsType<SaveTilesetResult.Success>(await tilesets.SaveAsync(new SaveTilesetRequest
@@ -147,8 +147,8 @@ public sealed class PostgresTilesetRepositoryTests
         Assert.Contains(published, p => p.Name == "RefGrass");
     }
 
-    private FrogDbContext CreateDb()
-        => new(FrogDbContextOptions.Create(_fixture.ConnectionString));
+    private FrogDbContextGate CreateGate()
+        => new(new(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 
     private static TilesetDefinition CreateDef(string name, string path, int? palette = null) => new()
     {

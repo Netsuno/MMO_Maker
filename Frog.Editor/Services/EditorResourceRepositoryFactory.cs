@@ -42,9 +42,9 @@ public static class EditorResourceRepositoryFactory
             return new EditorResourceRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var db = new FrogDbContext(FrogDbContextOptions.Create(connectionString));
-        db.Database.Migrate();
-        var postgres = new PostgresResourceRepository(db, itemCatalog);
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        gate.Db.Database.Migrate();
+        var postgres = new PostgresResourceRepository(gate, itemCatalog);
         return new EditorResourceRepositoryBundle(postgres, postgres, postgres.Capabilities);
     }
 }
