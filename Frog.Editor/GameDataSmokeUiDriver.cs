@@ -295,17 +295,26 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    private static void WaitForListSelectionLoaded(TextBox nameBox, string recordName, TimeSpan timeout)
+    {
+        PumpUntil(
+            () => nameBox.Text.Contains(recordName, StringComparison.Ordinal),
+            timeout);
+    }
+
     private static void DeleteAllowedRecord(
         ListBox list,
+        TextBox nameBox,
         Button deleteButton,
         string recordName,
         TimeSpan timeout)
     {
         var previous = EditorTestHooks.OverrideMessageBoxResult;
-        EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+        EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
         try
         {
             SelectListItemContaining(list, recordName);
+            WaitForListSelectionLoaded(nameBox, recordName, timeout);
             var countBefore = list.Items.Count;
             Click(deleteButton);
             PumpUntil(() => list.Items.Count < countBefore, timeout);
@@ -319,15 +328,17 @@ internal static class GameDataSmokeUiDriver
 
     private static void AttemptProtectedDelete(
         ListBox list,
+        TextBox nameBox,
         Button deleteButton,
         string recordName,
         TimeSpan timeout)
     {
         var previous = EditorTestHooks.OverrideMessageBoxResult;
-        EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+        EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
         try
         {
             SelectListItemContaining(list, recordName);
+            WaitForListSelectionLoaded(nameBox, recordName, timeout);
             var countBefore = list.Items.Count;
             Click(deleteButton);
             PumpUntil(() => list.Items.Count == countBefore, timeout);
@@ -411,7 +422,7 @@ internal static class GameDataSmokeUiDriver
                 "SmokeTilesetUiCopy",
                 timeout);
 
-            DeleteAllowedRecord(panel.ListForTest, panel.BtnDeleteForTest, "SmokeTilesetDeleteUi", timeout);
+            DeleteAllowedRecord(panel.ListForTest, panel.NameForTest, panel.BtnDeleteForTest, "SmokeTilesetDeleteUi", timeout);
 
             CloseForm(form, timeout);
 
@@ -487,7 +498,7 @@ internal static class GameDataSmokeUiDriver
                 "SmokeMonsterUiCopy",
                 timeout);
 
-            DeleteAllowedRecord(panel.ListForTest, panel.BtnDeleteForTest, "SmokeMonsterDeleteUi", timeout);
+            DeleteAllowedRecord(panel.ListForTest, panel.NameForTest, panel.BtnDeleteForTest, "SmokeMonsterDeleteUi", timeout);
 
             CloseForm(form, timeout);
 
@@ -558,7 +569,7 @@ internal static class GameDataSmokeUiDriver
                 "SmokePotionUiCopy",
                 timeout);
 
-            DeleteAllowedRecord(panel.ListForTest, panel.BtnDeleteForTest, "SmokePotionDeleteUi", timeout);
+            DeleteAllowedRecord(panel.ListForTest, panel.NameForTest, panel.BtnDeleteForTest, "SmokePotionDeleteUi", timeout);
 
             CloseForm(form, timeout);
 
@@ -628,7 +639,7 @@ internal static class GameDataSmokeUiDriver
                 "SmokeFireballUiCopy",
                 timeout);
 
-            DeleteAllowedRecord(panel.ListForTest, panel.BtnDeleteForTest, "SmokeFireballDeleteUi", timeout);
+            DeleteAllowedRecord(panel.ListForTest, panel.NameForTest, panel.BtnDeleteForTest, "SmokeFireballDeleteUi", timeout);
 
             CloseForm(form, timeout);
 
@@ -702,11 +713,12 @@ internal static class GameDataSmokeUiDriver
                 "SmokeWarriorUiCopy",
                 timeout);
 
-            DeleteAllowedRecord(panel.ListForTest, panel.BtnDeleteForTest, "SmokeWarriorDeleteUi", timeout);
+            DeleteAllowedRecord(panel.ListForTest, panel.NameForTest, panel.BtnDeleteForTest, "SmokeWarriorDeleteUi", timeout);
 
             form.SelectCategoryForTest(3);
             AttemptProtectedDelete(
                 form.SpellsForTest.ListForTest,
+                form.SpellsForTest.NameForTest,
                 form.SpellsForTest.BtnDeleteForTest,
                 "SmokeClassStarterUi",
                 timeout);
@@ -787,11 +799,12 @@ internal static class GameDataSmokeUiDriver
                 "SmokeShopUiCopy",
                 timeout);
 
-            DeleteAllowedRecord(panel.ListForTest, panel.BtnDeleteForTest, "SmokeShopDeleteUi", timeout);
+            DeleteAllowedRecord(panel.ListForTest, panel.NameForTest, panel.BtnDeleteForTest, "SmokeShopDeleteUi", timeout);
 
             form.SelectCategoryForTest(2);
             AttemptProtectedDelete(
                 form.ItemsForTest.ListForTest,
+                form.ItemsForTest.NameForTest,
                 form.ItemsForTest.BtnDeleteForTest,
                 "SmokeShopPotionUi",
                 timeout);
@@ -873,7 +886,7 @@ internal static class GameDataSmokeUiDriver
                 "SmokeTreeUiCopy",
                 timeout);
 
-            DeleteAllowedRecord(resources.ListForTest, resources.BtnDeleteForTest, "SmokeTreeDeleteUi", timeout);
+            DeleteAllowedRecord(resources.ListForTest, resources.NameForTest, resources.BtnDeleteForTest, "SmokeTreeDeleteUi", timeout);
 
             form.ResourcesForTest.TabsForTest.SelectedIndex = 1;
             PumpUntil(() => form.ResourcesForTest.SpawnsPanelForTest.ListForTest.IsHandleCreated, timeout);
@@ -896,6 +909,7 @@ internal static class GameDataSmokeUiDriver
 
             AttemptProtectedDelete(
                 resources.ListForTest,
+                resources.NameForTest,
                 resources.BtnDeleteForTest,
                 "SmokeTreeUi",
                 timeout);
