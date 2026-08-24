@@ -6,10 +6,11 @@
 - **Phase 4 : ACCEPTED** — `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - **Phase 5 : ACCEPTED** — `1944d73b6fffa84799d288da555f1005b82f2698`
 - **Phase 6 : GATE REACHED — WAITING FOR REVIEW (second fix pass)**
-  - Branch tip : `3d8ff73044f72963836ad8cb0bf43c1870811f50`
+  - Branch tip : `6637a48` (documentation-only after implementation)
   - Implementation SHA : `3d8ff73`
   - Evidence : `docs/progress/phase-06-essential-content-editors/`
-  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32785847198
+  - CI (branch tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32786146366
+  - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/32785847198
 - Phase 7 : **not started**
 
 ## CI counts (branch tip `3d8ff73`)
