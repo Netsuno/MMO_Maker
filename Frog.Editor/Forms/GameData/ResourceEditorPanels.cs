@@ -130,13 +130,23 @@ public sealed class ResourceEditorPanel : UserControl
 
     internal Button BtnNewForTest => _btnNew;
 
+    internal Button BtnDupForTest => _btnDup;
+
     internal Button BtnSaveForTest => _btnSave;
 
     internal Button BtnPublishForTest => _btnPublish;
 
+    internal Button BtnDeleteForTest => _btnDelete;
+
     internal TextBox NameForTest => _name;
 
     internal TextBox SpritePathForTest => _spritePath;
+
+    internal TextBox SearchForTest => _search;
+
+    internal ComboBox StatusFilterForTest => _statusFilter;
+
+    internal ComboBox YieldItemForTest => _yieldItem;
 
     internal ListBox ListForTest => _list;
 
@@ -693,9 +703,13 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
     internal Button BtnNewForTest => _btnNew;
 
+    internal Button BtnDupForTest => _btnDup;
+
     internal Button BtnSaveForTest => _btnSave;
 
     internal Button BtnPublishForTest => _btnPublish;
+
+    internal Button BtnDeleteForTest => _btnDelete;
 
     internal ListBox ListForTest => _list;
 

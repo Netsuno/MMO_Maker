@@ -51,6 +51,24 @@ public sealed class AssetPreviewControl : UserControl
 
     public AssetPreviewState PreviewState { get; private set; } = AssetPreviewState.Placeholder;
 
+    internal Image? PreviewImageForTest => _picture.Image;
+
+    internal void SavePreviewScreenshotForTest(string absolutePath)
+    {
+        if (_picture.Image is null)
+        {
+            throw new InvalidOperationException("Preview image is not loaded.");
+        }
+
+        var directory = Path.GetDirectoryName(absolutePath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        _picture.Image.Save(absolutePath, System.Drawing.Imaging.ImageFormat.Png);
+    }
+
     public void SetLogicalPathSilently(string? logicalPath)
     {
         _binding = true;

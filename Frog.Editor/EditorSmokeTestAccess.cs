@@ -153,6 +153,25 @@ internal static class EditorSmokeTestAccess
     public static void OpenGameDataRepeatedOpenClose(MainWindow window) =>
         GameDataSmokeUiDriver.RunInitializationOpenCloseLeak(window, DefaultTimeout);
 
+    public static void OpenGameDataInitialCategorySmoke(MainWindow window)
+    {
+        var form = GameDataSmokeUiDriver.OpenViaMainWindowCommand(window, DefaultTimeout);
+        try
+        {
+            GameDataSmokeUiDriver.AssertInitialTilesetCategory(form);
+        }
+        finally
+        {
+            GameDataSmokeUiDriver.CloseForm(form, DefaultTimeout);
+        }
+    }
+
+    public static Task OpenGameDataSpawnFilterSmokeAsync(MainWindow window)
+    {
+        GameDataSmokeUiDriver.RunSpawnFilterScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
+    }
+
     public static void EnsureWinFormsInitialized()
     {
         System.Windows.Forms.Application.EnableVisualStyles();

@@ -166,6 +166,10 @@ public sealed class GameDataForm : Form
     internal bool IsTilesetPanelVisibleForTest =>
         _initialized && _host.Controls.Contains(_tilesets!);
 
+    internal int CategorySelectedIndexForTest => _categoryList.SelectedIndex;
+
+    internal Panel HostPanelForTest => _host;
+
     internal void EnsureInitializedSynchronouslyForTest()
     {
         if (_initialized)
@@ -747,9 +751,13 @@ public sealed class NpcEditorPanel : UserControl
 
     internal Button BtnNewForTest => _btnNew;
 
+    internal Button BtnDupForTest => _btnDup;
+
     internal Button BtnSaveForTest => _btnSave;
 
     internal Button BtnPublishForTest => _btnPublish;
+
+    internal Button BtnDeleteForTest => _btnDelete;
 
     internal TextBox NameForTest => _name;
 
@@ -1104,13 +1112,21 @@ public sealed class ItemEditorPanel : UserControl
 
     internal Button BtnNewForTest => _btnNew;
 
+    internal Button BtnDupForTest => _btnDup;
+
     internal Button BtnSaveForTest => _btnSave;
 
     internal Button BtnPublishForTest => _btnPublish;
 
+    internal Button BtnDeleteForTest => _btnDelete;
+
     internal TextBox NameForTest => _name;
 
     internal TextBox IconPathForTest => _iconPath;
+
+    internal TextBox SearchForTest => _search;
+
+    internal ComboBox StatusFilterForTest => _statusFilter;
 
     internal ListBox ListForTest => _list;
 
@@ -1461,13 +1477,21 @@ public sealed class SpellEditorPanel : UserControl
 
     internal Button BtnNewForTest => _btnNew;
 
+    internal Button BtnDupForTest => _btnDup;
+
     internal Button BtnSaveForTest => _btnSave;
 
     internal Button BtnPublishForTest => _btnPublish;
 
+    internal Button BtnDeleteForTest => _btnDelete;
+
     internal TextBox NameForTest => _name;
 
     internal TextBox IconPathForTest => _iconPath;
+
+    internal TextBox SearchForTest => _search;
+
+    internal ComboBox StatusFilterForTest => _statusFilter;
 
     internal ListBox ListForTest => _list;
 
@@ -1839,11 +1863,21 @@ public sealed class ClassEditorPanel : UserControl
 
     internal Button BtnNewForTest => _btnNew;
 
+    internal Button BtnDupForTest => _btnDup;
+
     internal Button BtnSaveForTest => _btnSave;
 
     internal Button BtnPublishForTest => _btnPublish;
 
+    internal Button BtnDeleteForTest => _btnDelete;
+
     internal TextBox NameForTest => _name;
+
+    internal TextBox SearchForTest => _search;
+
+    internal ComboBox StatusFilterForTest => _statusFilter;
+
+    internal ComboBox StartingSpellForTest => _startingSpell;
 
     internal ListBox ListForTest => _list;
 

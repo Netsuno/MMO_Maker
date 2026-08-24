@@ -3,7 +3,10 @@ using Frog.Core.Models;
 
 namespace Frog.Application.Content;
 
-public sealed class InMemoryClassRepository : IClassRepository, IPublishedClassCatalog
+public sealed class InMemoryClassRepository :
+    IClassRepository,
+    IPublishedClassCatalog,
+    IClassSpellReferenceCatalog
 {
     private readonly ISpellRepository _spells;
     private readonly ConcurrentDictionary<Guid, DraftRecord> _drafts = new();
@@ -15,6 +18,10 @@ public sealed class InMemoryClassRepository : IClassRepository, IPublishedClassC
     {
         _spells = spells ?? throw new ArgumentNullException(nameof(spells));
         Capabilities = capabilities ?? ContentRepositoryCapabilities.InMemoryTest;
+        if (spells is InMemorySpellRepository spellRepository)
+        {
+            spellRepository.RegisterClassReferences(this);
+        }
     }
 
     public ContentRepositoryCapabilities Capabilities { get; }
@@ -201,6 +208,15 @@ public sealed class InMemoryClassRepository : IClassRepository, IPublishedClassC
             .Select(p => ClassWorkspaceSession.Clone(p.Definition))
             .ToList();
         return Task.FromResult<IReadOnlyList<ClassDefinition>>(list);
+    }
+
+    public Task<bool> IsSpellReferencedAsync(
+        Guid spellId,
+        CancellationToken cancellationToken = default)
+    {
+        var referenced = _drafts.Values.Any(draft => draft.Definition.StartingSpellId == spellId)
+            || _published.Values.Any(published => published.Definition.StartingSpellId == spellId);
+        return Task.FromResult(referenced);
     }
 
     private sealed record DraftRecord(

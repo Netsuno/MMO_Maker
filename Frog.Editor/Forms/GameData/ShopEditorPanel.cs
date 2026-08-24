@@ -55,11 +55,23 @@ public sealed class ShopEditorPanel : UserControl
 
     internal Button BtnNewForTest => _btnNew;
 
+    internal Button BtnDupForTest => _btnDup;
+
     internal Button BtnSaveForTest => _btnSave;
 
     internal Button BtnPublishForTest => _btnPublish;
 
+    internal Button BtnDeleteForTest => _btnDelete;
+
+    internal Button BtnAddListingForTest => _btnAddListing;
+
     internal TextBox NameForTest => _name;
+
+    internal TextBox SearchForTest => _search;
+
+    internal ComboBox StatusFilterForTest => _statusFilter;
+
+    internal DataGridView ListingsForTest => _listings;
 
     internal ListBox ListForTest => _list;
 

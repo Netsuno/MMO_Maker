@@ -7,6 +7,7 @@ public sealed class InMemorySpellRepository : ISpellRepository, IPublishedSpellC
 {
     private readonly ConcurrentDictionary<Guid, DraftRecord> _drafts = new();
     private readonly ConcurrentDictionary<Guid, PublishedRecord> _published = new();
+    private IClassSpellReferenceCatalog? _classReferences;
 
     public InMemorySpellRepository(ContentRepositoryCapabilities? capabilities = null)
     {
@@ -14,6 +15,11 @@ public sealed class InMemorySpellRepository : ISpellRepository, IPublishedSpellC
     }
 
     public ContentRepositoryCapabilities Capabilities { get; }
+
+    internal void RegisterClassReferences(IClassSpellReferenceCatalog classReferences)
+    {
+        _classReferences = classReferences ?? throw new ArgumentNullException(nameof(classReferences));
+    }
 
     public Task<SaveSpellResult> SaveAsync(
         SaveSpellRequest request,
@@ -173,17 +179,25 @@ public sealed class InMemorySpellRepository : ISpellRepository, IPublishedSpellC
         return Task.FromResult<IReadOnlyList<SpellCatalogEntry>>(list);
     }
 
-    public Task<DeleteSpellResult> DeleteAsync(
+    public async Task<DeleteSpellResult> DeleteAsync(
         Guid spellId,
         CancellationToken cancellationToken = default)
     {
+        if (_classReferences is not null
+            && await _classReferences.IsSpellReferencedAsync(spellId, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            return new DeleteSpellResult.Referenced(
+                "Sort ou compétence référencé comme sort de départ par une classe.");
+        }
+
         if (!_drafts.TryRemove(spellId, out _))
         {
-            return Task.FromResult<DeleteSpellResult>(new DeleteSpellResult.NotFound());
+            return new DeleteSpellResult.NotFound();
         }
 
         _published.TryRemove(spellId, out _);
-        return Task.FromResult<DeleteSpellResult>(new DeleteSpellResult.Success());
+        return new DeleteSpellResult.Success();
     }
 
     public Task<IReadOnlyList<SpellDefinition>> ListPublishedAsync(

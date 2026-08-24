@@ -74,3 +74,8 @@ public interface IPublishedSpellCatalog
 {
     Task<IReadOnlyList<SpellDefinition>> ListPublishedAsync(CancellationToken cancellationToken = default);
 }
+
+public interface IClassSpellReferenceCatalog
+{
+    Task<bool> IsSpellReferencedAsync(Guid spellId, CancellationToken cancellationToken = default);
+}
