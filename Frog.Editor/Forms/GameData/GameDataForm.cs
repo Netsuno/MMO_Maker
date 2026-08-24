@@ -241,7 +241,7 @@ public sealed class GameDataForm : Form
         ShowCategory();
     }
 
-    private void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
+    private async void GameDataForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
         if (_allowCloseAfterCleanup)
         {
@@ -277,7 +277,13 @@ public sealed class GameDataForm : Form
         }
 
         _cleanupRunning = true;
-        _ = RunCloseCleanupAsync();
+        await RunCloseCleanupAsync().ConfigureAwait(true);
+        _allowCloseAfterCleanup = true;
+        _cleanupRunning = false;
+        if (!IsDisposed)
+        {
+            Close();
+        }
     }
 
     private async Task RunCloseCleanupAsync()
@@ -326,15 +332,6 @@ public sealed class GameDataForm : Form
             _closeCleanupException = ex;
             DisposeRepositorySetSafely();
             DisposePanelLifecycles();
-        }
-        finally
-        {
-            _allowCloseAfterCleanup = true;
-            _cleanupRunning = false;
-            if (!IsDisposed)
-            {
-                BeginInvoke(new Action(Close));
-            }
         }
     }
 

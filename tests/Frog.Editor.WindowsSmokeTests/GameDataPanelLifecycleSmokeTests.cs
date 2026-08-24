@@ -88,6 +88,7 @@ public sealed class GameDataPanelLifecycleSmokeTests
                 panel.StatusFilterForTest.SelectedIndex = 2;
                 GameDataSmokeUiDriver.Click(panel.BtnDeleteForTest);
 
+                EditorTestHooks.PanelOperationBarrierForTest = null;
                 EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
                 GameDataSmokeUiDriver.CloseForm(form, timeout);
 
