@@ -6,11 +6,11 @@
 
 ## Branch tip (evidence HEAD)
 
-`465d6c6` — fix(phase-06): correct dirty-state cancel navigation smoke regression
+`e29b188` — fix(phase-06): correct dirty-state cancel navigation smoke regression
 
 ## CI
 
-https://github.com/Netsuno/MMO_Maker/actions/runs/32693724623 — success
+https://github.com/Netsuno/MMO_Maker/actions/runs/32693883134 — success
 
 | Suite | Count |
 | --- | ---: |
