@@ -15,65 +15,103 @@ public sealed class PostgresGameDataScopeLifecycleTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
-    public async Task SharedGate_MigrateOnce_PerScope_AndDisposeClosesContext()
+    public async Task EditorScope_MigrateOnce_PerInitialization_AndDisposeClosesContext()
     {
-        var migrateCalls = 0;
-        var gate = CreateGate();
+        EditorPostgreSqlScope.ResetTestCountersForTest();
+        var before = EditorPostgreSqlScope.MigrateCallCountForTest;
+        var scope = new EditorPostgreSqlScope(_fixture.ConnectionString);
         try
         {
-            await gate.ExecuteAsync(
-                async (db, ct) =>
-                {
-                    migrateCalls++;
-                    await db.Database.MigrateAsync(ct).ConfigureAwait(false);
-                }).ConfigureAwait(false);
+            Assert.Equal(1, EditorPostgreSqlScope.ActiveScopeCountForTest);
+            await scope.MigrateAsync().ConfigureAwait(false);
+            Assert.Equal(before + 1, EditorPostgreSqlScope.MigrateCallCountForTest);
 
-            Assert.Equal(1, migrateCalls);
-            Assert.NotNull(gate.Db);
-
-            await gate.ExecuteAsync(
+            await scope.Gate.ExecuteAsync(
                 static (db, ct) => db.Tilesets.CountAsync(ct),
                 CancellationToken.None).ConfigureAwait(false);
+            Assert.False(scope.IsDisposed);
         }
         finally
         {
-            gate.Dispose();
+            scope.Dispose();
         }
 
-        Assert.Throws<ObjectDisposedException>(() => _ = gate.Db);
+        Assert.True(scope.IsDisposed);
+        Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
+        Assert.Throws<ObjectDisposedException>(() => _ = scope.Db);
     }
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
-    public async Task RepeatedOpenClose_DoesNotThrowOrLeakGate()
+    public async Task EditorScope_Dispose_IsIdempotent_ExactlyOnceActiveCount()
     {
+        EditorPostgreSqlScope.ResetTestCountersForTest();
+        var scope = new EditorPostgreSqlScope(_fixture.ConnectionString);
+        Assert.Equal(1, EditorPostgreSqlScope.ActiveScopeCountForTest);
+        await scope.MigrateAsync().ConfigureAwait(false);
+        scope.Dispose();
+        scope.Dispose();
+        Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
+        Assert.True(scope.IsDisposed);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task EditorScope_RepeatedOpenClose_ReturnsActiveCountToZero()
+    {
+        EditorPostgreSqlScope.ResetTestCountersForTest();
         for (var i = 0; i < 3; i++)
         {
-            using var gate = CreateGate();
-            var repo = new PostgresTilesetRepository(gate);
-            var summaries = await repo.ListSummariesAsync().ConfigureAwait(false);
-            Assert.NotNull(summaries);
+            var scope = new EditorPostgreSqlScope(_fixture.ConnectionString);
+            await scope.MigrateAsync().ConfigureAwait(false);
+            var repo = new PostgresTilesetRepository(scope.Gate);
+            Assert.NotNull(await repo.ListSummariesAsync().ConfigureAwait(false));
+            await scope.DrainAsync().ConfigureAwait(false);
+            scope.Dispose();
+            Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
         }
     }
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
-    public async Task DrainAsync_WaitsForPendingOperation_BeforeDispose()
+    public async Task EditorScope_DrainAsync_WaitsForPendingOperation_BeforeDispose()
     {
-        var gate = CreateGate();
-        var operation = gate.ExecuteAsync(
+        EditorPostgreSqlScope.ResetTestCountersForTest();
+        var scope = new EditorPostgreSqlScope(_fixture.ConnectionString);
+        await scope.MigrateAsync().ConfigureAwait(false);
+        var operation = scope.Gate.ExecuteAsync(
             async (db, ct) =>
             {
                 _ = await db.Tilesets.CountAsync(ct).ConfigureAwait(false);
                 await Task.Delay(100, ct).ConfigureAwait(false);
             });
 
-        await gate.DrainAsync().ConfigureAwait(false);
+        await scope.DrainAsync().ConfigureAwait(false);
         await operation.ConfigureAwait(false);
-        gate.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => _ = gate.Db);
+        scope.Dispose();
+        Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
+        Assert.Throws<ObjectDisposedException>(() => _ = scope.Db);
     }
 
-    private FrogDbContextGate CreateGate()
-        => new(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task EditorScope_CancelledMigrate_ThenDispose_ActiveCountZero()
+    {
+        EditorPostgreSqlScope.ResetTestCountersForTest();
+        var scope = new EditorPostgreSqlScope(_fixture.ConnectionString);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => scope.MigrateAsync(cts.Token)).ConfigureAwait(false);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+
+        Assert.True(scope.IsDisposed);
+        Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
+    }
 }

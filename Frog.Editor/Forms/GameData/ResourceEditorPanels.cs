@@ -752,6 +752,14 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
     internal Label ValidationForTest => _validation;
 
+    internal NumericUpDown TileXForTest => _tileX;
+
+    internal NumericUpDown TileYForTest => _tileY;
+
+    internal ComboBox MapComboForTest => _map;
+
+    internal ComboBox ResourceComboForTest => _resource;
+
     public async Task InitializeAsync()
     {
         await _lifecycle.RunAsync(async ct =>

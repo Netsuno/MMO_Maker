@@ -1,9 +1,8 @@
-using Frog.Persistence.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 
-namespace Frog.Editor.Services;
+namespace Frog.Persistence.PostgreSql;
 
-/// <summary>Portée explicite d’un <see cref="FrogDbContext"/> partagé par les éditeurs Données de jeu.</summary>
+/// <summary>Portée explicite d’un <see cref="FrogDbContext"/> partagé (éditeur Données de jeu).</summary>
 public sealed class EditorPostgreSqlScope : IDisposable
 {
     private static int _activeScopeCount;
@@ -26,11 +25,11 @@ public sealed class EditorPostgreSqlScope : IDisposable
 
     public bool IsDisposed => _disposed;
 
-    internal static int ActiveScopeCountForTest => Volatile.Read(ref _activeScopeCount);
+    public static int ActiveScopeCountForTest => Volatile.Read(ref _activeScopeCount);
 
-    internal static int MigrateCallCountForTest => Volatile.Read(ref _migrateCallCount);
+    public static int MigrateCallCountForTest => Volatile.Read(ref _migrateCallCount);
 
-    internal static void ResetTestCountersForTest()
+    public static void ResetTestCountersForTest()
     {
         Interlocked.Exchange(ref _activeScopeCount, 0);
         Interlocked.Exchange(ref _migrateCallCount, 0);
@@ -40,12 +39,6 @@ public sealed class EditorPostgreSqlScope : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         Interlocked.Increment(ref _migrateCallCount);
-        if (EditorTestHooks.OverridePostgreSqlMigrateForTest is { } overrideMigrate)
-        {
-            await overrideMigrate(cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
         await Gate.ExecuteAsync(
             static (db, ct) => db.Database.MigrateAsync(ct),
             cancellationToken).ConfigureAwait(false);

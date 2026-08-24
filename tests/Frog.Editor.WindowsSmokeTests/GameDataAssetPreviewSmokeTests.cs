@@ -125,6 +125,18 @@ public sealed class GameDataAssetPreviewSmokeTests
                     var path = Path.Combine(screenshotDir, fileName);
                     Assert.True(File.Exists(path), $"Missing preview screenshot: {path}");
                     Assert.True(new FileInfo(path).Length > 0, $"Empty preview screenshot: {path}");
+                    using var image = System.Drawing.Image.FromFile(path);
+                    Assert.True(image.Width >= 800 && image.Height >= 500,
+                        $"Screenshot {fileName} too small: {image.Width}x{image.Height}");
+                    using var bmp = new System.Drawing.Bitmap(image);
+                    var first = bmp.GetPixel(0, 0);
+                    var varied = new[]
+                    {
+                        bmp.GetPixel(bmp.Width / 4, bmp.Height / 4),
+                        bmp.GetPixel(bmp.Width / 2, bmp.Height / 2),
+                        bmp.GetPixel((bmp.Width * 3) / 4, (bmp.Height * 3) / 4),
+                    }.Any(p => p.ToArgb() != first.ToArgb());
+                    Assert.True(varied, $"Screenshot {fileName} appears solid-color.");
                 }
             }
             finally

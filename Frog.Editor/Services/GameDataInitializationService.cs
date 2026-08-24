@@ -44,7 +44,16 @@ public static class GameDataInitializationService
         var scope = new EditorPostgreSqlScope(connectionString);
         try
         {
-            await scope.MigrateAsync(cancellationToken).ConfigureAwait(false);
+            if (EditorTestHooks.OverridePostgreSqlMigrateForTest is { } overrideMigrate)
+            {
+                Interlocked.Increment(ref s_injectedMigrateCallCountForTest);
+                await overrideMigrate(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await scope.MigrateAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report("Chargement des catalogues…");
             return CreatePostgreSqlSet(scope);
@@ -55,6 +64,13 @@ public static class GameDataInitializationService
             throw;
         }
     }
+
+    private static int s_injectedMigrateCallCountForTest;
+
+    internal static int InjectedMigrateCallCountForTest => Volatile.Read(ref s_injectedMigrateCallCountForTest);
+
+    internal static void ResetInjectedMigrateCountForTest()
+        => Interlocked.Exchange(ref s_injectedMigrateCallCountForTest, 0);
 
     internal static bool HasInjectedRepositories()
         => EditorTestHooks.OverrideMapRepository is not null
