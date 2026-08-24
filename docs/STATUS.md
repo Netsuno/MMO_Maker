@@ -6,9 +6,9 @@
 - **Phase 4 : ACCEPTED** — `22d19b4570eaf552e5ce162243a83020ce86e2eb`
 - **Phase 5 : ACCEPTED** — `1944d73b6fffa84799d288da555f1005b82f2698`
 - **Phase 6 : GATE REACHED — WAITING FOR REVIEW (resubmission)**
-  - Evidence HEAD : `dccc8a4`
-  - Branch tip : `dccc8a4`
-  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32694077522
+  - Evidence HEAD : `c55f74e`
+  - Branch tip : `c55f74e`
+  - CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32694236854
   - Evidence : `docs/progress/phase-06-essential-content-editors/`
 - Phase 7 : **not started**
 
