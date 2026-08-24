@@ -100,8 +100,14 @@ internal static class GameDataSmokeUiDriver
     public static void PumpUntil(Func<bool> predicate, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
+        var wpf = System.Windows.Application.Current?.Dispatcher;
         while (!predicate() && DateTime.UtcNow < deadline)
         {
+            if (wpf is not null)
+            {
+                wpf.Invoke(System.Windows.Threading.DispatcherPriority.Background, static () => { });
+            }
+
             System.Windows.Forms.Application.DoEvents();
             Thread.Sleep(10);
         }
@@ -109,6 +115,16 @@ internal static class GameDataSmokeUiDriver
         if (!predicate())
         {
             throw new TimeoutException("UI condition not met before timeout.");
+        }
+    }
+
+    private static void WaitForTask(Task task, TimeSpan timeout)
+    {
+        PumpUntil(() => task.IsCompleted, timeout);
+        if (task.IsFaulted)
+        {
+            throw task.Exception?.GetBaseException()
+                  ?? new InvalidOperationException("Background UI task failed.");
         }
     }
 
@@ -262,6 +278,7 @@ internal static class GameDataSmokeUiDriver
             ClickAndWait(spells.BtnPublishForTest, () => !spells.IsDirty, timeout);
 
             form.SelectCategoryForTest(4);
+            WaitForTask(form.ClassesForTest.InitializeAsync(), timeout);
             var panel = form.ClassesForTest;
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokeWarriorUi");
@@ -290,6 +307,7 @@ internal static class GameDataSmokeUiDriver
             ClickAndWait(items.BtnPublishForTest, () => !items.IsDirty, timeout);
 
             form.SelectCategoryForTest(5);
+            WaitForTask(form.ShopsForTest.InitializeAsync(), timeout);
             var panel = form.ShopsForTest;
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokeShopUi");
@@ -318,6 +336,7 @@ internal static class GameDataSmokeUiDriver
             ClickAndWait(items.BtnPublishForTest, () => !items.IsDirty, timeout);
 
             form.SelectCategoryForTest(6);
+            WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);
             SetText(resources.NameForTest, "SmokeTreeUi");

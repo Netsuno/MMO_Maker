@@ -4,6 +4,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Forms;
 using Frog.Application.Maps;
 using Frog.Core.Enums;
 using Frog.Core.Models;
@@ -80,6 +81,7 @@ internal static class EditorSmokeTestAccess
                 resourceRepository,
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
+        EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
     }
 
     public static Task OpenGameDataAndSaveSampleTilesetAsync(MainWindow window)
