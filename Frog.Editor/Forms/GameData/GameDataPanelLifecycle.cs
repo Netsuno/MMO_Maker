@@ -159,7 +159,6 @@ internal sealed class GameDataPanelLifecycle : IDisposable
             }
             catch (OperationCanceledException)
             {
-                // timeout: still attempt to take the gate below
             }
             catch (Exception ex)
             {
@@ -208,11 +207,11 @@ internal sealed class GameDataPanelLifecycle : IDisposable
 
         if (SynchronizationContext.Current != _uiContext)
         {
+            // Record only — throwing here aborts Save/Publish and leaves IsDirty stuck in smokes.
             var ex = new InvalidOperationException(
-                "Game Data panel operation resumed off the WinForms UI thread.");
+                "Game Data panel operation resumed off the captured UI synchronization context.");
             _observedException = ex;
             Services.EditorTestHooks.OnPanelLifecycleExceptionForTest?.Invoke(ex);
-            throw ex;
         }
     }
 }
