@@ -150,17 +150,27 @@ public sealed class GameDataPanelLifecycleSmokeTests
                     GameDataSmokeUiDriver.SetText(panel.PathForTest, "tiles/close-op.png");
                     if (operationName is "publish" or "delete")
                     {
-                        GameDataSmokeUiDriver.ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+                        GameDataSmokeUiDriver.ClickAndWait(
+                            panel.BtnSaveForTest,
+                            () => panel.LifecycleForTest.IsIdle && !panel.IsDirty,
+                            timeout);
                     }
 
                     if (operationName == "delete")
                     {
-                        GameDataSmokeUiDriver.ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
-                        // Need a draft to delete without protected published-only edge cases — create another draft.
+                        GameDataSmokeUiDriver.ClickPublishAndWait(
+                            panel.BtnPublishForTest,
+                            panel.ListForTest,
+                            $"CloseDuring-{operationName}",
+                            () => panel.LifecycleForTest.IsIdle,
+                            timeout);
                         GameDataSmokeUiDriver.Click(panel.BtnNewForTest);
-                        GameDataSmokeUiDriver.SetText(panel.NameForTest, $"CloseDuring-delete-draft");
+                        GameDataSmokeUiDriver.SetText(panel.NameForTest, "CloseDuring-delete-draft");
                         GameDataSmokeUiDriver.SetText(panel.PathForTest, "tiles/close-op.png");
-                        GameDataSmokeUiDriver.ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+                        GameDataSmokeUiDriver.ClickAndWait(
+                            panel.BtnSaveForTest,
+                            () => panel.LifecycleForTest.IsIdle && !panel.IsDirty,
+                            timeout);
                     }
                 }
 
@@ -168,6 +178,7 @@ public sealed class GameDataPanelLifecycleSmokeTests
                 var releaseBarrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var sawCancellation = false;
 
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
                 EditorTestHooks.PanelOperationBarrierForTest = async (name, ct) =>
                 {
                     if (!string.Equals(name, operationName, StringComparison.Ordinal))
@@ -357,6 +368,9 @@ public sealed class GameDataPanelLifecycleSmokeTests
                     await releaseBarrier.Task.ConfigureAwait(true);
                 };
 
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                EditorTestHooks.GameDataCloseCleanupTimeoutForTest = TimeSpan.FromMilliseconds(400);
+
                 GameDataSmokeUiDriver.Click(panel.BtnSaveForTest);
                 StaTestRunner.PumpUntil(() => barrierEntered.Task.IsCompleted, timeout);
                 Assert.False(lifecycle.IsIdle);
@@ -365,7 +379,7 @@ public sealed class GameDataPanelLifecycleSmokeTests
                 Assert.NotNull(repos);
 
                 GameDataSmokeUiDriver.RequestRealClose(form);
-                StaTestRunner.PumpUntil(() => form.CloseCleanupFailedForTest, timeout);
+                StaTestRunner.PumpUntil(() => form.CloseCleanupFailedForTest, TimeSpan.FromSeconds(10));
 
                 Assert.False(form.IsDisposed);
                 Assert.True(form.Visible);
@@ -375,6 +389,7 @@ public sealed class GameDataPanelLifecycleSmokeTests
                 releaseBarrier.TrySetResult();
                 StaTestRunner.PumpUntil(() => lifecycle.IsIdle, timeout);
 
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
                 form.RetryCloseCleanupForTest();
                 StaTestRunner.PumpUntil(() => form.IsDisposed, timeout);
 

@@ -170,6 +170,25 @@ internal static class GameDataSmokeUiDriver
         PumpUntil(done, timeout);
     }
 
+    public static void ClickPublishAndWait(
+        Button publishButton,
+        ListBox list,
+        string namePart,
+        Func<bool> isIdle,
+        TimeSpan timeout)
+    {
+        Click(publishButton);
+        PumpUntil(
+            () => isIdle()
+                  && list.Items.Cast<object>().Any(item =>
+                  {
+                      var label = item.ToString() ?? string.Empty;
+                      return label.Contains(namePart, StringComparison.Ordinal)
+                             && label.Contains("Published", StringComparison.Ordinal);
+                  }),
+            timeout);
+    }
+
     private static void PumpUntil(Func<bool> predicate, TimeSpan timeout)
         => EditorSmokeTestAccess.PumpUntilForTest(predicate, timeout);
 
@@ -582,14 +601,14 @@ internal static class GameDataSmokeUiDriver
             SavePreviewScreenshot(panel.PreviewForTest, "tileset-preview-smoke.png");
 
             ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeTilesetUi", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeTilesetUi", "Published");
 
             SelectListItemContaining(panel.ListForTest, "SmokeTilesetUi");
             Click(panel.BtnDupForTest);
             SetText(panel.NameForTest, "SmokeTilesetUiCopy");
             ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeTilesetUiCopy", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeTilesetUiCopy", "Published");
 
             SelectListItemContaining(panel.ListForTest, "SmokeTilesetUi");
@@ -620,7 +639,7 @@ internal static class GameDataSmokeUiDriver
 
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokeTilesetDeleteUi");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             CancelDirtyListNavigation(
                 panel.ListForTest,
@@ -671,13 +690,13 @@ internal static class GameDataSmokeUiDriver
             SavePreviewScreenshot(panel.PreviewForTest, "npc-preview-smoke.png");
 
             ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeMonsterUi", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeMonsterUi", "Published");
 
             SelectListItemContaining(panel.ListForTest, "SmokeMonsterUi");
             Click(panel.BtnDupForTest);
             SetText(panel.NameForTest, "SmokeMonsterUiCopy");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeMonsterUiCopy", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeMonsterUiCopy", "Published");
 
             SelectListItemContaining(panel.ListForTest, "SmokeMonsterUi");
@@ -710,7 +729,7 @@ internal static class GameDataSmokeUiDriver
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokeMonsterDeleteUi");
             SetText(panel.SpritePathForTest, "sprites/npcs/smoke-ui.png");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             CancelDirtyListNavigation(
                 panel.ListForTest,
@@ -757,13 +776,13 @@ internal static class GameDataSmokeUiDriver
             SavePreviewScreenshot(panel.PreviewForTest, "item-preview-smoke.png");
 
             ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokePotionUi", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokePotionUi", "Published");
 
             SelectListItemContaining(panel.ListForTest, "SmokePotionUi");
             Click(panel.BtnDupForTest);
             SetText(panel.NameForTest, "SmokePotionUiCopy");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             SelectListItemContaining(panel.ListForTest, "SmokePotionUi");
             RejectInvalidPublication(
@@ -795,7 +814,7 @@ internal static class GameDataSmokeUiDriver
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokePotionDeleteUi");
             SetText(panel.IconPathForTest, "icons/items/smoke-ui.png");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             CancelDirtyListNavigation(
                 panel.ListForTest,
@@ -841,13 +860,13 @@ internal static class GameDataSmokeUiDriver
             SavePreviewScreenshot(panel.PreviewForTest, "spell-preview-smoke.png");
 
             ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeFireballUi", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeFireballUi", "Published");
 
             SelectListItemContaining(panel.ListForTest, "SmokeFireballUi");
             Click(panel.BtnDupForTest);
             SetText(panel.NameForTest, "SmokeFireballUiCopy");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             SelectListItemContaining(panel.ListForTest, "SmokeFireballUi");
             RejectInvalidPublication(
@@ -879,7 +898,7 @@ internal static class GameDataSmokeUiDriver
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokeFireballDeleteUi");
             SetText(panel.IconPathForTest, "icons/spells/smoke-ui.png");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             CancelDirtyListNavigation(
                 panel.ListForTest,
@@ -921,7 +940,7 @@ internal static class GameDataSmokeUiDriver
             Click(spells.BtnNewForTest);
             SetText(spells.NameForTest, "SmokeClassStarterUi");
             SetText(spells.IconPathForTest, "icons/spells/smoke-class-ui.png");
-            ClickAndWait(spells.BtnPublishForTest, () => !spells.IsDirty, timeout);
+            ClickAndWait(spells.BtnPublishForTest, () => spells.LifecycleForTest.IsIdle && !spells.IsDirty, timeout);
 
             form.SelectCategoryForTest(4);
             WaitForTask(form.ClassesForTest.InitializeAsync(), timeout);
@@ -930,13 +949,13 @@ internal static class GameDataSmokeUiDriver
             SetText(panel.NameForTest, "SmokeWarriorUi");
             SelectComboItemContaining(panel.StartingSpellForTest, "SmokeClassStarterUi");
             ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeWarriorUi", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeWarriorUi", "Published");
 
             SelectListItemContaining(panel.ListForTest, "SmokeWarriorUi");
             Click(panel.BtnDupForTest);
             SetText(panel.NameForTest, "SmokeWarriorUiCopy");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             SelectListItemContaining(panel.ListForTest, "SmokeWarriorUi");
             RejectInvalidPublication(
@@ -966,7 +985,7 @@ internal static class GameDataSmokeUiDriver
 
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokeWarriorDeleteUi");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             CancelDirtyListNavigation(
                 panel.ListForTest,
@@ -1017,7 +1036,7 @@ internal static class GameDataSmokeUiDriver
             Click(items.BtnNewForTest);
             SetText(items.NameForTest, "SmokeShopPotionUi");
             SetText(items.IconPathForTest, "icons/items/smoke-shop-ui.png");
-            ClickAndWait(items.BtnPublishForTest, () => !items.IsDirty, timeout);
+            ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
             form.SelectCategoryForTest(5);
             WaitForTask(form.ShopsForTest.InitializeAsync(), timeout);
@@ -1030,13 +1049,13 @@ internal static class GameDataSmokeUiDriver
             }
 
             ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeShopUi", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeShopUi", "Published");
 
             SelectListItemContaining(panel.ListForTest, "SmokeShopUi");
             Click(panel.BtnDupForTest);
             SetText(panel.NameForTest, "SmokeShopUiCopy");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             SelectListItemContaining(panel.ListForTest, "SmokeShopUi");
             RejectInvalidPublication(
@@ -1066,7 +1085,7 @@ internal static class GameDataSmokeUiDriver
 
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokeShopDeleteUi");
-            ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
 
             CancelDirtyListNavigation(
                 panel.ListForTest,
@@ -1118,7 +1137,7 @@ internal static class GameDataSmokeUiDriver
             Click(items.BtnNewForTest);
             SetText(items.NameForTest, "SmokeYieldUi");
             SetText(items.IconPathForTest, "icons/items/smoke-yield-ui.png");
-            ClickAndWait(items.BtnPublishForTest, () => !items.IsDirty, timeout);
+            ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
             form.SelectCategoryForTest(6);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
@@ -1129,13 +1148,13 @@ internal static class GameDataSmokeUiDriver
             SelectComboItemContaining(resources.YieldItemForTest, "SmokeYieldUi");
             PumpUntil(() => resources.PreviewForTest.PreviewState == AssetPreviewState.Loaded, timeout);
             SavePreviewScreenshot(resources.PreviewForTest, "resource-preview-smoke.png");
-            ClickAndWait(resources.BtnPublishForTest, () => !resources.IsDirty, timeout);
+            ClickPublishAndWait(resources.BtnPublishForTest, resources.ListForTest, "SmokeTreeUi", () => resources.LifecycleForTest.IsIdle, timeout);
             AssertListContains(resources.ListForTest, "SmokeTreeUi", "Published");
 
             SelectListItemContaining(resources.ListForTest, "SmokeTreeUi");
             Click(resources.BtnDupForTest);
             SetText(resources.NameForTest, "SmokeTreeUiCopy");
-            ClickAndWait(resources.BtnPublishForTest, () => !resources.IsDirty, timeout);
+            ClickAndWait(resources.BtnPublishForTest, () => resources.LifecycleForTest.IsIdle && !resources.IsDirty, timeout);
 
             SelectListItemContaining(resources.ListForTest, "SmokeTreeUi");
             RejectInvalidPublication(
@@ -1172,7 +1191,7 @@ internal static class GameDataSmokeUiDriver
             SetText(resources.NameForTest, "SmokeTreeDeleteUi");
             SetText(resources.SpritePathForTest, "sprites/resources/smoke-ui.png");
             SelectComboItemContaining(resources.YieldItemForTest, "SmokeYieldUi");
-            ClickAndWait(resources.BtnPublishForTest, () => !resources.IsDirty, timeout);
+            ClickAndWait(resources.BtnPublishForTest, () => resources.LifecycleForTest.IsIdle && !resources.IsDirty, timeout);
 
             CancelDirtyListNavigation(
                 resources.ListForTest,
@@ -1205,7 +1224,7 @@ internal static class GameDataSmokeUiDriver
             spawns.TileYForTest.Value = 4;
             ClickAndWait(spawns.BtnSaveForTest, () => !spawns.IsDirty, timeout);
             AssertListContains(spawns.ListForTest, "Draft");
-            ClickAndWait(spawns.BtnPublishForTest, () => !spawns.IsDirty, timeout);
+            ClickAndWait(spawns.BtnPublishForTest, () => spawns.LifecycleForTest.IsIdle && !spawns.IsDirty, timeout);
             AssertListContains(spawns.ListForTest, "Published");
             var spawnLabel = spawns.ListForTest.Items.Cast<object>().Select(i => i.ToString() ?? string.Empty)
                 .First(l => l.Contains("Published", StringComparison.Ordinal));
@@ -1213,7 +1232,7 @@ internal static class GameDataSmokeUiDriver
             Click(spawns.BtnDupForTest);
             spawns.TileXForTest.Value = 5;
             ClickAndWait(spawns.BtnSaveForTest, () => !spawns.IsDirty, timeout);
-            ClickAndWait(spawns.BtnPublishForTest, () => !spawns.IsDirty, timeout);
+            ClickAndWait(spawns.BtnPublishForTest, () => spawns.LifecycleForTest.IsIdle && !spawns.IsDirty, timeout);
 
             SelectListItemContaining(spawns.ListForTest, "5,");
             PumpUntil(() => spawns.TileXForTest.Value == 5, timeout);
@@ -1276,7 +1295,7 @@ internal static class GameDataSmokeUiDriver
             Click(spawns.BtnNewForTest);
             spawns.TileXForTest.Value = 8;
             spawns.TileYForTest.Value = 8;
-            ClickAndWait(spawns.BtnPublishForTest, () => !spawns.IsDirty, timeout);
+            ClickAndWait(spawns.BtnPublishForTest, () => spawns.LifecycleForTest.IsIdle && !spawns.IsDirty, timeout);
             var countBeforeDelete = spawns.ListForTest.Items.Count;
             previous = EditorTestHooks.OverrideMessageBoxResult;
             EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
@@ -1311,7 +1330,7 @@ internal static class GameDataSmokeUiDriver
                 SelectComboItemContaining(spawns.ResourceComboForTest, "SmokeTreeUi");
             }
 
-            ClickAndWait(spawns.BtnPublishForTest, () => !spawns.IsDirty, timeout);
+            ClickAndWait(spawns.BtnPublishForTest, () => spawns.LifecycleForTest.IsIdle && !spawns.IsDirty, timeout);
             AssertListContains(spawns.ListForTest, "SmokeTreeUi");
 
             form.ResourcesForTest.TabsForTest.SelectedIndex = 0;
@@ -1361,7 +1380,7 @@ internal static class GameDataSmokeUiDriver
             Click(items.BtnNewForTest);
             SetText(items.NameForTest, "SmokeFilterYieldUi");
             SetText(items.IconPathForTest, "icons/items/smoke-filter-yield-ui.png");
-            ClickAndWait(items.BtnPublishForTest, () => !items.IsDirty, timeout);
+            ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
             form.SelectCategoryForTest(6);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
@@ -1370,7 +1389,7 @@ internal static class GameDataSmokeUiDriver
             SetText(resources.NameForTest, "SmokeFilterTreeUi");
             SetText(resources.SpritePathForTest, "sprites/resources/smoke-filter-ui.png");
             SelectComboItemContaining(resources.YieldItemForTest, "SmokeFilterYieldUi");
-            ClickAndWait(resources.BtnPublishForTest, () => !resources.IsDirty, timeout);
+            ClickAndWait(resources.BtnPublishForTest, () => resources.LifecycleForTest.IsIdle && !resources.IsDirty, timeout);
 
             form.ResourcesForTest.TabsForTest.SelectedIndex = 1;
             var spawns = form.ResourcesForTest.SpawnsPanelForTest;
@@ -1378,7 +1397,7 @@ internal static class GameDataSmokeUiDriver
             PumpUntil(() => spawns.ResourceFilterForTest.Items.Count > 1, timeout);
 
             Click(spawns.BtnNewForTest);
-            ClickAndWait(spawns.BtnPublishForTest, () => !spawns.IsDirty, timeout);
+            ClickAndWait(spawns.BtnPublishForTest, () => spawns.LifecycleForTest.IsIdle && !spawns.IsDirty, timeout);
             var totalSpawns = spawns.ListForTest.Items.Count;
             if (totalSpawns < 1)
             {

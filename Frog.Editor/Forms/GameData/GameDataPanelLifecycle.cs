@@ -10,6 +10,7 @@ internal sealed class GameDataPanelLifecycle : IDisposable
     private readonly object _sync = new();
     private readonly HashSet<Task> _tracked = new();
     private readonly SynchronizationContext? _uiContext;
+    private readonly int _uiThreadId;
     private readonly CancellationTokenSource _lifetimeCts = new();
     private int _pending;
     private bool _closing;
@@ -19,6 +20,7 @@ internal sealed class GameDataPanelLifecycle : IDisposable
     public GameDataPanelLifecycle()
     {
         _uiContext = SynchronizationContext.Current;
+        _uiThreadId = Environment.CurrentManagedThreadId;
     }
 
     public CancellationToken Token
@@ -31,6 +33,8 @@ internal sealed class GameDataPanelLifecycle : IDisposable
     }
 
     public SynchronizationContext? UiContext => _uiContext;
+
+    public int UiThreadIdForTest => _uiThreadId;
 
     public bool IsClosing => _closing;
 
@@ -127,13 +131,20 @@ internal sealed class GameDataPanelLifecycle : IDisposable
 
     private Task InvokeOnUiAsync(Func<Task> action, CancellationToken cancellationToken)
     {
-        if (_uiContext is null || ReferenceEquals(SynchronizationContext.Current, _uiContext))
+        // Hybrid WPF + WinForms STA: the lifecycle may capture DispatcherSynchronizationContext
+        // at construction, while button clicks later see WindowsFormsSynchronizationContext.
+        // Always run inline on the owning STA thread so UI work stays on that thread and
+        // in-memory ops can complete synchronously through click handlers.
+        if (Environment.CurrentManagedThreadId == _uiThreadId
+            || _uiContext is null
+            || ReferenceEquals(SynchronizationContext.Current, _uiContext))
         {
             return action();
         }
 
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _uiContext.Post(
+        var context = SynchronizationContext.Current ?? _uiContext;
+        context.Post(
             _ =>
             {
                 _ = RunPostedAsync();

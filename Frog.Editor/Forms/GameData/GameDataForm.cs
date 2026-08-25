@@ -306,13 +306,23 @@ public sealed class GameDataForm : Form
                 SetClosingUiState(enabled: true);
                 if (!IsDisposed)
                 {
-                    GameDataUiMessageBox.Show(
-                        this,
-                        "La fermeture a expiré : une opération Données de jeu est encore en cours. "
-                        + "Attendez la fin de l’opération puis réessayez de fermer.",
-                        "Données de jeu",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
+                    // BeginInvoke so a modal MessageBox cannot deadlock the close state machine
+                    // or STA test pumps waiting on CloseCleanupFailedForTest.
+                    BeginInvoke(new Action(() =>
+                    {
+                        if (IsDisposed)
+                        {
+                            return;
+                        }
+
+                        GameDataUiMessageBox.Show(
+                            this,
+                            "La fermeture a expiré : une opération Données de jeu est encore en cours. "
+                            + "Attendez la fin de l’opération puis réessayez de fermer.",
+                            "Données de jeu",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                    }));
                 }
 
                 return;
@@ -342,12 +352,21 @@ public sealed class GameDataForm : Form
             SetClosingUiState(enabled: true);
             if (!IsDisposed)
             {
-                GameDataUiMessageBox.Show(
-                    this,
-                    $"Échec du nettoyage à la fermeture : {ex.Message}",
-                    "Données de jeu",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                var message = $"Échec du nettoyage à la fermeture : {ex.Message}";
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed)
+                    {
+                        return;
+                    }
+
+                    GameDataUiMessageBox.Show(
+                        this,
+                        message,
+                        "Données de jeu",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }));
             }
         }
     }
