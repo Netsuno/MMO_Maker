@@ -1273,7 +1273,20 @@ internal static class GameDataSmokeUiDriver
             spawns.ResourceFilterForTest.SelectedIndex = 0;
             PumpUntil(() => spawns.LifecycleForTest.IsIdle, timeout);
 
+            // Ensure a live spawn still references SmokeTreeUi before protected delete.
+            Click(spawns.BtnNewForTest);
+            spawns.TileXForTest.Value = 11;
+            spawns.TileYForTest.Value = 11;
+            if (spawns.ResourceComboForTest.Items.Count > 0)
+            {
+                SelectComboItemContaining(spawns.ResourceComboForTest, "SmokeTreeUi");
+            }
+
+            ClickAndWait(spawns.BtnPublishForTest, () => !spawns.IsDirty, timeout);
+            AssertListContains(spawns.ListForTest, "SmokeTreeUi");
+
             form.ResourcesForTest.TabsForTest.SelectedIndex = 0;
+            PumpUntil(() => resources.LifecycleForTest.IsIdle, timeout);
             AttemptProtectedDelete(
                 resources.ListForTest,
                 resources.NameForTest,
@@ -1282,7 +1295,7 @@ internal static class GameDataSmokeUiDriver
                 "SmokeTreeUi",
                 timeout,
                 repositoryStillContains: () => resources.ListForTest.Items.Cast<object>()
-                    .Any(i => (i.ToString() ?? string.Empty).Contains("SmokeTreeUi", StringComparison.Ordinal)));
+                    .Any(i => (i.ToString() ?? string.Empty).StartsWith("SmokeTreeUi (", StringComparison.Ordinal)));
 
             CloseForm(form, timeout);
 
