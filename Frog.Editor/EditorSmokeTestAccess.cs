@@ -81,6 +81,8 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OnPanelLifecycleExceptionForTest = null;
         EditorTestHooks.OverridePostgreSqlConnectionString = null;
         EditorTestHooks.OverridePostgreSqlMigrateForTest = null;
+        EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
+        EditorTestHooks.GameDataInitBarrierForTest = null;
         _pumpUntil = null;
         TilesetCache.Clear();
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");

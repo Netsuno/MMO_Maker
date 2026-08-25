@@ -66,14 +66,22 @@ public sealed class ResourceAndSpawnEditorPanel : UserControl
 
     internal TabControl TabsForTest => _tabs;
 
+    internal bool IsIdleForTest =>
+        _resources.LifecycleForTest.IsIdle && _spawns.LifecycleForTest.IsIdle;
+
     public async Task InitializeAsync()
     {
         await _resources.InitializeAsync().ConfigureAwait(true);
         await _spawns.InitializeAsync().ConfigureAwait(true);
     }
 
-    internal Task DrainAsync() =>
-        Task.WhenAll(_resources.DrainAsync(), _spawns.DrainAsync());
+    internal async Task<bool> DrainAsync(TimeSpan? timeout = null)
+    {
+        var t = timeout ?? TimeSpan.FromSeconds(30);
+        var a = await _resources.DrainAsync(t).ConfigureAwait(true);
+        var b = await _spawns.DrainAsync(t).ConfigureAwait(true);
+        return a && b;
+    }
 
     internal void BeginClosing()
     {
@@ -146,7 +154,7 @@ public sealed class ResourceEditorPanel : UserControl
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
-    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+    internal Task<bool> DrainAsync(TimeSpan? timeout = null) => _lifecycle.DrainAsync(timeout ?? TimeSpan.FromSeconds(30));
 
     internal void BeginClosing() => _lifecycle.BeginClosing();
 
@@ -236,12 +244,12 @@ public sealed class ResourceEditorPanel : UserControl
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = StatusFromIndex(_statusFilter.SelectedIndex);
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogChoice choice)
@@ -261,7 +269,7 @@ public sealed class ResourceEditorPanel : UserControl
 
             await _session.OpenAsync(choice.Id).ConfigureAwait(true);
             BindForm();
-        });
+        }, "refresh");
 
         void Mark()
         {
@@ -631,17 +639,17 @@ public sealed class ResourceSpawnEditorPanel : UserControl
                 _ => null,
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _mapFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.MapFilter = NormalizeFilterId((_mapFilter.SelectedItem as EntityChoice)?.Id);
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _resourceFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.ResourceFilter = NormalizeFilterId((_resourceFilter.SelectedItem as EntityChoice)?.Id);
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not SpawnChoice choice)
@@ -661,7 +669,7 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
             await _session.OpenAsync(choice.Id).ConfigureAwait(true);
             BindForm();
-        });
+        }, "refresh");
 
         void Mark()
         {
@@ -723,7 +731,7 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
-    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+    internal Task<bool> DrainAsync(TimeSpan? timeout = null) => _lifecycle.DrainAsync(timeout ?? TimeSpan.FromSeconds(30));
 
     internal void BeginClosing() => _lifecycle.BeginClosing();
 

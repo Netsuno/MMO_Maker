@@ -158,7 +158,7 @@ public sealed class ShopEditorPanel : UserControl
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
@@ -168,7 +168,7 @@ public sealed class ShopEditorPanel : UserControl
                 _ => null,
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
@@ -188,7 +188,7 @@ public sealed class ShopEditorPanel : UserControl
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        });
+        }, "refresh");
 
         void Mark()
         {
@@ -282,7 +282,7 @@ public sealed class ShopEditorPanel : UserControl
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
-    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+    internal Task<bool> DrainAsync(TimeSpan? timeout = null) => _lifecycle.DrainAsync(timeout ?? TimeSpan.FromSeconds(30));
 
     internal void BeginClosing() => _lifecycle.BeginClosing();
 

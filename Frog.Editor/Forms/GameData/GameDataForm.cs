@@ -36,6 +36,7 @@ public sealed class GameDataForm : Form
     private bool _initialized;
     private bool _allowCloseAfterCleanup;
     private bool _cleanupRunning;
+    private bool _closeCleanupFailed;
     private Exception? _closeCleanupException;
 
     internal Task InitializationTask => _initializationTask ?? Task.CompletedTask;
@@ -124,12 +125,18 @@ public sealed class GameDataForm : Form
         }
         catch (OperationCanceledException)
         {
-            Close();
+            if (!_cleanupRunning && !_allowCloseAfterCleanup && !IsDisposed)
+            {
+                Close();
+            }
         }
         catch (Exception ex)
         {
             GameDataUiMessageBox.Show(this, ex.Message, "Données de jeu", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            Close();
+            if (!_cleanupRunning && !_allowCloseAfterCleanup && !IsDisposed)
+            {
+                Close();
+            }
         }
     }
 
@@ -143,6 +150,11 @@ public sealed class GameDataForm : Form
                 _status.Text = message;
             }
         });
+
+        if (EditorTestHooks.GameDataInitBarrierForTest is { } initBarrier)
+        {
+            await initBarrier(cancellationToken).ConfigureAwait(true);
+        }
 
         _repositorySet = await GameDataInitializationService
             .InitializeAsync(progress, cancellationToken)
@@ -270,7 +282,6 @@ public sealed class GameDataForm : Form
             }
         }
 
-        // User-initiated close: cancel once, cleanup synchronously, then allow the follow-up Close.
         e.Cancel = true;
         if (_cleanupRunning)
         {
@@ -278,86 +289,187 @@ public sealed class GameDataForm : Form
         }
 
         _cleanupRunning = true;
-        try
-        {
-            RunCloseCleanupSynchronously();
-            _allowCloseAfterCleanup = true;
-        }
-        finally
-        {
-            _cleanupRunning = false;
-        }
-
-        BeginInvoke(new Action(() =>
-        {
-            if (!IsDisposed)
-            {
-                Close();
-            }
-        }));
+        SetClosingUiState(enabled: false);
+        _ = RunAsyncCloseCleanupAndMaybeFinishAsync();
     }
 
-    private void RunCloseCleanupSynchronously()
+    private async Task RunAsyncCloseCleanupAndMaybeFinishAsync()
     {
+        var timeout = EditorTestHooks.GameDataCloseCleanupTimeoutForTest ?? TimeSpan.FromSeconds(30);
         try
         {
-            _initCts?.Cancel();
-            BeginClosePanels();
-
-            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-            while (DateTime.UtcNow < deadline)
+            var success = await RunCloseCleanupAsync(timeout).ConfigureAwait(true);
+            if (!success)
             {
-                System.Windows.Forms.Application.DoEvents();
-                var panelsIdle = (!_initialized
-                                  || ((_tilesets?.LifecycleForTest.IsIdle ?? true)
-                                      && (_npcs?.LifecycleForTest.IsIdle ?? true)
-                                      && (_items?.LifecycleForTest.IsIdle ?? true)
-                                      && (_spells?.LifecycleForTest.IsIdle ?? true)
-                                      && (_classes?.LifecycleForTest.IsIdle ?? true)
-                                      && (_shops?.LifecycleForTest.IsIdle ?? true)
-                                      && (_resourcesAndSpawns?.ResourcesPanelForTest.LifecycleForTest.IsIdle ?? true)
-                                      && (_resourcesAndSpawns?.SpawnsPanelForTest.LifecycleForTest.IsIdle ?? true)));
-                if (panelsIdle)
+                _closeCleanupFailed = true;
+                _cleanupRunning = false;
+                SetClosingUiState(enabled: true);
+                if (!IsDisposed)
                 {
-                    break;
+                    GameDataUiMessageBox.Show(
+                        this,
+                        "La fermeture a expiré : une opération Données de jeu est encore en cours. "
+                        + "Attendez la fin de l’opération puis réessayez de fermer.",
+                        "Données de jeu",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                 }
 
-                Thread.Sleep(10);
-            }
-
-            if (_initializationTask is { IsCompleted: false })
-            {
-                try
-                {
-                    _initializationTask.Wait(TimeSpan.FromSeconds(2));
-                }
-                catch (Exception ex)
-                {
-                    _closeCleanupException = ex;
-                }
-            }
-
-            if (_repositorySet?.DatabaseScope is { } scope)
-            {
-                try
-                {
-                    scope.DrainAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-                }
-                catch (Exception ex)
-                {
-                    _closeCleanupException ??= ex;
-                }
+                return;
             }
 
             DisposeRepositorySetSafely();
             DisposePanelLifecycles();
+            _closeCleanupFailed = false;
+            _allowCloseAfterCleanup = true;
+            _cleanupRunning = false;
+            if (!IsDisposed)
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed)
+                    {
+                        Close();
+                    }
+                }));
+            }
         }
         catch (Exception ex)
         {
             _closeCleanupException = ex;
-            DisposeRepositorySetSafely();
-            DisposePanelLifecycles();
+            _closeCleanupFailed = true;
+            _cleanupRunning = false;
+            SetClosingUiState(enabled: true);
+            if (!IsDisposed)
+            {
+                GameDataUiMessageBox.Show(
+                    this,
+                    $"Échec du nettoyage à la fermeture : {ex.Message}",
+                    "Données de jeu",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
+    }
+
+    private async Task<bool> RunCloseCleanupAsync(TimeSpan timeout)
+    {
+        _initCts?.Cancel();
+        BeginClosePanels();
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        using var overall = new CancellationTokenSource(timeout);
+        var token = overall.Token;
+
+        TimeSpan Remaining()
+        {
+            var left = timeout - sw.Elapsed;
+            return left <= TimeSpan.Zero ? TimeSpan.Zero : left;
+        }
+
+        if (_initializationTask is { IsCompleted: false })
+        {
+            try
+            {
+                await _initializationTask.WaitAsync(token).ConfigureAwait(true);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                // initialization cancelled cooperatively
+            }
+            catch (Exception ex)
+            {
+                _closeCleanupException = ex;
+            }
+        }
+
+        if (_initialized)
+        {
+            async Task<bool> DrainOne(Func<TimeSpan, Task<bool>> drain)
+            {
+                var left = Remaining();
+                if (left <= TimeSpan.Zero)
+                {
+                    return false;
+                }
+
+                return await drain(left).ConfigureAwait(true);
+            }
+
+            if (!await DrainOne(t => _tilesets!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _npcs!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _items!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _spells!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _classes!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _shops!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _resourcesAndSpawns!.DrainAsync(t)).ConfigureAwait(true))
+            {
+                return false;
+            }
+        }
+
+        if (_repositorySet?.DatabaseScope is { } scope)
+        {
+            try
+            {
+                var left = Remaining();
+                if (left <= TimeSpan.Zero)
+                {
+                    return false;
+                }
+
+                using var scopeCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                scopeCts.CancelAfter(left);
+                await scope.DrainAsync(scopeCts.Token).ConfigureAwait(true);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || Remaining() <= TimeSpan.Zero)
+            {
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _closeCleanupException ??= ex;
+                return false;
+            }
+        }
+
+        // Never treat unfinished tracked work as successful cleanup.
+        if (_initialized
+            && (!(_tilesets?.LifecycleForTest.IsIdle ?? true)
+                || !(_npcs?.LifecycleForTest.IsIdle ?? true)
+                || !(_items?.LifecycleForTest.IsIdle ?? true)
+                || !(_spells?.LifecycleForTest.IsIdle ?? true)
+                || !(_classes?.LifecycleForTest.IsIdle ?? true)
+                || !(_shops?.LifecycleForTest.IsIdle ?? true)
+                || !(_resourcesAndSpawns?.IsIdleForTest ?? true)))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void SetClosingUiState(bool enabled)
+    {
+        _categoryList.Enabled = enabled && _initialized;
+        if (_initialized)
+        {
+            _tilesets!.Enabled = enabled;
+            _npcs!.Enabled = enabled;
+            _items!.Enabled = enabled;
+            _spells!.Enabled = enabled;
+            _classes!.Enabled = enabled;
+            _shops!.Enabled = enabled;
+            _resourcesAndSpawns!.Enabled = enabled;
+        }
+
+        _status.Text = enabled
+            ? _status.Text
+            : "Fermeture en cours — attente des opérations…";
     }
 
     private void BeginClosePanels()
@@ -400,21 +512,23 @@ public sealed class GameDataForm : Form
 
     internal Exception? CloseCleanupExceptionForTest => _closeCleanupException;
 
+    internal bool CloseCleanupFailedForTest => _closeCleanupFailed;
+
+    internal bool AllowFinalCloseForTest => _allowCloseAfterCleanup;
+
     internal string StatusTextForTest => _status.Text;
 
-    /// <summary>Smoke : nettoie et ferme sans dépendre de BeginInvoke.</summary>
-    internal void ForceCloseAfterCleanupForTest()
+    /// <summary>Relance le nettoyage de fermeture après un échec (tests / utilisateur).</summary>
+    internal void RetryCloseCleanupForTest()
     {
-        if (!_allowCloseAfterCleanup)
+        if (_allowCloseAfterCleanup || _cleanupRunning || IsDisposed)
         {
-            RunCloseCleanupSynchronously();
-            _allowCloseAfterCleanup = true;
+            return;
         }
 
-        if (!IsDisposed)
-        {
-            Close();
-        }
+        _cleanupRunning = true;
+        SetClosingUiState(enabled: false);
+        _ = RunAsyncCloseCleanupAndMaybeFinishAsync();
     }
 
     private void ShowCategory()
@@ -463,7 +577,6 @@ public sealed class GameDataForm : Form
     }
 }
 
-/// <summary>Liste + formulaire tileset (brouillon / publication).</summary>
 public sealed class TilesetEditorPanel : UserControl
 {
     private readonly GameDataPanelLifecycle _lifecycle = new();
@@ -502,7 +615,7 @@ public sealed class TilesetEditorPanel : UserControl
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
-    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+    internal Task<bool> DrainAsync(TimeSpan? timeout = null) => _lifecycle.DrainAsync(timeout ?? TimeSpan.FromSeconds(30));
 
     internal void BeginClosing() => _lifecycle.BeginClosing();
 
@@ -586,7 +699,7 @@ public sealed class TilesetEditorPanel : UserControl
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
@@ -596,7 +709,7 @@ public sealed class TilesetEditorPanel : UserControl
                 _ => null,
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
@@ -616,7 +729,7 @@ public sealed class TilesetEditorPanel : UserControl
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        });
+        }, "refresh");
 
         void Mark()
         {
@@ -862,7 +975,7 @@ public sealed class NpcEditorPanel : UserControl
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
-    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+    internal Task<bool> DrainAsync(TimeSpan? timeout = null) => _lifecycle.DrainAsync(timeout ?? TimeSpan.FromSeconds(30));
 
     internal void BeginClosing() => _lifecycle.BeginClosing();
 
@@ -950,7 +1063,7 @@ public sealed class NpcEditorPanel : UserControl
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
@@ -960,7 +1073,7 @@ public sealed class NpcEditorPanel : UserControl
                 _ => null,
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
@@ -980,7 +1093,7 @@ public sealed class NpcEditorPanel : UserControl
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        });
+        }, "refresh");
 
         void Mark()
         {
@@ -1237,7 +1350,7 @@ public sealed class ItemEditorPanel : UserControl
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
-    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+    internal Task<bool> DrainAsync(TimeSpan? timeout = null) => _lifecycle.DrainAsync(timeout ?? TimeSpan.FromSeconds(30));
 
     internal void BeginClosing() => _lifecycle.BeginClosing();
 
@@ -1330,7 +1443,7 @@ public sealed class ItemEditorPanel : UserControl
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
@@ -1340,7 +1453,7 @@ public sealed class ItemEditorPanel : UserControl
                 _ => null,
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
@@ -1360,7 +1473,7 @@ public sealed class ItemEditorPanel : UserControl
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        });
+        }, "refresh");
 
         void Mark()
         {
@@ -1616,7 +1729,7 @@ public sealed class SpellEditorPanel : UserControl
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
-    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+    internal Task<bool> DrainAsync(TimeSpan? timeout = null) => _lifecycle.DrainAsync(timeout ?? TimeSpan.FromSeconds(30));
 
     internal void BeginClosing() => _lifecycle.BeginClosing();
 
@@ -1713,7 +1826,7 @@ public sealed class SpellEditorPanel : UserControl
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
@@ -1723,7 +1836,7 @@ public sealed class SpellEditorPanel : UserControl
                 _ => null,
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
@@ -1743,7 +1856,7 @@ public sealed class SpellEditorPanel : UserControl
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        });
+        }, "refresh");
 
         void Mark()
         {
@@ -2014,7 +2127,7 @@ public sealed class ClassEditorPanel : UserControl
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
-    internal Task DrainAsync() => _lifecycle.DrainAsync(TimeSpan.FromSeconds(5));
+    internal Task<bool> DrainAsync(TimeSpan? timeout = null) => _lifecycle.DrainAsync(timeout ?? TimeSpan.FromSeconds(30));
 
     internal void BeginClosing() => _lifecycle.BeginClosing();
 
@@ -2111,7 +2224,7 @@ public sealed class ClassEditorPanel : UserControl
         {
             _session.SearchFilter = _search.Text;
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _statusFilter.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
             _session.StatusFilter = _statusFilter.SelectedIndex switch
@@ -2121,7 +2234,7 @@ public sealed class ClassEditorPanel : UserControl
                 _ => null,
             };
             await RefreshListAsync(ct).ConfigureAwait(true);
-        });
+        }, "refresh");
         _list.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async _ =>
         {
             if (_suppressList || _list.SelectedItem is not CatalogItem item)
@@ -2141,7 +2254,7 @@ public sealed class ClassEditorPanel : UserControl
 
             await _session.OpenAsync(item.Id).ConfigureAwait(true);
             BindForm();
-        });
+        }, "refresh");
 
         void Mark()
         {

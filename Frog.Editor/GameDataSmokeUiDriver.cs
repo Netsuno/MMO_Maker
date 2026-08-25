@@ -55,6 +55,27 @@ internal static class GameDataSmokeUiDriver
         return form ?? throw new InvalidOperationException("Game Data form did not open.");
     }
 
+    /// <summary>Ouvre Données de jeu sans attendre la fin de l’initialisation (tests de fermeture pendant init).</summary>
+    public static GameDataForm OpenPendingInitViaMainWindowCommand(MainWindow window, TimeSpan timeout)
+    {
+        EditorTestHooks.GameDataNonModalForTest = true;
+        EditorTestHooks.UseSynchronousGameDataInitForTest = false;
+        GameDataForm? form = null;
+        EditorTestHooks.OnGameDataFormShown = opened => form = (GameDataForm)opened;
+
+        if (window.Dispatcher.CheckAccess())
+        {
+            MainWindow.CmdGameData.Execute(null, window);
+        }
+        else
+        {
+            window.Dispatcher.Invoke(() => MainWindow.CmdGameData.Execute(null, window));
+        }
+
+        PumpUntil(() => form is not null && form.Visible, timeout);
+        return form ?? throw new InvalidOperationException("Game Data form did not open.");
+    }
+
     public static void AssertInitialTilesetCategory(GameDataForm form)
     {
         if (form.CategorySelectedIndexForTest != 0)
@@ -80,7 +101,8 @@ internal static class GameDataSmokeUiDriver
         EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
         try
         {
-            form.ForceCloseAfterCleanupForTest();
+            // Production path: FormClosing → async cleanup → allowFinalClose → Close().
+            form.Close();
             PumpUntil(() => form.IsDisposed, timeout);
         }
         finally
@@ -89,6 +111,13 @@ internal static class GameDataSmokeUiDriver
             EditorTestHooks.GameDataNonModalForTest = false;
             EditorTestHooks.OnGameDataFormShown = null;
         }
+    }
+
+    /// <summary>Demande la fermeture réelle sans attendre IsIdle (tests close-during-operation).</summary>
+    public static void RequestRealClose(GameDataForm form)
+    {
+        EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+        form.Close();
     }
 
     public static string CreateSmokeAssetRoot(params string[] relativePaths)

@@ -60,6 +60,12 @@ internal static class EditorTestHooks
     /// <summary>Smoke : initialisation synchrone (évite les continuations async sur le dispatcher).</summary>
     public static bool UseSynchronousGameDataInitForTest { get; set; }
 
+    /// <summary>Smoke / tests : délai max pour le drain de fermeture Données de jeu.</summary>
+    public static TimeSpan? GameDataCloseCleanupTimeoutForTest { get; set; }
+
+    /// <summary>Smoke : barrière injectée pendant l’initialisation Données de jeu.</summary>
+    public static Func<CancellationToken, Task>? GameDataInitBarrierForTest { get; set; }
+
     /// <summary>
     /// Smoke : barrière injectée avant chaque opération panneau (permet de bloquer Refresh/Save/Publish/Delete).
     /// </summary>

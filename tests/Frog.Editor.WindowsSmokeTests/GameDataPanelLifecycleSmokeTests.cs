@@ -11,7 +11,7 @@ namespace Frog.Editor.WindowsSmokeTests;
 public sealed class GameDataPanelLifecycleSmokeTests
 {
     [Fact]
-    public void GameData_PanelLifecycle_UiThreadAndCloseDisposesWithoutExceptions()
+    public void GameData_PanelLifecycle_SerializedOperations_RunOnOwningStaUiThread()
     {
         StaTestRunner.Run(() =>
         {
@@ -35,45 +35,359 @@ public sealed class GameDataPanelLifecycleSmokeTests
 
                 var timeout = EditorSmokeTestAccess.DefaultTimeout;
                 var form = GameDataSmokeUiDriver.OpenViaMainWindowCommand(window, timeout);
-                var panel = form.TilesetsForTest;
+                var lifecycle = form.TilesetsForTest.LifecycleForTest;
                 var uiThreadId = Environment.CurrentManagedThreadId;
                 var threadIds = new List<int>();
 
-                EditorTestHooks.PanelOperationBarrierForTest = (_, _) =>
-                {
-                    lock (threadIds)
+                var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var firstBlock = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var secondDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                _ = lifecycle.RunAsync(
+                    async _ =>
                     {
-                        threadIds.Add(Environment.CurrentManagedThreadId);
-                    }
+                        lock (threadIds)
+                        {
+                            threadIds.Add(Environment.CurrentManagedThreadId);
+                        }
 
-                    return Task.CompletedTask;
-                };
+                        firstEntered.TrySetResult();
+                        await firstBlock.Task.ConfigureAwait(true);
+                        lock (threadIds)
+                        {
+                            threadIds.Add(Environment.CurrentManagedThreadId);
+                        }
+                    },
+                    "serialized-first");
 
-                GameDataSmokeUiDriver.Click(panel.BtnNewForTest);
-                GameDataSmokeUiDriver.SetText(panel.NameForTest, "LifecycleTilesetA");
-                GameDataSmokeUiDriver.Click(panel.BtnSaveForTest);
-                StaTestRunner.PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
-                GameDataSmokeUiDriver.SetText(panel.SearchForTest, "Lifecycle");
-                panel.StatusFilterForTest.SelectedIndex = 2;
-                StaTestRunner.PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+                StaTestRunner.PumpUntil(() => firstEntered.Task.IsCompleted, timeout);
+                Assert.False(lifecycle.IsIdle);
+                Assert.True(lifecycle.PendingCountForTest >= 1);
+
+                _ = lifecycle.RunAsync(
+                    async _ =>
+                    {
+                        lock (threadIds)
+                        {
+                            threadIds.Add(Environment.CurrentManagedThreadId);
+                        }
+
+                        await Task.Yield();
+                        lock (threadIds)
+                        {
+                            threadIds.Add(Environment.CurrentManagedThreadId);
+                        }
+
+                        secondDone.TrySetResult();
+                    },
+                    "serialized-second");
+
+                Assert.True(lifecycle.PendingCountForTest >= 2);
+
+                _ = Task.Run(() => firstBlock.TrySetResult());
+                StaTestRunner.PumpUntil(
+                    () => secondDone.Task.IsCompleted && lifecycle.IsIdle,
+                    timeout);
 
                 Assert.NotEmpty(threadIds);
                 Assert.All(threadIds, id => Assert.Equal(uiThreadId, id));
                 Assert.Empty(observed);
+                Assert.Null(lifecycle.ObservedExceptionForTest);
 
-                GameDataSmokeUiDriver.Click(panel.BtnPublishForTest);
-                StaTestRunner.PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
                 GameDataSmokeUiDriver.CloseForm(form, timeout);
+                Assert.True(form.IsDisposed);
+            }
+            finally
+            {
+                EditorTestHooks.OnPanelLifecycleExceptionForTest = null;
+                if (window is not null)
+                {
+                    EditorSmokeTestAccess.ForceCloseMainWindow(window);
+                }
 
-                Assert.Null(form.CloseCleanupExceptionForTest);
-                Assert.Empty(observed);
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("refresh")]
+    [InlineData("save")]
+    [InlineData("publish")]
+    [InlineData("delete")]
+    public void GameData_RealClose_WhileOperationPending_DrainsThenDisposes(string operationName)
+    {
+        StaTestRunner.Run(() =>
+        {
+            GameDataSmokeTestHelper.ConfigureInMemory();
+            var observed = new List<Exception>();
+            EditorTestHooks.OnPanelLifecycleExceptionForTest = ex =>
+            {
+                lock (observed)
+                {
+                    observed.Add(ex);
+                }
+            };
+
+            MainWindow? window = null;
+            string? assetRoot = null;
+            try
+            {
+                window = EditorSmokeTestAccess.CreateAndShowMainWindow();
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
+                    EditorSmokeTestAccess.DefaultTimeout);
+                var timeout = EditorSmokeTestAccess.DefaultTimeout;
+                assetRoot = GameDataSmokeUiDriver.CreateSmokeAssetRoot("tiles/close-op.png");
+                var form = GameDataSmokeUiDriver.OpenViaMainWindowCommand(window, timeout);
+                var panel = form.TilesetsForTest;
+                var lifecycle = panel.LifecycleForTest;
+
+                if (operationName is "save" or "publish" or "delete")
+                {
+                    GameDataSmokeUiDriver.Click(panel.BtnNewForTest);
+                    GameDataSmokeUiDriver.SetText(panel.NameForTest, $"CloseDuring-{operationName}");
+                    GameDataSmokeUiDriver.SetText(panel.PathForTest, "tiles/close-op.png");
+                    if (operationName is "publish" or "delete")
+                    {
+                        GameDataSmokeUiDriver.ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+                    }
+
+                    if (operationName == "delete")
+                    {
+                        GameDataSmokeUiDriver.ClickAndWait(panel.BtnPublishForTest, () => !panel.IsDirty, timeout);
+                        // Need a draft to delete without protected published-only edge cases — create another draft.
+                        GameDataSmokeUiDriver.Click(panel.BtnNewForTest);
+                        GameDataSmokeUiDriver.SetText(panel.NameForTest, $"CloseDuring-delete-draft");
+                        GameDataSmokeUiDriver.SetText(panel.PathForTest, "tiles/close-op.png");
+                        GameDataSmokeUiDriver.ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+                    }
+                }
+
+                var barrierEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var releaseBarrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var sawCancellation = false;
+
+                EditorTestHooks.PanelOperationBarrierForTest = async (name, ct) =>
+                {
+                    if (!string.Equals(name, operationName, StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    barrierEntered.TrySetResult();
+                    try
+                    {
+                        using var reg = ct.Register(() =>
+                        {
+                            Volatile.Write(ref sawCancellation, true);
+                            releaseBarrier.TrySetResult();
+                        });
+                        await releaseBarrier.Task.WaitAsync(ct).ConfigureAwait(true);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Volatile.Write(ref sawCancellation, true);
+                        throw;
+                    }
+                };
+
+                switch (operationName)
+                {
+                    case "refresh":
+                        GameDataSmokeUiDriver.SetText(panel.SearchForTest, "CloseDuring");
+                        break;
+                    case "save":
+                        GameDataSmokeUiDriver.Click(panel.BtnSaveForTest);
+                        break;
+                    case "publish":
+                        GameDataSmokeUiDriver.Click(panel.BtnPublishForTest);
+                        break;
+                    case "delete":
+                        GameDataSmokeUiDriver.Click(panel.BtnDeleteForTest);
+                        break;
+                }
+
+                StaTestRunner.PumpUntil(() => barrierEntered.Task.IsCompleted, timeout);
+                Assert.True(lifecycle.PendingCountForTest > 0);
+                Assert.False(lifecycle.IsIdle);
+
+                var reposBefore = form.RepositorySetForTest;
+                Assert.NotNull(reposBefore);
+
+                // Real close while operation is still pending — do not wait for IsIdle.
+                GameDataSmokeUiDriver.RequestRealClose(form);
+                StaTestRunner.PumpUntil(() => form.IsDisposed, timeout);
+
+                Assert.True(Volatile.Read(ref sawCancellation));
+                Assert.True(lifecycle.IsIdle);
+                Assert.Equal(0, lifecycle.PendingCountForTest);
                 Assert.Null(form.RepositorySetForTest);
+                Assert.Null(form.CloseCleanupExceptionForTest);
+                Assert.False(form.CloseCleanupFailedForTest);
+                Assert.Empty(observed);
                 Assert.True(form.IsDisposed);
             }
             finally
             {
                 EditorTestHooks.PanelOperationBarrierForTest = null;
                 EditorTestHooks.OnPanelLifecycleExceptionForTest = null;
+                GameDataSmokeUiDriver.CleanupAssetRoot(assetRoot);
+                if (window is not null)
+                {
+                    EditorSmokeTestAccess.ForceCloseMainWindow(window);
+                }
+
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    [Fact]
+    public void GameData_RealClose_WhileInitializationPending_CancelsAndDisposes()
+    {
+        StaTestRunner.Run(() =>
+        {
+            GameDataSmokeTestHelper.ConfigureInMemory();
+            EditorTestHooks.UseSynchronousGameDataInitForTest = false;
+
+            var initEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseInit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var sawCancel = false;
+
+            EditorTestHooks.GameDataInitBarrierForTest = async ct =>
+            {
+                initEntered.TrySetResult();
+                try
+                {
+                    using var reg = ct.Register(() =>
+                    {
+                        Volatile.Write(ref sawCancel, true);
+                        releaseInit.TrySetResult();
+                    });
+                    await releaseInit.Task.WaitAsync(ct).ConfigureAwait(true);
+                }
+                catch (OperationCanceledException)
+                {
+                    Volatile.Write(ref sawCancel, true);
+                    throw;
+                }
+            };
+
+            MainWindow? window = null;
+            try
+            {
+                window = EditorSmokeTestAccess.CreateAndShowMainWindow();
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
+                    EditorSmokeTestAccess.DefaultTimeout);
+                var timeout = EditorSmokeTestAccess.DefaultTimeout;
+                var form = GameDataSmokeUiDriver.OpenPendingInitViaMainWindowCommand(window, timeout);
+
+                StaTestRunner.PumpUntil(() => initEntered.Task.IsCompleted, timeout);
+                Assert.False(form.IsInitializedForTest);
+
+                GameDataSmokeUiDriver.RequestRealClose(form);
+                StaTestRunner.PumpUntil(() => form.IsDisposed, timeout);
+
+                Assert.True(Volatile.Read(ref sawCancel));
+                Assert.Null(form.RepositorySetForTest);
+                Assert.True(form.IsDisposed);
+                Assert.False(form.CloseCleanupFailedForTest);
+            }
+            finally
+            {
+                EditorTestHooks.GameDataInitBarrierForTest = null;
+                if (window is not null)
+                {
+                    EditorSmokeTestAccess.ForceCloseMainWindow(window);
+                }
+
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    [Fact]
+    public void GameData_NonCooperativeOperation_TimeoutKeepsFormAndScopeAlive_ThenRetryCloses()
+    {
+        StaTestRunner.Run(() =>
+        {
+            GameDataSmokeTestHelper.ConfigureInMemory();
+            EditorTestHooks.GameDataCloseCleanupTimeoutForTest = TimeSpan.FromMilliseconds(400);
+            var observed = new List<Exception>();
+            EditorTestHooks.OnPanelLifecycleExceptionForTest = ex =>
+            {
+                lock (observed)
+                {
+                    observed.Add(ex);
+                }
+            };
+
+            MainWindow? window = null;
+            string? assetRoot = null;
+            try
+            {
+                window = EditorSmokeTestAccess.CreateAndShowMainWindow();
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
+                    EditorSmokeTestAccess.DefaultTimeout);
+                var timeout = EditorSmokeTestAccess.DefaultTimeout;
+                assetRoot = GameDataSmokeUiDriver.CreateSmokeAssetRoot("tiles/noncoop.png");
+                var form = GameDataSmokeUiDriver.OpenViaMainWindowCommand(window, timeout);
+                var panel = form.TilesetsForTest;
+                var lifecycle = panel.LifecycleForTest;
+
+                GameDataSmokeUiDriver.Click(panel.BtnNewForTest);
+                GameDataSmokeUiDriver.SetText(panel.NameForTest, "NonCoopTileset");
+                GameDataSmokeUiDriver.SetText(panel.PathForTest, "tiles/noncoop.png");
+
+                var barrierEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var releaseBarrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                EditorTestHooks.PanelOperationBarrierForTest = async (name, _) =>
+                {
+                    if (!string.Equals(name, "save", StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    barrierEntered.TrySetResult();
+                    // Intentionally ignore cancellation — non-cooperative.
+                    await releaseBarrier.Task.ConfigureAwait(true);
+                };
+
+                GameDataSmokeUiDriver.Click(panel.BtnSaveForTest);
+                StaTestRunner.PumpUntil(() => barrierEntered.Task.IsCompleted, timeout);
+                Assert.False(lifecycle.IsIdle);
+
+                var repos = form.RepositorySetForTest;
+                Assert.NotNull(repos);
+
+                GameDataSmokeUiDriver.RequestRealClose(form);
+                StaTestRunner.PumpUntil(() => form.CloseCleanupFailedForTest, timeout);
+
+                Assert.False(form.IsDisposed);
+                Assert.True(form.Visible);
+                Assert.Same(repos, form.RepositorySetForTest);
+                Assert.True(form.CloseCleanupFailedForTest);
+
+                releaseBarrier.TrySetResult();
+                StaTestRunner.PumpUntil(() => lifecycle.IsIdle, timeout);
+
+                form.RetryCloseCleanupForTest();
+                StaTestRunner.PumpUntil(() => form.IsDisposed, timeout);
+
+                Assert.Null(form.RepositorySetForTest);
+                Assert.True(form.IsDisposed);
+                Assert.Empty(observed);
+            }
+            finally
+            {
+                EditorTestHooks.PanelOperationBarrierForTest = null;
+                EditorTestHooks.OnPanelLifecycleExceptionForTest = null;
+                EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
+                GameDataSmokeUiDriver.CleanupAssetRoot(assetRoot);
                 if (window is not null)
                 {
                     EditorSmokeTestAccess.ForceCloseMainWindow(window);
@@ -152,6 +466,7 @@ public sealed class GameDataPanelLifecycleSmokeTests
                 GameDataSmokeUiDriver.CloseForm(form, timeout);
                 Assert.Empty(observed);
                 Assert.Null(form.CloseCleanupExceptionForTest);
+                Assert.True(form.IsDisposed);
             }
             finally
             {

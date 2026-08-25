@@ -2,7 +2,7 @@ namespace Frog.Editor.Forms.GameData;
 
 /// <summary>
 /// Coordinateur de cycle de vie async par panneau Données de jeu :
-/// sérialisation, contexte UI WinForms, annulation/fermeture et observation des erreurs.
+/// sérialisation, contexte UI, annulation stable et drain strict.
 /// </summary>
 internal sealed class GameDataPanelLifecycle : IDisposable
 {
@@ -10,7 +10,7 @@ internal sealed class GameDataPanelLifecycle : IDisposable
     private readonly object _sync = new();
     private readonly HashSet<Task> _tracked = new();
     private readonly SynchronizationContext? _uiContext;
-    private CancellationTokenSource _cts = new();
+    private readonly CancellationTokenSource _lifetimeCts = new();
     private int _pending;
     private bool _closing;
     private bool _disposed;
@@ -26,9 +26,11 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         get
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return _cts.Token;
+            return _lifetimeCts.Token;
         }
     }
+
+    public SynchronizationContext? UiContext => _uiContext;
 
     public bool IsClosing => _closing;
 
@@ -38,18 +40,16 @@ internal sealed class GameDataPanelLifecycle : IDisposable
 
     public Exception? ObservedExceptionForTest => _observedException;
 
-    /// <summary>Exécute une opération async sérialisée sur le contexte UI (si présent).</summary>
     public Task RunAsync(Func<CancellationToken, Task> action, string operationName = "panel")
         => StartTrackedAsync(action, operationName, serialize: true);
 
-    /// <summary>Suit une opération (Save/Publish/Delete) sans la sérialiser avec les filtres.</summary>
     public Task TrackAsync(Func<CancellationToken, Task> action, string operationName = "panel")
         => StartTrackedAsync(action, operationName, serialize: false);
 
     private Task StartTrackedAsync(Func<CancellationToken, Task> action, string operationName, bool serialize)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_closing)
+        if (_closing || _lifetimeCts.IsCancellationRequested)
         {
             return Task.CompletedTask;
         }
@@ -83,26 +83,29 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         string operationName,
         bool serialize)
     {
+        // Per-operation linked token — never replaced; lifetime cancel is stable.
+        using var opCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
+        var opToken = opCts.Token;
         try
         {
             if (Services.EditorTestHooks.PanelOperationBarrierForTest is { } barrier)
             {
-                await barrier(operationName, _cts.Token).ConfigureAwait(true);
+                await InvokeOnUiAsync(() => barrier(operationName, opToken), opToken).ConfigureAwait(false);
             }
 
             if (serialize)
             {
-                await _gate.WaitAsync(_cts.Token).ConfigureAwait(true);
+                await _gate.WaitAsync(opToken).ConfigureAwait(false);
             }
 
             try
             {
-                if (_closing || _disposed)
+                if (_closing || _disposed || opToken.IsCancellationRequested)
                 {
                     return;
                 }
 
-                await action(_cts.Token).ConfigureAwait(true);
+                await InvokeOnUiAsync(() => action(opToken), opToken).ConfigureAwait(false);
             }
             finally
             {
@@ -112,13 +115,59 @@ internal sealed class GameDataPanelLifecycle : IDisposable
                 }
             }
         }
-        catch (OperationCanceledException) when (_cts.IsCancellationRequested || _closing)
+        catch (OperationCanceledException) when (opToken.IsCancellationRequested || _closing)
         {
         }
         catch (Exception ex)
         {
             _observedException = ex;
             Services.EditorTestHooks.OnPanelLifecycleExceptionForTest?.Invoke(ex);
+        }
+    }
+
+    private Task InvokeOnUiAsync(Func<Task> action, CancellationToken cancellationToken)
+    {
+        if (_uiContext is null || ReferenceEquals(SynchronizationContext.Current, _uiContext))
+        {
+            return action();
+        }
+
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _uiContext.Post(
+            _ =>
+            {
+                _ = RunPostedAsync();
+            },
+            null);
+
+        async Task RunPostedAsync()
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await action().ConfigureAwait(true);
+                tcs.TrySetResult();
+            }
+            catch (OperationCanceledException oce)
+            {
+                tcs.TrySetCanceled(oce.CancellationToken.IsCancellationRequested
+                    ? oce.CancellationToken
+                    : cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+        }
+
+        return AwaitWithCancellationAsync();
+
+        async Task AwaitWithCancellationAsync()
+        {
+            await using (cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken)))
+            {
+                await tcs.Task.ConfigureAwait(false);
+            }
         }
     }
 
@@ -130,65 +179,71 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         }
 
         _closing = true;
-        CancelPending();
-    }
-
-    public void CancelPending()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        var previous = _cts;
-        _cts = new CancellationTokenSource();
         try
         {
-            previous.Cancel();
+            _lifetimeCts.Cancel();
         }
-        finally
+        catch (ObjectDisposedException)
         {
-            previous.Dispose();
         }
     }
 
-    public async Task DrainAsync(TimeSpan timeout)
+    /// <summary>
+    /// Attend la fin de toutes les opérations suivies.
+    /// Retourne false si le délai expire alors que du travail est encore actif.
+    /// </summary>
+    public async Task<bool> DrainAsync(TimeSpan timeout)
     {
         if (_disposed)
         {
-            return;
+            return true;
         }
 
-        using var drainCts = new CancellationTokenSource(timeout);
         Task[] snapshot;
         lock (_sync)
         {
             snapshot = _tracked.ToArray();
         }
 
-        if (snapshot.Length > 0)
+        if (snapshot.Length == 0 && IsIdle)
         {
-            try
-            {
-                await Task.WhenAll(snapshot).WaitAsync(drainCts.Token).ConfigureAwait(true);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                _observedException ??= ex;
-            }
+            return true;
         }
 
         try
         {
-            await _gate.WaitAsync(drainCts.Token).ConfigureAwait(true);
+            await Task.WhenAll(snapshot).WaitAsync(timeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            // cancelled ops still complete their tracked tasks
+        }
+        catch (Exception ex)
+        {
+            _observedException ??= ex;
+        }
+
+        if (!IsIdle)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var gateCts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+            await _gate.WaitAsync(gateCts.Token).ConfigureAwait(false);
             _gate.Release();
         }
         catch (OperationCanceledException)
         {
+            return false;
         }
+
+        return IsIdle;
     }
 
     public void Dispose()
@@ -202,15 +257,14 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         _closing = true;
         try
         {
-            _cts.Cancel();
+            _lifetimeCts.Cancel();
         }
         catch
         {
             // ignore
         }
 
-        _cts.Dispose();
+        _lifetimeCts.Dispose();
         _gate.Dispose();
     }
-
 }
