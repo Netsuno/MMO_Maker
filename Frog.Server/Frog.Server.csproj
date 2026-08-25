@@ -35,4 +35,20 @@
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
         <PackageReference Include="MySqlConnector" Version="2.4.0" />
     </ItemGroup>
+
+    <Target Name="CopyPostgreSqlAuthBackend" AfterTargets="Build">
+        <MSBuild
+            Projects="$(MSBuildThisFileDirectory)..\Frog.Persistence.PostgreSql\Frog.Persistence.PostgreSql.csproj"
+            Targets="Build"
+            Properties="Configuration=$(Configuration)" />
+        <Copy
+            SourceFiles="$(MSBuildThisFileDirectory)..\Frog.Persistence.PostgreSql\bin\$(Configuration)\net8.0\Frog.Persistence.PostgreSql.dll"
+            DestinationFolder="$(OutputPath)"
+            SkipUnchangedFiles="true" />
+        <Copy
+            SourceFiles="$(MSBuildThisFileDirectory)..\Frog.Persistence.PostgreSql\bin\$(Configuration)\net8.0\Frog.Persistence.PostgreSql.pdb"
+            DestinationFolder="$(OutputPath)"
+            SkipUnchangedFiles="true"
+            Condition="Exists('$(MSBuildThisFileDirectory)..\Frog.Persistence.PostgreSql\bin\$(Configuration)\net8.0\Frog.Persistence.PostgreSql.pdb')" />
+    </Target>
 </Project>

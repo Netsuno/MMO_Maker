@@ -1,10 +1,12 @@
 #nullable enable
 using Frog.Application.Playtest;
 using Frog.Server.Config;
+using Frog.Application.Identity;
 using Frog.Server.Database;
 using Frog.Server.Network;
-using Frog.Server.Persistence;
 using Frog.Server.Playtest;
+using Frog.Server.Persistence;
+using Frog.Server.Security;
 using Frog.Server.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,6 +98,18 @@ public static class FrogServerHostFactory
                     .Validate(o => o.Port is > 0 and <= 65535, "Port invalide")
                     .ValidateOnStart();
                 services
+                    .AddOptions<PostgreSqlOptions>()
+                    .Bind(ctx.Configuration.GetSection("PostgreSql"))
+                    .PostConfigure(o =>
+                    {
+                        if (string.IsNullOrWhiteSpace(o.ConnectionString))
+                        {
+                            o.ConnectionString = Environment.GetEnvironmentVariable("FROG_POSTGRES_CONNECTION_STRING");
+                        }
+                    })
+                    .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.ConnectionString), "ConnectionString PostgreSQL manquante")
+                    .ValidateOnStart();
+                services
                     .AddOptions<MariaDbOptions>()
                     .Bind(ctx.Configuration.GetSection("MariaDb"))
                     .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.ConnectionString), "ConnectionString MariaDb manquante")
@@ -117,18 +131,46 @@ public static class FrogServerHostFactory
                 services.AddSingleton(Options.Create(playtest));
                 services.AddSingleton(new PlaytestAuthTokenGate(playtest.AuthToken));
 
-                services.AddSingleton<AccountRepository>();
-                services.AddSingleton<IAccountRepository>(sp =>
+                services.AddSingleton<LoginRateLimiter>();
+                services.AddSingleton<InMemoryAccountRepository>();
+                services.AddSingleton<InMemoryAuthSessionRepository>();
+
+                var pg = ctx.Configuration.GetSection("PostgreSql").Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
+                if (string.IsNullOrWhiteSpace(pg.ConnectionString))
                 {
-                    var options = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
-                    options.Validate();
-                    if (!playtest.Enabled && options.Enabled)
+                    pg.ConnectionString = Environment.GetEnvironmentVariable("FROG_POSTGRES_CONNECTION_STRING");
+                }
+
+                var pgAuthRegistered = false;
+                if (!playtest.Enabled && pg.Enabled && !string.IsNullOrWhiteSpace(pg.ConnectionString))
+                {
+                    var backend = ServerAuthBackendRegistry.Backend;
+                    if (backend is null)
                     {
-                        return new MariaDbAccountRepository(options.ConnectionString);
+                        throw new InvalidOperationException(
+                            "PostgreSQL auth enabled but Frog.Persistence.PostgreSql backend is not loaded.");
                     }
 
-                    return sp.GetRequiredService<AccountRepository>();
-                });
+                    backend.Register(services, pg.ConnectionString);
+                    pgAuthRegistered = true;
+                }
+
+                if (!pgAuthRegistered)
+                {
+                    services.AddSingleton<IAccountRepository>(sp =>
+                    {
+                        var maria = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
+                        maria.Validate();
+                        if (!playtest.Enabled && maria.Enabled)
+                        {
+                            return new MariaDbIdentityAccountRepository(maria.ConnectionString);
+                        }
+
+                        return sp.GetRequiredService<InMemoryAccountRepository>();
+                    });
+                    services.AddSingleton<IAuthSessionRepository>(sp =>
+                        sp.GetRequiredService<InMemoryAuthSessionRepository>());
+                }
                 services.AddSingleton<InMemoryPlayerStateStore>();
                 services.AddSingleton<IPlayerStateStore>(sp =>
                 {

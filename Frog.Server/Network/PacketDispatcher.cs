@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Frog.Application.Identity;
 using Frog.Application.Playtest;
 using Frog.Core;
 using Frog.Core.Character;
@@ -23,6 +24,8 @@ namespace Frog.Server.Network;
 
 public sealed class PacketDispatcher(
     AuthService authService,
+    IAccountRepository accountRepository,
+    IAuthSessionRepository authSessions,
     ConnectionManager connectionManager,
     ClientRegistry clientRegistry,
     MapService mapService,
@@ -39,6 +42,8 @@ public sealed class PacketDispatcher(
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
+    private readonly IAccountRepository _accountRepository = accountRepository;
+    private readonly IAuthSessionRepository _authSessions = authSessions;
     private readonly ConnectionManager _connectionManager = connectionManager;
     private readonly ClientRegistry _clientRegistry = clientRegistry;
     private readonly MapService _mapService = mapService;
@@ -122,6 +127,10 @@ public sealed class PacketDispatcher(
                 await HandleLogoutRequestAsync(clientSession, cancellationToken);
                 break;
 
+            case PacketId.ReconnectRequest:
+                await HandleReconnectRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
             case PacketId.ChatSend:
                 await HandleChatSendAsync(clientSession, payload, cancellationToken);
                 break;
@@ -181,7 +190,12 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        if (!_authService.ValidateCredentials(username, password))
+        var authResult = await _authService.TryAuthenticateAsync(
+            username,
+            password,
+            clientSession.RemoteEndPoint,
+            cancellationToken).ConfigureAwait(false);
+        if (!authResult.Success || authResult.Account is null)
         {
             ServerNetworkLogs.LoginFailed(_logger, "invalid_credentials");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
@@ -195,7 +209,117 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        await CompleteLoginAsync(clientSession, username, playtestSpawn: false, cancellationToken).ConfigureAwait(false);
+        session.AccountId = authResult.Account.Id;
+        var issued = await _authSessions.IssueAsync(
+            authResult.Account.Id,
+            TimeSpan.FromHours(12),
+            cancellationToken).ConfigureAwait(false);
+        if (issued.Status != AuthSessionIssueStatus.Issued || issued.Session is null)
+        {
+            _connectionManager.RemoveSession(session.Id);
+            ServerNetworkLogs.LoginFailed(_logger, "session_issue_failed");
+            await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
+            return;
+        }
+
+        session.AuthSessionId = issued.Session.Id;
+
+        await CompleteLoginAsync(
+            clientSession,
+            username,
+            playtestSpawn: false,
+            successMessage: issued.Token ?? string.Empty,
+            sendReconnectResult: false,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task HandleReconnectRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (_playtest.Enabled)
+        {
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                "Reconnexion indisponible.",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (!TryParseReconnectPayload(payload.Span, out var token))
+        {
+            ServerNetworkLogs.LoginFailed(_logger, "invalid_reconnect_payload");
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                "Session invalide.",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (!_authService.TryAllowReconnect(clientSession.RemoteEndPoint))
+        {
+            ServerNetworkLogs.LoginFailed(_logger, "reconnect_rate_limited");
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                "Session invalide.",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var validation = await _authSessions.ValidateTokenAsync(token, cancellationToken).ConfigureAwait(false);
+        if (validation.Status != AuthSessionValidationStatus.Valid || validation.Session is null)
+        {
+            _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+            ServerNetworkLogs.LoginFailed(_logger, "invalid_reconnect_token");
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                "Session invalide.",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var account = await _accountRepository.FindByIdAsync(validation.Session.AccountId, cancellationToken)
+            .ConfigureAwait(false);
+        if (account is null)
+        {
+            _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+            ServerNetworkLogs.LoginFailed(_logger, "invalid_reconnect_token");
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                "Session invalide.",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (!_connectionManager.TryCreateSession(account.Username, out var session) || session is null)
+        {
+            ServerNetworkLogs.LoginFailed(_logger, "already_connected");
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                "Compte deja connecte.",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        session.AccountId = account.Id;
+        session.AuthSessionId = validation.Session.Id;
+        await _authSessions.TouchAsync(validation.Session.Id, cancellationToken).ConfigureAwait(false);
+        _authService.RegisterReconnectSuccess(clientSession.RemoteEndPoint);
+
+        await CompleteLoginAsync(
+            clientSession,
+            account.Username,
+            playtestSpawn: false,
+            successMessage: token,
+            sendReconnectResult: true,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task HandlePlaytestLoginAsync(
@@ -267,6 +391,8 @@ public sealed class PacketDispatcher(
             clientSession,
             sessionName,
             playtestSpawn,
+            successMessage: "Connexion reussie.",
+            sendReconnectResult: false,
             beforeSuccessfulLoginResult: null,
             cancellationToken);
 
@@ -274,6 +400,39 @@ public sealed class PacketDispatcher(
         ClientSession clientSession,
         string sessionName,
         bool playtestSpawn,
+        string successMessage,
+        bool sendReconnectResult,
+        CancellationToken cancellationToken)
+        => await CompleteLoginAsync(
+            clientSession,
+            sessionName,
+            playtestSpawn,
+            successMessage,
+            sendReconnectResult,
+            beforeSuccessfulLoginResult: null,
+            cancellationToken).ConfigureAwait(false);
+
+    private async Task CompleteLoginAsync(
+        ClientSession clientSession,
+        string sessionName,
+        bool playtestSpawn,
+        Action? beforeSuccessfulLoginResult,
+        CancellationToken cancellationToken)
+        => await CompleteLoginAsync(
+            clientSession,
+            sessionName,
+            playtestSpawn,
+            successMessage: "Connexion reussie.",
+            sendReconnectResult: false,
+            beforeSuccessfulLoginResult,
+            cancellationToken).ConfigureAwait(false);
+
+    private async Task CompleteLoginAsync(
+        ClientSession clientSession,
+        string sessionName,
+        bool playtestSpawn,
+        string successMessage,
+        bool sendReconnectResult,
         Action? beforeSuccessfulLoginResult,
         CancellationToken cancellationToken)
     {
@@ -338,7 +497,14 @@ public sealed class PacketDispatcher(
         // Consommer le jeton avant d’exposer un LoginResult positif (évite réutilisation si déconnexion / échec post-login).
         beforeSuccessfulLoginResult?.Invoke();
 
-        await _packetSender.SendLoginResultAsync(clientSession, true, "Connexion reussie.", cancellationToken);
+        if (sendReconnectResult)
+        {
+            await _packetSender.SendReconnectResultAsync(clientSession, true, successMessage, cancellationToken);
+        }
+        else
+        {
+            await _packetSender.SendLoginResultAsync(clientSession, true, successMessage, cancellationToken);
+        }
         ServerNetworkLogs.LoginSucceeded(_logger, sessionName);
 
         if (playtestSpawn && _playtest.FailAfterSuccessfulLoginResult)
@@ -378,8 +544,8 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        var created = _authService.RegisterAccount(username, password);
-        if (!created)
+        var created = await _authService.RegisterAccountAsync(username, password, cancellationToken).ConfigureAwait(false);
+        if (created.Status != AccountCreateStatus.Created)
         {
             ServerNetworkLogs.RegisterFailed(_logger, "duplicate_or_invalid");
             await _packetSender.SendRegisterResultAsync(clientSession, false, "Compte deja existant ou invalide.", cancellationToken);
@@ -803,6 +969,12 @@ public sealed class PacketDispatcher(
                 session.PixelX,
                 session.PixelY);
         }
+
+        if (session.AuthSessionId is Guid authSessionId)
+        {
+            await _authSessions.RevokeAsync(authSessionId, cancellationToken).ConfigureAwait(false);
+        }
+
         _clientRegistry.Unregister(sessionId);
         await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, cancellationToken);
         _connectionManager.RemoveSession(sessionId);
@@ -1061,7 +1233,36 @@ public sealed class PacketDispatcher(
 
         username = Encoding.UTF8.GetString(payload.Slice(usernameStart, usernameLength));
         password = Encoding.UTF8.GetString(payload.Slice(passwordStart, passwordLength));
-        return !string.IsNullOrWhiteSpace(username) && !string.IsNullOrEmpty(password);
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+        {
+            return false;
+        }
+
+        return AccountInputRules.IsValidUsername(username)
+               && AccountInputRules.IsValidLoginPassword(password);
+    }
+
+    public static bool TryParseReconnectPayload(ReadOnlySpan<byte> payload, out string token)
+    {
+        token = string.Empty;
+        if (payload.Length < sizeof(ushort))
+        {
+            return false;
+        }
+
+        var tokenLen = BinaryPrimitives.ReadUInt16LittleEndian(payload);
+        if (tokenLen is 0 or > AuthProtocolLimits.MaxAuthTokenUtf8Bytes)
+        {
+            return false;
+        }
+
+        if (payload.Length != sizeof(ushort) + tokenLen)
+        {
+            return false;
+        }
+
+        token = Encoding.UTF8.GetString(payload.Slice(sizeof(ushort), tokenLen));
+        return !string.IsNullOrWhiteSpace(token);
     }
 
     public static bool TryParseMovePayload(ReadOnlySpan<byte> payload, out sbyte deltaX, out sbyte deltaY)

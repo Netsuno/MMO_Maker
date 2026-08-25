@@ -1,5 +1,6 @@
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
+using Frog.Persistence.PostgreSql.Entities.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace Frog.Persistence.PostgreSql;
@@ -48,6 +49,10 @@ public sealed class FrogDbContext : DbContext
     public DbSet<ResourceSpawnPublicationHistoryEntity> ResourceSpawnPublicationHistory =>
         Set<ResourceSpawnPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
+
+    public DbSet<AccountEntity> AuthAccounts => Set<AccountEntity>();
+
+    public DbSet<AuthSessionEntity> AuthSessions => Set<AuthSessionEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -551,6 +556,33 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.FormatType).HasMaxLength(64).IsRequired();
             e.Property(x => x.Result).HasMaxLength(32).IsRequired();
             e.Property(x => x.ReportJson).HasColumnType("jsonb").IsRequired();
+        });
+
+        modelBuilder.Entity<AccountEntity>(e =>
+        {
+            e.ToTable("accounts", "auth");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Username).HasMaxLength(32).IsRequired();
+            e.HasIndex(x => x.Username).IsUnique();
+            e.Property(x => x.PasswordHash).HasMaxLength(512).IsRequired();
+            e.Property(x => x.CreatedAtUtc).IsRequired();
+            e.HasMany(x => x.Sessions)
+                .WithOne(x => x.Account)
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AuthSessionEntity>(e =>
+        {
+            e.ToTable("auth_sessions", "auth");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => x.AccountId);
+            e.HasIndex(x => x.ExpiresAtUtc);
+            e.Property(x => x.TokenHash).HasMaxLength(32).IsRequired();
+            e.Property(x => x.CreatedAtUtc).IsRequired();
+            e.Property(x => x.ExpiresAtUtc).IsRequired();
+            e.Property(x => x.LastSeenAtUtc).IsRequired();
         });
     }
 }

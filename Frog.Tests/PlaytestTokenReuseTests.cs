@@ -83,8 +83,9 @@ public sealed class PlaytestTokenReuseTests
         var ctx = await StartPlaytestHostAsync();
         try
         {
-            var accounts = ctx.Host.Services.GetRequiredService<AccountRepository>();
-            Assert.True(accounts.Create(mixedCase, ctx.Plan.AuthToken));
+            var accounts = ctx.Host.Services.GetRequiredService<InMemoryAccountRepository>();
+            var create = await accounts.TryCreateAsync(mixedCase, ctx.Plan.AuthToken!);
+            Assert.Equal(Frog.Application.Identity.AccountCreateStatus.Created, create.Status);
 
             await using (var tcp1 = new TokenTcpClient())
             {
@@ -121,7 +122,8 @@ public sealed class PlaytestTokenReuseTests
         try
         {
             var auth = ctx.Host.Services.GetRequiredService<AuthService>();
-            Assert.True(auth.RegisterAccount(PlaytestAuthToken.Username, ctx.Plan.AuthToken));
+            var reg = await auth.RegisterAccountAsync(PlaytestAuthToken.Username, ctx.Plan.AuthToken!);
+            Assert.Equal(Frog.Application.Identity.AccountCreateStatus.Created, reg.Status);
 
             await using (var tcp1 = new TokenTcpClient())
             {

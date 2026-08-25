@@ -35,6 +35,9 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
     public Task SendRegisterResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.RegisterResult, success, message, cancellationToken);
 
+    public Task SendReconnectResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.ReconnectResult, success, message, cancellationToken);
+
     public Task SendMapDataAsync(
         ClientSession session,
         int mapId,

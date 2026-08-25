@@ -40,5 +40,7 @@ public static class PacketIds
     public const byte PositionSyncRequest = 33;
     public const byte WorldFlagsPatchRequest = 34;
     public const byte WorldFlagsPatchResult = 35;
+    public const byte ReconnectRequest = 36;
+    public const byte ReconnectResult = 37;
     public const byte Error = 255;
 }

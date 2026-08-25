@@ -59,5 +59,11 @@ public enum PacketId : byte
 
     /// <summary>Résultat patch drapeaux (même forme courte que <see cref="LoginResult"/>).</summary>
     WorldFlagsPatchResult = 35,
+
+    /// <summary>Reconnexion via jeton opaque émis au login (UTF-8, longueur UInt16 LE).</summary>
+    ReconnectRequest = 36,
+
+    /// <summary>Résultat reconnexion (même forme que <see cref="LoginResult"/>).</summary>
+    ReconnectResult = 37,
     Error = 255
 }

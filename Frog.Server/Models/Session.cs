@@ -7,6 +7,8 @@ public sealed class Session
 {
     public required Guid Id { get; init; }
     public required string Username { get; init; }
+    public Guid AccountId { get; set; }
+    public Guid? AuthSessionId { get; set; }
     public DateTime ConnectedUtc { get; init; } = DateTime.UtcNow;
     public DateTime LastActivityUtc { get; set; } = DateTime.UtcNow;
     /// <summary>Tuile contenant le <b>centre</b> joueur (<c>floor(PixelX / tailleTuile)</c>) — collisions discrètes, warps, interactions.</summary>
