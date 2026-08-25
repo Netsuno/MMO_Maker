@@ -193,12 +193,26 @@ internal static class GameDataSmokeUiDriver
 
     public static void SelectListItemContaining(ListBox list, string namePart)
     {
-        for (var i = 0; i < list.Items.Count; i++)
+        // Prefer a catalog row whose primary name matches before status/metadata suffixes.
+        var exactPrefix = namePart + " ";
+        var exactBracket = namePart + " [";
+        var exactParen = namePart + " (";
+        for (var pass = 0; pass < 2; pass++)
         {
-            if ((list.Items[i]?.ToString() ?? string.Empty).Contains(namePart, StringComparison.Ordinal))
+            for (var i = 0; i < list.Items.Count; i++)
             {
-                list.SelectedIndex = i;
-                return;
+                var label = list.Items[i]?.ToString() ?? string.Empty;
+                var match = pass == 0
+                    ? label.StartsWith(exactBracket, StringComparison.Ordinal)
+                      || label.StartsWith(exactParen, StringComparison.Ordinal)
+                      || label.StartsWith(exactPrefix, StringComparison.Ordinal)
+                      || string.Equals(label, namePart, StringComparison.Ordinal)
+                    : label.Contains(namePart, StringComparison.Ordinal);
+                if (match)
+                {
+                    list.SelectedIndex = i;
+                    return;
+                }
             }
         }
 

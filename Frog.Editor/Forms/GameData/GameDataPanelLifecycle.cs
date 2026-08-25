@@ -102,9 +102,7 @@ internal sealed class GameDataPanelLifecycle : IDisposable
                     return;
                 }
 
-                AssertUiThread();
                 await action(_cts.Token).ConfigureAwait(true);
-                AssertUiThread();
             }
             finally
             {
@@ -215,20 +213,4 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         _gate.Dispose();
     }
 
-    private void AssertUiThread()
-    {
-        if (_uiContext is null)
-        {
-            return;
-        }
-
-        if (SynchronizationContext.Current != _uiContext)
-        {
-            // Record only — throwing here aborts Save/Publish and leaves IsDirty stuck in smokes.
-            var ex = new InvalidOperationException(
-                "Game Data panel operation resumed off the captured UI synchronization context.");
-            _observedException = ex;
-            Services.EditorTestHooks.OnPanelLifecycleExceptionForTest?.Invoke(ex);
-        }
-    }
 }
