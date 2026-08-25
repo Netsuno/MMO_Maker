@@ -1,4 +1,4 @@
-# Phase 6 — Review Request (Second Fix Pass)
+# Phase 6 — Review Request (Third Fix Pass)
 
 ## Verdict requested
 
@@ -8,27 +8,25 @@
 
 `cursor/phase0-baseline-audit-02c7`
 
-## Branch tip / implementation SHA
+## Implementation SHA
 
-`3d8ff73044f72963836ad8cb0bf43c1870811f50`
+`b3fe913`
 
 ## PR
 
-#2 (Draft)
+#2 (Draft) — title Phase 0–6
 
-## CI
+## CI (implementation)
 
-https://github.com/Netsuno/MMO_Maker/actions/runs/32785847198
+https://github.com/Netsuno/MMO_Maker/actions/runs/32793426334
 
 | Suite | Count |
 | --- | ---: |
 | Unit | 244 |
-| PostgreSQL | 36 |
-| Windows smoke | 26 × 3 |
+| PostgreSQL | 38 |
+| Windows smoke | 29 × 3 |
 
-## Blocker responses (P6-B1…B8)
-
-See `PHASE_REPORT.md` and `TEST_RESULTS.md` for matrix, screenshots, and PostgreSQL lifecycle coverage.
+Final branch tip and tip CI URL are in the PR body (updated without an extra tip-chasing docs commit).
 
 ## Phase 7
 

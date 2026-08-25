@@ -1,23 +1,19 @@
-# Phase 6 — Known Issues (Second Fix Pass)
+# Phase 6 — Known Issues (Third Fix Pass)
 
 ## Fixed in this pass
 
-- Initial Game Data category showed blank host (Tilesets not parented until manual switch)
-- In-memory leak smoke could not validate PostgreSQL scope disposal (covered by integration tests)
-- Concurrent EF operations on shared `FrogDbContext` from overlapping panel refreshes
-- Nested repository calls deadlocked non-reentrant `FrogDbContextGate`
-- Resource spawn “Toutes les cartes/ressources” filtered on `Guid.Empty`
-- Dirty navigation cancel desynchronized list selection on non-tileset panels
-- UI smoke delete used `DialogResult.OK` for Yes/No discard prompts (wrong record deleted)
-- UI smoke matrix incomplete (no duplicate/delete/protected-delete/search on most editors)
-- Preview image tied to closed stream; missing checked-in screenshot evidence
-- Stale gate documentation referencing older SHA/CI
+- WinForms panel async lifecycle (context, tracking, cancel/close, dispose)
+- PostgreSQL scope lifecycle evidence via `EditorPostgreSqlScope` + init-failure dispose
+- Protected-delete / search-status / invalid-publish false positives
+- Incomplete Resource Spawn UI matrix
+- Solid-color preview-only screenshots replaced with full-editor UI frames
+- Stale gate metadata patterns (docs use Implementation SHA)
 
 ## Remaining known issues
 
-- Windows `GameDataInitializationLeakSmokeTests` uses in-memory repositories (PostgreSQL lifecycle covered by `PostgresGameDataScopeLifecycleTests`)
-- Preview screenshots in repo are placeholders until overwritten by Windows smoke on CI
-- Shop listing / class spell reference protected-delete smokes use minimal published prerequisites
+- Windows `GameDataInitializationLeakSmokeTests` still uses in-memory repositories (PostgreSQL lifecycle covered by integration tests)
+- Shop listing / class spell protected-delete smokes use minimal published prerequisites
+- Sync-context identity under the shared WPF/WinForms STA host is not asserted as a hard failure; lifecycle tests assert STA thread id via barriers instead
 
 ## Phase 7
 

@@ -1,36 +1,22 @@
-# Phase 6 — Test Results (Second Fix Pass)
+# Phase 6 — Test Results (Third Fix Pass)
 
-## Branch tip
+## Implementation SHA
 
-`3d8ff73044f72963836ad8cb0bf43c1870811f50`
+`b3fe913`
 
-## Implementation SHA (reviewed code)
+## CI (implementation)
 
-`3d8ff73` — includes P6-B1…B8 fixes (gate reentrancy, preview clone, smoke delete selection)
+https://github.com/Netsuno/MMO_Maker/actions/runs/32793426334 — **success**
 
-Documentation-only commits after this SHA, if any, are noted separately in `docs/STATUS.md`.
-
-## CI
-
-https://github.com/Netsuno/MMO_Maker/actions/runs/32785847198 — **success** on branch tip `3d8ff73`
-
-## Verified counts (branch tip)
+## Verified counts
 
 | Suite | Count |
 | --- | ---: |
 | Frog.Tests (unit) | 244 |
-| PostgreSQL integration | 36 |
-| Windows smoke | 26 × 3 consecutive passes |
+| PostgreSQL integration | 38 |
+| Windows smoke | 29 × 3 consecutive passes |
 
-New PostgreSQL tests: `PostgresGameDataScopeLifecycleTests` (3), `PostgresGameDataConcurrencyTests` (2)
-
-New Windows smoke tests: `GameDataInitialCategorySmokeTests`, `GameDataSpawnFilterSmokeTests`, expanded `GameDataAssetPreviewSmokeTests`
-
-## Build
-
-0 errors, 0 warnings (Release)
-
-## UI smoke matrix (real controls via `GameDataSmokeUiDriver`)
+## UI smoke matrix (real controls)
 
 | Editor | Create | Edit | Duplicate | Save | Publish | Invalid publish | Search/filter | Close/reopen | Cancel dirty nav | Delete | Protected delete |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -40,11 +26,12 @@ New Windows smoke tests: `GameDataInitialCategorySmokeTests`, `GameDataSpawnFilt
 | Spells | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | class reference |
 | Classes | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | Shops | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | item listing |
-| Resources/spawns | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | spawn reference |
+| Resources | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | spawn reference |
+| Resource Spawns | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 
-Additional regressions: initial tileset category visible after init; spawn map/resource “Toutes…” filters; preview GC retention; repeated open/close (in-memory UI).
+Additional: initial tileset category; spawn map/resource “Toutes…” reset; panel lifecycle STA/close; init-failure scope dispose.
 
-## Preview screenshots
+## Preview / UI screenshots
 
 `docs/progress/phase-06-essential-content-editors/screenshots/`
 
@@ -54,13 +41,10 @@ Additional regressions: initial tileset category visible after init; spawn map/r
 - `spell-preview-smoke.png`
 - `resource-preview-smoke.png`
 
-Regenerated/overwritten during Windows smoke `AssetPreview_GameDataPanels_SaveSmokeScreenshots`.
+## PostgreSQL lifecycle
 
-## PostgreSQL scenarios
-
-- Existing 31 integration scenarios retained
-- Scope lifecycle: single migrate per scope, dispose, drain, repeated open/close
-- Concurrency: parallel reads on shared gate; rapid spawn filter changes
+- `PostgresGameDataScopeLifecycleTests` on `EditorPostgreSqlScope` (migrate once, dispose once, drain, cancel, repeated open/close)
+- `PostgresGameDataConcurrencyTests` retained
 
 ## Phase 7
 
