@@ -313,9 +313,9 @@ public sealed class ResourceEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie de ressource créée");
         };
-        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
-        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         _btnSave.Enabled = capabilities.AllowsSave;
         _btnPublish.Enabled = capabilities.AllowsSave;
@@ -326,12 +326,9 @@ public sealed class ResourceEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await _lifecycle.RunAsync(async ct =>
-        {
-            await RefreshItemsAsync().ConfigureAwait(true);
-            await RefreshListAsync(ct).ConfigureAwait(true);
-            StatusChanged?.Invoke($"Backend ressources : {_capabilities.DisplayLabel}");
-        }, "initialize").ConfigureAwait(true);
+        await RefreshItemsAsync().ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend ressources : {_capabilities.DisplayLabel}");
     }
 
     private async Task RefreshItemsAsync()
@@ -705,9 +702,9 @@ public sealed class ResourceSpawnEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie de spawn créée");
         };
-        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
-        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         _btnSave.Enabled = capabilities.AllowsSave;
         _btnPublish.Enabled = capabilities.AllowsSave;
@@ -762,12 +759,9 @@ public sealed class ResourceSpawnEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await _lifecycle.RunAsync(async ct =>
-        {
-            await RefreshReferencesAsync().ConfigureAwait(true);
-            await RefreshListAsync(ct).ConfigureAwait(true);
-            StatusChanged?.Invoke($"Backend spawns de ressources : {_capabilities.DisplayLabel}");
-        }, "initialize").ConfigureAwait(true);
+        await RefreshReferencesAsync().ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend spawns de ressources : {_capabilities.DisplayLabel}");
     }
 
     private async Task RefreshReferencesAsync()

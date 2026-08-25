@@ -258,9 +258,9 @@ public sealed class ShopEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
-        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -290,12 +290,9 @@ public sealed class ShopEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await _lifecycle.RunAsync(async ct =>
-        {
-            await RefreshPublishedItemsAsync().ConfigureAwait(true);
-            await RefreshListAsync(ct).ConfigureAwait(true);
-            StatusChanged?.Invoke($"Backend boutiques : {_capabilities.DisplayLabel}");
-        }, "initialize").ConfigureAwait(true);
+        await RefreshPublishedItemsAsync().ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend boutiques : {_capabilities.DisplayLabel}");
     }
 
     private async Task RefreshPublishedItemsAsync()

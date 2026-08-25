@@ -670,9 +670,9 @@ public sealed class TilesetEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
-        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -682,11 +682,8 @@ public sealed class TilesetEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await _lifecycle.RunAsync(async ct =>
-        {
-            await RefreshListAsync(ct).ConfigureAwait(true);
-            StatusChanged?.Invoke($"Backend : {_capabilities.DisplayLabel}");
-        }, "initialize").ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend : {_capabilities.DisplayLabel}");
     }
 
     private async Task RefreshListAsync(CancellationToken ct = default)
@@ -1033,9 +1030,9 @@ public sealed class NpcEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
-        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -1045,11 +1042,8 @@ public sealed class NpcEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await _lifecycle.RunAsync(async ct =>
-        {
-            await RefreshListAsync(ct).ConfigureAwait(true);
-            StatusChanged?.Invoke($"Backend NPC : {_capabilities.DisplayLabel}");
-        }, "initialize").ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend NPC : {_capabilities.DisplayLabel}");
     }
 
     private async Task RefreshListAsync(CancellationToken ct = default)
@@ -1417,9 +1411,9 @@ public sealed class ItemEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
-        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -1429,11 +1423,8 @@ public sealed class ItemEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await _lifecycle.RunAsync(async ct =>
-        {
-            await RefreshListAsync(ct).ConfigureAwait(true);
-            StatusChanged?.Invoke($"Backend objets : {_capabilities.DisplayLabel}");
-        }, "initialize").ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend objets : {_capabilities.DisplayLabel}");
     }
 
     private async Task RefreshListAsync(CancellationToken ct = default)
@@ -1803,9 +1794,9 @@ public sealed class SpellEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
-        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -1815,11 +1806,8 @@ public sealed class SpellEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await _lifecycle.RunAsync(async ct =>
-        {
-            await RefreshListAsync(ct).ConfigureAwait(true);
-            StatusChanged?.Invoke($"Backend sorts/compétences : {_capabilities.DisplayLabel}");
-        }, "initialize").ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend sorts/compétences : {_capabilities.DisplayLabel}");
     }
 
     private async Task RefreshListAsync(CancellationToken ct = default)
@@ -2209,9 +2197,9 @@ public sealed class ClassEditorPanel : UserControl
             BindForm();
             StatusChanged?.Invoke("Copie créée");
         };
-        _btnSave.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
-        _btnPublish.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
+        _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
@@ -2221,12 +2209,9 @@ public sealed class ClassEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await _lifecycle.RunAsync(async ct =>
-        {
-            await RefreshStartingSpellsAsync().ConfigureAwait(true);
-            await RefreshListAsync(ct).ConfigureAwait(true);
-            StatusChanged?.Invoke($"Backend classes : {_capabilities.DisplayLabel}");
-        }, "initialize").ConfigureAwait(true);
+        await RefreshStartingSpellsAsync().ConfigureAwait(true);
+        await RefreshListAsync().ConfigureAwait(true);
+        StatusChanged?.Invoke($"Backend classes : {_capabilities.DisplayLabel}");
     }
 
     private async Task RefreshStartingSpellsAsync()

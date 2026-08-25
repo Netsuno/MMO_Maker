@@ -40,6 +40,13 @@ internal sealed class GameDataPanelLifecycle : IDisposable
 
     /// <summary>Exécute une opération async sérialisée sur le contexte UI (si présent).</summary>
     public Task RunAsync(Func<CancellationToken, Task> action, string operationName = "panel")
+        => StartTrackedAsync(action, operationName, serialize: true);
+
+    /// <summary>Suit une opération (Save/Publish/Delete) sans la sérialiser avec les filtres.</summary>
+    public Task TrackAsync(Func<CancellationToken, Task> action, string operationName = "panel")
+        => StartTrackedAsync(action, operationName, serialize: false);
+
+    private Task StartTrackedAsync(Func<CancellationToken, Task> action, string operationName, bool serialize)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_closing)
@@ -48,7 +55,7 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         }
 
         Interlocked.Increment(ref _pending);
-        var run = ExecuteTrackedAsync(action, operationName);
+        var run = ExecuteTrackedAsync(action, operationName, serialize);
         lock (_sync)
         {
             _tracked.Add(run);
@@ -71,7 +78,10 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         return run;
     }
 
-    private async Task ExecuteTrackedAsync(Func<CancellationToken, Task> action, string operationName)
+    private async Task ExecuteTrackedAsync(
+        Func<CancellationToken, Task> action,
+        string operationName,
+        bool serialize)
     {
         try
         {
@@ -80,7 +90,11 @@ internal sealed class GameDataPanelLifecycle : IDisposable
                 await barrier(operationName, _cts.Token).ConfigureAwait(true);
             }
 
-            await _gate.WaitAsync(_cts.Token).ConfigureAwait(true);
+            if (serialize)
+            {
+                await _gate.WaitAsync(_cts.Token).ConfigureAwait(true);
+            }
+
             try
             {
                 if (_closing || _disposed)
@@ -94,7 +108,10 @@ internal sealed class GameDataPanelLifecycle : IDisposable
             }
             finally
             {
-                _gate.Release();
+                if (serialize)
+                {
+                    _gate.Release();
+                }
             }
         }
         catch (OperationCanceledException) when (_cts.IsCancellationRequested || _closing)
