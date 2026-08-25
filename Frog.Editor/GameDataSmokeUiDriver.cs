@@ -403,7 +403,7 @@ internal static class GameDataSmokeUiDriver
     private static void WaitForListSelectionLoaded(TextBox nameBox, string recordName, TimeSpan timeout)
     {
         PumpUntil(
-            () => nameBox.Text.Contains(recordName, StringComparison.Ordinal),
+            () => string.Equals(nameBox.Text.Trim(), recordName, StringComparison.Ordinal),
             timeout);
     }
 

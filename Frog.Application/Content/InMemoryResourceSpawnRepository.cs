@@ -244,6 +244,7 @@ public sealed class InMemoryResourceSpawnRepository :
         CancellationToken cancellationToken = default)
     {
         var referenced = _drafts.Values.Any(d => d.Definition.ResourceId == resourceId)
+            || _publishedTips.Values.Any(p => p.Definition.ResourceId == resourceId)
             || _snapshots.Values.Any(s => s.Definition.ResourceId == resourceId);
         return Task.FromResult(referenced);
     }
