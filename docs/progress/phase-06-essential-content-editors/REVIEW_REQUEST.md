@@ -1,4 +1,4 @@
-# Phase 6 — Review Request (Third Fix Pass)
+# Phase 6 — Review Request (Final targeted fix pass)
 
 ## Verdict requested
 
@@ -10,7 +10,7 @@
 
 ## Implementation SHA
 
-`b3fe913`
+`99b782f8f205c0161c0bba8838d041714e39947e`
 
 ## PR
 
@@ -18,15 +18,18 @@
 
 ## CI (implementation)
 
-https://github.com/Netsuno/MMO_Maker/actions/runs/32793426334
+https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
 
 | Suite | Count |
 | --- | ---: |
 | Unit | 244 |
 | PostgreSQL | 38 |
-| Windows smoke | 29 × 3 |
+| Windows smoke | 35 × 3 |
 
-Final branch tip and tip CI URL are in the PR body (updated without an extra tip-chasing docs commit).
+## Screenshots
+
+- Artifact: https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806#artifacts
+- Manifest: `SCREENSHOT_MANIFEST.md`
 
 ## Phase 7
 

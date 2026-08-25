@@ -1,28 +1,27 @@
-# Phase 6 — Essential Content Editors (Third Fix Pass)
+# Phase 6 — Phase Report (Final targeted fix pass)
 
-## Status
+## Scope
 
-**GATE REACHED — WAITING FOR REVIEW**
+Essential content editors (tilesets, NPCs, items, spells, classes, shops, resources/spawns) with durable PostgreSQL ports, WinForms lifecycle safety, and CI evidence.
 
 ## Implementation SHA
 
-`b3fe913` — P6-C1…C5 third fix pass (code under review)
+`99b782f8f205c0161c0bba8838d041714e39947e`
 
-Committed documents report this implementation SHA. Later documentation-only commits may advance the branch tip without changing this reviewed code baseline.
+## CI
 
-## Third-pass blocker fixes
+https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
 
-| Blocker | Fix |
+## Final blocker resolution
+
+| ID | Resolution |
 | --- | --- |
-| P6-C1 WinForms async lifecycle | `GameDataPanelLifecycle` with UI-preserving awaits, tracked ops, cancel/close sync cleanup, force-close for smokes |
-| P6-C2 PostgreSQL scope evidence | `EditorPostgreSqlScope` in Persistence; lifecycle tests on real PG counters; init-failure dispose via migrate override |
-| P6-C3 False-positive UI asserts | Protected-delete waits for lifecycle idle + exact name; seeded search/status; invalid publish checks validation + revision; separate Spawn matrix |
-| P6-C4 Screenshots | Full-editor UI captures ≥800×500 (not solid preview tiles) under `screenshots/` |
-| P6-C5 Gate metadata | Docs report Implementation SHA; PR body carries final tip + CI after docs land |
+| P6-D1 | Async `FormClosing` state machine; cancel → drain → dispose only when complete; timeout keeps form/DB scope alive + retry; real `Close()` smokes (no force-close / no pre-idle wait); STA marshaling on owning thread |
+| P6-D2 | CI `upload-artifact@v4`; committed PNGs replaced with exact smoke outputs; `SCREENSHOT_MANIFEST.md` SHA-256 matches artifact |
 
-## Schema / migrations
+## Previously accepted (unchanged)
 
-No new migrations.
+Real PostgreSQL editor scope tests; CRUD/duplicate/save/publish/delete; filters; protected delete; spawn editor; preview clone/refresh; same-branch PR workflow.
 
 ## Phase 7
 

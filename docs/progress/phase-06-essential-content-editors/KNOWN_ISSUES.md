@@ -1,19 +1,16 @@
-# Phase 6 — Known Issues (Third Fix Pass)
+# Phase 6 — Known Issues (Final targeted fix pass)
 
 ## Fixed in this pass
 
-- WinForms panel async lifecycle (context, tracking, cancel/close, dispose)
-- PostgreSQL scope lifecycle evidence via `EditorPostgreSqlScope` + init-failure dispose
-- Protected-delete / search-status / invalid-publish false positives
-- Incomplete Resource Spawn UI matrix
-- Solid-color preview-only screenshots replaced with full-editor UI frames
-- Stale gate metadata patterns (docs use Implementation SHA)
+- Production close used `DoEvents`/`Sleep` and could dispose while work remained — replaced with async close state machine
+- Close smokes waited for `IsIdle` / used force-close — replaced with real `form.Close()` during pending ops
+- WPF/WinForms sync-context mismatch deferred panel ops off the click path
+- Committed mockup screenshots — replaced with CI smoke artifact PNGs + SHA-256 manifest
 
 ## Remaining known issues
 
 - Windows `GameDataInitializationLeakSmokeTests` still uses in-memory repositories (PostgreSQL lifecycle covered by integration tests)
 - Shop listing / class spell protected-delete smokes use minimal published prerequisites
-- Sync-context identity under the shared WPF/WinForms STA host is not asserted as a hard failure; lifecycle tests assert STA thread id via barriers instead
 
 ## Phase 7
 

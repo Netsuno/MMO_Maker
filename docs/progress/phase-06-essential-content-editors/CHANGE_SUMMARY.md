@@ -1,31 +1,18 @@
-# Phase 6 — CHANGE SUMMARY
+# Phase 6 — Change Summary (Final targeted fix pass)
 
-## Game Data editors
+## Code
 
-Added structured « Données de jeu » shell (RPG Maker–inspired workflow, original UI) with:
+- `GameDataForm` async close state machine (`allowFinalClose`, drain-before-dispose, timeout retry)
+- `GameDataPanelLifecycle` stable lifetime CTS, per-op linked tokens, owning-STA inline UI marshal, drain returns success/failure
+- Smoke driver uses real `form.Close()`; close-during-op/init/non-cooperative tests
+- CI uploads `docs/progress/phase-06-essential-content-editors/screenshots/`
 
-1. Tilesets  
-2. NPCs / monsters  
-3. Items  
-4. Spells / skills  
-5. Classes  
-6. Shops  
-7. Resources / spawns  
+## Evidence
 
-Each slice: domain validation, Guid identity, PostgreSQL draft/publish, Application ports, editor list+form, published server consumer, tests.
+- Implementation SHA `99b782f8f205c0161c0bba8838d041714e39947e`
+- CI https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
+- Screenshot manifest with SHA-256 matching CI artifact
 
-## Migrations (content schema)
+## Phase 7
 
-- `TilesetDraftPublish`
-- `NpcDraftPublish` (name may vary — see Migrations folder)
-- `ItemDraftPublish`
-- `SpellDraftPublish`
-- `ClassDraftPublish`
-- `ShopDraftPublish`
-- `ResourceDraftPublish`
-
-## Architecture
-
-- UI never opens DbContext; composition via Editor*RepositoryFactory
-- PostgreSQL sole SoT for content (ADR-0002)
-- No new MariaDB features
+Not started.
