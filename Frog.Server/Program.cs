@@ -16,7 +16,10 @@ internal sealed class Program
             return;
         }
 
-        TryLoadPostgreSqlAuthBackend();
+        if (!PlaytestChildEnvironment.IsPlaytestChildProcess())
+        {
+            TryLoadPostgreSqlAuthBackend();
+        }
         using var app = FrogServerHostFactory.CreateHostBuilder(args).Build();
         app.Run();
     }
