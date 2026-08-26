@@ -132,6 +132,9 @@ public sealed class MainShellForm : Form
     private readonly Label _lblCombat = new() { AutoSize = true, Text = "Combat: —", Margin = new Padding(4, 8, 4, 4) };
     private readonly InventoryPanel _inventoryPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
     private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
+    private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.Fill, MinimumSize = new Size(300, 0) };
+    private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
+    private readonly TabPage _tabGameplay = new("Gameplay") { Padding = new Padding(4) };
     private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid" };
     private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid" };
     private readonly NumericUpDown _numShopQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
@@ -273,6 +276,7 @@ public sealed class MainShellForm : Form
         _btnMelee.Enabled = true;
         _btnWorldFlagsDemo.Enabled = true;
         SetGameplayControlsEnabled(true);
+        _gameplayTabs.SelectedTab = _tabGameplay;
         SetPhase(ClientUiPhase.Playing);
     }
 
@@ -895,11 +899,12 @@ public sealed class MainShellForm : Form
         gameplayTab.Controls.Add(bankRow, 0, 4);
         gameplayTab.Controls.Add(_lblBank, 0, 5);
 
-        var tabRight = new TabControl { Dock = DockStyle.Fill, MinimumSize = new Size(300, 0) };
-        var tabChat = new TabPage("Chat") { Padding = new Padding(4) };
-        var tabGameplay = new TabPage("Gameplay") { Padding = new Padding(4) };
-        tabRight.TabPages.Add(tabChat);
-        tabRight.TabPages.Add(tabGameplay);
+        var tabRight = _gameplayTabs;
+        tabRight.TabPages.Clear();
+        tabRight.TabPages.Add(_tabChat);
+        tabRight.TabPages.Add(_tabGameplay);
+        var tabChat = _tabChat;
+        var tabGameplay = _tabGameplay;
 
         var rightChat = new TableLayoutPanel
         {
@@ -2442,6 +2447,8 @@ public sealed class MainShellForm : Form
     internal TextBox ShopItemIdTextBoxForTest => _txtShopItemId;
 
     internal Button ShopBuyButtonForTest => _btnShopBuy;
+
+    internal void SelectGameplayTabForTest() => _gameplayTabs.SelectedTab = _tabGameplay;
 
     internal bool LogContainsForTest(string fragment) =>
         _txtLog.Text.Contains(fragment, StringComparison.Ordinal);

@@ -89,7 +89,8 @@ public sealed class GameplayClientSmokeTests
 
                 form.EnterGameButtonForTest.PerformClick();
                 Pump(form, () => form.IsPlayingPhaseForTest, "enter playing phase");
-                Pump(form, () => form.ShopBuyButtonForTest.Enabled, "shop buy enabled in playing phase");
+                form.SelectGameplayTabForTest();
+                Pump(form, () => form.ShopBuyButtonForTest.Enabled && form.ShopBuyButtonForTest.Visible, "shop buy visible on Gameplay tab");
 
                 // Obtain weapon through public shop protocol (no mid-scenario DI mutation).
                 form.ShopItemIdTextBoxForTest.Text = Phase7ClientContentSeed.DefaultWeaponId.ToString();
@@ -97,8 +98,9 @@ public sealed class GameplayClientSmokeTests
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.ListedItemCountForTest > 0
-                          && form.LogContainsForTest("Achat:"),
+                          && (form.LogContainsForTest("Achat:") || form.LogContainsForTest("Achat refusé:")),
                     "shop buy put weapon in inventory");
+                Assert.True(form.LogContainsForTest("Achat:"), form.LogTextForTest);
 
                 form.InventoryPanelForTest.SelectFirstForTest();
                 form.InventoryPanelForTest.ClickEquipForTest();
@@ -129,12 +131,13 @@ public sealed class GameplayClientSmokeTests
                 form.CharactersComboForTest.SelectedItem = pick;
                 form.EnterGameButtonForTest.PerformClick();
                 Pump(form, () => form.IsPlayingPhaseForTest, "re-enter playing after reconnect");
+                form.SelectGameplayTabForTest();
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.EquippedWeaponItemId == Phase7ClientContentSeed.DefaultWeaponId
                           || form.InventoryPanelForTest.ListedItemCountForTest > 0,
                     "inventory/equipment usable after reconnect");
-                Assert.True(form.ShopBuyButtonForTest.Enabled, "shop control usable after reconnect");
+                Assert.True(form.ShopBuyButtonForTest.Enabled && form.ShopBuyButtonForTest.Visible, "shop control usable after reconnect");
                 ClientSmokeTestAccess.SaveScreenshot(form, "05-reconnect-gameplay-usable.png");
 
                 var screenshotDir = ClientSmokeTestAccess.ScreenshotDirectory;
