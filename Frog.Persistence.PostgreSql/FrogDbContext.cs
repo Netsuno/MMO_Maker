@@ -1,6 +1,7 @@
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
 using Frog.Persistence.PostgreSql.Entities.Auth;
+using Frog.Persistence.PostgreSql.Entities.Player;
 using Microsoft.EntityFrameworkCore;
 
 namespace Frog.Persistence.PostgreSql;
@@ -53,6 +54,14 @@ public sealed class FrogDbContext : DbContext
     public DbSet<AccountEntity> AuthAccounts => Set<AccountEntity>();
 
     public DbSet<AuthSessionEntity> AuthSessions => Set<AuthSessionEntity>();
+
+    public DbSet<CharacterEntity> PlayerCharacters => Set<CharacterEntity>();
+
+    public DbSet<InventorySlotEntity> PlayerInventorySlots => Set<InventorySlotEntity>();
+
+    public DbSet<BankSlotEntity> PlayerBankSlots => Set<BankSlotEntity>();
+
+    public DbSet<GroundItemEntity> PlayerGroundItems => Set<GroundItemEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -583,6 +592,88 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.CreatedAtUtc).IsRequired();
             e.Property(x => x.ExpiresAtUtc).IsRequired();
             e.Property(x => x.LastSeenAtUtc).IsRequired();
+        });
+
+        modelBuilder.Entity<CharacterEntity>(e =>
+        {
+            e.ToTable("characters", "player");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.DisplayName).HasMaxLength(32).IsRequired();
+            e.HasIndex(x => x.AccountId);
+            e.HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.InventorySlots)
+                .WithOne(x => x.Character)
+                .HasForeignKey(x => x.CharacterId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.BankSlots)
+                .WithOne(x => x.Character)
+                .HasForeignKey(x => x.CharacterId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_characters_level", "level >= 1 AND level <= 99");
+                t.HasCheckConstraint("ck_characters_experience", "experience >= 0");
+                t.HasCheckConstraint(
+                    "ck_characters_resources",
+                    "hp >= 0 AND max_hp >= 0 AND mp >= 0 AND max_mp >= 0 AND gold >= 0");
+                t.HasCheckConstraint(
+                    "ck_characters_stats",
+                    "str >= 1 AND str <= 99 AND agi >= 1 AND agi <= 99 "
+                    + "AND vit >= 1 AND vit <= 99 AND int >= 1 AND int <= 99 "
+                    + "AND dex >= 1 AND dex <= 99 AND luck >= 1 AND luck <= 99");
+            });
+        });
+
+        modelBuilder.Entity<InventorySlotEntity>(e =>
+        {
+            e.ToTable("inventory_slots", "player");
+            e.HasKey(x => new { x.CharacterId, x.SlotIndex });
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_inventory_slots_index",
+                    "slot_index >= 0 AND slot_index < 30");
+                t.HasCheckConstraint(
+                    "ck_inventory_slots_quantity",
+                    "quantity >= 0 AND quantity <= 999");
+                t.HasCheckConstraint(
+                    "ck_inventory_slots_item_consistency",
+                    "(item_id IS NULL AND quantity = 0) OR (item_id IS NOT NULL AND quantity > 0)");
+            });
+        });
+
+        modelBuilder.Entity<BankSlotEntity>(e =>
+        {
+            e.ToTable("bank_slots", "player");
+            e.HasKey(x => new { x.CharacterId, x.SlotIndex });
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_bank_slots_index",
+                    "slot_index >= 0 AND slot_index < 40");
+                t.HasCheckConstraint(
+                    "ck_bank_slots_quantity",
+                    "quantity >= 0 AND quantity <= 999");
+                t.HasCheckConstraint(
+                    "ck_bank_slots_item_consistency",
+                    "(item_id IS NULL AND quantity = 0) OR (item_id IS NOT NULL AND quantity > 0)");
+            });
+        });
+
+        modelBuilder.Entity<GroundItemEntity>(e =>
+        {
+            e.ToTable("ground_items", "player");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.MapId, x.TakenAtUtc });
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_ground_items_quantity",
+                    "quantity >= 1 AND quantity <= 999");
+            });
         });
     }
 }
