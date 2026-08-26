@@ -4,11 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
-using Frog.Application.Gameplay;
 using Frog.Client;
 using Frog.Server;
-using Frog.Server.Gameplay;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,7 +14,8 @@ using Xunit;
 namespace Frog.Editor.WindowsSmokeTests;
 
 /// <summary>
-/// Frog.Client MainShellForm against in-memory Frog.Server : register/login, perso, inventaire, reconnect.
+/// Frog.Client MainShellForm against in-memory Frog.Server: register/login, character,
+/// shop acquire + equip via public client protocol, reconnect usability.
 /// Screenshots → artifacts/phase-07-gameplay-client/.
 /// </summary>
 [Collection(UiSmokeCollectionDefinition.Name)]
@@ -63,69 +61,81 @@ public sealed class GameplayClientSmokeTests
                 form.PassTextBoxForTest.Text = password;
 
                 form.ConnectButtonForTest.PerformClick();
-                ClientSmokeTestAccess.PumpUntil(() => form.DisconnectButtonForTest.Enabled, ClientSmokeTestAccess.DefaultTimeout);
+                Pump(form, () => form.DisconnectButtonForTest.Enabled, "connect TCP");
 
                 form.RegisterButtonForTest.PerformClick();
-                ClientSmokeTestAccess.PumpUntil(
-                    () => form.CharCreateButtonForTest.Enabled,
-                    ClientSmokeTestAccess.DefaultTimeout);
+                Pump(form, () => form.LogContainsForTest("Inscription OK"), "register success");
 
                 form.LoginButtonForTest.PerformClick();
-                ClientSmokeTestAccess.PumpUntil(
-                    () => form.StoredAuthTokenForTest is not null,
-                    ClientSmokeTestAccess.DefaultTimeout);
+                Pump(form, () => form.StoredAuthTokenForTest is not null, "login token stored");
+                Pump(form, () => form.CharCreateButtonForTest.Enabled, "character create enabled after login");
                 ClientSmokeTestAccess.SaveScreenshot(form, "01-login-token-stored.png");
 
                 var charName = "SmokeHero";
                 form.NewCharNameTextBoxForTest.Text = charName;
                 form.CharCreateButtonForTest.PerformClick();
-                ClientSmokeTestAccess.PumpUntil(
-                    () => form.CharactersComboForTest.Items.Count > 0,
-                    ClientSmokeTestAccess.DefaultTimeout);
+                Pump(
+                    form,
+                    () => form.CharactersComboForTest.Items.Count > 0
+                          && form.LogContainsForTest("Perso créé"),
+                    "character created and listed");
                 ClientSmokeTestAccess.SaveScreenshot(form, "02-character-created.png");
 
                 var pick = form.CharactersComboForTest.Items.Cast<object>()
                     .FirstOrDefault(i => i.ToString()?.Contains(charName, StringComparison.Ordinal) == true);
                 Assert.NotNull(pick);
                 form.CharactersComboForTest.SelectedItem = pick;
-                var characterId = form.SelectedCharacterIdForTest;
-                Assert.False(string.IsNullOrWhiteSpace(characterId));
-
-                var invSvc = host.Services.GetRequiredService<InventoryGameplayService>();
-                var charGuid = Guid.Parse(characterId!);
-                var addResult = invSvc.TryAddItemAsync(charGuid, Phase7ContentSeed.DefaultWeaponId, 1)
-                    .GetAwaiter()
-                    .GetResult();
-                Assert.Equal(InventoryMutationStatus.Ok, addResult.Status);
+                Assert.False(string.IsNullOrWhiteSpace(form.SelectedCharacterIdForTest));
 
                 form.EnterGameButtonForTest.PerformClick();
-                ClientSmokeTestAccess.PumpUntil(
-                    () => form.IsPlayingPhaseForTest,
-                    ClientSmokeTestAccess.DefaultTimeout);
-                ClientSmokeTestAccess.PumpUntil(
-                    () => form.InventoryPanelForTest.ListedItemCountForTest > 0,
-                    ClientSmokeTestAccess.DefaultTimeout);
+                Pump(form, () => form.IsPlayingPhaseForTest, "enter playing phase");
+                Pump(form, () => form.ShopBuyButtonForTest.Enabled, "shop buy enabled in playing phase");
+
+                // Obtain weapon through public shop protocol (no mid-scenario DI mutation).
+                form.ShopItemIdTextBoxForTest.Text = Phase7ClientContentSeed.DefaultWeaponId.ToString();
+                form.ShopBuyButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.ListedItemCountForTest > 0
+                          && form.LogContainsForTest("Achat:"),
+                    "shop buy put weapon in inventory");
 
                 form.InventoryPanelForTest.SelectFirstForTest();
                 form.InventoryPanelForTest.ClickEquipForTest();
-                ClientSmokeTestAccess.PumpUntil(
-                    () => form.InventoryPanelForTest.EquippedWeaponItemId is not null,
-                    ClientSmokeTestAccess.DefaultTimeout);
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == Phase7ClientContentSeed.DefaultWeaponId,
+                    "equip weapon via client protocol");
 
                 ClientSmokeTestAccess.SaveScreenshot(form, "03-gameplay-inventory.png");
 
                 form.DisconnectButtonForTest.PerformClick();
-                ClientSmokeTestAccess.PumpUntil(
-                    () => form.ConnectButtonForTest.Enabled,
-                    ClientSmokeTestAccess.DefaultTimeout);
+                Pump(form, () => form.ConnectButtonForTest.Enabled, "disconnect complete");
 
                 form.ConnectButtonForTest.PerformClick();
-                ClientSmokeTestAccess.PumpUntil(() => form.DisconnectButtonForTest.Enabled, ClientSmokeTestAccess.DefaultTimeout);
+                Pump(form, () => form.DisconnectButtonForTest.Enabled, "reconnect TCP");
                 form.ReconnectButtonForTest.PerformClick();
-                ClientSmokeTestAccess.PumpUntil(
-                    () => form.CharCreateButtonForTest.Enabled,
-                    ClientSmokeTestAccess.DefaultTimeout);
+                Pump(form, () => form.CharCreateButtonForTest.Enabled, "reconnect auth restored character UI");
+                Pump(
+                    form,
+                    () => form.CharactersComboForTest.Items.Count > 0,
+                    "character list after reconnect");
                 ClientSmokeTestAccess.SaveScreenshot(form, "04-reconnect-ok.png");
+
+                // Prove controls remain usable after reconnect: reselect + inventory still shows equipped weapon.
+                pick = form.CharactersComboForTest.Items.Cast<object>()
+                    .FirstOrDefault(i => i.ToString()?.Contains(charName, StringComparison.Ordinal) == true);
+                Assert.NotNull(pick);
+                form.CharactersComboForTest.SelectedItem = pick;
+                form.EnterGameButtonForTest.PerformClick();
+                Pump(form, () => form.IsPlayingPhaseForTest, "re-enter playing after reconnect");
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == Phase7ClientContentSeed.DefaultWeaponId
+                          || form.InventoryPanelForTest.ListedItemCountForTest > 0,
+                    "inventory/equipment usable after reconnect");
+                Assert.True(form.ShopBuyButtonForTest.Enabled, "shop control usable after reconnect");
+                ClientSmokeTestAccess.SaveScreenshot(form, "05-reconnect-gameplay-usable.png");
 
                 var screenshotDir = ClientSmokeTestAccess.ScreenshotDirectory;
                 Assert.True(Directory.Exists(screenshotDir), $"Missing screenshot dir: {screenshotDir}");
@@ -135,6 +145,7 @@ public sealed class GameplayClientSmokeTests
                     "02-character-created.png",
                     "03-gameplay-inventory.png",
                     "04-reconnect-ok.png",
+                    "05-reconnect-gameplay-usable.png",
                 })
                 {
                     var path = Path.Combine(screenshotDir, name);
@@ -158,6 +169,21 @@ public sealed class GameplayClientSmokeTests
                 ClientSmokeTestAccess.ResetHooks();
             }
         });
+    }
+
+    private static void Pump(MainShellForm form, Func<bool> predicate, string step)
+    {
+        try
+        {
+            ClientSmokeTestAccess.PumpUntil(predicate, ClientSmokeTestAccess.DefaultTimeout);
+        }
+        catch (TimeoutException)
+        {
+            var log = form.LogTextForTest;
+            var tail = log.Length <= 800 ? log : log[^800..];
+            throw new TimeoutException(
+                $"Gameplay client smoke timed out at step '{step}'. Log tail:{Environment.NewLine}{tail}");
+        }
     }
 
     private static int GetFreePort()

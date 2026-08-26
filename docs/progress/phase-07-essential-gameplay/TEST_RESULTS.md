@@ -62,17 +62,21 @@ Includes: auth, player repos, economy atomicity, published content visibility, `
 | Field | Value |
 | --- | --- |
 | Status | **CI** (NOT RUN on Linux agent) |
-| Filter | full `Frog.Editor.WindowsSmokeTests` excluding only when CI runs gameplay filter separately |
-| Expected | 35 × 3 on Windows CI job |
+| Filter | `FullyQualifiedName!~GameplayClientSmoke` (editor/playtest only) |
+| Expected | **35** × 3 on Windows CI job |
+| Note | Gameplay client smoke is **not** counted as editor proof |
 
 ### Windows gameplay-client smoke ×3
 
 | Field | Value |
 | --- | --- |
 | Status | **CI** (NOT RUN on Linux agent — requires STA WinForms) |
-| Command | `dotnet test tests/Frog.Editor.WindowsSmokeTests/... --filter FullyQualifiedName~GameplayClientSmoke` ×3 |
+| Command | `dotnet test ... --filter FullyQualifiedName~GameplayClientSmoke` ×3 |
+| Expected | **1** test × 3 consecutive passes |
+| Screenshots | `01`…`05` under `artifacts/phase-07-gameplay-client/` |
 | Artifact | `phase-07-gameplay-client-screenshots` |
 | Manifest | `docs/progress/phase-07-essential-gameplay/SCREENSHOT_MANIFEST.md` |
+| Protocol | shop buy + equip via public client UI (no mid-scenario DI inventory inject) |
 
 ### git diff --check
 

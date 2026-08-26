@@ -2438,4 +2438,13 @@ public sealed class MainShellForm : Form
         _cmbCharacters.SelectedItem is CharacterPickRow row ? row.Id : null;
 
     internal string? StoredAuthTokenForTest => _storedAuthToken;
+
+    internal TextBox ShopItemIdTextBoxForTest => _txtShopItemId;
+
+    internal Button ShopBuyButtonForTest => _btnShopBuy;
+
+    internal bool LogContainsForTest(string fragment) =>
+        _txtLog.Text.Contains(fragment, StringComparison.Ordinal);
+
+    internal string LogTextForTest => _txtLog.Text;
 }

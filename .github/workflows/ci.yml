@@ -32,15 +32,17 @@ jobs:
         shell: pwsh
         run: |
           $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
+          # Exclude gameplay-client smokes — those run in the dedicated step below (35 editor tests).
+          $filter = "FullyQualifiedName!~GameplayClientSmoke"
           for ($i = 1; $i -le 3; $i++) {
-            Write-Host "=== Windows smoke pass $i/3 ==="
-            dotnet test $project -c Release --no-build --verbosity normal
+            Write-Host "=== Windows editor smoke pass $i/3 ==="
+            dotnet test $project -c Release --no-build --verbosity normal --filter $filter
             if ($LASTEXITCODE -ne 0) {
-              Write-Error "Windows smoke pass $i/3 failed with exit code $LASTEXITCODE"
+              Write-Error "Windows editor smoke pass $i/3 failed with exit code $LASTEXITCODE"
               exit $LASTEXITCODE
             }
           }
-          Write-Host "=== Windows smoke 3/3 consecutive passes OK ==="
+          Write-Host "=== Windows editor smoke 3/3 consecutive passes OK ==="
 
       - name: Gameplay client smoke (in-memory server) ×3
         shell: pwsh
