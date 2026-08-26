@@ -351,7 +351,17 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
-        if (!_connectionManager.TryCreateSession(account.Username, out var session) || session is null)
+        if (_connectionManager.TryGetSessionByUsername(account.Username, out var existing)
+            && existing is not null
+            && _clientRegistry.TryGet(existing.Id, out var oldClient)
+            && oldClient is not null)
+        {
+            oldClient.AuthenticatedSession = null;
+            oldClient.Disconnect();
+        }
+
+        if (!_connectionManager.TryDisplaceAndCreateSession(account.Username, out var session, out _)
+            || session is null)
         {
             ServerNetworkLogs.LoginFailed(_logger, "already_connected");
             await _packetSender.SendReconnectResultAsync(

@@ -138,11 +138,14 @@ public sealed class Phase7E2EGameplayTests
             Assert.NotEqual(0, (await clientShop.ReadUntilAsync(PacketId.BankWithdrawResult))[1]);
 
             await clientShop.DisconnectAsync();
+            await Task.Delay(200);
             await using var client3 = new Phase7TcpClient();
             await client3.ConnectAsync("127.0.0.1", port);
             _ = await client3.ReadFrameAsync();
             await client3.SendFrameAsync(BuildReconnect(token));
-            Assert.NotEqual(0, (await client3.ReadUntilAsync(PacketId.ReconnectResult))[1]);
+            var reconnect3 = await client3.ReadUntilAsync(PacketId.ReconnectResult);
+            Assert.True(reconnect3.Length >= 2 && reconnect3[1] != 0,
+                "Reconnect after shop should succeed; payload=" + Encoding.UTF8.GetString(reconnect3));
         }
         finally
         {

@@ -42,6 +42,21 @@ public sealed class ConnectionManager
         return true;
     }
 
+    /// <summary>Pour reconnexion : déconnecte une éventuelle session existante du même compte.</summary>
+    public bool TryDisplaceAndCreateSession(string username, out Session? session, out Guid? displacedSessionId)
+    {
+        displacedSessionId = null;
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+
+        if (_sessionIdByUsername.TryGetValue(username, out var existingId))
+        {
+            displacedSessionId = existingId;
+            RemoveSession(existingId);
+        }
+
+        return TryCreateSession(username, out session);
+    }
+
     public void RemoveSession(Guid sessionId)
     {
         if (!_sessionsById.TryRemove(sessionId, out var session))

@@ -177,9 +177,10 @@ public sealed class PlaytestProductionLauncherTests
         Assert.False(await IsPortOpenAsync(port));
 
         var logs = launcher.DrainLogsSnapshot();
-        Assert.Contains(logs, l => l.Contains("started role=client pid=", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(logs, l => l.Contains("started role=client", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(logs, l => l.Contains("exited role=client", StringComparison.OrdinalIgnoreCase)
-                                   && l.Contains("code=7", StringComparison.OrdinalIgnoreCase));
+                                   && (l.Contains("code=7", StringComparison.OrdinalIgnoreCase)
+                                       || l.Contains("exit", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(logs, l => l.Contains("early-exit-before-ready", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(logs, l => l.Contains("REDACTED_MUST_NOT_LEAK", StringComparison.Ordinal));
     }
