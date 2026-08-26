@@ -2698,21 +2698,27 @@ public sealed class MainShellForm : Form
     internal bool CatalogClassesPopulatedForTest => _cmbClass.Items.Count > 0;
 
     internal bool TrySelectWeaponFromCatalogForTest()
+        => TrySelectCatalogShopItemForTest("Weapon");
+
+    internal bool TrySelectConsumableFromCatalogForTest()
+        => TrySelectCatalogShopItemForTest("Consumable");
+
+    private bool TrySelectCatalogShopItemForTest(string itemType)
     {
         if (_publishedCatalog is null)
         {
             return false;
         }
 
-        var weapon = _publishedCatalog.Items.FirstOrDefault(i =>
-            string.Equals(i.Type, "Weapon", StringComparison.OrdinalIgnoreCase));
-        if (weapon is null || !Guid.TryParse(weapon.Id, out var weaponId))
+        var item = _publishedCatalog.Items.FirstOrDefault(i =>
+            string.Equals(i.Type, itemType, StringComparison.OrdinalIgnoreCase));
+        if (item is null || !Guid.TryParse(item.Id, out var itemId))
         {
             return false;
         }
 
         var shop = _publishedCatalog.Shops.FirstOrDefault(s =>
-            s.ItemIds.Contains(weapon.Id, StringComparer.OrdinalIgnoreCase));
+            s.ItemIds.Contains(item.Id, StringComparer.OrdinalIgnoreCase));
         if (shop is null || !Guid.TryParse(shop.Id, out var shopId))
         {
             return false;
@@ -2730,7 +2736,7 @@ public sealed class MainShellForm : Form
         RefreshShopItemCombo();
         for (var i = 0; i < _cmbShopItem.Items.Count; i++)
         {
-            if (_cmbShopItem.Items[i] is ItemPickRow row && row.Id == weaponId)
+            if (_cmbShopItem.Items[i] is ItemPickRow row && row.Id == itemId)
             {
                 _cmbShopItem.SelectedIndex = i;
                 SyncShopGuidTextBoxes();
@@ -2768,6 +2774,10 @@ public sealed class MainShellForm : Form
     internal Button ShopBuyButtonForTest => _btnShopBuy;
 
     internal void SelectGameplayTabForTest() => _gameplayTabs.SelectedTab = _tabGameplay;
+
+    internal void SelectChatTabForTest() => _gameplayTabs.SelectedTab = _tabChat;
+
+    internal void SelectChatChannelForTest(int channelIndex) => _cmbChannel.SelectedIndex = channelIndex;
 
     internal bool LogContainsForTest(string fragment) =>
         _txtLog.Text.Contains(fragment, StringComparison.Ordinal);

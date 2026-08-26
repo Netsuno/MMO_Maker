@@ -41,8 +41,13 @@ public sealed class PackagedServerPostgreSqlProcessTests
         var publishDir = await PublishReleaseServerAsync();
         AssertPackagedRuntimeAssemblies(publishDir);
 
-        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
-        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        Phase7PostgresContentSeedResult seed;
+        using (var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString))))
+        {
+            seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        }
+
+        NpgsqlConnection.ClearAllPools();
 
         var port = GetFreePort();
         WritePackagedServerConfig(publishDir, _fixture.ConnectionString, port);
@@ -137,6 +142,7 @@ public sealed class PackagedServerPostgreSqlProcessTests
             await StopServerAsync(process);
         }
 
+        NpgsqlConnection.ClearAllPools();
         Assert.True(process.HasExited);
         Assert.False(await IsPortOpenAsync(port));
         await AssertNoActiveDbSessionsAsync(_fixture.ConnectionString);
@@ -295,6 +301,21 @@ public sealed class PackagedServerPostgreSqlProcessTests
             if (active == 0)
             {
                 return;
+            }
+
+            if (attempt >= 20)
+            {
+                await using var terminate = new NpgsqlCommand(
+                    """
+                    SELECT pg_terminate_backend(pid)
+                    FROM pg_stat_activity
+                    WHERE datname = @db
+                      AND pid <> pg_backend_pid()
+                      AND application_name NOT LIKE 'pg_%'
+                    """,
+                    conn);
+                terminate.Parameters.AddWithValue("db", databaseName!);
+                await terminate.ExecuteNonQueryAsync();
             }
 
             await Task.Delay(250);

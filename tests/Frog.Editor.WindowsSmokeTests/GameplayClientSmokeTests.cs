@@ -114,13 +114,13 @@ public sealed class GameplayClientSmokeTests
                 harness.EnterPlayingPhase("Banker");
                 form.SelectGameplayTabForTest();
 
-                Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "select weapon");
+                Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "select consumable");
                 form.ShopBuyButtonForTest.PerformClick();
-                Pump(form, () => form.LogContainsForTest("Achat:"), "buy weapon");
+                Pump(form, () => form.LogContainsForTest("Achat:"), "buy consumable");
 
                 form.BankGoldNumericForTest.Value = 10;
                 form.BankDepositGoldButtonForTest.PerformClick();
-                Pump(form, () => form.LogContainsForTest("Banque dépôt:"), "bank gold deposit");
+                Pump(form, () => form.LogContainsForTest("Banque dépôt: "), "bank gold deposit");
 
                 form.BankWithdrawGoldButtonForTest.PerformClick();
                 Pump(form, () => form.LogContainsForTest("Banque retrait:"), "bank gold withdraw");
@@ -151,11 +151,14 @@ public sealed class GameplayClientSmokeTests
                 Pump(form, () => form.CatalogClassesPopulatedForTest, "catalog after login");
                 harness.CreateCharacter("Chatter");
                 harness.EnterPlayingPhase("Chatter");
+                form.SelectChatTabForTest();
+                form.SelectChatChannelForTest(0);
 
                 for (var i = 0; i < GameplayLimits.MaxChatMessagesPerWindow + 3; i++)
                 {
                     form.ChatTextBoxForTest.Text = $"spam-{i}";
                     form.SendChatButtonForTest.PerformClick();
+                    Pump(form, () => form.LogContainsForTest($"spam-{i}") || form.LogContainsForTest("Trop de messages"), $"chat send {i}", TimeSpan.FromSeconds(5));
                 }
 
                 Pump(form, () => form.LogContainsForTest("Trop de messages"), "chat rate limit");
