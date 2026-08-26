@@ -1131,6 +1131,7 @@ public sealed class MainShellForm : Form
             _btnBackDisconnect.Enabled = true;
             _heartbeatTimer.Start();
             SetGameplayControlsEnabled(true);
+            SetPhase(ClientUiPhase.CharacterSelect);
             _ = RefreshCharacterListAsync();
         }
     }

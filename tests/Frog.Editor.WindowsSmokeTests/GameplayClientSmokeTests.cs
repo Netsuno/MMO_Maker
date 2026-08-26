@@ -117,10 +117,12 @@ public sealed class GameplayClientSmokeTests
                 form.ConnectButtonForTest.PerformClick();
                 Pump(form, () => form.DisconnectButtonForTest.Enabled || form.BackDisconnectButtonForTest.Enabled, "reconnect TCP");
                 form.ReconnectButtonForTest.PerformClick();
-                Pump(form, () => form.CharCreateButtonForTest.Enabled, "reconnect auth restored character UI");
+                Pump(form, () => form.CharCreateButtonForTest.Enabled && form.CharCreateButtonForTest.Visible, "reconnect auth restored character UI");
                 Pump(
                     form,
-                    () => form.CharactersComboForTest.Items.Count > 0,
+                    () => form.CharactersComboForTest.Items.Count > 0
+                          && form.EnterGameButtonForTest.Visible
+                          && form.EnterGameButtonForTest.Enabled,
                     "character list after reconnect");
                 ClientSmokeTestAccess.SaveScreenshot(form, "04-reconnect-ok.png");
 
@@ -129,7 +131,12 @@ public sealed class GameplayClientSmokeTests
                     .FirstOrDefault(i => i.ToString()?.Contains(charName, StringComparison.Ordinal) == true);
                 Assert.NotNull(pick);
                 form.CharactersComboForTest.SelectedItem = pick;
+                Assert.False(string.IsNullOrWhiteSpace(form.SelectedCharacterIdForTest));
                 form.EnterGameButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.IsPlayingPhaseForTest || form.LogContainsForTest("Perso: Personnage actif"),
+                    "character select after reconnect");
                 Pump(form, () => form.IsPlayingPhaseForTest, "re-enter playing after reconnect");
                 form.SelectGameplayTabForTest();
                 Pump(
