@@ -84,7 +84,8 @@ public sealed class ShopBankGameplayService(
             return ShopBuyResult.Fail(result.Message);
         }
 
-        ApplyCommittedStateToSession(session, result.State);
+        await ApplyEconomyResultToSessionAsync(session, characterId, result.State, result.IdempotentReplay, ct)
+            .ConfigureAwait(false);
         return ShopBuyResult.Ok(result.State.Inventory, result.State.Gold);
     }
 
@@ -136,7 +137,8 @@ public sealed class ShopBankGameplayService(
             return ShopSellResult.Fail(result.Message);
         }
 
-        ApplyCommittedStateToSession(session, result.State);
+        await ApplyEconomyResultToSessionAsync(session, characterId, result.State, result.IdempotentReplay, ct)
+            .ConfigureAwait(false);
         return ShopSellResult.Ok(result.State.Inventory, result.State.Gold);
     }
 
@@ -187,7 +189,8 @@ public sealed class ShopBankGameplayService(
             return BankDepositResult.Fail(result.Message);
         }
 
-        ApplyCommittedStateToSession(session, result.State);
+        await ApplyEconomyResultToSessionAsync(session, characterId, result.State, result.IdempotentReplay, ct)
+            .ConfigureAwait(false);
         return BankDepositResult.Ok(result.State.Inventory, result.State.Bank);
     }
 
@@ -238,7 +241,8 @@ public sealed class ShopBankGameplayService(
             return BankWithdrawResult.Fail(result.Message);
         }
 
-        ApplyCommittedStateToSession(session, result.State);
+        await ApplyEconomyResultToSessionAsync(session, characterId, result.State, result.IdempotentReplay, ct)
+            .ConfigureAwait(false);
         return BankWithdrawResult.Ok(result.State.Inventory, result.State.Bank);
     }
 
@@ -270,7 +274,8 @@ public sealed class ShopBankGameplayService(
             return BankGoldResult.Fail(result.Message);
         }
 
-        ApplyCommittedStateToSession(session, result.State);
+        await ApplyEconomyResultToSessionAsync(session, characterId, result.State, result.IdempotentReplay, ct)
+            .ConfigureAwait(false);
         return BankGoldResult.Ok(result.State.Gold, result.State.BankGold);
     }
 
@@ -308,12 +313,30 @@ public sealed class ShopBankGameplayService(
             return BankGoldResult.Fail(result.Message);
         }
 
-        ApplyCommittedStateToSession(session, result.State);
+        await ApplyEconomyResultToSessionAsync(session, characterId, result.State, result.IdempotentReplay, ct)
+            .ConfigureAwait(false);
         return BankGoldResult.Ok(result.State.Gold, result.State.BankGold);
     }
 
-    private static void ApplyCommittedStateToSession(Session session, EconomyCommittedState state)
+    private async Task ApplyEconomyResultToSessionAsync(
+        Session session,
+        Guid characterId,
+        EconomyCommittedState state,
+        bool idempotentReplay,
+        CancellationToken ct)
     {
+        if (idempotentReplay)
+        {
+            var record = await _characters.FindByIdAsync(characterId, ct).ConfigureAwait(false);
+            if (record is not null)
+            {
+                session.Gold = record.Gold;
+                session.BankGold = record.BankGold;
+            }
+
+            return;
+        }
+
         session.Gold = state.Gold;
         session.BankGold = state.BankGold;
     }

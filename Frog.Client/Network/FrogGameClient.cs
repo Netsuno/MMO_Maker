@@ -27,6 +27,7 @@ public sealed class FrogGameClient : IDisposable
     private int _mapRequestHintMapId = 1;
     private volatile bool _intentionalDisconnect;
     private readonly MapSerializer _mapSerializer = new();
+    private readonly Dictionary<string, Guid> _lastEconomyRequestIds = new(StringComparer.Ordinal);
 
     public FrogGameClient(SynchronizationContext uiContext)
     {
@@ -77,7 +78,11 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? RespawnResultReceived;
     public event Action<ExperienceGainWire>? ExperienceGainReceived;
     public event Action? DeathNotifyReceived;
+    public event Action<PublishedCatalogWire>? PublishedCatalogReceived;
     public event Action? ConnectionClosed;
+
+    /// <summary>Dernier catalogue publié reçu du serveur.</summary>
+    public PublishedCatalogWire? LatestPublishedCatalog { get; private set; }
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
     {
@@ -568,6 +573,20 @@ public sealed class FrogGameClient : IDisposable
                 Post(() => DeathNotifyReceived?.Invoke());
                 break;
 
+            case PacketId.PublishedCatalogResult:
+                if (TryReadLengthPrefixedUtf8Json(body.Span, out var catalogJson)
+                    && TryDeserializePublishedCatalog(catalogJson, out var catalog))
+                {
+                    LatestPublishedCatalog = catalog;
+                    Post(() => PublishedCatalogReceived?.Invoke(catalog));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("PublishedCatalogResult: format invalide."));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -695,6 +714,9 @@ public sealed class FrogGameClient : IDisposable
 
     public Task SendCharacterListRequestAsync(CancellationToken cancellationToken = default)
         => SendRawAsync([(byte)PacketId.CharacterListRequest], cancellationToken);
+
+    public Task SendPublishedCatalogRequestAsync(CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.PublishedCatalogRequest], cancellationToken);
 
     public Task SendCharacterSelectAsync(string characterId, CancellationToken cancellationToken = default)
     {
@@ -924,93 +946,156 @@ public sealed class FrogGameClient : IDisposable
     }
 
     public Task SendShopBuyAsync(Guid shopId, Guid itemId, int quantity, CancellationToken cancellationToken = default)
+        => SendShopBuyAsync(shopId, itemId, quantity, NewEconomyRequestId("buy"), cancellationToken);
+
+    public Task SendShopBuyAsync(
+        Guid shopId,
+        Guid itemId,
+        int quantity,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
     {
-        if (shopId == Guid.Empty || itemId == Guid.Empty || quantity <= 0)
+        if (shopId == Guid.Empty || itemId == Guid.Empty || quantity <= 0 || requestId == Guid.Empty)
         {
             throw new ArgumentException("Paramètres achat invalides.");
         }
 
+        RememberEconomyRequestId("buy", requestId);
         var payload = new byte[1 + 16 + 16 + 4 + 16];
         payload[0] = (byte)PacketId.ShopBuyRequest;
         shopId.TryWriteBytes(payload.AsSpan(1));
         itemId.TryWriteBytes(payload.AsSpan(17));
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(33), quantity);
-        Guid.NewGuid().TryWriteBytes(payload.AsSpan(37));
+        requestId.TryWriteBytes(payload.AsSpan(37));
         return SendRawAsync(payload, cancellationToken);
     }
 
     public Task SendShopSellAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+        => SendShopSellAsync(slotIndex, quantity, NewEconomyRequestId("sell"), cancellationToken);
+
+    public Task SendShopSellAsync(
+        byte slotIndex,
+        int quantity,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
     {
-        if (quantity <= 0)
+        if (quantity <= 0 || requestId == Guid.Empty)
         {
             throw new ArgumentOutOfRangeException(nameof(quantity));
         }
 
+        RememberEconomyRequestId("sell", requestId);
         var payload = new byte[1 + 1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.ShopSellRequest;
         payload[1] = slotIndex;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
-        Guid.NewGuid().TryWriteBytes(payload.AsSpan(6));
+        requestId.TryWriteBytes(payload.AsSpan(6));
         return SendRawAsync(payload, cancellationToken);
     }
 
     public Task SendBankDepositItemAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+        => SendBankDepositItemAsync(slotIndex, quantity, NewEconomyRequestId("bank-deposit-item"), cancellationToken);
+
+    public Task SendBankDepositItemAsync(
+        byte slotIndex,
+        int quantity,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
     {
-        if (quantity <= 0)
+        if (quantity <= 0 || requestId == Guid.Empty)
         {
             throw new ArgumentOutOfRangeException(nameof(quantity));
         }
 
+        RememberEconomyRequestId("bank-deposit-item", requestId);
         var payload = new byte[1 + 1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.BankDepositRequest;
         payload[1] = slotIndex;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
-        Guid.NewGuid().TryWriteBytes(payload.AsSpan(6));
+        requestId.TryWriteBytes(payload.AsSpan(6));
         return SendRawAsync(payload, cancellationToken);
     }
 
     public Task SendBankWithdrawItemAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+        => SendBankWithdrawItemAsync(slotIndex, quantity, NewEconomyRequestId("bank-withdraw-item"), cancellationToken);
+
+    public Task SendBankWithdrawItemAsync(
+        byte slotIndex,
+        int quantity,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
     {
-        if (quantity <= 0)
+        if (quantity <= 0 || requestId == Guid.Empty)
         {
             throw new ArgumentOutOfRangeException(nameof(quantity));
         }
 
+        RememberEconomyRequestId("bank-withdraw-item", requestId);
         var payload = new byte[1 + 1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.BankWithdrawRequest;
         payload[1] = slotIndex;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
-        Guid.NewGuid().TryWriteBytes(payload.AsSpan(6));
+        requestId.TryWriteBytes(payload.AsSpan(6));
         return SendRawAsync(payload, cancellationToken);
     }
 
     public Task SendBankDepositGoldAsync(int amount, CancellationToken cancellationToken = default)
+        => SendBankDepositGoldAsync(amount, NewEconomyRequestId("bank-deposit-gold"), cancellationToken);
+
+    public Task SendBankDepositGoldAsync(int amount, Guid requestId, CancellationToken cancellationToken = default)
     {
-        if (amount <= 0)
+        if (amount <= 0 || requestId == Guid.Empty)
         {
             throw new ArgumentOutOfRangeException(nameof(amount));
         }
 
+        RememberEconomyRequestId("bank-deposit-gold", requestId);
         var payload = new byte[1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.BankDepositRequest;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), amount);
-        Guid.NewGuid().TryWriteBytes(payload.AsSpan(5));
+        requestId.TryWriteBytes(payload.AsSpan(5));
         return SendRawAsync(payload, cancellationToken);
     }
 
     public Task SendBankWithdrawGoldAsync(int amount, CancellationToken cancellationToken = default)
+        => SendBankWithdrawGoldAsync(amount, NewEconomyRequestId("bank-withdraw-gold"), cancellationToken);
+
+    public Task SendBankWithdrawGoldAsync(int amount, Guid requestId, CancellationToken cancellationToken = default)
     {
-        if (amount <= 0)
+        if (amount <= 0 || requestId == Guid.Empty)
         {
             throw new ArgumentOutOfRangeException(nameof(amount));
         }
 
+        RememberEconomyRequestId("bank-withdraw-gold", requestId);
         var payload = new byte[1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.BankWithdrawRequest;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), amount);
-        Guid.NewGuid().TryWriteBytes(payload.AsSpan(5));
+        requestId.TryWriteBytes(payload.AsSpan(5));
         return SendRawAsync(payload, cancellationToken);
     }
+
+    public void ClearEconomyRequestId(string operation)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        _lastEconomyRequestIds.Remove(operation);
+    }
+
+    public bool PeekEconomyRequestId(string operation, out Guid requestId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        return _lastEconomyRequestIds.TryGetValue(operation, out requestId);
+    }
+
+    private Guid NewEconomyRequestId(string operation)
+    {
+        var id = Guid.NewGuid();
+        _lastEconomyRequestIds[operation] = id;
+        return id;
+    }
+
+    private void RememberEconomyRequestId(string operation, Guid requestId)
+        => _lastEconomyRequestIds[operation] = requestId;
 
     public Task SendRespawnAsync(CancellationToken cancellationToken = default)
         => SendRawAsync([(byte)PacketId.RespawnRequest], cancellationToken);
@@ -1182,6 +1267,9 @@ public sealed class FrogGameClient : IDisposable
     }
 
     private static bool TryReadCharacterListResult(ReadOnlySpan<byte> span, out string json)
+        => TryReadLengthPrefixedUtf8Json(span, out json);
+
+    private static bool TryReadLengthPrefixedUtf8Json(ReadOnlySpan<byte> span, out string json)
     {
         json = string.Empty;
         if (span.Length < sizeof(ushort))
@@ -1197,6 +1285,31 @@ public sealed class FrogGameClient : IDisposable
 
         json = Encoding.UTF8.GetString(span.Slice(sizeof(ushort), len));
         return true;
+    }
+
+    private static bool TryDeserializePublishedCatalog(string json, out PublishedCatalogWire catalog)
+    {
+        catalog = new PublishedCatalogWire();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<PublishedCatalogWire>(json);
+            if (parsed is null)
+            {
+                return false;
+            }
+
+            catalog = parsed;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool TryReadMapEventsResult(ReadOnlySpan<byte> span, out int mapId, out string json)

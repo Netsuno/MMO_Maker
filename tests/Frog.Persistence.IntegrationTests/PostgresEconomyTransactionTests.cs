@@ -9,6 +9,7 @@ using Frog.Persistence.PostgreSql;
 using Frog.Persistence.PostgreSql.Repositories.Auth;
 using Frog.Persistence.PostgreSql.Repositories.Player;
 using Frog.Server.Gameplay;
+using Microsoft.EntityFrameworkCore;
 
 namespace Frog.Persistence.IntegrationTests;
 
@@ -321,6 +322,143 @@ public sealed class PostgresEconomyTransactionTests
         Assert.Equal(100, record.Gold + record.BankGold);
     }
 
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task ConcurrentWithdraws_DoNotProduceNegativeBankGold()
+    {
+        using var gate = CreateGate();
+        var (characterId, _, _) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 0);
+        await SetBankGoldAsync(gate, characterId, 100);
+        var economy = new PostgresEconomyTransactionRepository(gate);
+
+        var tasks = Enumerable.Range(0, 8)
+            .Select(_ => economy.TryBankWithdrawGoldAsync(characterId, 30, NewRequestId()))
+            .ToArray();
+        var results = await Task.WhenAll(tasks);
+        var successes = results.Count(r => r.Success);
+        Assert.True(successes <= 3);
+
+        using var gate2 = CreateGate();
+        var record = await new PostgresCharacterRepository(gate2).FindByIdAsync(characterId);
+        Assert.True(record!.Gold >= 0);
+        Assert.True(record.BankGold >= 0);
+        Assert.Equal(100, record.Gold + record.BankGold);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task ConcurrentBuyers_OnlyOneGetsFinalStockUnit()
+    {
+        using var gate = CreateGate();
+        var (characterA, shopId, itemId) = await SeedEconomyFixtureAsync(gate, stock: 1);
+        var characterB = await CreateSecondCharacterAsync(gate);
+        await SetGoldAsync(gate, characterA, 500);
+        await SetGoldAsync(gate, characterB, 500);
+        var economy = new PostgresEconomyTransactionRepository(gate);
+
+        var results = await Task.WhenAll(
+            economy.TryBuyAsync(characterA, shopId, itemId, 1, 25, 20, 1, NewRequestId()),
+            economy.TryBuyAsync(characterB, shopId, itemId, 1, 25, 20, 1, NewRequestId()));
+        Assert.Equal(1, results.Count(r => r.Success));
+
+        await using var db = new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString));
+        var stock = await db.PlayerShopStock
+            .Where(s => s.ShopId == shopId && s.ItemId == itemId)
+            .Select(s => s.Remaining)
+            .SingleAsync();
+        Assert.Equal(0, stock);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task CancellationAfterMutations_RollsBackWithoutPersistingRequestId()
+    {
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        using var cts = new CancellationTokenSource();
+        var economy = new PostgresEconomyTransactionRepository(gate)
+        {
+            TestBeforeCommitAsync = _ =>
+            {
+                cts.Cancel();
+                return Task.FromCanceled(cts.Token);
+            },
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, NewRequestId(), cts.Token));
+
+        using var gate2 = CreateGate();
+        var chars = new PostgresCharacterRepository(gate2);
+        var inv = new PostgresInventoryRepository(gate2);
+        Assert.Equal(500, (await chars.FindByIdAsync(characterId))!.Gold);
+        Assert.DoesNotContain(
+            (await inv.GetAsync(characterId)).Slots,
+            s => s.ItemId == itemId && s.Quantity > 0);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task SameRequestId_DifferentOperation_DoesNotCollide()
+    {
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        var inventory = new PostgresInventoryRepository(gate);
+        await inventory.TryAddAsync(characterId, itemId, 2, 20);
+        var economy = new PostgresEconomyTransactionRepository(gate);
+        var requestId = NewRequestId();
+
+        var buy = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
+        var sell = await economy.TrySellAsync(characterId, 0, 1, 10, 20, requestId);
+        Assert.True(buy.Success);
+        Assert.True(sell.Success);
+        Assert.False(sell.IdempotentReplay);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task SameRequestId_DifferentItem_RejectsMismatch()
+    {
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId, altItemId) = await SeedTwoItemEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        var economy = new PostgresEconomyTransactionRepository(gate);
+        var requestId = NewRequestId();
+
+        var first = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
+        Assert.True(first.Success);
+
+        var replay = await economy.TryBuyAsync(characterId, shopId, altItemId, 1, 30, 20, null, requestId);
+        Assert.False(replay.Success);
+        Assert.Contains("payload different", replay.Message);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task IdempotentReplay_PersistsAcrossNewGate()
+    {
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        var requestId = NewRequestId();
+        var economy = new PostgresEconomyTransactionRepository(gate);
+        var first = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
+        Assert.True(first.Success);
+
+        using var gate2 = CreateGate();
+        var replay = await new PostgresEconomyTransactionRepository(gate2)
+            .TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
+        Assert.True(replay.Success);
+        Assert.True(replay.IdempotentReplay);
+
+        using var gate3 = CreateGate();
+        var record = await new PostgresCharacterRepository(gate3).FindByIdAsync(characterId);
+        Assert.Equal(475, record!.Gold);
+    }
+
     private static Guid NewRequestId() => Guid.NewGuid();
 
     private FrogDbContextGate CreateGate()
@@ -404,6 +542,94 @@ public sealed class PostgresEconomyTransactionTests
         return (character.Character!.Id, shopSaved.ShopId, itemSaved.ItemId);
     }
 
+    private static async Task<(Guid CharacterId, Guid ShopId, Guid ItemId, Guid AltItemId)> SeedTwoItemEconomyFixtureAsync(
+        FrogDbContextGate gate)
+    {
+        var accounts = new PostgresAccountRepository(gate);
+        var created = await accounts.TryCreateAsync($"eco-{Guid.NewGuid():N}"[..16], "password12345");
+        var accountId = created.AccountId!.Value;
+
+        var spells = new PostgresSpellRepository(gate);
+        var spellDef = Phase7ContentSeed.CreateDefaultSpell();
+        if (await spells.LoadPublishedByIdAsync(spellDef.Id) is null)
+        {
+            Assert.IsType<SaveSpellResult.Success>(await spells.SaveAsync(new SaveSpellRequest
+            {
+                Definition = spellDef,
+                ExpectedRevision = 0,
+                Intent = SaveContentIntent.Publish,
+            }));
+        }
+
+        var classes = new PostgresClassRepository(gate, spells);
+        var classDef = Phase7ContentSeed.CreateDefaultClass();
+        if (await classes.LoadPublishedByIdAsync(classDef.Id) is null)
+        {
+            Assert.IsType<SaveClassResult.Success>(await classes.SaveAsync(new SaveClassRequest
+            {
+                Definition = classDef,
+                ExpectedRevision = 0,
+                Intent = SaveContentIntent.Publish,
+            }));
+        }
+
+        var items = new PostgresItemRepository(gate);
+        var itemDef = Phase7ContentSeed.CreateDefaultConsumable();
+        itemDef.Id = Guid.NewGuid();
+        itemDef.Name = $"Potion-{Guid.NewGuid():N}"[..20];
+        var itemSaved = Assert.IsType<SaveItemResult.Success>(await items.SaveAsync(new SaveItemRequest
+        {
+            Definition = itemDef,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }));
+
+        var altItemDef = Phase7ContentSeed.CreateDefaultConsumable();
+        altItemDef.Id = Guid.NewGuid();
+        altItemDef.Name = $"Alt-{Guid.NewGuid():N}"[..20];
+        var altSaved = Assert.IsType<SaveItemResult.Success>(await items.SaveAsync(new SaveItemRequest
+        {
+            Definition = altItemDef,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }));
+
+        var shops = new PostgresShopRepository(gate, items);
+        var shopDef = new ShopDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = $"Shop-{Guid.NewGuid():N}"[..20],
+            Description = "Economy test shop",
+            Listings =
+            [
+                new ShopListing { ItemId = itemSaved.ItemId, Price = 25, Stock = null },
+                new ShopListing { ItemId = altSaved.ItemId, Price = 30, Stock = null },
+            ],
+        };
+        var shopSaved = Assert.IsType<SaveShopResult.Success>(await shops.SaveAsync(new SaveShopRequest
+        {
+            Definition = shopDef,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }));
+
+        var chars = new PostgresCharacterRepository(gate);
+        var character = await chars.CreateAsync(
+            accountId,
+            $"Hero{Guid.NewGuid():N}"[..12],
+            Phase7ContentSeed.DefaultClassId,
+            new CharacterStats(10, 10, 10, 10, 10, 10),
+            100,
+            50,
+            Phase7ContentSeed.DefaultSpellId,
+            1,
+            32,
+            48);
+        Assert.Equal(CharacterCreateStatus.Created, character.Status);
+
+        return (character.Character!.Id, shopSaved.ShopId, itemSaved.ItemId, altSaved.ItemId);
+    }
+
     private static async Task<Guid> CreateSecondCharacterAsync(FrogDbContextGate gate)
     {
         var accounts = new PostgresAccountRepository(gate);
@@ -428,5 +654,12 @@ public sealed class PostgresEconomyTransactionTests
         var chars = new PostgresCharacterRepository(gate);
         var record = await chars.FindByIdAsync(characterId);
         await chars.SaveAsync(record! with { Gold = gold });
+    }
+
+    private static async Task SetBankGoldAsync(FrogDbContextGate gate, Guid characterId, int bankGold)
+    {
+        var chars = new PostgresCharacterRepository(gate);
+        var record = await chars.FindByIdAsync(characterId);
+        await chars.SaveAsync(record! with { BankGold = bankGold });
     }
 }
