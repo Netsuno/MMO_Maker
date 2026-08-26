@@ -5,6 +5,10 @@
 - Phase 6 accepted implementation: `99b782f8f205c0161c0bba8838d041714e39947e`
 - Phase 6 accepted evidence tip: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
 
+## Implementation tip (CI green)
+- `4d92800b338fe71aef8ba9f2c8b1dcc8e2a72976`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258
+
 ## P7-FIX-1
 - Fail-closed production DI without PostgreSQL (playtest / `AllowInMemoryFallback` only for tests).
 - Backend registers Postgres published catalogs + migrates.
@@ -21,16 +25,16 @@
 - PG player/content/economy integration expansion.
 - `Phase7PostgresE2ETests` 17-step headless PG E2E without mid-scenario DI injection.
 - Multi-client: pickup, combat XP, shop idempotency, whisper isolation, reconnect displace.
-- Renamed in-memory smoke E2E.
+- Renamed in-memory smoke E2E + immediate-reconnect regression.
 
 ## P7-FIX-4
 - Typed codec + client send/receive for Phase 7 packets.
 - Usable MainShellForm gameplay UI (inventory/equip/shop/bank/combat/respawn/reconnect).
 - `GameplayClientSmokeTests` + CI ×3 + screenshot artifact.
+- Reconnect: unregister displaced ClientRegistry entry; map preload; Playing after map.
 
 ## P7-FIX-5
-- STATUS = CHANGES REQUESTED during remediation; matrices updated for re-review.
-- Exact counts (no `270+`); SHA/CI identity separated.
+- STATUS = CHANGES REQUESTED until re-review; exact counts (no `270+`); SHA/CI identity separated.
 
 ## Phase 8
 Not started.

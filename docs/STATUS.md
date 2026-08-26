@@ -10,11 +10,13 @@
   - Accepted evidence baseline (branch tip) : `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
   - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
   - CI (final tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32798293788
-- **Phase 7 : CHANGES REQUESTED → remediations complete; waiting for re-review CI**
+- **Phase 7 : CHANGES REQUESTED** — remediations P7-FIX-1…5 complete; **waiting for re-review**
   - Rejected tip : `67281e3c62eb1943341b162fe1213abb5fc7011a`
+  - Implementation SHA (CI-green remediations tip) : `4d92800b338fe71aef8ba9f2c8b1dcc8e2a72976`
+  - Evidence tip : see latest docs commit on this branch after this STATUS update
+  - CI (green tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258
   - Evidence : `docs/progress/phase-07-essential-gameplay/`
-  - Local suites : Frog.Tests **270 PASS**; PostgreSQL integration **66 PASS**
-  - Windows editor + gameplay-client smokes : CI on tip (NOT RUN on Linux agent)
+  - Suites on tip : Frog.Tests **271 PASS**; PG integration **66 PASS**; editor smoke **35** ×3; gameplay smoke **1** ×3
 
 ## Known issues
 
