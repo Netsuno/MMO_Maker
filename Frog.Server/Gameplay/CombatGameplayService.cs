@@ -12,14 +12,15 @@ public sealed class CombatGameplayService(
     IPublishedSpellCatalog spells,
     IPublishedItemCatalog items,
     ICharacterRepository characters,
-    CharacterGameplayService characterService)
+    CharacterGameplayService characterService,
+    ICombatMutationRepository combatMutations)
 {
     private readonly IPublishedNpcCatalog _npcs = npcs;
     private readonly IPublishedSpellCatalog _spells = spells;
     private readonly IPublishedItemCatalog _items = items;
     private readonly ICharacterRepository _characters = characters;
     private readonly CharacterGameplayService _characterService = characterService;
-    private readonly ConcurrentDictionary<int, ConcurrentDictionary<Guid, MonsterInstance>> _monstersByMap = new();
+    private readonly ICombatMutationRepository _combatMutations = combatMutations;
     private readonly ConcurrentDictionary<Guid, Guid> _sessionTargets = new();
 
     public async Task<MonsterInstance?> SpawnMonsterAsync(
@@ -36,40 +37,30 @@ public sealed class CombatGameplayService(
         }
 
         var maxHp = CombatFormulas.MonsterMaxHp(npc.Level);
-        var instance = new MonsterInstance(
-            Guid.NewGuid(),
+        var spawned = await _combatMutations.SpawnMonsterAsync(
+            mapId,
             npc.Id,
             npc.Name,
-            mapId,
+            npc.Level,
             pixelX,
             pixelY,
             maxHp,
-            maxHp,
-            npc.Level);
-        var map = _monstersByMap.GetOrAdd(mapId, static _ => new ConcurrentDictionary<Guid, MonsterInstance>());
-        map[instance.InstanceId] = instance;
-        return instance;
+            ct).ConfigureAwait(false);
+        return spawned is null ? null : ToMonsterInstance(spawned);
     }
 
     public MonsterInstance? SpawnMonster(int mapId, Guid npcDefinitionId, int pixelX, int pixelY)
         => SpawnMonsterAsync(mapId, npcDefinitionId, pixelX, pixelY).GetAwaiter().GetResult();
 
     public IReadOnlyList<MonsterInstance> ListMonstersOnMap(int mapId)
-    {
-        if (!_monstersByMap.TryGetValue(mapId, out var map))
-        {
-            return Array.Empty<MonsterInstance>();
-        }
-
-        return map.Values.Where(m => !m.Defeated).ToArray();
-    }
+        => _combatMutations.ListMonstersOnMap(mapId)
+            .Where(m => m.Hp > 0)
+            .Select(ToMonsterInstance)
+            .ToArray();
 
     public void CancelForSession(Guid sessionId) => _sessionTargets.TryRemove(sessionId, out _);
 
-    public void CancelForMapChange(Session session)
-    {
-        CancelForSession(session.Id);
-    }
+    public void CancelForMapChange(Session session) => CancelForSession(session.Id);
 
     public async Task<MeleeCombatResult> TryMeleeAttackMonsterAsync(
         Session attacker,
@@ -92,38 +83,58 @@ public sealed class CombatGameplayService(
             return MeleeCombatResult.Fail("Attaque en recharge.");
         }
 
-        if (!_monstersByMap.TryGetValue(attacker.CurrentMapId, out var map))
+        if (_combatMutations.ListMonstersOnMap(attacker.CurrentMapId).Count == 0)
         {
             return MeleeCombatResult.Fail("Aucun monstre.");
         }
 
-        var monster = FindMonsterInRange(map.Values, targetName, attacker.PixelX, attacker.PixelY);
-        if (monster is null || monster.Defeated)
+        if (FindMonsterInRange(
+                _combatMutations.ListMonstersOnMap(attacker.CurrentMapId),
+                targetName,
+                attacker.PixelX,
+                attacker.PixelY) is null)
         {
             return MeleeCombatResult.Fail("Monstre hors portee ou introuvable.");
         }
 
         var weaponPower = await GetWeaponPowerAsync(attacker.EquippedWeaponItemId, ct).ConfigureAwait(false);
-        var targetVit = monster.Level * 2;
-        var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
-        var newHp = Math.Max(0, monster.Hp - damage);
-        attacker.LastMeleeUtc = now;
-        _sessionTargets[attacker.Id] = monster.InstanceId;
-
-        if (newHp <= 0)
+        var preview = FindMonsterInRange(
+            _combatMutations.ListMonstersOnMap(attacker.CurrentMapId),
+            targetName,
+            attacker.PixelX,
+            attacker.PixelY)!;
+        var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, preview.Level * 2);
+        var applied = await _combatMutations.TryApplyDamageToNamedTargetAsync(
+            attacker.CurrentMapId,
+            targetName,
+            attacker.PixelX,
+            attacker.PixelY,
+            CombatFormulas.BasicAttackRangePixels,
+            damage,
+            ct).ConfigureAwait(false);
+        if (!applied.Success)
         {
-            if (!map.TryRemove(monster.InstanceId, out _))
-            {
-                return MeleeCombatResult.Fail("Monstre deja vaincu.");
-            }
-
-            var xp = CombatFormulas.MonsterExperienceReward(monster.Level);
-            await GrantExperienceAsync(attacker, xp, ct).ConfigureAwait(false);
-            return MeleeCombatResult.ForMonsterKilled(targetName, damage, xp);
+            return MeleeCombatResult.Fail(applied.Message);
         }
 
-        map[monster.InstanceId] = monster with { Hp = newHp };
-        return MeleeCombatResult.ForMonsterHit(targetName, damage, newHp, monster.MaxHp);
+        attacker.LastMeleeUtc = now;
+        if (applied.Monster is not null)
+        {
+            _sessionTargets[attacker.Id] = applied.Monster.InstanceId;
+        }
+
+        if (applied.MonsterKilled && applied.Monster is not null)
+        {
+            var xp = CombatFormulas.MonsterExperienceReward(applied.Monster.Level);
+            await GrantExperienceAsync(attacker, xp, ct).ConfigureAwait(false);
+            return MeleeCombatResult.ForMonsterKilled(targetName, applied.DamageApplied, xp);
+        }
+
+        return MeleeCombatResult.ForMonsterHit(
+            targetName,
+            applied.DamageApplied,
+            applied.Monster!.Hp,
+            applied.Monster.MaxHp);
     }
 
     public async Task<SpellCombatResult> TryCastSpellAsync(
@@ -164,45 +175,62 @@ public sealed class CombatGameplayService(
             return SpellCombatResult.Fail("Mana insuffisant.");
         }
 
+        CombatMonsterSnapshot? previewTarget = null;
+        if (!string.IsNullOrWhiteSpace(targetName))
+        {
+            previewTarget = FindMonsterInRange(
+                _combatMutations.ListMonstersOnMap(caster.CurrentMapId),
+                targetName,
+                caster.PixelX,
+                caster.PixelY,
+                CombatFormulas.DefaultSpellRangePixels);
+            if (previewTarget is null)
+            {
+                return SpellCombatResult.Fail("Cible hors portee.");
+            }
+        }
+
         caster.Mp -= spell.ManaCost;
         if (spell.CooldownMs > 0)
         {
             caster.SpellCooldownsUtc[spellId] = now.AddMilliseconds(spell.CooldownMs);
         }
 
-        var spellPower = CombatFormulas.SpellPowerFromManaCost(spell.ManaCost);
-        var intel = caster.Stats?.Int ?? 10;
-
-        if (!string.IsNullOrWhiteSpace(targetName)
-            && _monstersByMap.TryGetValue(caster.CurrentMapId, out var map))
+        if (previewTarget is not null && !string.IsNullOrWhiteSpace(targetName))
         {
-            var monster = FindMonsterInRange(map.Values, targetName, caster.PixelX, caster.PixelY, CombatFormulas.DefaultSpellRangePixels);
-            if (monster is null || monster.Defeated)
+            var spellPower = CombatFormulas.SpellPowerFromManaCost(spell.ManaCost);
+            var intel = caster.Stats?.Int ?? 10;
+            var damage = CombatFormulas.SpellDamage(intel, spellPower, previewTarget.Level * 2);
+            var applied = await _combatMutations.TryApplyDamageToNamedTargetAsync(
+                caster.CurrentMapId,
+                targetName,
+                caster.PixelX,
+                caster.PixelY,
+                CombatFormulas.DefaultSpellRangePixels,
+                damage,
+                ct).ConfigureAwait(false);
+            if (!applied.Success)
             {
                 caster.Mp += spell.ManaCost;
-                return SpellCombatResult.Fail("Cible hors portee.");
+                caster.SpellCooldownsUtc.Remove(spellId);
+                return SpellCombatResult.Fail(applied.Message);
             }
 
-            var targetVit = monster.Level * 2;
-            var damage = CombatFormulas.SpellDamage(intel, spellPower, targetVit);
-            var newHp = Math.Max(0, monster.Hp - damage);
-            if (newHp <= 0)
+            if (applied.MonsterKilled && applied.Monster is not null)
             {
-                if (!map.TryRemove(monster.InstanceId, out _))
-                {
-                    caster.Mp += spell.ManaCost;
-                    return SpellCombatResult.Fail("Monstre deja vaincu.");
-                }
-
-                var xp = CombatFormulas.MonsterExperienceReward(monster.Level);
+                var xp = CombatFormulas.MonsterExperienceReward(applied.Monster.Level);
                 await GrantExperienceAsync(caster, xp, ct).ConfigureAwait(false);
                 await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
-                return SpellCombatResult.ForMonsterKilled(spell.Name, damage, xp, caster.Mp);
+                return SpellCombatResult.ForMonsterKilled(spell.Name, applied.DamageApplied, xp, caster.Mp);
             }
 
-            map[monster.InstanceId] = monster with { Hp = newHp };
             await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
-            return SpellCombatResult.ForMonsterHit(spell.Name, damage, newHp, monster.MaxHp, caster.Mp);
+            return SpellCombatResult.ForMonsterHit(
+                spell.Name,
+                applied.DamageApplied,
+                applied.Monster!.Hp,
+                applied.Monster.MaxHp,
+                caster.Mp);
         }
 
         await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
@@ -342,32 +370,46 @@ public sealed class CombatGameplayService(
         return published.FirstOrDefault(s => s.Id == spellId);
     }
 
-    private static MonsterInstance? FindMonsterInRange(
-        IEnumerable<MonsterInstance> monsters,
+    private static CombatMonsterSnapshot? FindMonsterInRange(
+        IEnumerable<CombatMonsterSnapshot> monsters,
         string targetName,
         int attackerX,
         int attackerY,
         int rangePixels = CombatFormulas.BasicAttackRangePixels)
     {
-        MonsterInstance? best = null;
+        CombatMonsterSnapshot? best = null;
         long bestDist = long.MaxValue;
-        foreach (var m in monsters)
+        foreach (var monster in monsters)
         {
-            if (m.Defeated || !string.Equals(m.Name, targetName, StringComparison.OrdinalIgnoreCase))
+            if (monster.Hp <= 0
+                || !string.Equals(monster.Name, targetName, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var dist = Frog.Core.Constants.WorldMetrics.DistanceSquaredPixels(attackerX, attackerY, m.PixelX, m.PixelY);
+            var dist = Frog.Core.Constants.WorldMetrics.DistanceSquaredPixels(attackerX, attackerY, monster.PixelX, monster.PixelY);
             if (dist <= (long)rangePixels * rangePixels && dist < bestDist)
             {
-                best = m;
+                best = monster;
                 bestDist = dist;
             }
         }
 
         return best;
     }
+
+    private static MonsterInstance ToMonsterInstance(CombatMonsterSnapshot snapshot)
+        => new(
+            snapshot.InstanceId,
+            snapshot.NpcDefinitionId,
+            snapshot.Name,
+            snapshot.MapId,
+            snapshot.PixelX,
+            snapshot.PixelY,
+            snapshot.Hp,
+            snapshot.MaxHp,
+            snapshot.Level,
+            snapshot.Hp <= 0);
 }
 
 public sealed record MonsterInstance(

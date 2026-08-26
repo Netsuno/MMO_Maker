@@ -223,6 +223,7 @@ public static class FrogServerHostFactory
 
                 services.AddSingleton<CharacterGameplayService>();
                 services.AddSingleton<InventoryGameplayService>();
+                services.AddSingleton<ICombatMutationRepository, CombatMutationRepository>();
                 services.AddSingleton<CombatGameplayService>();
                 services.AddSingleton<ShopBankGameplayService>();
                 services.AddSingleton<PublishedCatalogService>();

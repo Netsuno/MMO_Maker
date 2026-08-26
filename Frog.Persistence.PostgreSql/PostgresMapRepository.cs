@@ -118,6 +118,26 @@ public sealed class PostgresMapRepository : IMapRepository
                 newRevision = request.ExpectedRevision + 1;
                 savedId = mapId;
 
+                var children = MapPersistenceMapper.BuildChildren(mapId, request.Map);
+                IReadOnlyList<MapNpcSpawnEntity> npcSpawnsToWrite = children.NpcSpawns;
+                if (children.NpcSpawns.Count == 0)
+                {
+                    npcSpawnsToWrite = await db.MapNpcSpawns.AsNoTracking()
+                        .Where(n => n.MapId == mapId)
+                        .Select(n => new MapNpcSpawnEntity
+                        {
+                            Id = n.Id,
+                            MapId = n.MapId,
+                            NpcDefinitionId = n.NpcDefinitionId,
+                            NpcId = n.NpcId,
+                            X = n.X,
+                            Y = n.Y,
+                            Direction = n.Direction,
+                        })
+                        .ToListAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
                 await db.MapCells.Where(c => c.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
                     .ConfigureAwait(false);
                 await db.MapWarps.Where(w => w.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
@@ -125,7 +145,13 @@ public sealed class PostgresMapRepository : IMapRepository
                 await db.MapNpcSpawns.Where(n => n.MapId == mapId).ExecuteDeleteAsync(cancellationToken)
                     .ConfigureAwait(false);
 
-                var children = MapPersistenceMapper.BuildChildren(mapId, request.Map);
+                foreach (var entry in db.ChangeTracker.Entries<MapNpcSpawnEntity>()
+                             .Where(e => e.Entity.MapId == mapId)
+                             .ToList())
+                {
+                    entry.State = EntityState.Detached;
+                }
+
                 foreach (var warp in children.Warps)
                 {
                     warp.TargetMap = null;
@@ -133,7 +159,7 @@ public sealed class PostgresMapRepository : IMapRepository
 
                 db.MapCells.AddRange(children.Cells);
                 db.MapWarps.AddRange(children.Warps);
-                db.MapNpcSpawns.AddRange(children.NpcSpawns);
+                db.MapNpcSpawns.AddRange(npcSpawnsToWrite);
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
                 db.ChangeTracker.Clear();

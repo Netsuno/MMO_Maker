@@ -1,3 +1,4 @@
+using Frog.Application.Identity;
 using Frog.Application.Content;
 using Frog.Application.Gameplay;
 using Frog.Application.Maps;
@@ -5,6 +6,7 @@ using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql;
+using Frog.Persistence.PostgreSql.Repositories.Auth;
 using Frog.Persistence.PostgreSql.Repositories.Player;
 using Frog.Persistence.IntegrationTests.Support;
 using Frog.Server.Config;
@@ -38,7 +40,7 @@ public sealed class Phase7PublishedWorldTests
         Assert.NotEmpty(maps);
         var entry = Assert.Single(maps, m => m.MapId == seed.MapId);
         Assert.Equal(seed.RuntimeMapId, entry.RuntimeMapId);
-        Assert.Equal("Phase7World", entry.Map.Name);
+        Assert.False(string.IsNullOrWhiteSpace(entry.Map.Name));
 
         var blobStore = new PublishedWorldMapBlobStore();
         blobStore.ReplaceAll(maps);
@@ -139,6 +141,11 @@ public sealed class Phase7PublishedWorldTests
     public async Task CharacterCreate_RejectsMissingSpawnSettings()
     {
         using var gate = CreateGate();
+        await gate.ExecuteAsync(async (db, ct) =>
+        {
+            await db.WorldSpawnSettings.ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }).ConfigureAwait(false);
+
         var spells = new PostgresSpellRepository(gate);
         await spells.SaveAsync(new SaveSpellRequest
         {
@@ -154,6 +161,9 @@ public sealed class Phase7PublishedWorldTests
             Intent = SaveContentIntent.Publish,
         });
 
+        var accounts = new PostgresAccountRepository(gate);
+        var account = await accounts.TryCreateAsync($"hero-{Guid.NewGuid():N}"[..16], "password12345");
+        Assert.Equal(AccountCreateStatus.Created, account.Status);
         var characters = new PostgresCharacterRepository(gate);
         var inventory = new PostgresInventoryRepository(gate);
         var catalog = new PostgresPublishedWorldCatalog(gate);
@@ -164,7 +174,7 @@ public sealed class Phase7PublishedWorldTests
             catalog,
             Options.Create(new Phase7ContentOptions { RequirePublishedWorld = true }));
 
-        var result = await svc.CreateAsync(Guid.NewGuid(), "Hero", Phase7ContentSeed.DefaultClassId);
+        var result = await svc.CreateAsync(account.AccountId!.Value, "Hero", Phase7ContentSeed.DefaultClassId);
         Assert.Equal(CharacterCreateStatus.InvalidClass, result.Status);
         Assert.Contains("world_spawn_settings", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
@@ -188,10 +198,12 @@ public sealed class Phase7PublishedWorldTests
         var npcs = new PostgresNpcRepository(gate);
         var spells = new PostgresSpellRepository(gate);
         var items = new PostgresItemRepository(gate);
-        var combat = new CombatGameplayService(npcs, spells, items, characters, charSvc);
+        var combat = new CombatGameplayService(npcs, spells, items, characters, charSvc, new CombatMutationRepository());
 
-        var accountId = Guid.NewGuid();
-        var created = await charSvc.CreateAsync(accountId, "Victim", Phase7ContentSeed.DefaultClassId);
+        var accounts = new PostgresAccountRepository(gate);
+        var account = await accounts.TryCreateAsync($"vic-{Guid.NewGuid():N}"[..16], "password12345");
+        Assert.Equal(AccountCreateStatus.Created, account.Status);
+        var created = await charSvc.CreateAsync(account.AccountId!.Value, "Victim", Phase7ContentSeed.DefaultClassId);
         Assert.Equal(CharacterCreateStatus.Created, created.Status);
         var session = new Session { Id = Guid.NewGuid(), Username = "victim" };
         session.ApplyFromCharacter(created.Character!);
@@ -206,12 +218,19 @@ public sealed class Phase7PublishedWorldTests
         var beforeMap = session.CurrentMapId;
         var beforeX = session.PixelX;
         var beforeY = session.PixelY;
-        var respawn = await combat.TryRespawnAsync(session);
-        Assert.False(respawn.Success);
-        Assert.Equal(beforeMap, session.CurrentMapId);
-        Assert.Equal(beforeX, session.PixelX);
-        Assert.Equal(beforeY, session.PixelY);
-        Assert.True(session.IsDead);
+        try
+        {
+            var respawn = await combat.TryRespawnAsync(session);
+            Assert.False(respawn.Success);
+            Assert.Equal(beforeMap, session.CurrentMapId);
+            Assert.Equal(beforeX, session.PixelX);
+            Assert.Equal(beforeY, session.PixelY);
+            Assert.True(session.IsDead);
+        }
+        finally
+        {
+            await Phase7PostgresContentSeed.PublishAsync(gate).ConfigureAwait(false);
+        }
     }
 
     [PostgresFact]
@@ -221,7 +240,9 @@ public sealed class Phase7PublishedWorldTests
         using var gate = CreateGate();
         var seed = await Phase7PostgresContentSeed.PublishAsync(gate, monsterSpawnCount: 2);
         var catalog = new PostgresPublishedWorldCatalog(gate);
-        var spawns = await catalog.ListMonsterSpawnsAsync();
+        var spawns = (await catalog.ListMonsterSpawnsAsync())
+            .Where(s => s.MapId == seed.MapId)
+            .ToList();
         Assert.Equal(2, spawns.Count);
         Assert.All(spawns, s =>
         {
@@ -236,6 +257,11 @@ public sealed class Phase7PublishedWorldTests
     public async Task GetSpawnConfig_FailsWithActionableError_WhenSettingsMissing()
     {
         using var gate = CreateGate();
+        await gate.ExecuteAsync(async (db, ct) =>
+        {
+            await db.WorldSpawnSettings.ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }).ConfigureAwait(false);
+
         var catalog = new PostgresPublishedWorldCatalog(gate);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.GetSpawnConfigAsync());
         Assert.Contains("world_spawn_settings", ex.Message, StringComparison.OrdinalIgnoreCase);

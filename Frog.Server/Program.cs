@@ -34,7 +34,10 @@ internal sealed class Program
                 return;
             }
 
-            Assembly.LoadFrom(path);
+            var assembly = Assembly.LoadFrom(path);
+            var registration = assembly.GetType(
+                "Frog.Persistence.PostgreSql.ServerAuth.PostgreSqlServerAuthBackendRegistration");
+            registration?.GetMethod("Register", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
         }
         catch (Exception ex)
         {

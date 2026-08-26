@@ -94,22 +94,34 @@ public static class Phase7PostgresContentSeed
         Guid monsterId,
         int monsterSpawnCount)
     {
-        var existing = await gate.ExecuteAsync(async (db, ct) =>
+        var maps = new PostgresMapRepository(gate);
+        var existingSettings = await gate.ExecuteAsync(async (db, ct) =>
             await db.WorldSpawnSettings.AsNoTracking()
                 .SingleOrDefaultAsync(s => s.Id == 1, ct)
                 .ConfigureAwait(false)).ConfigureAwait(false);
-        if (existing is not null)
+
+        if (existingSettings is not null)
         {
-            var runtime = await gate.ExecuteAsync(async (db, ct) =>
+            var existingMapId = existingSettings.StartMapId;
+            var existingRuntimeMapId = await gate.ExecuteAsync(async (db, ct) =>
                 await db.RuntimeMapBindings.AsNoTracking()
-                    .Where(b => b.MapId == existing.StartMapId)
+                    .Where(b => b.MapId == existingMapId)
                     .Select(b => b.RuntimeMapId)
                     .SingleAsync(ct)
                     .ConfigureAwait(false)).ConfigureAwait(false);
-            return (existing.StartMapId, runtime);
+
+            var existingPublished = await maps.LoadPublishedByIdAsync(existingMapId).ConfigureAwait(false);
+            if (existingPublished is not null)
+            {
+                var catalog = new PostgresPublishedWorldCatalog(gate);
+                var spawns = await catalog.ListMonsterSpawnsAsync().ConfigureAwait(false);
+                if (spawns.Count(s => s.MapId == existingMapId) >= monsterSpawnCount)
+                {
+                    return (existingMapId, existingRuntimeMapId);
+                }
+            }
         }
 
-        var maps = new PostgresMapRepository(gate);
         var map = CreateDefaultWorldMap();
         var saved = AssertSaveSuccess(await maps.SaveAsync(new SaveMapRequest
         {
@@ -136,6 +148,7 @@ public static class Phase7PostgresContentSeed
             }
 
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            db.ChangeTracker.Clear();
         }).ConfigureAwait(false);
 
         var published = AssertSaveSuccess(await maps.SaveAsync(new SaveMapRequest

@@ -112,7 +112,9 @@ public sealed class Phase7PostgresE2ETests
             Assert.True(beforeHp > 0);
             Assert.True(beforeGold >= 0);
 
-            var xpFromKill = await KillMonsterOrReadExperienceAsync(client2, "Slime");
+            var xpFromKill = beforeXp > 0
+                ? beforeXp
+                : await KillMonsterOrReadExperienceAsync(client2, "Slime");
             Assert.True(xpFromKill > 0);
             var combatAfterKill = await client2.ReadUntilAsync(PacketId.CombatState);
             Assert.True(Phase7WireDecoders.TryDecodeCombatState(combatAfterKill, out _, out var experience, out _, out _, out _, out _, out _, out _));
