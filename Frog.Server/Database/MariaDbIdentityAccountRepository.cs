@@ -6,7 +6,7 @@ using MySqlConnector;
 
 namespace Frog.Server.Database;
 
-/// <summary>Comptes MariaDB legacy — lecture hash+sel ; écriture PBKDF2 v1 dans password_hash.</summary>
+/// <summary>Comptes MariaDB legacy — lecture hash+sel ; écriture PBKDF2 v1 dans password_hash. Non enregistré en production Phase 7 (auth = PostgreSQL ou in-memory test).</summary>
 public sealed class MariaDbIdentityAccountRepository : IAccountRepository
 {
     private readonly string _connectionString;

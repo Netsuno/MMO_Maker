@@ -63,6 +63,10 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<GroundItemEntity> PlayerGroundItems => Set<GroundItemEntity>();
 
+    public DbSet<ShopStockEntity> PlayerShopStock => Set<ShopStockEntity>();
+
+    public DbSet<EconomyRequestIdEntity> PlayerEconomyRequestIds => Set<EconomyRequestIdEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("world");
@@ -618,7 +622,7 @@ public sealed class FrogDbContext : DbContext
                 t.HasCheckConstraint("ck_characters_experience", "experience >= 0");
                 t.HasCheckConstraint(
                     "ck_characters_resources",
-                    "hp >= 0 AND max_hp >= 0 AND mp >= 0 AND max_mp >= 0 AND gold >= 0");
+                    "hp >= 0 AND max_hp >= 0 AND mp >= 0 AND max_mp >= 0 AND gold >= 0 AND bank_gold >= 0");
                 t.HasCheckConstraint(
                     "ck_characters_stats",
                     "str >= 1 AND str <= 99 AND agi >= 1 AND agi <= 99 "
@@ -674,6 +678,23 @@ public sealed class FrogDbContext : DbContext
                     "ck_ground_items_quantity",
                     "quantity >= 1 AND quantity <= 999");
             });
+        });
+
+        modelBuilder.Entity<ShopStockEntity>(e =>
+        {
+            e.ToTable("shop_stock", "player");
+            e.HasKey(x => new { x.ShopId, x.ItemId });
+            e.ToTable(t =>
+                t.HasCheckConstraint("ck_shop_stock_remaining", "remaining >= 0"));
+        });
+
+        modelBuilder.Entity<EconomyRequestIdEntity>(e =>
+        {
+            e.ToTable("economy_request_ids", "player");
+            e.HasKey(x => x.RequestId);
+            e.HasIndex(x => x.CharacterId);
+            e.Property(x => x.Operation).HasMaxLength(64).IsRequired();
+            e.Property(x => x.ResultJson).HasColumnType("jsonb").IsRequired();
         });
     }
 }

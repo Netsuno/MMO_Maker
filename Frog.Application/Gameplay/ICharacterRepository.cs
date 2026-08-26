@@ -23,6 +23,7 @@ public sealed record CharacterRecord(
     int Mp,
     int MaxMp,
     int Gold,
+    int BankGold,
     bool IsDead,
     CharacterStats Stats,
     Guid? StartingSpellId,

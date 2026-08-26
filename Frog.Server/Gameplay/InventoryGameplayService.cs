@@ -11,13 +11,13 @@ public sealed class InventoryGameplayService(
     IEquipmentRepository equipment,
     IGroundItemRepository groundItems,
     ICharacterRepository characters,
-    Phase7PublishedContent catalog)
+    IPublishedItemCatalog items)
 {
     private readonly IInventoryRepository _inventory = inventory;
     private readonly IEquipmentRepository _equipment = equipment;
     private readonly IGroundItemRepository _groundItems = groundItems;
     private readonly ICharacterRepository _characters = characters;
-    private readonly Phase7PublishedContent _catalog = catalog;
+    private readonly IPublishedItemCatalog _items = items;
 
     public Task<InventorySnapshot> GetInventoryAsync(Guid characterId, CancellationToken ct = default)
         => _inventory.GetAsync(characterId, ct);
@@ -28,7 +28,7 @@ public sealed class InventoryGameplayService(
         int quantity,
         CancellationToken ct = default)
     {
-        var item = _catalog.GetItem(itemId);
+        var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
         if (item is null)
         {
             return new InventoryMutationResult(InventoryMutationStatus.ItemNotFound, ErrorMessage: "Objet inconnu.");
@@ -69,7 +69,7 @@ public sealed class InventoryGameplayService(
             return EquipResult.Fail("Emplacement vide.");
         }
 
-        var item = _catalog.GetItem(itemId);
+        var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
         if (item is null)
         {
             return EquipResult.Fail("Objet inconnu.");
@@ -99,7 +99,7 @@ public sealed class InventoryGameplayService(
 
         if (previousItemId is Guid prevId)
         {
-            var prevItem = _catalog.GetItem(prevId);
+            var prevItem = await _items.LoadPublishedByIdAsync(prevId, ct).ConfigureAwait(false);
             if (prevItem is not null)
             {
                 var readd = await _inventory.TryAddAsync(characterId, prevId, 1, prevItem.MaxStack, ct).ConfigureAwait(false);
@@ -151,7 +151,7 @@ public sealed class InventoryGameplayService(
             return UnequipResult.Fail("Rien a desequiper.");
         }
 
-        var item = _catalog.GetItem(equippedId);
+        var item = await _items.LoadPublishedByIdAsync(equippedId, ct).ConfigureAwait(false);
         if (item is null)
         {
             return UnequipResult.Fail("Objet inconnu.");
@@ -219,7 +219,8 @@ public sealed class InventoryGameplayService(
             ct).ConfigureAwait(false);
         if (dropped.Status != GroundItemMutationStatus.Ok)
         {
-            await _inventory.TryAddAsync(characterId, itemId, quantity, _catalog.GetItem(itemId)?.MaxStack ?? 1, ct)
+            var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
+            await _inventory.TryAddAsync(characterId, itemId, quantity, item?.MaxStack ?? 1, ct)
                 .ConfigureAwait(false);
             return DropResult.Fail("Depot au sol echoue.");
         }
@@ -258,7 +259,7 @@ public sealed class InventoryGameplayService(
             });
         }
 
-        var item = _catalog.GetItem(taken.Item.ItemId);
+        var item = await _items.LoadPublishedByIdAsync(taken.Item.ItemId, ct).ConfigureAwait(false);
         if (item is null)
         {
             return PickupResult.Fail("Objet inconnu.");

@@ -21,6 +21,7 @@ internal static class PlayerEntityMapper
             entity.Mp,
             entity.MaxMp,
             entity.Gold,
+            entity.BankGold,
             entity.IsDead,
             new CharacterStats(entity.Str, entity.Agi, entity.Vit, entity.Int, entity.Dex, entity.Luck),
             entity.StartingSpellId,
@@ -44,6 +45,7 @@ internal static class PlayerEntityMapper
         entity.Mp = record.Mp;
         entity.MaxMp = record.MaxMp;
         entity.Gold = record.Gold;
+        entity.BankGold = record.BankGold;
         entity.IsDead = record.IsDead;
         entity.Str = record.Stats.Str;
         entity.Agi = record.Stats.Agi;

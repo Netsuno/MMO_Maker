@@ -43,6 +43,7 @@ public sealed class Session
     public int Mp { get; set; }
     public int MaxMp { get; set; }
     public int Gold { get; set; }
+    public int BankGold { get; set; }
     public bool IsDead { get; set; }
     public CharacterStats? Stats { get; set; }
     public Guid? ClassId { get; set; }

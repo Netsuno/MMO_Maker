@@ -136,8 +136,6 @@ public static class FrogServerHostFactory
 
                 services.AddSingleton<LoginRateLimiter>();
                 services.AddSingleton<ChatRateLimiter>();
-                services.AddSingleton<InMemoryAccountRepository>();
-                services.AddSingleton<InMemoryAuthSessionRepository>();
 
                 var pg = ctx.Configuration.GetSection("PostgreSql").Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
                 if (string.IsNullOrWhiteSpace(pg.ConnectionString))
@@ -145,51 +143,48 @@ public static class FrogServerHostFactory
                     pg.ConnectionString = Environment.GetEnvironmentVariable("FROG_POSTGRES_CONNECTION_STRING");
                 }
 
-                var pgAuthRegistered = false;
-                if (!playtest.Enabled && pg.Enabled && !string.IsNullOrWhiteSpace(pg.ConnectionString))
+                var usePostgreSql = !playtest.Enabled && pg.Enabled && !string.IsNullOrWhiteSpace(pg.ConnectionString);
+
+                if (!playtest.Enabled && !usePostgreSql && !pg.AllowInMemoryFallback)
+                {
+                    throw new InvalidOperationException(
+                        "Phase 7 production requires PostgreSQL (PostgreSql:Enabled=true). "
+                        + "Set PostgreSql:AllowInMemoryFallback=true only in unit tests.");
+                }
+
+                if (usePostgreSql)
                 {
                     var backend = ServerAuthBackendRegistry.Backend;
                     if (backend is null)
                     {
                         throw new InvalidOperationException(
-                            "PostgreSQL auth enabled but Frog.Persistence.PostgreSql backend is not loaded.");
+                            "PostgreSQL enabled but Frog.Persistence.PostgreSql backend is not loaded.");
                     }
 
-                    backend.Register(services, pg.ConnectionString);
-                    pgAuthRegistered = true;
+                    backend.Register(services, pg.ConnectionString!);
                 }
-
-                if (!pgAuthRegistered)
+                else
                 {
-                    services.AddSingleton<IAccountRepository>(sp =>
-                    {
-                        var maria = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
-                        maria.Validate();
-                        if (!playtest.Enabled && maria.Enabled)
-                        {
-                            return new MariaDbIdentityAccountRepository(maria.ConnectionString);
-                        }
-
-                        return sp.GetRequiredService<InMemoryAccountRepository>();
-                    });
+                    services.AddSingleton<InMemoryAccountRepository>();
+                    services.AddSingleton<InMemoryAuthSessionRepository>();
+                    services.AddSingleton<IAccountRepository>(sp => sp.GetRequiredService<InMemoryAccountRepository>());
                     services.AddSingleton<IAuthSessionRepository>(sp =>
                         sp.GetRequiredService<InMemoryAuthSessionRepository>());
-                }
-                if (!pgAuthRegistered)
-                {
                     services.AddSingleton<ICharacterRepository, InMemoryCharacterRepository>();
                     services.AddSingleton<IInventoryRepository, InMemoryInventoryRepository>();
                     services.AddSingleton<IEquipmentRepository, InMemoryEquipmentRepository>();
                     services.AddSingleton<IGroundItemRepository, InMemoryGroundItemRepository>();
                     services.AddSingleton<IBankRepository, InMemoryBankRepository>();
+                    services.AddSingleton<IEconomyTransactionRepository, InMemoryEconomyTransactionRepository>();
+
+                    services.AddSingleton<Phase7PublishedContent>();
+                    services.AddSingleton<IPublishedClassCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                    services.AddSingleton<IPublishedItemCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                    services.AddSingleton<IPublishedSpellCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                    services.AddSingleton<IPublishedNpcCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                    services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                 }
 
-                services.AddSingleton<Phase7PublishedContent>();
-                services.AddSingleton<IPublishedClassCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
-                services.AddSingleton<IPublishedItemCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
-                services.AddSingleton<IPublishedSpellCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
-                services.AddSingleton<IPublishedNpcCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
-                services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                 services.AddSingleton<CharacterGameplayService>();
                 services.AddSingleton<InventoryGameplayService>();
                 services.AddSingleton<CombatGameplayService>();

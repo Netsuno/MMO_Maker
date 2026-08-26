@@ -32,6 +32,8 @@ public sealed class CharacterEntity
 
     public int Gold { get; set; }
 
+    public int BankGold { get; set; }
+
     public bool IsDead { get; set; }
 
     public int Str { get; set; }

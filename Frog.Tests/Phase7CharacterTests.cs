@@ -57,6 +57,7 @@ public sealed class Phase7CharacterTests
             40,
             50,
             200,
+            0,
             false,
             stats,
             Phase7ContentSeed.DefaultSpellId,

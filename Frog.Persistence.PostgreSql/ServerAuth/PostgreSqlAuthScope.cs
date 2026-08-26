@@ -1,4 +1,5 @@
 using Frog.Persistence.PostgreSql;
+using Microsoft.EntityFrameworkCore;
 
 namespace Frog.Persistence.PostgreSql.ServerAuth;
 
@@ -8,6 +9,7 @@ public sealed class PostgreSqlAuthScope : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         Gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        Gate.Db.Database.Migrate();
     }
 
     public FrogDbContextGate Gate { get; }

@@ -1,32 +1,39 @@
+using Frog.Application.Content;
 using Frog.Application.Gameplay;
 using Frog.Server.Models;
 
 namespace Frog.Server.Gameplay;
 
 public sealed class ShopBankGameplayService(
-    Phase7PublishedContent catalog,
+    IPublishedShopCatalog shops,
+    IPublishedItemCatalog items,
     ICharacterRepository characters,
     IInventoryRepository inventory,
     IBankRepository bank,
-    InventoryGameplayService inventoryGameplay)
+    IEconomyTransactionRepository economy)
 {
-    private readonly Phase7PublishedContent _catalog = catalog;
+    private readonly IPublishedShopCatalog _shops = shops;
+    private readonly IPublishedItemCatalog _items = items;
     private readonly ICharacterRepository _characters = characters;
     private readonly IInventoryRepository _inventory = inventory;
     private readonly IBankRepository _bank = bank;
-    private readonly InventoryGameplayService _inventoryGameplay = inventoryGameplay;
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, int> _bankGold = new();
+    private readonly IEconomyTransactionRepository _economy = economy;
 
     public Task<BankSnapshot> GetBankAsync(Guid characterId, CancellationToken ct = default)
         => _bank.GetAsync(characterId, ct);
 
-    public int GetBankGold(Guid characterId) => _bankGold.GetValueOrDefault(characterId);
+    public async Task<int> GetBankGoldAsync(Guid characterId, CancellationToken ct = default)
+    {
+        var record = await _characters.FindByIdAsync(characterId, ct).ConfigureAwait(false);
+        return record?.BankGold ?? 0;
+    }
 
     public async Task<ShopBuyResult> TryBuyAsync(
         Session session,
         Guid shopId,
         Guid itemId,
         int quantity,
+        Guid? requestId = null,
         CancellationToken ct = default)
     {
         if (!session.HasActiveCharacter())
@@ -39,7 +46,7 @@ public sealed class ShopBankGameplayService(
             return ShopBuyResult.Fail("Quantite invalide.");
         }
 
-        var shop = _catalog.GetShop(shopId);
+        var shop = await FindShopAsync(shopId, ct).ConfigureAwait(false);
         if (shop is null)
         {
             return ShopBuyResult.Fail("Boutique inconnue.");
@@ -51,39 +58,37 @@ public sealed class ShopBankGameplayService(
             return ShopBuyResult.Fail("Article indisponible.");
         }
 
-        if (listing.Stock is int stock && stock < quantity)
-        {
-            return ShopBuyResult.Fail("Stock insuffisant.");
-        }
-
-        var item = _catalog.GetItem(itemId);
+        var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
         if (item is null)
         {
             return ShopBuyResult.Fail("Objet inconnu.");
         }
 
-        var totalCost = listing.Price * quantity;
-        if (session.Gold < totalCost)
-        {
-            return ShopBuyResult.Fail("Or insuffisant.");
-        }
-
         var characterId = session.RequireCharacterGuid();
-        var added = await _inventory.TryAddAsync(characterId, itemId, quantity, item.MaxStack, ct).ConfigureAwait(false);
-        if (added.Status != InventoryMutationStatus.Ok)
+        var result = await _economy.TryBuyAsync(
+            characterId,
+            shopId,
+            itemId,
+            quantity,
+            listing.Price,
+            item.MaxStack,
+            listing.Stock,
+            requestId,
+            ct).ConfigureAwait(false);
+        if (!result.Success || result.State is null)
         {
-            return ShopBuyResult.Fail(added.ErrorMessage ?? "Inventaire plein.");
+            return ShopBuyResult.Fail(result.Message);
         }
 
-        session.Gold -= totalCost;
-        await PersistSessionAsync(session, ct).ConfigureAwait(false);
-        return ShopBuyResult.Ok(added.Snapshot!, session.Gold);
+        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        return ShopBuyResult.Ok(result.State.Inventory, result.State.Gold);
     }
 
     public async Task<ShopSellResult> TrySellAsync(
         Session session,
         int inventorySlotIndex,
         int quantity,
+        Guid? requestId = null,
         CancellationToken ct = default)
     {
         if (!session.HasActiveCharacter())
@@ -104,27 +109,34 @@ public sealed class ShopBankGameplayService(
             return ShopSellResult.Fail("Objet insuffisant.");
         }
 
-        var item = _catalog.GetItem(itemId);
+        var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
         if (item is null)
         {
             return ShopSellResult.Fail("Objet inconnu.");
         }
 
-        var removed = await _inventory.TryRemoveAsync(characterId, inventorySlotIndex, quantity, ct).ConfigureAwait(false);
-        if (removed.Status != InventoryMutationStatus.Ok)
+        var result = await _economy.TrySellAsync(
+            characterId,
+            inventorySlotIndex,
+            quantity,
+            item.SellPrice,
+            item.MaxStack,
+            requestId,
+            ct).ConfigureAwait(false);
+        if (!result.Success || result.State is null)
         {
-            return ShopSellResult.Fail(removed.ErrorMessage ?? "Retrait echoue.");
+            return ShopSellResult.Fail(result.Message);
         }
 
-        session.Gold += item.SellPrice * quantity;
-        await PersistSessionAsync(session, ct).ConfigureAwait(false);
-        return ShopSellResult.Ok(removed.Snapshot!, session.Gold);
+        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        return ShopSellResult.Ok(result.State.Inventory, result.State.Gold);
     }
 
     public async Task<BankDepositResult> TryDepositItemAsync(
         Session session,
         int inventorySlotIndex,
         int quantity,
+        Guid? requestId = null,
         CancellationToken ct = default)
     {
         if (!session.HasActiveCharacter())
@@ -145,32 +157,33 @@ public sealed class ShopBankGameplayService(
             return BankDepositResult.Fail("Objet insuffisant.");
         }
 
-        var item = _catalog.GetItem(itemId);
+        var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
         if (item is null)
         {
             return BankDepositResult.Fail("Objet inconnu.");
         }
 
-        var removed = await _inventory.TryRemoveAsync(characterId, inventorySlotIndex, quantity, ct).ConfigureAwait(false);
-        if (removed.Status != InventoryMutationStatus.Ok)
+        var result = await _economy.TryBankDepositItemAsync(
+            characterId,
+            inventorySlotIndex,
+            quantity,
+            item.MaxStack,
+            requestId,
+            ct).ConfigureAwait(false);
+        if (!result.Success || result.State is null)
         {
-            return BankDepositResult.Fail(removed.ErrorMessage ?? "Retrait echoue.");
+            return BankDepositResult.Fail(result.Message);
         }
 
-        var deposited = await _bank.DepositItemAsync(characterId, itemId, quantity, item.MaxStack, ct).ConfigureAwait(false);
-        if (deposited.Status != BankMutationStatus.Ok)
-        {
-            await _inventory.TryAddAsync(characterId, itemId, quantity, item.MaxStack, ct).ConfigureAwait(false);
-            return BankDepositResult.Fail(deposited.ErrorMessage ?? "Depot banque echoue.");
-        }
-
-        return BankDepositResult.Ok(removed.Snapshot!, deposited.Snapshot!);
+        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        return BankDepositResult.Ok(result.State.Inventory, result.State.Bank);
     }
 
     public async Task<BankWithdrawResult> TryWithdrawItemAsync(
         Session session,
         int bankSlotIndex,
         int quantity,
+        Guid? requestId = null,
         CancellationToken ct = default)
     {
         if (!session.HasActiveCharacter())
@@ -191,29 +204,33 @@ public sealed class ShopBankGameplayService(
             return BankWithdrawResult.Fail("Objet insuffisant en banque.");
         }
 
-        var item = _catalog.GetItem(itemId);
+        var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
         if (item is null)
         {
             return BankWithdrawResult.Fail("Objet inconnu.");
         }
 
-        var withdrawn = await _bank.WithdrawItemAsync(characterId, bankSlotIndex, quantity, ct).ConfigureAwait(false);
-        if (withdrawn.Status != BankMutationStatus.Ok)
+        var result = await _economy.TryBankWithdrawItemAsync(
+            characterId,
+            bankSlotIndex,
+            quantity,
+            item.MaxStack,
+            requestId,
+            ct).ConfigureAwait(false);
+        if (!result.Success || result.State is null)
         {
-            return BankWithdrawResult.Fail(withdrawn.ErrorMessage ?? "Retrait banque echoue.");
+            return BankWithdrawResult.Fail(result.Message);
         }
 
-        var added = await _inventory.TryAddAsync(characterId, itemId, quantity, item.MaxStack, ct).ConfigureAwait(false);
-        if (added.Status != InventoryMutationStatus.Ok)
-        {
-            await _bank.DepositItemAsync(characterId, itemId, quantity, item.MaxStack, ct).ConfigureAwait(false);
-            return BankWithdrawResult.Fail(added.ErrorMessage ?? "Inventaire plein.");
-        }
-
-        return BankWithdrawResult.Ok(added.Snapshot!, withdrawn.Snapshot!);
+        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        return BankWithdrawResult.Ok(result.State.Inventory, result.State.Bank);
     }
 
-    public async Task<BankGoldResult> TryDepositGoldAsync(Session session, int amount, CancellationToken ct = default)
+    public async Task<BankGoldResult> TryDepositGoldAsync(
+        Session session,
+        int amount,
+        Guid? requestId = null,
+        CancellationToken ct = default)
     {
         if (!session.HasActiveCharacter())
         {
@@ -226,13 +243,22 @@ public sealed class ShopBankGameplayService(
         }
 
         var characterId = session.RequireCharacterGuid();
-        session.Gold -= amount;
-        _bankGold.AddOrUpdate(characterId, amount, (_, current) => current + amount);
-        await PersistSessionAsync(session, ct).ConfigureAwait(false);
-        return BankGoldResult.Ok(session.Gold, GetBankGold(characterId));
+        var result = await _economy.TryBankDepositGoldAsync(characterId, amount, requestId, ct)
+            .ConfigureAwait(false);
+        if (!result.Success || result.State is null)
+        {
+            return BankGoldResult.Fail(result.Message);
+        }
+
+        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        return BankGoldResult.Ok(result.State.Gold, result.State.BankGold);
     }
 
-    public async Task<BankGoldResult> TryWithdrawGoldAsync(Session session, int amount, CancellationToken ct = default)
+    public async Task<BankGoldResult> TryWithdrawGoldAsync(
+        Session session,
+        int amount,
+        Guid? requestId = null,
+        CancellationToken ct = default)
     {
         if (!session.HasActiveCharacter())
         {
@@ -245,20 +271,27 @@ public sealed class ShopBankGameplayService(
         }
 
         var characterId = session.RequireCharacterGuid();
-        var bankGold = GetBankGold(characterId);
+        var bankGold = await GetBankGoldAsync(characterId, ct).ConfigureAwait(false);
         if (bankGold < amount)
         {
             return BankGoldResult.Fail("Or banque insuffisant.");
         }
 
-        _bankGold[characterId] = bankGold - amount;
-        session.Gold += amount;
-        await PersistSessionAsync(session, ct).ConfigureAwait(false);
-        return BankGoldResult.Ok(session.Gold, GetBankGold(characterId));
+        var result = await _economy.TryBankWithdrawGoldAsync(characterId, amount, requestId, ct)
+            .ConfigureAwait(false);
+        if (!result.Success || result.State is null)
+        {
+            return BankGoldResult.Fail(result.Message);
+        }
+
+        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        return BankGoldResult.Ok(result.State.Gold, result.State.BankGold);
     }
 
-    private async Task PersistSessionAsync(Session session, CancellationToken ct)
+    private async Task ApplyCommittedStateAsync(Session session, EconomyCommittedState state, CancellationToken ct)
     {
+        session.Gold = state.Gold;
+        session.BankGold = state.BankGold;
         if (session.CharacterGuid is not Guid characterId)
         {
             return;
@@ -270,7 +303,20 @@ public sealed class ShopBankGameplayService(
             return;
         }
 
-        await _characters.SaveAsync(session.ToCharacterPatch(record), ct).ConfigureAwait(false);
+        await _characters.SaveAsync(
+            record with
+            {
+                Gold = state.Gold,
+                BankGold = state.BankGold,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+            },
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task<Frog.Core.Models.ShopDefinition?> FindShopAsync(Guid shopId, CancellationToken ct)
+    {
+        var published = await _shops.ListPublishedAsync(ct).ConfigureAwait(false);
+        return published.FirstOrDefault(s => s.Id == shopId);
     }
 }
 

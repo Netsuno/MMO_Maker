@@ -113,6 +113,7 @@ public sealed class InMemoryCharacterRepository : ICharacterRepository
                 maxMp,
                 maxMp,
                 0,
+                0,
                 false,
                 stats,
                 startingSpellId,

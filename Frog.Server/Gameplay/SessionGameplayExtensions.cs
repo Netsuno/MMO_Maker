@@ -22,6 +22,7 @@ public static class SessionGameplayExtensions
         session.Mp = record.Mp;
         session.MaxMp = record.MaxMp;
         session.Gold = record.Gold;
+        session.BankGold = record.BankGold;
         session.IsDead = record.IsDead;
         session.Stats = record.Stats;
         session.EquippedWeaponItemId = record.EquippedWeaponItemId;
@@ -54,6 +55,7 @@ public static class SessionGameplayExtensions
             Mp = session.Mp,
             MaxMp = session.MaxMp,
             Gold = session.Gold,
+            BankGold = session.BankGold,
             IsDead = session.IsDead,
             Stats = session.Stats ?? record.Stats,
             EquippedWeaponItemId = session.EquippedWeaponItemId,

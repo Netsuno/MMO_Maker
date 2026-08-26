@@ -42,6 +42,7 @@ public sealed class Phase7E2EGameplayTests
                     ["Server:Port"] = port.ToString(),
                     ["Server:BindAddress"] = "127.0.0.1",
                     ["MariaDb:Enabled"] = "false",
+                    ["PostgreSql:AllowInMemoryFallback"] = "true",
                 });
             })
             .Build();
@@ -166,6 +167,7 @@ public sealed class Phase7E2EGameplayTests
                     ["Server:Port"] = port.ToString(),
                     ["Server:BindAddress"] = "127.0.0.1",
                     ["MariaDb:Enabled"] = "false",
+                    ["PostgreSql:AllowInMemoryFallback"] = "true",
                 });
             })
             .Build();

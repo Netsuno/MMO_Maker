@@ -15,14 +15,10 @@ public sealed class Phase7ShopBankTests
         var content = new Phase7PublishedContent();
         var chars = new InMemoryCharacterRepository();
         var inv = new InMemoryInventoryRepository();
+        var bank = new InMemoryBankRepository();
         var charSvc = new CharacterGameplayService(chars, content, inv);
-        var invSvc = new InventoryGameplayService(
-            inv,
-            new InMemoryEquipmentRepository(),
-            new InMemoryGroundItemRepository(),
-            chars,
-            content);
-        var shopSvc = new ShopBankGameplayService(content, chars, inv, new InMemoryBankRepository(), invSvc);
+        var economy = new InMemoryEconomyTransactionRepository(chars, inv, bank);
+        var shopSvc = new ShopBankGameplayService(content, content, chars, inv, bank, economy);
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Buyer", Phase7ContentSeed.DefaultClassId);
         var session = new Session { Id = Guid.NewGuid(), Username = "buyer" };
         session.ApplyFromCharacter(created.Character!);
@@ -48,13 +44,8 @@ public sealed class Phase7ShopBankTests
         var inv = new InMemoryInventoryRepository();
         var bank = new InMemoryBankRepository();
         var charSvc = new CharacterGameplayService(chars, content, inv);
-        var invSvc = new InventoryGameplayService(
-            inv,
-            new InMemoryEquipmentRepository(),
-            new InMemoryGroundItemRepository(),
-            chars,
-            content);
-        var shopSvc = new ShopBankGameplayService(content, chars, inv, bank, invSvc);
+        var economy = new InMemoryEconomyTransactionRepository(chars, inv, bank);
+        var shopSvc = new ShopBankGameplayService(content, content, chars, inv, bank, economy);
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Banker", Phase7ContentSeed.DefaultClassId);
         await inv.TryAddAsync(created.Character!.Id, Phase7ContentSeed.DefaultItemId, 3, 20);
         var session = new Session { Id = Guid.NewGuid(), Username = "banker" };

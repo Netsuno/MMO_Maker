@@ -134,6 +134,7 @@ public sealed class PostgresCharacterRepository : ICharacterRepository
                 Mp = maxMp,
                 MaxMp = maxMp,
                 Gold = 0,
+                BankGold = 0,
                 IsDead = false,
                 Str = stats.Str,
                 Agi = stats.Agi,

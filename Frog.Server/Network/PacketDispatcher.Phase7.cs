@@ -78,7 +78,7 @@ public sealed partial class PacketDispatcher
         var bank = await _shopBankGameplay.GetBankAsync(characterId, cancellationToken).ConfigureAwait(false);
         var wire = new BankSnapshotWire
         {
-            BankGold = _shopBankGameplay.GetBankGold(characterId),
+            BankGold = await _shopBankGameplay.GetBankGoldAsync(characterId, cancellationToken).ConfigureAwait(false),
             Slots = bank.Slots.Select(s => new BankSlotWire
             {
                 SlotIndex = s.SlotIndex,
@@ -293,7 +293,7 @@ public sealed partial class PacketDispatcher
             return;
         }
 
-        var result = await _shopBankGameplay.TryBuyAsync(session, shopId, itemId, quantity, cancellationToken)
+        var result = await _shopBankGameplay.TryBuyAsync(session, shopId, itemId, quantity, null, cancellationToken)
             .ConfigureAwait(false);
         await _packetSender.SendShopBuyResultAsync(clientSession, result.Success, result.Message, cancellationToken);
         if (result.Success)
@@ -322,7 +322,7 @@ public sealed partial class PacketDispatcher
 
         var slot = payload.Span[0];
         var qty = BinaryPrimitives.ReadInt32LittleEndian(payload.Span.Slice(1));
-        var result = await _shopBankGameplay.TrySellAsync(session, slot, qty, cancellationToken).ConfigureAwait(false);
+        var result = await _shopBankGameplay.TrySellAsync(session, slot, qty, null, cancellationToken).ConfigureAwait(false);
         await _packetSender.SendShopSellResultAsync(clientSession, result.Success, result.Message, cancellationToken);
         if (result.Success)
         {
@@ -346,7 +346,7 @@ public sealed partial class PacketDispatcher
         {
             var slot = payload.Span[0];
             var qty = BinaryPrimitives.ReadInt32LittleEndian(payload.Span.Slice(1));
-            var result = await _shopBankGameplay.TryDepositItemAsync(session, slot, qty, cancellationToken)
+            var result = await _shopBankGameplay.TryDepositItemAsync(session, slot, qty, null, cancellationToken)
                 .ConfigureAwait(false);
             await _packetSender.SendBankDepositResultAsync(clientSession, result.Success, result.Message, cancellationToken);
             if (result.Success)
@@ -361,7 +361,7 @@ public sealed partial class PacketDispatcher
         if (payload.Length == sizeof(int))
         {
             var gold = BinaryPrimitives.ReadInt32LittleEndian(payload.Span);
-            var goldResult = await _shopBankGameplay.TryDepositGoldAsync(session, gold, cancellationToken)
+            var goldResult = await _shopBankGameplay.TryDepositGoldAsync(session, gold, null, cancellationToken)
                 .ConfigureAwait(false);
             await _packetSender.SendBankDepositResultAsync(clientSession, goldResult.Success, goldResult.Message, cancellationToken);
             if (goldResult.Success)
@@ -391,7 +391,7 @@ public sealed partial class PacketDispatcher
         {
             var slot = payload.Span[0];
             var qty = BinaryPrimitives.ReadInt32LittleEndian(payload.Span.Slice(1));
-            var result = await _shopBankGameplay.TryWithdrawItemAsync(session, slot, qty, cancellationToken)
+            var result = await _shopBankGameplay.TryWithdrawItemAsync(session, slot, qty, null, cancellationToken)
                 .ConfigureAwait(false);
             await _packetSender.SendBankWithdrawResultAsync(clientSession, result.Success, result.Message, cancellationToken);
             if (result.Success)
@@ -406,7 +406,7 @@ public sealed partial class PacketDispatcher
         if (payload.Length == sizeof(int))
         {
             var gold = BinaryPrimitives.ReadInt32LittleEndian(payload.Span);
-            var goldResult = await _shopBankGameplay.TryWithdrawGoldAsync(session, gold, cancellationToken)
+            var goldResult = await _shopBankGameplay.TryWithdrawGoldAsync(session, gold, null, cancellationToken)
                 .ConfigureAwait(false);
             await _packetSender.SendBankWithdrawResultAsync(clientSession, goldResult.Success, goldResult.Message, cancellationToken);
             if (goldResult.Success)
