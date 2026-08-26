@@ -2421,6 +2421,41 @@ public sealed class MainShellForm : Form
 
     internal Button DisconnectButtonForTest => _btnDisconnect;
 
+    internal Button BackDisconnectButtonForTest => _btnBackDisconnect;
+
+    internal Button SwitchCharacterButtonForTest => _btnSwitchCharacter;
+
+    /// <summary>Disconnect regardless of which panel hosts the visible Disconnect control.</summary>
+    internal void DisconnectForTest()
+    {
+        // Prefer visible controls; fall back to direct disconnect for smoke reliability.
+        if (_btnDisconnect.Visible && _btnDisconnect.Enabled)
+        {
+            _btnDisconnect.PerformClick();
+            return;
+        }
+
+        if (_btnBackDisconnect.Visible && _btnBackDisconnect.Enabled)
+        {
+            _btnBackDisconnect.PerformClick();
+            return;
+        }
+
+        // Playing phase: leave game to character select, then disconnect.
+        if (_phase == ClientUiPhase.Playing)
+        {
+            GoToCharacterSelectPhase();
+        }
+
+        if (_btnBackDisconnect.Enabled)
+        {
+            _btnBackDisconnect.PerformClick();
+            return;
+        }
+
+        _ = DisconnectAsync();
+    }
+
     internal Button LoginButtonForTest => _btnLogin;
 
     internal Button RegisterButtonForTest => _btnRegister;

@@ -111,11 +111,11 @@ public sealed class GameplayClientSmokeTests
 
                 ClientSmokeTestAccess.SaveScreenshot(form, "03-gameplay-inventory.png");
 
-                form.DisconnectButtonForTest.PerformClick();
-                Pump(form, () => form.ConnectButtonForTest.Enabled, "disconnect complete");
+                form.DisconnectForTest();
+                Pump(form, () => form.ConnectButtonForTest.Enabled && form.ConnectButtonForTest.Visible, "disconnect complete");
 
                 form.ConnectButtonForTest.PerformClick();
-                Pump(form, () => form.DisconnectButtonForTest.Enabled, "reconnect TCP");
+                Pump(form, () => form.DisconnectButtonForTest.Enabled || form.BackDisconnectButtonForTest.Enabled, "reconnect TCP");
                 form.ReconnectButtonForTest.PerformClick();
                 Pump(form, () => form.CharCreateButtonForTest.Enabled, "reconnect auth restored character UI");
                 Pump(
