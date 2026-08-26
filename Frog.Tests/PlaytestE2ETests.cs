@@ -24,6 +24,7 @@ namespace Frog.Tests;
 /// E2E TCP réel : login → spawn → block → move → warp A→B → warp B→C → map request → disconnect → shutdown.
 /// Aucun appel direct à MovementService pour les assertions.
 /// </summary>
+[Collection(PlaytestProcessCollectionDefinition.Name)]
 public sealed class PlaytestE2ETests
 {
     [Fact]

@@ -18,6 +18,7 @@ namespace Frog.Tests;
 /// Server = real Frog.Server; READY client = committed headless (exact map/spawn).
 /// Full Frog.Client GUI success path is covered on Windows smoke.
 /// </summary>
+[Collection(PlaytestProcessCollectionDefinition.Name)]
 public sealed class PlaytestProductionLauncherTests
 {
     [Fact]
@@ -68,6 +69,11 @@ public sealed class PlaytestProductionLauncherTests
                 },
                 serverExe: serverDll,
                 clientExe: headlessClient);
+
+            if (result is PlaytestPreparationResult.Failed failed)
+            {
+                Assert.Fail($"{failed.Kind}: {failed.Error}\nLogs:\n{string.Join('\n', launcher.DrainLogsSnapshot())}");
+            }
 
             var success = Assert.IsType<PlaytestPreparationResult.Success>(result);
             Assert.True(orch.ActiveSession!.IsActive);
@@ -177,11 +183,17 @@ public sealed class PlaytestProductionLauncherTests
         Assert.False(await IsPortOpenAsync(port));
 
         var logs = launcher.DrainLogsSnapshot();
-        Assert.Contains(logs, l => l.Contains("started role=client", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(logs, l => l.Contains("exited role=client", StringComparison.OrdinalIgnoreCase)
-                                   && (l.Contains("code=7", StringComparison.OrdinalIgnoreCase)
-                                       || l.Contains("exit", StringComparison.OrdinalIgnoreCase)));
-        Assert.Contains(logs, l => l.Contains("early-exit-before-ready", StringComparison.OrdinalIgnoreCase));
+        Assert.True(
+            logs.Any(l => l.Contains("started role=client", StringComparison.OrdinalIgnoreCase)),
+            "expected started role=client in logs:\n" + string.Join('\n', logs));
+        Assert.True(
+            logs.Any(l => l.Contains("exited role=client", StringComparison.OrdinalIgnoreCase)
+                          && (l.Contains("code=7", StringComparison.OrdinalIgnoreCase)
+                              || l.Contains("exit", StringComparison.OrdinalIgnoreCase))),
+            "expected exited role=client in logs:\n" + string.Join('\n', logs));
+        Assert.True(
+            logs.Any(l => l.Contains("early-exit-before-ready", StringComparison.OrdinalIgnoreCase)),
+            "expected early-exit-before-ready in logs:\n" + string.Join('\n', logs));
         Assert.DoesNotContain(logs, l => l.Contains("REDACTED_MUST_NOT_LEAK", StringComparison.Ordinal));
     }
 
