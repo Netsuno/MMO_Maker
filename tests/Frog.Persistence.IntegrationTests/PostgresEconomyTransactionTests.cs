@@ -28,6 +28,7 @@ public sealed class PostgresEconomyTransactionTests
     {
         using var gate = CreateGate();
         var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 0);
         var economy = new PostgresEconomyTransactionRepository(gate);
 
         var result = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null);

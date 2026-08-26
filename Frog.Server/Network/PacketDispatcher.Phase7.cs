@@ -287,13 +287,13 @@ public sealed partial class PacketDispatcher
             return;
         }
 
-        if (!TryParseShopBuyRequest(payload.Span, out var shopId, out var itemId, out var quantity))
+        if (!TryParseShopBuyRequest(payload.Span, out var shopId, out var itemId, out var quantity, out var requestId))
         {
             await _packetSender.SendShopBuyResultAsync(clientSession, false, "ShopBuyRequest invalide.", cancellationToken);
             return;
         }
 
-        var result = await _shopBankGameplay.TryBuyAsync(session, shopId, itemId, quantity, null, cancellationToken)
+        var result = await _shopBankGameplay.TryBuyAsync(session, shopId, itemId, quantity, requestId, cancellationToken)
             .ConfigureAwait(false);
         await _packetSender.SendShopBuyResultAsync(clientSession, result.Success, result.Message, cancellationToken);
         if (result.Success)
@@ -314,15 +314,13 @@ public sealed partial class PacketDispatcher
             return;
         }
 
-        if (payload.Length != 1 + sizeof(int))
+        if (!TryParseShopSellRequest(payload.Span, out var slot, out var qty, out var requestId))
         {
             await _packetSender.SendShopSellResultAsync(clientSession, false, "ShopSellRequest invalide.", cancellationToken);
             return;
         }
 
-        var slot = payload.Span[0];
-        var qty = BinaryPrimitives.ReadInt32LittleEndian(payload.Span.Slice(1));
-        var result = await _shopBankGameplay.TrySellAsync(session, slot, qty, null, cancellationToken).ConfigureAwait(false);
+        var result = await _shopBankGameplay.TrySellAsync(session, slot, qty, requestId, cancellationToken).ConfigureAwait(false);
         await _packetSender.SendShopSellResultAsync(clientSession, result.Success, result.Message, cancellationToken);
         if (result.Success)
         {
@@ -486,12 +484,13 @@ public sealed partial class PacketDispatcher
         return spellId != Guid.Empty;
     }
 
-    public static bool TryParseShopBuyRequest(ReadOnlySpan<byte> payload, out Guid shopId, out Guid itemId, out int quantity)
+    public static bool TryParseShopBuyRequest(ReadOnlySpan<byte> payload, out Guid shopId, out Guid itemId, out int quantity, out Guid? requestId)
     {
         shopId = Guid.Empty;
         itemId = Guid.Empty;
         quantity = 0;
-        if (payload.Length != 16 + 16 + 4)
+        requestId = null;
+        if (payload.Length is not (16 + 16 + 4) and not (16 + 16 + 4 + 16))
         {
             return false;
         }
@@ -499,6 +498,31 @@ public sealed partial class PacketDispatcher
         shopId = new Guid(payload.Slice(0, 16));
         itemId = new Guid(payload.Slice(16, 16));
         quantity = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(32));
+        if (payload.Length == 16 + 16 + 4 + 16)
+        {
+            requestId = new Guid(payload.Slice(36));
+        }
+
         return shopId != Guid.Empty && itemId != Guid.Empty && quantity > 0;
+    }
+
+    public static bool TryParseShopSellRequest(ReadOnlySpan<byte> payload, out byte slot, out int quantity, out Guid? requestId)
+    {
+        slot = 0;
+        quantity = 0;
+        requestId = null;
+        if (payload.Length is not (1 + 4) and not (1 + 4 + 16))
+        {
+            return false;
+        }
+
+        slot = payload[0];
+        quantity = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(1));
+        if (payload.Length == 1 + 4 + 16)
+        {
+            requestId = new Guid(payload.Slice(5));
+        }
+
+        return quantity > 0;
     }
 }

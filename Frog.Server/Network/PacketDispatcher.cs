@@ -1146,15 +1146,43 @@ public sealed partial class PacketDispatcher(
         }
 
         var hit = MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY);
-        var message = hit ? "Touche." : "Hors portee.";
-        _connectionManager.TryTouchSession(attacker.Id);
-        await _packetSender.SendMeleeAttackResultAsync(clientSession, hit, targetName, message, cancellationToken);
-        if (hit && _clientRegistry.TryGet(defender.Id, out var defenderClient) && defenderClient is not null)
+        if (!hit)
         {
-            await _packetSender.SendMeleeAttackResultAsync(defenderClient, hit, attacker.Username, "Subi une attaque melee.", cancellationToken);
+            await _packetSender.SendMeleeAttackResultAsync(clientSession, false, targetName, "Hors portee.", cancellationToken);
+            return;
         }
 
-        ServerNetworkLogs.MeleeResolved(_logger, attacker.Username, targetName, hit);
+        var pvp = await _combatGameplay.TryMeleeAttackPlayerAsync(attacker, defender, cancellationToken)
+            .ConfigureAwait(false);
+        if (!pvp.Success)
+        {
+            await _packetSender.SendMeleeAttackResultAsync(
+                clientSession,
+                false,
+                targetName,
+                pvp.Message,
+                cancellationToken);
+            return;
+        }
+
+        _connectionManager.TryTouchSession(attacker.Id);
+        await _packetSender.SendMeleeAttackResultAsync(clientSession, true, targetName, pvp.Message, cancellationToken);
+        if (_clientRegistry.TryGet(defender.Id, out var defenderClient) && defenderClient is not null)
+        {
+            await _packetSender.SendMeleeAttackResultAsync(
+                defenderClient,
+                true,
+                attacker.Username,
+                "Subi une attaque melee.",
+                cancellationToken);
+            await SendCombatStateAsync(defenderClient, defender, cancellationToken);
+            if (pvp.TargetKilled)
+            {
+                await _packetSender.SendDeathNotifyAsync(defenderClient, cancellationToken);
+            }
+        }
+
+        ServerNetworkLogs.MeleeResolved(_logger, attacker.Username, targetName, true);
     }
 
     public static bool TryParseMeleeTargetPayload(ReadOnlySpan<byte> payload, out string targetUsername)

@@ -34,7 +34,16 @@
 - Packets 36–37 (reconnect), 38–63 (gameplay)
 
 ### E2E
-- `Phase7E2EGameplayTests` full flow + pickup race
+- `Phase7InMemorySmokeE2ETests` — fast smoke with `AllowInMemoryFallback=true` (DI helpers allowed)
+- `Phase7PostgresE2ETests` — true PostgreSQL headless gate (63 PG integration tests incl. player repos, content seed visibility, 17-step flow)
+
+### P7-FIX-3 remediation
+- `GameplayLimits.StartingGold` (100) on character create (PG + in-memory)
+- `Phase7PostgresContentSeed` helper — publishes Phase7ContentSeed catalog to PG before host start
+- Expanded `PostgresPlayerRepositoryTests` — characters, inventory, equipment, ground race, bank, progression, schemas, gate lifecycle
+- PvP melee applies damage / death (`TryMeleeAttackPlayerAsync`) for death/respawn E2E without mid-scenario DI
+- Optional `requestId` on shop buy/sell wire payloads
+- `Phase7PacketCodec.ReadGuid` fix (exactly 16 bytes)
 
 ## Phase 8
 Not started.

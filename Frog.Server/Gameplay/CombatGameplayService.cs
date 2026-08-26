@@ -209,6 +209,44 @@ public sealed class CombatGameplayService(
         return SpellCombatResult.Cast(spell.Name, caster.Mp);
     }
 
+    public async Task<PlayerMeleeCombatResult> TryMeleeAttackPlayerAsync(
+        Session attacker,
+        Session defender,
+        CancellationToken ct = default)
+    {
+        if (attacker.IsDead)
+        {
+            return PlayerMeleeCombatResult.Fail("Personnage mort.");
+        }
+
+        if (defender.IsDead)
+        {
+            return PlayerMeleeCombatResult.Fail("Cible deja morte.");
+        }
+
+        var now = DateTime.UtcNow;
+        if ((now - attacker.LastMeleeUtc).TotalMilliseconds < CombatFormulas.BasicAttackCooldownMs)
+        {
+            return PlayerMeleeCombatResult.Fail("Attaque en recharge.");
+        }
+
+        var weaponPower = await GetWeaponPowerAsync(attacker.EquippedWeaponItemId, ct).ConfigureAwait(false);
+        var targetVit = defender.Stats?.Vit ?? 10;
+        var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
+        defender.Hp = Math.Max(0, defender.Hp - damage);
+        var killed = false;
+        if (defender.Hp <= 0)
+        {
+            defender.IsDead = true;
+            defender.Hp = 0;
+            killed = true;
+        }
+
+        attacker.LastMeleeUtc = now;
+        await PersistCombatStateAsync(defender, ct).ConfigureAwait(false);
+        return PlayerMeleeCombatResult.Hit(damage, killed);
+    }
+
     public async Task<RespawnResult> TryRespawnAsync(Session session, CancellationToken ct = default)
     {
         if (!session.IsDead)
@@ -389,4 +427,13 @@ public sealed record RespawnResult(bool Success, string Message)
 {
     public static RespawnResult Ok() => new(true, "Ressuscite.");
     public static RespawnResult Fail(string message) => new(false, message);
+}
+
+public sealed record PlayerMeleeCombatResult(bool Success, string Message, int Damage, bool TargetKilled)
+{
+    public static PlayerMeleeCombatResult Fail(string message)
+        => new(false, message, 0, false);
+
+    public static PlayerMeleeCombatResult Hit(int damage, bool killed)
+        => new(true, killed ? "Cible vaincue." : "Touche.", damage, killed);
 }

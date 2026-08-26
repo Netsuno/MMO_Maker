@@ -133,7 +133,7 @@ public sealed class PostgresCharacterRepository : ICharacterRepository
                 MaxHp = maxHp,
                 Mp = maxMp,
                 MaxMp = maxMp,
-                Gold = 0,
+                Gold = GameplayLimits.StartingGold,
                 BankGold = 0,
                 IsDead = false,
                 Str = stats.Str,

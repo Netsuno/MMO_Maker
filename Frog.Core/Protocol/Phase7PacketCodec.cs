@@ -196,5 +196,5 @@ public static class Phase7PacketCodec
         return true;
     }
 
-    private static Guid ReadGuid(ReadOnlySpan<byte> span) => new(span);
+    private static Guid ReadGuid(ReadOnlySpan<byte> span) => new(span.Slice(0, 16));
 }

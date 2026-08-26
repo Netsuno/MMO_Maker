@@ -19,4 +19,7 @@ public static class GameplayLimits
     public const int DefaultSpawnMapId = 1;
     public const int DefaultSpawnTileX = 0;
     public const int DefaultSpawnTileY = 0;
+
+    /// <summary>Or de départ pour tout nouveau personnage (gameplay Phase 7).</summary>
+    public const int StartingGold = 100;
 }

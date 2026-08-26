@@ -22,10 +22,11 @@ using Xunit;
 
 namespace Frog.Tests;
 
-/// <summary>Gate E2E Phase 7 : auth, perso, inventaire, combat, shop, banque, chat, reconnexion.</summary>
-public sealed class Phase7E2EGameplayTests
+/// <summary>Smoke E2E rapide avec AllowInMemoryFallback (pas un gate PostgreSQL).</summary>
+public sealed class Phase7InMemorySmokeE2ETests
 {
     [Fact]
+    [Trait("Category", "InMemorySmoke")]
     public async Task FullGameplayFlow_RegisterLoginCreateSelectFightShopReconnect()
     {
         var port = GetFreePort();
@@ -155,6 +156,7 @@ public sealed class Phase7E2EGameplayTests
     }
 
     [Fact]
+    [Trait("Category", "InMemorySmoke")]
     public async Task PickupRace_ExactlyOneWinner()
     {
         var port = GetFreePort();

@@ -112,7 +112,7 @@ public sealed class InMemoryCharacterRepository : ICharacterRepository
                 maxHp,
                 maxMp,
                 maxMp,
-                0,
+                GameplayLimits.StartingGold,
                 0,
                 false,
                 stats,
