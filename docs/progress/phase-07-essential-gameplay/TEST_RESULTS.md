@@ -5,9 +5,11 @@
 | Item | Value |
 | --- | --- |
 | Implementation SHA (CI-green) | `4d92800b338fe71aef8ba9f2c8b1dcc8e2a72976` |
-| CI run | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258 |
-| build-and-test | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258/job/98183871807 |
-| postgres-integration | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258/job/98183871544 |
+| Evidence tip | `ca6f85e1f97ad97cf4bd313045e3a8596c3b8a76` |
+| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258 |
+| CI (evidence tip) | https://github.com/Netsuno/MMO_Maker/actions/runs/32971367882 |
+| build-and-test (impl) | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258/job/98183871807 |
+| postgres-integration (impl) | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258/job/98183871544 |
 | Date (UTC) | 2026-08-26 |
 
 ## Environment (local agent)

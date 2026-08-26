@@ -9,6 +9,10 @@
 - `4d92800b338fe71aef8ba9f2c8b1dcc8e2a72976`
 - CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258
 
+## Evidence tip (CI green)
+- `ca6f85e1f97ad97cf4bd313045e3a8596c3b8a76`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32971367882
+
 ## P7-FIX-1
 - Fail-closed production DI without PostgreSQL (playtest / `AllowInMemoryFallback` only for tests).
 - Backend registers Postgres published catalogs + migrates.
