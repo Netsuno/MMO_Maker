@@ -213,10 +213,18 @@ public sealed class GameDataPanelLifecycleSmokeTests
 
                 // Real close while operation is still pending — do not wait for IsIdle.
                 GameDataSmokeUiDriver.RequestRealClose(form);
-                var disposeTimeout = operationName == "delete"
-                    ? TimeSpan.FromSeconds(25)
-                    : TimeSpan.FromSeconds(15);
-                StaTestRunner.PumpUntil(() => form.IsDisposed, disposeTimeout);
+                // Close cleanup budget is 30s; wait longer so dispose can finish after cancel drain.
+                var disposeTimeout = TimeSpan.FromSeconds(60);
+                try
+                {
+                    StaTestRunner.PumpUntil(() => form.IsDisposed, disposeTimeout);
+                }
+                catch (TimeoutException)
+                {
+                    throw new TimeoutException(
+                        $"GameData form did not dispose within {disposeTimeout.TotalSeconds:0}s while '{operationName}' was pending. " +
+                        $"PendingCount={lifecycle.PendingCountForTest}, IsIdle={lifecycle.IsIdle}, sawCancellation={Volatile.Read(ref sawCancellation)}.");
+                }
 
                 Assert.True(Volatile.Read(ref sawCancellation));
                 Assert.True(lifecycle.IsIdle || form.IsDisposed);

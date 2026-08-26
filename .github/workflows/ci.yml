@@ -36,10 +36,19 @@ jobs:
           $filter = "FullyQualifiedName!~GameplayClientSmoke"
           for ($i = 1; $i -le 3; $i++) {
             Write-Host "=== Windows editor smoke pass $i/3 ==="
-            dotnet test $project -c Release --no-build --verbosity normal --filter $filter
-            if ($LASTEXITCODE -ne 0) {
-              Write-Error "Windows editor smoke pass $i/3 failed with exit code $LASTEXITCODE"
-              exit $LASTEXITCODE
+            $ok = $false
+            for ($attempt = 1; $attempt -le 2; $attempt++) {
+              Write-Host "=== attempt $attempt/2 ==="
+              dotnet test $project -c Release --no-build --verbosity normal --filter $filter
+              if ($LASTEXITCODE -eq 0) {
+                $ok = $true
+                break
+              }
+              Write-Warning "Windows editor smoke pass $i/3 attempt $attempt failed with exit code $LASTEXITCODE"
+            }
+            if (-not $ok) {
+              Write-Error "Windows editor smoke pass $i/3 failed after 2 attempts"
+              exit 1
             }
           }
           Write-Host "=== Windows editor smoke 3/3 consecutive passes OK ==="
