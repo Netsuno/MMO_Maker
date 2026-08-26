@@ -351,13 +351,19 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
+        // Drop any still-registered TCP for this account before creating the new session.
+        // Must Unregister: nulling AuthenticatedSession alone makes the old HandleClientAsync
+        // skip cleanup, leaving a zombie in ClientRegistry. Later broadcasts then throw on the
+        // disposed stream and tear down the *new* connection (gameplay smoke reconnect failure).
         if (_connectionManager.TryGetSessionByUsername(account.Username, out var existing)
-            && existing is not null
-            && _clientRegistry.TryGet(existing.Id, out var oldClient)
-            && oldClient is not null)
+            && existing is not null)
         {
-            oldClient.AuthenticatedSession = null;
-            oldClient.Disconnect();
+            if (_clientRegistry.TryGet(existing.Id, out var oldClient) && oldClient is not null)
+            {
+                _clientRegistry.Unregister(existing.Id);
+                oldClient.AuthenticatedSession = null;
+                oldClient.Disconnect();
+            }
         }
 
         if (!_connectionManager.TryDisplaceAndCreateSession(account.Username, out var session, out _)

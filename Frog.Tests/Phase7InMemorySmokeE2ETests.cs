@@ -155,6 +155,106 @@ public sealed class Phase7InMemorySmokeE2ETests
         }
     }
 
+
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
+    public async Task ReconnectSelectThenMapRequest_StaysConnected()
+    {
+        var port = GetFreePort();
+        using var host = FrogServerHostFactory
+            .CreateHostBuilder(
+                configureServices: services =>
+                {
+                    services.PostConfigure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(5));
+                })
+            .ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Server:Port"] = port.ToString(),
+                    ["Server:BindAddress"] = "127.0.0.1",
+                    ["MariaDb:Enabled"] = "false",
+                    ["PostgreSql:AllowInMemoryFallback"] = "true",
+                });
+            })
+            .Build();
+        await host.StartAsync();
+        try
+        {
+            var user = $"mr-{Guid.NewGuid():N}"[..20];
+            const string password = "password123";
+            await using var client = new Phase7TcpClient();
+            await client.ConnectAsync("127.0.0.1", port);
+            Assert.Equal((byte)PacketId.Hello, (await client.ReadFrameAsync())[0]);
+
+            await client.SendFrameAsync(BuildRegister(user, password));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.RegisterResult))[1]);
+
+            await client.SendFrameAsync(BuildLogin(user, password));
+            var login = await client.ReadUntilAsync(PacketId.LoginResult);
+            Assert.NotEqual(0, login[1]);
+            var token = Encoding.UTF8.GetString(login, 3, login[2]);
+            await client.DrainPendingAsync();
+
+            // Mimic client: MapRequest after login
+            await client.SendFrameAsync(BuildMapRequest());
+            _ = await client.ReadUntilAnyAsync(new[] { PacketId.MapData, PacketId.MapAlreadySynced });
+
+            await client.SendFrameAsync(BuildCharacterCreate("MapHero", Phase7ContentSeed.DefaultClassId));
+            var create = await client.ReadUntilAsync(PacketId.CharacterCreateResult);
+            Assert.NotEqual(0, create[1]);
+            var characterId = Encoding.UTF8.GetString(create, 3, create[2]);
+
+            await client.SendFrameAsync(BuildCharacterSelect(characterId));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
+            await client.DrainPendingAsync();
+
+            await client.SendFrameAsync(BuildMapRequest());
+            _ = await client.ReadUntilAnyAsync(new[] { PacketId.MapData, PacketId.MapAlreadySynced });
+
+            var invSvc = host.Services.GetRequiredService<InventoryGameplayService>();
+            var charGuid = Guid.Parse(characterId);
+            await invSvc.TryAddItemAsync(charGuid, Phase7ContentSeed.DefaultWeaponId, 1);
+            await client.SendFrameAsync(BuildEquip(0));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.EquipResult))[1]);
+            _ = await client.ReadUntilAsync(PacketId.InventorySnapshot);
+
+            await client.DisconnectAsync();
+            // Intentionally no delay: smoke reconnects immediately and used to leave a
+            // ClientRegistry zombie that crashed BroadcastPositionAfterSelectAsync.
+            await using var client2 = new Phase7TcpClient();
+            await client2.ConnectAsync("127.0.0.1", port);
+            _ = await client2.ReadFrameAsync();
+            await client2.SendFrameAsync(BuildReconnect(token));
+            Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.ReconnectResult))[1]);
+            await client2.DrainPendingAsync();
+
+            await client2.SendFrameAsync(BuildMapRequest());
+            _ = await client2.ReadUntilAnyAsync(new[] { PacketId.MapData, PacketId.MapAlreadySynced });
+
+            await client2.SendFrameAsync(BuildCharacterSelect(characterId));
+            Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
+            _ = await client2.ReadUntilAsync(PacketId.InventorySnapshot);
+            _ = await client2.ReadUntilAsync(PacketId.GroundItemsSnapshot);
+            // PositionUpdate fan-out must not kill this connection (zombie registry bug).
+            _ = await client2.ReadUntilAsync(PacketId.PositionUpdate);
+            await client2.DrainPendingAsync();
+
+            await client2.SendFrameAsync(BuildMapRequest());
+            var mapPkt = await client2.ReadUntilAnyAsync(new[] { PacketId.MapData, PacketId.MapAlreadySynced, PacketId.Error });
+            Assert.True(mapPkt[0] is (byte)PacketId.MapData or (byte)PacketId.MapAlreadySynced,
+                $"expected MapData/MapAlreadySynced, got {mapPkt[0]} len={mapPkt.Length}");
+
+            // Still connected: heartbeat
+            await client2.SendFrameAsync([(byte)PacketId.HeartbeatRequest]);
+            _ = await client2.ReadUntilAsync(PacketId.HeartbeatAck);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
     [Fact]
     [Trait("Category", "InMemorySmoke")]
     public async Task PickupRace_ExactlyOneWinner()

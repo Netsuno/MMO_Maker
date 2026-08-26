@@ -1130,9 +1130,11 @@ public sealed class MainShellForm : Form
             SetStatsControlsEnabled(true);
             _btnBackDisconnect.Enabled = true;
             _heartbeatTimer.Start();
-            SetGameplayControlsEnabled(true);
+            // Mirror login: preload map so Enter Game can reach Playing via MapAlreadySynced.
+            SetGameplayControlsEnabled(false);
             SetPhase(ClientUiPhase.CharacterSelect);
             _ = RefreshCharacterListAsync();
+            _ = MapRequestAsync();
         }
     }
 
@@ -1925,7 +1927,16 @@ public sealed class MainShellForm : Form
         if (ok)
         {
             _awaitingPlayingPhase = true;
-            _ = MapRequestAsync();
+            if (_map is not null)
+            {
+                TryEnterPlayingPhaseAfterMapReady();
+            }
+            else if (_client is { IsConnected: true })
+            {
+                // Force full blob when local map was cleared (disconnect) even if a stale
+                // fingerprint somehow remained.
+                _ = RequestFullMapBlobAsync();
+            }
         }
     }
 

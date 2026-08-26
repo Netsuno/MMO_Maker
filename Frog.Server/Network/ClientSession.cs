@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Sockets;
 using Frog.Server.Models;
 
@@ -63,6 +64,15 @@ public sealed class ClientSession : IAsyncDisposable
         try
         {
             await _stream.WriteAsync(frame, cancellationToken);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Zombie / already-closed TCP (e.g. displaced reconnect) — ignore so broadcasts
+            // do not abort the sender's DispatchAsync and drop the live connection.
+        }
+        catch (IOException)
+        {
+            // Peer reset / half-closed stream during fan-out.
         }
         finally
         {

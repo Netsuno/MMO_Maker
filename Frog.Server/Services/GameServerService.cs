@@ -85,7 +85,30 @@ public sealed class GameServerService(
                 {
                     var hasFrame = await clientSession.TryReadFrameAsync(ct, async payload =>
                     {
-                        await _packetDispatcher.DispatchAsync(clientSession, payload, ct);
+                        try
+                        {
+                            await _packetDispatcher.DispatchAsync(clientSession, payload, ct);
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            // Keep the TCP alive: a fan-out failure must not drop the sender.
+                            _log.LogError(
+                                ex,
+                                "Dispatch failed connection={ConnectionId} remote={Remote}",
+                                clientSession.ConnectionId,
+                                clientSession.RemoteEndPoint);
+                            try
+                            {
+                                await _packetSender.SendErrorAsync(
+                                    clientSession,
+                                    "Erreur serveur lors du traitement du paquet.",
+                                    ct);
+                            }
+                            catch
+                            {
+                                // ignore secondary send failures
+                            }
+                        }
                     });
 
                     if (!hasFrame)
@@ -100,6 +123,9 @@ public sealed class GameServerService(
                     clientSession.RemoteEndPoint,
                     clientSession.Username ?? string.Empty);
 
+                // Prefer the live session snapshot; if reconnect already nulled AuthenticatedSession
+                // and Unregister'd, these are no-ops. If only AuthenticatedSession was cleared by a
+                // buggy path, we still avoid leaving zombies when we can resolve the session id.
                 if (clientSession.AuthenticatedSession is not null)
                 {
                     var sessionId = clientSession.AuthenticatedSession.Id;
