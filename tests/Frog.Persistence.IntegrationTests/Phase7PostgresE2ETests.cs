@@ -22,10 +22,7 @@ public sealed class Phase7PostgresE2ETests
     [Trait("Category", "PostgreSql")]
     public async Task FullGameplayFlow_PostgreSqlHeadless_AllSteps()
     {
-        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
-        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
-        var groundWeaponId = await Phase7PostgresContentSeed.SeedGroundWeaponAsync(gate, seed.WeaponId);
-
+        var (seed, groundWeaponId) = await SeedPublishedContentAsync(seedGroundItem: true);
         var port = Phase7TcpTestPorts.GetFreePort();
         using var host = Phase7PostgresE2EHost
             .CreateBuilder(_fixture.ConnectionString, port, new Phase7PostgresE2EOptions { MonsterNpcId = seed.MonsterId })
@@ -65,7 +62,7 @@ public sealed class Phase7PostgresE2ETests
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMapRequest());
             _ = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
 
-            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(groundWeaponId));
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(groundWeaponId!.Value));
             Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.PickupItemResult))[1]);
             var invAfterPickup = await client.ReadUntilAsync(PacketId.InventorySnapshot);
             Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invAfterPickup, out var pickupSnap));
@@ -238,9 +235,7 @@ public sealed class Phase7PostgresE2ETests
     [Trait("Category", "PostgreSql")]
     public async Task GroundPickupRace_TwoClients_ExactlyOneWinner()
     {
-        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
-        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
-        var groundItemId = await Phase7PostgresContentSeed.SeedGroundWeaponAsync(gate, seed.ConsumableId);
+        var (seed, groundItemId) = await SeedPublishedContentAsync(seedGroundItem: true, useConsumableAsGround: true);
         var port = Phase7TcpTestPorts.GetFreePort();
         using var host = Phase7PostgresE2EHost
             .CreateBuilder(_fixture.ConnectionString, port, new Phase7PostgresE2EOptions { MonsterNpcId = seed.MonsterId })
@@ -255,8 +250,8 @@ public sealed class Phase7PostgresE2ETests
             await using var tcpB = new Phase7TcpTestClient();
             await RegisterLoginSelectAsync(tcpA, port, userA, password, "Alpha", seed.ClassId);
             await RegisterLoginSelectAsync(tcpB, port, userB, password, "Beta", seed.ClassId);
-            await tcpA.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(groundItemId));
-            await tcpB.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(groundItemId));
+            await tcpA.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(groundItemId!.Value));
+            await tcpB.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(groundItemId.Value));
             var rA = await tcpA.ReadUntilAsync(PacketId.PickupItemResult);
             var rB = await tcpB.ReadUntilAsync(PacketId.PickupItemResult);
             var wins = (rA[1] != 0 ? 1 : 0) + (rB[1] != 0 ? 1 : 0);
@@ -272,8 +267,7 @@ public sealed class Phase7PostgresE2ETests
     [Trait("Category", "PostgreSql")]
     public async Task Reconnect_DisplacesStaleConnection()
     {
-        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
-        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var (seed, _) = await SeedPublishedContentAsync();
         var port = Phase7TcpTestPorts.GetFreePort();
         using var host = Phase7PostgresE2EHost
             .CreateBuilder(_fixture.ConnectionString, port, new Phase7PostgresE2EOptions { MonsterNpcId = seed.MonsterId })
@@ -303,8 +297,7 @@ public sealed class Phase7PostgresE2ETests
     [Trait("Category", "PostgreSql")]
     public async Task CombatRace_TwoClients_SameMonster_ExactlyOneExperienceGrant()
     {
-        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
-        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var (seed, _) = await SeedPublishedContentAsync();
         var port = Phase7TcpTestPorts.GetFreePort();
         using var host = Phase7PostgresE2EHost
             .CreateBuilder(
@@ -360,8 +353,7 @@ public sealed class Phase7PostgresE2ETests
     [Trait("Category", "PostgreSql")]
     public async Task ShopBuy_IdempotentRetry_DoesNotDuplicateItem()
     {
-        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
-        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var (seed, _) = await SeedPublishedContentAsync();
         var port = Phase7TcpTestPorts.GetFreePort();
         using var host = Phase7PostgresE2EHost
             .CreateBuilder(_fixture.ConnectionString, port, new Phase7PostgresE2EOptions { MonsterNpcId = seed.MonsterId })
@@ -401,8 +393,7 @@ public sealed class Phase7PostgresE2ETests
     [Trait("Category", "PostgreSql")]
     public async Task ChatWhisper_DoesNotLeakToThirdParty()
     {
-        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
-        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var (seed, _) = await SeedPublishedContentAsync();
         var port = Phase7TcpTestPorts.GetFreePort();
         using var host = Phase7PostgresE2EHost
             .CreateBuilder(_fixture.ConnectionString, port, new Phase7PostgresE2EOptions { MonsterNpcId = seed.MonsterId })
@@ -454,6 +445,25 @@ public sealed class Phase7PostgresE2ETests
         {
             // optional drain
         }
+    }
+
+
+    private async Task<(Phase7PostgresContentSeedResult Seed, Guid? GroundItemId)> SeedPublishedContentAsync(
+        bool seedGroundItem = false,
+        bool useConsumableAsGround = false)
+    {
+        // Dispose the seed gate before starting the server host so two long-lived
+        // FrogDbContext instances do not share the Npgsql pool during teardown.
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        Guid? groundId = null;
+        if (seedGroundItem)
+        {
+            var itemId = useConsumableAsGround ? seed.ConsumableId : seed.WeaponId;
+            groundId = await Phase7PostgresContentSeed.SeedGroundWeaponAsync(gate, itemId);
+        }
+
+        return (seed, groundId);
     }
 
     private static async Task<long> KillMonsterOrReadExperienceAsync(Phase7TcpTestClient client, string monsterName)

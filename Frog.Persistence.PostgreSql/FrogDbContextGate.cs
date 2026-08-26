@@ -91,7 +91,24 @@ public sealed class FrogDbContextGate : IDisposable
         }
 
         _disposed = true;
-        _db.Dispose();
+        try
+        {
+            _db.ChangeTracker.Clear();
+        }
+        catch
+        {
+            // Teardown best-effort.
+        }
+
+        try
+        {
+            _db.Dispose();
+        }
+        catch
+        {
+            // Npgsql can surface protocol glitches if a prior operation was cancelled mid-stream.
+        }
+
         _gate.Dispose();
     }
 }

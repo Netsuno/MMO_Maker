@@ -81,45 +81,50 @@ public sealed class PostgresGroundItemRepository : IGroundItemRepository
         CancellationToken cancellationToken = default)
         => _gate.ExecuteAsync(async (db, ct) =>
         {
-            await using var tx = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+            _ = pickerCharacterId;
+            var rangeSq = (long)rangePixels * rangePixels;
+            var now = _clock.GetUtcNow();
 
-            var entity = await db.PlayerGroundItems
-                .FirstOrDefaultAsync(i => i.Id == groundItemId && i.TakenAtUtc == null, ct)
+            // Atomic claim: exactly one concurrent UPDATE wins when taken_at_utc IS NULL.
+            var claimed = await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"""
+                    UPDATE player.ground_items AS g
+                    SET taken_at_utc = {now}
+                    WHERE g.id = {groundItemId}
+                      AND g.taken_at_utc IS NULL
+                      AND (
+                            (CAST(g.pixel_x AS bigint) - {pickerPixelX}) * (CAST(g.pixel_x AS bigint) - {pickerPixelX})
+                          + (CAST(g.pixel_y AS bigint) - {pickerPixelY}) * (CAST(g.pixel_y AS bigint) - {pickerPixelY})
+                          ) <= {rangeSq}
+                    """,
+                    ct)
                 .ConfigureAwait(false);
-            if (entity is null)
+
+            if (claimed == 1)
             {
-                await tx.RollbackAsync(ct).ConfigureAwait(false);
-                var exists = await db.PlayerGroundItems
+                var taken = await db.PlayerGroundItems
                     .AsNoTracking()
-                    .AnyAsync(i => i.Id == groundItemId, ct)
+                    .FirstAsync(i => i.Id == groundItemId, ct)
                     .ConfigureAwait(false);
                 return new GroundItemMutationResult(
-                    exists ? GroundItemMutationStatus.AlreadyTaken : GroundItemMutationStatus.NotFound);
+                    GroundItemMutationStatus.Ok,
+                    PlayerEntityMapper.ToGroundItemRecord(taken));
             }
 
-            var distSq = WorldMetrics.DistanceSquaredPixels(
-                pickerPixelX,
-                pickerPixelY,
-                entity.PixelX,
-                entity.PixelY);
-            if (distSq > (long)rangePixels * rangePixels)
+            var existing = await db.PlayerGroundItems
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == groundItemId, ct)
+                .ConfigureAwait(false);
+            if (existing is null)
             {
-                await tx.RollbackAsync(ct).ConfigureAwait(false);
-                return new GroundItemMutationResult(GroundItemMutationStatus.OutOfRange);
+                return new GroundItemMutationResult(GroundItemMutationStatus.NotFound);
             }
 
-            var now = _clock.GetUtcNow();
-            entity.TakenAtUtc = now;
-            var affected = await db.SaveChangesAsync(ct).ConfigureAwait(false);
-            if (affected == 0)
+            if (existing.TakenAtUtc is not null)
             {
-                await tx.RollbackAsync(ct).ConfigureAwait(false);
                 return new GroundItemMutationResult(GroundItemMutationStatus.AlreadyTaken);
             }
 
-            await tx.CommitAsync(ct).ConfigureAwait(false);
-            return new GroundItemMutationResult(
-                GroundItemMutationStatus.Ok,
-                PlayerEntityMapper.ToGroundItemRecord(entity));
+            return new GroundItemMutationResult(GroundItemMutationStatus.OutOfRange);
         }, cancellationToken);
 }
