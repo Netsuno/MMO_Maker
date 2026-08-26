@@ -1,9 +1,14 @@
 using Frog.Application.Content;
 using Frog.Application.Gameplay;
+using Frog.Application.Maps;
+using Frog.Core.Enums;
 using Frog.Core.Gameplay;
+using Frog.Core.Models;
 using Frog.Persistence.PostgreSql;
+using Frog.Persistence.PostgreSql.Entities;
 using Frog.Persistence.PostgreSql.Repositories.Player;
 using Frog.Server.Gameplay;
+using Microsoft.EntityFrameworkCore;
 
 namespace Frog.Persistence.IntegrationTests.Support;
 
@@ -14,12 +19,16 @@ public sealed record Phase7PostgresContentSeedResult(
     Guid WeaponId,
     Guid ArmorId,
     Guid MonsterId,
-    Guid ShopId);
+    Guid ShopId,
+    Guid MapId,
+    int RuntimeMapId);
 
 /// <summary>Publie le contenu Phase 7 minimal (Guids déterministes) dans PostgreSQL.</summary>
 public static class Phase7PostgresContentSeed
 {
-    public static async Task<Phase7PostgresContentSeedResult> PublishAsync(FrogDbContextGate gate)
+    public static async Task<Phase7PostgresContentSeedResult> PublishAsync(
+        FrogDbContextGate gate,
+        int monsterSpawnCount = 2)
     {
         var spells = new PostgresSpellRepository(gate);
         var spellDef = Phase7ContentSeed.CreateDefaultSpell();
@@ -45,6 +54,11 @@ public static class Phase7PostgresContentSeed
         var shop = Phase7ContentSeed.CreateDefaultShop();
         await EnsurePublishedAsync(shops, shop);
 
+        var (mapId, runtimeMapId) = await EnsurePublishedWorldMapAsync(
+            gate,
+            monster.Id,
+            Math.Max(1, monsterSpawnCount)).ConfigureAwait(false);
+
         return new Phase7PostgresContentSeedResult(
             classDef.Id,
             spellDef.Id,
@@ -52,7 +66,9 @@ public static class Phase7PostgresContentSeed
             weapon.Id,
             armor.Id,
             monster.Id,
-            shop.Id);
+            shop.Id,
+            mapId,
+            runtimeMapId);
     }
 
     public static async Task<Guid> SeedGroundWeaponAsync(
@@ -73,7 +89,138 @@ public static class Phase7PostgresContentSeed
         return dropped.Item.Id;
     }
 
-    private static async Task EnsurePublishedAsync(PostgresSpellRepository repo, Frog.Core.Models.SpellDefinition definition)
+    private static async Task<(Guid MapId, int RuntimeMapId)> EnsurePublishedWorldMapAsync(
+        FrogDbContextGate gate,
+        Guid monsterId,
+        int monsterSpawnCount)
+    {
+        var existing = await gate.ExecuteAsync(async (db, ct) =>
+            await db.WorldSpawnSettings.AsNoTracking()
+                .SingleOrDefaultAsync(s => s.Id == 1, ct)
+                .ConfigureAwait(false)).ConfigureAwait(false);
+        if (existing is not null)
+        {
+            var runtime = await gate.ExecuteAsync(async (db, ct) =>
+                await db.RuntimeMapBindings.AsNoTracking()
+                    .Where(b => b.MapId == existing.StartMapId)
+                    .Select(b => b.RuntimeMapId)
+                    .SingleAsync(ct)
+                    .ConfigureAwait(false)).ConfigureAwait(false);
+            return (existing.StartMapId, runtime);
+        }
+
+        var maps = new PostgresMapRepository(gate);
+        var map = CreateDefaultWorldMap();
+        var saved = AssertSaveSuccess(await maps.SaveAsync(new SaveMapRequest
+        {
+            MapId = null,
+            Map = map,
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.SaveDraft,
+        }));
+
+        await gate.ExecuteAsync(async (db, ct) =>
+        {
+            for (var i = 0; i < monsterSpawnCount; i++)
+            {
+                db.MapNpcSpawns.Add(new MapNpcSpawnEntity
+                {
+                    Id = Guid.NewGuid(),
+                    MapId = saved.MapId,
+                    NpcId = monsterId,
+                    NpcDefinitionId = 0,
+                    X = GameplayLimits.DefaultSpawnTileX + i,
+                    Y = GameplayLimits.DefaultSpawnTileY,
+                    Direction = 0,
+                });
+            }
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        }).ConfigureAwait(false);
+
+        var published = AssertSaveSuccess(await maps.SaveAsync(new SaveMapRequest
+        {
+            MapId = saved.MapId,
+            Map = map,
+            ExpectedRevision = saved.NewRevision,
+            Intent = SaveMapIntent.Publish,
+        }));
+        _ = published;
+
+        var runtimeMapId = await gate.ExecuteAsync(async (db, ct) =>
+            await db.RuntimeMapBindings.AsNoTracking()
+                .Where(b => b.MapId == saved.MapId)
+                .Select(b => b.RuntimeMapId)
+                .SingleAsync(ct)
+                .ConfigureAwait(false)).ConfigureAwait(false);
+
+        await UpsertWorldSpawnSettingsAsync(gate, saved.MapId).ConfigureAwait(false);
+        return (saved.MapId, runtimeMapId);
+    }
+
+    private static async Task UpsertWorldSpawnSettingsAsync(FrogDbContextGate gate, Guid mapId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await gate.ExecuteAsync(async (db, ct) =>
+        {
+            var row = await db.WorldSpawnSettings.SingleOrDefaultAsync(s => s.Id == 1, ct)
+                .ConfigureAwait(false);
+            if (row is null)
+            {
+                db.WorldSpawnSettings.Add(new WorldSpawnSettingsEntity
+                {
+                    Id = 1,
+                    StartMapId = mapId,
+                    StartTileX = GameplayLimits.DefaultSpawnTileX,
+                    StartTileY = GameplayLimits.DefaultSpawnTileY,
+                    RespawnMapId = mapId,
+                    RespawnTileX = GameplayLimits.DefaultSpawnTileX,
+                    RespawnTileY = GameplayLimits.DefaultSpawnTileY,
+                    UpdatedAtUtc = now,
+                });
+            }
+            else
+            {
+                row.StartMapId = mapId;
+                row.StartTileX = GameplayLimits.DefaultSpawnTileX;
+                row.StartTileY = GameplayLimits.DefaultSpawnTileY;
+                row.RespawnMapId = mapId;
+                row.RespawnTileX = GameplayLimits.DefaultSpawnTileX;
+                row.RespawnTileY = GameplayLimits.DefaultSpawnTileY;
+                row.UpdatedAtUtc = now;
+            }
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        }).ConfigureAwait(false);
+    }
+
+    private static Map CreateDefaultWorldMap()
+    {
+        var map = new Map { Name = "Phase7World", Width = 20, Height = 20 };
+        var ground = new Layer { LayerType = LayerType.Ground };
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                ground.Tiles.Add(new Tile
+                {
+                    X = x,
+                    Y = y,
+                    TilesetId = 1,
+                    Type = TileType.Ground,
+                });
+            }
+        }
+
+        map.Layers.Add(ground);
+        return map;
+    }
+
+    private static SaveMapResult.Success AssertSaveSuccess(SaveMapResult result)
+        => result as SaveMapResult.Success
+           ?? throw new InvalidOperationException("Map save failed: " + result.GetType().Name);
+
+    private static async Task EnsurePublishedAsync(PostgresSpellRepository repo, SpellDefinition definition)
     {
         if (await repo.LoadPublishedByIdAsync(definition.Id) is not null)
         {
@@ -92,7 +239,7 @@ public static class Phase7PostgresContentSeed
         }
     }
 
-    private static async Task EnsurePublishedAsync(PostgresClassRepository repo, Frog.Core.Models.ClassDefinition definition)
+    private static async Task EnsurePublishedAsync(PostgresClassRepository repo, ClassDefinition definition)
     {
         if (await repo.LoadPublishedByIdAsync(definition.Id) is not null)
         {
@@ -111,7 +258,7 @@ public static class Phase7PostgresContentSeed
         }
     }
 
-    private static async Task EnsurePublishedAsync(PostgresItemRepository repo, Frog.Core.Models.ItemDefinition definition)
+    private static async Task EnsurePublishedAsync(PostgresItemRepository repo, ItemDefinition definition)
     {
         if (await repo.LoadPublishedByIdAsync(definition.Id) is not null)
         {
@@ -130,7 +277,7 @@ public static class Phase7PostgresContentSeed
         }
     }
 
-    private static async Task EnsurePublishedAsync(PostgresNpcRepository repo, Frog.Core.Models.NpcDefinition definition)
+    private static async Task EnsurePublishedAsync(PostgresNpcRepository repo, NpcDefinition definition)
     {
         if (await repo.LoadPublishedByIdAsync(definition.Id) is not null)
         {
@@ -149,7 +296,7 @@ public static class Phase7PostgresContentSeed
         }
     }
 
-    private static async Task EnsurePublishedAsync(PostgresShopRepository repo, Frog.Core.Models.ShopDefinition definition)
+    private static async Task EnsurePublishedAsync(PostgresShopRepository repo, ShopDefinition definition)
     {
         if (await repo.LoadPublishedByIdAsync(definition.Id) is not null)
         {

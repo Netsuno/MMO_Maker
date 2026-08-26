@@ -140,12 +140,9 @@ public sealed class PostgresPublishedWorldCatalog : IPublishedWorldCatalog
 
     private async Task EnsureBindingsLoadedAsync(FrogDbContext db, CancellationToken ct)
     {
-        if (!_guidToRuntime.IsEmpty)
-        {
-            return;
-        }
-
         var bindings = await db.RuntimeMapBindings.AsNoTracking().ToListAsync(ct).ConfigureAwait(false);
+        _guidToRuntime.Clear();
+        _runtimeToGuid.Clear();
         foreach (var b in bindings)
         {
             _guidToRuntime[b.MapId] = b.RuntimeMapId;
