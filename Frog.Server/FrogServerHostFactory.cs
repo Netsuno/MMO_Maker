@@ -212,6 +212,13 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IPublishedSpellCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                     services.AddSingleton<IPublishedNpcCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                     services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                    services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
+                }
+
+                if (usePostgreSql)
+                {
+                    services.AddSingleton<PublishedWorldMapBlobStore>();
+                    services.AddHostedService<PublishedWorldBootstrapHostedService>();
                 }
 
                 services.AddSingleton<CharacterGameplayService>();

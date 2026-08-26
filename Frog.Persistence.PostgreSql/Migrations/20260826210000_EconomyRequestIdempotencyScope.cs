@@ -1,10 +1,14 @@
 using System;
+using Frog.Persistence.PostgreSql;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Frog.Persistence.PostgreSql.Migrations
 {
+    [DbContext(typeof(FrogDbContext))]
+    [Migration("20260826210000_EconomyRequestIdempotencyScope")]
     /// <inheritdoc />
     public partial class EconomyRequestIdempotencyScope : Migration
     {
