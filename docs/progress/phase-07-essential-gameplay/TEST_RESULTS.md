@@ -1,27 +1,26 @@
-# Phase 7 — Test Results (7.1)
+# Phase 7 — Test Results
 
-## Environment
+## Local run (2026-08-26)
 
-| Item | Value |
-| --- | --- |
-| OS | Linux (Cloud Agent VM) |
-| .NET SDK | 8.0.424 |
-| Commit | (see final implementation SHA after push) |
-| PostgreSQL integration | Runs when `FROG_POSTGRES_TEST_CONNECTION_STRING` is set |
+| Suite | Count | Result |
+| --- | ---: | --- |
+| Frog.Tests (all) | 270 | PASS |
+| Phase 7 subset | 26 | PASS |
 
-## Commands
+### Phase 7 test classes
+
+- `Phase7AuthTests` (10)
+- `Phase7CharacterTests` (3)
+- `Phase7InventoryTests` (3)
+- `Phase7CombatTests` (3)
+- `Phase7ShopBankTests` (2)
+- `Phase7ProgressionTests` (3)
+- `Phase7E2EGameplayTests` (2) — full TCP E2E + pickup race
+
+### PostgreSQL integration
+
+Run when `FROG_POSTGRES_CONNECTION_STRING` is available:
 
 ```bash
-dotnet build
-dotnet test Frog.Tests/Frog.Tests.csproj
-dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj
+dotnet test tests/Frog.Persistence.IntegrationTests
 ```
-
-## Results
-
-| Suite | Status | Passed | Failed | Skipped | Notes |
-| --- | --- | ---: | ---: | ---: | --- |
-| Frog.Tests (unit) | PASS | 254 | 0 | 0 | Includes 10 new Phase 7.1 auth tests |
-| PostgreSQL integration | PASS or NOT RUN | — | — | — | Skipped when `FROG_POSTGRES_TEST_CONNECTION_STRING` absent |
-| Windows smoke | NOT RUN | — | — | — | No client/UI changes in 7.1 |
-| E2E | NOT RUN | — | — | — | Phase 7 gate not reached |

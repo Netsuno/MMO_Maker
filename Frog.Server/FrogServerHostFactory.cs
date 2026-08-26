@@ -1,8 +1,11 @@
 #nullable enable
+using Frog.Application.Content;
+using Frog.Application.Gameplay;
 using Frog.Application.Playtest;
 using Frog.Server.Config;
 using Frog.Application.Identity;
 using Frog.Server.Database;
+using Frog.Server.Gameplay;
 using Frog.Server.Network;
 using Frog.Server.Playtest;
 using Frog.Server.Persistence;
@@ -132,6 +135,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton(new PlaytestAuthTokenGate(playtest.AuthToken));
 
                 services.AddSingleton<LoginRateLimiter>();
+                services.AddSingleton<ChatRateLimiter>();
                 services.AddSingleton<InMemoryAccountRepository>();
                 services.AddSingleton<InMemoryAuthSessionRepository>();
 
@@ -171,6 +175,26 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IAuthSessionRepository>(sp =>
                         sp.GetRequiredService<InMemoryAuthSessionRepository>());
                 }
+                if (!pgAuthRegistered)
+                {
+                    services.AddSingleton<ICharacterRepository, InMemoryCharacterRepository>();
+                    services.AddSingleton<IInventoryRepository, InMemoryInventoryRepository>();
+                    services.AddSingleton<IEquipmentRepository, InMemoryEquipmentRepository>();
+                    services.AddSingleton<IGroundItemRepository, InMemoryGroundItemRepository>();
+                    services.AddSingleton<IBankRepository, InMemoryBankRepository>();
+                }
+
+                services.AddSingleton<Phase7PublishedContent>();
+                services.AddSingleton<IPublishedClassCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                services.AddSingleton<IPublishedItemCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                services.AddSingleton<IPublishedSpellCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                services.AddSingleton<IPublishedNpcCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                services.AddSingleton<CharacterGameplayService>();
+                services.AddSingleton<InventoryGameplayService>();
+                services.AddSingleton<CombatGameplayService>();
+                services.AddSingleton<ShopBankGameplayService>();
+
                 services.AddSingleton<InMemoryPlayerStateStore>();
                 services.AddSingleton<IPlayerStateStore>(sp =>
                 {

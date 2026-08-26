@@ -1,6 +1,6 @@
 # État du projet — MMO Maker
 
-- Dernière mise à jour : 2026-08-25
+- Dernière mise à jour : 2026-08-26
 - Branche : `cursor/phase0-baseline-audit-02c7`
 - PR : #2 (Draft)
 - **Phase 4 : ACCEPTED** — `22d19b4570eaf552e5ce162243a83020ce86e2eb`
@@ -13,18 +13,19 @@
   - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
   - CI (final tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32798293788
   - Screenshot artifact : `phase-06-game-data-screenshots` (run 32797918806)
-- **Phase 7 : IN PROGRESS** (tranche 7.1 — Authentication and sessions)
+- **Phase 7 : IN PROGRESS** (tranches 7.1–7.7 gameplay server complete; client UI deferred)
   - Evidence dossier : `docs/progress/phase-07-essential-gameplay/`
   - Starting from accepted Phase 6 implementation SHA `99b782f`
   - 7.1 : auth ports, PBKDF2 hashing, PG `auth` schema, sessions, reconnect protocol
+  - 7.2–7.7 : characters, inventory/combat/shop/bank, protocol 38–63, E2E TCP gate
 
-## CI counts (latest local run — 7.1 tranche)
+## CI counts (latest local run — Phase 7 gameplay tranche)
 
 | Suite | Count |
 | --- | ---: |
-| Frog.Tests (unit) | 254 |
-| PostgreSQL integration | 39 |
-| Windows smoke | 35 × 3 (Phase 6 baseline; not re-run for 7.1) |
+| Frog.Tests (unit) | 270 |
+| Phase 7 subset | 26 |
+| PostgreSQL integration | run when PG available |
 
 ## Known issues
 

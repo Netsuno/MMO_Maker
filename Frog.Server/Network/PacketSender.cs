@@ -277,6 +277,190 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendEquipResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.EquipResult, success, message, cancellationToken);
+
+    public Task SendUnequipResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.UnequipResult, success, message, cancellationToken);
+
+    public Task SendDropItemResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.DropItemResult, success, message, cancellationToken);
+
+    public Task SendPickupItemResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.PickupItemResult, success, message, cancellationToken);
+
+    public Task SendSpellCastResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.SpellCastResult, success, message, cancellationToken);
+
+    public Task SendShopBuyResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.ShopBuyResult, success, message, cancellationToken);
+
+    public Task SendShopSellResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.ShopSellResult, success, message, cancellationToken);
+
+    public Task SendBankDepositResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.BankDepositResult, success, message, cancellationToken);
+
+    public Task SendBankWithdrawResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.BankWithdrawResult, success, message, cancellationToken);
+
+    public Task SendRespawnResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.RespawnResult, success, message, cancellationToken);
+
+    public Task SendDeathNotifyAsync(ClientSession session, CancellationToken cancellationToken)
+    {
+        var payload = new byte[] { (byte)PacketId.DeathNotify };
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendCombatStateAsync(
+        ClientSession session,
+        int level,
+        long experience,
+        int hp,
+        int maxHp,
+        int mp,
+        int maxMp,
+        int gold,
+        bool isDead,
+        CancellationToken cancellationToken)
+    {
+        var payload = new byte[1 + 4 + 8 + 4 + 4 + 4 + 4 + 4 + 1];
+        payload[0] = (byte)PacketId.CombatState;
+        var o = 1;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), level);
+        o += 4;
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(o), experience);
+        o += 8;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), hp);
+        o += 4;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), maxHp);
+        o += 4;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), mp);
+        o += 4;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), maxMp);
+        o += 4;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), gold);
+        o += 4;
+        payload[o] = isDead ? (byte)1 : (byte)0;
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendExperienceGainAsync(
+        ClientSession session,
+        long amount,
+        int level,
+        long experience,
+        CancellationToken cancellationToken)
+    {
+        var payload = new byte[1 + 8 + 4 + 8];
+        payload[0] = (byte)PacketId.ExperienceGain;
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(1), amount);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(9), level);
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(13), experience);
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendInventorySnapshotAsync(
+        ClientSession session,
+        InventorySnapshotWire snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var perSlot = 1 + 1 + 16 + 4;
+        var payload = new byte[1 + 1 + 16 + 16 + snapshot.Slots.Count * perSlot];
+        payload[0] = (byte)PacketId.InventorySnapshot;
+        payload[1] = (byte)snapshot.Slots.Count;
+        var o = 2;
+        WriteGuid(payload.AsSpan(o), snapshot.EquippedWeaponItemId ?? Guid.Empty);
+        o += 16;
+        WriteGuid(payload.AsSpan(o), snapshot.EquippedArmorItemId ?? Guid.Empty);
+        o += 16;
+        foreach (var slot in snapshot.Slots.OrderBy(s => s.SlotIndex))
+        {
+            payload[o++] = (byte)slot.SlotIndex;
+            if (slot.ItemId is Guid itemId && slot.Quantity > 0)
+            {
+                payload[o++] = 1;
+                WriteGuid(payload.AsSpan(o), itemId);
+                o += 16;
+                BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), slot.Quantity);
+                o += 4;
+            }
+            else
+            {
+                payload[o++] = 0;
+                o += 16 + 4;
+            }
+        }
+
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankSnapshotAsync(
+        ClientSession session,
+        BankSnapshotWire snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var perSlot = 1 + 1 + 16 + 4;
+        var payload = new byte[1 + 1 + 4 + snapshot.Slots.Count * perSlot];
+        payload[0] = (byte)PacketId.BankSnapshot;
+        payload[1] = (byte)snapshot.Slots.Count;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), snapshot.BankGold);
+        var o = 6;
+        foreach (var slot in snapshot.Slots.OrderBy(s => s.SlotIndex))
+        {
+            payload[o++] = (byte)slot.SlotIndex;
+            if (slot.ItemId is Guid itemId && slot.Quantity > 0)
+            {
+                payload[o++] = 1;
+                WriteGuid(payload.AsSpan(o), itemId);
+                o += 16;
+                BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), slot.Quantity);
+                o += 4;
+            }
+            else
+            {
+                payload[o++] = 0;
+                o += 16 + 4;
+            }
+        }
+
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendGroundItemsSnapshotAsync(
+        ClientSession session,
+        int mapId,
+        IReadOnlyList<GroundItemWire> items,
+        CancellationToken cancellationToken)
+    {
+        var perItem = 16 + 16 + 4 + 4 + 4;
+        var payload = new byte[1 + 4 + 2 + items.Count * perItem];
+        payload[0] = (byte)PacketId.GroundItemsSnapshot;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), mapId);
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(5), (ushort)items.Count);
+        var o = 7;
+        foreach (var item in items)
+        {
+            WriteGuid(payload.AsSpan(o), item.GroundItemId);
+            o += 16;
+            WriteGuid(payload.AsSpan(o), item.ItemId);
+            o += 16;
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.Quantity);
+            o += 4;
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.PixelX);
+            o += 4;
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.PixelY);
+            o += 4;
+        }
+
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    private static void WriteGuid(Span<byte> dest, Guid value) => value.TryWriteBytes(dest);
+
     private static Task SendStatusMessageAsync(ClientSession session, PacketId packetId, bool success, string message, CancellationToken cancellationToken)
     {
         var messageBytes = Encoding.UTF8.GetBytes(message);

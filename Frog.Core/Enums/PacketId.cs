@@ -65,5 +65,34 @@ public enum PacketId : byte
 
     /// <summary>Résultat reconnexion (même forme que <see cref="LoginResult"/>).</summary>
     ReconnectResult = 37,
+
+    /// <summary>État inventaire + équipement (binaire).</summary>
+    InventorySnapshot = 38,
+    EquipRequest = 39,
+    EquipResult = 40,
+    UnequipRequest = 41,
+    UnequipResult = 42,
+    DropItemRequest = 43,
+    DropItemResult = 44,
+    PickupItemRequest = 45,
+    PickupItemResult = 46,
+    GroundItemsSnapshot = 47,
+    SpellCastRequest = 48,
+    SpellCastResult = 49,
+    /// <summary>HP/MP/niveau/XP/or/mort du perso actif.</summary>
+    CombatState = 50,
+    ShopBuyRequest = 51,
+    ShopBuyResult = 52,
+    ShopSellRequest = 53,
+    ShopSellResult = 54,
+    BankDepositRequest = 55,
+    BankDepositResult = 56,
+    BankWithdrawRequest = 57,
+    BankWithdrawResult = 58,
+    BankSnapshot = 59,
+    RespawnRequest = 60,
+    RespawnResult = 61,
+    ExperienceGain = 62,
+    DeathNotify = 63,
     Error = 255
 }

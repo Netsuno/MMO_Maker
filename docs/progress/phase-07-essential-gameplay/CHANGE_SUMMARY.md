@@ -1,20 +1,33 @@
-# Phase 7 — Change Summary (7.1)
+# Phase 7 — Change Summary
 
-## Authentication and sessions
+## 7.1 Authentication and sessions (prior tranche)
 
-- New `Frog.Application/Identity/` ports and validation rules
-- New `Frog.Core/Security/PasswordHasher.cs` (PBKDF2 v1 + legacy compat)
-- PostgreSQL migration `20260825224547_AuthAccountsAndSessions`
-- Repositories: `PostgresAccountRepository`, `PostgresAuthSessionRepository`
-- Server: `AuthService`, `LoginRateLimiter`, in-memory and MariaDB legacy adapters
-- Protocol: login issues opaque token; `ReconnectRequest` (36) / `ReconnectResult` (37)
-- Architecture: `IServerAuthBackend` registry; PG DLL copied/loaded at runtime (no compile ref from Server)
+- Application identity ports, PBKDF2 hashing, PostgreSQL auth schema, reconnect protocol
 
-## Removed
+## 7.2–7.7 Essential gameplay (this tranche)
 
-- Legacy `Frog.Server/Database/IAccountRepository.cs` and MariaDB-only account repos (replaced by Application port + adapters)
+### Core / protocol
+- `PacketId` 38–63 for inventory, combat, shop, bank, respawn
+- `Phase7GameplayWire` DTOs for snapshot packets
 
-## Not in this tranche
+### Server gameplay
+- `Phase7PublishedContent` — singleton published catalogs + `GetItem`/`GetSpell`/etc.
+- `CharacterGameplayService`, `InventoryGameplayService`, `CombatGameplayService`, `ShopBankGameplayService`
+- `ChatRateLimiter` — per-session chat flood control
+- `Session` extensions + `SessionGameplayExtensions`
 
-- Character creation/selection (7.2)
-- Client UI auth token storage (deferred to 7.2/E2E)
+### Network
+- `PacketSender` methods for all new packets
+- `PacketDispatcher` partial — account-aware character create/select/list, gameplay handlers, combat-before-PvP melee, chat rate limit
+
+### DI
+- In-memory gameplay repos when `!pgAuthRegistered`
+- Published catalog + service registration in `FrogServerHostFactory`
+
+### Tests
+- Six new Phase 7 test classes including TCP E2E gate (`Phase7E2EGameplayTests`)
+
+## Not in scope
+
+- Client UI for new packets (deferred)
+- Phase 8 content/editor integration

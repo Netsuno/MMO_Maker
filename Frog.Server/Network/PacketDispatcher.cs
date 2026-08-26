@@ -3,18 +3,22 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Frog.Application.Gameplay;
 using Frog.Application.Identity;
 using Frog.Application.Playtest;
 using Frog.Core;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Server.Models;
 using Frog.Server.Database;
+using Frog.Server.Gameplay;
 using Frog.Server.Logging;
 using Frog.Server.Persistence;
+using Frog.Server.Security;
 using Frog.Server.Services;
 using Frog.Server.Config;
 using Microsoft.Extensions.Logging;
@@ -22,7 +26,7 @@ using Microsoft.Extensions.Options;
 
 namespace Frog.Server.Network;
 
-public sealed class PacketDispatcher(
+public sealed partial class PacketDispatcher(
     AuthService authService,
     IAccountRepository accountRepository,
     IAuthSessionRepository authSessions,
@@ -37,6 +41,11 @@ public sealed class PacketDispatcher(
     ICharacterPayloadWriter characterPayloadWriter,
     IPlayerStateStore playerStateStore,
     IMapEventStore mapEventStore,
+    CharacterGameplayService characterGameplay,
+    InventoryGameplayService inventoryGameplay,
+    CombatGameplayService combatGameplay,
+    ShopBankGameplayService shopBankGameplay,
+    ChatRateLimiter chatRateLimiter,
     IOptions<PlaytestRuntimeOptions> playtestOptions,
     PlaytestAuthTokenGate playtestAuthTokenGate,
     ILogger<PacketDispatcher> logger)
@@ -55,6 +64,11 @@ public sealed class PacketDispatcher(
     private readonly ICharacterPayloadWriter _characterPayloadWriter = characterPayloadWriter;
     private readonly IPlayerStateStore _playerStateStore = playerStateStore;
     private readonly IMapEventStore _mapEventStore = mapEventStore;
+    private readonly CharacterGameplayService _characterGameplay = characterGameplay;
+    private readonly InventoryGameplayService _inventoryGameplay = inventoryGameplay;
+    private readonly CombatGameplayService _combatGameplay = combatGameplay;
+    private readonly ShopBankGameplayService _shopBankGameplay = shopBankGameplay;
+    private readonly ChatRateLimiter _chatRateLimiter = chatRateLimiter;
     private readonly PlaytestRuntimeOptions _playtest = playtestOptions.Value;
     private readonly PlaytestAuthTokenGate _playtestAuthTokenGate = playtestAuthTokenGate;
     private readonly ILogger<PacketDispatcher> _logger = logger;
@@ -165,6 +179,46 @@ public sealed class PacketDispatcher(
 
             case PacketId.WorldFlagsPatchRequest:
                 await HandleWorldFlagsPatchRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.EquipRequest:
+                await HandleEquipRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.UnequipRequest:
+                await HandleUnequipRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.DropItemRequest:
+                await HandleDropItemRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.PickupItemRequest:
+                await HandlePickupItemRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.SpellCastRequest:
+                await HandleSpellCastRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.ShopBuyRequest:
+                await HandleShopBuyRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.ShopSellRequest:
+                await HandleShopSellRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.BankDepositRequest:
+                await HandleBankDepositRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.BankWithdrawRequest:
+                await HandleBankWithdrawRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.RespawnRequest:
+                await HandleRespawnRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             default:
@@ -442,7 +496,21 @@ public sealed class PacketDispatcher(
         }
 
         clientSession.AuthenticatedSession = session;
-        session.CharacterId = _characterBootstrap.EnsureDefaultHero(sessionName);
+        var isPlaytestAccount = playtestSpawn
+            || (_playtest.Enabled && PlaytestAuthToken.IsReservedUsername(sessionName));
+        if (isPlaytestAccount)
+        {
+            session.CharacterId = _characterBootstrap.EnsureDefaultHero(sessionName);
+        }
+        else if (session.AccountId != Guid.Empty)
+        {
+            session.CharacterId = null;
+            session.CharacterGuid = null;
+        }
+        else
+        {
+            session.CharacterId = _characterBootstrap.EnsureDefaultHero(sessionName);
+        }
 
         var mapAtLoginStart = session.CurrentMapId;
 
@@ -738,6 +806,7 @@ public sealed class PacketDispatcher(
 
         if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
         {
+            _combatGameplay.CancelForMapChange(session);
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
         }
@@ -799,6 +868,7 @@ public sealed class PacketDispatcher(
 
         if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
         {
+            _combatGameplay.CancelForMapChange(session);
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
         }
@@ -991,9 +1061,44 @@ public sealed class PacketDispatcher(
             return;
         }
 
+        if (attacker.IsDead)
+        {
+            await _packetSender.SendMeleeAttackResultAsync(
+                clientSession,
+                false,
+                string.Empty,
+                "Personnage mort.",
+                cancellationToken);
+            return;
+        }
+
         if (!TryParseMeleeTargetPayload(payload.Span, out var targetName))
         {
             await _packetSender.SendErrorAsync(clientSession, "Payload attaque melee invalide.", cancellationToken);
+            return;
+        }
+
+        var monsterResult = await _combatGameplay.TryMeleeAttackMonsterAsync(attacker, targetName, cancellationToken)
+            .ConfigureAwait(false);
+        if (monsterResult.Success)
+        {
+            await _packetSender.SendMeleeAttackResultAsync(
+                clientSession,
+                true,
+                monsterResult.TargetName,
+                monsterResult.Message,
+                cancellationToken);
+            if (monsterResult.MonsterKilled && monsterResult.ExperienceGained > 0)
+            {
+                await _packetSender.SendExperienceGainAsync(
+                    clientSession,
+                    monsterResult.ExperienceGained,
+                    attacker.Level,
+                    attacker.Experience,
+                    cancellationToken);
+            }
+
+            await SendCombatStateAsync(clientSession, attacker, cancellationToken);
             return;
         }
 
@@ -1076,6 +1181,18 @@ public sealed class PacketDispatcher(
         if (!TryParseChatSendPayload(payload.Span, out var channel, out var whisperTarget, out var message))
         {
             await _packetSender.SendErrorAsync(clientSession, "Payload chat invalide.", cancellationToken);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Message vide.", cancellationToken);
+            return;
+        }
+
+        if (!_chatRateLimiter.TryAllow(session.Id))
+        {
+            await _packetSender.SendErrorAsync(clientSession, "Trop de messages.", cancellationToken);
             return;
         }
 
@@ -1356,6 +1473,17 @@ public sealed class PacketDispatcher(
         }
 
         _connectionManager.TryTouchSession(session.Id);
+        if (UsesAccountGameplay(session))
+        {
+            var characters = await _characterGameplay.ListAsync(session.AccountId, cancellationToken).ConfigureAwait(false);
+            var accountWire = characters
+                .Select(static c => new CharacterListWireEntry { Id = c.Id.ToString(), Name = c.DisplayName })
+                .ToArray();
+            var accountJson = JsonSerializer.Serialize(accountWire);
+            await _packetSender.SendCharacterListResultAsync(clientSession, accountJson, cancellationToken);
+            return;
+        }
+
         var list = _characterBootstrap.ListCharacters(session.Username);
         var wire = list.Select(static c => new CharacterListWireEntry { Id = c.Id, Name = c.DisplayName }).ToArray();
         var json = JsonSerializer.Serialize(wire);
@@ -1382,6 +1510,58 @@ public sealed class PacketDispatcher(
                 false,
                 "CharacterSelectRequest: UUID perso invalide.",
                 cancellationToken);
+            return;
+        }
+
+        if (UsesAccountGameplay(session))
+        {
+            if (!Guid.TryParse(newCharacterId, out var characterGuid))
+            {
+                await _packetSender.SendCharacterSelectResultAsync(
+                    clientSession,
+                    false,
+                    "UUID perso invalide.",
+                    cancellationToken);
+                return;
+            }
+
+            if (!await _characterGameplay.IsOwnedAsync(session.AccountId, characterGuid, cancellationToken).ConfigureAwait(false))
+            {
+                await _packetSender.SendCharacterSelectResultAsync(
+                    clientSession,
+                    false,
+                    "Personnage inconnu pour ce compte.",
+                    cancellationToken);
+                return;
+            }
+
+            var record = await _characterGameplay.FindAsync(characterGuid, cancellationToken).ConfigureAwait(false);
+            if (record is null)
+            {
+                await _packetSender.SendCharacterSelectResultAsync(
+                    clientSession,
+                    false,
+                    "Personnage introuvable.",
+                    cancellationToken);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(session.CharacterId))
+            {
+                _playerStateStore.UpsertForCharacter(
+                    session.CharacterId,
+                    session.CurrentMapId,
+                    session.PixelX,
+                    session.PixelY);
+            }
+
+            session.ApplyFromCharacter(record);
+            _mapService.TryEnsureMapLoaded(session.CurrentMapId);
+            ClampSessionPixelsAndSyncTiles(session);
+            _connectionManager.TryTouchSession(session.Id);
+            await _packetSender.SendCharacterSelectResultAsync(clientSession, true, "Personnage actif.", cancellationToken);
+            await SendGameplaySnapshotsAsync(clientSession, session, cancellationToken);
+            await BroadcastPositionAfterSelectAsync(clientSession, session, mapIdBeforeSelect, cancellationToken);
             return;
         }
 
@@ -1492,7 +1672,7 @@ public sealed class PacketDispatcher(
             return;
         }
 
-        if (!TryParseCharacterCreateRequest(payload.Span, out var rawDisplayName))
+        if (!TryParseCharacterCreateRequest(payload.Span, out var rawDisplayName, out var classId))
         {
             await _packetSender.SendCharacterCreateResultAsync(
                 clientSession,
@@ -1503,6 +1683,30 @@ public sealed class PacketDispatcher(
         }
 
         _connectionManager.TryTouchSession(session.Id);
+        if (UsesAccountGameplay(session))
+        {
+            var createClassId = classId ?? Phase7ContentSeed.DefaultClassId;
+            var created = await _characterGameplay
+                .CreateAsync(session.AccountId, rawDisplayName, createClassId, cancellationToken)
+                .ConfigureAwait(false);
+            if (created.Status != CharacterCreateStatus.Created || created.Character is null)
+            {
+                await _packetSender.SendCharacterCreateResultAsync(
+                    clientSession,
+                    false,
+                    created.ErrorMessage ?? "Creation echouee.",
+                    cancellationToken);
+                return;
+            }
+
+            await _packetSender.SendCharacterCreateResultAsync(
+                clientSession,
+                true,
+                created.Character.Id.ToString(),
+                cancellationToken);
+            return;
+        }
+
         if (!_characterBootstrap.TryCreateCharacter(session.Username, rawDisplayName, out var newId, out var err))
         {
             await _packetSender.SendCharacterCreateResultAsync(clientSession, false, err, cancellationToken);
@@ -1640,23 +1844,42 @@ public sealed class PacketDispatcher(
         return true;
     }
 
-    /// <summary>Corps : longueur nom UTF‑8 (1 octet) + nom (≤ <see cref="CharacterDisplayNameRules.MaxWireUtf8Bytes"/>).</summary>
+    /// <summary>Corps : longueur nom UTF‑8 (1 octet) + nom (+ Guid classe 16 octets optionnel).</summary>
     public static bool TryParseCharacterCreateRequest(ReadOnlySpan<byte> payload, out string displayName)
+        => TryParseCharacterCreateRequest(payload, out displayName, out _);
+
+    public static bool TryParseCharacterCreateRequest(ReadOnlySpan<byte> payload, out string displayName, out Guid? classId)
     {
         displayName = string.Empty;
+        classId = null;
         if (payload.Length < 2)
         {
             return false;
         }
 
         var len = payload[0];
-        if (len is 0 or > CharacterDisplayNameRules.MaxWireUtf8Bytes || payload.Length != 1 + len)
+        if (len is 0 or > CharacterDisplayNameRules.MaxWireUtf8Bytes)
+        {
+            return false;
+        }
+
+        if (payload.Length != 1 + len && payload.Length != 1 + len + 16)
         {
             return false;
         }
 
         displayName = Encoding.UTF8.GetString(payload.Slice(1, len));
-        return !string.IsNullOrWhiteSpace(displayName);
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return false;
+        }
+
+        if (payload.Length == 1 + len + 16)
+        {
+            classId = new Guid(payload.Slice(1 + len, 16));
+        }
+
+        return true;
     }
 
     /// <summary>Corps : longueur JSON UTF‑8 (<see cref="ushort"/> LE) + objet (booléens uniquement, ≤ <see cref="CharacterPayloadWorldFlags.MaxPatchUtf8Bytes"/> octets).</summary>
