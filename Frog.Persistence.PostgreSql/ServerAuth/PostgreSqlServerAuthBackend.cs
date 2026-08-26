@@ -1,6 +1,7 @@
 using Frog.Application.Content;
 using Frog.Application.Gameplay;
 using Frog.Application.Identity;
+using Frog.Application.Maps;
 using Frog.Persistence.PostgreSql.Repositories.Auth;
 using Frog.Persistence.PostgreSql.Repositories.Player;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,8 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
             new PostgresBankRepository(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<IEconomyTransactionRepository>(sp =>
             new PostgresEconomyTransactionRepository(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<IInventoryTransferRepository>(sp =>
+            new PostgresInventoryTransferRepository(sp.GetRequiredService<FrogDbContextGate>()));
 
         RegisterPublishedCatalogs(services);
     }
@@ -67,7 +70,14 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
                 sp.GetRequiredService<IPublishedItemCatalog>()));
         services.AddSingleton<IShopRepository>(sp => sp.GetRequiredService<PostgresShopRepository>());
         services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<PostgresShopRepository>());
-        services.AddSingleton<IShopItemReferenceCatalog>(sp => sp.GetRequiredService<PostgresShopRepository>());
+                services.AddSingleton<IShopItemReferenceCatalog>(sp => sp.GetRequiredService<PostgresShopRepository>());
+
+        services.AddSingleton<PostgresMapRepository>(sp =>
+            new PostgresMapRepository(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<IMapRepository>(sp => sp.GetRequiredService<PostgresMapRepository>());
+        services.AddSingleton<PostgresPublishedWorldCatalog>(sp =>
+            new PostgresPublishedWorldCatalog(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<IPublishedWorldCatalog>(sp => sp.GetRequiredService<PostgresPublishedWorldCatalog>());
     }
 }
 

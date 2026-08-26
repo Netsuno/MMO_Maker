@@ -33,9 +33,13 @@ public sealed class ShopBankGameplayService(
         Guid shopId,
         Guid itemId,
         int quantity,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken ct = default)
     {
+        if (requestId == Guid.Empty)
+        {
+            return ShopBuyResult.Fail("RequestId requis.");
+        }
         if (!session.HasActiveCharacter())
         {
             return ShopBuyResult.Fail("Aucun personnage actif.");
@@ -80,7 +84,7 @@ public sealed class ShopBankGameplayService(
             return ShopBuyResult.Fail(result.Message);
         }
 
-        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        ApplyCommittedStateToSession(session, result.State);
         return ShopBuyResult.Ok(result.State.Inventory, result.State.Gold);
     }
 
@@ -88,9 +92,13 @@ public sealed class ShopBankGameplayService(
         Session session,
         int inventorySlotIndex,
         int quantity,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken ct = default)
     {
+        if (requestId == Guid.Empty)
+        {
+            return ShopSellResult.Fail("RequestId requis.");
+        }
         if (!session.HasActiveCharacter())
         {
             return ShopSellResult.Fail("Aucun personnage actif.");
@@ -128,7 +136,7 @@ public sealed class ShopBankGameplayService(
             return ShopSellResult.Fail(result.Message);
         }
 
-        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        ApplyCommittedStateToSession(session, result.State);
         return ShopSellResult.Ok(result.State.Inventory, result.State.Gold);
     }
 
@@ -136,9 +144,13 @@ public sealed class ShopBankGameplayService(
         Session session,
         int inventorySlotIndex,
         int quantity,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken ct = default)
     {
+        if (requestId == Guid.Empty)
+        {
+            return BankDepositResult.Fail("RequestId requis.");
+        }
         if (!session.HasActiveCharacter())
         {
             return BankDepositResult.Fail("Aucun personnage actif.");
@@ -175,7 +187,7 @@ public sealed class ShopBankGameplayService(
             return BankDepositResult.Fail(result.Message);
         }
 
-        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        ApplyCommittedStateToSession(session, result.State);
         return BankDepositResult.Ok(result.State.Inventory, result.State.Bank);
     }
 
@@ -183,9 +195,13 @@ public sealed class ShopBankGameplayService(
         Session session,
         int bankSlotIndex,
         int quantity,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken ct = default)
     {
+        if (requestId == Guid.Empty)
+        {
+            return BankWithdrawResult.Fail("RequestId requis.");
+        }
         if (!session.HasActiveCharacter())
         {
             return BankWithdrawResult.Fail("Aucun personnage actif.");
@@ -222,16 +238,20 @@ public sealed class ShopBankGameplayService(
             return BankWithdrawResult.Fail(result.Message);
         }
 
-        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        ApplyCommittedStateToSession(session, result.State);
         return BankWithdrawResult.Ok(result.State.Inventory, result.State.Bank);
     }
 
     public async Task<BankGoldResult> TryDepositGoldAsync(
         Session session,
         int amount,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken ct = default)
     {
+        if (requestId == Guid.Empty)
+        {
+            return BankGoldResult.Fail("RequestId requis.");
+        }
         if (!session.HasActiveCharacter())
         {
             return BankGoldResult.Fail("Aucun personnage actif.");
@@ -250,16 +270,20 @@ public sealed class ShopBankGameplayService(
             return BankGoldResult.Fail(result.Message);
         }
 
-        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        ApplyCommittedStateToSession(session, result.State);
         return BankGoldResult.Ok(result.State.Gold, result.State.BankGold);
     }
 
     public async Task<BankGoldResult> TryWithdrawGoldAsync(
         Session session,
         int amount,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken ct = default)
     {
+        if (requestId == Guid.Empty)
+        {
+            return BankGoldResult.Fail("RequestId requis.");
+        }
         if (!session.HasActiveCharacter())
         {
             return BankGoldResult.Fail("Aucun personnage actif.");
@@ -284,33 +308,14 @@ public sealed class ShopBankGameplayService(
             return BankGoldResult.Fail(result.Message);
         }
 
-        await ApplyCommittedStateAsync(session, result.State, ct).ConfigureAwait(false);
+        ApplyCommittedStateToSession(session, result.State);
         return BankGoldResult.Ok(result.State.Gold, result.State.BankGold);
     }
 
-    private async Task ApplyCommittedStateAsync(Session session, EconomyCommittedState state, CancellationToken ct)
+    private static void ApplyCommittedStateToSession(Session session, EconomyCommittedState state)
     {
         session.Gold = state.Gold;
         session.BankGold = state.BankGold;
-        if (session.CharacterGuid is not Guid characterId)
-        {
-            return;
-        }
-
-        var record = await _characters.FindByIdAsync(characterId, ct).ConfigureAwait(false);
-        if (record is null)
-        {
-            return;
-        }
-
-        await _characters.SaveAsync(
-            record with
-            {
-                Gold = state.Gold,
-                BankGold = state.BankGold,
-                UpdatedAtUtc = DateTimeOffset.UtcNow,
-            },
-            ct).ConfigureAwait(false);
     }
 
     private async Task<Frog.Core.Models.ShopDefinition?> FindShopAsync(Guid shopId, CancellationToken ct)

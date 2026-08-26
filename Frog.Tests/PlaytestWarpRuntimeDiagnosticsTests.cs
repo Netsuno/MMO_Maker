@@ -61,6 +61,11 @@ public sealed class PlaytestWarpRuntimeDiagnosticsTests
         var primaryPath = Path.Combine(plan.WorkDirectory, $"map-{runtimeA}.fmap");
         var mapService = new MapService(
             Options.Create(new WorldMapOptions { WorldMapPath = primaryPath, DatabaseFallbackMapId = runtimeA }),
+            Options.Create(new Phase7ContentOptions
+            {
+                AllowSyntheticContentFallback = true,
+                RequirePublishedWorld = false,
+            }),
             blob,
             NullLogger<MapService>.Instance);
 

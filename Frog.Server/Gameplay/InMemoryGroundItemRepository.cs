@@ -85,4 +85,42 @@ public sealed class InMemoryGroundItemRepository : IGroundItemRepository
             return Task.FromResult(new GroundItemMutationResult(GroundItemMutationStatus.Ok, taken));
         }
     }
+
+    internal bool TryGetUntaken(Guid groundItemId, out GroundItemRecord? item)
+    {
+        lock (_gate)
+        {
+            if (_items.TryGetValue(groundItemId, out var record))
+            {
+                item = record;
+                return true;
+            }
+
+            item = null;
+            return false;
+        }
+    }
+
+    internal bool TryRemoveUntaken(Guid groundItemId, out GroundItemRecord? removed)
+    {
+        lock (_gate)
+        {
+            if (_items.TryRemove(groundItemId, out var record))
+            {
+                removed = record;
+                return true;
+            }
+
+            removed = null;
+            return false;
+        }
+    }
+
+    internal void Restore(GroundItemRecord item)
+    {
+        lock (_gate)
+        {
+            _items[item.Id] = item;
+        }
+    }
 }

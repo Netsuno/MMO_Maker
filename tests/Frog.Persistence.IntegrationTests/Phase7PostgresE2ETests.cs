@@ -155,29 +155,29 @@ public sealed class Phase7PostgresE2ETests
             Assert.True(goldAfterBuy < GameplayLimits.StartingGold);
 
             var sellSlot = buySnap.Slots.First(s => s.ItemId == seed.ConsumableId).SlotIndex;
-            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopSell((byte)sellSlot, 1));
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopSell((byte)sellSlot, 1, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.ShopSellResult))[1]);
             _ = await client2.ReadUntilAsync(PacketId.CombatState);
 
-            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopBuy(seed.ShopId, seed.ConsumableId, 1));
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopBuy(seed.ShopId, seed.ConsumableId, 1, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.ShopBuyResult))[1]);
             var invForBank = await client2.ReadUntilAsync(PacketId.InventorySnapshot);
             Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invForBank, out var bankInv));
             var bankSlot = bankInv.Slots.First(s => s.ItemId == seed.ConsumableId).SlotIndex;
 
-            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankDepositItem((byte)bankSlot, 1));
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankDepositItem((byte)bankSlot, 1, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.BankDepositResult))[1]);
             var bankAfterDeposit = await client2.ReadUntilAsync(PacketId.BankSnapshot);
             Assert.True(Phase7WireDecoders.TryDecodeBankSnapshot(bankAfterDeposit, out var depositedBank));
             Assert.Contains(depositedBank.Slots, s => s.ItemId == seed.ConsumableId);
 
-            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankDepositGold(25));
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankDepositGold(25, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.BankDepositResult))[1]);
             var bankGoldSnap = await client2.ReadUntilAsync(PacketId.BankSnapshot);
             Assert.True(Phase7WireDecoders.TryDecodeBankSnapshot(bankGoldSnap, out var goldBank));
             Assert.Equal(25, goldBank.BankGold);
 
-            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankWithdrawItem(0, 1));
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankWithdrawItem(0, 1, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.BankWithdrawResult))[1]);
 
             await using var killer = new Phase7TcpTestClient();

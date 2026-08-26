@@ -214,6 +214,58 @@ public sealed class PostgresMapRepository : IMapRepository
         CancellationToken cancellationToken)
     {
         var snapshot = MapPersistenceMapper.ToPublishedSnapshot(draft, map, nowUtc);
+
+        // Copy draft NPC spawns into the immutable snapshot, resolving editor aliases → Guid.
+        var draftSpawns = await db.MapNpcSpawns.AsNoTracking()
+            .Where(s => s.MapId == draft.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (draftSpawns.Count > 0)
+        {
+            var aliasIds = draftSpawns.Select(s => s.NpcDefinitionId).Distinct().ToArray();
+            var npcsByAlias = await db.Npcs.AsNoTracking()
+                .Where(n => n.EditorAliasId != null && aliasIds.Contains(n.EditorAliasId.Value))
+                .ToDictionaryAsync(n => n.EditorAliasId!.Value, cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var spawn in draftSpawns)
+            {
+                Guid npcId;
+                if (spawn.NpcId != Guid.Empty)
+                {
+                    npcId = spawn.NpcId;
+                }
+                else if (npcsByAlias.TryGetValue(spawn.NpcDefinitionId, out var fromAlias))
+                {
+                    npcId = fromAlias.Id;
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot publish map '{draft.Name}': NPC spawn at ({spawn.X},{spawn.Y}) has no published NPC.");
+                }
+
+                var isPublished = await db.Npcs.AsNoTracking()
+                    .AnyAsync(n => n.Id == npcId && n.PublishedSnapshotId != null, cancellationToken)
+                    .ConfigureAwait(false);
+                if (!isPublished)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot publish map '{draft.Name}': NPC {npcId} is not published.");
+                }
+
+                snapshot.NpcSpawns.Add(new MapPublishedNpcSpawnEntity
+                {
+                    Id = Guid.NewGuid(),
+                    SnapshotId = snapshot.Id,
+                    NpcId = npcId,
+                    X = spawn.X,
+                    Y = spawn.Y,
+                    Direction = spawn.Direction,
+                });
+            }
+        }
+
         db.MapPublishedSnapshots.Add(snapshot);
         db.MapPublicationHistory.Add(new MapPublicationHistoryEntity
         {
@@ -227,6 +279,19 @@ public sealed class PostgresMapRepository : IMapRepository
         draft.PublishedRevision = draft.Revision;
         draft.PublishedSnapshotId = snapshot.Id;
         draft.Status = MapPublishStatus.Published;
+
+        // Ensure durable runtime binding exists for this map Guid.
+        if (!await db.RuntimeMapBindings.AnyAsync(b => b.MapId == draft.Id, cancellationToken).ConfigureAwait(false))
+        {
+            var nextId = await db.RuntimeMapBindings.MaxAsync(b => (int?)b.RuntimeMapId, cancellationToken)
+                .ConfigureAwait(false) ?? 0;
+            db.RuntimeMapBindings.Add(new RuntimeMapBindingEntity
+            {
+                MapId = draft.Id,
+                RuntimeMapId = nextId + 1,
+                CreatedAtUtc = nowUtc,
+            });
+        }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return draft.Revision;

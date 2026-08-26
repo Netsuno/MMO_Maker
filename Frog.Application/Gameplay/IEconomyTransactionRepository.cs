@@ -69,7 +69,7 @@ public interface IEconomyTransactionRepository
         int unitPrice,
         int maxStack,
         int? publishedStockLimit,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default);
 
     Task<EconomySellResult> TrySellAsync(
@@ -78,7 +78,7 @@ public interface IEconomyTransactionRepository
         int quantity,
         int unitSellPrice,
         int maxStack,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default);
 
     Task<EconomyBankItemResult> TryBankDepositItemAsync(
@@ -86,7 +86,7 @@ public interface IEconomyTransactionRepository
         int inventorySlotIndex,
         int quantity,
         int maxStack,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default);
 
     Task<EconomyBankItemResult> TryBankWithdrawItemAsync(
@@ -94,18 +94,18 @@ public interface IEconomyTransactionRepository
         int bankSlotIndex,
         int quantity,
         int maxStack,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default);
 
     Task<EconomyBankGoldResult> TryBankDepositGoldAsync(
         Guid characterId,
         int amount,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default);
 
     Task<EconomyBankGoldResult> TryBankWithdrawGoldAsync(
         Guid characterId,
         int amount,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default);
 }

@@ -293,6 +293,12 @@ public sealed partial class PacketDispatcher
             return;
         }
 
+        if (requestId == Guid.Empty)
+        {
+            await _packetSender.SendShopBuyResultAsync(clientSession, false, "RequestId requis.", cancellationToken);
+            return;
+        }
+
         var result = await _shopBankGameplay.TryBuyAsync(session, shopId, itemId, quantity, requestId, cancellationToken)
             .ConfigureAwait(false);
         await _packetSender.SendShopBuyResultAsync(clientSession, result.Success, result.Message, cancellationToken);
@@ -320,6 +326,12 @@ public sealed partial class PacketDispatcher
             return;
         }
 
+        if (requestId == Guid.Empty)
+        {
+            await _packetSender.SendShopSellResultAsync(clientSession, false, "RequestId requis.", cancellationToken);
+            return;
+        }
+
         var result = await _shopBankGameplay.TrySellAsync(session, slot, qty, requestId, cancellationToken).ConfigureAwait(false);
         await _packetSender.SendShopSellResultAsync(clientSession, result.Success, result.Message, cancellationToken);
         if (result.Success)
@@ -340,11 +352,16 @@ public sealed partial class PacketDispatcher
             return;
         }
 
-        if (payload.Length == 1 + sizeof(int))
+        if (TryParseBankDepositItemRequest(payload.Span, out var depositSlot, out var depositQty, out var depositRequestId))
         {
-            var slot = payload.Span[0];
-            var qty = BinaryPrimitives.ReadInt32LittleEndian(payload.Span.Slice(1));
-            var result = await _shopBankGameplay.TryDepositItemAsync(session, slot, qty, null, cancellationToken)
+            if (depositRequestId == Guid.Empty)
+            {
+                await _packetSender.SendBankDepositResultAsync(clientSession, false, "RequestId requis.", cancellationToken);
+                return;
+            }
+
+            var result = await _shopBankGameplay.TryDepositItemAsync(
+                    session, depositSlot, depositQty, depositRequestId, cancellationToken)
                 .ConfigureAwait(false);
             await _packetSender.SendBankDepositResultAsync(clientSession, result.Success, result.Message, cancellationToken);
             if (result.Success)
@@ -356,10 +373,16 @@ public sealed partial class PacketDispatcher
             return;
         }
 
-        if (payload.Length == sizeof(int))
+        if (TryParseBankDepositGoldRequest(payload.Span, out var depositGold, out var depositGoldRequestId))
         {
-            var gold = BinaryPrimitives.ReadInt32LittleEndian(payload.Span);
-            var goldResult = await _shopBankGameplay.TryDepositGoldAsync(session, gold, null, cancellationToken)
+            if (depositGoldRequestId == Guid.Empty)
+            {
+                await _packetSender.SendBankDepositResultAsync(clientSession, false, "RequestId requis.", cancellationToken);
+                return;
+            }
+
+            var goldResult = await _shopBankGameplay.TryDepositGoldAsync(
+                    session, depositGold, depositGoldRequestId, cancellationToken)
                 .ConfigureAwait(false);
             await _packetSender.SendBankDepositResultAsync(clientSession, goldResult.Success, goldResult.Message, cancellationToken);
             if (goldResult.Success)
@@ -385,11 +408,16 @@ public sealed partial class PacketDispatcher
             return;
         }
 
-        if (payload.Length == 1 + sizeof(int))
+        if (TryParseBankWithdrawItemRequest(payload.Span, out var withdrawSlot, out var withdrawQty, out var withdrawRequestId))
         {
-            var slot = payload.Span[0];
-            var qty = BinaryPrimitives.ReadInt32LittleEndian(payload.Span.Slice(1));
-            var result = await _shopBankGameplay.TryWithdrawItemAsync(session, slot, qty, null, cancellationToken)
+            if (withdrawRequestId == Guid.Empty)
+            {
+                await _packetSender.SendBankWithdrawResultAsync(clientSession, false, "RequestId requis.", cancellationToken);
+                return;
+            }
+
+            var result = await _shopBankGameplay.TryWithdrawItemAsync(
+                    session, withdrawSlot, withdrawQty, withdrawRequestId, cancellationToken)
                 .ConfigureAwait(false);
             await _packetSender.SendBankWithdrawResultAsync(clientSession, result.Success, result.Message, cancellationToken);
             if (result.Success)
@@ -401,10 +429,16 @@ public sealed partial class PacketDispatcher
             return;
         }
 
-        if (payload.Length == sizeof(int))
+        if (TryParseBankWithdrawGoldRequest(payload.Span, out var withdrawGold, out var withdrawGoldRequestId))
         {
-            var gold = BinaryPrimitives.ReadInt32LittleEndian(payload.Span);
-            var goldResult = await _shopBankGameplay.TryWithdrawGoldAsync(session, gold, null, cancellationToken)
+            if (withdrawGoldRequestId == Guid.Empty)
+            {
+                await _packetSender.SendBankWithdrawResultAsync(clientSession, false, "RequestId requis.", cancellationToken);
+                return;
+            }
+
+            var goldResult = await _shopBankGameplay.TryWithdrawGoldAsync(
+                    session, withdrawGold, withdrawGoldRequestId, cancellationToken)
                 .ConfigureAwait(false);
             await _packetSender.SendBankWithdrawResultAsync(clientSession, goldResult.Success, goldResult.Message, cancellationToken);
             if (goldResult.Success)
@@ -484,13 +518,13 @@ public sealed partial class PacketDispatcher
         return spellId != Guid.Empty;
     }
 
-    public static bool TryParseShopBuyRequest(ReadOnlySpan<byte> payload, out Guid shopId, out Guid itemId, out int quantity, out Guid? requestId)
+    public static bool TryParseShopBuyRequest(ReadOnlySpan<byte> payload, out Guid shopId, out Guid itemId, out int quantity, out Guid requestId)
     {
         shopId = Guid.Empty;
         itemId = Guid.Empty;
         quantity = 0;
-        requestId = null;
-        if (payload.Length is not (16 + 16 + 4) and not (16 + 16 + 4 + 16))
+        requestId = Guid.Empty;
+        if (payload.Length != 16 + 16 + 4 + 16)
         {
             return false;
         }
@@ -498,31 +532,83 @@ public sealed partial class PacketDispatcher
         shopId = new Guid(payload.Slice(0, 16));
         itemId = new Guid(payload.Slice(16, 16));
         quantity = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(32));
-        if (payload.Length == 16 + 16 + 4 + 16)
-        {
-            requestId = new Guid(payload.Slice(36));
-        }
-
-        return shopId != Guid.Empty && itemId != Guid.Empty && quantity > 0;
+        requestId = new Guid(payload.Slice(36));
+        return shopId != Guid.Empty && itemId != Guid.Empty && quantity > 0 && requestId != Guid.Empty;
     }
 
-    public static bool TryParseShopSellRequest(ReadOnlySpan<byte> payload, out byte slot, out int quantity, out Guid? requestId)
+    public static bool TryParseShopSellRequest(ReadOnlySpan<byte> payload, out byte slot, out int quantity, out Guid requestId)
     {
         slot = 0;
         quantity = 0;
-        requestId = null;
-        if (payload.Length is not (1 + 4) and not (1 + 4 + 16))
+        requestId = Guid.Empty;
+        if (payload.Length != 1 + 4 + 16)
         {
             return false;
         }
 
         slot = payload[0];
         quantity = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(1));
-        if (payload.Length == 1 + 4 + 16)
+        requestId = new Guid(payload.Slice(5));
+        return quantity > 0 && requestId != Guid.Empty;
+    }
+
+    public static bool TryParseBankDepositItemRequest(ReadOnlySpan<byte> payload, out byte slot, out int quantity, out Guid requestId)
+    {
+        slot = 0;
+        quantity = 0;
+        requestId = Guid.Empty;
+        if (payload.Length != 1 + sizeof(int) + 16)
         {
-            requestId = new Guid(payload.Slice(5));
+            return false;
         }
 
-        return quantity > 0;
+        slot = payload[0];
+        quantity = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(1));
+        requestId = new Guid(payload.Slice(1 + sizeof(int)));
+        return quantity > 0 && requestId != Guid.Empty;
+    }
+
+    public static bool TryParseBankDepositGoldRequest(ReadOnlySpan<byte> payload, out int amount, out Guid requestId)
+    {
+        amount = 0;
+        requestId = Guid.Empty;
+        if (payload.Length != sizeof(int) + 16)
+        {
+            return false;
+        }
+
+        amount = BinaryPrimitives.ReadInt32LittleEndian(payload);
+        requestId = new Guid(payload.Slice(sizeof(int)));
+        return amount > 0 && requestId != Guid.Empty;
+    }
+
+    public static bool TryParseBankWithdrawItemRequest(ReadOnlySpan<byte> payload, out byte slot, out int quantity, out Guid requestId)
+    {
+        slot = 0;
+        quantity = 0;
+        requestId = Guid.Empty;
+        if (payload.Length != 1 + sizeof(int) + 16)
+        {
+            return false;
+        }
+
+        slot = payload[0];
+        quantity = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(1));
+        requestId = new Guid(payload.Slice(1 + sizeof(int)));
+        return quantity > 0 && requestId != Guid.Empty;
+    }
+
+    public static bool TryParseBankWithdrawGoldRequest(ReadOnlySpan<byte> payload, out int amount, out Guid requestId)
+    {
+        amount = 0;
+        requestId = Guid.Empty;
+        if (payload.Length != sizeof(int) + 16)
+        {
+            return false;
+        }
+
+        amount = BinaryPrimitives.ReadInt32LittleEndian(payload);
+        requestId = new Guid(payload.Slice(sizeof(int)));
+        return amount > 0 && requestId != Guid.Empty;
     }
 }

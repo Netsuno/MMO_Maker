@@ -11,6 +11,17 @@ namespace Frog.Tests;
 
 public sealed class Phase7InventoryTests
 {
+    private static InventoryGameplayService CreateService(
+        InMemoryCharacterRepository chars,
+        InMemoryInventoryRepository invRepo,
+        InMemoryEquipmentRepository equipRepo,
+        InMemoryGroundItemRepository ground,
+        Phase7PublishedContent content)
+    {
+        var transfers = new InMemoryInventoryTransferRepository(invRepo, equipRepo, ground, content);
+        return new InventoryGameplayService(invRepo, transfers, ground, chars, content);
+    }
+
     [Fact]
     public async Task Equip_Weapon_PersistsOnCharacter()
     {
@@ -19,8 +30,8 @@ public sealed class Phase7InventoryTests
         var invRepo = new InMemoryInventoryRepository();
         var equipRepo = new InMemoryEquipmentRepository();
         var ground = new InMemoryGroundItemRepository();
-        var svc = new InventoryGameplayService(invRepo, equipRepo, ground, chars, content);
-        var charSvc = new CharacterGameplayService(chars, content, invRepo);
+        var svc = CreateService(chars, invRepo, equipRepo, ground, content);
+        var charSvc = Phase7TestHelpers.CreateCharacterService(chars, content, invRepo);
 
         var accountId = Guid.NewGuid();
         var created = await charSvc.CreateAsync(accountId, "Gear", Phase7ContentSeed.DefaultClassId);
@@ -43,13 +54,10 @@ public sealed class Phase7InventoryTests
         var content = new Phase7PublishedContent();
         var chars = new InMemoryCharacterRepository();
         var invRepo = new InMemoryInventoryRepository();
-        var svc = new InventoryGameplayService(
-            invRepo,
-            new InMemoryEquipmentRepository(),
-            new InMemoryGroundItemRepository(),
-            chars,
-            content);
-        var created = await new CharacterGameplayService(chars, content, invRepo)
+        var equipRepo = new InMemoryEquipmentRepository();
+        var ground = new InMemoryGroundItemRepository();
+        var svc = CreateService(chars, invRepo, equipRepo, ground, content);
+        var created = await Phase7TestHelpers.CreateCharacterService(chars, content, invRepo)
             .CreateAsync(Guid.NewGuid(), "Pot", Phase7ContentSeed.DefaultClassId);
         await invRepo.TryAddAsync(created.Character!.Id, Phase7ContentSeed.DefaultItemId, 1, 20);
         var session = new Session { Id = Guid.NewGuid(), Username = "pot" };
@@ -65,13 +73,9 @@ public sealed class Phase7InventoryTests
         var chars = new InMemoryCharacterRepository();
         var invRepo = new InMemoryInventoryRepository();
         var ground = new InMemoryGroundItemRepository();
-        var svc = new InventoryGameplayService(
-            invRepo,
-            new InMemoryEquipmentRepository(),
-            ground,
-            chars,
-            content);
-        var charSvc = new CharacterGameplayService(chars, content, invRepo);
+        var equipRepo = new InMemoryEquipmentRepository();
+        var svc = CreateService(chars, invRepo, equipRepo, ground, content);
+        var charSvc = Phase7TestHelpers.CreateCharacterService(chars, content, invRepo);
         var a = (await charSvc.CreateAsync(Guid.NewGuid(), "A", Phase7ContentSeed.DefaultClassId)).Character!;
         var b = (await charSvc.CreateAsync(Guid.NewGuid(), "B", Phase7ContentSeed.DefaultClassId)).Character!;
         var dropped = await ground.DropAsync(1, 100, 100, Phase7ContentSeed.DefaultItemId, 1, null);

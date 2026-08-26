@@ -1211,18 +1211,9 @@ namespace Frog.Persistence.PostgreSql.Migrations
 
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.EconomyRequestIdEntity", b =>
                 {
-                    b.Property<Guid>("RequestId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("request_id");
-
                     b.Property<Guid>("CharacterId")
                         .HasColumnType("uuid")
                         .HasColumnName("character_id");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at_utc");
 
                     b.Property<string>("Operation")
                         .IsRequired()
@@ -1230,16 +1221,26 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("operation");
 
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<byte[]>("RequestFingerprint")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_fingerprint");
+
                     b.Property<string>("ResultJson")
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("result_json");
 
-                    b.HasKey("RequestId")
+                    b.HasKey("CharacterId", "Operation", "RequestId")
                         .HasName("pk_economy_request_ids");
-
-                    b.HasIndex("CharacterId")
-                        .HasDatabaseName("ix_economy_request_ids_character_id");
 
                     b.ToTable("economy_request_ids", "player");
                 });

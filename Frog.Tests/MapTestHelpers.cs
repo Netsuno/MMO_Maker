@@ -15,6 +15,11 @@ public static class MapTestHelpers
     public static MapService CreateMapService(string? worldMapPath = null, IMapBlobStore? blobStore = null)
         => new MapService(
             Options.Create(new WorldMapOptions { WorldMapPath = worldMapPath }),
+            Options.Create(new Phase7ContentOptions
+            {
+                AllowSyntheticContentFallback = true,
+                RequirePublishedWorld = false,
+            }),
             blobStore ?? NullMapBlobStore.Instance,
             NullLogger<MapService>.Instance);
 

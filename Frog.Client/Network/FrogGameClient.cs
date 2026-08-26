@@ -930,11 +930,12 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentException("Paramètres achat invalides.");
         }
 
-        var payload = new byte[1 + 16 + 16 + 4];
+        var payload = new byte[1 + 16 + 16 + 4 + 16];
         payload[0] = (byte)PacketId.ShopBuyRequest;
         shopId.TryWriteBytes(payload.AsSpan(1));
         itemId.TryWriteBytes(payload.AsSpan(17));
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(33), quantity);
+        Guid.NewGuid().TryWriteBytes(payload.AsSpan(37));
         return SendRawAsync(payload, cancellationToken);
     }
 
@@ -945,10 +946,11 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentOutOfRangeException(nameof(quantity));
         }
 
-        var payload = new byte[1 + 1 + sizeof(int)];
+        var payload = new byte[1 + 1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.ShopSellRequest;
         payload[1] = slotIndex;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        Guid.NewGuid().TryWriteBytes(payload.AsSpan(6));
         return SendRawAsync(payload, cancellationToken);
     }
 
@@ -959,10 +961,11 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentOutOfRangeException(nameof(quantity));
         }
 
-        var payload = new byte[1 + 1 + sizeof(int)];
+        var payload = new byte[1 + 1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.BankDepositRequest;
         payload[1] = slotIndex;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        Guid.NewGuid().TryWriteBytes(payload.AsSpan(6));
         return SendRawAsync(payload, cancellationToken);
     }
 
@@ -973,10 +976,11 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentOutOfRangeException(nameof(quantity));
         }
 
-        var payload = new byte[1 + 1 + sizeof(int)];
+        var payload = new byte[1 + 1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.BankWithdrawRequest;
         payload[1] = slotIndex;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        Guid.NewGuid().TryWriteBytes(payload.AsSpan(6));
         return SendRawAsync(payload, cancellationToken);
     }
 
@@ -987,9 +991,10 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentOutOfRangeException(nameof(amount));
         }
 
-        var payload = new byte[1 + sizeof(int)];
+        var payload = new byte[1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.BankDepositRequest;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), amount);
+        Guid.NewGuid().TryWriteBytes(payload.AsSpan(5));
         return SendRawAsync(payload, cancellationToken);
     }
 
@@ -1000,9 +1005,10 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentOutOfRangeException(nameof(amount));
         }
 
-        var payload = new byte[1 + sizeof(int)];
+        var payload = new byte[1 + sizeof(int) + 16];
         payload[0] = (byte)PacketId.BankWithdrawRequest;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), amount);
+        Guid.NewGuid().TryWriteBytes(payload.AsSpan(5));
         return SendRawAsync(payload, cancellationToken);
     }
 

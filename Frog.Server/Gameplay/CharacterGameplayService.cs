@@ -1,9 +1,12 @@
 using Frog.Application.Content;
 using Frog.Application.Gameplay;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
+using Frog.Server.Config;
 using Frog.Server.Database;
+using Microsoft.Extensions.Options;
 
 namespace Frog.Server.Gameplay;
 
@@ -11,11 +14,15 @@ namespace Frog.Server.Gameplay;
 public sealed class CharacterGameplayService(
     ICharacterRepository characters,
     IPublishedClassCatalog classes,
-    IInventoryRepository inventory)
+    IInventoryRepository inventory,
+    IPublishedWorldCatalog world,
+    IOptions<Phase7ContentOptions> contentOptions)
 {
     private readonly ICharacterRepository _characters = characters;
     private readonly IPublishedClassCatalog _classes = classes;
     private readonly IInventoryRepository _inventory = inventory;
+    private readonly IPublishedWorldCatalog _world = world;
+    private readonly Phase7ContentOptions _contentOptions = contentOptions.Value;
 
     public Task<IReadOnlyList<CharacterRecord>> ListAsync(Guid accountId, CancellationToken ct = default)
         => _characters.ListByAccountAsync(accountId, ct);
@@ -41,8 +48,9 @@ public sealed class CharacterGameplayService(
         var klass = published.FirstOrDefault(c => c.Id == classId);
         if (klass is null)
         {
-            // Fallback: allow empty catalog in bootstraps with a synthetic default class.
-            if (published.Count == 0 && classId == Phase7ContentSeed.DefaultClassId)
+            if (_contentOptions.AllowSyntheticContentFallback
+                && published.Count == 0
+                && classId == Phase7ContentSeed.DefaultClassId)
             {
                 klass = Phase7ContentSeed.CreateDefaultClass();
             }
@@ -54,6 +62,32 @@ public sealed class CharacterGameplayService(
             }
         }
 
+        int mapId;
+        int pixelX;
+        int pixelY;
+        try
+        {
+            if (_contentOptions.RequirePublishedWorld)
+            {
+                var spawn = await _world.GetSpawnConfigAsync(ct).ConfigureAwait(false);
+                mapId = spawn.StartRuntimeMapId;
+                (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(spawn.StartTileX, spawn.StartTileY);
+            }
+            else
+            {
+                mapId = GameplayLimits.DefaultSpawnMapId;
+                (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(
+                    GameplayLimits.DefaultSpawnTileX,
+                    GameplayLimits.DefaultSpawnTileY);
+            }
+        }
+        catch (Exception ex)
+        {
+            return new CharacterCreateResult(
+                CharacterCreateStatus.InvalidClass,
+                ErrorMessage: "Carte de depart invalide: " + ex.Message);
+        }
+
         var stats = new CharacterStats(klass.Str, klass.Agi, klass.Vit, klass.Int, klass.Dex, klass.Luck);
         var result = await _characters.CreateAsync(
             accountId,
@@ -63,14 +97,13 @@ public sealed class CharacterGameplayService(
             klass.BaseHp,
             klass.BaseMp,
             klass.StartingSpellId,
-            GameplayLimits.DefaultSpawnMapId,
-            pixelX: GameplayLimits.DefaultSpawnTileX * 32 + 16,
-            pixelY: GameplayLimits.DefaultSpawnTileY * 32 + 16,
+            mapId,
+            pixelX,
+            pixelY,
             ct).ConfigureAwait(false);
 
         if (result.Status == CharacterCreateStatus.Created && result.Character is not null)
         {
-            // Ensure empty inventory rows exist.
             await _inventory.GetAsync(result.Character.Id, ct).ConfigureAwait(false);
         }
 
@@ -91,6 +124,28 @@ public sealed class CharacterGameplayService(
 
     public Task SaveAsync(CharacterRecord character, CancellationToken ct = default)
         => _characters.SaveAsync(character, ct);
+
+    public async Task<(int MapId, int PixelX, int PixelY)?> TryGetRespawnPoseAsync(CancellationToken ct = default)
+    {
+        if (!_contentOptions.RequirePublishedWorld)
+        {
+            var (px, py) = WorldMetrics.TileCenterToPixels(
+                GameplayLimits.DefaultSpawnTileX,
+                GameplayLimits.DefaultSpawnTileY);
+            return (GameplayLimits.DefaultSpawnMapId, px, py);
+        }
+
+        try
+        {
+            var spawn = await _world.GetSpawnConfigAsync(ct).ConfigureAwait(false);
+            var (px, py) = WorldMetrics.TileCenterToPixels(spawn.RespawnTileX, spawn.RespawnTileY);
+            return (spawn.RespawnRuntimeMapId, px, py);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
 
 /// <summary>Contenu publié minimal pour playtest / E2E sans éditeur.</summary>

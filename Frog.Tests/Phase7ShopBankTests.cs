@@ -16,7 +16,7 @@ public sealed class Phase7ShopBankTests
         var chars = new InMemoryCharacterRepository();
         var inv = new InMemoryInventoryRepository();
         var bank = new InMemoryBankRepository();
-        var charSvc = new CharacterGameplayService(chars, content, inv);
+        var charSvc = Phase7TestHelpers.CreateCharacterService(chars, content, inv);
         var economy = new InMemoryEconomyTransactionRepository(chars, inv, bank);
         var shopSvc = new ShopBankGameplayService(content, content, chars, inv, bank, economy);
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Buyer", Phase7ContentSeed.DefaultClassId);
@@ -29,7 +29,8 @@ public sealed class Phase7ShopBankTests
             session,
             Phase7ContentSeed.DefaultShopId,
             Phase7ContentSeed.DefaultItemId,
-            1);
+            1,
+            Guid.NewGuid());
         Assert.True(result.Success);
         Assert.True(session.Gold < 500);
         var inventory = await inv.GetAsync(session.RequireCharacterGuid());
@@ -43,7 +44,7 @@ public sealed class Phase7ShopBankTests
         var chars = new InMemoryCharacterRepository();
         var inv = new InMemoryInventoryRepository();
         var bank = new InMemoryBankRepository();
-        var charSvc = new CharacterGameplayService(chars, content, inv);
+        var charSvc = Phase7TestHelpers.CreateCharacterService(chars, content, inv);
         var economy = new InMemoryEconomyTransactionRepository(chars, inv, bank);
         var shopSvc = new ShopBankGameplayService(content, content, chars, inv, bank, economy);
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Banker", Phase7ContentSeed.DefaultClassId);
@@ -51,9 +52,9 @@ public sealed class Phase7ShopBankTests
         var session = new Session { Id = Guid.NewGuid(), Username = "banker" };
         session.ApplyFromCharacter(created.Character);
 
-        var deposit = await shopSvc.TryDepositItemAsync(session, 0, 2);
+        var deposit = await shopSvc.TryDepositItemAsync(session, 0, 2, Guid.NewGuid());
         Assert.True(deposit.Success);
-        var withdraw = await shopSvc.TryWithdrawItemAsync(session, 0, 1);
+        var withdraw = await shopSvc.TryWithdrawItemAsync(session, 0, 1, Guid.NewGuid());
         Assert.True(withdraw.Success);
         var bankSnap = await bank.GetAsync(session.RequireCharacterGuid());
         Assert.Contains(bankSnap.Slots, s => s.ItemId == Phase7ContentSeed.DefaultItemId && s.Quantity == 1);

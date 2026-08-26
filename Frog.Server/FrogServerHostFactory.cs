@@ -131,12 +131,6 @@ public static class FrogServerHostFactory
                     .AddOptions<WorldMapOptions>()
                     .Bind(ctx.Configuration.GetSection("Maps"));
 
-                services.AddSingleton(Options.Create(playtest));
-                services.AddSingleton(new PlaytestAuthTokenGate(playtest.AuthToken));
-
-                services.AddSingleton<LoginRateLimiter>();
-                services.AddSingleton<ChatRateLimiter>();
-
                 var pg = ctx.Configuration.GetSection("PostgreSql").Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
                 if (string.IsNullOrWhiteSpace(pg.ConnectionString))
                 {
@@ -144,6 +138,35 @@ public static class FrogServerHostFactory
                 }
 
                 var usePostgreSql = !playtest.Enabled && pg.Enabled && !string.IsNullOrWhiteSpace(pg.ConnectionString);
+
+                services
+                    .AddOptions<Phase7ContentOptions>()
+                    .Bind(ctx.Configuration.GetSection("Phase7Content"))
+                    .PostConfigure(o =>
+                    {
+                        // Production PostgreSQL: require published world, never synthesize content.
+                        if (usePostgreSql)
+                        {
+                            o.RequirePublishedWorld = true;
+                            o.AllowSyntheticContentFallback = false;
+                        }
+                        else if (playtest.Enabled)
+                        {
+                            o.RequirePublishedWorld = false;
+                            o.AllowSyntheticContentFallback = true;
+                        }
+                        else if (!o.RequirePublishedWorld && !o.AllowSyntheticContentFallback)
+                        {
+                            // In-memory unit-test / AllowInMemoryFallback composition.
+                            o.AllowSyntheticContentFallback = true;
+                        }
+                    });
+
+                services.AddSingleton(Options.Create(playtest));
+                services.AddSingleton(new PlaytestAuthTokenGate(playtest.AuthToken));
+
+                services.AddSingleton<LoginRateLimiter>();
+                services.AddSingleton<ChatRateLimiter>();
 
                 if (!playtest.Enabled && !usePostgreSql && !pg.AllowInMemoryFallback)
                 {
@@ -176,6 +199,12 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IGroundItemRepository, InMemoryGroundItemRepository>();
                     services.AddSingleton<IBankRepository, InMemoryBankRepository>();
                     services.AddSingleton<IEconomyTransactionRepository, InMemoryEconomyTransactionRepository>();
+                    services.AddSingleton<IInventoryTransferRepository>(sp =>
+                        new InMemoryInventoryTransferRepository(
+                            sp.GetRequiredService<IInventoryRepository>(),
+                            sp.GetRequiredService<IEquipmentRepository>(),
+                            sp.GetRequiredService<IGroundItemRepository>(),
+                            sp.GetRequiredService<IPublishedItemCatalog>()));
 
                     services.AddSingleton<Phase7PublishedContent>();
                     services.AddSingleton<IPublishedClassCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
@@ -207,6 +236,11 @@ public static class FrogServerHostFactory
                     if (playtest.Enabled && !string.IsNullOrWhiteSpace(playtest.ManifestPath))
                     {
                         return PlaytestMapBlobStore.FromManifest(playtest.ManifestPath);
+                    }
+
+                    if (usePostgreSql)
+                    {
+                        return sp.GetRequiredService<PublishedWorldMapBlobStore>();
                     }
 
                     var db = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;

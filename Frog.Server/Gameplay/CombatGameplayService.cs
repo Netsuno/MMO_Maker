@@ -259,14 +259,19 @@ public sealed class CombatGameplayService(
             return RespawnResult.Fail("Aucun personnage actif.");
         }
 
+        var pose = await _characterService.TryGetRespawnPoseAsync(ct).ConfigureAwait(false);
+        if (pose is null)
+        {
+            return RespawnResult.Fail("Configuration de respawn invalide ou manquante.");
+        }
+
         session.IsDead = false;
         session.Hp = session.MaxHp;
         session.Mp = session.MaxMp;
-        session.CurrentMapId = GameplayLimits.DefaultSpawnMapId;
-        SessionPixelSync.SetTileCenter(
-            session,
-            GameplayLimits.DefaultSpawnTileX,
-            GameplayLimits.DefaultSpawnTileY);
+        session.CurrentMapId = pose.Value.MapId;
+        session.PixelX = pose.Value.PixelX;
+        session.PixelY = pose.Value.PixelY;
+        SessionPixelSync.SyncTileFromPixels(session);
         await PersistCombatStateAsync(session, ct).ConfigureAwait(false);
         return RespawnResult.Ok();
     }

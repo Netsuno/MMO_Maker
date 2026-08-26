@@ -102,6 +102,7 @@ public sealed class PostgresPlaytestPublishedLoadTests
                 WorldMapPath = primaryPath,
                 DatabaseFallbackMapId = 1,
             }),
+            Options.Create(new Frog.Server.Config.Phase7ContentOptions()),
             blobStore,
             NullLogger<MapService>.Instance);
 

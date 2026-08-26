@@ -53,7 +53,10 @@ public sealed class MapNpcSpawnEntity
 {
     public Guid Id { get; set; }
     public Guid MapId { get; set; }
+    /// <summary>Alias entier historique (éditeur). 0 si <see cref="NpcId"/> est renseigné.</summary>
     public int NpcDefinitionId { get; set; }
+    /// <summary>Identifiant catalogue Guid (préféré). Empty = résoudre via alias.</summary>
+    public Guid NpcId { get; set; }
     public int X { get; set; }
     public int Y { get; set; }
     public byte Direction { get; set; }
@@ -438,6 +441,40 @@ public sealed class MapPublishedSnapshotEntity
     public MapEntity Map { get; set; } = null!;
     public List<MapPublishedCellEntity> Cells { get; set; } = new();
     public List<MapPublishedWarpEntity> Warps { get; set; } = new();
+    public List<MapPublishedNpcSpawnEntity> NpcSpawns { get; set; } = new();
+}
+
+/// <summary>Spawn NPC/monstre immuable d’un snapshot publié (NpcId = Guid catalogue).</summary>
+public sealed class MapPublishedNpcSpawnEntity
+{
+    public Guid Id { get; set; }
+    public Guid SnapshotId { get; set; }
+    public Guid NpcId { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
+    public byte Direction { get; set; }
+    public MapPublishedSnapshotEntity Snapshot { get; set; } = null!;
+}
+
+/// <summary>Liaison durable Guid carte ↔ identifiant runtime int (sessions / protocol).</summary>
+public sealed class RuntimeMapBindingEntity
+{
+    public Guid MapId { get; set; }
+    public int RuntimeMapId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+}
+
+/// <summary>Configuration singleton entrée joueur / respawn (cartes publiées uniquement).</summary>
+public sealed class WorldSpawnSettingsEntity
+{
+    public int Id { get; set; } = 1;
+    public Guid StartMapId { get; set; }
+    public int StartTileX { get; set; }
+    public int StartTileY { get; set; }
+    public Guid RespawnMapId { get; set; }
+    public int RespawnTileX { get; set; }
+    public int RespawnTileY { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 
 public sealed class MapPublishedCellEntity

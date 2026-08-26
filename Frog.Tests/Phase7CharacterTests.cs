@@ -16,7 +16,7 @@ public sealed class Phase7CharacterTests
         var content = new Phase7PublishedContent();
         var chars = new InMemoryCharacterRepository();
         var inv = new InMemoryInventoryRepository();
-        var svc = new CharacterGameplayService(chars, content, inv);
+        var svc = Phase7TestHelpers.CreateCharacterService(chars, content, inv);
 
         var accountId = Guid.NewGuid();
         var result = await svc.CreateAsync(accountId, "Aventurier", Phase7ContentSeed.DefaultClassId);
@@ -30,10 +30,9 @@ public sealed class Phase7CharacterTests
     public async Task CreateAsync_RejectsUnknownClass()
     {
         var content = new Phase7PublishedContent();
-        var svc = new CharacterGameplayService(
+        var svc = Phase7TestHelpers.CreateCharacterService(
             new InMemoryCharacterRepository(),
-            content,
-            new InMemoryInventoryRepository());
+            content);
         var result = await svc.CreateAsync(Guid.NewGuid(), "Test", Guid.NewGuid());
         Assert.Equal(CharacterCreateStatus.InvalidClass, result.Status);
     }

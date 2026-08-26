@@ -8,6 +8,8 @@ namespace Frog.Persistence.PostgreSql.Repositories.Player;
 
 public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRepository
 {
+    private const string MismatchMessage = "RequestId reutilise avec payload different.";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly FrogDbContextGate _gate;
@@ -30,26 +32,38 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
         int unitPrice,
         int maxStack,
         int? publishedStockLimit,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default)
         => _gate.ExecuteAsync<EconomyBuyResult>(async (db, ct) =>
         {
+            if (requestId == Guid.Empty)
+            {
+                return EconomyBuyResult.Fail("RequestId requis.");
+            }
+
             if (quantity <= 0 || unitPrice < 0 || maxStack < 1)
             {
                 return EconomyBuyResult.Fail("Parametres invalides.");
             }
 
+            var fingerprint = EconomyRequestFingerprint.Buy(
+                characterId, shopId, itemId, quantity, unitPrice, maxStack, publishedStockLimit);
+            const string operation = "buy";
+
             await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             try
             {
-                if (requestId is Guid rid)
+                var replay = await TryReplayAsync<EconomyBuyResult>(
+                    db, characterId, operation, requestId, fingerprint, ct).ConfigureAwait(false);
+                if (replay.IsMismatch)
                 {
-                    var replay = await TryReplayAsync<EconomyBuyResult>(db, rid, ct).ConfigureAwait(false);
-                    if (replay is not null)
-                    {
-                        await transaction.CommitAsync(ct).ConfigureAwait(false);
-                        return replay;
-                    }
+                    return EconomyBuyResult.Fail(MismatchMessage);
+                }
+
+                if (replay.Result is EconomyBuyResult cached)
+                {
+                    await transaction.CommitAsync(ct).ConfigureAwait(false);
+                    return cached;
                 }
 
                 if (!await TryLockCharacterAsync(db, characterId, ct).ConfigureAwait(false))
@@ -61,7 +75,7 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .FirstAsync(c => c.Id == characterId, ct)
                     .ConfigureAwait(false);
 
-                var totalCost = unitPrice * quantity;
+                var totalCost = checked(unitPrice * quantity);
                 if (character.Gold < totalCost)
                 {
                     return EconomyBuyResult.Fail("Or insuffisant.");
@@ -87,7 +101,7 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     return EconomyBuyResult.Fail("Inventaire plein.");
                 }
 
-                character.Gold -= totalCost;
+                character.Gold = checked(character.Gold - totalCost);
                 await PersistInventorySlotsAsync(db, characterId, invRows, invSlots, ct).ConfigureAwait(false);
 
                 var bankRows = await db.PlayerBankSlots
@@ -97,10 +111,8 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .ConfigureAwait(false);
                 var state = BuildState(character, invSlots, bankRows);
 
-                if (requestId is Guid request)
-                {
-                    await StoreRequestAsync(db, request, characterId, "buy", state, ct).ConfigureAwait(false);
-                }
+                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
+                    .ConfigureAwait(false);
 
                 if (TestBeforeCommitAsync is not null)
                 {
@@ -126,26 +138,38 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
         int quantity,
         int unitSellPrice,
         int maxStack,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default)
         => _gate.ExecuteAsync<EconomySellResult>(async (db, ct) =>
         {
+            if (requestId == Guid.Empty)
+            {
+                return EconomySellResult.Fail("RequestId requis.");
+            }
+
             if (quantity <= 0 || inventorySlotIndex < 0 || inventorySlotIndex >= GameplayLimits.InventorySlotCount)
             {
                 return EconomySellResult.Fail("Parametres invalides.");
             }
 
+            var fingerprint = EconomyRequestFingerprint.Sell(
+                characterId, inventorySlotIndex, quantity, unitSellPrice, maxStack);
+            const string operation = "sell";
+
             await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             try
             {
-                if (requestId is Guid rid)
+                var replay = await TryReplayAsync<EconomySellResult>(
+                    db, characterId, operation, requestId, fingerprint, ct).ConfigureAwait(false);
+                if (replay.IsMismatch)
                 {
-                    var replay = await TryReplayAsync<EconomySellResult>(db, rid, ct).ConfigureAwait(false);
-                    if (replay is not null)
-                    {
-                        await transaction.CommitAsync(ct).ConfigureAwait(false);
-                        return replay;
-                    }
+                    return EconomySellResult.Fail(MismatchMessage);
+                }
+
+                if (replay.Result is EconomySellResult cached)
+                {
+                    await transaction.CommitAsync(ct).ConfigureAwait(false);
+                    return cached;
                 }
 
                 if (!await TryLockCharacterAsync(db, characterId, ct).ConfigureAwait(false))
@@ -167,7 +191,7 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     return EconomySellResult.Fail("Objet insuffisant.");
                 }
 
-                character.Gold += unitSellPrice * quantity;
+                character.Gold = checked(character.Gold + checked(unitSellPrice * quantity));
                 await PersistInventorySlotsAsync(db, characterId, invRows, invSlots, ct).ConfigureAwait(false);
 
                 var bankRows = await db.PlayerBankSlots
@@ -177,10 +201,8 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .ConfigureAwait(false);
                 var state = BuildState(character, invSlots, bankRows);
 
-                if (requestId is Guid request)
-                {
-                    await StoreRequestAsync(db, request, characterId, "sell", state, ct).ConfigureAwait(false);
-                }
+                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
+                    .ConfigureAwait(false);
 
                 if (TestBeforeCommitAsync is not null)
                 {
@@ -205,26 +227,38 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
         int inventorySlotIndex,
         int quantity,
         int maxStack,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default)
         => _gate.ExecuteAsync<EconomyBankItemResult>(async (db, ct) =>
         {
+            if (requestId == Guid.Empty)
+            {
+                return EconomyBankItemResult.Fail("RequestId requis.");
+            }
+
             if (quantity <= 0 || maxStack < 1)
             {
                 return EconomyBankItemResult.Fail("Parametres invalides.");
             }
 
+            var fingerprint = EconomyRequestFingerprint.BankDepositItem(
+                characterId, inventorySlotIndex, quantity, maxStack);
+            const string operation = "bank_deposit_item";
+
             await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             try
             {
-                if (requestId is Guid rid)
+                var replay = await TryReplayAsync<EconomyBankItemResult>(
+                    db, characterId, operation, requestId, fingerprint, ct).ConfigureAwait(false);
+                if (replay.IsMismatch)
                 {
-                    var replay = await TryReplayAsync<EconomyBankItemResult>(db, rid, ct).ConfigureAwait(false);
-                    if (replay is not null)
-                    {
-                        await transaction.CommitAsync(ct).ConfigureAwait(false);
-                        return replay;
-                    }
+                    return EconomyBankItemResult.Fail(MismatchMessage);
+                }
+
+                if (replay.Result is EconomyBankItemResult cached)
+                {
+                    await transaction.CommitAsync(ct).ConfigureAwait(false);
+                    return cached;
                 }
 
                 if (!await TryLockCharacterAsync(db, characterId, ct).ConfigureAwait(false))
@@ -266,10 +300,8 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                 await PersistBankSlotsAsync(db, characterId, bankRows, bankSlots, ct).ConfigureAwait(false);
                 var state = BuildState(character, invSlots, bankRows, bankSlots);
 
-                if (requestId is Guid request)
-                {
-                    await StoreRequestAsync(db, request, characterId, "bank_deposit_item", state, ct).ConfigureAwait(false);
-                }
+                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
+                    .ConfigureAwait(false);
 
                 if (TestBeforeCommitAsync is not null)
                 {
@@ -294,26 +326,38 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
         int bankSlotIndex,
         int quantity,
         int maxStack,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default)
         => _gate.ExecuteAsync<EconomyBankItemResult>(async (db, ct) =>
         {
+            if (requestId == Guid.Empty)
+            {
+                return EconomyBankItemResult.Fail("RequestId requis.");
+            }
+
             if (quantity <= 0 || bankSlotIndex < 0 || bankSlotIndex >= GameplayLimits.BankSlotCount)
             {
                 return EconomyBankItemResult.Fail("Parametres invalides.");
             }
 
+            var fingerprint = EconomyRequestFingerprint.BankWithdrawItem(
+                characterId, bankSlotIndex, quantity, maxStack);
+            const string operation = "bank_withdraw_item";
+
             await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             try
             {
-                if (requestId is Guid rid)
+                var replay = await TryReplayAsync<EconomyBankItemResult>(
+                    db, characterId, operation, requestId, fingerprint, ct).ConfigureAwait(false);
+                if (replay.IsMismatch)
                 {
-                    var replay = await TryReplayAsync<EconomyBankItemResult>(db, rid, ct).ConfigureAwait(false);
-                    if (replay is not null)
-                    {
-                        await transaction.CommitAsync(ct).ConfigureAwait(false);
-                        return replay;
-                    }
+                    return EconomyBankItemResult.Fail(MismatchMessage);
+                }
+
+                if (replay.Result is EconomyBankItemResult cached)
+                {
+                    await transaction.CommitAsync(ct).ConfigureAwait(false);
+                    return cached;
                 }
 
                 if (!await TryLockCharacterAsync(db, characterId, ct).ConfigureAwait(false))
@@ -355,10 +399,8 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                 await PersistInventorySlotsAsync(db, characterId, invRows, invSlots, ct).ConfigureAwait(false);
                 var state = BuildState(character, invSlots, bankRows, bankSlots);
 
-                if (requestId is Guid request)
-                {
-                    await StoreRequestAsync(db, request, characterId, "bank_withdraw_item", state, ct).ConfigureAwait(false);
-                }
+                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
+                    .ConfigureAwait(false);
 
                 if (TestBeforeCommitAsync is not null)
                 {
@@ -381,26 +423,37 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
     public Task<EconomyBankGoldResult> TryBankDepositGoldAsync(
         Guid characterId,
         int amount,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default)
         => _gate.ExecuteAsync<EconomyBankGoldResult>(async (db, ct) =>
         {
+            if (requestId == Guid.Empty)
+            {
+                return EconomyBankGoldResult.Fail("RequestId requis.");
+            }
+
             if (amount <= 0)
             {
                 return EconomyBankGoldResult.Fail("Montant invalide.");
             }
 
+            var fingerprint = EconomyRequestFingerprint.BankDepositGold(characterId, amount);
+            const string operation = "bank_deposit_gold";
+
             await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             try
             {
-                if (requestId is Guid rid)
+                var replay = await TryReplayAsync<EconomyBankGoldResult>(
+                    db, characterId, operation, requestId, fingerprint, ct).ConfigureAwait(false);
+                if (replay.IsMismatch)
                 {
-                    var replay = await TryReplayAsync<EconomyBankGoldResult>(db, rid, ct).ConfigureAwait(false);
-                    if (replay is not null)
-                    {
-                        await transaction.CommitAsync(ct).ConfigureAwait(false);
-                        return replay;
-                    }
+                    return EconomyBankGoldResult.Fail(MismatchMessage);
+                }
+
+                if (replay.Result is EconomyBankGoldResult cached)
+                {
+                    await transaction.CommitAsync(ct).ConfigureAwait(false);
+                    return cached;
                 }
 
                 if (!await TryLockCharacterAsync(db, characterId, ct).ConfigureAwait(false))
@@ -417,8 +470,8 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     return EconomyBankGoldResult.Fail("Or insuffisant.");
                 }
 
-                character.Gold -= amount;
-                character.BankGold += amount;
+                character.Gold = checked(character.Gold - amount);
+                character.BankGold = checked(character.BankGold + amount);
 
                 var invRows = await db.PlayerInventorySlots
                     .AsNoTracking()
@@ -432,10 +485,8 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .ConfigureAwait(false);
                 var state = BuildState(character, InventorySlotsFromRows(invRows), bankRows);
 
-                if (requestId is Guid request)
-                {
-                    await StoreRequestAsync(db, request, characterId, "bank_deposit_gold", state, ct).ConfigureAwait(false);
-                }
+                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
+                    .ConfigureAwait(false);
 
                 if (TestBeforeCommitAsync is not null)
                 {
@@ -458,26 +509,37 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
     public Task<EconomyBankGoldResult> TryBankWithdrawGoldAsync(
         Guid characterId,
         int amount,
-        Guid? requestId = null,
+        Guid requestId,
         CancellationToken cancellationToken = default)
         => _gate.ExecuteAsync<EconomyBankGoldResult>(async (db, ct) =>
         {
+            if (requestId == Guid.Empty)
+            {
+                return EconomyBankGoldResult.Fail("RequestId requis.");
+            }
+
             if (amount <= 0)
             {
                 return EconomyBankGoldResult.Fail("Montant invalide.");
             }
 
+            var fingerprint = EconomyRequestFingerprint.BankWithdrawGold(characterId, amount);
+            const string operation = "bank_withdraw_gold";
+
             await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             try
             {
-                if (requestId is Guid rid)
+                var replay = await TryReplayAsync<EconomyBankGoldResult>(
+                    db, characterId, operation, requestId, fingerprint, ct).ConfigureAwait(false);
+                if (replay.IsMismatch)
                 {
-                    var replay = await TryReplayAsync<EconomyBankGoldResult>(db, rid, ct).ConfigureAwait(false);
-                    if (replay is not null)
-                    {
-                        await transaction.CommitAsync(ct).ConfigureAwait(false);
-                        return replay;
-                    }
+                    return EconomyBankGoldResult.Fail(MismatchMessage);
+                }
+
+                if (replay.Result is EconomyBankGoldResult cached)
+                {
+                    await transaction.CommitAsync(ct).ConfigureAwait(false);
+                    return cached;
                 }
 
                 if (!await TryLockCharacterAsync(db, characterId, ct).ConfigureAwait(false))
@@ -494,8 +556,8 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     return EconomyBankGoldResult.Fail("Or banque insuffisant.");
                 }
 
-                character.BankGold -= amount;
-                character.Gold += amount;
+                character.BankGold = checked(character.BankGold - amount);
+                character.Gold = checked(character.Gold + amount);
 
                 var invRows = await db.PlayerInventorySlots
                     .AsNoTracking()
@@ -509,10 +571,8 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .ConfigureAwait(false);
                 var state = BuildState(character, InventorySlotsFromRows(invRows), bankRows);
 
-                if (requestId is Guid request)
-                {
-                    await StoreRequestAsync(db, request, characterId, "bank_withdraw_gold", state, ct).ConfigureAwait(false);
-                }
+                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
+                    .ConfigureAwait(false);
 
                 if (TestBeforeCommitAsync is not null)
                 {
@@ -574,25 +634,40 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
         return true;
     }
 
-    private async Task<T?> TryReplayAsync<T>(FrogDbContext db, Guid requestId, CancellationToken ct)
+    private sealed record ReplayCheck<T>(bool IsMismatch, T? Result);
+
+    private async Task<ReplayCheck<T>> TryReplayAsync<T>(
+        FrogDbContext db,
+        Guid characterId,
+        string operation,
+        Guid requestId,
+        byte[] fingerprint,
+        CancellationToken ct)
         where T : class
     {
         var row = await db.PlayerEconomyRequestIds
             .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.RequestId == requestId, ct)
+            .FirstOrDefaultAsync(
+                r => r.CharacterId == characterId && r.Operation == operation && r.RequestId == requestId,
+                ct)
             .ConfigureAwait(false);
         if (row is null)
         {
-            return null;
+            return new ReplayCheck<T>(false, null);
+        }
+
+        if (!EconomyRequestFingerprint.Matches(row.RequestFingerprint, fingerprint))
+        {
+            return new ReplayCheck<T>(true, null);
         }
 
         var state = JsonSerializer.Deserialize<EconomyCommittedState>(row.ResultJson, JsonOptions);
         if (state is null)
         {
-            return null;
+            return new ReplayCheck<T>(false, null);
         }
 
-        return row.Operation switch
+        T? replay = row.Operation switch
         {
             "buy" => EconomyBuyResult.Ok(state, idempotentReplay: true) as T,
             "sell" => EconomySellResult.Ok(state, idempotentReplay: true) as T,
@@ -600,21 +675,25 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
             "bank_deposit_gold" or "bank_withdraw_gold" => EconomyBankGoldResult.Ok(state, idempotentReplay: true) as T,
             _ => null,
         };
+
+        return new ReplayCheck<T>(false, replay);
     }
 
     private async Task StoreRequestAsync(
         FrogDbContext db,
-        Guid requestId,
         Guid characterId,
         string operation,
+        Guid requestId,
+        byte[] fingerprint,
         EconomyCommittedState state,
         CancellationToken ct)
     {
         db.PlayerEconomyRequestIds.Add(new EconomyRequestIdEntity
         {
-            RequestId = requestId,
             CharacterId = characterId,
             Operation = operation,
+            RequestId = requestId,
+            RequestFingerprint = fingerprint,
             ResultJson = JsonSerializer.Serialize(state, JsonOptions),
             CreatedAtUtc = _clock.GetUtcNow(),
         });

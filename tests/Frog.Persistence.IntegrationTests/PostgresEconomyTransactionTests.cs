@@ -31,7 +31,7 @@ public sealed class PostgresEconomyTransactionTests
         await SetGoldAsync(gate, characterId, 0);
         var economy = new PostgresEconomyTransactionRepository(gate);
 
-        var result = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null);
+        var result = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, NewRequestId());
         Assert.False(result.Success);
         Assert.Contains("Or insuffisant", result.Message);
     }
@@ -50,7 +50,7 @@ public sealed class PostgresEconomyTransactionTests
         }
 
         var economy = new PostgresEconomyTransactionRepository(gate);
-        var result = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null);
+        var result = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, NewRequestId());
         Assert.False(result.Success);
         Assert.Contains("Inventaire plein", result.Message);
     }
@@ -70,7 +70,7 @@ public sealed class PostgresEconomyTransactionTests
         }
 
         var economy = new PostgresEconomyTransactionRepository(gate);
-        var result = await economy.TryBankDepositItemAsync(characterId, 0, 1, 20);
+        var result = await economy.TryBankDepositItemAsync(characterId, 0, 1, 20, NewRequestId());
         Assert.False(result.Success);
     }
 
@@ -81,7 +81,7 @@ public sealed class PostgresEconomyTransactionTests
         using var gate = CreateGate();
         var (characterId, _, _) = await SeedEconomyFixtureAsync(gate);
         var economy = new PostgresEconomyTransactionRepository(gate);
-        var result = await economy.TrySellAsync(characterId, 0, 0, 10, 20);
+        var result = await economy.TrySellAsync(characterId, 0, 0, 10, 20, NewRequestId());
         Assert.False(result.Success);
     }
 
@@ -96,9 +96,9 @@ public sealed class PostgresEconomyTransactionTests
         await SetGoldAsync(gate, characterB, 500);
         var economy = new PostgresEconomyTransactionRepository(gate);
 
-        var first = await economy.TryBuyAsync(characterA, shopId, itemId, 1, 25, 20, 1);
+        var first = await economy.TryBuyAsync(characterA, shopId, itemId, 1, 25, 20, 1, NewRequestId());
         Assert.True(first.Success);
-        var second = await economy.TryBuyAsync(characterB, shopId, itemId, 1, 25, 20, 1);
+        var second = await economy.TryBuyAsync(characterB, shopId, itemId, 1, 25, 20, 1, NewRequestId());
         Assert.False(second.Success);
         Assert.Contains("Stock insuffisant", second.Message);
     }
@@ -111,7 +111,7 @@ public sealed class PostgresEconomyTransactionTests
         var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
         await SetGoldAsync(gate, characterId, 500);
         var economy = new PostgresEconomyTransactionRepository(gate);
-        var requestId = Guid.NewGuid();
+        var requestId = NewRequestId();
 
         var first = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
         var second = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
@@ -127,6 +127,129 @@ public sealed class PostgresEconomyTransactionTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
+    public async Task StaleReplay_AfterSecondSuccessfulTx_DoesNotMutateCurrentState()
+    {
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        var economy = new PostgresEconomyTransactionRepository(gate);
+        var firstRequest = NewRequestId();
+        var secondRequest = NewRequestId();
+
+        var first = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, firstRequest);
+        Assert.True(first.Success);
+        Assert.Equal(475, first.State!.Gold);
+
+        var second = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, secondRequest);
+        Assert.True(second.Success);
+        Assert.Equal(450, second.State!.Gold);
+
+        var replay = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, firstRequest);
+        Assert.True(replay.Success);
+        Assert.True(replay.IdempotentReplay);
+        Assert.Equal(475, replay.State!.Gold);
+
+        using var gate2 = CreateGate();
+        var record = await new PostgresCharacterRepository(gate2).FindByIdAsync(characterId);
+        Assert.Equal(450, record!.Gold);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task SameRequestId_DifferentCharacter_DoesNotCollide()
+    {
+        using var gate = CreateGate();
+        var (characterA, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        var characterB = await CreateSecondCharacterAsync(gate);
+        await SetGoldAsync(gate, characterA, 500);
+        await SetGoldAsync(gate, characterB, 500);
+        var economy = new PostgresEconomyTransactionRepository(gate);
+        var requestId = NewRequestId();
+
+        var buyA = await economy.TryBuyAsync(characterA, shopId, itemId, 1, 25, 20, null, requestId);
+        var buyB = await economy.TryBuyAsync(characterB, shopId, itemId, 1, 25, 20, null, requestId);
+        Assert.True(buyA.Success);
+        Assert.True(buyB.Success);
+        Assert.False(buyB.IdempotentReplay);
+
+        using var gate2 = CreateGate();
+        var chars = new PostgresCharacterRepository(gate2);
+        Assert.Equal(475, (await chars.FindByIdAsync(characterA))!.Gold);
+        Assert.Equal(475, (await chars.FindByIdAsync(characterB))!.Gold);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task SameRequestId_DifferentQuantity_RejectsMismatch()
+    {
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        var economy = new PostgresEconomyTransactionRepository(gate);
+        var requestId = NewRequestId();
+
+        var first = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
+        Assert.True(first.Success);
+
+        var replay = await economy.TryBuyAsync(characterId, shopId, itemId, 2, 25, 20, null, requestId);
+        Assert.False(replay.Success);
+        Assert.Contains("payload different", replay.Message);
+
+        using var gate2 = CreateGate();
+        var record = await new PostgresCharacterRepository(gate2).FindByIdAsync(characterId);
+        Assert.Equal(475, record!.Gold);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task AllMutations_SupportIdempotentRetry()
+    {
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        var inventory = new PostgresInventoryRepository(gate);
+        await inventory.TryAddAsync(characterId, itemId, 5, 20);
+        var economy = new PostgresEconomyTransactionRepository(gate);
+
+        var buyId = NewRequestId();
+        var buy = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, buyId);
+        var buyRetry = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, buyId);
+        Assert.True(buy.Success);
+        Assert.True(buyRetry.IdempotentReplay);
+
+        var sellId = NewRequestId();
+        var sell = await economy.TrySellAsync(characterId, 0, 1, 10, 20, sellId);
+        var sellRetry = await economy.TrySellAsync(characterId, 0, 1, 10, 20, sellId);
+        Assert.True(sell.Success);
+        Assert.True(sellRetry.IdempotentReplay);
+
+        var depositItemId = NewRequestId();
+        var depositItem = await economy.TryBankDepositItemAsync(characterId, 0, 1, 20, depositItemId);
+        var depositItemRetry = await economy.TryBankDepositItemAsync(characterId, 0, 1, 20, depositItemId);
+        Assert.True(depositItem.Success);
+        Assert.True(depositItemRetry.IdempotentReplay);
+
+        var withdrawItemId = NewRequestId();
+        var withdrawItem = await economy.TryBankWithdrawItemAsync(characterId, 0, 1, 20, withdrawItemId);
+        var withdrawItemRetry = await economy.TryBankWithdrawItemAsync(characterId, 0, 1, 20, withdrawItemId);
+        Assert.True(withdrawItem.Success);
+        Assert.True(withdrawItemRetry.IdempotentReplay);
+
+        var depositGoldId = NewRequestId();
+        var depositGold = await economy.TryBankDepositGoldAsync(characterId, 50, depositGoldId);
+        var depositGoldRetry = await economy.TryBankDepositGoldAsync(characterId, 50, depositGoldId);
+        Assert.True(depositGold.Success);
+        Assert.True(depositGoldRetry.IdempotentReplay);
+
+        var withdrawGoldId = NewRequestId();
+        var withdrawGold = await economy.TryBankWithdrawGoldAsync(characterId, 25, withdrawGoldId);
+        var withdrawGoldRetry = await economy.TryBankWithdrawGoldAsync(characterId, 25, withdrawGoldId);
+        Assert.True(withdrawGold.Success);
+        Assert.True(withdrawGoldRetry.IdempotentReplay);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
     public async Task InjectedFailure_RollsBackEntireTransaction()
     {
         using var gate = CreateGate();
@@ -138,7 +261,7 @@ public sealed class PostgresEconomyTransactionTests
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null));
+            economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, NewRequestId()));
 
         using var gate2 = CreateGate();
         var chars = new PostgresCharacterRepository(gate2);
@@ -160,8 +283,8 @@ public sealed class PostgresEconomyTransactionTests
         await inventory.TryAddAsync(characterId, itemId, 2, 20);
         var economy = new PostgresEconomyTransactionRepository(gate);
 
-        var depositGold = await economy.TryBankDepositGoldAsync(characterId, 100);
-        var depositItem = await economy.TryBankDepositItemAsync(characterId, 0, 1, 20);
+        var depositGold = await economy.TryBankDepositGoldAsync(characterId, 100, NewRequestId());
+        var depositItem = await economy.TryBankDepositItemAsync(characterId, 0, 1, 20, NewRequestId());
         Assert.True(depositGold.Success);
         Assert.True(depositItem.Success);
 
@@ -185,7 +308,7 @@ public sealed class PostgresEconomyTransactionTests
         var economy = new PostgresEconomyTransactionRepository(gate);
 
         var tasks = Enumerable.Range(0, 8)
-            .Select(_ => economy.TryBankDepositGoldAsync(characterId, 30))
+            .Select(_ => economy.TryBankDepositGoldAsync(characterId, 30, NewRequestId()))
             .ToArray();
         var results = await Task.WhenAll(tasks);
         var successes = results.Count(r => r.Success);
@@ -197,6 +320,8 @@ public sealed class PostgresEconomyTransactionTests
         Assert.True(record.BankGold >= 0);
         Assert.Equal(100, record.Gold + record.BankGold);
     }
+
+    private static Guid NewRequestId() => Guid.NewGuid();
 
     private FrogDbContextGate CreateGate()
         => new(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));

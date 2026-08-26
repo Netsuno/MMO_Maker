@@ -56,6 +56,8 @@ public sealed class PostgresPhase7HostCompositionTests
             Assert.IsType<PostgresInventoryRepository>(services.GetRequiredService<IInventoryRepository>());
             Assert.IsType<PostgresEconomyTransactionRepository>(
                 services.GetRequiredService<IEconomyTransactionRepository>());
+            Assert.IsType<PostgresInventoryTransferRepository>(
+                services.GetRequiredService<IInventoryTransferRepository>());
             Assert.IsType<PostgresClassRepository>(services.GetRequiredService<IPublishedClassCatalog>());
             Assert.IsType<PostgresItemRepository>(services.GetRequiredService<IPublishedItemCatalog>());
             Assert.IsType<PostgresSpellRepository>(services.GetRequiredService<IPublishedSpellCatalog>());

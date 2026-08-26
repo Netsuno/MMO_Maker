@@ -103,72 +103,62 @@ internal static class Phase7TcpPacketBuilder
         return plain;
     }
 
-    public static byte[] BuildShopBuy(Guid shopId, Guid itemId, int qty, Guid? requestId = null)
+    public static byte[] BuildShopBuy(Guid shopId, Guid itemId, int qty, Guid requestId)
     {
-        var baseLen = 1 + 16 + 16 + 4;
-        var payload = requestId is Guid rid
-            ? new byte[baseLen + 16]
-            : new byte[baseLen];
+        var payload = new byte[1 + 16 + 16 + 4 + 16];
         payload[0] = (byte)PacketId.ShopBuyRequest;
         shopId.TryWriteBytes(payload.AsSpan(1));
         itemId.TryWriteBytes(payload.AsSpan(17));
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(33), qty);
-        if (requestId is Guid request)
-        {
-            request.TryWriteBytes(payload.AsSpan(37));
-        }
-
+        requestId.TryWriteBytes(payload.AsSpan(37));
         return payload;
     }
 
-    public static byte[] BuildShopSell(byte slot, int qty, Guid? requestId = null)
+    public static byte[] BuildShopSell(byte slot, int qty, Guid requestId)
     {
-        var baseLen = 1 + 1 + 4;
-        var payload = requestId is Guid rid
-            ? new byte[baseLen + 16]
-            : new byte[baseLen];
+        var payload = new byte[1 + 1 + 4 + 16];
         payload[0] = (byte)PacketId.ShopSellRequest;
         payload[1] = slot;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), qty);
-        if (requestId is Guid request)
-        {
-            request.TryWriteBytes(payload.AsSpan(6));
-        }
-
+        requestId.TryWriteBytes(payload.AsSpan(6));
         return payload;
     }
 
-    public static byte[] BuildBankDepositItem(byte slot, int qty)
+    public static byte[] BuildBankDepositItem(byte slot, int qty, Guid requestId)
     {
-        var payload = new byte[1 + 1 + 4];
+        var payload = new byte[1 + 1 + 4 + 16];
         payload[0] = (byte)PacketId.BankDepositRequest;
         payload[1] = slot;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), qty);
+        requestId.TryWriteBytes(payload.AsSpan(6));
         return payload;
     }
 
-    public static byte[] BuildBankWithdrawItem(byte slot, int qty)
+    public static byte[] BuildBankWithdrawItem(byte slot, int qty, Guid requestId)
     {
-        var payload = new byte[1 + 1 + 4];
+        var payload = new byte[1 + 1 + 4 + 16];
         payload[0] = (byte)PacketId.BankWithdrawRequest;
         payload[1] = slot;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), qty);
+        requestId.TryWriteBytes(payload.AsSpan(6));
         return payload;
     }
 
-    public static byte[] BuildBankDepositGold(int gold)
+    public static byte[] BuildBankDepositGold(int gold, Guid requestId)
     {
-        var payload = new byte[1 + 4];
+        var payload = new byte[1 + 4 + 16];
         payload[0] = (byte)PacketId.BankDepositRequest;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), gold);
+        requestId.TryWriteBytes(payload.AsSpan(5));
         return payload;
     }
 
-    public static byte[] BuildBankWithdrawGold(int gold)
+    public static byte[] BuildBankWithdrawGold(int gold, Guid requestId)
     {
-        var payload = new byte[1 + 4];
+        var payload = new byte[1 + 4 + 16];
         payload[0] = (byte)PacketId.BankWithdrawRequest;
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), gold);
+        requestId.TryWriteBytes(payload.AsSpan(5));
         return payload;
     }
 

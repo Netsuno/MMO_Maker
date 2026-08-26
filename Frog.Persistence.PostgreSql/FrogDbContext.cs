@@ -20,7 +20,10 @@ public sealed class FrogDbContext : DbContext
     public DbSet<MapPublishedSnapshotEntity> MapPublishedSnapshots => Set<MapPublishedSnapshotEntity>();
     public DbSet<MapPublishedCellEntity> MapPublishedCells => Set<MapPublishedCellEntity>();
     public DbSet<MapPublishedWarpEntity> MapPublishedWarps => Set<MapPublishedWarpEntity>();
+    public DbSet<MapPublishedNpcSpawnEntity> MapPublishedNpcSpawns => Set<MapPublishedNpcSpawnEntity>();
     public DbSet<MapPublicationHistoryEntity> MapPublicationHistory => Set<MapPublicationHistoryEntity>();
+    public DbSet<RuntimeMapBindingEntity> RuntimeMapBindings => Set<RuntimeMapBindingEntity>();
+    public DbSet<WorldSpawnSettingsEntity> WorldSpawnSettings => Set<WorldSpawnSettingsEntity>();
     public DbSet<TilesetEntity> Tilesets => Set<TilesetEntity>();
     public DbSet<TilesetPublishedSnapshotEntity> TilesetPublishedSnapshots => Set<TilesetPublishedSnapshotEntity>();
     public DbSet<TilesetPublicationHistoryEntity> TilesetPublicationHistory => Set<TilesetPublicationHistoryEntity>();
@@ -116,6 +119,7 @@ public sealed class FrogDbContext : DbContext
         {
             e.ToTable("map_npc_spawns");
             e.HasKey(x => x.Id);
+            e.Property(x => x.NpcId).IsRequired();
         });
 
         modelBuilder.Entity<MapPublishedSnapshotEntity>(e =>
@@ -127,6 +131,34 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.LayersCatalogJson).HasColumnType("jsonb").IsRequired();
             e.HasMany(x => x.Cells).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Warps).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.NpcSpawns).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MapPublishedNpcSpawnEntity>(e =>
+        {
+            e.ToTable("map_published_npc_spawns");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SnapshotId, x.X, x.Y, x.NpcId });
+            e.ToTable(t => t.HasCheckConstraint("ck_map_published_npc_spawns_tiles", "x >= 0 AND y >= 0"));
+        });
+
+        modelBuilder.Entity<RuntimeMapBindingEntity>(e =>
+        {
+            e.ToTable("runtime_map_bindings");
+            e.HasKey(x => x.MapId);
+            e.HasIndex(x => x.RuntimeMapId).IsUnique();
+            e.ToTable(t => t.HasCheckConstraint("ck_runtime_map_bindings_positive", "runtime_map_id > 0"));
+        });
+
+        modelBuilder.Entity<WorldSpawnSettingsEntity>(e =>
+        {
+            e.ToTable("world_spawn_settings");
+            e.HasKey(x => x.Id);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_world_spawn_settings_singleton", "id = 1");
+                t.HasCheckConstraint("ck_world_spawn_settings_tiles", "start_tile_x >= 0 AND start_tile_y >= 0 AND respawn_tile_x >= 0 AND respawn_tile_y >= 0");
+            });
         });
 
         modelBuilder.Entity<MapPublishedCellEntity>(e =>
@@ -691,9 +723,9 @@ public sealed class FrogDbContext : DbContext
         modelBuilder.Entity<EconomyRequestIdEntity>(e =>
         {
             e.ToTable("economy_request_ids", "player");
-            e.HasKey(x => x.RequestId);
-            e.HasIndex(x => x.CharacterId);
+            e.HasKey(x => new { x.CharacterId, x.Operation, x.RequestId });
             e.Property(x => x.Operation).HasMaxLength(64).IsRequired();
+            e.Property(x => x.RequestFingerprint).HasColumnType("bytea").IsRequired();
             e.Property(x => x.ResultJson).HasColumnType("jsonb").IsRequired();
         });
     }
