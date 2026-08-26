@@ -11,20 +11,11 @@
   - Evidence : `docs/progress/phase-06-essential-content-editors/`
   - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
   - CI (final tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32798293788
-- **Phase 7 : GATE REACHED — WAITING FOR REVIEW**
-  - Final tip SHA : `33ec0dce22c2b54ce325541bba1a9b68fad1b768`
-  - Final CI : https://github.com/Netsuno/MMO_Maker/actions/runs/32921656173
-  - Evidence : `docs/progress/phase-07-essential-gameplay/`
-  - Review request : `docs/progress/phase-07-essential-gameplay/REVIEW_REQUEST.md`
-  - Starting from Phase 6 accepted SHA `99b782f`
-
-## CI counts (Phase 7 tip)
-
-| Suite | Count |
-| --- | ---: |
-| Frog.Tests | 270+ |
-| PostgreSQL integration | 39 |
-| Windows smoke | 35 × 3 |
+- **Phase 7 : CHANGES REQUESTED** (remediation in progress — P7-FIX-1…5)
+  - Rejected tip under review : `67281e3c62eb1943341b162fe1213abb5fc7011a`
+  - Starting remediation from tip `67281e3`
+  - Evidence dossier : `docs/progress/phase-07-essential-gameplay/`
+  - Do not treat prior “DONE/GATE REACHED” claims as verified until remediations land
 
 ## Known issues
 
