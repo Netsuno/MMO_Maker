@@ -5,6 +5,7 @@ using System.Text;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.IO;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -60,22 +61,22 @@ public sealed class FrogGameClient : IDisposable
     /// <summary>Réponse <see cref="PacketId.WorldFlagsPatchRequest"/> (même forme que stats).</summary>
     public event Action<bool, string>? WorldFlagsPatchResultReceived;
     public event Action<bool, string>? ReconnectResultReceived;
-    public event Action<string>? InventorySnapshotReceived;
+    public event Action<InventorySnapshotWire>? InventorySnapshotReceived;
     public event Action<bool, string>? EquipResultReceived;
     public event Action<bool, string>? UnequipResultReceived;
     public event Action<bool, string>? DropItemResultReceived;
     public event Action<bool, string>? PickupItemResultReceived;
-    public event Action<string>? GroundItemsSnapshotReceived;
+    public event Action<GroundItemsSnapshotWire>? GroundItemsSnapshotReceived;
     public event Action<bool, string>? SpellCastResultReceived;
-    public event Action<string>? CombatStateReceived;
+    public event Action<CombatStateWire>? CombatStateReceived;
     public event Action<bool, string>? ShopBuyResultReceived;
     public event Action<bool, string>? ShopSellResultReceived;
     public event Action<bool, string>? BankDepositResultReceived;
     public event Action<bool, string>? BankWithdrawResultReceived;
-    public event Action<string>? BankSnapshotReceived;
+    public event Action<BankSnapshotWire>? BankSnapshotReceived;
     public event Action<bool, string>? RespawnResultReceived;
-    public event Action<string>? ExperienceGainReceived;
-    public event Action<string>? DeathNotifyReceived;
+    public event Action<ExperienceGainWire>? ExperienceGainReceived;
+    public event Action? DeathNotifyReceived;
     public event Action? ConnectionClosed;
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -424,7 +425,15 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.InventorySnapshot:
-                Post(() => InventorySnapshotReceived?.Invoke($"slots={body.Length}"));
+                if (Phase7PacketCodec.TryParseInventorySnapshot(body.Span, out var invSnap))
+                {
+                    Post(() => InventorySnapshotReceived?.Invoke(invSnap));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("InventorySnapshot: format invalide."));
+                }
+
                 break;
 
             case PacketId.EquipResult:
@@ -460,7 +469,15 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.GroundItemsSnapshot:
-                Post(() => GroundItemsSnapshotReceived?.Invoke($"bytes={body.Length}"));
+                if (Phase7PacketCodec.TryParseGroundItemsSnapshot(body.Span, out var groundSnap))
+                {
+                    Post(() => GroundItemsSnapshotReceived?.Invoke(groundSnap));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("GroundItemsSnapshot: format invalide."));
+                }
+
                 break;
 
             case PacketId.SpellCastResult:
@@ -472,7 +489,15 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.CombatState:
-                Post(() => CombatStateReceived?.Invoke($"bytes={body.Length}"));
+                if (Phase7PacketCodec.TryParseCombatState(body.Span, out var combat))
+                {
+                    Post(() => CombatStateReceived?.Invoke(combat));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("CombatState: format invalide."));
+                }
+
                 break;
 
             case PacketId.ShopBuyResult:
@@ -508,7 +533,15 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.BankSnapshot:
-                Post(() => BankSnapshotReceived?.Invoke($"bytes={body.Length}"));
+                if (Phase7PacketCodec.TryParseBankSnapshot(body.Span, out var bankSnap))
+                {
+                    Post(() => BankSnapshotReceived?.Invoke(bankSnap));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("BankSnapshot: format invalide."));
+                }
+
                 break;
 
             case PacketId.RespawnResult:
@@ -520,11 +553,19 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.ExperienceGain:
-                Post(() => ExperienceGainReceived?.Invoke($"bytes={body.Length}"));
+                if (Phase7PacketCodec.TryParseExperienceGain(body.Span, out var xpGain))
+                {
+                    Post(() => ExperienceGainReceived?.Invoke(xpGain));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("ExperienceGain: format invalide."));
+                }
+
                 break;
 
             case PacketId.DeathNotify:
-                Post(() => DeathNotifyReceived?.Invoke("dead"));
+                Post(() => DeathNotifyReceived?.Invoke());
                 break;
 
             default:
@@ -673,6 +714,10 @@ public sealed class FrogGameClient : IDisposable
 
     /// <summary>Nom affichage : max 32 caractères Unicode, UTF‑8 max 128 octets (aligné serveur).</summary>
     public Task SendCharacterCreateAsync(string displayName, CancellationToken cancellationToken = default)
+        => SendCharacterCreateAsync(displayName, null, cancellationToken);
+
+    /// <summary>Création avec classe publiée (Guid 16 octets optionnel après le nom).</summary>
+    public Task SendCharacterCreateAsync(string displayName, Guid? classId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         var trimmed = displayName.Trim();
@@ -687,10 +732,17 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentException("Nom UTF-8 trop long.");
         }
 
-        var payload = new byte[1 + 1 + nameBytes.Length];
+        var payload = classId is Guid cid
+            ? new byte[1 + 1 + nameBytes.Length + 16]
+            : new byte[1 + 1 + nameBytes.Length];
         payload[0] = (byte)PacketId.CharacterCreateRequest;
         payload[1] = (byte)nameBytes.Length;
         nameBytes.CopyTo(payload.AsSpan(2));
+        if (classId is Guid classGuid)
+        {
+            classGuid.TryWriteBytes(payload.AsSpan(2 + nameBytes.Length));
+        }
+
         return SendRawAsync(payload, cancellationToken);
     }
 
@@ -792,6 +844,170 @@ public sealed class FrogGameClient : IDisposable
         t.CopyTo(payload.AsSpan(2));
         await SendRawAsync(payload, cancellationToken).ConfigureAwait(false);
     }
+
+    public Task SendReconnectAsync(string token, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        var t = Encoding.UTF8.GetBytes(token);
+        if (t.Length is 0 or > ushort.MaxValue)
+        {
+            throw new ArgumentException("Jeton reconnect invalide.");
+        }
+
+        var payload = new byte[1 + sizeof(ushort) + t.Length];
+        payload[0] = (byte)PacketId.ReconnectRequest;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1), (ushort)t.Length);
+        t.CopyTo(payload.AsSpan(1 + sizeof(ushort)));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendEquipAsync(byte slotIndex, CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.EquipRequest, slotIndex], cancellationToken);
+
+    public Task SendUnequipAsync(EquipmentSlotKind slot, CancellationToken cancellationToken = default)
+    {
+        if (slot is not (EquipmentSlotKind.Weapon or EquipmentSlotKind.Armor))
+        {
+            throw new ArgumentException("Slot d'équipement invalide.", nameof(slot));
+        }
+
+        return SendRawAsync([(byte)PacketId.UnequipRequest, (byte)slot], cancellationToken);
+    }
+
+    public Task SendDropItemAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        var payload = new byte[1 + 1 + sizeof(int)];
+        payload[0] = (byte)PacketId.DropItemRequest;
+        payload[1] = slotIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendPickupItemAsync(Guid groundItemId, CancellationToken cancellationToken = default)
+    {
+        if (groundItemId == Guid.Empty)
+        {
+            throw new ArgumentException("Ground item id invalide.", nameof(groundItemId));
+        }
+
+        var payload = new byte[1 + 16];
+        payload[0] = (byte)PacketId.PickupItemRequest;
+        groundItemId.TryWriteBytes(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendSpellCastAsync(Guid spellId, string targetName, CancellationToken cancellationToken = default)
+    {
+        if (spellId == Guid.Empty)
+        {
+            throw new ArgumentException("Spell id invalide.", nameof(spellId));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetName);
+        var t = Encoding.UTF8.GetBytes(targetName.Trim());
+        if (t.Length is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes)
+        {
+            throw new ArgumentException("Cible sort invalide.");
+        }
+
+        var payload = new byte[1 + 16 + 1 + t.Length];
+        payload[0] = (byte)PacketId.SpellCastRequest;
+        spellId.TryWriteBytes(payload.AsSpan(1));
+        payload[17] = (byte)t.Length;
+        t.CopyTo(payload.AsSpan(18));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendShopBuyAsync(Guid shopId, Guid itemId, int quantity, CancellationToken cancellationToken = default)
+    {
+        if (shopId == Guid.Empty || itemId == Guid.Empty || quantity <= 0)
+        {
+            throw new ArgumentException("Paramètres achat invalides.");
+        }
+
+        var payload = new byte[1 + 16 + 16 + 4];
+        payload[0] = (byte)PacketId.ShopBuyRequest;
+        shopId.TryWriteBytes(payload.AsSpan(1));
+        itemId.TryWriteBytes(payload.AsSpan(17));
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(33), quantity);
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendShopSellAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        var payload = new byte[1 + 1 + sizeof(int)];
+        payload[0] = (byte)PacketId.ShopSellRequest;
+        payload[1] = slotIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankDepositItemAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        var payload = new byte[1 + 1 + sizeof(int)];
+        payload[0] = (byte)PacketId.BankDepositRequest;
+        payload[1] = slotIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankWithdrawItemAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        var payload = new byte[1 + 1 + sizeof(int)];
+        payload[0] = (byte)PacketId.BankWithdrawRequest;
+        payload[1] = slotIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankDepositGoldAsync(int amount, CancellationToken cancellationToken = default)
+    {
+        if (amount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        }
+
+        var payload = new byte[1 + sizeof(int)];
+        payload[0] = (byte)PacketId.BankDepositRequest;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), amount);
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankWithdrawGoldAsync(int amount, CancellationToken cancellationToken = default)
+    {
+        if (amount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        }
+
+        var payload = new byte[1 + sizeof(int)];
+        payload[0] = (byte)PacketId.BankWithdrawRequest;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), amount);
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendRespawnAsync(CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.RespawnRequest], cancellationToken);
 
     private async Task SendRawAsync(byte[] payload, CancellationToken cancellationToken)
     {

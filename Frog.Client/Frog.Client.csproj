@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Frog.Editor.WindowsSmokeTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Assets\" />
     <Folder Include="Config\" />
     <Folder Include="Controls\" />

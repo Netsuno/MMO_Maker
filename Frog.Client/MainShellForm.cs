@@ -6,12 +6,14 @@ using System.Reflection;
 using System.Text.Json;
 using System.Windows.Forms;
 using Frog.Client.Assets;
+using Frog.Client.Controls;
 using Frog.Client.Network;
 using Frog.Client.UI;
 using Frog.Application.Playtest;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -100,6 +102,9 @@ public sealed class MainShellForm : Form
     private readonly Button _btnDisconnect = new() { Text = "Déconnecter", Enabled = false };
     private readonly Button _btnLogin = new() { Text = "Login", Enabled = false };
     private readonly Button _btnRegister = new() { Text = "Inscription", Enabled = false };
+    private readonly Button _btnReconnect = new() { Text = "Reconnecter (jeton)", Enabled = false };
+    private readonly Label _lblAuthStatus = new() { AutoSize = true, Text = "Jeton: aucun", Margin = new Padding(4, 12, 4, 4) };
+    private string? _storedAuthToken;
     private readonly Button _btnMap = new() { Text = "Demander map", Enabled = false };
     private readonly Button _btnLogout = new() { Text = "Logout", Enabled = false };
     private readonly ComboBox _cmbCharacters = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Enabled = false };
@@ -107,6 +112,7 @@ public sealed class MainShellForm : Form
     private readonly Button _btnEnterGame = new() { Text = "Entrer dans le jeu", Width = 220, Enabled = false };
     private readonly TextBox _txtNewCharName = new() { Width = 100, PlaceholderText = "Nouveau perso" };
     private readonly Button _btnCharCreate = new() { Text = "Créer perso", Width = 95, Enabled = false };
+    private readonly ComboBox _cmbClass = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Enabled = false };
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
     private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = MapSurfaceBackColor };
     private readonly PictureBox _picMap = new()
@@ -121,6 +127,24 @@ public sealed class MainShellForm : Form
     private readonly TextBox _txtWhisperTo = new() { PlaceholderText = "Cible whisper", Width = 120 };
     private readonly TextBox _txtMeleeTarget = new() { PlaceholderText = "Cible mêlée", Width = 100 };
     private readonly Button _btnMelee = new() { Text = "Mêlée", Enabled = false };
+    private readonly Button _btnSpell = new() { Text = "Sort", Enabled = false };
+    private readonly Button _btnRespawn = new() { Text = "Respawn", Enabled = false, Visible = false };
+    private readonly Label _lblCombat = new() { AutoSize = true, Text = "Combat: —", Margin = new Padding(4, 8, 4, 4) };
+    private readonly InventoryPanel _inventoryPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
+    private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
+    private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid" };
+    private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid" };
+    private readonly NumericUpDown _numShopQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
+    private readonly Button _btnShopBuy = new() { Text = "Acheter", AutoSize = true, Enabled = false };
+    private readonly Button _btnShopSell = new() { Text = "Vendre slot", AutoSize = true, Enabled = false };
+    private readonly NumericUpDown _numBankSlot = new() { Minimum = 0, Maximum = 39, Width = 48 };
+    private readonly NumericUpDown _numBankQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
+    private readonly Button _btnBankDepositItem = new() { Text = "Banque dépôt", AutoSize = true, Enabled = false };
+    private readonly Button _btnBankWithdrawItem = new() { Text = "Banque retrait", AutoSize = true, Enabled = false };
+    private readonly NumericUpDown _numBankGold = new() { Minimum = 1, Maximum = 999999, Value = 10, Width = 64 };
+    private readonly Button _btnBankDepositGold = new() { Text = "Dépôt or", AutoSize = true, Enabled = false };
+    private readonly Button _btnBankWithdrawGold = new() { Text = "Retrait or", AutoSize = true, Enabled = false };
+    private readonly Label _lblBank = new() { AutoSize = true, Text = "Banque: —", Margin = new Padding(4, 4, 4, 4) };
     private readonly Button _btnWorldFlagsDemo = new() { Text = "Drapeau démo (worldFlags)", Enabled = false };
     private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
@@ -164,6 +188,10 @@ public sealed class MainShellForm : Form
         _smoothTimer.Start();
         _cmbChannel.Items.AddRange(new object[] { "Global", "Map", "Whisper" });
         _cmbChannel.SelectedIndex = 1;
+        _cmbClass.Items.Add(new ClassPickRow(Phase7ClientContentSeed.DefaultClassId, Phase7ClientContentSeed.DefaultClassLabel));
+        _cmbClass.SelectedIndex = 0;
+        _txtShopId.Text = Phase7ClientContentSeed.DefaultShopId.ToString();
+        _txtShopItemId.Text = Phase7ClientContentSeed.DefaultItemId.ToString();
         _heartbeatTimer.Tick += async (_, _) => await SendHeartbeatSafeAsync();
         Load += MainShell_Load;
         FormClosing += async (_, _) => await MainShell_FormClosingAsync();
@@ -229,6 +257,7 @@ public sealed class MainShellForm : Form
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = false;
         _btnWorldFlagsDemo.Enabled = false;
+        SetGameplayControlsEnabled(false);
         SetPhase(ClientUiPhase.CharacterSelect);
         _ = RefreshCharacterListAsync();
     }
@@ -243,6 +272,7 @@ public sealed class MainShellForm : Form
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = true;
         _btnWorldFlagsDemo.Enabled = true;
+        SetGameplayControlsEnabled(true);
         SetPhase(ClientUiPhase.Playing);
     }
 
@@ -722,12 +752,21 @@ public sealed class MainShellForm : Form
         StyleToolbarButton(_btnDisconnect);
         StyleToolbarButton(_btnLogin);
         StyleToolbarButton(_btnRegister);
+        StyleToolbarButton(_btnReconnect);
         StyleToolbarButton(_btnMap);
         StyleToolbarButton(_btnLogout);
         StyleToolbarButton(_btnCharRefresh);
         StyleToolbarButton(_btnEnterGame);
         StyleToolbarButton(_btnCharCreate);
         StyleToolbarButton(_btnMelee);
+        StyleToolbarButton(_btnSpell);
+        StyleToolbarButton(_btnRespawn);
+        StyleToolbarButton(_btnShopBuy);
+        StyleToolbarButton(_btnShopSell);
+        StyleToolbarButton(_btnBankDepositItem);
+        StyleToolbarButton(_btnBankWithdrawItem);
+        StyleToolbarButton(_btnBankDepositGold);
+        StyleToolbarButton(_btnBankWithdrawGold);
         StyleToolbarButton(_btnWorldFlagsDemo);
         StyleToolbarButton(_btnStatsApply);
         StyleToolbarButton(_btnBackDisconnect);
@@ -772,8 +811,9 @@ public sealed class MainShellForm : Form
         loginBtns.Controls.Add(_btnDisconnect);
         loginBtns.Controls.Add(_btnLogin);
         loginBtns.Controls.Add(_btnRegister);
+        loginBtns.Controls.Add(_btnReconnect);
 
-        AddStackToPanel(_panelLogin, TitleLbl("Connexion"), loginFields, loginBtns);
+        AddStackToPanel(_panelLogin, TitleLbl("Connexion"), loginFields, loginBtns, _lblAuthStatus);
 
         var rowCharPick = CreateToolbarRow();
         rowCharPick.WrapContents = true;
@@ -786,6 +826,8 @@ public sealed class MainShellForm : Form
         rowCreate.WrapContents = true;
         rowCreate.Controls.Add(Lbl("Nouveau personnage", topPad: 16));
         rowCreate.Controls.Add(_txtNewCharName);
+        rowCreate.Controls.Add(Lbl("Classe", topPad: 16));
+        rowCreate.Controls.Add(_cmbClass);
         rowCreate.Controls.Add(_btnCharCreate);
 
         var rowStats = CreateToolbarRow();
@@ -816,6 +858,49 @@ public sealed class MainShellForm : Form
         AddStackToPanel(_panelCharacter, TitleLbl("Choisir votre personnage"), rowCharPick, rowCreate, rowStats, rowCharNav);
 
         _mapScroll.Controls.Add(_picMap);
+
+        var gameplayTab = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 6,
+            Padding = new Padding(4),
+        };
+        gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gameplayTab.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+        gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gameplayTab.Controls.Add(_lblCombat, 0, 0);
+        gameplayTab.Controls.Add(_equipmentPanel, 0, 1);
+        gameplayTab.Controls.Add(_inventoryPanel, 0, 2);
+        var shopRow = CreateToolbarRow();
+        shopRow.Controls.Add(Lbl("Shop"));
+        shopRow.Controls.Add(_txtShopId);
+        shopRow.Controls.Add(_txtShopItemId);
+        shopRow.Controls.Add(_numShopQty);
+        shopRow.Controls.Add(_btnShopBuy);
+        shopRow.Controls.Add(_btnShopSell);
+        gameplayTab.Controls.Add(shopRow, 0, 3);
+        var bankRow = CreateToolbarRow();
+        bankRow.Controls.Add(Lbl("Slot"));
+        bankRow.Controls.Add(_numBankSlot);
+        bankRow.Controls.Add(_numBankQty);
+        bankRow.Controls.Add(_btnBankDepositItem);
+        bankRow.Controls.Add(_btnBankWithdrawItem);
+        bankRow.Controls.Add(_numBankGold);
+        bankRow.Controls.Add(_btnBankDepositGold);
+        bankRow.Controls.Add(_btnBankWithdrawGold);
+        gameplayTab.Controls.Add(bankRow, 0, 4);
+        gameplayTab.Controls.Add(_lblBank, 0, 5);
+
+        var tabRight = new TabControl { Dock = DockStyle.Fill, MinimumSize = new Size(300, 0) };
+        var tabChat = new TabPage("Chat") { Padding = new Padding(4) };
+        var tabGameplay = new TabPage("Gameplay") { Padding = new Padding(4) };
+        tabRight.TabPages.Add(tabChat);
+        tabRight.TabPages.Add(tabGameplay);
+
         var rightChat = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -847,12 +932,14 @@ public sealed class MainShellForm : Form
         _btnSendChat.Padding = new Padding(12, 6, 12, 6);
         _btnSendChat.Margin = new Padding(0, 4, 0, 0);
         rightChat.Controls.Add(_btnSendChat, 0, 2);
+        tabChat.Controls.Add(rightChat);
+        tabGameplay.Controls.Add(gameplayTab);
 
         var center = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         center.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        center.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340));
+        center.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360));
         center.Controls.Add(_mapScroll, 0, 0);
-        center.Controls.Add(rightChat, 1, 0);
+        center.Controls.Add(tabRight, 1, 0);
 
         var gameTop = CreateToolbarRow();
         gameTop.WrapContents = true;
@@ -862,6 +949,8 @@ public sealed class MainShellForm : Form
         gameTop.Controls.Add(Lbl("Mêlée"));
         gameTop.Controls.Add(_txtMeleeTarget);
         gameTop.Controls.Add(_btnMelee);
+        gameTop.Controls.Add(_btnSpell);
+        gameTop.Controls.Add(_btnRespawn);
         gameTop.Controls.Add(_btnWorldFlagsDemo);
         gameTop.Controls.Add(Lbl("Flèches = déplacement · E = interagir", topPad: 14));
 
@@ -906,10 +995,22 @@ public sealed class MainShellForm : Form
         _btnDisconnect.Click += async (_, _) => await DisconnectAsync();
         _btnLogin.Click += async (_, _) => await LoginAsync();
         _btnRegister.Click += async (_, _) => await RegisterAsync();
+        _btnReconnect.Click += async (_, _) => await ReconnectAsync();
         _btnMap.Click += async (_, _) => await MapRequestAsync();
         _btnLogout.Click += async (_, _) => await LogoutAsync();
         _btnSendChat.Click += async (_, _) => await SendChatAsync();
         _btnMelee.Click += async (_, _) => await MeleeAsync();
+        _btnSpell.Click += async (_, _) => await SpellCastAsync();
+        _btnRespawn.Click += async (_, _) => await RespawnAsync();
+        _btnShopBuy.Click += async (_, _) => await ShopBuyAsync();
+        _btnShopSell.Click += async (_, _) => await ShopSellAsync();
+        _btnBankDepositItem.Click += async (_, _) => await BankDepositItemAsync();
+        _btnBankWithdrawItem.Click += async (_, _) => await BankWithdrawItemAsync();
+        _btnBankDepositGold.Click += async (_, _) => await BankDepositGoldAsync();
+        _btnBankWithdrawGold.Click += async (_, _) => await BankWithdrawGoldAsync();
+        _inventoryPanel.EquipRequested += slot => _ = EquipSlotAsync(slot);
+        _inventoryPanel.DropRequested += (slot, qty) => _ = DropItemAsync(slot, qty);
+        _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
         _btnWorldFlagsDemo.Click += async (_, _) => await SendWorldFlagsDemoPatchAsync();
         _btnSwitchCharacter.Click += (_, _) => GoToCharacterSelectPhase();
         _btnBackDisconnect.Click += async (_, _) => await DisconnectAsync();
@@ -942,11 +1043,336 @@ public sealed class MainShellForm : Form
         _client.MapEventsResultReceived += OnMapEventsResult;
         _client.InteractResultReceived += OnInteractResult;
         _client.WorldFlagsPatchResultReceived += OnWorldFlagsPatchResult;
+        _client.ReconnectResultReceived += OnReconnectResult;
+        _client.InventorySnapshotReceived += OnInventorySnapshot;
+        _client.EquipResultReceived += (ok, msg) => AppendLog(ok ? "Équipement: " + msg : "Équipement refusé: " + msg);
+        _client.UnequipResultReceived += (ok, msg) => AppendLog(ok ? "Déséquipement: " + msg : "Déséquipement refusé: " + msg);
+        _client.DropItemResultReceived += (ok, msg) => AppendLog(ok ? "Drop: " + msg : "Drop refusé: " + msg);
+        _client.PickupItemResultReceived += (ok, msg) => AppendLog(ok ? "Ramassé: " + msg : "Ramassé refusé: " + msg);
+        _client.GroundItemsSnapshotReceived += snap => AppendLog($"Sol map={snap.MapId}: {snap.Items.Count} objet(s)");
+        _client.SpellCastResultReceived += (ok, msg) => AppendLog(ok ? "Sort: " + msg : "Sort refusé: " + msg);
+        _client.CombatStateReceived += OnCombatState;
+        _client.ShopBuyResultReceived += (ok, msg) => AppendLog(ok ? "Achat: " + msg : "Achat refusé: " + msg);
+        _client.ShopSellResultReceived += (ok, msg) => AppendLog(ok ? "Vente: " + msg : "Vente refusée: " + msg);
+        _client.BankDepositResultReceived += (ok, msg) => AppendLog(ok ? "Banque dépôt: " + msg : "Banque dépôt refusé: " + msg);
+        _client.BankWithdrawResultReceived += (ok, msg) => AppendLog(ok ? "Banque retrait: " + msg : "Banque retrait refusé: " + msg);
+        _client.BankSnapshotReceived += OnBankSnapshot;
+        _client.RespawnResultReceived += (ok, msg) => AppendLog(ok ? "Respawn: " + msg : "Respawn refusé: " + msg);
+        _client.ExperienceGainReceived += gain =>
+            AppendLog($"XP +{gain.Amount} (niv {gain.Level}, total {gain.Experience})");
+        _client.DeathNotifyReceived += () => AppendLog("Mort signalée par le serveur.");
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
         _btnEnterGame.Click += async (_, _) => await ApplySelectedCharacterAsync();
         _btnCharCreate.Click += async (_, _) => await CreateCharacterAsync();
         _btnStatsApply.Click += async (_, _) => await ApplyCharacterStatsAsync();
+    }
+
+    private void UpdateAuthTokenUi()
+    {
+        var hasToken = !string.IsNullOrWhiteSpace(_storedAuthToken);
+        _btnReconnect.Enabled = hasToken && _client is { IsConnected: true };
+        _lblAuthStatus.Text = hasToken ? "Jeton: stocké (reconnect possible)" : "Jeton: aucun";
+    }
+
+    private void SetGameplayControlsEnabled(bool enabled)
+    {
+        _btnShopBuy.Enabled = enabled;
+        _btnShopSell.Enabled = enabled;
+        _btnBankDepositItem.Enabled = enabled;
+        _btnBankWithdrawItem.Enabled = enabled;
+        _btnBankDepositGold.Enabled = enabled;
+        _btnBankWithdrawGold.Enabled = enabled;
+        _btnSpell.Enabled = enabled;
+    }
+
+    private void OnCombatState(CombatStateWire state)
+    {
+        _lblCombat.Text =
+            $"Niv {state.Level} · XP {state.Experience} · HP {state.Hp}/{state.MaxHp} · MP {state.Mp}/{state.MaxMp} · Or {state.Gold}";
+        _btnRespawn.Visible = state.IsDead;
+        _btnRespawn.Enabled = state.IsDead;
+    }
+
+    private void OnInventorySnapshot(InventorySnapshotWire snapshot)
+    {
+        _inventoryPanel.ApplySnapshot(snapshot);
+        _equipmentPanel.ApplySnapshot(snapshot);
+        AppendLog($"Inventaire: {snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0)} slot(s) rempli(s).");
+    }
+
+    private void OnBankSnapshot(BankSnapshotWire snapshot)
+    {
+        var filled = snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0);
+        _lblBank.Text = $"Banque: or {snapshot.BankGold} · {filled} slot(s)";
+    }
+
+    private void OnReconnectResult(bool ok, string message)
+    {
+        var safe = SanitizeSecrets(message);
+        AppendLog(ok ? "Reconnect OK: " + safe : "Reconnect refusé: " + safe);
+        if (ok)
+        {
+            _username = _txtUser.Text.Trim();
+            _btnMap.Enabled = true;
+            _btnLogout.Enabled = true;
+            _cmbCharacters.Enabled = true;
+            _btnCharRefresh.Enabled = true;
+            _btnEnterGame.Enabled = true;
+            _txtNewCharName.Enabled = true;
+            _btnCharCreate.Enabled = true;
+            _cmbClass.Enabled = true;
+            SetStatsControlsEnabled(true);
+            _btnBackDisconnect.Enabled = true;
+            _heartbeatTimer.Start();
+            SetGameplayControlsEnabled(true);
+            _ = RefreshCharacterListAsync();
+        }
+    }
+
+    private static string SanitizeSecrets(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        // Masque jetons longs (reconnect) dans les logs UI.
+        if (text.Length >= 24 && Guid.TryParse(text, out _))
+        {
+            return text;
+        }
+
+        if (text.Length > 32)
+        {
+            return text[..8] + "…";
+        }
+
+        return text;
+    }
+
+    private async Task ReconnectAsync()
+    {
+        if (_client is null || !_client.IsConnected || string.IsNullOrWhiteSpace(_storedAuthToken))
+        {
+            AppendLog("Reconnect: connectez d'abord TCP et assurez un jeton stocké.");
+            return;
+        }
+
+        try
+        {
+            await _client.SendReconnectAsync(_storedAuthToken).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Reconnect: " + ex.Message);
+        }
+    }
+
+    private async Task EquipSlotAsync(byte slot)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendEquipAsync(slot).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Équiper: " + ex.Message);
+        }
+    }
+
+    private async Task UnequipSlotAsync(EquipmentSlotKind slot)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendUnequipAsync(slot).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Déséquiper: " + ex.Message);
+        }
+    }
+
+    private async Task DropItemAsync(byte slot, int quantity)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendDropItemAsync(slot, quantity).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Drop: " + ex.Message);
+        }
+    }
+
+    private async Task SpellCastAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        var target = _txtMeleeTarget.Text.Trim();
+        if (string.IsNullOrEmpty(target))
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendSpellCastAsync(Phase7ClientContentSeed.DefaultSpellId, target).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Sort: " + ex.Message);
+        }
+    }
+
+    private async Task RespawnAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendRespawnAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Respawn: " + ex.Message);
+        }
+    }
+
+    private async Task ShopBuyAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        if (!Guid.TryParse(_txtShopId.Text.Trim(), out var shopId)
+            || !Guid.TryParse(_txtShopItemId.Text.Trim(), out var itemId))
+        {
+            AppendLog("Shop: Guids invalides.");
+            return;
+        }
+
+        try
+        {
+            await _client.SendShopBuyAsync(shopId, itemId, (int)_numShopQty.Value).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Achat: " + ex.Message);
+        }
+    }
+
+    private async Task ShopSellAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        if (_inventoryPanel is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var slot = (byte)Math.Clamp(_numBankSlot.Value, 0, 255);
+            await _client.SendShopSellAsync(slot, (int)_numShopQty.Value).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Vente: " + ex.Message);
+        }
+    }
+
+    private async Task BankDepositItemAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendBankDepositItemAsync((byte)_numBankSlot.Value, (int)_numBankQty.Value).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Banque dépôt: " + ex.Message);
+        }
+    }
+
+    private async Task BankWithdrawItemAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendBankWithdrawItemAsync((byte)_numBankSlot.Value, (int)_numBankQty.Value).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Banque retrait: " + ex.Message);
+        }
+    }
+
+    private async Task BankDepositGoldAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendBankDepositGoldAsync((int)_numBankGold.Value).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Dépôt or: " + ex.Message);
+        }
+    }
+
+    private async Task BankWithdrawGoldAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendBankWithdrawGoldAsync((int)_numBankGold.Value).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Retrait or: " + ex.Message);
+        }
     }
 
     private async Task ConnectAsync()
@@ -966,6 +1392,7 @@ public sealed class MainShellForm : Form
             _btnDisconnect.Enabled = true;
             _btnLogin.Enabled = true;
             _btnRegister.Enabled = true;
+            UpdateAuthTokenUi();
         }
         catch (Exception ex)
         {
@@ -996,6 +1423,7 @@ public sealed class MainShellForm : Form
         _btnWorldFlagsDemo.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
+        SetGameplayControlsEnabled(false);
         _map = null;
         _mapBlockedTiles = null;
         _username = null;
@@ -1053,6 +1481,12 @@ public sealed class MainShellForm : Form
         }
 
         _playtestLoginOk = true;
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            _storedAuthToken = message.Trim();
+        }
+
+        UpdateAuthTokenUi();
         _username = _playtestOptions is { IsPlaytest: true }
             ? "__frog_playtest__"
             : _txtUser.Text.Trim();
@@ -1065,6 +1499,7 @@ public sealed class MainShellForm : Form
         _btnEnterGame.Enabled = true;
         _txtNewCharName.Enabled = true;
         _btnCharCreate.Enabled = true;
+        _cmbClass.Enabled = true;
         SetStatsControlsEnabled(true);
         _btnBackDisconnect.Enabled = true;
         _heartbeatTimer.Start();
@@ -1189,6 +1624,7 @@ public sealed class MainShellForm : Form
         _btnEnterGame.Enabled = false;
         _txtNewCharName.Enabled = false;
         _btnCharCreate.Enabled = false;
+        _cmbClass.Enabled = false;
         SetStatsControlsEnabled(false);
     }
 
@@ -1516,7 +1952,8 @@ public sealed class MainShellForm : Form
 
         try
         {
-            await _client.SendCharacterCreateAsync(name).ConfigureAwait(true);
+            var classId = _cmbClass.SelectedItem is ClassPickRow row ? row.Id : Phase7ClientContentSeed.DefaultClassId;
+            await _client.SendCharacterCreateAsync(name, classId).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -1927,6 +2364,11 @@ public sealed class MainShellForm : Form
             line = line.Replace(_playtestOptions.PlaytestToken, "***", StringComparison.Ordinal);
         }
 
+        if (!string.IsNullOrEmpty(_storedAuthToken))
+        {
+            line = line.Replace(_storedAuthToken, "***", StringComparison.Ordinal);
+        }
+
         var t = DateTime.Now.ToString("HH:mm:ss");
         var stamped = $"[{t}] {line}";
         _txtLog.AppendText(stamped + Environment.NewLine);
@@ -1952,4 +2394,48 @@ public sealed class MainShellForm : Form
 
         public override string ToString() => $"{DisplayName} — {Id}";
     }
+
+    private sealed class ClassPickRow(Guid id, string label)
+    {
+        public Guid Id { get; } = id;
+
+        public string Label { get; } = label;
+
+        public override string ToString() => Label;
+    }
+
+    internal TextBox HostTextBoxForTest => _txtHost;
+
+    internal NumericUpDown PortNumericForTest => _numPort;
+
+    internal TextBox UserTextBoxForTest => _txtUser;
+
+    internal TextBox PassTextBoxForTest => _txtPass;
+
+    internal Button ConnectButtonForTest => _btnConnect;
+
+    internal Button DisconnectButtonForTest => _btnDisconnect;
+
+    internal Button LoginButtonForTest => _btnLogin;
+
+    internal Button RegisterButtonForTest => _btnRegister;
+
+    internal Button ReconnectButtonForTest => _btnReconnect;
+
+    internal Button CharCreateButtonForTest => _btnCharCreate;
+
+    internal Button EnterGameButtonForTest => _btnEnterGame;
+
+    internal TextBox NewCharNameTextBoxForTest => _txtNewCharName;
+
+    internal ComboBox CharactersComboForTest => _cmbCharacters;
+
+    internal InventoryPanel InventoryPanelForTest => _inventoryPanel;
+
+    internal bool IsPlayingPhaseForTest => _phase == ClientUiPhase.Playing;
+
+    internal string? SelectedCharacterIdForTest =>
+        _cmbCharacters.SelectedItem is CharacterPickRow row ? row.Id : null;
+
+    internal string? StoredAuthTokenForTest => _storedAuthToken;
 }

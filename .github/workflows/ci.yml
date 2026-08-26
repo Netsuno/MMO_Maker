@@ -42,12 +42,35 @@ jobs:
           }
           Write-Host "=== Windows smoke 3/3 consecutive passes OK ==="
 
+      - name: Gameplay client smoke (in-memory server) ×3
+        shell: pwsh
+        run: |
+          $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
+          for ($i = 1; $i -le 3; $i++) {
+            Write-Host "=== Gameplay client smoke pass $i/3 ==="
+            dotnet test $project -c Release --no-build --filter "FullyQualifiedName~GameplayClientSmoke"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Gameplay client smoke pass $i/3 failed with exit code $LASTEXITCODE"
+              exit $LASTEXITCODE
+            }
+          }
+          Write-Host "=== Gameplay client smoke 3/3 consecutive passes OK ==="
+
       - name: Upload Phase 6 editor UI screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase-06-game-data-screenshots
           path: docs/progress/phase-06-essential-content-editors/screenshots/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload Phase 7 gameplay client screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-07-gameplay-client-screenshots
+          path: artifacts/phase-07-gameplay-client/
           if-no-files-found: warn
           retention-days: 30
 
