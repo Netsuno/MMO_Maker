@@ -1,49 +1,36 @@
-# Phase 7 — Change Summary
+# Phase 7 — CHANGE_SUMMARY (remediation)
 
-## Starting baseline
-- Accepted Phase 6 implementation: `99b782f8f205c0161c0bba8838d041714e39947e`
+## Starting point for remediations
+- Rejected tip: `67281e3c62eb1943341b162fe1213abb5fc7011a`
+- Phase 6 accepted implementation: `99b782f8f205c0161c0bba8838d041714e39947e`
+- Phase 6 accepted evidence tip: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
 
-## Final tip
-- Branch tip: `33ec0dce22c2b54ce325541bba1a9b68fad1b768`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32921656173
+## P7-FIX-1
+- Fail-closed production DI without PostgreSQL (playtest / `AllowInMemoryFallback` only for tests).
+- Backend registers Postgres published catalogs + migrates.
+- Config examples document PostgreSQL as Phase 7 production DB.
+- Host composition test asserts Postgres DI types.
 
-## Delivered by tranche
+## P7-FIX-2
+- `BankGold`, `shop_stock`, `economy_request_ids` migration.
+- Atomic `IEconomyTransactionRepository` for buy/sell/bank.
+- Idempotent `requestId`; session update after commit.
+- Monster XP granted once (`Defeated` / remove-before-grant).
 
-### 7.1 Authentication
-- Identity ports, PBKDF2, sessions, rate limit, reconnect protocol, PG `auth` schema
+## P7-FIX-3
+- PG player/content/economy integration expansion.
+- `Phase7PostgresE2ETests` 17-step headless PG E2E without mid-scenario DI injection.
+- Multi-client: pickup, combat XP, shop idempotency, whisper isolation, reconnect displace.
+- Renamed in-memory smoke E2E.
 
-### 7.2 Characters
-- PG `player.characters`, class-seeded create, list/select/ownership
+## P7-FIX-4
+- Typed codec + client send/receive for Phase 7 packets.
+- Usable MainShellForm gameplay UI (inventory/equip/shop/bank/combat/respawn/reconnect).
+- `GameplayClientSmokeTests` + CI ×3 + screenshot artifact.
 
-### 7.3 Inventory / equipment / ground
-- Inventory/equipment/ground repositories, concurrent pickup, equip validation
-
-### 7.4 Combat / spells
-- Deterministic melee/spell formulas, monster runtime, cooldowns, forged rejection
-
-### 7.5 Chat
-- Map/global (existing) + rate limiting + recipient isolation E2E
-
-### 7.6 Shops / bank
-- Published shop buy/sell, bank deposit/withdraw, gold
-
-### 7.7 Progression / death / respawn
-- XP curve, level-up bonuses, death/respawn, persistence across reconnect
-
-### Protocol
-- Packets 36–37 (reconnect), 38–63 (gameplay)
-
-### E2E
-- `Phase7InMemorySmokeE2ETests` — fast smoke with `AllowInMemoryFallback=true` (DI helpers allowed)
-- `Phase7PostgresE2ETests` — true PostgreSQL headless gate (63 PG integration tests incl. player repos, content seed visibility, 17-step flow)
-
-### P7-FIX-3 remediation
-- `GameplayLimits.StartingGold` (100) on character create (PG + in-memory)
-- `Phase7PostgresContentSeed` helper — publishes Phase7ContentSeed catalog to PG before host start
-- Expanded `PostgresPlayerRepositoryTests` — characters, inventory, equipment, ground race, bank, progression, schemas, gate lifecycle
-- PvP melee applies damage / death (`TryMeleeAttackPlayerAsync`) for death/respawn E2E without mid-scenario DI
-- Optional `requestId` on shop buy/sell wire payloads
-- `Phase7PacketCodec.ReadGuid` fix (exactly 16 bytes)
+## P7-FIX-5
+- STATUS = CHANGES REQUESTED during remediation; matrices updated for re-review.
+- Exact counts (no `270+`); SHA/CI identity separated.
 
 ## Phase 8
 Not started.

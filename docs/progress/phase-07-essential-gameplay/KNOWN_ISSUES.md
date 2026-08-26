@@ -1,23 +1,14 @@
-# Phase 7 — Known Issues (CHANGES REQUESTED)
+# Phase 7 — Known Issues
 
-## Review rejection (active remediation)
+## Remediations landed (P7-FIX-1…5)
 
-1. E2E was not the required 17-step PostgreSQL network gate.
-2. E2E used in-memory repositories and mid-scenario service injection.
-3. Production DI registered hardcoded `Phase7PublishedContent` instead of PG published catalogs.
-4. Shop/bank not fully atomic; bank gold was in-memory.
-5. Incomplete PG integration/concurrency/restart coverage for player repos.
-6. Client lacked typed Phase 7 decoding and usable gameplay UI.
-7. Editor Windows smoke was incorrectly presented as gameplay-client proof.
-8. Docs marked unverified requirements DONE; SHA/CI identity was stale.
-9. Trailing whitespace / CRLF in `Frog.Application.csproj` (fixing).
+Prior rejection items were addressed in code. Remaining limitations:
 
-## Remediation workstreams
+1. Unused legacy stub files under `Frog.Client/Models/*` and some `Frog.Client/Services/*` still contain `// TODO` placeholders; gameplay uses `MainShellForm` + `FrogGameClient` + inventory/equipment panels instead.
+2. Legacy MariaDB adapters remain for older map/player world-state paths; Phase 7 **auth/gameplay production** requires PostgreSQL and does not select MariaDB identity.
+3. Gameplay-client screenshot SHA-256 hashes in `SCREENSHOT_MANIFEST.md` are filled from the CI artifact after Windows smoke ×3 (placeholders until CI uploads).
+4. Linux agents report Windows gameplay/editor smokes as **NOT RUN** (STA WinForms); CI Windows job is authoritative.
 
-- P7-FIX-1 PostgreSQL SoT + published catalogs
-- P7-FIX-2 Atomic economy + bank gold persistence
-- P7-FIX-3 PG integration + true 17-step E2E
-- P7-FIX-4 Functional game client + gameplay smoke ×3
-- P7-FIX-5 Documentation integrity
+## Phase 8
 
-Phase 8 not started.
+Not started.

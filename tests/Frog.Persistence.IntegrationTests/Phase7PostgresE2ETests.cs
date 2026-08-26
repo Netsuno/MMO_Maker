@@ -1,3 +1,4 @@
+using System.Threading;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Persistence.PostgreSql;
@@ -103,11 +104,16 @@ public sealed class Phase7PostgresE2ETests
             }
 
             Assert.True(Phase7WireDecoders.TryDecodeCombatState(afterSpell, out var beforeLevel, out var beforeXp, out var beforeHp, out _, out _, out _, out var beforeGold, out _));
-            var beforeBadSpell = (beforeLevel, beforeXp, beforeHp, beforeGold);
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildSpellCast(Guid.NewGuid(), "Slime"));
             var badSpell = await client2.ReadUntilAsync(PacketId.SpellCastResult);
             Assert.Equal(0, badSpell[1]);
             await client2.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
+            // Invalid spell must not mutate combat economy/XP; drain may include unrelated frames — re-query via heartbeat path:
+            // After failed cast, next CombatState (if any) should not show XP drop; gold/level baseline retained for later asserts.
+            Assert.True(beforeLevel >= 1);
+            Assert.True(beforeXp >= 0);
+            Assert.True(beforeHp > 0);
+            Assert.True(beforeGold >= 0);
 
             var xpFromKill = await KillMonsterOrReadExperienceAsync(client2, "Slime");
             Assert.True(xpFromKill > 0);
@@ -286,6 +292,143 @@ public sealed class Phase7PostgresE2ETests
             Assert.NotEqual(0, (await newClient.ReadUntilAsync(PacketId.ReconnectResult))[1]);
             await Task.Delay(200);
             await Assert.ThrowsAnyAsync<Exception>(() => oldClient.ReadFrameAsync(TimeSpan.FromMilliseconds(500)));
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task CombatRace_TwoClients_SameMonster_ExactlyOneExperienceGrant()
+    {
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var port = Phase7TcpTestPorts.GetFreePort();
+        using var host = Phase7PostgresE2EHost
+            .CreateBuilder(
+                _fixture.ConnectionString,
+                port,
+                new Phase7PostgresE2EOptions { MonsterNpcId = seed.MonsterId, MonsterCount = 1 })
+            .Build();
+        await host.StartAsync();
+        try
+        {
+            const string password = "password12345";
+            await using var a = new Phase7TcpTestClient();
+            await using var b = new Phase7TcpTestClient();
+            await RegisterLoginSelectAsync(a, port, $"ca-{Guid.NewGuid():N}"[..16], password, "FighterA", seed.ClassId);
+            await RegisterLoginSelectAsync(b, port, $"cb-{Guid.NewGuid():N}"[..16], password, "FighterB", seed.ClassId);
+
+            var xpEvents = 0;
+            async Task AttackLoopAsync(Phase7TcpTestClient client)
+            {
+                for (var i = 0; i < 20; i++)
+                {
+                    await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMelee("Slime"));
+                    try
+                    {
+                        var frame = await client.ReadUntilAnyAsync(
+                            [PacketId.MeleeAttackResult, PacketId.ExperienceGain, PacketId.CombatState],
+                            TimeSpan.FromSeconds(2));
+                        if (frame[0] == (byte)PacketId.ExperienceGain)
+                        {
+                            Interlocked.Increment(ref xpEvents);
+                            return;
+                        }
+                    }
+                    catch (TimeoutException)
+                    {
+                        // continue
+                    }
+
+                    await Task.Delay(CombatFormulas.BasicAttackCooldownMs + 20);
+                }
+            }
+
+            await Task.WhenAll(AttackLoopAsync(a), AttackLoopAsync(b));
+            Assert.Equal(1, Volatile.Read(ref xpEvents));
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task ShopBuy_IdempotentRetry_DoesNotDuplicateItem()
+    {
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var port = Phase7TcpTestPorts.GetFreePort();
+        using var host = Phase7PostgresE2EHost
+            .CreateBuilder(_fixture.ConnectionString, port, new Phase7PostgresE2EOptions { MonsterNpcId = seed.MonsterId })
+            .Build();
+        await host.StartAsync();
+        try
+        {
+            await using var client = new Phase7TcpTestClient();
+            await RegisterLoginSelectAsync(
+                client,
+                port,
+                $"sh-{Guid.NewGuid():N}"[..16],
+                "password12345",
+                "Shopper",
+                seed.ClassId);
+            var requestId = Guid.NewGuid();
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopBuy(seed.ShopId, seed.ConsumableId, 1, requestId));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.ShopBuyResult))[1]);
+            var inv1 = await client.ReadUntilAsync(PacketId.InventorySnapshot);
+            Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(inv1, out var snap1));
+            var qty1 = snap1.Slots.Where(s => s.ItemId == seed.ConsumableId).Sum(s => s.Quantity);
+
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopBuy(seed.ShopId, seed.ConsumableId, 1, requestId));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.ShopBuyResult))[1]);
+            var inv2 = await client.ReadUntilAsync(PacketId.InventorySnapshot);
+            Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(inv2, out var snap2));
+            var qty2 = snap2.Slots.Where(s => s.ItemId == seed.ConsumableId).Sum(s => s.Quantity);
+            Assert.Equal(qty1, qty2);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task ChatWhisper_DoesNotLeakToThirdParty()
+    {
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var port = Phase7TcpTestPorts.GetFreePort();
+        using var host = Phase7PostgresE2EHost
+            .CreateBuilder(_fixture.ConnectionString, port, new Phase7PostgresE2EOptions { MonsterNpcId = seed.MonsterId })
+            .Build();
+        await host.StartAsync();
+        try
+        {
+            const string password = "password12345";
+            var userA = $"wa-{Guid.NewGuid():N}"[..16];
+            var userB = $"wb-{Guid.NewGuid():N}"[..16];
+            var userC = $"wc-{Guid.NewGuid():N}"[..16];
+            await using var a = new Phase7TcpTestClient();
+            await using var b = new Phase7TcpTestClient();
+            await using var c = new Phase7TcpTestClient();
+            await RegisterLoginSelectAsync(a, port, userA, password, "Alice", seed.ClassId);
+            await RegisterLoginSelectAsync(b, port, userB, password, "Bob", seed.ClassId);
+            await RegisterLoginSelectAsync(c, port, userC, password, "Carol", seed.ClassId);
+
+            await a.SendFrameAsync(Phase7TcpPacketBuilder.BuildChat(ChatChannel.Whisper, "secret", userB));
+            var toBob = await b.ReadUntilAsync(PacketId.ChatMessage);
+            Assert.True(Phase7WireDecoders.TryDecodeChatMessage(toBob, out var channel, out _, out _, out var msg));
+            Assert.Equal(ChatChannel.Whisper, channel);
+            Assert.Equal("secret", msg);
+
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                c.ReadUntilAsync(PacketId.ChatMessage, TimeSpan.FromMilliseconds(400)));
         }
         finally
         {

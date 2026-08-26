@@ -1,49 +1,47 @@
-# Phase 7 — Review Request
+# Phase 7 — REVIEW_REQUEST (re-review)
 
-## Ready for review
+## Ready for re-review when CI is green on the evidence tip
 
-`PHASE 7 GATE REACHED — WAITING FOR REVIEW`
+`PHASE 7 GATE REACHED — WAITING FOR RE-REVIEW`
 
 ## Identity
 
 | Item | Value |
 | --- | --- |
 | Branch | `cursor/phase0-baseline-audit-02c7` |
-| PR | #2 |
-| Starting baseline (Phase 6 accepted) | `99b782f8f205c0161c0bba8838d041714e39947e` |
-| Final tip SHA | `33ec0dce22c2b54ce325541bba1a9b68fad1b768` |
-| Final CI | https://github.com/Netsuno/MMO_Maker/actions/runs/32921656173 |
+| PR | https://github.com/Netsuno/MMO_Maker/pull/2 |
+| Phase 6 accepted implementation SHA | `99b782f8f205c0161c0bba8838d041714e39947e` |
+| Phase 6 accepted evidence tip | `f4db56592346d9bf0cad9ca153aaeff11ee65de8` |
+| Phase 7 rejected tip | `67281e3c62eb1943341b162fe1213abb5fc7011a` |
+| Phase 7 implementation SHA | (gameplay remediations tip — see PR; typically last non-docs commit before evidence tip) |
+| Phase 7 final evidence tip | (fill after final push / green CI) |
 | Phase 8 | **Not started** |
 
-## Functional matrix
+## Rejection items addressed
 
-| Tranche | Verified |
+| ID | Addressed |
 | --- | --- |
-| 7.1 Auth / sessions / reconnect / rate limit | Yes |
-| 7.2 Characters create/list/select/ownership/class seed | Yes |
-| 7.3 Inventory / equip / ground pickup concurrency | Yes |
-| 7.4 Combat / spells / forged rejection | Yes |
-| 7.5 Chat map+global + rate limit + isolation | Yes |
-| 7.6 Shop buy/sell + bank | Yes |
-| 7.7 XP / level / death / respawn | Yes |
-| E2E 17-step + multi-client pickup | Yes |
+| P7-FIX-1 PG SoT + published catalogs | Yes |
+| P7-FIX-2 Atomic economy + bank gold | Yes |
+| P7-FIX-3 PG integration + 17-step E2E | Yes |
+| P7-FIX-4 Functional client + gameplay smoke | Yes |
+| P7-FIX-5 Docs integrity | Yes |
 
-## Security decisions
+## Local verification (exact)
 
-- PBKDF2-SHA256; opaque session tokens (hash only); generic auth errors
-- Login/chat/reconnect rate limiting; reconnect displaces stale session
-- Server-authoritative combat/shop/bank
+| Suite | Status | Passed | Failed | Skipped | Duration |
+| --- | --- | ---: | ---: | ---: | --- |
+| `dotnet build Frog.Creator.sln -c Release` | PASS | — | 0 | — | ~2 s |
+| Frog.Tests Release | PASS | 270 | 0 | 0 | ~5 s |
+| Frog.Persistence.IntegrationTests Release | PASS | 66 | 0 | 0 | ~25–47 s |
+| Editor Windows smoke ×3 | NOT RUN (Linux) | — | — | — | CI |
+| Gameplay client smoke ×3 | NOT RUN (Linux) | — | — | — | CI |
+| `git diff --check` | PASS | — | — | — | — |
 
-## Three most important remaining risks
+## Remaining known issues
 
-1. Dedicated client UI panels for inventory/combat/shop are receive-events only.
-2. Bank gold wallet path is partially in-memory (`ShopBankGameplayService`).
-3. Windows smoke remains sensitive to STA dispatcher timing under load.
+See `KNOWN_ISSUES.md` (legacy MariaDB map stores; stub unused Client Models/Services folders; screenshot hashes filled from CI artifact).
 
-## Reproduction
+## Phase 8
 
-```bash
-dotnet build -c Release
-dotnet test Frog.Tests/Frog.Tests.csproj -c Release
-dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
-```
+Not started.

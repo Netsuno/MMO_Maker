@@ -1,49 +1,51 @@
-# Phase 7 — Essential Gameplay
+# Phase 7 — PHASE_REPORT (CHANGES REQUESTED → remediations)
 
 ## Status
 
-| Tranche | Status |
+**Phase 7: CHANGES REQUESTED** — remediations P7-FIX-1…5 applied; awaiting re-review after CI green on final tip.
+
+| Workstream | Status |
 | --- | --- |
-| 7.1 Authentication and sessions | DONE |
-| 7.2 Characters | DONE |
-| 7.3 Inventory, equipment, ground items | DONE |
-| 7.4 Combat and essential spells | DONE |
-| 7.5 Chat | DONE |
-| 7.6 Shops and bank | DONE |
-| 7.7 Progression, death and respawn | DONE |
-| Phase 7 E2E gate | DONE |
+| P7-FIX-1 PostgreSQL SoT + published catalogs | DONE |
+| P7-FIX-2 Atomic shop/bank + bank gold | DONE |
+| P7-FIX-3 PG integration + 17-step E2E | DONE |
+| P7-FIX-4 Client protocol/UI + gameplay smoke | DONE |
+| P7-FIX-5 Documentation integrity | IN PROGRESS (this dossier) |
 
-**Gate:** `PHASE 7 GATE REACHED — WAITING FOR REVIEW`
-
-## Baselines
+## Identity
 
 | Item | Value |
 | --- | --- |
-| Starting (Phase 6 accepted) | `99b782f8f205c0161c0bba8838d041714e39947e` |
-| Final branch tip | `33ec0dce22c2b54ce325541bba1a9b68fad1b768` |
 | Branch | `cursor/phase0-baseline-audit-02c7` |
 | PR | #2 |
-| Final CI | https://github.com/Netsuno/MMO_Maker/actions/runs/32921656173 |
+| Phase 6 accepted implementation | `99b782f8f205c0161c0bba8838d041714e39947e` |
+| Phase 6 accepted evidence tip | `f4db56592346d9bf0cad9ca153aaeff11ee65de8` |
+| Phase 7 rejected tip | `67281e3c62eb1943341b162fe1213abb5fc7011a` |
+| Phase 8 | **Not started** |
 
-## Database (PostgreSQL)
+## What changed (remediation)
 
-- `auth.accounts`, `auth.auth_sessions` (7.1)
-- `player.characters`, `player.inventory_slots`, `player.bank_slots`, `player.ground_items` (7.2–7.6)
-- Migrations: `20260825224547_AuthAccountsAndSessions`, `20260826014225_PlayerCharactersInventoryBankGround`
+### P7-FIX-1
+- Production fails closed unless `PostgreSql:Enabled=true` (or playtest / `AllowInMemoryFallback` for tests).
+- `PostgreSqlServerAuthBackend` registers player repos + `IPublished*` Postgres catalogs + migrates DB.
+- `Phase7PublishedContent` limited to playtest/in-memory test composition.
+- MariaDB auth not selected for Phase 7 production.
 
-## Protocol
+### P7-FIX-2
+- `BankGold` on characters; `shop_stock`; `economy_request_ids`.
+- `IEconomyTransactionRepository` / Postgres atomic buy/sell/bank.
+- Session updated only after commit; idempotent `requestId`.
 
-- Reconnect 36–37; gameplay 38–63 (inventory, equip, ground, combat, shop, bank, respawn, XP, death)
+### P7-FIX-3
+- Expanded PG player/economy/content visibility tests.
+- `Phase7PostgresE2ETests` true PG headless gate (no mid-scenario DI mutation).
+- Multi-client: pickup race, combat XP once, shop idempotency, whisper isolation, reconnect displace.
+- In-memory companion renamed `Phase7InMemorySmokeE2ETests`.
 
-## Security
-
-- PBKDF2 passwords; opaque tokens; generic errors; rate limits; server-authoritative combat/economy
-
-## Tests (CI tip)
-
-- Unit/protocol/E2E headless: PASS (270+)
-- PostgreSQL integration: PASS (39)
-- Windows smoke ×3: PASS
+### P7-FIX-4
+- Typed `Phase7PacketCodec` + client send/receive.
+- MainShellForm gameplay tabs; Inventory/Equipment panels.
+- `GameplayClientSmokeTests` + CI ×3 + artifact `phase-07-gameplay-client-screenshots`.
 
 ## Phase 8
 

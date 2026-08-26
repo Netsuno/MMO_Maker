@@ -11,6 +11,7 @@ public sealed class Phase7PostgresE2EOptions
 {
     public Guid MonsterNpcId { get; init; }
     public int MapId { get; init; } = GameplayLimits.DefaultSpawnMapId;
+    public int MonsterCount { get; init; } = 2;
 }
 
 internal sealed class Phase7PostgresE2EMonsterBootstrapService : IHostedService
@@ -31,10 +32,17 @@ internal sealed class Phase7PostgresE2EMonsterBootstrapService : IHostedService
         var (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(
             GameplayLimits.DefaultSpawnTileX,
             GameplayLimits.DefaultSpawnTileY);
-        await _combat.SpawnMonsterAsync(_options.MapId, _options.MonsterNpcId, pixelX, pixelY, cancellationToken)
-            .ConfigureAwait(false);
-        await _combat.SpawnMonsterAsync(_options.MapId, _options.MonsterNpcId, pixelX + 4, pixelY, cancellationToken)
-            .ConfigureAwait(false);
+        var count = Math.Max(1, _options.MonsterCount);
+        for (var i = 0; i < count; i++)
+        {
+            await _combat.SpawnMonsterAsync(
+                    _options.MapId,
+                    _options.MonsterNpcId,
+                    pixelX + (i * 4),
+                    pixelY,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
