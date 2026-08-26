@@ -115,9 +115,25 @@ public static class Phase7PostgresContentSeed
             {
                 var catalog = new PostgresPublishedWorldCatalog(gate);
                 var spawns = await catalog.ListMonsterSpawnsAsync().ConfigureAwait(false);
-                if (spawns.Count(s => s.MapId == existingMapId) >= monsterSpawnCount)
+                var countOnMap = spawns.Count(s => s.MapId == existingMapId);
+                if (countOnMap == monsterSpawnCount)
                 {
                     return (existingMapId, existingRuntimeMapId);
+                }
+
+                if (countOnMap != monsterSpawnCount)
+                {
+                    var stored = await maps.LoadByIdAsync(existingMapId).ConfigureAwait(false);
+                    if (stored is not null)
+                    {
+                        await ReplaceDraftMonsterSpawnsAsync(
+                            gate,
+                            maps,
+                            stored,
+                            monsterId,
+                            monsterSpawnCount).ConfigureAwait(false);
+                        return (existingMapId, existingRuntimeMapId);
+                    }
                 }
             }
         }
@@ -227,6 +243,52 @@ public static class Phase7PostgresContentSeed
 
         map.Layers.Add(ground);
         return map;
+    }
+
+    private static async Task ReplaceDraftMonsterSpawnsAsync(
+        FrogDbContextGate gate,
+        PostgresMapRepository maps,
+        StoredMap stored,
+        Guid monsterId,
+        int monsterSpawnCount)
+    {
+        await gate.ExecuteAsync(async (db, ct) =>
+        {
+            await db.MapNpcSpawns.Where(n => n.MapId == stored.MapId).ExecuteDeleteAsync(ct)
+                .ConfigureAwait(false);
+            for (var i = 0; i < monsterSpawnCount; i++)
+            {
+                db.MapNpcSpawns.Add(new MapNpcSpawnEntity
+                {
+                    Id = Guid.NewGuid(),
+                    MapId = stored.MapId,
+                    NpcId = monsterId,
+                    NpcDefinitionId = 0,
+                    X = GameplayLimits.DefaultSpawnTileX + i,
+                    Y = GameplayLimits.DefaultSpawnTileY,
+                    Direction = 0,
+                });
+            }
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            db.ChangeTracker.Clear();
+        }).ConfigureAwait(false);
+
+        var draft = AssertSaveSuccess(await maps.SaveAsync(new SaveMapRequest
+        {
+            MapId = stored.MapId,
+            Map = stored.Map,
+            ExpectedRevision = stored.Revision,
+            Intent = SaveMapIntent.SaveDraft,
+        }));
+
+        _ = AssertSaveSuccess(await maps.SaveAsync(new SaveMapRequest
+        {
+            MapId = stored.MapId,
+            Map = stored.Map,
+            ExpectedRevision = draft.NewRevision,
+            Intent = SaveMapIntent.Publish,
+        }));
     }
 
     private static SaveMapResult.Success AssertSaveSuccess(SaveMapResult result)

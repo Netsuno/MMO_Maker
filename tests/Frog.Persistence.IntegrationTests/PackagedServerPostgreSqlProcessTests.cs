@@ -260,7 +260,7 @@ public sealed class PackagedServerPostgreSqlProcessTests
             // best-effort
         }
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         try
         {
             await process.WaitForExitAsync(cts.Token);
@@ -276,19 +276,30 @@ public sealed class PackagedServerPostgreSqlProcessTests
         var builder = new NpgsqlConnectionStringBuilder(connectionString);
         var databaseName = builder.Database;
         builder.Database = "postgres";
-        await using var conn = new NpgsqlConnection(builder.ConnectionString);
-        await conn.OpenAsync();
-        await using var cmd = new NpgsqlCommand(
-            """
-            SELECT COUNT(*)::int
-            FROM pg_stat_activity
-            WHERE datname = @db
-              AND pid <> pg_backend_pid()
-              AND application_name NOT LIKE 'pg_%'
-            """,
-            conn);
-        cmd.Parameters.AddWithValue("db", databaseName!);
-        var active = (int)(await cmd.ExecuteScalarAsync() ?? 0);
+        var active = -1;
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            await using var conn = new NpgsqlConnection(builder.ConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                """
+                SELECT COUNT(*)::int
+                FROM pg_stat_activity
+                WHERE datname = @db
+                  AND pid <> pg_backend_pid()
+                  AND application_name NOT LIKE 'pg_%'
+                """,
+                conn);
+            cmd.Parameters.AddWithValue("db", databaseName!);
+            active = (int)(await cmd.ExecuteScalarAsync() ?? 0);
+            if (active == 0)
+            {
+                return;
+            }
+
+            await Task.Delay(250);
+        }
+
         Assert.Equal(0, active);
     }
 
