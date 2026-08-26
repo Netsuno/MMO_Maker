@@ -2,7 +2,7 @@
 
 ## Status
 
-**Phase 7: CHANGES REQUESTED** — remediations P7-FIX-1…5 applied; CI green on implementation tip; **waiting for re-review**.
+**Phase 7: CHANGES REQUESTED** — P7-FIX-1…5 + P7-R1…R7 remediations applied; CI green on implementation tip; **waiting for re-review**.
 
 | Workstream | Status |
 | --- | --- |
@@ -11,6 +11,11 @@
 | P7-FIX-3 PG integration + 17-step E2E | DONE |
 | P7-FIX-4 Client protocol/UI + gameplay smoke | DONE |
 | P7-FIX-5 Documentation integrity | DONE |
+| P7-R1 Published world migration + seed | DONE |
+| P7-R2 Packaged Release server PG process test | DONE |
+| P7-R5 Atomic combat mutations | DONE |
+| P7-R6 Production-composition PG E2E | DONE |
+| P7-R7 Client catalog UI + gameplay smoke ×5 | DONE |
 
 ## Identity
 
@@ -21,10 +26,8 @@
 | Phase 6 accepted implementation | `99b782f8f205c0161c0bba8838d041714e39947e` |
 | Phase 6 accepted evidence tip | `f4db56592346d9bf0cad9ca153aaeff11ee65de8` |
 | Phase 7 rejected tip | `67281e3c62eb1943341b162fe1213abb5fc7011a` |
-| Phase 7 implementation SHA | `4d92800b338fe71aef8ba9f2c8b1dcc8e2a72976` |
-| Phase 7 evidence tip | `ca6f85e1f97ad97cf4bd313045e3a8596c3b8a76` |
-| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258 |
-| CI (evidence tip) | https://github.com/Netsuno/MMO_Maker/actions/runs/32971367882 |
+| Phase 7 implementation SHA | `862d2e3398b23ea38b50ab14a675d3b0579f8cff` |
+| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140 |
 | Phase 8 | **Not started** |
 
 ## What changed (remediation)
@@ -54,7 +57,7 @@
 
 ### P7-FIX-5
 - STATUS remains **CHANGES REQUESTED** until re-review accepts.
-- Exact suite counts (271 / 66 / 35×3 / 1×3); SHA + CI URLs in this dossier.
+- Exact suite counts (271 / 93 / 35×3 / 5×3); SHA + CI URLs in this dossier.
 
 ## Phase 8
 

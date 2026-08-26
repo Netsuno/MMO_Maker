@@ -4,12 +4,10 @@
 
 | Item | Value |
 | --- | --- |
-| Implementation SHA (CI-green) | `4d92800b338fe71aef8ba9f2c8b1dcc8e2a72976` |
-| Evidence tip | `ca6f85e1f97ad97cf4bd313045e3a8596c3b8a76` |
-| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258 |
-| CI (evidence tip) | https://github.com/Netsuno/MMO_Maker/actions/runs/32971367882 |
-| build-and-test (impl) | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258/job/98183871807 |
-| postgres-integration (impl) | https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258/job/98183871544 |
+| Implementation SHA (CI-green) | `862d2e3398b23ea38b50ab14a675d3b0579f8cff` |
+| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140 |
+| build-and-test | https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140/job/98354032665 |
+| postgres-integration | https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140/job/98354032884 |
 | Date (UTC) | 2026-08-26 |
 
 ## Environment (local agent)
@@ -40,7 +38,7 @@ dotnet build Frog.Creator.sln -c Release
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
 ```
 
-| Field | Local | CI tip `4d92800` |
+| Field | Local | CI tip `862d2e3` |
 | --- | --- | --- |
 | Status | **PASS** | **PASS** |
 | Passed | **271** | **271** |
@@ -55,14 +53,14 @@ Includes: architecture boundaries, protocol parsers, Phase7* unit tests, `Phase7
 dotnet test tests/Frog.Persistence.IntegrationTests -c Release --no-build
 ```
 
-| Field | Local | CI tip `4d92800` |
+| Field | Local | CI tip `862d2e3` |
 | --- | --- | --- |
-| Status | **PASS** | **PASS** |
-| Passed | **66** | **66** |
-| Failed | 0 | 0 |
-| Skipped | 0 | 0 |
+| Status | N/A (no local PG) | **PASS** |
+| Passed | — | **93** |
+| Failed | — | 0 |
+| Skipped | — | 0 |
 
-Includes: auth, player repos, economy atomicity, published content visibility, `Phase7PostgresE2ETests` (17-step + multi-client).
+Includes: auth, player repos, economy atomicity, published world (`Phase7PublishedWorldTests`), packaged Release server PG process test (`PackagedServerPostgreSqlProcessTests`), `Phase7PostgresE2ETests` (17-step + multi-client).
 
 ### Windows editor smoke ×3 (CI)
 
@@ -80,9 +78,10 @@ Includes: auth, player repos, economy atomicity, published content visibility, `
 | --- | --- |
 | Status | **PASS** on tip |
 | Filter | `FullyQualifiedName~GameplayClientSmoke` |
-| Per pass | **1** Passed / 0 Failed / 0 Skipped |
+| Per pass | **5** Passed / 0 Failed / 0 Skipped |
 | Consecutive | **3/3** (each attempt 1/2) |
 | Log marker | `=== Gameplay client smoke 3/3 consecutive passes OK ===` |
+| Scenarios | register/login/inventory/reconnect + shop/bank/sell + chat rate limit + spell + drop |
 | Screenshots | `01`…`05` under artifact `phase-07-gameplay-client-screenshots` |
 | Manifest | `SCREENSHOT_MANIFEST.md` |
 | Protocol | shop buy + equip via public client UI (no mid-scenario DI inventory inject) |
@@ -125,6 +124,12 @@ Includes: auth, player repos, economy atomicity, published content visibility, `
 | Whisper isolation | `ChatWhisper_DoesNotLeakToThirdParty` | PASS |
 | Reconnect displace | `Reconnect_DisplacesStaleConnection` | PASS |
 | Immediate reconnect + select + map (no delay) | `ReconnectSelectThenMapRequest_StaysConnected` | PASS |
+
+## Packaged server (P7-R2)
+
+| Test | Result |
+| --- | --- |
+| `ReleasePackagedServer_PostgreSqlEnabled_LoginAndShopBuy_Persists` | PASS — Release publish, PG reflection load, shop buy persists, clean teardown |
 
 ## Reconnect zombie (P7 smoke blocker fixed in `4d92800`)
 

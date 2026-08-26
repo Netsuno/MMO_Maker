@@ -10,14 +10,12 @@
   - Accepted evidence baseline (branch tip) : `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
   - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
   - CI (final tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32798293788
-- **Phase 7 : CHANGES REQUESTED** — remediations P7-FIX-1…5 complete; **waiting for re-review**
+- **Phase 7 : CHANGES REQUESTED** — P7-R1…R7 remediations complete; **waiting for re-review**
   - Rejected tip : `67281e3c62eb1943341b162fe1213abb5fc7011a`
-  - Implementation SHA (CI-green remediations tip) : `4d92800b338fe71aef8ba9f2c8b1dcc8e2a72976`
-  - Evidence tip (branch tip) : `ca6f85e1f97ad97cf4bd313045e3a8596c3b8a76`
-  - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258
-  - CI (evidence tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32971367882
+  - Implementation SHA (CI-green remediations tip) : `862d2e3398b23ea38b50ab14a675d3b0579f8cff`
+  - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140
   - Evidence : `docs/progress/phase-07-essential-gameplay/`
-  - Suites on tip : Frog.Tests **271 PASS**; PG integration **66 PASS**; editor smoke **35** ×3; gameplay smoke **1** ×3
+  - Suites on tip : Frog.Tests **271 PASS**; PG integration **93 PASS**; editor smoke **35** ×3; gameplay smoke **5** ×3
 
 ## Known issues
 

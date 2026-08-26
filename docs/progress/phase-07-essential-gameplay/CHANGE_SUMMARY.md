@@ -6,12 +6,8 @@
 - Phase 6 accepted evidence tip: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
 
 ## Implementation tip (CI green)
-- `4d92800b338fe71aef8ba9f2c8b1dcc8e2a72976`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32970817258
-
-## Evidence tip (CI green)
-- `ca6f85e1f97ad97cf4bd313045e3a8596c3b8a76`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32971367882
+- `862d2e3398b23ea38b50ab14a675d3b0579f8cff`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140
 
 ## P7-FIX-1
 - Fail-closed production DI without PostgreSQL (playtest / `AllowInMemoryFallback` only for tests).
@@ -36,6 +32,14 @@
 - Usable MainShellForm gameplay UI (inventory/equip/shop/bank/combat/respawn/reconnect).
 - `GameplayClientSmokeTests` + CI ×3 + screenshot artifact.
 - Reconnect: unregister displaced ClientRegistry entry; map preload; Playing after map.
+
+## P7-R1…R7 (re-review blockers)
+- Published world migration (`PublishedWorldRuntimeBindings`), seed, catalog bootstrap.
+- Packaged Release `Frog.Server` PG process test + runtime copy targets.
+- Atomic combat mutations via `ICombatMutationRepository`.
+- Production-composition `Phase7PostgresE2EHost` + multi-client scenarios.
+- Client published catalog protocol/UI; gameplay smoke expanded to 5 facts (bank/chat/spell/drop).
+- Smoke fixes: consumable buy for bank gold deposit; Chat tab selection for rate-limit test; PG session teardown.
 
 ## P7-FIX-5
 - STATUS = CHANGES REQUESTED until re-review; exact counts (no `270+`); SHA/CI identity separated.
