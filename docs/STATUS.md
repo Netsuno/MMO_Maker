@@ -13,24 +13,24 @@
   - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
   - CI (final tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32798293788
   - Screenshot artifact : `phase-06-game-data-screenshots` (run 32797918806)
-- **Phase 7 : IN PROGRESS** (tranches 7.1–7.7 gameplay server complete; client UI deferred)
+- **Phase 7 : GATE REACHED — WAITING FOR REVIEW**
   - Evidence dossier : `docs/progress/phase-07-essential-gameplay/`
   - Starting from accepted Phase 6 implementation SHA `99b782f`
-  - 7.1 : auth ports, PBKDF2 hashing, PG `auth` schema, sessions, reconnect protocol
-  - 7.2–7.7 : characters, inventory/combat/shop/bank, protocol 38–63, E2E TCP gate
+  - Tranches 7.1–7.7 + E2E gate complete (server-authoritative gameplay)
+  - Review request : `docs/progress/phase-07-essential-gameplay/REVIEW_REQUEST.md`
 
-## CI counts (latest local run — Phase 7 gameplay tranche)
+## CI counts (local Phase 7 verification)
 
 | Suite | Count |
 | --- | ---: |
 | Frog.Tests (unit) | 270 |
-| Phase 7 subset | 26 |
-| PostgreSQL integration | run when PG available |
+| PostgreSQL integration | 39 |
+| Windows smoke | CI ×3 (client receive handlers touched) |
 
 ## Known issues
 
 - Phase 6 : `docs/progress/phase-06-essential-content-editors/KNOWN_ISSUES.md`
-- Phase 7 : `docs/progress/phase-07-essential-gameplay/KNOWN_ISSUES.md` (when present)
+- Phase 7 : `docs/progress/phase-07-essential-gameplay/KNOWN_ISSUES.md`
 
 ## Phase 8
 

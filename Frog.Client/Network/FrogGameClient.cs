@@ -59,6 +59,23 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? InteractResultReceived;
     /// <summary>Réponse <see cref="PacketId.WorldFlagsPatchRequest"/> (même forme que stats).</summary>
     public event Action<bool, string>? WorldFlagsPatchResultReceived;
+    public event Action<bool, string>? ReconnectResultReceived;
+    public event Action<string>? InventorySnapshotReceived;
+    public event Action<bool, string>? EquipResultReceived;
+    public event Action<bool, string>? UnequipResultReceived;
+    public event Action<bool, string>? DropItemResultReceived;
+    public event Action<bool, string>? PickupItemResultReceived;
+    public event Action<string>? GroundItemsSnapshotReceived;
+    public event Action<bool, string>? SpellCastResultReceived;
+    public event Action<string>? CombatStateReceived;
+    public event Action<bool, string>? ShopBuyResultReceived;
+    public event Action<bool, string>? ShopSellResultReceived;
+    public event Action<bool, string>? BankDepositResultReceived;
+    public event Action<bool, string>? BankWithdrawResultReceived;
+    public event Action<string>? BankSnapshotReceived;
+    public event Action<bool, string>? RespawnResultReceived;
+    public event Action<string>? ExperienceGainReceived;
+    public event Action<string>? DeathNotifyReceived;
     public event Action? ConnectionClosed;
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -396,6 +413,118 @@ public sealed class FrogGameClient : IDisposable
                     Post(() => WorldFlagsPatchResultReceived?.Invoke(wfOk, wfMsg));
                 }
 
+                break;
+
+            case PacketId.ReconnectResult:
+                if (TryReadStatusMessage(body.Span, out var rcOk, out var rcMsg))
+                {
+                    Post(() => ReconnectResultReceived?.Invoke(rcOk, rcMsg));
+                }
+
+                break;
+
+            case PacketId.InventorySnapshot:
+                Post(() => InventorySnapshotReceived?.Invoke($"slots={body.Length}"));
+                break;
+
+            case PacketId.EquipResult:
+                if (TryReadStatusMessage(body.Span, out var eqOk, out var eqMsg))
+                {
+                    Post(() => EquipResultReceived?.Invoke(eqOk, eqMsg));
+                }
+
+                break;
+
+            case PacketId.UnequipResult:
+                if (TryReadStatusMessage(body.Span, out var ueOk, out var ueMsg))
+                {
+                    Post(() => UnequipResultReceived?.Invoke(ueOk, ueMsg));
+                }
+
+                break;
+
+            case PacketId.DropItemResult:
+                if (TryReadStatusMessage(body.Span, out var drOk, out var drMsg))
+                {
+                    Post(() => DropItemResultReceived?.Invoke(drOk, drMsg));
+                }
+
+                break;
+
+            case PacketId.PickupItemResult:
+                if (TryReadStatusMessage(body.Span, out var puOk, out var puMsg))
+                {
+                    Post(() => PickupItemResultReceived?.Invoke(puOk, puMsg));
+                }
+
+                break;
+
+            case PacketId.GroundItemsSnapshot:
+                Post(() => GroundItemsSnapshotReceived?.Invoke($"bytes={body.Length}"));
+                break;
+
+            case PacketId.SpellCastResult:
+                if (TryReadStatusMessage(body.Span, out var spOk, out var spMsg))
+                {
+                    Post(() => SpellCastResultReceived?.Invoke(spOk, spMsg));
+                }
+
+                break;
+
+            case PacketId.CombatState:
+                Post(() => CombatStateReceived?.Invoke($"bytes={body.Length}"));
+                break;
+
+            case PacketId.ShopBuyResult:
+                if (TryReadStatusMessage(body.Span, out var buyOk, out var buyMsg))
+                {
+                    Post(() => ShopBuyResultReceived?.Invoke(buyOk, buyMsg));
+                }
+
+                break;
+
+            case PacketId.ShopSellResult:
+                if (TryReadStatusMessage(body.Span, out var sellOk, out var sellMsg))
+                {
+                    Post(() => ShopSellResultReceived?.Invoke(sellOk, sellMsg));
+                }
+
+                break;
+
+            case PacketId.BankDepositResult:
+                if (TryReadStatusMessage(body.Span, out var bdOk, out var bdMsg))
+                {
+                    Post(() => BankDepositResultReceived?.Invoke(bdOk, bdMsg));
+                }
+
+                break;
+
+            case PacketId.BankWithdrawResult:
+                if (TryReadStatusMessage(body.Span, out var bwOk, out var bwMsg))
+                {
+                    Post(() => BankWithdrawResultReceived?.Invoke(bwOk, bwMsg));
+                }
+
+                break;
+
+            case PacketId.BankSnapshot:
+                Post(() => BankSnapshotReceived?.Invoke($"bytes={body.Length}"));
+                break;
+
+            case PacketId.RespawnResult:
+                if (TryReadStatusMessage(body.Span, out var rsOk, out var rsMsg))
+                {
+                    Post(() => RespawnResultReceived?.Invoke(rsOk, rsMsg));
+                }
+
+                break;
+
+            case PacketId.ExperienceGain:
+                Post(() => ExperienceGainReceived?.Invoke($"bytes={body.Length}"));
+                break;
+
+            case PacketId.DeathNotify:
+                Post(() => DeathNotifyReceived?.Invoke("dead"));
                 break;
 
             default:
