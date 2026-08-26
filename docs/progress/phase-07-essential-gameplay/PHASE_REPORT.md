@@ -13,34 +13,37 @@
 | 7.7 Progression, death and respawn | DONE |
 | Phase 7 E2E gate | DONE |
 
+**Gate:** `PHASE 7 GATE REACHED — WAITING FOR REVIEW`
+
 ## Baselines
 
-- Starting implementation SHA (accepted Phase 6): `99b782f8f205c0161c0bba8838d041714e39947e`
-- Branch: `cursor/phase0-baseline-audit-02c7`
-- PR: #2
+| Item | Value |
+| --- | --- |
+| Starting (Phase 6 accepted) | `99b782f8f205c0161c0bba8838d041714e39947e` |
+| Final branch tip | `33ec0dce22c2b54ce325541bba1a9b68fad1b768` |
+| Branch | `cursor/phase0-baseline-audit-02c7` |
+| PR | #2 |
+| Final CI | https://github.com/Netsuno/MMO_Maker/actions/runs/32921656173 |
 
-## Delivered
+## Database (PostgreSQL)
 
-### Runtime content
-- `Phase7PublishedContent` — in-memory published catalogs (class, spell, item, NPC, shop) seeded from `Phase7ContentSeed`
+- `auth.accounts`, `auth.auth_sessions` (7.1)
+- `player.characters`, `player.inventory_slots`, `player.bank_slots`, `player.ground_items` (7.2–7.6)
+- Migrations: `20260825224547_AuthAccountsAndSessions`, `20260826014225_PlayerCharactersInventoryBankGround`
 
-### Gameplay services
-- `CharacterGameplayService` — create/list/select with published classes
-- `InventoryGameplayService` — add/remove/equip/unequip/drop/pickup
-- `CombatGameplayService` — monster registry, melee, spells, XP, respawn
-- `ShopBankGameplayService` — buy/sell, bank item/gold deposit/withdraw
+## Protocol
 
-### Protocol (packets 38–63)
-- Inventory, equipment, ground items, combat state, shop/bank, respawn, XP/death notifications
+- Reconnect 36–37; gameplay 38–63 (inventory, equip, ground, combat, shop, bank, respawn, XP, death)
 
-### Session model
-- Gameplay fields on `Session` + `ApplyFromCharacter` / `ToCharacterPatch`
+## Security
 
-### DI
-- `FrogServerHostFactory` registers in-memory repos when PG auth not registered; published content + gameplay services always registered
+- PBKDF2 passwords; opaque tokens; generic errors; rate limits; server-authoritative combat/economy
 
-### Tests
-- `Phase7CharacterTests`, `Phase7InventoryTests`, `Phase7CombatTests`, `Phase7ShopBankTests`, `Phase7ProgressionTests`, `Phase7E2EGameplayTests`
+## Tests (CI tip)
+
+- Unit/protocol/E2E headless: PASS (270+)
+- PostgreSQL integration: PASS (39)
+- Windows smoke ×3: PASS
 
 ## Phase 8
 

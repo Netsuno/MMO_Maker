@@ -1,33 +1,40 @@
 # Phase 7 — Change Summary
 
-## 7.1 Authentication and sessions (prior tranche)
+## Starting baseline
+- Accepted Phase 6 implementation: `99b782f8f205c0161c0bba8838d041714e39947e`
 
-- Application identity ports, PBKDF2 hashing, PostgreSQL auth schema, reconnect protocol
+## Final tip
+- Branch tip: `33ec0dce22c2b54ce325541bba1a9b68fad1b768`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/32921656173
 
-## 7.2–7.7 Essential gameplay (this tranche)
+## Delivered by tranche
 
-### Core / protocol
-- `PacketId` 38–63 for inventory, combat, shop, bank, respawn
-- `Phase7GameplayWire` DTOs for snapshot packets
+### 7.1 Authentication
+- Identity ports, PBKDF2, sessions, rate limit, reconnect protocol, PG `auth` schema
 
-### Server gameplay
-- `Phase7PublishedContent` — singleton published catalogs + `GetItem`/`GetSpell`/etc.
-- `CharacterGameplayService`, `InventoryGameplayService`, `CombatGameplayService`, `ShopBankGameplayService`
-- `ChatRateLimiter` — per-session chat flood control
-- `Session` extensions + `SessionGameplayExtensions`
+### 7.2 Characters
+- PG `player.characters`, class-seeded create, list/select/ownership
 
-### Network
-- `PacketSender` methods for all new packets
-- `PacketDispatcher` partial — account-aware character create/select/list, gameplay handlers, combat-before-PvP melee, chat rate limit
+### 7.3 Inventory / equipment / ground
+- Inventory/equipment/ground repositories, concurrent pickup, equip validation
 
-### DI
-- In-memory gameplay repos when `!pgAuthRegistered`
-- Published catalog + service registration in `FrogServerHostFactory`
+### 7.4 Combat / spells
+- Deterministic melee/spell formulas, monster runtime, cooldowns, forged rejection
 
-### Tests
-- Six new Phase 7 test classes including TCP E2E gate (`Phase7E2EGameplayTests`)
+### 7.5 Chat
+- Map/global (existing) + rate limiting + recipient isolation E2E
 
-## Not in scope
+### 7.6 Shops / bank
+- Published shop buy/sell, bank deposit/withdraw, gold
 
-- Client UI for new packets (deferred)
-- Phase 8 content/editor integration
+### 7.7 Progression / death / respawn
+- XP curve, level-up bonuses, death/respawn, persistence across reconnect
+
+### Protocol
+- Packets 36–37 (reconnect), 38–63 (gameplay)
+
+### E2E
+- `Phase7E2EGameplayTests` full flow + pickup race
+
+## Phase 8
+Not started.
