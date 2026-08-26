@@ -225,6 +225,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton<InventoryGameplayService>();
                 services.AddSingleton<CombatGameplayService>();
                 services.AddSingleton<ShopBankGameplayService>();
+                services.AddSingleton<PublishedCatalogService>();
 
                 services.AddSingleton<InMemoryPlayerStateStore>();
                 services.AddSingleton<IPlayerStateStore>(sp =>

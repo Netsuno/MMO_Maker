@@ -133,6 +133,21 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendPublishedCatalogResultAsync(ClientSession session, string json, CancellationToken cancellationToken)
+    {
+        var jsonUtf8 = Encoding.UTF8.GetBytes(json ?? "{}");
+        if (jsonUtf8.Length > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(json), "JSON catalogue publié trop grand.");
+        }
+
+        var payload = new byte[1 + sizeof(ushort) + jsonUtf8.Length];
+        payload[0] = (byte)PacketId.PublishedCatalogResult;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1), (ushort)jsonUtf8.Length);
+        jsonUtf8.CopyTo(payload.AsSpan(1 + sizeof(ushort)));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
     public Task SendMapEventsResultAsync(ClientSession session, int mapId, string json, CancellationToken cancellationToken)
     {
         var jsonUtf8 = Encoding.UTF8.GetBytes(json ?? "[]");

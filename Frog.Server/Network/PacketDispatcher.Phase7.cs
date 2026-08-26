@@ -14,6 +14,36 @@ public sealed partial class PacketDispatcher
 {
     private static bool UsesAccountGameplay(Session session) => session.AccountId != Guid.Empty;
 
+    private async Task TrySendPublishedCatalogAsync(ClientSession clientSession, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var json = await _publishedCatalog.BuildJsonAsync(cancellationToken).ConfigureAwait(false);
+            await _packetSender.SendPublishedCatalogResultAsync(clientSession, json, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Catalogue optionnel : ne bloque pas login/reconnect.
+        }
+    }
+
+    private async Task HandlePublishedCatalogRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (payload.Length != 0)
+        {
+            await _packetSender.SendErrorAsync(clientSession, "PublishedCatalogRequest: corps vide attendu.", cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await TrySendPublishedCatalogAsync(clientSession, cancellationToken).ConfigureAwait(false);
+    }
+
+
     private async Task SendGameplaySnapshotsAsync(
         ClientSession clientSession,
         Session session,

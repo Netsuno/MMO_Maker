@@ -94,5 +94,9 @@ public enum PacketId : byte
     RespawnResult = 61,
     ExperienceGain = 62,
     DeathNotify = 63,
+    /// <summary>Demande le catalogue contenu publié (classes/items/spells/shops/NPCs).</summary>
+    PublishedCatalogRequest = 64,
+    /// <summary>Réponse JSON <see cref="Frog.Core.Protocol.PublishedCatalogWire"/>.</summary>
+    PublishedCatalogResult = 65,
     Error = 255
 }

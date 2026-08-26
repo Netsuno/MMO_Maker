@@ -68,5 +68,7 @@ public static class PacketIds
     public const byte RespawnResult = 61;
     public const byte ExperienceGain = 62;
     public const byte DeathNotify = 63;
+    public const byte PublishedCatalogRequest = 64;
+    public const byte PublishedCatalogResult = 65;
     public const byte Error = 255;
 }

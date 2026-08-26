@@ -45,6 +45,7 @@ public sealed partial class PacketDispatcher(
     InventoryGameplayService inventoryGameplay,
     CombatGameplayService combatGameplay,
     ShopBankGameplayService shopBankGameplay,
+    PublishedCatalogService publishedCatalog,
     ChatRateLimiter chatRateLimiter,
     IOptions<PlaytestRuntimeOptions> playtestOptions,
     PlaytestAuthTokenGate playtestAuthTokenGate,
@@ -68,6 +69,7 @@ public sealed partial class PacketDispatcher(
     private readonly InventoryGameplayService _inventoryGameplay = inventoryGameplay;
     private readonly CombatGameplayService _combatGameplay = combatGameplay;
     private readonly ShopBankGameplayService _shopBankGameplay = shopBankGameplay;
+    private readonly PublishedCatalogService _publishedCatalog = publishedCatalog;
     private readonly ChatRateLimiter _chatRateLimiter = chatRateLimiter;
     private readonly PlaytestRuntimeOptions _playtest = playtestOptions.Value;
     private readonly PlaytestAuthTokenGate _playtestAuthTokenGate = playtestAuthTokenGate;
@@ -219,6 +221,10 @@ public sealed partial class PacketDispatcher(
 
             case PacketId.RespawnRequest:
                 await HandleRespawnRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.PublishedCatalogRequest:
+                await HandlePublishedCatalogRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             default:
@@ -596,6 +602,7 @@ public sealed partial class PacketDispatcher(
             throw new InvalidOperationException("playtest-injected-fail-after-login-result");
         }
 
+        await TrySendPublishedCatalogAsync(clientSession, cancellationToken).ConfigureAwait(false);
         await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken);
 
         await SyncPositionsOnJoinAsync(clientSession, session, cancellationToken);

@@ -113,6 +113,10 @@ public sealed class MainShellForm : Form
     private readonly TextBox _txtNewCharName = new() { Width = 100, PlaceholderText = "Nouveau perso" };
     private readonly Button _btnCharCreate = new() { Text = "Créer perso", Width = 95, Enabled = false };
     private readonly ComboBox _cmbClass = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Enabled = false };
+    private readonly ComboBox _cmbShop = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140, Enabled = false };
+    private readonly ComboBox _cmbShopItem = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Enabled = false };
+    private readonly ComboBox _cmbSpell = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, Enabled = false };
+    private PublishedCatalogWire? _publishedCatalog;
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
     private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = MapSurfaceBackColor };
     private readonly PictureBox _picMap = new()
@@ -135,8 +139,8 @@ public sealed class MainShellForm : Form
     private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.Fill, MinimumSize = new Size(300, 0) };
     private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
     private readonly TabPage _tabGameplay = new("Gameplay") { Padding = new Padding(4) };
-    private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid" };
-    private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid" };
+    private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid (secours)", Visible = false };
+    private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid (secours)", Visible = false };
     private readonly NumericUpDown _numShopQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
     private readonly Button _btnShopBuy = new() { Text = "Acheter", AutoSize = true, Enabled = false };
     private readonly Button _btnShopSell = new() { Text = "Vendre slot", AutoSize = true, Enabled = false };
@@ -191,10 +195,8 @@ public sealed class MainShellForm : Form
         _smoothTimer.Start();
         _cmbChannel.Items.AddRange(new object[] { "Global", "Map", "Whisper" });
         _cmbChannel.SelectedIndex = 1;
-        _cmbClass.Items.Add(new ClassPickRow(Phase7ClientContentSeed.DefaultClassId, Phase7ClientContentSeed.DefaultClassLabel));
-        _cmbClass.SelectedIndex = 0;
-        _txtShopId.Text = Phase7ClientContentSeed.DefaultShopId.ToString();
-        _txtShopItemId.Text = Phase7ClientContentSeed.DefaultItemId.ToString();
+        _cmbShop.SelectedIndexChanged += (_, _) => RefreshShopItemCombo();
+        _cmbShopItem.SelectedIndexChanged += (_, _) => SyncShopGuidTextBoxes();
         _heartbeatTimer.Tick += async (_, _) => await SendHeartbeatSafeAsync();
         Load += MainShell_Load;
         FormClosing += async (_, _) => await MainShell_FormClosingAsync();
@@ -881,11 +883,14 @@ public sealed class MainShellForm : Form
         gameplayTab.Controls.Add(_inventoryPanel, 0, 2);
         var shopRow = CreateToolbarRow();
         shopRow.Controls.Add(Lbl("Shop"));
-        shopRow.Controls.Add(_txtShopId);
-        shopRow.Controls.Add(_txtShopItemId);
+        shopRow.Controls.Add(_cmbShop);
+        shopRow.Controls.Add(Lbl("Article"));
+        shopRow.Controls.Add(_cmbShopItem);
         shopRow.Controls.Add(_numShopQty);
         shopRow.Controls.Add(_btnShopBuy);
         shopRow.Controls.Add(_btnShopSell);
+        shopRow.Controls.Add(_txtShopId);
+        shopRow.Controls.Add(_txtShopItemId);
         gameplayTab.Controls.Add(shopRow, 0, 3);
         var bankRow = CreateToolbarRow();
         bankRow.Controls.Add(Lbl("Slot"));
@@ -954,6 +959,7 @@ public sealed class MainShellForm : Form
         gameTop.Controls.Add(Lbl("Mêlée"));
         gameTop.Controls.Add(_txtMeleeTarget);
         gameTop.Controls.Add(_btnMelee);
+        gameTop.Controls.Add(_cmbSpell);
         gameTop.Controls.Add(_btnSpell);
         gameTop.Controls.Add(_btnRespawn);
         gameTop.Controls.Add(_btnWorldFlagsDemo);
@@ -1066,6 +1072,7 @@ public sealed class MainShellForm : Form
         _client.ExperienceGainReceived += gain =>
             AppendLog($"XP +{gain.Amount} (niv {gain.Level}, total {gain.Experience})");
         _client.DeathNotifyReceived += () => AppendLog("Mort signalée par le serveur.");
+        _client.PublishedCatalogReceived += OnPublishedCatalogReceived;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
         _btnEnterGame.Click += async (_, _) => await ApplySelectedCharacterAsync();
@@ -1080,6 +1087,151 @@ public sealed class MainShellForm : Form
         _lblAuthStatus.Text = hasToken ? "Jeton: stocké (reconnect possible)" : "Jeton: aucun";
     }
 
+
+    private void OnPublishedCatalogReceived(PublishedCatalogWire catalog)
+    {
+        _publishedCatalog = catalog;
+        ApplyCatalogToUi(catalog);
+        AppendLog(
+            $"Catalogue: {catalog.Classes.Count} classe(s), {catalog.Items.Count} objet(s), {catalog.Spells.Count} sort(s), {catalog.Shops.Count} boutique(s).");
+    }
+
+    private void ApplyCatalogToUi(PublishedCatalogWire catalog)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => ApplyCatalogToUi(catalog));
+            return;
+        }
+
+        _cmbClass.Items.Clear();
+        foreach (var entry in catalog.Classes)
+        {
+            if (Guid.TryParse(entry.Id, out var classId))
+            {
+                _cmbClass.Items.Add(new ClassPickRow(classId, entry.Name));
+            }
+        }
+
+        if (_cmbClass.Items.Count > 0)
+        {
+            _cmbClass.SelectedIndex = 0;
+        }
+
+        _cmbShop.Items.Clear();
+        foreach (var entry in catalog.Shops)
+        {
+            if (Guid.TryParse(entry.Id, out var shopId))
+            {
+                _cmbShop.Items.Add(new ShopPickRow(shopId, entry.Name, entry.ItemIds));
+            }
+        }
+
+        if (_cmbShop.Items.Count > 0)
+        {
+            _cmbShop.SelectedIndex = 0;
+        }
+
+        RefreshShopItemCombo();
+
+        _cmbSpell.Items.Clear();
+        foreach (var entry in catalog.Spells)
+        {
+            if (Guid.TryParse(entry.Id, out var spellId))
+            {
+                _cmbSpell.Items.Add(new SpellPickRow(spellId, entry.Name));
+            }
+        }
+
+        if (_cmbSpell.Items.Count > 0)
+        {
+            _cmbSpell.SelectedIndex = 0;
+        }
+
+        if (_btnCharCreate.Enabled)
+        {
+            _cmbClass.Enabled = _cmbClass.Items.Count > 0;
+        }
+
+        if (_btnShopBuy.Enabled)
+        {
+            _cmbShop.Enabled = _cmbShop.Items.Count > 0;
+            _cmbShopItem.Enabled = _cmbShopItem.Items.Count > 0;
+            _cmbSpell.Enabled = _cmbSpell.Items.Count > 0;
+        }
+    }
+
+    private void RefreshShopItemCombo()
+    {
+        _cmbShopItem.Items.Clear();
+        if (_cmbShop.SelectedItem is not ShopPickRow shop || _publishedCatalog is null)
+        {
+            SyncShopGuidTextBoxes();
+            return;
+        }
+
+        var itemsById = _publishedCatalog.Items.ToDictionary(i => i.Id, StringComparer.OrdinalIgnoreCase);
+        foreach (var itemId in shop.ItemIds)
+        {
+            if (!itemsById.TryGetValue(itemId, out var item))
+            {
+                continue;
+            }
+
+            if (Guid.TryParse(item.Id, out var parsedId))
+            {
+                _cmbShopItem.Items.Add(new ItemPickRow(parsedId, item.Name, item.Type));
+            }
+        }
+
+        if (_cmbShopItem.Items.Count > 0)
+        {
+            _cmbShopItem.SelectedIndex = 0;
+        }
+
+        SyncShopGuidTextBoxes();
+    }
+
+    private void SyncShopGuidTextBoxes()
+    {
+        if (_cmbShop.SelectedItem is ShopPickRow shop)
+        {
+            _txtShopId.Text = shop.Id.ToString("D");
+        }
+
+        if (_cmbShopItem.SelectedItem is ItemPickRow item)
+        {
+            _txtShopItemId.Text = item.Id.ToString("D");
+        }
+    }
+
+    private bool TryResolveShopSelection(out Guid shopId, out Guid itemId)
+    {
+        shopId = Guid.Empty;
+        itemId = Guid.Empty;
+        if (_cmbShop.SelectedItem is ShopPickRow shop && _cmbShopItem.SelectedItem is ItemPickRow item)
+        {
+            shopId = shop.Id;
+            itemId = item.Id;
+            return true;
+        }
+
+        return Guid.TryParse(_txtShopId.Text.Trim(), out shopId)
+               && Guid.TryParse(_txtShopItemId.Text.Trim(), out itemId);
+    }
+
+    private bool TryResolveSpellSelection(out Guid spellId)
+    {
+        spellId = Guid.Empty;
+        if (_cmbSpell.SelectedItem is SpellPickRow spell)
+        {
+            spellId = spell.Id;
+            return true;
+        }
+
+        return false;
+    }
+
     private void SetGameplayControlsEnabled(bool enabled)
     {
         _btnShopBuy.Enabled = enabled;
@@ -1089,6 +1241,9 @@ public sealed class MainShellForm : Form
         _btnBankDepositGold.Enabled = enabled;
         _btnBankWithdrawGold.Enabled = enabled;
         _btnSpell.Enabled = enabled;
+        _cmbShop.Enabled = enabled && _cmbShop.Items.Count > 0;
+        _cmbShopItem.Enabled = enabled && _cmbShopItem.Items.Count > 0;
+        _cmbSpell.Enabled = enabled && _cmbSpell.Items.Count > 0;
     }
 
     private void OnCombatState(CombatStateWire state)
@@ -1243,7 +1398,13 @@ public sealed class MainShellForm : Form
 
         try
         {
-            await _client.SendSpellCastAsync(Phase7ClientContentSeed.DefaultSpellId, target).ConfigureAwait(true);
+            if (!TryResolveSpellSelection(out var spellId))
+            {
+                AppendLog("Sort: sélectionnez un sort dans le catalogue.");
+                return;
+            }
+
+            await _client.SendSpellCastAsync(spellId, target).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -1275,10 +1436,9 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        if (!Guid.TryParse(_txtShopId.Text.Trim(), out var shopId)
-            || !Guid.TryParse(_txtShopItemId.Text.Trim(), out var itemId))
+        if (!TryResolveShopSelection(out var shopId, out var itemId))
         {
-            AppendLog("Shop: Guids invalides.");
+            AppendLog("Shop: sélectionnez boutique et article (catalogue) ou saisissez des Guids valides.");
             return;
         }
 
@@ -1969,8 +2129,13 @@ public sealed class MainShellForm : Form
 
         try
         {
-            var classId = _cmbClass.SelectedItem is ClassPickRow row ? row.Id : Phase7ClientContentSeed.DefaultClassId;
-            await _client.SendCharacterCreateAsync(name, classId).ConfigureAwait(true);
+            if (_cmbClass.SelectedItem is not ClassPickRow row)
+            {
+                AppendLog("Catalogue classes non chargé — attendez après login.");
+                return;
+            }
+
+            await _client.SendCharacterCreateAsync(name, row.Id).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -2421,6 +2586,37 @@ public sealed class MainShellForm : Form
         public override string ToString() => Label;
     }
 
+    private sealed class ShopPickRow(Guid id, string label, IReadOnlyList<string> itemIds)
+    {
+        public Guid Id { get; } = id;
+
+        public string Label { get; } = label;
+
+        public IReadOnlyList<string> ItemIds { get; } = itemIds;
+
+        public override string ToString() => Label;
+    }
+
+    private sealed class ItemPickRow(Guid id, string label, string type)
+    {
+        public Guid Id { get; } = id;
+
+        public string Label { get; } = label;
+
+        public string Type { get; } = type;
+
+        public override string ToString() => Label;
+    }
+
+    private sealed class SpellPickRow(Guid id, string label)
+    {
+        public Guid Id { get; } = id;
+
+        public string Label { get; } = label;
+
+        public override string ToString() => Label;
+    }
+
     internal TextBox HostTextBoxForTest => _txtHost;
 
     internal NumericUpDown PortNumericForTest => _numPort;
@@ -2490,6 +2686,82 @@ public sealed class MainShellForm : Form
         _cmbCharacters.SelectedItem is CharacterPickRow row ? row.Id : null;
 
     internal string? StoredAuthTokenForTest => _storedAuthToken;
+
+    internal ComboBox ClassesComboForTest => _cmbClass;
+
+    internal ComboBox ShopComboForTest => _cmbShop;
+
+    internal ComboBox ShopItemComboForTest => _cmbShopItem;
+
+    internal ComboBox SpellComboForTest => _cmbSpell;
+
+    internal bool CatalogClassesPopulatedForTest => _cmbClass.Items.Count > 0;
+
+    internal bool TrySelectWeaponFromCatalogForTest()
+    {
+        if (_publishedCatalog is null)
+        {
+            return false;
+        }
+
+        var weapon = _publishedCatalog.Items.FirstOrDefault(i =>
+            string.Equals(i.Type, "Weapon", StringComparison.OrdinalIgnoreCase));
+        if (weapon is null || !Guid.TryParse(weapon.Id, out var weaponId))
+        {
+            return false;
+        }
+
+        var shop = _publishedCatalog.Shops.FirstOrDefault(s =>
+            s.ItemIds.Contains(weapon.Id, StringComparer.OrdinalIgnoreCase));
+        if (shop is null || !Guid.TryParse(shop.Id, out var shopId))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < _cmbShop.Items.Count; i++)
+        {
+            if (_cmbShop.Items[i] is ShopPickRow row && row.Id == shopId)
+            {
+                _cmbShop.SelectedIndex = i;
+                break;
+            }
+        }
+
+        RefreshShopItemCombo();
+        for (var i = 0; i < _cmbShopItem.Items.Count; i++)
+        {
+            if (_cmbShopItem.Items[i] is ItemPickRow row && row.Id == weaponId)
+            {
+                _cmbShopItem.SelectedIndex = i;
+                SyncShopGuidTextBoxes();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal Guid? SelectedCatalogWeaponIdForTest =>
+        _cmbShopItem.SelectedItem is ItemPickRow row
+        && string.Equals(row.Type, "Weapon", StringComparison.OrdinalIgnoreCase)
+            ? row.Id
+            : null;
+
+    internal Button SpellButtonForTest => _btnSpell;
+
+    internal Button SendChatButtonForTest => _btnSendChat;
+
+    internal TextBox ChatTextBoxForTest => _txtChat;
+
+    internal Button BankDepositGoldButtonForTest => _btnBankDepositGold;
+
+    internal Button BankWithdrawGoldButtonForTest => _btnBankWithdrawGold;
+
+    internal Button ShopSellButtonForTest => _btnShopSell;
+
+    internal NumericUpDown BankGoldNumericForTest => _numBankGold;
+
+    internal TextBox MeleeTargetTextBoxForTest => _txtMeleeTarget;
 
     internal TextBox ShopItemIdTextBoxForTest => _txtShopItemId;
 

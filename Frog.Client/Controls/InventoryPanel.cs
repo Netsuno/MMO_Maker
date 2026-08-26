@@ -80,6 +80,8 @@ public sealed class InventoryPanel : UserControl
 
     internal void ClickEquipForTest() => _btnEquip.PerformClick();
 
+    internal void ClickDropForTest() => _btnDrop.PerformClick();
+
     private sealed class InventoryRow(byte slotIndex, Guid itemId, int quantity)
     {
         public byte SlotIndex { get; } = slotIndex;
