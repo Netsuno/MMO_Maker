@@ -19,7 +19,7 @@ public sealed class Phase7InventoryTests
         Phase7PublishedContent content)
     {
         var transfers = new InMemoryInventoryTransferRepository(invRepo, equipRepo, ground, content);
-        return new InventoryGameplayService(invRepo, transfers, ground, chars, content);
+        return new InventoryGameplayService(invRepo, transfers, ground, content);
     }
 
     [Fact]
@@ -44,8 +44,10 @@ public sealed class Phase7InventoryTests
         Assert.True(result.Success);
         Assert.Equal(Phase7ContentSeed.DefaultWeaponId, session.EquippedWeaponItemId);
 
-        var saved = await chars.FindByIdAsync(character.Id);
-        Assert.Equal(Phase7ContentSeed.DefaultWeaponId, saved!.EquippedWeaponItemId);
+        // Equipment is persisted by the transfer repository's own transaction (equipRepo),
+        // not via a redundant post-commit character save.
+        var saved = await equipRepo.GetAsync(character.Id);
+        Assert.Equal(Phase7ContentSeed.DefaultWeaponId, saved.WeaponItemId);
     }
 
     [Fact]

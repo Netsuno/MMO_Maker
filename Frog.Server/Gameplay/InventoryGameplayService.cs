@@ -9,13 +9,11 @@ public sealed class InventoryGameplayService(
     IInventoryRepository inventory,
     IInventoryTransferRepository transfers,
     IGroundItemRepository groundItems,
-    ICharacterRepository characters,
     IPublishedItemCatalog items)
 {
     private readonly IInventoryRepository _inventory = inventory;
     private readonly IInventoryTransferRepository _transfers = transfers;
     private readonly IGroundItemRepository _groundItems = groundItems;
-    private readonly ICharacterRepository _characters = characters;
     private readonly IPublishedItemCatalog _items = items;
 
     public Task<InventorySnapshot> GetInventoryAsync(Guid characterId, CancellationToken ct = default)
@@ -69,7 +67,6 @@ public sealed class InventoryGameplayService(
 
         session.EquippedWeaponItemId = result.Equipment.WeaponItemId;
         session.EquippedArmorItemId = result.Equipment.ArmorItemId;
-        await PersistEquipmentAsync(session, ct).ConfigureAwait(false);
         return EquipResult.Ok(result.Inventory, result.Equipment);
     }
 
@@ -94,7 +91,6 @@ public sealed class InventoryGameplayService(
 
         session.EquippedWeaponItemId = result.Equipment.WeaponItemId;
         session.EquippedArmorItemId = result.Equipment.ArmorItemId;
-        await PersistEquipmentAsync(session, ct).ConfigureAwait(false);
         return UnequipResult.Ok(result.Inventory, result.Equipment);
     }
 
@@ -158,22 +154,6 @@ public sealed class InventoryGameplayService(
 
     public Task<IReadOnlyList<GroundItemRecord>> ListGroundOnMapAsync(int mapId, CancellationToken ct = default)
         => _groundItems.ListOnMapAsync(mapId, ct);
-
-    private async Task PersistEquipmentAsync(Session session, CancellationToken ct)
-    {
-        if (session.CharacterGuid is not Guid characterId)
-        {
-            return;
-        }
-
-        var record = await _characters.FindByIdAsync(characterId, ct).ConfigureAwait(false);
-        if (record is null)
-        {
-            return;
-        }
-
-        await _characters.SaveAsync(session.ToCharacterPatch(record), ct).ConfigureAwait(false);
-    }
 }
 
 public sealed record EquipResult(bool Success, string Message, InventorySnapshot? Inventory = null, EquipmentRecord? Equipment = null)

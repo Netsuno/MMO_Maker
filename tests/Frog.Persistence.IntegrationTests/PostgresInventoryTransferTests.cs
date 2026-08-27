@@ -128,6 +128,55 @@ public sealed class PostgresInventoryTransferTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
+    public async Task Pickup_CancellationAfterClaim_ThenUnrelatedEquip_DoesNotLeakIntoLaterWrite()
+    {
+        using var gate = CreateGate();
+        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var characterId = await SeedCharacterAsync(gate, seed);
+        var inventory = new PostgresInventoryRepository(gate);
+        await inventory.TryAddAsync(characterId, seed.WeaponId, 1, 1);
+
+        var ground = new PostgresGroundItemRepository(gate);
+        var (px, py) = WorldMetrics.TileCenterToPixels(
+            GameplayLimits.DefaultSpawnTileX,
+            GameplayLimits.DefaultSpawnTileY);
+        var dropped = await ground.DropAsync(1, px, py, seed.ConsumableId, 1, null);
+        var transfers = new PostgresInventoryTransferRepository(gate)
+        {
+            TestBeforeCommitAsync = _ => throw new OperationCanceledException("injected"),
+        };
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            transfers.TryPickupAsync(
+                characterId,
+                dropped.Item!.Id,
+                1,
+                px,
+                py,
+                GameplayLimits.GroundPickupRangePixels));
+
+        // Reuse the SAME gate (and its underlying DbContext/ChangeTracker) for an unrelated,
+        // successful write. If the cancelled pickup's tracked mutations (ground item claim,
+        // inventory slot add) were not cleaned up, they would leak into this commit.
+        var transfers2 = new PostgresInventoryTransferRepository(gate);
+        var equip = await transfers2.TryEquipAsync(characterId, 0);
+        Assert.True(equip.Success);
+
+        using var gate2 = CreateGate();
+        await using var db = new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString));
+        var groundRow = await db.PlayerGroundItems.AsNoTracking().FirstAsync(g => g.Id == dropped.Item!.Id);
+        Assert.Null(groundRow.TakenAtUtc);
+
+        var inv2 = new PostgresInventoryRepository(gate2);
+        var equip2 = new PostgresEquipmentRepository(gate2);
+        Assert.DoesNotContain(
+            (await inv2.GetAsync(characterId)).Slots,
+            s => s.ItemId == seed.ConsumableId && s.Quantity > 0);
+        Assert.Equal(seed.WeaponId, (await equip2.GetAsync(characterId)).WeaponItemId);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
     public async Task Pickup_ConcurrentRace_ExactlyOneWinner()
     {
         using var gate = CreateGate();

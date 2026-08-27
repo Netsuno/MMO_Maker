@@ -3,12 +3,16 @@ using Frog.Application.Gameplay;
 using Frog.Core.Gameplay;
 using Frog.Persistence.PostgreSql.Entities.Player;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 namespace Frog.Persistence.PostgreSql.Repositories.Player;
 
 public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRepository
 {
     private const string MismatchMessage = "RequestId reutilise avec payload different.";
+    private const string RaceConflictMessage = "Conflit de requete concurrente, veuillez reessayer.";
+    private const string RequestIdPrimaryKeyConstraint = "pk_economy_request_ids";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -111,24 +115,23 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .ConfigureAwait(false);
                 var state = BuildState(character, invSlots, bankRows);
 
-                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
-                    .ConfigureAwait(false);
-
-                if (TestBeforeCommitAsync is not null)
+                return await FinalizeRequestAsync(
+                    db, transaction, characterId, operation, requestId, fingerprint, state,
+                    EconomyBuyResult.Ok, EconomyBuyResult.Fail, ct).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                try
                 {
-                    await TestBeforeCommitAsync(ct).ConfigureAwait(false);
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
                 }
 
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
-                await transaction.CommitAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
-                return EconomyBuyResult.Ok(state);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -201,24 +204,23 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .ConfigureAwait(false);
                 var state = BuildState(character, invSlots, bankRows);
 
-                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
-                    .ConfigureAwait(false);
-
-                if (TestBeforeCommitAsync is not null)
+                return await FinalizeRequestAsync(
+                    db, transaction, characterId, operation, requestId, fingerprint, state,
+                    EconomySellResult.Ok, EconomySellResult.Fail, ct).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                try
                 {
-                    await TestBeforeCommitAsync(ct).ConfigureAwait(false);
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
                 }
 
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
-                await transaction.CommitAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
-                return EconomySellResult.Ok(state);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -300,24 +302,23 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                 await PersistBankSlotsAsync(db, characterId, bankRows, bankSlots, ct).ConfigureAwait(false);
                 var state = BuildState(character, invSlots, bankRows, bankSlots);
 
-                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
-                    .ConfigureAwait(false);
-
-                if (TestBeforeCommitAsync is not null)
+                return await FinalizeRequestAsync(
+                    db, transaction, characterId, operation, requestId, fingerprint, state,
+                    EconomyBankItemResult.Ok, EconomyBankItemResult.Fail, ct).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                try
                 {
-                    await TestBeforeCommitAsync(ct).ConfigureAwait(false);
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
                 }
 
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
-                await transaction.CommitAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
-                return EconomyBankItemResult.Ok(state);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -399,24 +400,23 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                 await PersistInventorySlotsAsync(db, characterId, invRows, invSlots, ct).ConfigureAwait(false);
                 var state = BuildState(character, invSlots, bankRows, bankSlots);
 
-                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
-                    .ConfigureAwait(false);
-
-                if (TestBeforeCommitAsync is not null)
+                return await FinalizeRequestAsync(
+                    db, transaction, characterId, operation, requestId, fingerprint, state,
+                    EconomyBankItemResult.Ok, EconomyBankItemResult.Fail, ct).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                try
                 {
-                    await TestBeforeCommitAsync(ct).ConfigureAwait(false);
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
                 }
 
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
-                await transaction.CommitAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
-                return EconomyBankItemResult.Ok(state);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -485,24 +485,23 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .ConfigureAwait(false);
                 var state = BuildState(character, InventorySlotsFromRows(invRows), bankRows);
 
-                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
-                    .ConfigureAwait(false);
-
-                if (TestBeforeCommitAsync is not null)
+                return await FinalizeRequestAsync(
+                    db, transaction, characterId, operation, requestId, fingerprint, state,
+                    EconomyBankGoldResult.Ok, EconomyBankGoldResult.Fail, ct).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                try
                 {
-                    await TestBeforeCommitAsync(ct).ConfigureAwait(false);
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
                 }
 
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
-                await transaction.CommitAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
-                return EconomyBankGoldResult.Ok(state);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -571,24 +570,23 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
                     .ConfigureAwait(false);
                 var state = BuildState(character, InventorySlotsFromRows(invRows), bankRows);
 
-                await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
-                    .ConfigureAwait(false);
-
-                if (TestBeforeCommitAsync is not null)
+                return await FinalizeRequestAsync(
+                    db, transaction, characterId, operation, requestId, fingerprint, state,
+                    EconomyBankGoldResult.Ok, EconomyBankGoldResult.Fail, ct).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                try
                 {
-                    await TestBeforeCommitAsync(ct).ConfigureAwait(false);
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
                 }
 
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
-                await transaction.CommitAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
-                return EconomyBankGoldResult.Ok(state);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -636,6 +634,11 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
 
     private sealed record ReplayCheck<T>(bool IsMismatch, T? Result);
 
+    /// <summary>
+    /// Le requestId est desormais scope au seul (character_id, request_id) — une meme
+    /// requete ne peut jamais etre rejouee avec une operation ou un payload differents.
+    /// Toute divergence d'operation OU de fingerprint est traitee comme un mismatch.
+    /// </summary>
     private async Task<ReplayCheck<T>> TryReplayAsync<T>(
         FrogDbContext db,
         Guid characterId,
@@ -648,7 +651,7 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
         var row = await db.PlayerEconomyRequestIds
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                r => r.CharacterId == characterId && r.Operation == operation && r.RequestId == requestId,
+                r => r.CharacterId == characterId && r.RequestId == requestId,
                 ct)
             .ConfigureAwait(false);
         if (row is null)
@@ -656,7 +659,7 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
             return new ReplayCheck<T>(false, null);
         }
 
-        if (!EconomyRequestFingerprint.Matches(row.RequestFingerprint, fingerprint))
+        if (row.Operation != operation || !EconomyRequestFingerprint.Matches(row.RequestFingerprint, fingerprint))
         {
             return new ReplayCheck<T>(true, null);
         }
@@ -667,7 +670,12 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
             return new ReplayCheck<T>(false, null);
         }
 
-        T? replay = row.Operation switch
+        return new ReplayCheck<T>(false, ReplayResultFor<T>(row.Operation, state));
+    }
+
+    private static T? ReplayResultFor<T>(string operation, EconomyCommittedState state)
+        where T : class
+        => operation switch
         {
             "buy" => EconomyBuyResult.Ok(state, idempotentReplay: true) as T,
             "sell" => EconomySellResult.Ok(state, idempotentReplay: true) as T,
@@ -676,8 +684,84 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
             _ => null,
         };
 
-        return new ReplayCheck<T>(false, replay);
+    /// <summary>
+    /// Persiste l'etat resultant + le marqueur de requestId, puis commit. Si une requete
+    /// strictement identique a ete inseree en parallele par un autre DbContext entre le
+    /// controle de rejeu et ce commit, l'insertion echoue sur la contrainte unique
+    /// <c>pk_economy_request_ids</c> (violation Postgres 23505) : on annule cette
+    /// transaction et on relit la ligne gagnante pour rejouer son resultat (ou signaler un
+    /// conflit defini) plutot que de laisser filtrer une exception DB non traitee.
+    /// </summary>
+    private async Task<T> FinalizeRequestAsync<T>(
+        FrogDbContext db,
+        IDbContextTransaction transaction,
+        Guid characterId,
+        string operation,
+        Guid requestId,
+        byte[] fingerprint,
+        EconomyCommittedState state,
+        Func<EconomyCommittedState, bool, T> ok,
+        Func<string, T> fail,
+        CancellationToken ct)
+        where T : class
+    {
+        await StoreRequestAsync(db, characterId, operation, requestId, fingerprint, state, ct)
+            .ConfigureAwait(false);
+
+        if (TestBeforeCommitAsync is not null)
+        {
+            await TestBeforeCommitAsync(ct).ConfigureAwait(false);
+        }
+
+        try
+        {
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch (DbUpdateException ex) when (IsRequestIdUniqueViolation(ex))
+        {
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            db.ChangeTracker.Clear();
+            return await ReplayAfterRaceAsync(db, characterId, operation, requestId, fingerprint, ok, fail, ct)
+                .ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(ct).ConfigureAwait(false);
+        db.ChangeTracker.Clear();
+        return ok(state, false);
     }
+
+    private async Task<T> ReplayAfterRaceAsync<T>(
+        FrogDbContext db,
+        Guid characterId,
+        string operation,
+        Guid requestId,
+        byte[] fingerprint,
+        Func<EconomyCommittedState, bool, T> ok,
+        Func<string, T> fail,
+        CancellationToken ct)
+        where T : class
+    {
+        var row = await db.PlayerEconomyRequestIds
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.CharacterId == characterId && r.RequestId == requestId, ct)
+            .ConfigureAwait(false);
+        if (row is null)
+        {
+            return fail(RaceConflictMessage);
+        }
+
+        if (row.Operation != operation || !EconomyRequestFingerprint.Matches(row.RequestFingerprint, fingerprint))
+        {
+            return fail(MismatchMessage);
+        }
+
+        var state = JsonSerializer.Deserialize<EconomyCommittedState>(row.ResultJson, JsonOptions);
+        return state is null ? fail(RaceConflictMessage) : ok(state, true);
+    }
+
+    private static bool IsRequestIdUniqueViolation(DbUpdateException ex)
+        => ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg
+            && pg.ConstraintName == RequestIdPrimaryKeyConstraint;
 
     private async Task StoreRequestAsync(
         FrogDbContext db,

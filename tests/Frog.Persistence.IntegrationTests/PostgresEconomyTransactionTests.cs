@@ -401,6 +401,56 @@ public sealed class PostgresEconomyTransactionTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
+    public async Task CancellationAfterMutations_ThenUnrelatedCommit_DoesNotLeakIntoLaterWrite()
+    {
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        using var cts = new CancellationTokenSource();
+        var cancelledRequestId = NewRequestId();
+        var economy = new PostgresEconomyTransactionRepository(gate)
+        {
+            TestBeforeCommitAsync = _ =>
+            {
+                cts.Cancel();
+                return Task.FromCanceled(cts.Token);
+            },
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, cancelledRequestId, cts.Token));
+
+        // Reuse the SAME gate (and its underlying DbContext/ChangeTracker) for an unrelated,
+        // successful write. If the cancelled buy's tracked mutations were not cleaned up, they
+        // would leak into this commit's SaveChangesAsync call.
+        var depositRequestId = NewRequestId();
+        var economy2 = new PostgresEconomyTransactionRepository(gate);
+        var deposit = await economy2.TryBankDepositGoldAsync(characterId, 50, depositRequestId);
+        Assert.True(deposit.Success);
+        Assert.Equal(450, deposit.State!.Gold);
+        Assert.Equal(50, deposit.State!.BankGold);
+
+        using var gate2 = CreateGate();
+        var chars = new PostgresCharacterRepository(gate2);
+        var inv = new PostgresInventoryRepository(gate2);
+        var record = await chars.FindByIdAsync(characterId);
+        Assert.Equal(450, record!.Gold);
+        Assert.Equal(50, record.BankGold);
+        Assert.DoesNotContain(
+            (await inv.GetAsync(characterId)).Slots,
+            s => s.ItemId == itemId && s.Quantity > 0);
+
+        await using var db = new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString));
+        Assert.False(await db.PlayerEconomyRequestIds
+            .AsNoTracking()
+            .AnyAsync(r => r.CharacterId == characterId && r.RequestId == cancelledRequestId));
+        Assert.True(await db.PlayerEconomyRequestIds
+            .AsNoTracking()
+            .AnyAsync(r => r.CharacterId == characterId && r.RequestId == depositRequestId));
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
     public async Task SameRequestId_DifferentOperation_DoesNotCollide()
     {
         using var gate = CreateGate();

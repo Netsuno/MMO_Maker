@@ -111,11 +111,19 @@ public sealed class PostgresInventoryTransferRepository : IInventoryTransferRepo
                 db.ChangeTracker.Clear();
                 return InventoryTransferPickupResult.Ok(new InventorySnapshot(characterId, invSlots));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception)
             {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
+                }
+
                 db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -194,11 +202,19 @@ public sealed class PostgresInventoryTransferRepository : IInventoryTransferRepo
                     new InventorySnapshot(characterId, invSlots),
                     PlayerEntityMapper.ToGroundItemRecord(groundEntity));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception)
             {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
+                }
+
                 db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -298,11 +314,19 @@ public sealed class PostgresInventoryTransferRepository : IInventoryTransferRepo
                         character.EquippedWeaponItemId,
                         character.EquippedArmorItemId));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception)
             {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
+                }
+
                 db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
@@ -380,11 +404,19 @@ public sealed class PostgresInventoryTransferRepository : IInventoryTransferRepo
                         character.EquippedWeaponItemId,
                         character.EquippedArmorItemId));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception)
             {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rollback best-effort: original exception (including OCE) is preserved below.
+                }
+
                 db.ChangeTracker.Clear();
-                throw;
+                throw; // preserves original exception including OCE
             }
         }, cancellationToken);
 
