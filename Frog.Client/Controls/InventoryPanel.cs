@@ -13,6 +13,7 @@ public sealed class InventoryPanel : UserControl
     private readonly Button _btnEquip = new() { Text = "Équiper", AutoSize = true };
     private readonly Button _btnDrop = new() { Text = "Déposer", AutoSize = true };
     private InventorySnapshotWire? _snapshot;
+    private Func<Guid, string> _nameLookup = static id => id.ToString("N");
 
     public event Action<byte>? EquipRequested;
     public event Action<byte, int>? DropRequested;
@@ -46,6 +47,20 @@ public sealed class InventoryPanel : UserControl
         };
     }
 
+    /// <summary>Résolution du nom publié (catalogue) pour un ItemId ; par défaut affiche le GUID brut.</summary>
+    public Func<Guid, string> ItemNameLookup
+    {
+        get => _nameLookup;
+        set
+        {
+            _nameLookup = value ?? (static id => id.ToString("N"));
+            if (_snapshot is not null)
+            {
+                ApplySnapshot(_snapshot);
+            }
+        }
+    }
+
     public void ApplySnapshot(InventorySnapshotWire snapshot)
     {
         _snapshot = snapshot;
@@ -54,7 +69,7 @@ public sealed class InventoryPanel : UserControl
         {
             if (slot.ItemId is Guid id && slot.Quantity > 0)
             {
-                _list.Items.Add(new InventoryRow((byte)slot.SlotIndex, id, slot.Quantity));
+                _list.Items.Add(new InventoryRow((byte)slot.SlotIndex, id, slot.Quantity, _nameLookup(id)));
             }
         }
 
@@ -70,6 +85,9 @@ public sealed class InventoryPanel : UserControl
 
     internal int ListedItemCountForTest => _list.Items.Count;
 
+    /// <summary>Texte affiché ("[slot] Nom ×qty") de la ligne sélectionnée ; null si aucune sélection.</summary>
+    internal string? SelectedItemTextForTest => _list.SelectedItem?.ToString();
+
     internal void SelectFirstForTest()
     {
         if (_list.Items.Count > 0)
@@ -82,12 +100,13 @@ public sealed class InventoryPanel : UserControl
 
     internal void ClickDropForTest() => _btnDrop.PerformClick();
 
-    private sealed class InventoryRow(byte slotIndex, Guid itemId, int quantity)
+    private sealed class InventoryRow(byte slotIndex, Guid itemId, int quantity, string name)
     {
         public byte SlotIndex { get; } = slotIndex;
         public Guid ItemId { get; } = itemId;
         public int Quantity { get; } = quantity;
+        public string Name { get; } = name;
 
-        public override string ToString() => $"[{SlotIndex}] {ItemId:N} ×{Quantity}";
+        public override string ToString() => $"[{SlotIndex}] {Name} ×{Quantity}";
     }
 }

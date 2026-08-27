@@ -130,7 +130,8 @@ public sealed class MainShellForm : Form
     private readonly Button _btnSendChat = new() { Text = "Envoyer chat", Dock = DockStyle.Bottom, Height = 28 };
     private readonly ComboBox _cmbChannel = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
     private readonly TextBox _txtWhisperTo = new() { PlaceholderText = "Cible whisper", Width = 120 };
-    private readonly TextBox _txtMeleeTarget = new() { PlaceholderText = "Cible mêlée", Width = 100 };
+    /// <summary>Cible mêlée/sort : ComboBox éditable (P7-G5) peuplée des noms PNJ/monstre publiés (défaut « Slime » si présent), texte libre toujours possible.</summary>
+    private readonly ComboBox _cmbMeleeTarget = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 120 };
     private readonly Button _btnMelee = new() { Text = "Mêlée", Enabled = false };
     private readonly Button _btnSpell = new() { Text = "Sort", Enabled = false };
     private readonly Button _btnRespawn = new() { Text = "Respawn", Enabled = false, Visible = false };
@@ -145,7 +146,8 @@ public sealed class MainShellForm : Form
     private readonly NumericUpDown _numShopQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
     private readonly Button _btnShopBuy = new() { Text = "Acheter", AutoSize = true, Enabled = false };
     private readonly Button _btnShopSell = new() { Text = "Vendre slot", AutoSize = true, Enabled = false };
-    private readonly NumericUpDown _numBankSlot = new() { Minimum = 0, Maximum = 39, Width = 48 };
+    /// <summary>Emplacement banque interne (P7-G5) : piloté par la sélection dans <see cref="_lstBank"/>, plus affiché en brut.</summary>
+    private readonly NumericUpDown _numBankSlot = new() { Minimum = 0, Maximum = 39, Width = 48, Visible = false };
     private readonly NumericUpDown _numBankQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
     private readonly Button _btnBankDepositItem = new() { Text = "Banque dépôt", AutoSize = true, Enabled = false };
     private readonly Button _btnBankWithdrawItem = new() { Text = "Banque retrait", AutoSize = true, Enabled = false };
@@ -153,6 +155,13 @@ public sealed class MainShellForm : Form
     private readonly Button _btnBankDepositGold = new() { Text = "Dépôt or", AutoSize = true, Enabled = false };
     private readonly Button _btnBankWithdrawGold = new() { Text = "Retrait or", AutoSize = true, Enabled = false };
     private readonly Label _lblBank = new() { AutoSize = true, Text = "Banque: —", Margin = new Padding(4, 4, 4, 4) };
+    /// <summary>Liste banque nommée (P7-G5) : sélectionner une ligne fixe <see cref="_numBankSlot"/> pour retrait.</summary>
+    private readonly ListBox _lstBank = new() { Dock = DockStyle.Fill, IntegralHeight = false, Height = 70 };
+    private BankSnapshotWire? _bankSnapshot;
+    /// <summary>Liste objets au sol nommée (P7-G5) + ramassage.</summary>
+    private readonly ListBox _lstGround = new() { Dock = DockStyle.Fill, IntegralHeight = false, Height = 70 };
+    private readonly Button _btnPickup = new() { Text = "Ramasser", AutoSize = true, Enabled = false };
+    private GroundItemsSnapshotWire? _groundSnapshot;
     private readonly Button _btnWorldFlagsDemo = new() { Text = "Drapeau démo (worldFlags)", Enabled = false };
     private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
@@ -164,6 +173,9 @@ public sealed class MainShellForm : Form
     private readonly ClientPlaytestOptions? _playtestOptions;
     private readonly PlaytestClientReadyState _playtestReady = new();
     private bool _playtestLoginOk;
+
+    /// <summary>Dernier <see cref="CombatStateWire"/> reçu (ForTest : HP/mort observables sans re-parcourir le log).</summary>
+    private CombatStateWire? _lastCombatState;
 
     public MainShellForm()
         : this(null)
@@ -181,6 +193,8 @@ public sealed class MainShellForm : Form
         KeyPreview = true;
         DoubleBuffered = true;
         BuildLayout();
+        _inventoryPanel.ItemNameLookup = ResolveItemName;
+        _equipmentPanel.ItemNameLookup = ResolveItemName;
         if (_playtestOptions is { IsPlaytest: true })
         {
             _txtHost.Text = _playtestOptions.Host;
@@ -774,6 +788,7 @@ public sealed class MainShellForm : Form
         StyleToolbarButton(_btnBankWithdrawItem);
         StyleToolbarButton(_btnBankDepositGold);
         StyleToolbarButton(_btnBankWithdrawGold);
+        StyleToolbarButton(_btnPickup);
         StyleToolbarButton(_btnWorldFlagsDemo);
         StyleToolbarButton(_btnStatsApply);
         StyleToolbarButton(_btnBackDisconnect);
@@ -797,7 +812,7 @@ public sealed class MainShellForm : Form
         }
 
         _numPort.Margin = new Padding(2, 4, 12, 4);
-        _txtMeleeTarget.Margin = new Padding(2, 4, 8, 4);
+        _cmbMeleeTarget.Margin = new Padding(2, 4, 8, 4);
 
         var loginFields = CreateToolbarRow();
         loginFields.FlowDirection = FlowDirection.LeftToRight;
@@ -874,7 +889,7 @@ public sealed class MainShellForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 8,
             Padding = new Padding(4),
         };
         gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -883,6 +898,8 @@ public sealed class MainShellForm : Form
         gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gameplayTab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gameplayTab.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+        gameplayTab.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
         gameplayTab.Controls.Add(_lblCombat, 0, 0);
         gameplayTab.Controls.Add(_equipmentPanel, 0, 1);
         gameplayTab.Controls.Add(_inventoryPanel, 0, 2);
@@ -908,6 +925,18 @@ public sealed class MainShellForm : Form
         bankRow.Controls.Add(_btnBankWithdrawGold);
         gameplayTab.Controls.Add(bankRow, 0, 4);
         gameplayTab.Controls.Add(_lblBank, 0, 5);
+        var bankListPanel = new Panel { Dock = DockStyle.Fill };
+        bankListPanel.Controls.Add(_lstBank);
+        gameplayTab.Controls.Add(bankListPanel, 0, 6);
+        var groundPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        groundPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        groundPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var groundTop = CreateToolbarRow();
+        groundTop.Controls.Add(Lbl("Objets au sol", topPad: 0));
+        groundTop.Controls.Add(_btnPickup);
+        groundPanel.Controls.Add(groundTop, 0, 0);
+        groundPanel.Controls.Add(_lstGround, 0, 1);
+        gameplayTab.Controls.Add(groundPanel, 0, 7);
 
         var tabRight = _gameplayTabs;
         tabRight.TabPages.Clear();
@@ -961,8 +990,8 @@ public sealed class MainShellForm : Form
         gameTop.Controls.Add(_btnMap);
         gameTop.Controls.Add(_btnSwitchCharacter);
         gameTop.Controls.Add(_btnLogout);
-        gameTop.Controls.Add(Lbl("Mêlée"));
-        gameTop.Controls.Add(_txtMeleeTarget);
+        gameTop.Controls.Add(Lbl("Cible"));
+        gameTop.Controls.Add(_cmbMeleeTarget);
         gameTop.Controls.Add(_btnMelee);
         gameTop.Controls.Add(_cmbSpell);
         gameTop.Controls.Add(_btnSpell);
@@ -1024,6 +1053,14 @@ public sealed class MainShellForm : Form
         _btnBankWithdrawItem.Click += async (_, _) => await BankWithdrawItemAsync();
         _btnBankDepositGold.Click += async (_, _) => await BankDepositGoldAsync();
         _btnBankWithdrawGold.Click += async (_, _) => await BankWithdrawGoldAsync();
+        _btnPickup.Click += async (_, _) => await PickupSelectedGroundItemAsync();
+        _lstBank.SelectedIndexChanged += (_, _) =>
+        {
+            if (_lstBank.SelectedItem is BankRow row)
+            {
+                _numBankSlot.Value = Math.Clamp(row.SlotIndex, (int)_numBankSlot.Minimum, (int)_numBankSlot.Maximum);
+            }
+        };
         _inventoryPanel.EquipRequested += slot => _ = EquipSlotAsync(slot);
         _inventoryPanel.DropRequested += (slot, qty) => _ = DropItemAsync(slot, qty);
         _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
@@ -1065,7 +1102,7 @@ public sealed class MainShellForm : Form
         _client.UnequipResultReceived += (ok, msg) => AppendLog(ok ? "Déséquipement: " + msg : "Déséquipement refusé: " + msg);
         _client.DropItemResultReceived += (ok, msg) => AppendLog(ok ? "Drop: " + msg : "Drop refusé: " + msg);
         _client.PickupItemResultReceived += (ok, msg) => AppendLog(ok ? "Ramassé: " + msg : "Ramassé refusé: " + msg);
-        _client.GroundItemsSnapshotReceived += snap => AppendLog($"Sol map={snap.MapId}: {snap.Items.Count} objet(s)");
+        _client.GroundItemsSnapshotReceived += OnGroundItemsSnapshot;
         _client.SpellCastResultReceived += (ok, msg) => AppendLog(ok ? "Sort: " + msg : "Sort refusé: " + msg);
         _client.CombatStateReceived += OnCombatState;
         _client.ShopBuyResultReceived += (ok, msg) => AppendLog(ok ? "Achat: " + msg : "Achat refusé: " + msg);
@@ -1151,6 +1188,26 @@ public sealed class MainShellForm : Form
         if (_cmbSpell.Items.Count > 0)
         {
             _cmbSpell.SelectedIndex = 0;
+        }
+
+        _cmbMeleeTarget.Items.Clear();
+        foreach (var npc in catalog.Npcs)
+        {
+            if (!string.IsNullOrWhiteSpace(npc.Name) && !_cmbMeleeTarget.Items.Contains(npc.Name))
+            {
+                _cmbMeleeTarget.Items.Add(npc.Name);
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(_cmbMeleeTarget.Text))
+        {
+            var defaultTarget = catalog.Npcs.FirstOrDefault(n =>
+                    string.Equals(n.Name, "Slime", StringComparison.OrdinalIgnoreCase))?.Name
+                ?? catalog.Npcs.FirstOrDefault()?.Name;
+            if (!string.IsNullOrWhiteSpace(defaultTarget))
+            {
+                _cmbMeleeTarget.Text = defaultTarget;
+            }
         }
 
         if (_btnCharCreate.Enabled)
@@ -1246,6 +1303,7 @@ public sealed class MainShellForm : Form
         _btnBankDepositGold.Enabled = enabled;
         _btnBankWithdrawGold.Enabled = enabled;
         _btnSpell.Enabled = enabled;
+        _btnPickup.Enabled = enabled && _lstGround.Items.Count > 0;
         _cmbShop.Enabled = enabled && _cmbShop.Items.Count > 0;
         _cmbShopItem.Enabled = enabled && _cmbShopItem.Items.Count > 0;
         _cmbSpell.Enabled = enabled && _cmbSpell.Items.Count > 0;
@@ -1253,6 +1311,7 @@ public sealed class MainShellForm : Form
 
     private void OnCombatState(CombatStateWire state)
     {
+        _lastCombatState = state;
         _lblCombat.Text =
             $"Niv {state.Level} · XP {state.Experience} · HP {state.Hp}/{state.MaxHp} · MP {state.Mp}/{state.MaxMp} · Or {state.Gold}";
         _btnRespawn.Visible = state.IsDead;
@@ -1266,10 +1325,77 @@ public sealed class MainShellForm : Form
         AppendLog($"Inventaire: {snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0)} slot(s) rempli(s).");
     }
 
+    /// <summary>Nom publié (catalogue) pour un ItemId ; secours GUID court si catalogue absent/objet inconnu.</summary>
+    private string ResolveItemName(Guid itemId)
+    {
+        var match = _publishedCatalog?.Items.FirstOrDefault(i =>
+            Guid.TryParse(i.Id, out var parsed) && parsed == itemId);
+        return match is not null ? match.Name : itemId.ToString("N")[..8];
+    }
+
     private void OnBankSnapshot(BankSnapshotWire snapshot)
     {
+        _bankSnapshot = snapshot;
         var filled = snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0);
         _lblBank.Text = $"Banque: or {snapshot.BankGold} · {filled} slot(s)";
+
+        var previouslySelectedSlot = (_lstBank.SelectedItem as BankRow)?.SlotIndex;
+        _lstBank.Items.Clear();
+        foreach (var slot in snapshot.Slots.OrderBy(s => s.SlotIndex))
+        {
+            if (slot.ItemId is Guid id && slot.Quantity > 0)
+            {
+                _lstBank.Items.Add(new BankRow(slot.SlotIndex, id, slot.Quantity, ResolveItemName(id)));
+            }
+        }
+
+        if (_lstBank.Items.Count > 0)
+        {
+            var restoreIndex = previouslySelectedSlot is int prev
+                ? _lstBank.Items.Cast<BankRow>().ToList().FindIndex(r => r.SlotIndex == prev)
+                : -1;
+            _lstBank.SelectedIndex = restoreIndex >= 0 ? restoreIndex : 0;
+        }
+    }
+
+    private void OnGroundItemsSnapshot(GroundItemsSnapshotWire snapshot)
+    {
+        _groundSnapshot = snapshot;
+        _lstGround.Items.Clear();
+        foreach (var item in snapshot.Items)
+        {
+            _lstGround.Items.Add(new GroundRow(item.GroundItemId, item.ItemId, item.Quantity, ResolveItemName(item.ItemId)));
+        }
+
+        if (_lstGround.Items.Count > 0 && _lstGround.SelectedIndex < 0)
+        {
+            _lstGround.SelectedIndex = 0;
+        }
+
+        _btnPickup.Enabled = _lstGround.Items.Count > 0;
+        AppendLog($"Sol map={snapshot.MapId}: {snapshot.Items.Count} objet(s)");
+    }
+
+    private async Task PickupSelectedGroundItemAsync()
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        if (_lstGround.SelectedItem is not GroundRow row)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendPickupItemAsync(row.GroundItemId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Ramasser: " + ex.Message);
+        }
     }
 
     private void OnReconnectResult(bool ok, string message)
@@ -1394,7 +1520,7 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        var target = _txtMeleeTarget.Text.Trim();
+        var target = _cmbMeleeTarget.Text.Trim();
         if (string.IsNullOrEmpty(target))
         {
             return;
@@ -2335,7 +2461,7 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        var t = _txtMeleeTarget.Text.Trim();
+        var t = _cmbMeleeTarget.Text.Trim();
         if (string.IsNullOrEmpty(t))
         {
             return;
@@ -2626,6 +2752,32 @@ public sealed class MainShellForm : Form
         public override string ToString() => Label;
     }
 
+    private sealed class BankRow(int slotIndex, Guid itemId, int quantity, string name)
+    {
+        public int SlotIndex { get; } = slotIndex;
+
+        public Guid ItemId { get; } = itemId;
+
+        public int Quantity { get; } = quantity;
+
+        public string Name { get; } = name;
+
+        public override string ToString() => $"[{SlotIndex}] {Name} ×{Quantity}";
+    }
+
+    private sealed class GroundRow(Guid groundItemId, Guid itemId, int quantity, string name)
+    {
+        public Guid GroundItemId { get; } = groundItemId;
+
+        public Guid ItemId { get; } = itemId;
+
+        public int Quantity { get; } = quantity;
+
+        public string Name { get; } = name;
+
+        public override string ToString() => $"{Name} ×{Quantity}";
+    }
+
     internal TextBox HostTextBoxForTest => _txtHost;
 
     internal NumericUpDown PortNumericForTest => _numPort;
@@ -2688,6 +2840,8 @@ public sealed class MainShellForm : Form
     internal ComboBox CharactersComboForTest => _cmbCharacters;
 
     internal InventoryPanel InventoryPanelForTest => _inventoryPanel;
+
+    internal EquipmentPanel EquipmentPanelForTest => _equipmentPanel;
 
     internal bool IsPlayingPhaseForTest => _phase == ClientUiPhase.Playing;
 
@@ -2776,11 +2930,51 @@ public sealed class MainShellForm : Form
 
     internal NumericUpDown BankGoldNumericForTest => _numBankGold;
 
-    internal TextBox MeleeTargetTextBoxForTest => _txtMeleeTarget;
+    internal ComboBox MeleeTargetComboForTest => _cmbMeleeTarget;
+
+    internal Button MeleeButtonForTest => _btnMelee;
 
     internal TextBox ShopItemIdTextBoxForTest => _txtShopItemId;
 
     internal Button ShopBuyButtonForTest => _btnShopBuy;
+
+    internal Button BankDepositItemButtonForTest => _btnBankDepositItem;
+
+    internal Button BankWithdrawItemButtonForTest => _btnBankWithdrawItem;
+
+    internal NumericUpDown BankSlotNumericForTest => _numBankSlot;
+
+    internal NumericUpDown BankQtyNumericForTest => _numBankQty;
+
+    internal ListBox BankItemsListForTest => _lstBank;
+
+    internal int BankItemsCountForTest => _lstBank.Items.Count;
+
+    internal ListBox GroundItemsListForTest => _lstGround;
+
+    internal int GroundItemsCountForTest => _lstGround.Items.Count;
+
+    internal Button PickupButtonForTest => _btnPickup;
+
+    internal void SelectFirstGroundItemForTest()
+    {
+        if (_lstGround.Items.Count > 0)
+        {
+            _lstGround.SelectedIndex = 0;
+        }
+    }
+
+    internal void ClickPickupForTest() => _btnPickup.PerformClick();
+
+    /// <summary>Dernier HP connu (dernier <see cref="Frog.Core.Protocol.CombatStateWire"/>) : null si aucun reçu encore.</summary>
+    internal int? CombatHpForTest => _lastCombatState?.Hp;
+
+    internal int? CombatMaxHpForTest => _lastCombatState?.MaxHp;
+
+    internal bool CombatIsDeadForTest => _lastCombatState?.IsDead ?? false;
+
+    /// <summary>Force l'envoi RespawnRequest sans passer par la visibilité/activation du bouton UI.</summary>
+    internal void RespawnForTest() => _ = RespawnAsync();
 
     internal void SelectGameplayTabForTest() => _gameplayTabs.SelectedTab = _tabGameplay;
 

@@ -183,6 +183,10 @@ public sealed partial class PacketDispatcher
         await _packetSender.SendEquipResultAsync(clientSession, result.Success, result.Message, cancellationToken);
         if (result.Success)
         {
+            // Persiste EquippedWeaponItemId/ArmorItemId sur le personnage : sans ce commit, l'equipement
+            // n'existait qu'en memoire session et se perdait a la reconnexion (nouvelle Session vierge
+            // rehydratee depuis le CharacterRecord persiste).
+            await _combatGameplay.PersistCombatStateAsync(session, cancellationToken).ConfigureAwait(false);
             await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
         }
     }
@@ -209,6 +213,8 @@ public sealed partial class PacketDispatcher
         await _packetSender.SendUnequipResultAsync(clientSession, result.Success, result.Message, cancellationToken);
         if (result.Success)
         {
+            // Voir HandleEquipRequestAsync : persiste aussi le desequipement sur le personnage.
+            await _combatGameplay.PersistCombatStateAsync(session, cancellationToken).ConfigureAwait(false);
             await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
         }
     }

@@ -5,8 +5,11 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using Frog.Client;
+using Frog.Core.Constants;
 using Frog.Core.Gameplay;
 using Frog.Server;
+using Frog.Server.Gameplay;
+using Frog.Server.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,7 +19,8 @@ namespace Frog.Editor.WindowsSmokeTests;
 
 /// <summary>
 /// Frog.Client MainShellForm against in-memory Frog.Server: register/login, character,
-/// shop acquire + equip via public client protocol, reconnect usability.
+/// shop acquire + equip via public client protocol, reconnect usability, named (P7-G5)
+/// inventory/equipment/bank/ground UI, and combat (melee/spell/respawn) success paths.
 /// Screenshots → artifacts/phase-07-gameplay-client/.
 /// </summary>
 [Collection(UiSmokeCollectionDefinition.Name)]
@@ -49,15 +53,47 @@ public sealed class GameplayClientSmokeTests
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.ListedItemCountForTest > 0
-                          && form.LogContainsForTest("Achat:"),
+                          && form.LogContainsForTest("Achat: Achat reussi."),
                     "shop buy put weapon in inventory");
+
+                // P7-G5 : la liste inventaire affiche le nom publié ("[slot] Nom ×qty"), jamais le
+                // GUID brut de l'objet.
+                form.InventoryPanelForTest.SelectFirstForTest();
+                var weaponRowText = form.InventoryPanelForTest.SelectedItemTextForTest;
+                Assert.NotNull(weaponRowText);
+                Assert.DoesNotContain(weaponId!.Value.ToString("N"), weaponRowText!, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains('×', weaponRowText!);
+
+                form.InventoryPanelForTest.ClickEquipForTest();
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId,
+                    "equip weapon via client protocol");
+
+                // P7-G5 : EquipmentPanel affiche "Arme: {Name}" — jamais le GUID.
+                Assert.StartsWith("Arme: ", form.EquipmentPanelForTest.WeaponLabelTextForTest);
+                Assert.DoesNotContain(
+                    weaponId.Value.ToString("N"),
+                    form.EquipmentPanelForTest.WeaponLabelTextForTest,
+                    StringComparison.OrdinalIgnoreCase);
+
+                // P7-G5 : déséquiper puis ré-équiper avant les assertions de reconnexion ci-dessous
+                // (qui exigent l'arme équipée) — couvre le flux "unequip after equip" avec succès strict.
+                form.EquipmentPanelForTest.ClickUnequipWeaponForTest();
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId is null
+                          && form.LogContainsForTest("Déséquipement: "),
+                    "unequip weapon via client protocol");
+                Assert.Equal("Arme: —", form.EquipmentPanelForTest.WeaponLabelTextForTest);
+                Assert.False(form.EquipmentPanelForTest.UnequipWeaponEnabledForTest);
 
                 form.InventoryPanelForTest.SelectFirstForTest();
                 form.InventoryPanelForTest.ClickEquipForTest();
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId,
-                    "equip weapon via client protocol");
+                    "re-equip weapon via client protocol");
 
                 ClientSmokeTestAccess.SaveScreenshot(form, "03-gameplay-inventory.png");
 
@@ -79,11 +115,12 @@ public sealed class GameplayClientSmokeTests
                 ClientSmokeTestAccess.SaveScreenshot(form, "04-reconnect-ok.png");
 
                 harness.EnterPlayingPhase(charName);
+                // P7-G5 : succès strict — l'équipement doit être exactement celui persisté avant
+                // déconnexion, plus de secours "ou objet en inventaire".
                 Pump(
                     form,
-                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
-                          || form.InventoryPanelForTest.ListedItemCountForTest > 0,
-                    "inventory/equipment usable after reconnect");
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId,
+                    "equip persisted exactly across reconnect + character reselect");
                 Assert.True(form.ShopBuyButtonForTest.Enabled && form.ShopBuyButtonForTest.Visible, "shop control usable after reconnect");
                 ClientSmokeTestAccess.SaveScreenshot(form, "05-reconnect-gameplay-usable.png");
 
@@ -118,20 +155,46 @@ public sealed class GameplayClientSmokeTests
 
                 Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "select consumable");
                 form.ShopBuyButtonForTest.PerformClick();
-                Pump(form, () => form.LogContainsForTest("Achat:"), "buy consumable");
+                Pump(
+                    form,
+                    () => form.LogContainsForTest("Achat: Achat reussi.") && form.InventoryPanelForTest.ListedItemCountForTest > 0,
+                    "buy consumable");
+
+                // P7-G5 : dépôt puis retrait d'un OBJET en banque (pas seulement l'or) — la liste
+                // banque nommée (_lstBank) doit refléter le contenu déposé/retiré.
+                // NB : _numBankSlot est réutilisé (héritage de l'UI existante) comme "slot
+                // inventaire source" pour un dépôt et "slot banque source" pour un retrait — la
+                // banque étant vide au départ, les deux valent 0 pour cet unique objet.
+                form.BankSlotNumericForTest.Value = 0;
+                form.BankQtyNumericForTest.Value = 1;
+                form.BankDepositItemButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.LogContainsForTest("Banque dépôt: Depose en banque.") && form.BankItemsCountForTest > 0,
+                    "bank item deposit success");
+                Assert.Contains(
+                    form.BankItemsListForTest.Items.Cast<object>(),
+                    row => row.ToString()!.Contains('×', StringComparison.Ordinal));
+
+                form.BankSlotNumericForTest.Value = 0;
+                form.BankWithdrawItemButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.LogContainsForTest("Banque retrait: Retire de la banque.") && form.BankItemsCountForTest == 0,
+                    "bank item withdraw success");
 
                 form.BankGoldNumericForTest.Value = 10;
                 form.BankDepositGoldButtonForTest.PerformClick();
-                Pump(form, () => form.LogContainsForTest("Banque dépôt: "), "bank gold deposit");
+                Pump(form, () => form.LogContainsForTest("Banque dépôt: Operation reussie."), "bank gold deposit success");
 
                 form.BankWithdrawGoldButtonForTest.PerformClick();
-                Pump(form, () => form.LogContainsForTest("Banque retrait:"), "bank gold withdraw");
+                Pump(form, () => form.LogContainsForTest("Banque retrait: Operation reussie."), "bank gold withdraw success");
 
+                // P7-G5 : succès strict — la vente doit réussir (l'objet retiré de la banque est
+                // revenu dans l'inventaire au même slot), plus de secours "ou refusée".
+                form.BankSlotNumericForTest.Value = 0;
                 form.ShopSellButtonForTest.PerformClick();
-                Pump(
-                    form,
-                    () => form.LogContainsForTest("Vente:") || form.LogContainsForTest("Vente refusée:"),
-                    "shop sell attempt");
+                Pump(form, () => form.LogContainsForTest("Vente: Vente reussie."), "shop sell success");
             }
             finally
             {
@@ -172,8 +235,13 @@ public sealed class GameplayClientSmokeTests
         });
     }
 
+    /// <summary>
+    /// P7-G5 : combat de bout en bout avec succès stricts — mêlée et sort réussis contre un
+    /// monstre seedé en portée, combat invalide (cible inexistante) sans effet observable sur le
+    /// joueur, puis mort forcée (in-memory, côté serveur) + respawn réussi via le protocole client.
+    /// </summary>
     [Fact]
-    public void GameplayClient_SpellCastProtocol()
+    public void GameplayClient_CombatMeleeSpellInvalidTargetAndRespawn()
     {
         StaTestRunner.Run(() =>
         {
@@ -185,18 +253,53 @@ public sealed class GameplayClientSmokeTests
                 Pump(form, () => form.CatalogClassesPopulatedForTest, "catalog after login");
                 harness.CreateCharacter("Caster");
                 harness.EnterPlayingPhase("Caster");
+                form.SelectGameplayTabForTest();
+
+                // In-memory fallback (AllowInMemoryFallback) ne lance pas
+                // PublishedWorldBootstrapHostedService : on seede le monstre nous-mêmes,
+                // exactement au point de spawn du personnage, pour une portée mêlée/sort
+                // déterministe sans dépendre d'un déplacement réseau.
+                harness.SpawnSlimeAtDefaultSpawnForTest();
 
                 Assert.True(form.SpellComboForTest.Items.Count > 0, "spell catalog empty");
                 form.SpellComboForTest.SelectedIndex = 0;
-                form.SelectGameplayTabForTest();
-                form.MeleeTargetTextBoxForTest.Text = "Slime";
+                form.MeleeTargetComboForTest.Text = "Slime";
 
+                // Mêlée réussie (P7-G5 : succès strict, plus de secours "or refused").
+                form.MeleeButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.LogContainsForTest("Mêlée → Slime: touche"),
+                    "melee hit success logged",
+                    TimeSpan.FromSeconds(15));
+
+                // Sort réussi contre la même cible, toujours en portée.
                 form.SpellButtonForTest.PerformClick();
                 Pump(
                     form,
-                    () => form.LogContainsForTest("Sort:") || form.LogContainsForTest("Sort refusé:"),
-                    "spell cast result logged",
+                    () => form.LogContainsForTest("Sort: "),
+                    "spell cast success logged",
                     TimeSpan.FromSeconds(15));
+                Assert.DoesNotContain("Sort refusé:", form.LogTextForTest, StringComparison.Ordinal);
+
+                // Combat invalide : cible inexistante → refus attendu côté serveur, et aucun HP
+                // observable ne change côté joueur (le serveur ne renvoie pas de CombatState sur échec).
+                var hpBeforeInvalid = form.CombatHpForTest;
+                form.MeleeTargetComboForTest.Text = "MonstreInexistant";
+                form.MeleeButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.LogContainsForTest("Mêlée → MonstreInexistant: rate"),
+                    "invalid target melee refused");
+                Assert.Equal(hpBeforeInvalid, form.CombatHpForTest);
+
+                // Mort forcée côté serveur (in-memory, pragmatique dans le budget smoke) puis
+                // respawn réussi via le protocole client public.
+                harness.KillCharacterForTest();
+                form.RespawnForTest();
+                Pump(form, () => form.LogContainsForTest("Respawn: Ressuscite."), "respawn success logged");
+                Pump(form, () => !form.CombatIsDeadForTest, "combat state cleared (not dead) after respawn");
+                Assert.Equal(form.CombatMaxHpForTest, form.CombatHpForTest);
             }
             finally
             {
@@ -206,7 +309,7 @@ public sealed class GameplayClientSmokeTests
     }
 
     [Fact]
-    public void GameplayClient_InventoryDropGround()
+    public void GameplayClient_InventoryDropGroundAndPickup()
     {
         StaTestRunner.Run(() =>
         {
@@ -221,15 +324,36 @@ public sealed class GameplayClientSmokeTests
                 form.SelectGameplayTabForTest();
 
                 Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "select weapon");
+                var weaponId = form.SelectedCatalogWeaponIdForTest;
+                Assert.NotNull(weaponId);
                 form.ShopBuyButtonForTest.PerformClick();
                 Pump(form, () => form.InventoryPanelForTest.ListedItemCountForTest > 0, "inventory has item");
 
+                // P7-G5 : succès strict — le drop doit réussir, plus de secours "ou refusé".
                 form.InventoryPanelForTest.SelectFirstForTest();
                 form.InventoryPanelForTest.ClickDropForTest();
                 Pump(
                     form,
-                    () => form.LogContainsForTest("Drop:") || form.LogContainsForTest("Drop refusé:"),
-                    "drop item result");
+                    () => form.LogContainsForTest("Drop: Depose.") && form.GroundItemsCountForTest > 0,
+                    "drop item success");
+
+                // P7-G5 : la liste des objets au sol affiche le nom publié, jamais le GUID brut.
+                var groundRowText = form.GroundItemsListForTest.Items[0]!.ToString();
+                Assert.NotNull(groundRowText);
+                Assert.DoesNotContain(weaponId!.Value.ToString("N"), groundRowText!, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains('×', groundRowText!);
+
+                // Pickup (P7-G5) : ramasser l'objet déposé — succès strict, item de retour en
+                // inventaire, liste sol vidée et bouton Ramasser désactivé en conséquence.
+                form.SelectFirstGroundItemForTest();
+                var inventoryCountBeforePickup = form.InventoryPanelForTest.ListedItemCountForTest;
+                form.ClickPickupForTest();
+                Pump(
+                    form,
+                    () => form.LogContainsForTest("Ramassé: Ramasse.") && form.GroundItemsCountForTest == 0,
+                    "pickup success");
+                Assert.Equal(inventoryCountBeforePickup + 1, form.InventoryPanelForTest.ListedItemCountForTest);
+                Assert.False(form.PickupButtonForTest.Enabled);
             }
             finally
             {
@@ -373,6 +497,41 @@ public sealed class GameplayClientSmokeTests
             Pump(Form, () => Form.IsPlayingPhaseForTest, "enter playing phase");
             Form.SelectGameplayTabForTest();
             Pump(Form, () => Form.ShopBuyButtonForTest.Enabled && Form.ShopBuyButtonForTest.Visible, "shop buy visible on Gameplay tab");
+        }
+
+        /// <summary>
+        /// P7-G5 : seed direct (hors protocole) d'un monstre "Slime" au point de spawn par défaut
+        /// du personnage — l'AllowInMemoryFallback utilisé par ce harness ne fait pas tourner
+        /// PublishedWorldBootstrapHostedService (réservé au monde publié PostgreSQL), donc aucun
+        /// monstre n'existe sans cet appel explicite.
+        /// </summary>
+        public void SpawnSlimeAtDefaultSpawnForTest()
+        {
+            var combat = _host.Services.GetRequiredService<CombatGameplayService>();
+            var (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(
+                GameplayLimits.DefaultSpawnTileX,
+                GameplayLimits.DefaultSpawnTileY);
+            var spawned = combat.SpawnMonster(
+                GameplayLimits.DefaultSpawnMapId,
+                Phase7ContentSeed.DefaultMonsterId,
+                pixelX,
+                pixelY);
+            Assert.NotNull(spawned);
+        }
+
+        /// <summary>
+        /// P7-G5 : force la session serveur (in-memory) en état "mort" pour exercer le flux
+        /// respawn dans le budget smoke, sans avoir à enchaîner assez de coups pour tuer le
+        /// personnage via le protocole de combat.
+        /// </summary>
+        public void KillCharacterForTest()
+        {
+            var connections = _host.Services.GetRequiredService<ConnectionManager>();
+            Assert.True(
+                connections.TryGetSessionByUsername(User, out var session) && session is not null,
+                "active session not found for forced-death setup");
+            session!.IsDead = true;
+            session.Hp = 0;
         }
 
         public void Dispose()
