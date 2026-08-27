@@ -1721,6 +1721,7 @@ public sealed class MainShellForm : Form
         _btnWorldFlagsDemo.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
+        ClearPublishedCatalogUi();
         SetGameplayControlsEnabled(false);
         _map = null;
         _mapBlockedTiles = null;
@@ -1734,6 +1735,19 @@ public sealed class MainShellForm : Form
         _awaitingPlayingPhase = false;
         _btnBackDisconnect.Enabled = false;
         SetPhase(ClientUiPhase.Login);
+    }
+
+    private void ClearPublishedCatalogUi()
+    {
+        _publishedCatalog = null;
+        _cmbClass.Items.Clear();
+        _cmbShop.Items.Clear();
+        _cmbShopItem.Items.Clear();
+        _cmbSpell.Items.Clear();
+        _cmbMeleeTarget.Items.Clear();
+        _lstBank.Items.Clear();
+        _lstGround.Items.Clear();
+        // Keep ItemNameLookup wired to ResolveItemName (handles null catalog).
     }
 
     private void OnConnectionClosed()
