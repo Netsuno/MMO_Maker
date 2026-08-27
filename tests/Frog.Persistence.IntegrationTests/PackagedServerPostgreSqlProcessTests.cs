@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Persistence.PostgreSql;
 using Frog.Persistence.IntegrationTests.Support;
+using Frog.Server.Services;
 using Npgsql;
 
 namespace Frog.Persistence.IntegrationTests;
@@ -13,6 +15,13 @@ namespace Frog.Persistence.IntegrationTests;
 /// <summary>
 /// P7-R2: proves Release packaged Frog.Server can load PostgreSQL via reflection
 /// with full runtime assemblies (Npgsql, EF Core) — not the in-process DI test host.
+///
+/// P7-G6: shutdown must be a genuine graceful stop, not <c>Process.Kill</c>. The packaged
+/// server is asked to stop the same way a supervisor would (SIGTERM on Linux, handled by
+/// <c>ConsoleLifetime</c>; a shutdown-sentinel file elsewhere), then we wait for a normal
+/// process exit (code 0) and let PostgreSQL sessions drain on their own — no
+/// <c>pg_terminate_backend</c> in the success path, and <c>Process.Kill</c> is reserved for
+/// failure cleanup only if the graceful stop times out.
 /// </summary>
 [Collection("PostgresIsolated")]
 public sealed class PackagedServerPostgreSqlProcessTests
@@ -51,8 +60,9 @@ public sealed class PackagedServerPostgreSqlProcessTests
 
         var port = GetFreePort();
         WritePackagedServerConfig(publishDir, _fixture.ConnectionString, port);
+        var shutdownFilePath = Path.Combine(publishDir, ".frog-shutdown-request");
 
-        using var process = StartPackagedServer(publishDir);
+        using var process = StartPackagedServer(publishDir, shutdownFilePath);
         var logLines = new List<string>();
         process.OutputDataReceived += (_, e) =>
         {
@@ -77,6 +87,13 @@ public sealed class PackagedServerPostgreSqlProcessTests
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
+        // P7-G6 requirement #5: keep a second, otherwise-idle client connected through the
+        // graceful shutdown below so we can assert it observes an orderly closure rather than
+        // hanging forever or crashing with a raw socket error mid-operation. Declared outside
+        // the try/finally so it survives to the post-shutdown assertions below.
+        await using var shutdownProbeClient = new Phase7TcpTestClient();
+
+        int exitCode;
         try
         {
             await WaitForServerReadyAsync(process, port, logLines, TimeSpan.FromSeconds(60));
@@ -88,6 +105,9 @@ public sealed class PackagedServerPostgreSqlProcessTests
             await using var client = new Phase7TcpTestClient();
             await client.ConnectAsync("127.0.0.1", port);
             Assert.Equal((byte)PacketId.Hello, (await client.ReadFrameAsync())[0]);
+
+            await shutdownProbeClient.ConnectAsync("127.0.0.1", port);
+            Assert.Equal((byte)PacketId.Hello, (await shutdownProbeClient.ReadFrameAsync())[0]);
 
             var user = $"pkg-{Guid.NewGuid():N}"[..16];
             const string password = "password12345";
@@ -139,12 +159,14 @@ public sealed class PackagedServerPostgreSqlProcessTests
         }
         finally
         {
-            await StopServerAsync(process);
+            exitCode = await StopServerGracefullyAsync(process, shutdownFilePath, logLines);
         }
 
         NpgsqlConnection.ClearAllPools();
         Assert.True(process.HasExited);
+        Assert.Equal(0, exitCode);
         Assert.False(await IsPortOpenAsync(port));
+        await AssertClientObservesOrderlyCloseAsync(shutdownProbeClient);
         await AssertNoActiveDbSessionsAsync(_fixture.ConnectionString);
     }
 
@@ -206,12 +228,12 @@ public sealed class PackagedServerPostgreSqlProcessTests
         File.WriteAllText(configPath, json);
     }
 
-    private static Process StartPackagedServer(string publishDir)
+    private static Process StartPackagedServer(string publishDir, string shutdownFilePath)
     {
         var dll = Path.Combine(publishDir, "Frog.Server.dll");
         Assert.True(File.Exists(dll), $"missing packaged server: {dll}");
 
-        return Process.Start(new ProcessStartInfo
+        var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
             Arguments = $"\"{dll}\"",
@@ -220,7 +242,13 @@ public sealed class PackagedServerPostgreSqlProcessTests
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-        }) ?? throw new InvalidOperationException("Failed to start packaged Frog.Server.");
+        };
+        // P7-G6: cross-platform graceful-stop path (Frog.Server watches for this file and calls
+        // IHostApplicationLifetime.StopApplication() when it appears). See RequestGracefulShutdown.
+        startInfo.Environment[ShutdownFileWatcherService.ShutdownFileEnvironmentVariable] = shutdownFilePath;
+
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start packaged Frog.Server.");
     }
 
     private static async Task WaitForServerReadyAsync(
@@ -250,33 +278,104 @@ public sealed class PackagedServerPostgreSqlProcessTests
             $"Packaged server did not bind port {port} in time.\n{string.Join('\n', logLines)}");
     }
 
-    private static async Task StopServerAsync(Process process)
+    /// <summary>
+    /// P7-G6: request an orderly stop (platform-appropriate signal on Unix, a shutdown-sentinel
+    /// file as the cross-platform fallback) and wait for the process to exit normally. Killing
+    /// the process is reserved for failure cleanup only, after the graceful stop has already
+    /// timed out — never as part of the success path.
+    /// </summary>
+    private static async Task<int> StopServerGracefullyAsync(
+        Process process,
+        string shutdownFilePath,
+        IReadOnlyList<string> logLines)
     {
         if (process.HasExited)
         {
-            return;
+            return process.ExitCode;
         }
 
-        try
-        {
-            process.Kill(entireProcessTree: true);
-        }
-        catch
-        {
-            // best-effort
-        }
+        RequestGracefulShutdown(process, shutdownFilePath);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         try
         {
             await process.WaitForExitAsync(cts.Token);
+            return process.ExitCode;
         }
         catch (OperationCanceledException)
         {
-            // already killed
+            ForceKillAfterGracefulShutdownTimeout(process);
+            throw new TimeoutException(
+                "Packaged server did not shut down gracefully (SIGTERM / FROG_SHUTDOWN_FILE) "
+                + $"within 20s; force-killed as failure cleanup only, this is not a pass.\n"
+                + string.Join('\n', logLines));
         }
     }
 
+    /// <summary>
+    /// Sends SIGTERM directly via libc on Unix — the same signal a container/systemd supervisor
+    /// would send, and the one <c>Host.CreateDefaultBuilder</c>'s <c>ConsoleLifetime</c> handles
+    /// by calling <see cref="Microsoft.Extensions.Hosting.IHostApplicationLifetime.StopApplication"/>.
+    /// Also writes the shutdown-sentinel file every time: it is the only reliable mechanism on
+    /// Windows (delivering Ctrl+C to a separately-started process is not practical there), and on
+    /// Unix it is a harmless, redundant confirmation that the file-watch path also works.
+    /// </summary>
+    private static void RequestGracefulShutdown(Process process, string shutdownFilePath)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            NativeSignal.TrySendSigterm(process.Id);
+        }
+
+        File.WriteAllText(shutdownFilePath, string.Empty);
+    }
+
+    private static void ForceKillAfterGracefulShutdownTimeout(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(5000);
+            }
+        }
+        catch
+        {
+            // best-effort; the caller already fails the test via TimeoutException.
+        }
+    }
+
+    private static class NativeSignal
+    {
+        private const int Sigterm = 15;
+
+        public static bool TrySendSigterm(int pid)
+        {
+            try
+            {
+                return kill(pid, Sigterm) == 0;
+            }
+            catch (DllNotFoundException)
+            {
+                return false;
+            }
+            catch (EntryPointNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        [DllImport("libc", SetLastError = true)]
+        private static extern int kill(int pid, int sig);
+    }
+
+    /// <summary>
+    /// P7-G6: PostgreSQL sessions must return to zero on their own once the packaged server has
+    /// exited gracefully — retry with a delay only. No <c>pg_terminate_backend</c> here: forcing
+    /// backends closed would mask a server that isn't actually releasing its connections on a
+    /// clean stop.
+    /// </summary>
     private static async Task AssertNoActiveDbSessionsAsync(string connectionString)
     {
         var builder = new NpgsqlConnectionStringBuilder(connectionString);
@@ -303,25 +402,34 @@ public sealed class PackagedServerPostgreSqlProcessTests
                 return;
             }
 
-            if (attempt >= 20)
-            {
-                await using var terminate = new NpgsqlCommand(
-                    """
-                    SELECT pg_terminate_backend(pid)
-                    FROM pg_stat_activity
-                    WHERE datname = @db
-                      AND pid <> pg_backend_pid()
-                      AND application_name NOT LIKE 'pg_%'
-                    """,
-                    conn);
-                terminate.Parameters.AddWithValue("db", databaseName!);
-                await terminate.ExecuteNonQueryAsync();
-            }
-
             await Task.Delay(250);
         }
 
         Assert.Equal(0, active);
+    }
+
+    /// <summary>
+    /// P7-G6 requirement #5: a client that was still connected when the server shut down
+    /// gracefully must see its connection close deterministically (FIN/reset/disposed — any
+    /// definite closed-connection signal), not hang forever waiting on a read that never
+    /// completes.
+    /// </summary>
+    private static async Task AssertClientObservesOrderlyCloseAsync(Phase7TcpTestClient probeClient)
+    {
+        Exception? observed = null;
+        try
+        {
+            await probeClient.ReadFrameAsync(TimeSpan.FromSeconds(5));
+        }
+        catch (Exception ex)
+        {
+            observed = ex;
+        }
+
+        Assert.True(
+            observed is EndOfStreamException or IOException or SocketException or ObjectDisposedException,
+            "expected a still-connected client to observe an orderly close when the packaged "
+            + $"server shut down gracefully; got: {observed?.GetType().FullName ?? "no exception (a frame was received instead)"}");
     }
 
     private static async Task<bool> IsPortOpenAsync(int port)

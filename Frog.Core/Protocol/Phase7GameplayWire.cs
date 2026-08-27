@@ -21,6 +21,15 @@ public sealed class ExperienceGainWire
     public long Experience { get; init; }
 }
 
+/// <summary>Corps <see cref="Frog.Core.Enums.PacketId.PositionUpdate"/> : username + carte + centre pixels.</summary>
+public sealed class PositionUpdateWire
+{
+    public string Username { get; init; } = string.Empty;
+    public int MapId { get; init; }
+    public int PixelX { get; init; }
+    public int PixelY { get; init; }
+}
+
 public sealed class InventorySlotWire
 {
     public int SlotIndex { get; init; }

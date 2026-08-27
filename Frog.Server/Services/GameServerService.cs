@@ -79,42 +79,53 @@ public sealed class GameServerService(
             await using (clientSession)
             {
                 ServerNetworkLogs.TcpClientConnected(_log, clientSession.ConnectionId, clientSession.RemoteEndPoint);
-                await _packetSender.SendHelloAsync(clientSession, ct);
 
-                while (!ct.IsCancellationRequested)
+                try
                 {
-                    var hasFrame = await clientSession.TryReadFrameAsync(ct, async payload =>
+                    await _packetSender.SendHelloAsync(clientSession, ct);
+
+                    while (!ct.IsCancellationRequested)
                     {
-                        try
+                        var hasFrame = await clientSession.TryReadFrameAsync(ct, async payload =>
                         {
-                            await _packetDispatcher.DispatchAsync(clientSession, payload, ct);
-                        }
-                        catch (Exception ex) when (ex is not OperationCanceledException)
-                        {
-                            // Keep the TCP alive: a fan-out failure must not drop the sender.
-                            _log.LogError(
-                                ex,
-                                "Dispatch failed connection={ConnectionId} remote={Remote}",
-                                clientSession.ConnectionId,
-                                clientSession.RemoteEndPoint);
                             try
                             {
-                                await _packetSender.SendErrorAsync(
-                                    clientSession,
-                                    "Erreur serveur lors du traitement du paquet.",
-                                    ct);
+                                await _packetDispatcher.DispatchAsync(clientSession, payload, ct);
                             }
-                            catch
+                            catch (Exception ex) when (ex is not OperationCanceledException)
                             {
-                                // ignore secondary send failures
+                                // Keep the TCP alive: a fan-out failure must not drop the sender.
+                                _log.LogError(
+                                    ex,
+                                    "Dispatch failed connection={ConnectionId} remote={Remote}",
+                                    clientSession.ConnectionId,
+                                    clientSession.RemoteEndPoint);
+                                try
+                                {
+                                    await _packetSender.SendErrorAsync(
+                                        clientSession,
+                                        "Erreur serveur lors du traitement du paquet.",
+                                        ct);
+                                }
+                                catch
+                                {
+                                    // ignore secondary send failures
+                                }
                             }
-                        }
-                    });
+                        });
 
-                    if (!hasFrame)
-                    {
-                        break;
+                        if (!hasFrame)
+                        {
+                            break;
+                        }
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Host is shutting down gracefully (SIGTERM / FROG_SHUTDOWN_FILE / Ctrl+C via
+                    // ConsoleLifetime): stop reading rather than let this fault the discarded
+                    // per-client task. The `await using` above still closes the socket in an
+                    // orderly fashion, and the session cleanup below still runs.
                 }
 
                 ServerNetworkLogs.TcpClientDisconnected(
@@ -141,7 +152,14 @@ public sealed class GameServerService(
                     }
 
                     _clientRegistry.Unregister(sessionId);
-                    await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, ct);
+                    if (!ct.IsCancellationRequested)
+                    {
+                        // During a host-wide graceful shutdown every other client is being torn
+                        // down concurrently; skip the fan-out (it would call SendFrameAsync with
+                        // an already-cancelled token) but still finish local bookkeeping below.
+                        await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, ct);
+                    }
+
                     _connectionManager.RemoveSession(sessionId);
                 }
             }

@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Text;
+using System.Text.Json;
 using Frog.Core.Enums;
 using Frog.Core.Protocol;
 
@@ -97,6 +99,76 @@ public static class Phase7WireDecoders
         o += 2;
         message = Encoding.UTF8.GetString(payload.Slice(o, msgLen));
         return true;
+    }
+
+    public static bool TryDecodePositionUpdate(ReadOnlySpan<byte> payload, out string username, out int mapId, out int pixelX, out int pixelY)
+    {
+        username = string.Empty;
+        mapId = pixelX = pixelY = 0;
+        if (payload.Length < 2 || payload[0] != (byte)PacketId.PositionUpdate)
+        {
+            return false;
+        }
+
+        if (!Phase7PacketCodec.TryParsePositionUpdate(payload.Slice(1), out var update))
+        {
+            return false;
+        }
+
+        username = update.Username;
+        mapId = update.MapId;
+        pixelX = update.PixelX;
+        pixelY = update.PixelY;
+        return true;
+    }
+
+    /// <summary>Extrait le <c>mapId</c> commun a <see cref="PacketId.MapData"/> et <see cref="PacketId.MapAlreadySynced"/> (memes 4 premiers octets de corps).</summary>
+    public static int DecodeMapId(ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length < 5 || (payload[0] != (byte)PacketId.MapData && payload[0] != (byte)PacketId.MapAlreadySynced))
+        {
+            throw new InvalidOperationException("MapData/MapAlreadySynced invalide.");
+        }
+
+        return BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(1, 4));
+    }
+
+    /// <summary>Décode le JSON <see cref="PacketId.CharacterListResult"/> (tableau <see cref="CharacterListWireEntry"/>).</summary>
+    public static bool TryDecodeCharacterList(ReadOnlySpan<byte> payload, out List<CharacterListWireEntry> entries)
+    {
+        entries = new List<CharacterListWireEntry>();
+        if (payload.Length < 3 || payload[0] != (byte)PacketId.CharacterListResult)
+        {
+            return false;
+        }
+
+        var len = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(1));
+        if (payload.Length != 3 + len)
+        {
+            return false;
+        }
+
+        var json = Encoding.UTF8.GetString(payload.Slice(3, len));
+        var parsed = JsonSerializer.Deserialize<List<CharacterListWireEntry>>(json);
+        entries = parsed ?? new List<CharacterListWireEntry>();
+        return true;
+    }
+
+    /// <summary>Décode le message UTF-8 d'un paquet <see cref="PacketId.Error"/> (<c>PacketSender.SendErrorAsync</c>).</summary>
+    public static string DecodeErrorMessage(ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length < 2 || payload[0] != (byte)PacketId.Error)
+        {
+            throw new InvalidOperationException("Paquet Error invalide.");
+        }
+
+        var len = payload[1];
+        if (payload.Length != 2 + len)
+        {
+            throw new InvalidOperationException("Paquet Error invalide (longueur).");
+        }
+
+        return Encoding.UTF8.GetString(payload.Slice(2, len));
     }
 
     public static string DecodeLoginToken(ReadOnlySpan<byte> payload)

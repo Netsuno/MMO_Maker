@@ -44,6 +44,8 @@ internal static class Phase7TcpPacketBuilder
         return payload;
     }
 
+    public static byte[] BuildCharacterList() => [(byte)PacketId.CharacterListRequest];
+
     public static byte[] BuildCharacterSelect(string id)
     {
         var b = Encoding.UTF8.GetBytes(id);

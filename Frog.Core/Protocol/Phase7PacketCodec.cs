@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 
 namespace Frog.Core.Protocol;
 
@@ -144,6 +145,39 @@ public static class Phase7PacketCodec
         {
             BankGold = bankGold,
             Slots = slots,
+        };
+        return true;
+    }
+
+    /// <summary>Corps <see cref="Frog.Core.Enums.PacketId.PositionUpdate"/> (miroir de <c>PacketSender.SendPositionUpdateAsync</c>).</summary>
+    public static bool TryParsePositionUpdate(ReadOnlySpan<byte> body, out PositionUpdateWire update)
+    {
+        update = new PositionUpdateWire();
+        if (body.Length < 1)
+        {
+            return false;
+        }
+
+        var usernameLen = body[0];
+        var expected = 1 + usernameLen + 4 + 4 + 4;
+        if (usernameLen == 0 || body.Length != expected)
+        {
+            return false;
+        }
+
+        var username = Encoding.UTF8.GetString(body.Slice(1, usernameLen));
+        var o = 1 + usernameLen;
+        var mapId = BinaryPrimitives.ReadInt32LittleEndian(body.Slice(o));
+        o += 4;
+        var pixelX = BinaryPrimitives.ReadInt32LittleEndian(body.Slice(o));
+        o += 4;
+        var pixelY = BinaryPrimitives.ReadInt32LittleEndian(body.Slice(o));
+        update = new PositionUpdateWire
+        {
+            Username = username,
+            MapId = mapId,
+            PixelX = pixelX,
+            PixelY = pixelY,
         };
         return true;
     }

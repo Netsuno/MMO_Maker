@@ -313,6 +313,9 @@ public static class FrogServerHostFactory
                 services.AddHostedService<GameServerService>();
                 services.AddHostedService<SessionCleanupService>();
                 services.AddHostedService<PlayerPersistenceService>();
+                // P7-G6: no-op unless FROG_SHUTDOWN_FILE is set (used by process-boundary tests
+                // and supervisors that cannot reliably deliver SIGTERM/Ctrl+C to this process).
+                services.AddHostedService<ShutdownFileWatcherService>();
 
                 configureServices?.Invoke(services);
             });

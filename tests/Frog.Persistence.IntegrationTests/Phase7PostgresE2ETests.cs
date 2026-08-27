@@ -1,5 +1,6 @@
 using System.Threading;
 using Frog.Application.Gameplay;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Persistence.PostgreSql;
