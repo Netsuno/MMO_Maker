@@ -103,7 +103,9 @@ public sealed class GameplayClientSmokeTests
                 form.ConnectButtonForTest.PerformClick();
                 Pump(form, () => form.DisconnectButtonForTest.Enabled || form.BackDisconnectButtonForTest.Enabled, "reconnect TCP");
                 form.ReconnectButtonForTest.PerformClick();
-                Pump(form, () => form.CatalogClassesPopulatedForTest, "catalog after reconnect");
+                // Catalog combo is not cleared on disconnect — wait for the reconnect result log,
+                // not CatalogClassesPopulatedForTest (would race and return immediately).
+                Pump(form, () => form.LogContainsForTest("Reconnect OK"), "reconnect success logged");
                 AssertAuthTokenStoredAndNeverLogged(form, "Reconnect OK");
                 Pump(form, () => form.CharCreateButtonForTest.Enabled && form.CharCreateButtonForTest.Visible, "reconnect auth restored character UI");
                 Pump(
