@@ -57,6 +57,14 @@ public sealed class Session
 
     public DateTime LastMeleeUtc { get; set; }
 
+    /// <summary>
+    /// Verrou pour les mutations HP joueur (melee PvP) : plusieurs attaquants peuvent
+    /// cibler cette session depuis des connexions/taches distinctes en meme temps, donc la
+    /// lecture-modification-ecriture de <see cref="Hp"/>/<see cref="IsDead"/> doit etre
+    /// serialisee par victime (cf. CombatGameplayService.TryMeleeAttackPlayerAsync).
+    /// </summary>
+    public object CombatLock { get; } = new();
+
     public HashSet<Guid> KnownSpellIds { get; } = new();
 
     /// <summary>Cartes pour lesquelles un événement <c>page</c> a déjà été joué cette session (réarmé en quittant la carte).</summary>

@@ -1,9 +1,12 @@
 using System.Threading;
+using Frog.Application.Gameplay;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Persistence.PostgreSql;
 using Frog.Persistence.IntegrationTests.Support;
 using Frog.Server.Gameplay;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Frog.Persistence.IntegrationTests;
@@ -310,11 +313,17 @@ public sealed class Phase7PostgresE2ETests
             const string password = "password12345";
             await using var a = new Phase7TcpTestClient();
             await using var b = new Phase7TcpTestClient();
-            await RegisterLoginSelectAsync(a, port, $"ca-{Guid.NewGuid():N}"[..16], password, "FighterA", seed.ClassId);
-            await RegisterLoginSelectAsync(b, port, $"cb-{Guid.NewGuid():N}"[..16], password, "FighterB", seed.ClassId);
+            var characterIdA = await RegisterLoginSelectAsync(
+                a, port, $"ca-{Guid.NewGuid():N}"[..16], password, "FighterA", seed.ClassId);
+            var characterIdB = await RegisterLoginSelectAsync(
+                b, port, $"cb-{Guid.NewGuid():N}"[..16], password, "FighterB", seed.ClassId);
 
             var xpEvents = 0;
-            async Task AttackLoopAsync(Phase7TcpTestClient client)
+            var winnerLock = new object();
+            Guid? winnerCharacterId = null;
+            long grantedXp = -1;
+
+            async Task AttackLoopAsync(Phase7TcpTestClient client, Guid characterId)
             {
                 for (var i = 0; i < 20; i++)
                 {
@@ -326,7 +335,14 @@ public sealed class Phase7PostgresE2ETests
                             TimeSpan.FromSeconds(2));
                         if (frame[0] == (byte)PacketId.ExperienceGain)
                         {
+                            Assert.True(Phase7WireDecoders.TryDecodeExperienceGain(frame, out var amount, out _, out _));
                             Interlocked.Increment(ref xpEvents);
+                            lock (winnerLock)
+                            {
+                                winnerCharacterId = characterId;
+                                grantedXp = amount;
+                            }
+
                             return;
                         }
                     }
@@ -339,8 +355,37 @@ public sealed class Phase7PostgresE2ETests
                 }
             }
 
-            await Task.WhenAll(AttackLoopAsync(a), AttackLoopAsync(b));
+            await Task.WhenAll(AttackLoopAsync(a, characterIdA), AttackLoopAsync(b, characterIdB));
+
+            // Exactement un gain d'XP cote wire, pour le montant exact attendu (monstre
+            // niveau 1 seede) — pas seulement "au moins un evenement".
             Assert.Equal(1, Volatile.Read(ref xpEvents));
+            var expectedXp = CombatFormulas.MonsterExperienceReward(1);
+            Assert.Equal(expectedXp, grantedXp);
+            Assert.NotNull(winnerCharacterId);
+            var loserCharacterId = winnerCharacterId!.Value == characterIdA ? characterIdB : characterIdA;
+
+            // Etat final autoritatif du monstre : disparu de la carte (pas seulement "un
+            // paquet XP a ete recu"), directement depuis le repository combat du serveur.
+            var combatMutations = host.Services.GetRequiredService<ICombatMutationRepository>();
+            Assert.Empty(combatMutations.ListMonstersOnMap(seed.RuntimeMapId));
+
+            // XP reellement persiste en base : le gagnant a exactement l'XP du monstre,
+            // le perdant n'a recu aucune XP fantome.
+            using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+            var (winnerExperience, loserExperience) = await gate.ExecuteAsync(async (db, ct) =>
+            {
+                var winner = await db.PlayerCharacters.AsNoTracking()
+                    .SingleAsync(c => c.Id == winnerCharacterId.Value, ct)
+                    .ConfigureAwait(false);
+                var loser = await db.PlayerCharacters.AsNoTracking()
+                    .SingleAsync(c => c.Id == loserCharacterId, ct)
+                    .ConfigureAwait(false);
+                return (winner.Experience, loser.Experience);
+            }).ConfigureAwait(false);
+
+            Assert.Equal(expectedXp, winnerExperience);
+            Assert.Equal(0L, loserExperience);
         }
         finally
         {
@@ -556,7 +601,7 @@ public sealed class Phase7PostgresE2ETests
         return (level, xp, hp, gold);
     }
 
-    private static async Task RegisterLoginSelectAsync(
+    private static async Task<Guid> RegisterLoginSelectAsync(
         Phase7TcpTestClient tcp,
         int port,
         string user,
@@ -576,6 +621,7 @@ public sealed class Phase7PostgresE2ETests
         await tcp.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(id));
         _ = await tcp.ReadUntilAsync(PacketId.CharacterSelectResult);
         await tcp.DrainPendingAsync();
+        return Guid.Parse(id);
     }
 
     private static async Task<string> RegisterLoginCreateAsync(

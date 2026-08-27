@@ -12,11 +12,17 @@ public sealed class InMemoryEconomyTransactionRepository : IEconomyTransactionRe
     private readonly ICharacterRepository _characters;
     private readonly IInventoryRepository _inventory;
     private readonly IBankRepository _bank;
-    private readonly ConcurrentDictionary<(Guid CharacterId, string Operation, Guid RequestId), IdempotencyEntry> _idempotency = new();
+
+    /// <summary>
+    /// Cle scopee au seul (characterId, requestId) — alignee sur
+    /// EconomyRequestIdEntity/PostgresEconomyTransactionRepository : un requestId ne peut
+    /// jamais etre rejoue avec une operation differente, meme en memoire.
+    /// </summary>
+    private readonly ConcurrentDictionary<(Guid CharacterId, Guid RequestId), IdempotencyEntry> _idempotency = new();
     private readonly ConcurrentDictionary<Guid, object> _characterLocks = new();
     private readonly ConcurrentDictionary<(Guid ShopId, Guid ItemId), int> _shopStock = new();
 
-    private sealed record IdempotencyEntry(byte[] Fingerprint, EconomyCommittedState State);
+    private sealed record IdempotencyEntry(string Operation, byte[] Fingerprint, EconomyCommittedState State);
 
     public InMemoryEconomyTransactionRepository(
         ICharacterRepository characters,
@@ -358,10 +364,10 @@ public sealed class InMemoryEconomyTransactionRepository : IEconomyTransactionRe
             return CreateFailure<T>("RequestId requis.");
         }
 
-        var key = (characterId, operation, requestId);
+        var key = (characterId, requestId);
         if (_idempotency.TryGetValue(key, out var cached))
         {
-            return EconomyRequestFingerprint.Matches(cached.Fingerprint, fingerprint)
+            return MatchesReplay(cached, operation, fingerprint)
                 ? ReplayFromState<T>(cached.State)
                 : CreateFailure<T>(MismatchMessage);
         }
@@ -371,7 +377,7 @@ public sealed class InMemoryEconomyTransactionRepository : IEconomyTransactionRe
         {
             if (_idempotency.TryGetValue(key, out cached))
             {
-                return EconomyRequestFingerprint.Matches(cached.Fingerprint, fingerprint)
+                return MatchesReplay(cached, operation, fingerprint)
                     ? ReplayFromState<T>(cached.State)
                     : CreateFailure<T>(MismatchMessage);
             }
@@ -383,12 +389,18 @@ public sealed class InMemoryEconomyTransactionRepository : IEconomyTransactionRe
             var state = ExtractState(result);
             if (state is not null)
             {
-                _idempotency[key] = new IdempotencyEntry(fingerprint, state);
+                // TryAdd (pas d'ecrasement) : si une requete strictement identique a gagne
+                // la course entre notre verification de rejeu et l'ecriture ci-dessous, on
+                // conserve la premiere entree gagnante plutot que de la remplacer.
+                _idempotency.TryAdd(key, new IdempotencyEntry(operation, fingerprint, state));
             }
         }
 
         return result;
     }
+
+    private static bool MatchesReplay(IdempotencyEntry cached, string operation, byte[] fingerprint)
+        => cached.Operation == operation && EconomyRequestFingerprint.Matches(cached.Fingerprint, fingerprint);
 
     private static T CreateFailure<T>(string message) where T : class
         => typeof(T).Name switch

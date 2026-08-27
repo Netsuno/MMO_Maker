@@ -247,27 +247,48 @@ public sealed class CombatGameplayService(
             return PlayerMeleeCombatResult.Fail("Personnage mort.");
         }
 
-        if (defender.IsDead)
-        {
-            return PlayerMeleeCombatResult.Fail("Cible deja morte.");
-        }
-
         var now = DateTime.UtcNow;
         if ((now - attacker.LastMeleeUtc).TotalMilliseconds < CombatFormulas.BasicAttackCooldownMs)
         {
             return PlayerMeleeCombatResult.Fail("Attaque en recharge.");
         }
 
+        // Le power d'arme depend d'un catalogue publie (I/O), donc il est resolu hors
+        // verrou ; toutes les autres conditions et la mutation HP sont revalidees de
+        // maniere autoritative sous defender.CombatLock, au point de mutation, pour fermer
+        // la fenetre entre les controles cote dispatcher (portee/carte/vivant) et
+        // l'application reelle des degats — plusieurs attaquants peuvent cibler la meme
+        // victime depuis des connexions distinctes en meme temps.
         var weaponPower = await GetWeaponPowerAsync(attacker.EquippedWeaponItemId, ct).ConfigureAwait(false);
-        var targetVit = defender.Stats?.Vit ?? 10;
-        var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
-        defender.Hp = Math.Max(0, defender.Hp - damage);
-        var killed = false;
-        if (defender.Hp <= 0)
+
+        int damage;
+        bool killed;
+        lock (defender.CombatLock)
         {
-            defender.IsDead = true;
-            defender.Hp = 0;
-            killed = true;
+            if (defender.IsDead)
+            {
+                return PlayerMeleeCombatResult.Fail("Cible deja morte.");
+            }
+
+            if (defender.CurrentMapId != attacker.CurrentMapId)
+            {
+                return PlayerMeleeCombatResult.Fail("Pas sur la meme carte.");
+            }
+
+            if (!MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY))
+            {
+                return PlayerMeleeCombatResult.Fail("Hors portee.");
+            }
+
+            var targetVit = defender.Stats?.Vit ?? 10;
+            damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
+            defender.Hp = Math.Max(0, defender.Hp - damage);
+            killed = defender.Hp <= 0;
+            if (killed)
+            {
+                defender.IsDead = true;
+                defender.Hp = 0;
+            }
         }
 
         attacker.LastMeleeUtc = now;

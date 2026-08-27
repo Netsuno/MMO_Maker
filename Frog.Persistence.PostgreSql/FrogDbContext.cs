@@ -723,7 +723,10 @@ public sealed class FrogDbContext : DbContext
         modelBuilder.Entity<EconomyRequestIdEntity>(e =>
         {
             e.ToTable("economy_request_ids", "player");
-            e.HasKey(x => new { x.CharacterId, x.Operation, x.RequestId });
+            // Cle scopee au (personnage, requestId) uniquement : un requestId ne peut
+            // jamais etre rejoue avec une operation ou un payload differents (cf.
+            // TryReplayAsync/StoreRequestAsync qui appliquent la verification stricte).
+            e.HasKey(x => new { x.CharacterId, x.RequestId });
             e.Property(x => x.Operation).HasMaxLength(64).IsRequired();
             e.Property(x => x.RequestFingerprint).HasColumnType("bytea").IsRequired();
             e.Property(x => x.ResultJson).HasColumnType("jsonb").IsRequired();

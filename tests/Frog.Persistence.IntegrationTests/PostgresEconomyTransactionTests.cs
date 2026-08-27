@@ -451,8 +451,86 @@ public sealed class PostgresEconomyTransactionTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
-    public async Task SameRequestId_DifferentOperation_DoesNotCollide()
+    public async Task CancellationAfterMutations_ThenRetryWithSameRequestId_SucceedsViaFreshGate()
     {
+        // Simulates a client whose connection is cut mid-flight and retries with the exact
+        // same requestId: the cancelled attempt must roll back completely (including its
+        // economy_request_ids row) so a brand new DbContext/gate is free to commit the
+        // retry as a fresh success rather than being blocked or replaying a phantom result.
+        using var gate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
+        await SetGoldAsync(gate, characterId, 500);
+        using var cts = new CancellationTokenSource();
+        var requestId = NewRequestId();
+        var economy = new PostgresEconomyTransactionRepository(gate)
+        {
+            TestBeforeCommitAsync = _ =>
+            {
+                cts.Cancel();
+                return Task.FromCanceled(cts.Token);
+            },
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId, cts.Token));
+
+        using var retryGate = CreateGate();
+        var retry = await new PostgresEconomyTransactionRepository(retryGate)
+            .TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
+        Assert.True(retry.Success);
+        Assert.False(retry.IdempotentReplay);
+        Assert.Equal(475, retry.State!.Gold);
+
+        using var verifyGate = CreateGate();
+        var record = await new PostgresCharacterRepository(verifyGate).FindByIdAsync(characterId);
+        Assert.Equal(475, record!.Gold);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task ConcurrentIdenticalRequests_FromSeparateDbContexts_ResolveToSingleChargeNotException()
+    {
+        // Two separate FrogDbContext/connections (unlike the same-gate tests above, which
+        // serialize through one semaphore) racing the exact same (characterId, requestId,
+        // payload) buy. Both must see the (character_id, request_id) unique constraint
+        // resolve into a clean cached replay rather than an unhandled DbUpdateException.
+        using var seedGate = CreateGate();
+        var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(seedGate);
+        await SetGoldAsync(seedGate, characterId, 500);
+
+        using var gateA = CreateGate();
+        using var gateB = CreateGate();
+        var economyA = new PostgresEconomyTransactionRepository(gateA);
+        var economyB = new PostgresEconomyTransactionRepository(gateB);
+        var requestId = NewRequestId();
+
+        var results = await Task.WhenAll(
+            economyA.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId),
+            economyB.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId));
+
+        Assert.All(results, r => Assert.True(r.Success));
+        Assert.All(results, r => Assert.Equal(475, r.State!.Gold));
+        Assert.Equal(1, results.Count(r => r.IdempotentReplay));
+        Assert.Equal(1, results.Count(r => !r.IdempotentReplay));
+
+        using var verifyGate = CreateGate();
+        var record = await new PostgresCharacterRepository(verifyGate).FindByIdAsync(characterId);
+        Assert.Equal(475, record!.Gold);
+
+        await using var db = new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString));
+        var rowCount = await db.PlayerEconomyRequestIds
+            .AsNoTracking()
+            .CountAsync(r => r.CharacterId == characterId && r.RequestId == requestId);
+        Assert.Equal(1, rowCount);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task SameRequestId_DifferentOperation_IsRejected()
+    {
+        // The economy_request_ids PK is scoped to (character_id, request_id) only — a
+        // requestId can never be replayed under a different operation, even if the
+        // first use already committed successfully.
         using var gate = CreateGate();
         var (characterId, shopId, itemId) = await SeedEconomyFixtureAsync(gate);
         await SetGoldAsync(gate, characterId, 500);
@@ -462,10 +540,23 @@ public sealed class PostgresEconomyTransactionTests
         var requestId = NewRequestId();
 
         var buy = await economy.TryBuyAsync(characterId, shopId, itemId, 1, 25, 20, null, requestId);
-        var sell = await economy.TrySellAsync(characterId, 0, 1, 10, 20, requestId);
         Assert.True(buy.Success);
-        Assert.True(sell.Success);
+        Assert.False(buy.IdempotentReplay);
+        var invBeforeSell = await inventory.GetAsync(characterId);
+        var quantityBeforeSell = invBeforeSell.Slots.Where(s => s.ItemId == itemId).Sum(s => s.Quantity);
+
+        var sell = await economy.TrySellAsync(characterId, 0, 1, 10, 20, requestId);
+        Assert.False(sell.Success);
         Assert.False(sell.IdempotentReplay);
+        Assert.Contains("payload different", sell.Message);
+
+        using var gate2 = CreateGate();
+        var record = await new PostgresCharacterRepository(gate2).FindByIdAsync(characterId);
+        Assert.Equal(475, record!.Gold);
+        var invAfterSell = await new PostgresInventoryRepository(gate2).GetAsync(characterId);
+        Assert.Equal(
+            quantityBeforeSell,
+            invAfterSell.Slots.Where(s => s.ItemId == itemId).Sum(s => s.Quantity));
     }
 
     [PostgresFact]
