@@ -1,14 +1,14 @@
-# Phase 7 — TEST_RESULTS (remediation verification)
+# Phase 7 — TEST_RESULTS (P7-G1…G6 remediation verification)
 
 ## Identity
 
 | Item | Value |
 | --- | --- |
-| Implementation SHA (CI-green) | `862d2e3398b23ea38b50ab14a675d3b0579f8cff` |
-| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140 |
-| build-and-test | https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140/job/98354032665 |
-| postgres-integration | https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140/job/98354032884 |
-| Date (UTC) | 2026-08-26 |
+| Implementation SHA (CI-green) | `c1803132522d8dfb31e3a1284755341eb2d243b2` |
+| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537 |
+| build-and-test | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537/job/98399567822 |
+| postgres-integration | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537/job/98399567965 |
+| Date (UTC) | 2026-08-27 |
 
 ## Environment (local agent)
 
@@ -38,14 +38,14 @@ dotnet build Frog.Creator.sln -c Release
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
 ```
 
-| Field | Local | CI tip `862d2e3` |
+| Field | Local | CI tip `c180313` |
 | --- | --- | --- |
 | Status | **PASS** | **PASS** |
-| Passed | **271** | **271** |
+| Passed | **272** | **272** |
 | Failed | 0 | 0 |
 | Skipped | 0 | 0 |
 
-Includes: architecture boundaries, protocol parsers, Phase7* unit tests, `Phase7InMemorySmokeE2ETests` (incl. immediate-reconnect registry regression).
+Includes: architecture boundaries, protocol parsers, Phase7* unit tests, `Phase7InMemorySmokeE2ETests` (incl. `CharacterStatsUpdateRequest_RejectedInProductionComposition`), reconnect registry regression.
 
 ### Real PostgreSQL integration + PG headless E2E
 
@@ -53,14 +53,15 @@ Includes: architecture boundaries, protocol parsers, Phase7* unit tests, `Phase7
 dotnet test tests/Frog.Persistence.IntegrationTests -c Release --no-build
 ```
 
-| Field | Local | CI tip `862d2e3` |
+| Field | Local | CI tip `c180313` |
 | --- | --- | --- |
-| Status | N/A (no local PG) | **PASS** |
-| Passed | — | **93** |
-| Failed | — | 0 |
-| Skipped | — | 0 |
+| Status | **PASS** | **PASS** |
+| Passed | **97** | **97** |
+| Failed | 0 | 0 |
+| Skipped | 0 | 0 |
+| CI duration | — | ~1.15 min |
 
-Includes: auth, player repos, economy atomicity, published world (`Phase7PublishedWorldTests`), packaged Release server PG process test (`PackagedServerPostgreSqlProcessTests`), `Phase7PostgresE2ETests` (17-step + multi-client).
+Includes: auth, player repos, economy atomicity + request-id uniqueness, inventory-transfer cancel contamination, published world, packaged Release server **graceful** shutdown (`PackagedServerPostgreSqlProcessTests`), `Phase7PostgresE2ETests` (17-step decoded asserts + multi-client).
 
 ### Windows editor smoke ×3 (CI)
 
@@ -69,7 +70,7 @@ Includes: auth, player repos, economy atomicity, published world (`Phase7Publish
 | Status | **PASS** on tip |
 | Filter | `FullyQualifiedName!~GameplayClientSmoke` |
 | Per pass | **35** Passed / 0 Failed / 0 Skipped |
-| Consecutive | **3/3** (each attempt 1/2) |
+| Consecutive | **3/3** |
 | Log marker | `=== Windows editor smoke 3/3 consecutive passes OK ===` |
 
 ### Windows gameplay-client smoke ×3 (CI)
@@ -78,13 +79,20 @@ Includes: auth, player repos, economy atomicity, published world (`Phase7Publish
 | --- | --- |
 | Status | **PASS** on tip |
 | Filter | `FullyQualifiedName~GameplayClientSmoke` |
-| Per pass | **5** Passed / 0 Failed / 0 Skipped |
-| Consecutive | **3/3** (each attempt 1/2) |
+| Per pass | **5** Passed / 0 Failed / 0 Skipped (~28–29 s each) |
+| Consecutive | **3/3** |
 | Log marker | `=== Gameplay client smoke 3/3 consecutive passes OK ===` |
-| Scenarios | register/login/inventory/reconnect + shop/bank/sell + chat rate limit + spell + drop |
+| Scenarios | register/login/equip/unequip/reconnect (token-safe logs); shop/bank item+gold/sell success; chat rate limit; melee/spell/invalid/death/respawn; drop+pickup |
 | Screenshots | `01`…`05` under artifact `phase-07-gameplay-client-screenshots` |
-| Manifest | `SCREENSHOT_MANIFEST.md` |
-| Protocol | shop buy + equip via public client UI (no mid-scenario DI inventory inject) |
+| Manifest | `SCREENSHOT_MANIFEST.md` (hashes match downloaded artifact) |
+
+### Secret-leak scan
+
+| Check | Result |
+| --- | --- |
+| Smoke assert token absent from UI log after login/reconnect | PASS (CI) |
+| Screenshots `01` / `04` show `Login OK` / `Reconnect OK` only | PASS (visual + log text) |
+| `CharacterStatsUpdateRequest` rejected in production composition | PASS (`Frog.Tests`) |
 
 ### git diff --check
 
@@ -92,45 +100,47 @@ Includes: auth, player repos, economy atomicity, published world (`Phase7Publish
 | --- | --- |
 | Status | **PASS** |
 
-## 17-step E2E matrix (`Phase7PostgresE2ETests.FullGameplayFlow_PostgreSqlHeadless_AllSteps`)
+## 17-step E2E assertions actually performed
 
-| # | Step | Asserted state |
+`Phase7PostgresE2ETests.FullGameplayFlow_PostgreSqlHeadless_AllSteps` now asserts:
+
+| # | Step | Assertion |
 | ---: | --- | --- |
-| 1 | Register + login | Token in LoginResult message |
-| 2 | Create/list/select published class | Character id + select success |
-| 3 | Map load | MapData / MapAlreadySynced |
-| 4 | Obtain item (ground pickup) | InventorySnapshot contains item Guid |
-| 5 | Equip | Equipped weapon Guid in snapshot |
-| 6 | Reconnect + reselect | Equipment persisted in snapshot |
-| 7 | Valid melee | MeleeAttackResult success |
-| 8 | Valid spell | SpellCastResult + CombatState |
-| 9 | Invalid combat | Fail byte; baselines retained |
-| 10 | XP once | ExperienceGain / CombatState.experience |
-| 11 | Chat map/global/whisper + rate limit | Decoded ChatMessage; spam drained |
-| 12 | Shop buy/sell | Inventory + CombatState.gold |
-| 13 | Bank item + gold | BankSnapshot slots + BankGold |
-| 14 | Death | CombatState.isDead / hp=0 |
-| 15 | Respawn | Full HP/MP CombatState |
-| 16 | Server restart + reconnect | Equipment + progression persisted |
-| 17 | Clean shutdown | Host/clients disposed |
+| 1 | Register + login | Success + token decoded (not logged by client under test) |
+| 2 | Character list | `CharacterListRequest` → list contains created character |
+| 3 | Map | MapData/MapAlreadySynced map id == published runtime map id |
+| 4 | Pickup | Inventory contains weapon |
+| 5 | Equip | Equipped weapon Guid |
+| 6 | Reconnect | Equipment persisted |
+| 7 | Melee | MeleeAttackResult success |
+| 8 | Valid spell | SpellCastResult success + MP delta |
+| 9 | Invalid spell | Pre/post CombatState identical (level/xp/hp/mp/gold) |
+| 10 | XP | Exact `CombatFormulas.MonsterExperienceReward` + exactly one ExperienceGain |
+| 11 | Chat | Map/global/whisper + Error frame `"Trop de messages"` |
+| 12 | Shop buy/sell | Inventory + exact gold deltas |
+| 13 | Bank item + gold | Deposit/withdraw both sides (inventory + bank snapshots) |
+| 14 | Death | isDead / hp=0 |
+| 15 | Respawn | Full HP/MP + map/pixel vs published spawn tiles |
+| 16 | Restart | Exact equipment, inventory qty, gold, bank gold, level/XP, position |
+| 17 | Shutdown | Host disposed |
+
+## Packaged server (P7-G6)
+
+| Assertion | Result |
+| --- | --- |
+| Graceful stop via SIGTERM / `FROG_SHUTDOWN_FILE` | PASS |
+| Process exit code 0 | PASS |
+| PG sessions drain to 0 without `pg_terminate_backend` | PASS |
+| Idle client observes orderly close | PASS |
+| Force `Kill` only on timeout failure path | PASS |
 
 ## Multi-client
 
-| Scenario | Test | Result |
-| --- | --- | --- |
-| Ground pickup one winner | `GroundPickupRace_TwoClients_ExactlyOneWinner` | PASS |
-| Combat XP once | `CombatRace_TwoClients_SameMonster_ExactlyOneExperienceGrant` | PASS |
-| Shop idempotent retry | `ShopBuy_IdempotentRetry_DoesNotDuplicateItem` | PASS |
-| Whisper isolation | `ChatWhisper_DoesNotLeakToThirdParty` | PASS |
-| Reconnect displace | `Reconnect_DisplacesStaleConnection` | PASS |
-| Immediate reconnect + select + map (no delay) | `ReconnectSelectThenMapRequest_StaysConnected` | PASS |
-
-## Packaged server (P7-R2)
-
-| Test | Result |
+| Scenario | Result |
 | --- | --- |
-| `ReleasePackagedServer_PostgreSqlEnabled_LoginAndShopBuy_Persists` | PASS — Release publish, PG reflection load, shop buy persists, clean teardown |
-
-## Reconnect zombie (P7 smoke blocker fixed in `4d92800`)
-
-Immediate reconnect displace previously left a `ClientRegistry` zombie (AuthenticatedSession nulled without Unregister). Character-select PositionUpdate fan-out then aborted the **new** TCP. Fixed by unregister-on-displace + hardened send/dispatch; regression covered above.
+| Ground pickup one winner | PASS |
+| Combat XP once (exact amount + monster gone + persisted XP) | PASS |
+| Shop idempotent retry | PASS |
+| Whisper isolation | PASS |
+| Reconnect displace | PASS |
+| Immediate reconnect + select + map | PASS |

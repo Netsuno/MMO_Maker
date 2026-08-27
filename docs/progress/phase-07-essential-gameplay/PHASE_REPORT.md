@@ -1,21 +1,18 @@
-# Phase 7 — PHASE_REPORT (CHANGES REQUESTED → remediations)
+# Phase 7 — PHASE_REPORT (CHANGES REQUESTED → P7-G1…G6 remediations)
 
 ## Status
 
-**Phase 7: CHANGES REQUESTED** — P7-FIX-1…5 + P7-R1…R7 remediations applied; CI green on implementation tip; **waiting for re-review**.
+**Phase 7: CHANGES REQUESTED** — P7-G1…G6 remediations applied; CI green on implementation tip; **waiting for re-review**.
 
 | Workstream | Status |
 | --- | --- |
-| P7-FIX-1 PostgreSQL SoT + published catalogs | DONE |
-| P7-FIX-2 Atomic shop/bank + bank gold | DONE |
-| P7-FIX-3 PG integration + 17-step E2E | DONE |
-| P7-FIX-4 Client protocol/UI + gameplay smoke | DONE |
-| P7-FIX-5 Documentation integrity | DONE |
-| P7-R1 Published world migration + seed | DONE |
-| P7-R2 Packaged Release server PG process test | DONE |
-| P7-R5 Atomic combat mutations | DONE |
-| P7-R6 Production-composition PG E2E | DONE |
-| P7-R7 Client catalog UI + gameplay smoke ×5 | DONE |
+| P7-FIX-1…5 / P7-R1…R7 (prior) | DONE — preserved |
+| P7-G1 Token leak + reject client stats | DONE |
+| P7-G2 17-step PG E2E decoded asserts | DONE |
+| P7-G3 EF cancel cleanup + drop double equip write | DONE |
+| P7-G4 Request-id uniqueness + combat race guarantees | DONE |
+| P7-G5 Named UI + strict success smokes | DONE |
+| P7-G6 Graceful packaged shutdown + evidence | DONE |
 
 ## Identity
 
@@ -25,39 +22,40 @@
 | PR | #2 |
 | Phase 6 accepted implementation | `99b782f8f205c0161c0bba8838d041714e39947e` |
 | Phase 6 accepted evidence tip | `f4db56592346d9bf0cad9ca153aaeff11ee65de8` |
-| Phase 7 rejected tip | `67281e3c62eb1943341b162fe1213abb5fc7011a` |
-| Phase 7 implementation SHA | `862d2e3398b23ea38b50ab14a675d3b0579f8cff` |
-| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140 |
+| Phase 7 implementation SHA | `c1803132522d8dfb31e3a1284755341eb2d243b2` |
+| CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537 |
 | Phase 8 | **Not started** |
 
-## What changed (remediation)
+## What changed (this pass)
 
-### P7-FIX-1
-- Production fails closed unless `PostgreSql:Enabled=true` (or playtest / `AllowInMemoryFallback` for tests).
-- `PostgreSqlServerAuthBackend` registers player repos + `IPublished*` Postgres catalogs + migrates DB.
-- `Phase7PublishedContent` limited to playtest/in-memory test composition.
-- MariaDB auth not selected for Phase 7 production.
+### P7-G1
+- Client logs `Login OK` / `Reconnect OK` only; token stored privately; `SanitizeSecrets` redacts base64url-like tokens.
+- Stats editor UI hidden; `CharacterStatsUpdateRequest` rejected unless playtest or `AllowInMemoryFallback`.
+- Smoke asserts token absent from log; production-composition negative test in `Frog.Tests`.
 
-### P7-FIX-2
-- `BankGold` on characters; `shop_stock`; `economy_request_ids`.
-- `IEconomyTransactionRepository` / Postgres atomic buy/sell/bank.
-- Session updated only after commit; idempotent `requestId`.
+### P7-G2
+- Full gameplay PG E2E: character list, map id, melee/spell success, exact XP, rate-limit Error, buy/sell deltas, bank item+gold round-trip, respawn pose, post-restart exact persistence.
 
-### P7-FIX-3
-- Expanded PG player/economy/content visibility tests.
-- `Phase7PostgresE2ETests` true PG headless gate (no mid-scenario DI mutation).
-- Multi-client: pickup race, combat XP once, shop idempotency, whisper isolation, reconnect displace.
-- In-memory companion `Phase7InMemorySmokeE2ETests` + immediate-reconnect registry regression.
+### P7-G3
+- Economy + inventory-transfer repos: catch all exceptions including cancellation; rollback with `CancellationToken.None`; clear ChangeTracker.
+- Same-gate contamination tests; removed post-commit `PersistEquipmentAsync` double write.
 
-### P7-FIX-4
-- Typed `Phase7PacketCodec` + client send/receive.
-- MainShellForm gameplay tabs; Inventory/Equipment panels.
-- `GameplayClientSmokeTests` + CI ×3 + artifact `phase-07-gameplay-client-screenshots`.
-- Reconnect path: unregister displaced client; preload map after reconnect; Playing after map ready.
+### P7-G4
+- Economy PK `(character_id, request_id)`; operation+fingerprint must match for replay; different op/payload rejected.
+- Concurrent identical requests from separate DbContexts → replay/conflict (not unhandled unique violation).
+- Combat race asserts exact XP amount, monster gone, persisted XP; player melee under per-defender lock.
 
-### P7-FIX-5
-- STATUS remains **CHANGES REQUESTED** until re-review accepts.
-- Exact suite counts (271 / 93 / 35×3 / 5×3); SHA + CI URLs in this dossier.
+### P7-G5
+- Inventory/equipment/bank/ground show published names; ground pickup UI; NPC target combo; stats editor remains hidden.
+- Smoke facts require success paths and typed state (no “or refused”).
+
+### P7-G6
+- Packaged server: SIGTERM + `FROG_SHUTDOWN_FILE` graceful stop; exit code 0; sessions drain without `pg_terminate_backend`; Kill only on failure timeout.
+- Evidence dossier + screenshot hashes regenerated from CI artifact on tip `c180313`.
+
+## Suite counts on tip
+
+271 → **272** unit; 66 → **97** PG; editor 35×3; gameplay **5×3**.
 
 ## Phase 8
 

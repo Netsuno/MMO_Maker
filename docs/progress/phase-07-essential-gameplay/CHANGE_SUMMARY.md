@@ -1,48 +1,38 @@
-# Phase 7 — CHANGE_SUMMARY (remediation)
+# Phase 7 — CHANGE_SUMMARY (P7-G1…G6)
 
-## Starting point for remediations
-- Rejected tip: `67281e3c62eb1943341b162fe1213abb5fc7011a`
+## Starting point
+- Prior rejected tip: `67281e3c62eb1943341b162fe1213abb5fc7011a`
 - Phase 6 accepted implementation: `99b782f8f205c0161c0bba8838d041714e39947e`
-- Phase 6 accepted evidence tip: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
+- Prior remediations (P7-FIX / P7-R) preserved on branch.
 
 ## Implementation tip (CI green)
-- `862d2e3398b23ea38b50ab14a675d3b0579f8cff`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33021897140
+- `c1803132522d8dfb31e3a1284755341eb2d243b2`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537
 
-## P7-FIX-1
-- Fail-closed production DI without PostgreSQL (playtest / `AllowInMemoryFallback` only for tests).
-- Backend registers Postgres published catalogs + migrates.
-- Config examples document PostgreSQL as Phase 7 production DB.
-- Host composition test asserts Postgres DI types.
+## P7-G1
+- Never log auth/reconnect tokens; store privately; smoke + screenshot verification.
+- Hide stats editor; reject `CharacterStatsUpdateRequest` in production composition.
 
-## P7-FIX-2
-- `BankGold`, `shop_stock`, `economy_request_ids` migration.
-- Atomic `IEconomyTransactionRepository` for buy/sell/bank.
-- Idempotent `requestId`; session update after commit.
-- Monster XP granted once (`Defeated` / remove-before-grant).
+## P7-G2
+- Replace packet-only/tautological E2E checks with decoded business-state assertions for all 17 steps.
 
-## P7-FIX-3
-- PG player/content/economy integration expansion.
-- `Phase7PostgresE2ETests` 17-step headless PG E2E without mid-scenario DI injection.
-- Multi-client: pickup, combat XP, shop idempotency, whisper isolation, reconnect displace.
-- Renamed in-memory smoke E2E + immediate-reconnect regression.
+## P7-G3
+- Clear EF tracker + rollback on cancel for economy and inventory-transfer transactions.
+- Remove double post-commit equipment write after atomic transfer.
 
-## P7-FIX-4
-- Typed codec + client send/receive for Phase 7 packets.
-- Usable MainShellForm gameplay UI (inventory/equip/shop/bank/combat/respawn/reconnect).
-- `GameplayClientSmokeTests` + CI ×3 + screenshot artifact.
-- Reconnect: unregister displaced ClientRegistry entry; map preload; Playing after map.
+## P7-G4
+- Scope request ID to character; reject different operation/payload reuse; concurrent race → defined replay/conflict.
+- Strengthen combat race: exact XP, monster state, persisted progression; player HP lock.
 
-## P7-R1…R7 (re-review blockers)
-- Published world migration (`PublishedWorldRuntimeBindings`), seed, catalog bootstrap.
-- Packaged Release `Frog.Server` PG process test + runtime copy targets.
-- Atomic combat mutations via `ICombatMutationRepository`.
-- Production-composition `Phase7PostgresE2EHost` + multi-client scenarios.
-- Client published catalog protocol/UI; gameplay smoke expanded to 5 facts (bank/chat/spell/drop).
-- Smoke fixes: consumable buy for bank gold deposit; Chat tab selection for rate-limit test; PG session teardown.
+## P7-G5
+- Named inventory/equipment/bank/ground UI; pickup action; NPC combo; strict success smokes.
 
-## P7-FIX-5
-- STATUS = CHANGES REQUESTED until re-review; exact counts (no `270+`); SHA/CI identity separated.
+## P7-G6
+- Graceful packaged shutdown (SIGTERM / shutdown file); no `pg_terminate_backend` on success; accurate evidence metadata and screenshot hashes.
+
+## Docs / STATUS
+- STATUS remains **CHANGES REQUESTED** until re-review accepts.
+- Exact counts: 272 / 97 / 35×3 / 5×3.
 
 ## Phase 8
 Not started.

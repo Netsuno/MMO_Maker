@@ -2723,7 +2723,7 @@ public sealed class MainShellForm : Form
 
         public string DisplayName { get; } = displayName;
 
-        public override string ToString() => $"{DisplayName} — {Id}";
+        public override string ToString() => DisplayName;
     }
 
     private sealed class ClassPickRow(Guid id, string label)
