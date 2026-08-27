@@ -27,6 +27,18 @@ public sealed class Phase7PostgresE2ETests
     public async Task FullGameplayFlow_PostgreSqlHeadless_AllSteps()
     {
         var (seed, groundWeaponId) = await SeedPublishedContentAsync(seedGroundItem: true);
+
+        // Valeurs deterministes derivees du contenu publie (pas de nombres magiques) :
+        // niveau/recompense XP du monstre seede, cout en mana du sort, prix boutique.
+        var monsterLevel = Phase7ContentSeed.CreateDefaultMonster().Level;
+        var expectedMonsterXp = CombatFormulas.MonsterExperienceReward(monsterLevel);
+        var spellManaCost = Phase7ContentSeed.CreateDefaultSpell().ManaCost;
+        var consumableBuyPrice = Phase7ContentSeed.CreateDefaultConsumable().BuyPrice;
+        var consumableSellPrice = Phase7ContentSeed.CreateDefaultConsumable().SellPrice;
+        var (respawnPixelX, respawnPixelY) = WorldMetrics.TileCenterToPixels(
+            GameplayLimits.DefaultSpawnTileX,
+            GameplayLimits.DefaultSpawnTileY);
+
         var port = Phase7TcpTestPorts.GetFreePort();
         using var host = Phase7PostgresE2EHost
             .CreateBuilder(_fixture.ConnectionString, port)
@@ -34,9 +46,23 @@ public sealed class Phase7PostgresE2ETests
         await host.StartAsync();
         string token = string.Empty;
         string characterId = string.Empty;
+        string user = string.Empty;
+
+        // Etat de progression/economie attendu apres la mise a mort du monstre, calcule via la
+        // meme courbe que le serveur — reutilise pour verifier l'etat post-restart exact.
+        int expectedLevelAfterKill = 0;
+        long expectedXpAfterKill = 0;
+
+        // Or joueur/banque attendus une fois toute la sequence boutique/banque terminee — memes
+        // valeurs verifiees a nouveau apres redemarrage du serveur.
+        int expectedGoldAfterGoldWithdraw = 0;
+        const int bankGoldDeposit = 25;
+        const int bankGoldWithdraw = 10;
+        var expectedBankGoldAfterWithdraw = bankGoldDeposit - bankGoldWithdraw;
+
         try
         {
-            var user = $"pg-{Guid.NewGuid():N}"[..18];
+            user = $"pg-{Guid.NewGuid():N}"[..18];
             var chatUser = $"cht-{Guid.NewGuid():N}"[..18];
             var killerUser = $"kil-{Guid.NewGuid():N}"[..18];
             const string password = "password12345";
@@ -56,6 +82,12 @@ public sealed class Phase7PostgresE2ETests
             var create = await client.ReadUntilAsync(PacketId.CharacterCreateResult);
             characterId = Phase7WireDecoders.DecodeCharacterId(create);
 
+            // Step 2 (liste persos) : le personnage cree doit apparaitre dans CharacterListResult.
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterList());
+            var characterListFrame = await client.ReadUntilAsync(PacketId.CharacterListResult);
+            Assert.True(Phase7WireDecoders.TryDecodeCharacterList(characterListFrame, out var characters));
+            Assert.Contains(characters, c => c.Id == characterId && c.Name == "PgHero");
+
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
             Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
 
@@ -63,8 +95,11 @@ public sealed class Phase7PostgresE2ETests
             Assert.True(Phase7WireDecoders.TryDecodeCombatState(combat, out _, out _, out _, out _, out _, out _, out var startGold, out _));
             Assert.Equal(GameplayLimits.StartingGold, startGold);
 
+            // Step 3 (carte) : l'identifiant de carte recu doit correspondre a la carte monde
+            // publiee par le seed (liaison runtime <-> Phase7PostgresContentSeed.RuntimeMapId).
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMapRequest());
-            _ = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
+            var mapFrame = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
+            Assert.Equal(seed.RuntimeMapId, Phase7WireDecoders.DecodeMapId(mapFrame));
 
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(groundWeaponId!.Value));
             Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.PickupItemResult))[1]);
@@ -91,11 +126,28 @@ public sealed class Phase7PostgresE2ETests
             Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invReconnect, out var reconnectSnap));
             Assert.Equal(seed.WeaponId, reconnectSnap.EquippedWeaponItemId);
 
+            // Step 7 (melee valide) : le coup doit reussir (octet succes != 0), puis un
+            // CombatState frais (propre HP/MP/or non affectes par un simple coup mele).
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildMelee("Slime"));
-            _ = await client2.ReadUntilAsync(PacketId.MeleeAttackResult);
+            var meleeResult = await client2.ReadUntilAsync(PacketId.MeleeAttackResult);
+            Assert.NotEqual(0, meleeResult[1]);
+            var combatAfterMelee = await client2.ReadUntilAsync(PacketId.CombatState);
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(
+                combatAfterMelee,
+                out _,
+                out _,
+                out var hpAfterMelee,
+                out _,
+                out var mpAfterMelee,
+                out _,
+                out var goldAfterMelee,
+                out _));
 
+            // Step 8 (sort valide) : succes + mana deduit exactement du cout du sort seede
+            // (ou, a defaut, un cooldown est pose — ici on verifie la deduction de mana reelle).
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildSpellCast(seed.SpellId, "Slime"));
-            _ = await client2.ReadUntilAsync(PacketId.SpellCastResult);
+            var spellResult = await client2.ReadUntilAsync(PacketId.SpellCastResult);
+            Assert.NotEqual(0, spellResult[1]);
             var afterSpell = await client2.ReadUntilAnyAsync(
                 [PacketId.ExperienceGain, PacketId.CombatState],
                 TimeSpan.FromSeconds(2));
@@ -104,25 +156,62 @@ public sealed class Phase7PostgresE2ETests
                 afterSpell = await client2.ReadUntilAsync(PacketId.CombatState);
             }
 
-            Assert.True(Phase7WireDecoders.TryDecodeCombatState(afterSpell, out var beforeLevel, out var beforeXp, out var beforeHp, out _, out _, out _, out var beforeGold, out _));
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(
+                afterSpell,
+                out var levelAfterSpell,
+                out var xpAfterSpell,
+                out var hpAfterSpell,
+                out _,
+                out var mpAfterSpell,
+                out _,
+                out var goldAfterSpell,
+                out _));
+            Assert.Equal(mpAfterMelee - spellManaCost, mpAfterSpell);
+            Assert.Equal(hpAfterMelee, hpAfterSpell);
+            Assert.Equal(goldAfterMelee, goldAfterSpell);
+
+            // Step 9 (sort invalide) : capture exacte de l'etat pre-echec, puis rejet
+            // (octet succes == 0) sans effet de bord.
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildSpellCast(Guid.NewGuid(), "Slime"));
             var badSpell = await client2.ReadUntilAsync(PacketId.SpellCastResult);
             Assert.Equal(0, badSpell[1]);
             await client2.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
-            // Invalid spell must not mutate combat economy/XP; drain may include unrelated frames — re-query via heartbeat path:
-            // After failed cast, next CombatState (if any) should not show XP drop; gold/level baseline retained for later asserts.
-            Assert.True(beforeLevel >= 1);
-            Assert.True(beforeXp >= 0);
-            Assert.True(beforeHp > 0);
-            Assert.True(beforeGold >= 0);
 
-            var xpFromKill = beforeXp > 0
-                ? beforeXp
-                : await KillMonsterOrReadExperienceAsync(client2, "Slime");
-            Assert.True(xpFromKill > 0);
+            // Force une relecture fraiche, servie depuis l'enregistrement persiste (une
+            // re-selection du meme personnage recharge le CombatState depuis la BDD), pour
+            // prouver que l'echec ci-dessus n'a modifie ni niveau, ni XP, ni HP, ni MP, ni or —
+            // sans tautologie du type "beforeLevel >= 1".
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
+            Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
+            var combatAfterBadSpell = await client2.ReadUntilAsync(PacketId.CombatState);
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(
+                combatAfterBadSpell,
+                out var levelAfterBadSpell,
+                out var xpAfterBadSpell,
+                out var hpAfterBadSpell,
+                out _,
+                out var mpAfterBadSpell,
+                out _,
+                out var goldAfterBadSpell,
+                out _));
+            Assert.Equal(levelAfterSpell, levelAfterBadSpell);
+            Assert.Equal(xpAfterSpell, xpAfterBadSpell);
+            Assert.Equal(hpAfterSpell, hpAfterBadSpell);
+            Assert.Equal(mpAfterSpell, mpAfterBadSpell);
+            Assert.Equal(goldAfterSpell, goldAfterBadSpell);
+
+            // Step 10 (XP) : montant exact via CombatFormulas.MonsterExperienceReward (pas
+            // seulement > 0), et exactement un ExperienceGain pour cette mise a mort.
+            var xpFromKill = await KillMonsterOrReadExperienceAsync(client2, "Slime");
+            Assert.Equal(expectedMonsterXp, xpFromKill);
             var combatAfterKill = await client2.ReadUntilAsync(PacketId.CombatState);
-            Assert.True(Phase7WireDecoders.TryDecodeCombatState(combatAfterKill, out _, out var experience, out _, out _, out _, out _, out _, out _));
-            Assert.True(experience > 0);
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(
+                combatAfterKill, out var levelAfterKill, out var experience, out _, out _, out _, out _, out _, out _));
+            (expectedLevelAfterKill, expectedXpAfterKill, _) =
+                ProgressionCurve.ApplyExperience(levelAfterBadSpell, xpAfterBadSpell, expectedMonsterXp);
+            Assert.Equal(expectedLevelAfterKill, levelAfterKill);
+            Assert.Equal(expectedXpAfterKill, experience);
+            await AssertNoExtraExperienceGainAsync(client2);
 
             await using var chatPeer = new Phase7TcpTestClient();
             await RegisterLoginSelectAsync(chatPeer, port, chatUser, password, "Chatter", seed.ClassId);
@@ -143,13 +232,19 @@ public sealed class Phase7PostgresE2ETests
             Assert.Equal(ChatChannel.Whisper, whisperChannel);
             Assert.Equal("psst", whisperMsg);
 
+            // Step 11 (rate limit chat) : au-dela du quota, le serveur doit repondre par un
+            // paquet Error explicite ("Trop de messages.") — pas seulement un drain silencieux.
             for (var i = 0; i < GameplayLimits.MaxChatMessagesPerWindow + 2; i++)
             {
                 await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildChat(ChatChannel.Global, $"spam{i}"));
             }
 
+            var rateLimitError = await client2.ReadUntilAsync(PacketId.Error, TimeSpan.FromSeconds(5));
+            Assert.Contains("Trop de messages", Phase7WireDecoders.DecodeErrorMessage(rateLimitError));
             await client2.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
+            // Step 12 (achat/vente) : inventaire + or exacts a chaque etape (prix boutique
+            // deterministes issus du contenu seede), pas de simple "< StartingGold".
             var buyRequestId = Guid.NewGuid();
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopBuy(seed.ShopId, seed.ConsumableId, 1, buyRequestId));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.ShopBuyResult))[1]);
@@ -158,49 +253,106 @@ public sealed class Phase7PostgresE2ETests
             Assert.Contains(buySnap.Slots, s => s.ItemId == seed.ConsumableId);
             var combatAfterBuy = await client2.ReadUntilAsync(PacketId.CombatState);
             Assert.True(Phase7WireDecoders.TryDecodeCombatState(combatAfterBuy, out _, out _, out _, out _, out _, out _, out var goldAfterBuy, out _));
-            Assert.True(goldAfterBuy < GameplayLimits.StartingGold);
+            var expectedGoldAfterBuy = GameplayLimits.StartingGold - consumableBuyPrice;
+            Assert.Equal(expectedGoldAfterBuy, goldAfterBuy);
 
             var sellSlot = buySnap.Slots.First(s => s.ItemId == seed.ConsumableId).SlotIndex;
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopSell((byte)sellSlot, 1, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.ShopSellResult))[1]);
-            _ = await client2.ReadUntilAsync(PacketId.CombatState);
+            var invAfterSell = await client2.ReadUntilAsync(PacketId.InventorySnapshot);
+            Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invAfterSell, out var sellSnap));
+            Assert.DoesNotContain(sellSnap.Slots, s => s.ItemId == seed.ConsumableId);
+            var combatAfterSell = await client2.ReadUntilAsync(PacketId.CombatState);
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(combatAfterSell, out _, out _, out _, out _, out _, out _, out var goldAfterSell, out _));
+            var expectedGoldAfterSell = expectedGoldAfterBuy + consumableSellPrice;
+            Assert.Equal(expectedGoldAfterSell, goldAfterSell);
 
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopBuy(seed.ShopId, seed.ConsumableId, 1, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.ShopBuyResult))[1]);
             var invForBank = await client2.ReadUntilAsync(PacketId.InventorySnapshot);
             Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invForBank, out var bankInv));
             var bankSlot = bankInv.Slots.First(s => s.ItemId == seed.ConsumableId).SlotIndex;
+            var combatAfterBuy2 = await client2.ReadUntilAsync(PacketId.CombatState);
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(combatAfterBuy2, out _, out _, out _, out _, out _, out _, out var goldAfterBuy2, out _));
+            var expectedGoldAfterBuy2 = expectedGoldAfterSell - consumableBuyPrice;
+            Assert.Equal(expectedGoldAfterBuy2, goldAfterBuy2);
 
+            // Step 13 (banque, objet) : InventorySnapshot + BankSnapshot verifies des deux
+            // cotes du transfert (l'objet quitte l'inventaire, arrive en banque).
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankDepositItem((byte)bankSlot, 1, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.BankDepositResult))[1]);
+            var invAfterItemDeposit = await client2.ReadUntilAsync(PacketId.InventorySnapshot);
+            Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invAfterItemDeposit, out var invAfterItemDepositSnap));
+            Assert.DoesNotContain(invAfterItemDepositSnap.Slots, s => s.ItemId == seed.ConsumableId);
             var bankAfterDeposit = await client2.ReadUntilAsync(PacketId.BankSnapshot);
             Assert.True(Phase7WireDecoders.TryDecodeBankSnapshot(bankAfterDeposit, out var depositedBank));
             Assert.Contains(depositedBank.Slots, s => s.ItemId == seed.ConsumableId);
 
-            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankDepositGold(25, Guid.NewGuid()));
+            // Step 13 (banque, or) : CombatState.gold + BankSnapshot.BankGold verifies des deux
+            // cotes (pas seulement le cote banque).
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankDepositGold(bankGoldDeposit, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.BankDepositResult))[1]);
+            var combatAfterGoldDeposit = await client2.ReadUntilAsync(PacketId.CombatState);
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(combatAfterGoldDeposit, out _, out _, out _, out _, out _, out _, out var goldAfterGoldDeposit, out _));
+            var expectedGoldAfterGoldDeposit = expectedGoldAfterBuy2 - bankGoldDeposit;
+            Assert.Equal(expectedGoldAfterGoldDeposit, goldAfterGoldDeposit);
             var bankGoldSnap = await client2.ReadUntilAsync(PacketId.BankSnapshot);
             Assert.True(Phase7WireDecoders.TryDecodeBankSnapshot(bankGoldSnap, out var goldBank));
-            Assert.Equal(25, goldBank.BankGold);
+            Assert.Equal(bankGoldDeposit, goldBank.BankGold);
 
-            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankWithdrawItem(0, 1, Guid.NewGuid()));
+            // Step 13 (retrait objet) : BankSnapshot + InventorySnapshot verifies apres retrait
+            // (l'objet quitte la banque, revient dans l'inventaire) — auparavant non verifie.
+            var depositedSlot = depositedBank.Slots.First(s => s.ItemId == seed.ConsumableId).SlotIndex;
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankWithdrawItem((byte)depositedSlot, 1, Guid.NewGuid()));
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.BankWithdrawResult))[1]);
+            var invAfterItemWithdraw = await client2.ReadUntilAsync(PacketId.InventorySnapshot);
+            Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invAfterItemWithdraw, out var invAfterItemWithdrawSnap));
+            Assert.Contains(invAfterItemWithdrawSnap.Slots, s => s.ItemId == seed.ConsumableId && s.Quantity == 1);
+            var bankAfterItemWithdraw = await client2.ReadUntilAsync(PacketId.BankSnapshot);
+            Assert.True(Phase7WireDecoders.TryDecodeBankSnapshot(bankAfterItemWithdraw, out var bankAfterItemWithdrawSnap));
+            Assert.DoesNotContain(bankAfterItemWithdrawSnap.Slots, s => s.ItemId == seed.ConsumableId);
+            Assert.Equal(bankGoldDeposit, bankAfterItemWithdrawSnap.BankGold);
+
+            // Step 13 (retrait or, AJOUTE) : jusqu'ici absent du flux — CombatState.gold +
+            // BankSnapshot.BankGold verifies des deux cotes apres un retrait d'or de la banque.
+            await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildBankWithdrawGold(bankGoldWithdraw, Guid.NewGuid()));
+            Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.BankWithdrawResult))[1]);
+            var combatAfterGoldWithdraw = await client2.ReadUntilAsync(PacketId.CombatState);
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(combatAfterGoldWithdraw, out _, out _, out _, out _, out _, out _, out var goldAfterGoldWithdraw, out _));
+            expectedGoldAfterGoldWithdraw = expectedGoldAfterGoldDeposit + bankGoldWithdraw;
+            Assert.Equal(expectedGoldAfterGoldWithdraw, goldAfterGoldWithdraw);
+            var bankAfterGoldWithdraw = await client2.ReadUntilAsync(PacketId.BankSnapshot);
+            Assert.True(Phase7WireDecoders.TryDecodeBankSnapshot(bankAfterGoldWithdraw, out var bankAfterGoldWithdrawSnap));
+            Assert.Equal(expectedBankGoldAfterWithdraw, bankAfterGoldWithdrawSnap.BankGold);
 
             await using var killer = new Phase7TcpTestClient();
             await RegisterLoginSelectAsync(killer, port, killerUser, password, "Killer", seed.ClassId);
             await client2.DrainPendingAsync();
             var deadCombat = await KillPlayerWithMeleeAsync(killer, user, client2);
-            Assert.True(Phase7WireDecoders.TryDecodeCombatState(deadCombat, out _, out _, out var deadHp, out _, out _, out _, out _, out var isDead));
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(deadCombat, out _, out _, out var deadHp, out _, out _, out _, out var goldWhileDead, out var isDead));
             Assert.True(isDead);
             Assert.Equal(0, deadHp);
+            Assert.Equal(expectedGoldAfterGoldWithdraw, goldWhileDead);
 
+            // Step 15 (respawn) : HP/MP au max, ET position (carte + pixels) verifiee contre
+            // world_spawn_settings / GameplayLimits.DefaultSpawnTileX/Y via le PositionUpdate
+            // diffuse par le serveur juste apres le respawn.
             await client2.SendFrameAsync(Phase7TcpPacketBuilder.BuildRespawn());
             Assert.NotEqual(0, (await client2.ReadUntilAsync(PacketId.RespawnResult))[1]);
             var respawnCombat = await client2.ReadUntilAsync(PacketId.CombatState);
-            Assert.True(Phase7WireDecoders.TryDecodeCombatState(respawnCombat, out _, out _, out var respawnHp, out var respawnMaxHp, out var respawnMp, out var respawnMaxMp, out _, out var respawnDead));
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(respawnCombat, out _, out _, out var respawnHp, out var respawnMaxHp, out var respawnMp, out var respawnMaxMp, out var respawnGold, out var respawnDead));
             Assert.False(respawnDead);
             Assert.Equal(respawnMaxHp, respawnHp);
             Assert.Equal(respawnMaxMp, respawnMp);
+            Assert.Equal(expectedGoldAfterGoldWithdraw, respawnGold);
+
+            var respawnPosition = await client2.ReadUntilAsync(PacketId.PositionUpdate);
+            Assert.True(Phase7WireDecoders.TryDecodePositionUpdate(
+                respawnPosition, out var respawnUsername, out var respawnMapId, out var respawnPosX, out var respawnPosY));
+            Assert.Equal(user, respawnUsername);
+            Assert.Equal(seed.RuntimeMapId, respawnMapId);
+            Assert.Equal(respawnPixelX, respawnPosX);
+            Assert.Equal(respawnPixelY, respawnPosY);
 
             await client2.DisconnectAsync();
         }
@@ -222,18 +374,89 @@ public sealed class Phase7PostgresE2ETests
             Assert.NotEqual(0, (await client3.ReadUntilAsync(PacketId.ReconnectResult))[1]);
             await client3.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
             Assert.NotEqual(0, (await client3.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
+
+            // Step 16 (redemarrage + reconnexion) : chaque champ persiste est verifie avec sa
+            // valeur EXACTE (equipement, quantites d'inventaire, or joueur, or banque, slots
+            // banque, niveau/XP, position de respawn) — plus de simples ">= 1" / ">= 0".
             var persistedCombat = await client3.ReadUntilAsync(PacketId.CombatState);
+            Assert.True(Phase7WireDecoders.TryDecodeCombatState(
+                persistedCombat,
+                out var persistedLevel,
+                out var persistedXp,
+                out var persistedHp,
+                out var persistedMaxHp,
+                out var persistedMp,
+                out var persistedMaxMp,
+                out var persistedGold,
+                out var persistedDead));
+
             var persistedInv = await client3.ReadUntilAsync(PacketId.InventorySnapshot);
             Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(persistedInv, out var persisted));
+
+            var persistedBank = await client3.ReadUntilAsync(PacketId.BankSnapshot);
+            Assert.True(Phase7WireDecoders.TryDecodeBankSnapshot(persistedBank, out var persistedBankSnap));
+
+            var persistedPosition = await client3.ReadUntilAsync(PacketId.PositionUpdate);
+            Assert.True(Phase7WireDecoders.TryDecodePositionUpdate(
+                persistedPosition, out var persistedUsername, out var persistedMapId, out var persistedPixelX, out var persistedPixelY));
+
+            // Equipement exact : l'epee reste equipee, aucune armure.
             Assert.Equal(seed.WeaponId, persisted.EquippedWeaponItemId);
-            Assert.True(Phase7WireDecoders.TryDecodeCombatState(persistedCombat, out var persistedLevel, out var persistedXp, out _, out _, out _, out _, out _, out var persistedDead));
+            Assert.Null(persisted.EquippedArmorItemId);
+
+            // Inventaire exact : uniquement la potion retiree de la banque, quantite 1.
+            var persistedItemSlots = persisted.Slots.Where(s => s.ItemId is not null).ToList();
+            Assert.Single(persistedItemSlots);
+            Assert.Equal(seed.ConsumableId, persistedItemSlots[0].ItemId);
+            Assert.Equal(1, persistedItemSlots[0].Quantity);
+
+            // Or joueur + banque exacts, banque vide de tout objet.
+            Assert.Equal(expectedGoldAfterGoldWithdraw, persistedGold);
+            Assert.Equal(expectedBankGoldAfterWithdraw, persistedBankSnap.BankGold);
+            Assert.DoesNotContain(persistedBankSnap.Slots, s => s.ItemId is not null);
+
+            // Progression exacte (niveau + XP calcules via ProgressionCurve, pas de tautologie).
+            Assert.Equal(expectedLevelAfterKill, persistedLevel);
+            Assert.Equal(expectedXpAfterKill, persistedXp);
             Assert.False(persistedDead);
-            Assert.True(persistedLevel >= 1);
-            Assert.True(persistedXp >= 0);
+            Assert.Equal(persistedMaxHp, persistedHp);
+            Assert.Equal(persistedMaxMp, persistedMp);
+
+            // Position de respawn persistee (carte + tuile de spawn monde publiee).
+            Assert.Equal(user, persistedUsername);
+            Assert.Equal(seed.RuntimeMapId, persistedMapId);
+            Assert.Equal(respawnPixelX, persistedPixelX);
+            Assert.Equal(respawnPixelY, persistedPixelY);
         }
         finally
         {
             await host2.StopAsync();
+        }
+    }
+
+    /// <summary>Verifie qu'aucun second ExperienceGain n'arrive dans la fenetre courte suivant une mise a mort (draine au passage les paquets residuels de la cible collaterale eventuelle).</summary>
+    private static async Task AssertNoExtraExperienceGainAsync(Phase7TcpTestClient client, TimeSpan? window = null)
+    {
+        var deadline = DateTime.UtcNow + (window ?? TimeSpan.FromMilliseconds(300));
+        while (true)
+        {
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            byte[] frame;
+            try
+            {
+                frame = await client.ReadFrameAsync(remaining);
+            }
+            catch
+            {
+                break;
+            }
+
+            Assert.NotEqual((byte)PacketId.ExperienceGain, frame[0]);
         }
     }
 
