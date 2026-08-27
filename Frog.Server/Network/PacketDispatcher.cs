@@ -48,6 +48,7 @@ public sealed partial class PacketDispatcher(
     PublishedCatalogService publishedCatalog,
     ChatRateLimiter chatRateLimiter,
     IOptions<PlaytestRuntimeOptions> playtestOptions,
+    IOptions<PostgreSqlOptions> postgreSqlOptions,
     PlaytestAuthTokenGate playtestAuthTokenGate,
     ILogger<PacketDispatcher> logger)
 {
@@ -72,6 +73,7 @@ public sealed partial class PacketDispatcher(
     private readonly PublishedCatalogService _publishedCatalog = publishedCatalog;
     private readonly ChatRateLimiter _chatRateLimiter = chatRateLimiter;
     private readonly PlaytestRuntimeOptions _playtest = playtestOptions.Value;
+    private readonly PostgreSqlOptions _postgreSql = postgreSqlOptions.Value;
     private readonly PlaytestAuthTokenGate _playtestAuthTokenGate = playtestAuthTokenGate;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
@@ -1775,6 +1777,18 @@ public sealed partial class PacketDispatcher(
         if (!TryGetActiveSession(clientSession, out var session))
         {
             await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);
+            return;
+        }
+
+        // Sécurité (P7-G1) : l'édition libre des stats par le client est un outil legacy/playtest
+        // uniquement — un client authentifié ne doit jamais pouvoir forger STR/PV/etc. en production.
+        if (!_playtest.Enabled && !_postgreSql.AllowInMemoryFallback)
+        {
+            await _packetSender.SendCharacterStatsUpdateResultAsync(
+                clientSession,
+                false,
+                "CharacterStatsUpdateRequest desactive en production.",
+                cancellationToken);
             return;
         }
 

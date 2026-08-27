@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Frog.Client.Assets;
 using Frog.Client.Controls;
@@ -857,6 +858,10 @@ public sealed class MainShellForm : Form
 
         rowStats.Controls.Add(_btnStatsApply);
 
+        // Sécurité (P7-G1) : édition de stats en direct par le client retirée de l'UI Phase 7 —
+        // le serveur rejette désormais CharacterStatsUpdateRequest hors playtest/AllowInMemoryFallback.
+        rowStats.Visible = false;
+
         var rowCharNav = CreateToolbarRow();
         rowCharNav.WrapContents = true;
         rowCharNav.Controls.Add(_btnBackDisconnect);
@@ -1269,29 +1274,37 @@ public sealed class MainShellForm : Form
 
     private void OnReconnectResult(bool ok, string message)
     {
-        var safe = SanitizeSecrets(message);
-        AppendLog(ok ? "Reconnect OK: " + safe : "Reconnect refusé: " + safe);
-        if (ok)
+        if (!ok)
         {
-            _username = _txtUser.Text.Trim();
-            _btnMap.Enabled = true;
-            _btnLogout.Enabled = true;
-            _cmbCharacters.Enabled = true;
-            _btnCharRefresh.Enabled = true;
-            _btnEnterGame.Enabled = true;
-            _txtNewCharName.Enabled = true;
-            _btnCharCreate.Enabled = true;
-            _cmbClass.Enabled = true;
-            SetStatsControlsEnabled(true);
-            _btnBackDisconnect.Enabled = true;
-            _heartbeatTimer.Start();
-            // Mirror login: preload map so Enter Game can reach Playing via MapAlreadySynced.
-            SetGameplayControlsEnabled(false);
-            SetPhase(ClientUiPhase.CharacterSelect);
-            _ = RefreshCharacterListAsync();
-            _ = MapRequestAsync();
+            // Échec : message serveur générique ("Session invalide.") — jamais de jeton, mais
+            // on sanitize quand même par défense en profondeur.
+            AppendLog("Reconnect refusé: " + SanitizeSecrets(message));
+            return;
         }
+
+        // Succès : `message` est le jeton de session lui-même (echo du ReconnectRequest) —
+        // ne jamais l'écrire dans le log (fenêtre UI ou stdout playtest).
+        AppendLog("Reconnect OK");
+        _username = _txtUser.Text.Trim();
+        _btnMap.Enabled = true;
+        _btnLogout.Enabled = true;
+        _cmbCharacters.Enabled = true;
+        _btnCharRefresh.Enabled = true;
+        _btnEnterGame.Enabled = true;
+        _txtNewCharName.Enabled = true;
+        _btnCharCreate.Enabled = true;
+        _cmbClass.Enabled = true;
+        _btnBackDisconnect.Enabled = true;
+        _heartbeatTimer.Start();
+        // Mirror login: preload map so Enter Game can reach Playing via MapAlreadySynced.
+        SetGameplayControlsEnabled(false);
+        SetPhase(ClientUiPhase.CharacterSelect);
+        _ = RefreshCharacterListAsync();
+        _ = MapRequestAsync();
     }
+
+    /// <summary>Jeton de session base64url générés par <c>InMemoryAuthSessionRepository</c>/PostgreSQL (32 octets → ~43 caractères).</summary>
+    private static readonly Regex SessionTokenLikePattern = new("[A-Za-z0-9_-]{40,}", RegexOptions.Compiled);
 
     private static string SanitizeSecrets(string text)
     {
@@ -1300,18 +1313,9 @@ public sealed class MainShellForm : Form
             return text;
         }
 
-        // Masque jetons longs (reconnect) dans les logs UI.
-        if (text.Length >= 24 && Guid.TryParse(text, out _))
-        {
-            return text;
-        }
-
-        if (text.Length > 32)
-        {
-            return text[..8] + "…";
-        }
-
-        return text;
+        // Masque tout ce qui ressemble à un jeton de session (base64url ~40+ caractères)
+        // afin qu'un jeton reflété par erreur dans un message serveur ne fuite jamais dans les logs UI.
+        return SessionTokenLikePattern.Replace(text, "***");
     }
 
     private async Task ReconnectAsync()
@@ -1637,9 +1641,11 @@ public sealed class MainShellForm : Form
 
     private void OnLoginResult(bool ok, string message)
     {
-        AppendLog(ok ? "Login OK: " + message : "Login refusé: " + message);
         if (!ok)
         {
+            // Échec : message serveur générique ("Identifiants invalides.") — jamais de jeton,
+            // mais on sanitize quand même par défense en profondeur.
+            AppendLog("Login refusé: " + SanitizeSecrets(message));
             if (_playtestOptions is { IsPlaytest: true })
             {
                 EmitPlaytestFailure("login refusé: " + message);
@@ -1649,10 +1655,14 @@ public sealed class MainShellForm : Form
         }
 
         _playtestLoginOk = true;
+        // Stocker le jeton AVANT tout log : `message` EST le jeton de session (successMessage du
+        // LoginResult serveur) et ne doit jamais apparaître dans le log UI / stdout playtest.
         if (!string.IsNullOrWhiteSpace(message))
         {
             _storedAuthToken = message.Trim();
         }
+
+        AppendLog("Login OK");
 
         UpdateAuthTokenUi();
         _username = _playtestOptions is { IsPlaytest: true }
@@ -1668,7 +1678,6 @@ public sealed class MainShellForm : Form
         _txtNewCharName.Enabled = true;
         _btnCharCreate.Enabled = true;
         _cmbClass.Enabled = true;
-        SetStatsControlsEnabled(true);
         _btnBackDisconnect.Enabled = true;
         _heartbeatTimer.Start();
         _ = RefreshCharacterListAsync();

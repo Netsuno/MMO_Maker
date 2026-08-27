@@ -33,6 +33,7 @@ public sealed class GameplayClientSmokeTests
             {
                 harness.ConnectRegisterLogin();
                 Pump(form, () => form.CatalogClassesPopulatedForTest, "catalog classes after login");
+                AssertAuthTokenStoredAndNeverLogged(form, "Login OK");
                 ClientSmokeTestAccess.SaveScreenshot(form, "01-login-token-stored.png");
 
                 var charName = "SmokeHero";
@@ -67,6 +68,7 @@ public sealed class GameplayClientSmokeTests
                 Pump(form, () => form.DisconnectButtonForTest.Enabled || form.BackDisconnectButtonForTest.Enabled, "reconnect TCP");
                 form.ReconnectButtonForTest.PerformClick();
                 Pump(form, () => form.CatalogClassesPopulatedForTest, "catalog after reconnect");
+                AssertAuthTokenStoredAndNeverLogged(form, "Reconnect OK");
                 Pump(form, () => form.CharCreateButtonForTest.Enabled && form.CharCreateButtonForTest.Visible, "reconnect auth restored character UI");
                 Pump(
                     form,
@@ -234,6 +236,22 @@ public sealed class GameplayClientSmokeTests
                 harness.Dispose();
             }
         });
+    }
+
+    /// <summary>
+    /// P7-G1 : le jeton de session (LoginResult/ReconnectResult) doit être stocké côté client mais
+    /// jamais apparaître dans le log UI, ni via un motif "OK: &lt;jeton&gt;" laissé par erreur.
+    /// </summary>
+    private static void AssertAuthTokenStoredAndNeverLogged(MainShellForm form, string expectedOkLine)
+    {
+        var token = form.StoredAuthTokenForTest;
+        Assert.NotNull(token);
+        Assert.NotEmpty(token!);
+
+        var log = form.LogTextForTest;
+        Assert.DoesNotContain(token!, log, StringComparison.Ordinal);
+        Assert.Contains(expectedOkLine, log, StringComparison.Ordinal);
+        Assert.DoesNotContain(expectedOkLine + ": ", log, StringComparison.Ordinal);
     }
 
     private static void AssertScreenshots(params string[] names)
