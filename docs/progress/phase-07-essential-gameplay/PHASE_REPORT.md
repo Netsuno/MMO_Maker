@@ -23,7 +23,9 @@
 | Phase 6 accepted implementation | `99b782f8f205c0161c0bba8838d041714e39947e` |
 | Phase 6 accepted evidence tip | `f4db56592346d9bf0cad9ca153aaeff11ee65de8` |
 | Phase 7 implementation SHA | `c1803132522d8dfb31e3a1284755341eb2d243b2` |
+| Phase 7 evidence tip | `7d9232a4ab0186e136fcca84a4d46b1eb8b7f4b7` |
 | CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537 |
+| CI (evidence tip) | https://github.com/Netsuno/MMO_Maker/actions/runs/33036792546 |
 | Phase 8 | **Not started** |
 
 ## What changed (this pass)

@@ -9,6 +9,10 @@
 - `c1803132522d8dfb31e3a1284755341eb2d243b2`
 - CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537
 
+## Evidence tip (CI green)
+- `7d9232a4ab0186e136fcca84a4d46b1eb8b7f4b7`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33036792546
+
 ## P7-G1
 - Never log auth/reconnect tokens; store privately; smoke + screenshot verification.
 - Hide stats editor; reject `CharacterStatsUpdateRequest` in production composition.

@@ -14,9 +14,11 @@
 | Phase 6 accepted evidence tip | `f4db56592346d9bf0cad9ca153aaeff11ee65de8` |
 | Phase 7 prior rejected tip | `67281e3c62eb1943341b162fe1213abb5fc7011a` |
 | Phase 7 implementation SHA | `c1803132522d8dfb31e3a1284755341eb2d243b2` |
+| Phase 7 evidence tip | `7d9232a4ab0186e136fcca84a4d46b1eb8b7f4b7` |
 | CI (implementation) | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537 |
-| build-and-test | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537/job/98399567822 |
-| postgres-integration | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537/job/98399567965 |
+| CI (evidence tip) | https://github.com/Netsuno/MMO_Maker/actions/runs/33036792546 |
+| build-and-test (impl) | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537/job/98399567822 |
+| postgres-integration (impl) | https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537/job/98399567965 |
 | Phase 8 | **Not started** |
 
 ## Rejection items addressed
