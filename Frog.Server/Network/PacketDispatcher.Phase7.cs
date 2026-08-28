@@ -78,6 +78,7 @@ public sealed partial class PacketDispatcher
             return;
         }
 
+        await _inventoryGameplay.SyncEquippedItemsToSessionAsync(session, cancellationToken).ConfigureAwait(false);
         var inv = await _inventoryGameplay.GetInventoryAsync(session.RequireCharacterGuid(), cancellationToken)
             .ConfigureAwait(false);
         var wire = new InventorySnapshotWire

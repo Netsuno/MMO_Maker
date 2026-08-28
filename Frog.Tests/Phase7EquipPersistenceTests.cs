@@ -74,7 +74,7 @@ public sealed class Phase7EquipPersistenceTests
         var equipRepo = new InMemoryEquipmentRepository();
         var ground = new InMemoryGroundItemRepository();
         var transfers = new InMemoryInventoryTransferRepository(invRepo, equipRepo, ground, content);
-        var inventory = new InventoryGameplayService(invRepo, transfers, ground, content);
+        var inventory = new InventoryGameplayService(invRepo, transfers, ground, content, equipRepo);
         var charSvc = Phase7TestHelpers.CreateCharacterService(innerChars, content, invRepo);
 
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Gear", Phase7ContentSeed.DefaultClassId);
@@ -100,7 +100,7 @@ public sealed class Phase7EquipPersistenceTests
         var equipRepo = new InMemoryEquipmentRepository();
         var ground = new InMemoryGroundItemRepository();
         var transfers = new InMemoryInventoryTransferRepository(invRepo, equipRepo, ground, content);
-        var inventory = new InventoryGameplayService(invRepo, transfers, ground, content);
+        var inventory = new InventoryGameplayService(invRepo, transfers, ground, content, equipRepo);
         var charSvc = Phase7TestHelpers.CreateCharacterService(chars, content, invRepo);
 
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Rich", Phase7ContentSeed.DefaultClassId);
@@ -129,7 +129,7 @@ public sealed class Phase7EquipPersistenceTests
         var equipRepo = new InMemoryEquipmentRepository();
         var ground = new InMemoryGroundItemRepository();
         var transfers = new InMemoryInventoryTransferRepository(invRepo, equipRepo, ground, content);
-        var inventory = new InventoryGameplayService(invRepo, transfers, ground, content);
+        var inventory = new InventoryGameplayService(invRepo, transfers, ground, content, equipRepo);
         var charSvc = Phase7TestHelpers.CreateCharacterService(chars, content, invRepo);
 
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Persist", Phase7ContentSeed.DefaultClassId);

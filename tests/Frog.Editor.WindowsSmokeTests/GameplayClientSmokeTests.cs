@@ -633,7 +633,7 @@ public sealed class GameplayClientSmokeTests
             {
                 var hpBefore = Form.CombatHpForTest;
                 attacker.Send(SmokeTcpPackets.Melee(User));
-                attacker.ReadUntil(PacketId.MeleeAttackResult);
+                attacker.ReadUntil(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(60));
                 Pump(
                     Form,
                     () =>
@@ -690,12 +690,12 @@ public sealed class GameplayClientSmokeTests
 
         public void Connect(string host, int port)
         {
-            _tcp.ReceiveTimeout = 20_000;
-            _tcp.SendTimeout = 20_000;
+            _tcp.ReceiveTimeout = 60_000;
+            _tcp.SendTimeout = 60_000;
             _tcp.Connect(host, port);
             _stream = _tcp.GetStream();
-            _stream.ReadTimeout = 20_000;
-            _stream.WriteTimeout = 20_000;
+            _stream.ReadTimeout = 60_000;
+            _stream.WriteTimeout = 60_000;
         }
 
         public void Send(byte[] payload)

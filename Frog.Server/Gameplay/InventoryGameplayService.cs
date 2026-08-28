@@ -9,12 +9,26 @@ public sealed class InventoryGameplayService(
     IInventoryRepository inventory,
     IInventoryTransferRepository transfers,
     IGroundItemRepository groundItems,
-    IPublishedItemCatalog items)
+    IPublishedItemCatalog items,
+    IEquipmentRepository equipment)
 {
     private readonly IInventoryRepository _inventory = inventory;
     private readonly IInventoryTransferRepository _transfers = transfers;
     private readonly IGroundItemRepository _groundItems = groundItems;
     private readonly IPublishedItemCatalog _items = items;
+    private readonly IEquipmentRepository _equipment = equipment;
+
+    public async Task SyncEquippedItemsToSessionAsync(Session session, CancellationToken ct = default)
+    {
+        if (!session.HasActiveCharacter())
+        {
+            return;
+        }
+
+        var equipped = await _equipment.GetAsync(session.RequireCharacterGuid(), ct).ConfigureAwait(false);
+        session.EquippedWeaponItemId = equipped.WeaponItemId;
+        session.EquippedArmorItemId = equipped.ArmorItemId;
+    }
 
     public Task<InventorySnapshot> GetInventoryAsync(Guid characterId, CancellationToken ct = default)
         => _inventory.GetAsync(characterId, ct);

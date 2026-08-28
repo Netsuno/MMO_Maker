@@ -19,7 +19,7 @@ public sealed class Phase7InventoryTests
         Phase7PublishedContent content)
     {
         var transfers = new InMemoryInventoryTransferRepository(invRepo, equipRepo, ground, content);
-        return new InventoryGameplayService(invRepo, transfers, ground, content);
+        return new InventoryGameplayService(invRepo, transfers, ground, content, equipRepo);
     }
 
     [Fact]
