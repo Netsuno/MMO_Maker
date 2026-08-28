@@ -1,42 +1,38 @@
-# Phase 7 — CHANGE_SUMMARY (P7-G1…G6)
+# Phase 7 — CHANGE_SUMMARY (P7-H1…H5)
 
 ## Starting point
-- Prior rejected tip: `67281e3c62eb1943341b162fe1213abb5fc7011a`
-- Phase 6 accepted implementation: `99b782f8f205c0161c0bba8838d041714e39947e`
-- Prior remediations (P7-FIX / P7-R) preserved on branch.
+- Re-review rejected tip: `7ecb8d2c26ac3130b3f8557aba0ef78803601677`
+- Phase 6 accepted baseline: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
+- P7-G1…G6 remediations preserved on branch.
 
-## Implementation tip (CI green)
-- `c1803132522d8dfb31e3a1284755341eb2d243b2`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33036286537
+## Implementation tip (local green, CI pending)
+- `46df9a6e8756af1d21ac124af0df857f65c7a626`
+- CI: pending push workflow
 
-## Evidence tip (CI green)
-- `7d9232a4ab0186e136fcca84a4d46b1eb8b7f4b7`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33036792546
+## P7-H1 — Equip/unequip single mutation boundary
+- Removed dispatcher-level `PersistCombatStateAsync` after equip/unequip; transfer repository is sole commit.
+- Session updated only from committed transfer result; snapshots sent after atomic success.
+- Added `Phase7EquipPersistenceTests` (no redundant character save, gold not overwritten, reconnect equipment).
 
-## P7-G1
-- Never log auth/reconnect tokens; store privately; smoke + screenshot verification.
-- Hide stats editor; reject `CharacterStatsUpdateRequest` in production composition.
+## P7-H2 — Shutdown + combat persistence
+- `GameServerService` tracks client handler tasks; stops accepting on shutdown; awaits all handlers.
+- `GameServerGracefulShutdownTests` blocks a real PG shop buy during `StopAsync`.
+- PvP HP/death mutation + persistence under `CharacterMutationCoordinator`.
+- Idempotent `IMonsterKillRewardRepository` (+ PG `monster_kill_rewards` migration) for monster XP.
+- `Phase7PvPCombatTests`, `Phase7MonsterKillRewardTests`.
 
-## P7-G2
-- Replace packet-only/tautological E2E checks with decoded business-state assertions for all 17 steps.
+## P7-H3 — Genuine two-client economy race
+- `ShopBuyRace_TwoClients_FinalStockUnit_ExactlyOneWinner` (two TCP clients, distinct request IDs, stock=0, exact gold/inventory, durable restart check).
 
-## P7-G3
-- Clear EF tracker + rollback on cancel for economy and inventory-transfer transactions.
-- Remove double post-commit equipment write after atomic transfer.
+## P7-H4 — Gameplay UI smokes
+- Inventory row selection drives shop sell + bank deposit; bank list drives withdraw only.
+- Death via second-client PvP melee; respawn via visible `Respawn` button (no session mutation).
+- `GameplayClient_Phase7ScreenshotFlows` adds screenshots 06–10.
 
-## P7-G4
-- Scope request ID to character; reject different operation/payload reuse; concurrent race → defined replay/conflict.
-- Strengthen combat race: exact XP, monster state, persisted progression; player HP lock.
-
-## P7-G5
-- Named inventory/equipment/bank/ground UI; pickup action; NPC combo; strict success smokes.
-
-## P7-G6
-- Graceful packaged shutdown (SIGTERM / shutdown file); no `pg_terminate_backend` on success; accurate evidence metadata and screenshot hashes.
-
-## Docs / STATUS
-- STATUS remains **CHANGES REQUESTED** until re-review accepts.
-- Exact counts: 272 / 97 / 35×3 / 5×3.
+## P7-H5 — Evidence
+- `git diff --check f4db56592346d9bf0cad9ca153aaeff11ee65de8..HEAD` clean after manifest whitespace fix.
+- Multi-client matrix corrected: idempotent single-client retry ≠ multi-client shop race.
+- STATUS **CHANGES REQUESTED** until CI green on implementation tip and screenshot hashes recorded.
 
 ## Phase 8
 Not started.
