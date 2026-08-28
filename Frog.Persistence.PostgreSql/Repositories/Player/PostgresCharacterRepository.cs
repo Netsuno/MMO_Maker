@@ -11,6 +11,9 @@ public sealed class PostgresCharacterRepository : ICharacterRepository
     private readonly FrogDbContextGate _gate;
     private readonly TimeProvider _clock;
 
+    /// <summary>Seam de test : leve une exception apres mutations, avant commit.</summary>
+    internal Func<CharacterRecord, CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
+
     public PostgresCharacterRepository(FrogDbContextGate gate, TimeProvider? clock = null)
     {
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
@@ -166,6 +169,11 @@ public sealed class PostgresCharacterRepository : ICharacterRepository
 
             var updated = character with { UpdatedAtUtc = _clock.GetUtcNow() };
             PlayerEntityMapper.ApplyRecord(entity, updated);
+            if (TestBeforeCommitAsync is not null)
+            {
+                await TestBeforeCommitAsync(updated, ct).ConfigureAwait(false);
+            }
+
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
         }, cancellationToken);
 

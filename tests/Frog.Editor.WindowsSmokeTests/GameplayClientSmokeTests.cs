@@ -159,20 +159,21 @@ public sealed class GameplayClientSmokeTests
                 harness.EnterPlayingPhase("Banker");
                 form.SelectGameplayTabForTest();
 
-                Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "select consumable");
+                // P7-I1 : arme (stack 1) puis consommable — deux slots distincts (le consommable
+                // par défaut a MaxStack=20 et serait empilé si acheté deux fois).
+                Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "select weapon");
                 form.ShopBuyButtonForTest.PerformClick();
                 Pump(
                     form,
                     () => form.LogContainsForTest("Achat: Achat reussi.") && form.InventoryPanelForTest.ListedItemCountForTest > 0,
-                    "buy consumable");
+                    "buy weapon");
 
-                // P7-H4 : dépôt/retrait via sélection inventaire (slot non nul) et banque nommée.
-                Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "select second consumable");
+                Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "select consumable");
                 form.ShopBuyButtonForTest.PerformClick();
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.ListedItemCountForTest >= 2,
-                    "second consumable in inventory");
+                    "consumable in separate inventory slot");
                 form.InventoryPanelForTest.SelectSlotByIndexForTest(1);
                 Assert.True(form.InventoryPanelForTest.SelectedInventorySlotForTest > 0);
 
@@ -615,11 +616,21 @@ public sealed class GameplayClientSmokeTests
 
             for (var i = 0; i < 40; i++)
             {
+                var hpBefore = Form.CombatHpForTest;
                 attacker.Send(SmokeTcpPackets.Melee(User));
                 attacker.ReadUntil(PacketId.MeleeAttackResult);
                 Pump(
                     Form,
-                    () => Form.LogContainsForTest("Mort signalée par le serveur.") || Form.CombatIsDeadForTest,
+                    () =>
+                    {
+                        if (Form.CombatIsDeadForTest)
+                        {
+                            return true;
+                        }
+
+                        var hpNow = Form.CombatHpForTest;
+                        return hpBefore is not null && hpNow is not null && hpNow < hpBefore;
+                    },
                     $"pvp hit {i}",
                     TimeSpan.FromSeconds(3));
                 if (Form.CombatIsDeadForTest)
@@ -664,8 +675,12 @@ public sealed class GameplayClientSmokeTests
 
         public void Connect(string host, int port)
         {
+            _tcp.ReceiveTimeout = 20_000;
+            _tcp.SendTimeout = 20_000;
             _tcp.Connect(host, port);
             _stream = _tcp.GetStream();
+            _stream.ReadTimeout = 20_000;
+            _stream.WriteTimeout = 20_000;
         }
 
         public void Send(byte[] payload)
@@ -691,10 +706,19 @@ public sealed class GameplayClientSmokeTests
             var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(20));
             while (DateTime.UtcNow < deadline)
             {
-                var frame = ReadFrame();
-                if (frame[0] == (byte)id)
+                var remainingMs = (int)Math.Max(1, (deadline - DateTime.UtcNow).TotalMilliseconds);
+                _stream!.ReadTimeout = remainingMs;
+                try
                 {
-                    return frame;
+                    var frame = ReadFrame();
+                    if (frame[0] == (byte)id)
+                    {
+                        return frame;
+                    }
+                }
+                catch (IOException ex) when (ex.InnerException is SocketException { SocketErrorCode: SocketError.TimedOut })
+                {
+                    break;
                 }
             }
 

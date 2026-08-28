@@ -1,5 +1,11 @@
 namespace Frog.Application.Gameplay;
 
+public sealed record MonsterKillRewardRequest(
+    Guid CharacterId,
+    Guid MonsterInstanceId,
+    long ExperienceAmount,
+    int? PersistMp = null);
+
 public sealed record MonsterKillRewardResult(
     bool Success,
     bool NewlyGranted,
@@ -20,15 +26,6 @@ public sealed record MonsterKillRewardResult(
 public interface IMonsterKillRewardRepository
 {
     Task<MonsterKillRewardResult> TryGrantKillRewardAsync(
-        Guid characterId,
-        Guid monsterInstanceId,
-        long experienceAmount,
-        int currentLevel,
-        long currentExperience,
-        CharacterStats currentStats,
-        int currentMaxHp,
-        int currentMaxMp,
-        int currentHp,
-        int currentMp,
+        MonsterKillRewardRequest request,
         CancellationToken cancellationToken = default);
 }

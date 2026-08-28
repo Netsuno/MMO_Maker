@@ -51,4 +51,8 @@ public interface ICombatMutationRepository
         int rangePixels,
         int damage,
         CancellationToken cancellationToken = default);
+
+    Task<bool> TryRestoreMonsterAsync(
+        CombatMonsterSnapshot snapshot,
+        CancellationToken cancellationToken = default);
 }

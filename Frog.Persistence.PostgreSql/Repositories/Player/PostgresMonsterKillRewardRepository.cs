@@ -2,6 +2,7 @@ using Frog.Application.Gameplay;
 using Frog.Core.Gameplay;
 using Frog.Persistence.PostgreSql.Entities.Player;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Frog.Persistence.PostgreSql.Repositories.Player;
 
@@ -20,16 +21,7 @@ public sealed class PostgresMonsterKillRewardRepository : IMonsterKillRewardRepo
     }
 
     public Task<MonsterKillRewardResult> TryGrantKillRewardAsync(
-        Guid characterId,
-        Guid monsterInstanceId,
-        long experienceAmount,
-        int currentLevel,
-        long currentExperience,
-        CharacterStats currentStats,
-        int currentMaxHp,
-        int currentMaxMp,
-        int currentHp,
-        int currentMp,
+        MonsterKillRewardRequest request,
         CancellationToken cancellationToken = default)
         => _gate.ExecuteAsync(async (db, ct) =>
         {
@@ -39,42 +31,42 @@ public sealed class PostgresMonsterKillRewardRepository : IMonsterKillRewardRepo
                 var existing = await db.PlayerMonsterKillRewards
                     .AsNoTracking()
                     .FirstOrDefaultAsync(
-                        r => r.CharacterId == characterId && r.MonsterInstanceId == monsterInstanceId,
+                        r => r.CharacterId == request.CharacterId && r.MonsterInstanceId == request.MonsterInstanceId,
                         ct)
                     .ConfigureAwait(false);
                 if (existing is not null)
                 {
-                    var character = await db.PlayerCharacters
+                    var replayCharacter = await db.PlayerCharacters
                         .AsNoTracking()
-                        .SingleAsync(c => c.Id == characterId, ct)
+                        .SingleAsync(c => c.Id == request.CharacterId, ct)
                         .ConfigureAwait(false);
                     await transaction.CommitAsync(ct).ConfigureAwait(false);
-                    return ToResult(character, newlyGranted: false, 0);
+                    return ToResult(replayCharacter, newlyGranted: false, 0);
                 }
 
-                if (!await TryLockCharacterAsync(db, characterId, ct).ConfigureAwait(false))
+                if (!await TryLockCharacterAsync(db, request.CharacterId, ct).ConfigureAwait(false))
                 {
                     return MonsterKillRewardResult.Fail();
                 }
 
                 var row = await db.PlayerCharacters
-                    .SingleAsync(c => c.Id == characterId, ct)
+                    .SingleAsync(c => c.Id == request.CharacterId, ct)
                     .ConfigureAwait(false);
 
                 var (level, experience, levelsGained) = ProgressionCurve.ApplyExperience(
-                    currentLevel,
-                    currentExperience,
-                    experienceAmount);
-                var maxHp = currentMaxHp;
-                var maxMp = currentMaxMp;
-                var str = currentStats.Str;
-                var agi = currentStats.Agi;
-                var vit = currentStats.Vit;
-                var intel = currentStats.Int;
-                var dex = currentStats.Dex;
-                var luck = currentStats.Luck;
-                var hp = currentHp;
-                var mp = currentMp;
+                    row.Level,
+                    row.Experience,
+                    request.ExperienceAmount);
+                var maxHp = row.MaxHp;
+                var maxMp = row.MaxMp;
+                var str = row.Str;
+                var agi = row.Agi;
+                var vit = row.Vit;
+                var intel = row.Int;
+                var dex = row.Dex;
+                var luck = row.Luck;
+                var hp = row.Hp;
+                var mp = request.PersistMp ?? row.Mp;
                 if (levelsGained > 0)
                 {
                     ProgressionCurve.ApplyLevelUpBonuses(
@@ -107,9 +99,9 @@ public sealed class PostgresMonsterKillRewardRepository : IMonsterKillRewardRepo
 
                 db.PlayerMonsterKillRewards.Add(new MonsterKillRewardEntity
                 {
-                    CharacterId = characterId,
-                    MonsterInstanceId = monsterInstanceId,
-                    ExperienceAmount = experienceAmount,
+                    CharacterId = request.CharacterId,
+                    MonsterInstanceId = request.MonsterInstanceId,
+                    ExperienceAmount = request.ExperienceAmount,
                     GrantedAtUtc = _clock.GetUtcNow(),
                 });
 
@@ -118,19 +110,56 @@ public sealed class PostgresMonsterKillRewardRepository : IMonsterKillRewardRepo
                     await TestBeforeCommitAsync(ct).ConfigureAwait(false);
                 }
 
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    await db.SaveChangesAsync(ct).ConfigureAwait(false);
+                }
+                catch (DbUpdateException ex) when (IsLedgerDuplicate(ex))
+                {
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                    db.ChangeTracker.Clear();
+                    return await LoadReplayResultAsync(db, request, ct).ConfigureAwait(false);
+                }
+
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
-                return ToResult(row, newlyGranted: true, experienceAmount);
+                return ToResult(row, newlyGranted: true, request.ExperienceAmount);
             }
             catch
             {
                 await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                db.ChangeTracker.Clear();
                 throw;
             }
         }, cancellationToken);
 
+    private static async Task<MonsterKillRewardResult> LoadReplayResultAsync(
+        FrogDbContext db,
+        MonsterKillRewardRequest request,
+        CancellationToken ct)
+    {
+        var replayCharacter = await db.PlayerCharacters
+            .AsNoTracking()
+            .SingleAsync(c => c.Id == request.CharacterId, ct)
+            .ConfigureAwait(false);
+        return ToResult(replayCharacter, newlyGranted: false, 0);
+    }
+
+    private static bool IsLedgerDuplicate(DbUpdateException ex)
+        => ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
+
     private static async Task<bool> TryLockCharacterAsync(FrogDbContext db, Guid characterId, CancellationToken ct)
-        => await db.PlayerCharacters.AnyAsync(c => c.Id == characterId, ct).ConfigureAwait(false);
+    {
+        var exists = await db.PlayerCharacters.AnyAsync(c => c.Id == characterId, ct).ConfigureAwait(false);
+        if (!exists)
+        {
+            return false;
+        }
+
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM player.characters WHERE id = {characterId} FOR UPDATE",
+            ct).ConfigureAwait(false);
+        return true;
+    }
 
     private static MonsterKillRewardResult ToResult(CharacterEntity row, bool newlyGranted, long xpGranted)
         => new(

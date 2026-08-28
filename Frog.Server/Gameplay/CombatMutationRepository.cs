@@ -102,6 +102,27 @@ public sealed class CombatMutationRepository : ICombatMutationRepository
         }
     }
 
+    public Task<bool> TryRestoreMonsterAsync(
+        CombatMonsterSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (snapshot.Hp <= 0)
+        {
+            return Task.FromResult(false);
+        }
+
+        var map = _monstersByMap.GetOrAdd(snapshot.MapId, static _ => new ConcurrentDictionary<Guid, CombatMonsterSnapshot>());
+        if (map.ContainsKey(snapshot.InstanceId))
+        {
+            return Task.FromResult(false);
+        }
+
+        map[snapshot.InstanceId] = snapshot;
+        _monsterLocks.TryAdd(snapshot.InstanceId, new object());
+        return Task.FromResult(true);
+    }
+
     private static CombatMonsterSnapshot? FindMonsterInRange(
         IEnumerable<CombatMonsterSnapshot> monsters,
         string targetName,

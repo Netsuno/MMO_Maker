@@ -130,10 +130,28 @@ public sealed class CombatGameplayService(
         if (applied.MonsterKilled && applied.Monster is not null)
         {
             var xp = CombatFormulas.MonsterExperienceReward(applied.Monster.Level);
-            if (!await TryGrantMonsterKillRewardAsync(attacker, applied.Monster.InstanceId, applied.Monster.Level, xp, ct)
-                    .ConfigureAwait(false))
+            var killedSnapshot = applied.Monster;
+            try
             {
-                return MeleeCombatResult.Fail("Recompense non accordee.");
+                if (!await TryGrantMonsterKillRewardAsync(attacker, killedSnapshot.InstanceId, killedSnapshot.Level, xp, null, ct)
+                        .ConfigureAwait(false))
+                {
+                    await RestoreMonsterAfterFailedRewardAsync(killedSnapshot, applied.DamageApplied)
+                        .ConfigureAwait(false);
+                    return MeleeCombatResult.Fail("Recompense non accordee.");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                await RestoreMonsterAfterFailedRewardAsync(killedSnapshot, applied.DamageApplied)
+                    .ConfigureAwait(false);
+                throw;
+            }
+            catch
+            {
+                await RestoreMonsterAfterFailedRewardAsync(killedSnapshot, applied.DamageApplied)
+                    .ConfigureAwait(false);
+                throw;
             }
 
             return MeleeCombatResult.ForMonsterKilled(targetName, applied.DamageApplied, xp);
@@ -228,15 +246,41 @@ public sealed class CombatGameplayService(
             if (applied.MonsterKilled && applied.Monster is not null)
             {
                 var xp = CombatFormulas.MonsterExperienceReward(applied.Monster.Level);
-                if (!await TryGrantMonsterKillRewardAsync(caster, applied.Monster.InstanceId, applied.Monster.Level, xp, ct)
-                        .ConfigureAwait(false))
+                var killedSnapshot = applied.Monster;
+                try
+                {
+                    if (!await TryGrantMonsterKillRewardAsync(
+                            caster,
+                            killedSnapshot.InstanceId,
+                            killedSnapshot.Level,
+                            xp,
+                            caster.Mp,
+                            ct).ConfigureAwait(false))
+                    {
+                        caster.Mp += spell.ManaCost;
+                        caster.SpellCooldownsUtc.Remove(spellId);
+                        await RestoreMonsterAfterFailedRewardAsync(killedSnapshot, applied.DamageApplied)
+                            .ConfigureAwait(false);
+                        return SpellCombatResult.Fail("Recompense non accordee.");
+                    }
+                }
+                catch (OperationCanceledException)
                 {
                     caster.Mp += spell.ManaCost;
                     caster.SpellCooldownsUtc.Remove(spellId);
-                    return SpellCombatResult.Fail("Recompense non accordee.");
+                    await RestoreMonsterAfterFailedRewardAsync(killedSnapshot, applied.DamageApplied)
+                        .ConfigureAwait(false);
+                    throw;
+                }
+                catch
+                {
+                    caster.Mp += spell.ManaCost;
+                    caster.SpellCooldownsUtc.Remove(spellId);
+                    await RestoreMonsterAfterFailedRewardAsync(killedSnapshot, applied.DamageApplied)
+                        .ConfigureAwait(false);
+                    throw;
                 }
 
-                await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
                 return SpellCombatResult.ForMonsterKilled(spell.Name, applied.DamageApplied, xp, caster.Mp);
             }
 
@@ -278,39 +322,78 @@ public sealed class CombatGameplayService(
         var weaponPower = await GetWeaponPowerAsync(attacker.EquippedWeaponItemId, ct).ConfigureAwait(false);
 
         var defenderCharacterId = defender.RequireCharacterGuid();
-        var pvpResult = await _mutationCoordinator.RunExclusiveAsync(
-            defenderCharacterId,
-            async innerCt =>
+        PlayerMeleeCombatResult pvpResult;
+        try
+        {
+            pvpResult = await _mutationCoordinator.RunExclusiveAsync(
+                defenderCharacterId,
+                async innerCt =>
+                {
+                    if (defender.IsDead)
+                    {
+                        return PlayerMeleeCombatResult.Fail("Cible deja morte.");
+                    }
+
+                    if (defender.CurrentMapId != attacker.CurrentMapId)
+                    {
+                        return PlayerMeleeCombatResult.Fail("Pas sur la meme carte.");
+                    }
+
+                    if (!MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY))
+                    {
+                        return PlayerMeleeCombatResult.Fail("Hors portee.");
+                    }
+
+                    var record = await _characters.FindByIdAsync(defenderCharacterId, innerCt).ConfigureAwait(false);
+                    if (record is null)
+                    {
+                        return PlayerMeleeCombatResult.Fail("Cible introuvable.");
+                    }
+
+                    if (record.IsDead)
+                    {
+                        return PlayerMeleeCombatResult.Fail("Cible deja morte.");
+                    }
+
+                    var targetVit = record.Stats.Vit;
+                    var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
+                    var newHp = Math.Max(0, record.Hp - damage);
+                    var killed = newHp <= 0;
+                    var patch = record with
+                    {
+                        Hp = killed ? 0 : newHp,
+                        IsDead = killed,
+                    };
+
+                    await _characters.SaveAsync(patch, innerCt).ConfigureAwait(false);
+                    defender.Hp = patch.Hp;
+                    defender.IsDead = patch.IsDead;
+                    return PlayerMeleeCombatResult.Hit(damage, killed);
+                },
+                ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            var restored = await _characters.FindByIdAsync(defenderCharacterId, CancellationToken.None).ConfigureAwait(false);
+            if (restored is not null)
             {
-                if (defender.IsDead)
-                {
-                    return PlayerMeleeCombatResult.Fail("Cible deja morte.");
-                }
+                defender.Hp = restored.Hp;
+                defender.IsDead = restored.IsDead;
+            }
 
-                if (defender.CurrentMapId != attacker.CurrentMapId)
-                {
-                    return PlayerMeleeCombatResult.Fail("Pas sur la meme carte.");
-                }
+            throw;
+        }
+        catch
+        {
+            var restored = await _characters.FindByIdAsync(defenderCharacterId, ct).ConfigureAwait(false);
+            if (restored is not null)
+            {
+                defender.Hp = restored.Hp;
+                defender.IsDead = restored.IsDead;
+            }
 
-                if (!MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY))
-                {
-                    return PlayerMeleeCombatResult.Fail("Hors portee.");
-                }
-
-                var targetVit = defender.Stats?.Vit ?? 10;
-                var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
-                defender.Hp = Math.Max(0, defender.Hp - damage);
-                var killed = defender.Hp <= 0;
-                if (killed)
-                {
-                    defender.IsDead = true;
-                    defender.Hp = 0;
-                }
-
-                await PersistCombatStateAsync(defender, innerCt).ConfigureAwait(false);
-                return PlayerMeleeCombatResult.Hit(damage, killed);
-            },
-            ct).ConfigureAwait(false);
+            throw;
+        }
 
         if (!pvpResult.Success)
         {
@@ -366,25 +449,27 @@ public sealed class CombatGameplayService(
         await _characters.SaveAsync(session.ToCharacterPatch(record), ct).ConfigureAwait(false);
     }
 
+    private Task RestoreMonsterAfterFailedRewardAsync(
+        CombatMonsterSnapshot killedSnapshot,
+        int damageApplied)
+        => _combatMutations.TryRestoreMonsterAsync(
+            killedSnapshot with { Hp = Math.Max(1, damageApplied) },
+            CancellationToken.None);
+
     private async Task<bool> TryGrantMonsterKillRewardAsync(
         Session session,
         Guid monsterInstanceId,
         int monsterLevel,
         long experienceAmount,
+        int? persistMp,
         CancellationToken ct)
     {
-        var stats = session.Stats ?? new CharacterStats(10, 10, 10, 10, 10, 10);
         var result = await _killRewards.TryGrantKillRewardAsync(
-            session.RequireCharacterGuid(),
-            monsterInstanceId,
-            experienceAmount,
-            session.Level,
-            session.Experience,
-            stats,
-            session.MaxHp,
-            session.MaxMp,
-            session.Hp,
-            session.Mp,
+            new MonsterKillRewardRequest(
+                session.RequireCharacterGuid(),
+                monsterInstanceId,
+                experienceAmount,
+                persistMp),
             ct).ConfigureAwait(false);
         if (!result.Success)
         {

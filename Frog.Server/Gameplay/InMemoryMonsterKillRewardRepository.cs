@@ -10,23 +10,14 @@ public sealed class InMemoryMonsterKillRewardRepository(ICharacterRepository cha
     private readonly ConcurrentDictionary<(Guid CharacterId, Guid MonsterInstanceId), long> _granted = new();
 
     public async Task<MonsterKillRewardResult> TryGrantKillRewardAsync(
-        Guid characterId,
-        Guid monsterInstanceId,
-        long experienceAmount,
-        int currentLevel,
-        long currentExperience,
-        CharacterStats currentStats,
-        int currentMaxHp,
-        int currentMaxMp,
-        int currentHp,
-        int currentMp,
+        MonsterKillRewardRequest request,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var key = (characterId, monsterInstanceId);
-        if (!_granted.TryAdd(key, experienceAmount))
+        var key = (request.CharacterId, request.MonsterInstanceId);
+        if (!_granted.TryAdd(key, request.ExperienceAmount))
         {
-            var existing = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+            var existing = await _characters.FindByIdAsync(request.CharacterId, cancellationToken).ConfigureAwait(false);
             if (existing is null)
             {
                 return MonsterKillRewardResult.Fail();
@@ -45,15 +36,22 @@ public sealed class InMemoryMonsterKillRewardRepository(ICharacterRepository cha
                 0);
         }
 
+        var record = await _characters.FindByIdAsync(request.CharacterId, cancellationToken).ConfigureAwait(false);
+        if (record is null)
+        {
+            _granted.TryRemove(key, out _);
+            return MonsterKillRewardResult.Fail();
+        }
+
         var (level, experience, levelsGained) = ProgressionCurve.ApplyExperience(
-            currentLevel,
-            currentExperience,
-            experienceAmount);
-        var maxHp = currentMaxHp;
-        var maxMp = currentMaxMp;
-        var stats = currentStats;
-        var hp = currentHp;
-        var mp = currentMp;
+            record.Level,
+            record.Experience,
+            request.ExperienceAmount);
+        var maxHp = record.MaxHp;
+        var maxMp = record.MaxMp;
+        var stats = record.Stats;
+        var hp = record.Hp;
+        var mp = request.PersistMp ?? record.Mp;
         if (levelsGained > 0)
         {
             var str = stats.Str;
@@ -77,25 +75,26 @@ public sealed class InMemoryMonsterKillRewardRepository(ICharacterRepository cha
             mp = maxMp;
         }
 
-        var record = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
-        if (record is null)
+        try
+        {
+            await _characters.SaveAsync(
+                record with
+                {
+                    Level = level,
+                    Experience = experience,
+                    Stats = stats,
+                    MaxHp = maxHp,
+                    MaxMp = maxMp,
+                    Hp = hp,
+                    Mp = mp,
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch
         {
             _granted.TryRemove(key, out _);
-            return MonsterKillRewardResult.Fail();
+            throw;
         }
-
-        await _characters.SaveAsync(
-            record with
-            {
-                Level = level,
-                Experience = experience,
-                Stats = stats,
-                MaxHp = maxHp,
-                MaxMp = maxMp,
-                Hp = hp,
-                Mp = mp,
-            },
-            cancellationToken).ConfigureAwait(false);
 
         return new MonsterKillRewardResult(
             true,
@@ -107,6 +106,6 @@ public sealed class InMemoryMonsterKillRewardRepository(ICharacterRepository cha
             maxMp,
             hp,
             mp,
-            experienceAmount);
+            request.ExperienceAmount);
     }
 }
