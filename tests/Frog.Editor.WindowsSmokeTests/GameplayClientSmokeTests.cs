@@ -1,11 +1,15 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
+using System.Threading;
 using Frog.Client;
 using Frog.Core.Constants;
+using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Server;
 using Frog.Server.Gameplay;
@@ -162,12 +166,16 @@ public sealed class GameplayClientSmokeTests
                     () => form.LogContainsForTest("Achat: Achat reussi.") && form.InventoryPanelForTest.ListedItemCountForTest > 0,
                     "buy consumable");
 
-                // P7-G5 : dépôt puis retrait d'un OBJET en banque (pas seulement l'or) — la liste
-                // banque nommée (_lstBank) doit refléter le contenu déposé/retiré.
-                // NB : _numBankSlot est réutilisé (héritage de l'UI existante) comme "slot
-                // inventaire source" pour un dépôt et "slot banque source" pour un retrait — la
-                // banque étant vide au départ, les deux valent 0 pour cet unique objet.
-                form.BankSlotNumericForTest.Value = 0;
+                // P7-H4 : dépôt/retrait via sélection inventaire (slot non nul) et banque nommée.
+                Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "select second consumable");
+                form.ShopBuyButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.ListedItemCountForTest >= 2,
+                    "second consumable in inventory");
+                form.InventoryPanelForTest.SelectSlotByIndexForTest(1);
+                Assert.True(form.InventoryPanelForTest.SelectedInventorySlotForTest > 0);
+
                 form.BankQtyNumericForTest.Value = 1;
                 form.BankDepositItemButtonForTest.PerformClick();
                 Pump(
@@ -178,7 +186,7 @@ public sealed class GameplayClientSmokeTests
                     form.BankItemsListForTest.Items.Cast<object>(),
                     row => row.ToString()!.Contains('×', StringComparison.Ordinal));
 
-                form.BankSlotNumericForTest.Value = 0;
+                form.BankItemsListForTest.SelectedIndex = 0;
                 form.BankWithdrawItemButtonForTest.PerformClick();
                 Pump(
                     form,
@@ -192,9 +200,7 @@ public sealed class GameplayClientSmokeTests
                 form.BankWithdrawGoldButtonForTest.PerformClick();
                 Pump(form, () => form.LogContainsForTest("Banque retrait: Operation reussie."), "bank gold withdraw success");
 
-                // P7-G5 : succès strict — la vente doit réussir (l'objet retiré de la banque est
-                // revenu dans l'inventaire au même slot), plus de secours "ou refusée".
-                form.BankSlotNumericForTest.Value = 0;
+                form.InventoryPanelForTest.SelectSlotByIndexForTest(1);
                 form.ShopSellButtonForTest.PerformClick();
                 Pump(form, () => form.LogContainsForTest("Vente: Vente reussie."), "shop sell success");
             }
@@ -295,10 +301,12 @@ public sealed class GameplayClientSmokeTests
                     "invalid target melee refused");
                 Assert.Equal(hpBeforeInvalid, form.CombatHpForTest);
 
-                // Mort forcée côté serveur (in-memory, pragmatique dans le budget smoke) puis
-                // respawn réussi via le protocole client public.
-                harness.KillCharacterForTest();
-                form.RespawnForTest();
+                // Mort via combat PvP public (second client TCP) puis respawn via le bouton visible.
+                harness.KillVictimViaPvpForTest();
+                Pump(form, () => form.LogContainsForTest("Mort signalée par le serveur."), "death notify received");
+                Pump(form, () => form.CombatIsDeadForTest, "combat state dead");
+                Assert.True(form.RespawnButtonForTest.Visible && form.RespawnButtonForTest.Enabled, "respawn button visible");
+                form.RespawnButtonForTest.PerformClick();
                 Pump(form, () => form.LogContainsForTest("Respawn: Ressuscite."), "respawn success logged");
                 Pump(form, () => !form.CombatIsDeadForTest, "combat state cleared (not dead) after respawn");
                 Assert.Equal(form.CombatMaxHpForTest, form.CombatHpForTest);
@@ -356,6 +364,68 @@ public sealed class GameplayClientSmokeTests
                     "pickup success");
                 Assert.Equal(inventoryCountBeforePickup + 1, form.InventoryPanelForTest.ListedItemCountForTest);
                 Assert.False(form.PickupButtonForTest.Enabled);
+            }
+            finally
+            {
+                harness.Dispose();
+            }
+        });
+    }
+
+    [Fact]
+    public void GameplayClient_Phase7ScreenshotFlows()
+    {
+        StaTestRunner.Run(() =>
+        {
+            using var harness = GameplaySmokeHarness.Create();
+            var form = harness.Form;
+            try
+            {
+                harness.ConnectRegisterLogin();
+                Pump(form, () => form.CatalogClassesPopulatedForTest, "catalog after login");
+                harness.CreateCharacter("ShotHero");
+                harness.EnterPlayingPhase("ShotHero");
+                form.SelectGameplayTabForTest();
+
+                Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "consumable for bank shot");
+                form.ShopBuyButtonForTest.PerformClick();
+                Pump(form, () => form.LogContainsForTest("Achat: Achat reussi."), "shop buy for screenshot");
+                form.InventoryPanelForTest.SelectSlotByIndexForTest(0);
+                form.BankQtyNumericForTest.Value = 1;
+                form.BankDepositItemButtonForTest.PerformClick();
+                Pump(form, () => form.BankItemsCountForTest > 0, "bank deposit for screenshot");
+                ClientSmokeTestAccess.SaveScreenshot(form, "06-bank-shop.png");
+
+                Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "weapon for ground shot");
+                form.ShopBuyButtonForTest.PerformClick();
+                Pump(form, () => form.InventoryPanelForTest.ListedItemCountForTest > 0, "weapon bought");
+                form.InventoryPanelForTest.SelectFirstForTest();
+                form.InventoryPanelForTest.ClickDropForTest();
+                Pump(form, () => form.GroundItemsCountForTest > 0, "ground item for screenshot");
+                ClientSmokeTestAccess.SaveScreenshot(form, "07-ground-drop.png");
+
+                harness.SpawnSlimeAtDefaultSpawnForTest();
+                form.MeleeTargetComboForTest.Text = "Slime";
+                form.MeleeButtonForTest.PerformClick();
+                Pump(form, () => form.LogContainsForTest("Mêlée → Slime: touche"), "melee for screenshot", TimeSpan.FromSeconds(15));
+                form.SpellComboForTest.SelectedIndex = 0;
+                form.SpellButtonForTest.PerformClick();
+                Pump(form, () => form.LogContainsForTest("Sort: "), "spell for screenshot", TimeSpan.FromSeconds(15));
+                ClientSmokeTestAccess.SaveScreenshot(form, "08-combat-spell.png");
+
+                harness.KillVictimViaPvpForTest();
+                Pump(form, () => form.RespawnButtonForTest.Enabled, "death respawn button");
+                ClientSmokeTestAccess.SaveScreenshot(form, "09-death-respawn-button.png");
+                form.RespawnButtonForTest.PerformClick();
+                Pump(form, () => form.LogContainsForTest("Respawn: Ressuscite."), "respawn after screenshot");
+                ClientSmokeTestAccess.SaveScreenshot(form, "10-post-respawn.png");
+
+                AssertScreenshots(
+                    "06-bank-shop.png",
+                    "07-ground-drop.png",
+                    "08-combat-spell.png",
+                    "09-death-respawn-button.png",
+                    "10-post-respawn.png");
             }
             finally
             {
@@ -522,18 +592,45 @@ public sealed class GameplayClientSmokeTests
         }
 
         /// <summary>
-        /// P7-G5 : force la session serveur (in-memory) en état "mort" pour exercer le flux
-        /// respawn dans le budget smoke, sans avoir à enchaîner assez de coups pour tuer le
-        /// personnage via le protocole de combat.
+        /// Tue le joueur du harness via un second client TCP et le protocole mêlée PvP public.
         /// </summary>
-        public void KillCharacterForTest()
+        public void KillVictimViaPvpForTest()
         {
-            var connections = _host.Services.GetRequiredService<ConnectionManager>();
-            Assert.True(
-                connections.TryGetSessionByUsername(User, out var session) && session is not null,
-                "active session not found for forced-death setup");
-            session!.IsDead = true;
-            session.Hp = 0;
+            var port = (int)Form.PortNumericForTest.Value;
+            using var attacker = new SmokeTcpClient();
+            attacker.Connect("127.0.0.1", port);
+            attacker.ReadFrame();
+            var attackerUser = $"atk-{Guid.NewGuid():N}"[..16];
+            const string password = "smoke-pass-7";
+            attacker.Send(SmokeTcpPackets.Register(attackerUser, password));
+            attacker.ReadUntil(PacketId.RegisterResult);
+            attacker.Send(SmokeTcpPackets.Login(attackerUser, password));
+            attacker.ReadUntil(PacketId.LoginResult);
+            attacker.Send(SmokeTcpPackets.CharacterCreate("Killer", Phase7ContentSeed.DefaultClassId));
+            var create = attacker.ReadUntil(PacketId.CharacterCreateResult);
+            var charId = SmokeTcpPackets.DecodeCharacterId(create);
+            attacker.Send(SmokeTcpPackets.CharacterSelect(charId));
+            attacker.ReadUntil(PacketId.CharacterSelectResult);
+            attacker.Drain();
+
+            for (var i = 0; i < 40; i++)
+            {
+                attacker.Send(SmokeTcpPackets.Melee(User));
+                attacker.ReadUntil(PacketId.MeleeAttackResult);
+                Pump(
+                    Form,
+                    () => Form.LogContainsForTest("Mort signalée par le serveur.") || Form.CombatIsDeadForTest,
+                    $"pvp hit {i}",
+                    TimeSpan.FromSeconds(3));
+                if (Form.CombatIsDeadForTest)
+                {
+                    return;
+                }
+
+                Thread.Sleep(CombatFormulas.BasicAttackCooldownMs + 20);
+            }
+
+            throw new TimeoutException("Victim was not killed via public PvP melee.");
         }
 
         public void Dispose()
@@ -557,6 +654,145 @@ public sealed class GameplayClientSmokeTests
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             listener.Stop();
             return port;
+        }
+    }
+
+    private sealed class SmokeTcpClient : IDisposable
+    {
+        private readonly TcpClient _tcp = new();
+        private NetworkStream? _stream;
+
+        public void Connect(string host, int port)
+        {
+            _tcp.Connect(host, port);
+            _stream = _tcp.GetStream();
+        }
+
+        public void Send(byte[] payload)
+        {
+            var frame = new byte[4 + payload.Length];
+            BinaryPrimitives.WriteInt32LittleEndian(frame, payload.Length);
+            payload.CopyTo(frame, 4);
+            _stream!.Write(frame);
+        }
+
+        public byte[] ReadFrame()
+        {
+            var lenBuf = new byte[4];
+            ReadExact(lenBuf);
+            var len = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
+            var payload = new byte[len];
+            ReadExact(payload);
+            return payload;
+        }
+
+        public byte[] ReadUntil(PacketId id, TimeSpan? timeout = null)
+        {
+            var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(20));
+            while (DateTime.UtcNow < deadline)
+            {
+                var frame = ReadFrame();
+                if (frame[0] == (byte)id)
+                {
+                    return frame;
+                }
+            }
+
+            throw new TimeoutException($"Timed out waiting for {id}.");
+        }
+
+        public void Drain()
+        {
+            if (_stream is null)
+            {
+                return;
+            }
+
+            while (_stream.DataAvailable)
+            {
+                _ = ReadFrame();
+            }
+        }
+
+        public void Dispose()
+        {
+            _stream?.Dispose();
+            _tcp.Dispose();
+        }
+
+        private void ReadExact(byte[] buffer)
+        {
+            var offset = 0;
+            while (offset < buffer.Length)
+            {
+                var read = _stream!.Read(buffer, offset, buffer.Length - offset);
+                if (read == 0)
+                {
+                    throw new EndOfStreamException();
+                }
+
+                offset += read;
+            }
+        }
+    }
+
+    private static class SmokeTcpPackets
+    {
+        public static byte[] Register(string user, string pass) => Login(user, pass, PacketId.RegisterRequest);
+
+        public static byte[] Login(string user, string pass, PacketId id = PacketId.LoginRequest)
+        {
+            var u = Encoding.UTF8.GetBytes(user);
+            var p = Encoding.UTF8.GetBytes(pass);
+            var payload = new byte[1 + 1 + u.Length + 1 + p.Length];
+            payload[0] = (byte)id;
+            payload[1] = (byte)u.Length;
+            u.CopyTo(payload, 2);
+            payload[2 + u.Length] = (byte)p.Length;
+            p.CopyTo(payload, 3 + u.Length);
+            return payload;
+        }
+
+        public static byte[] CharacterCreate(string name, Guid classId)
+        {
+            var n = Encoding.UTF8.GetBytes(name);
+            var payload = new byte[1 + 1 + n.Length + 16];
+            payload[0] = (byte)PacketId.CharacterCreateRequest;
+            payload[1] = (byte)n.Length;
+            n.CopyTo(payload, 2);
+            classId.TryWriteBytes(payload.AsSpan(2 + n.Length));
+            return payload;
+        }
+
+        public static byte[] CharacterSelect(string id)
+        {
+            var b = Encoding.UTF8.GetBytes(id);
+            var payload = new byte[1 + 1 + b.Length];
+            payload[0] = (byte)PacketId.CharacterSelectRequest;
+            payload[1] = (byte)b.Length;
+            b.CopyTo(payload, 2);
+            return payload;
+        }
+
+        public static byte[] Melee(string target)
+        {
+            var t = Encoding.UTF8.GetBytes(target);
+            var payload = new byte[1 + 1 + t.Length];
+            payload[0] = (byte)PacketId.MeleeAttackRequest;
+            payload[1] = (byte)t.Length;
+            t.CopyTo(payload, 2);
+            return payload;
+        }
+
+        public static string DecodeCharacterId(ReadOnlySpan<byte> payload)
+        {
+            if (payload.Length < 3 || payload[0] != (byte)PacketId.CharacterCreateResult || payload[1] == 0)
+            {
+                throw new InvalidOperationException("CharacterCreateResult invalide.");
+            }
+
+            var len = payload[2];
+            return Encoding.UTF8.GetString(payload.Slice(3, len));
         }
     }
 }

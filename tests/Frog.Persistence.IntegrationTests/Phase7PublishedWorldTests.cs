@@ -198,7 +198,15 @@ public sealed class Phase7PublishedWorldTests
         var npcs = new PostgresNpcRepository(gate);
         var spells = new PostgresSpellRepository(gate);
         var items = new PostgresItemRepository(gate);
-        var combat = new CombatGameplayService(npcs, spells, items, characters, charSvc, new CombatMutationRepository());
+        var combat = new CombatGameplayService(
+            npcs,
+            spells,
+            items,
+            characters,
+            charSvc,
+            new CombatMutationRepository(),
+            new CharacterMutationCoordinator(),
+            new PostgresMonsterKillRewardRepository(gate));
 
         var accounts = new PostgresAccountRepository(gate);
         var account = await accounts.TryCreateAsync($"vic-{Guid.NewGuid():N}"[..16], "password12345");

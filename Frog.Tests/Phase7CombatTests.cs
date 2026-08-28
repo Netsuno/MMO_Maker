@@ -15,7 +15,7 @@ public sealed class Phase7CombatTests
         var content = new Phase7PublishedContent();
         var chars = new InMemoryCharacterRepository();
         var charSvc = Phase7TestHelpers.CreateCharacterService(chars, content, new InMemoryInventoryRepository());
-        var combat = new CombatGameplayService(content, content, content, chars, charSvc, new CombatMutationRepository());
+        var combat = Phase7TestHelpers.CreateCombatService(chars, content);
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Fighter", Phase7ContentSeed.DefaultClassId);
         var session = new Session { Id = Guid.NewGuid(), Username = "f", CurrentMapId = 1 };
         session.ApplyFromCharacter(created.Character!);
@@ -50,7 +50,7 @@ public sealed class Phase7CombatTests
         var content = new Phase7PublishedContent();
         var chars = new InMemoryCharacterRepository();
         var charSvc = Phase7TestHelpers.CreateCharacterService(chars, content, new InMemoryInventoryRepository());
-        var combat = new CombatGameplayService(content, content, content, chars, charSvc, new CombatMutationRepository());
+        var combat = Phase7TestHelpers.CreateCombatService(chars, content);
         var created = await charSvc.CreateAsync(Guid.NewGuid(), "Mage", Phase7ContentSeed.DefaultClassId);
         var session = new Session { Id = Guid.NewGuid(), Username = "m", CurrentMapId = 1 };
         session.ApplyFromCharacter(created.Character!);

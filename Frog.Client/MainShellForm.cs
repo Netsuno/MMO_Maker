@@ -1060,9 +1060,12 @@ public sealed class MainShellForm : Form
             {
                 _numBankSlot.Value = Math.Clamp(row.SlotIndex, (int)_numBankSlot.Minimum, (int)_numBankSlot.Maximum);
             }
+
+            UpdateBankWithdrawButtons();
         };
         _inventoryPanel.EquipRequested += slot => _ = EquipSlotAsync(slot);
         _inventoryPanel.DropRequested += (slot, qty) => _ = DropItemAsync(slot, qty);
+        _inventoryPanel.SelectionChanged += UpdateInventoryActionButtons;
         _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
         _btnWorldFlagsDemo.Click += async (_, _) => await SendWorldFlagsDemoPatchAsync();
         _btnSwitchCharacter.Click += (_, _) => GoToCharacterSelectPhase();
@@ -1297,9 +1300,8 @@ public sealed class MainShellForm : Form
     private void SetGameplayControlsEnabled(bool enabled)
     {
         _btnShopBuy.Enabled = enabled;
-        _btnShopSell.Enabled = enabled;
-        _btnBankDepositItem.Enabled = enabled;
-        _btnBankWithdrawItem.Enabled = enabled;
+        UpdateInventoryActionButtons();
+        UpdateBankWithdrawButtons();
         _btnBankDepositGold.Enabled = enabled;
         _btnBankWithdrawGold.Enabled = enabled;
         _btnSpell.Enabled = enabled;
@@ -1307,6 +1309,20 @@ public sealed class MainShellForm : Form
         _cmbShop.Enabled = enabled && _cmbShop.Items.Count > 0;
         _cmbShopItem.Enabled = enabled && _cmbShopItem.Items.Count > 0;
         _cmbSpell.Enabled = enabled && _cmbSpell.Items.Count > 0;
+    }
+
+    private void UpdateInventoryActionButtons()
+    {
+        var enabled = _client is { IsConnected: true };
+        var hasSelection = _inventoryPanel.SelectedInventorySlot is not null;
+        _btnShopSell.Enabled = enabled && hasSelection;
+        _btnBankDepositItem.Enabled = enabled && hasSelection;
+    }
+
+    private void UpdateBankWithdrawButtons()
+    {
+        var enabled = _client is { IsConnected: true };
+        _btnBankWithdrawItem.Enabled = enabled && _lstBank.SelectedItem is BankRow;
     }
 
     private void OnCombatState(CombatStateWire state)
@@ -1322,6 +1338,7 @@ public sealed class MainShellForm : Form
     {
         _inventoryPanel.ApplySnapshot(snapshot);
         _equipmentPanel.ApplySnapshot(snapshot);
+        UpdateInventoryActionButtons();
         AppendLog($"Inventaire: {snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0)} slot(s) rempli(s).");
     }
 
@@ -1589,14 +1606,14 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        if (_inventoryPanel is null)
+        if (_inventoryPanel.SelectedInventorySlot is not byte slot)
         {
+            AppendLog("Vente: sélectionnez un objet dans l'inventaire.");
             return;
         }
 
         try
         {
-            var slot = (byte)Math.Clamp(_numBankSlot.Value, 0, 255);
             await _client.SendShopSellAsync(slot, (int)_numShopQty.Value).ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -1612,9 +1629,15 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (_inventoryPanel.SelectedInventorySlot is not byte slot)
+        {
+            AppendLog("Banque dépôt: sélectionnez un objet dans l'inventaire.");
+            return;
+        }
+
         try
         {
-            await _client.SendBankDepositItemAsync((byte)_numBankSlot.Value, (int)_numBankQty.Value).ConfigureAwait(true);
+            await _client.SendBankDepositItemAsync(slot, (int)_numBankQty.Value).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -1629,9 +1652,15 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (_lstBank.SelectedItem is not BankRow row)
+        {
+            AppendLog("Banque retrait: sélectionnez un objet dans la banque.");
+            return;
+        }
+
         try
         {
-            await _client.SendBankWithdrawItemAsync((byte)_numBankSlot.Value, (int)_numBankQty.Value).ConfigureAwait(true);
+            await _client.SendBankWithdrawItemAsync((byte)row.SlotIndex, (int)_numBankQty.Value).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -2855,6 +2884,8 @@ public sealed class MainShellForm : Form
 
     internal InventoryPanel InventoryPanelForTest => _inventoryPanel;
 
+    internal byte? SelectedInventorySlotForTest => _inventoryPanel.SelectedInventorySlotForTest;
+
     internal EquipmentPanel EquipmentPanelForTest => _equipmentPanel;
 
     internal bool IsPlayingPhaseForTest => _phase == ClientUiPhase.Playing;
@@ -2987,8 +3018,9 @@ public sealed class MainShellForm : Form
 
     internal bool CombatIsDeadForTest => _lastCombatState?.IsDead ?? false;
 
-    /// <summary>Force l'envoi RespawnRequest sans passer par la visibilité/activation du bouton UI.</summary>
-    internal void RespawnForTest() => _ = RespawnAsync();
+    internal void OnInventorySnapshotForTest(InventorySnapshotWire snapshot) => OnInventorySnapshot(snapshot);
+
+    internal Button RespawnButtonForTest => _btnRespawn;
 
     internal void SelectGameplayTabForTest() => _gameplayTabs.SelectedTab = _tabGameplay;
 

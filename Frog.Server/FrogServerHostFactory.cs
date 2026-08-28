@@ -205,6 +205,7 @@ public static class FrogServerHostFactory
                             sp.GetRequiredService<IEquipmentRepository>(),
                             sp.GetRequiredService<IGroundItemRepository>(),
                             sp.GetRequiredService<IPublishedItemCatalog>()));
+                    services.AddSingleton<IMonsterKillRewardRepository, InMemoryMonsterKillRewardRepository>();
 
                     services.AddSingleton<Phase7PublishedContent>();
                     services.AddSingleton<IPublishedClassCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
@@ -221,6 +222,7 @@ public static class FrogServerHostFactory
                     services.AddHostedService<PublishedWorldBootstrapHostedService>();
                 }
 
+                services.AddSingleton<CharacterMutationCoordinator>();
                 services.AddSingleton<CharacterGameplayService>();
                 services.AddSingleton<InventoryGameplayService>();
                 services.AddSingleton<ICombatMutationRepository, CombatMutationRepository>();

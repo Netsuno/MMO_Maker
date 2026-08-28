@@ -36,6 +36,8 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
             new PostgresEconomyTransactionRepository(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<IInventoryTransferRepository>(sp =>
             new PostgresInventoryTransferRepository(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<IMonsterKillRewardRepository>(sp =>
+            new PostgresMonsterKillRewardRepository(sp.GetRequiredService<FrogDbContextGate>()));
 
         RegisterPublishedCatalogs(services);
     }

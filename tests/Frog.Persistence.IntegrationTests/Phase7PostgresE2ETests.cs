@@ -1,14 +1,18 @@
 using System.Threading;
+using Frog.Application.Content;
 using Frog.Application.Gameplay;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
+using Frog.Core.Models;
 using Frog.Persistence.PostgreSql;
+using Frog.Persistence.PostgreSql.Repositories.Player;
 using Frog.Persistence.IntegrationTests.Support;
 using Frog.Server.Gameplay;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Xunit;
 
 namespace Frog.Persistence.IntegrationTests;
 
@@ -619,6 +623,116 @@ public sealed class Phase7PostgresE2ETests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
+    public async Task ShopBuyRace_TwoClients_FinalStockUnit_ExactlyOneWinner()
+    {
+        var (seed, _) = await SeedPublishedContentAsync();
+        await PublishLimitedStockWeaponListingAsync(seed);
+        var port = Phase7TcpTestPorts.GetFreePort();
+        using var host = Phase7PostgresE2EHost
+            .CreateBuilder(_fixture.ConnectionString, port)
+            .Build();
+        await host.StartAsync();
+        try
+        {
+            const string password = "password12345";
+            var userA = $"sa-{Guid.NewGuid():N}"[..16];
+            var userB = $"sb-{Guid.NewGuid():N}"[..16];
+            await using var tcpA = new Phase7TcpTestClient();
+            await using var tcpB = new Phase7TcpTestClient();
+            var characterIdA = await RegisterLoginSelectAsync(tcpA, port, userA, password, "BuyerA", seed.ClassId);
+            var characterIdB = await RegisterLoginSelectAsync(tcpB, port, userB, password, "BuyerB", seed.ClassId);
+
+            var requestA = Guid.NewGuid();
+            var requestB = Guid.NewGuid();
+            await Task.WhenAll(
+                tcpA.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopBuy(seed.ShopId, seed.WeaponId, 1, requestA)),
+                tcpB.SendFrameAsync(Phase7TcpPacketBuilder.BuildShopBuy(seed.ShopId, seed.WeaponId, 1, requestB)));
+
+            var resultA = await tcpA.ReadUntilAsync(PacketId.ShopBuyResult);
+            var resultB = await tcpB.ReadUntilAsync(PacketId.ShopBuyResult);
+            var successA = resultA[1] != 0;
+            var successB = resultB[1] != 0;
+            Assert.NotEqual(successA, successB);
+            Assert.True(successA || successB);
+
+            int qtyA = 0;
+            int qtyB = 0;
+            if (successA)
+            {
+                var invA = await tcpA.ReadUntilAsync(PacketId.InventorySnapshot);
+                Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invA, out var snapA));
+                qtyA = snapA.Slots.Where(s => s.ItemId == seed.WeaponId).Sum(s => s.Quantity);
+            }
+
+            if (successB)
+            {
+                var invB = await tcpB.ReadUntilAsync(PacketId.InventorySnapshot);
+                Assert.True(Phase7WireDecoders.TryDecodeInventorySnapshot(invB, out var snapB));
+                qtyB = snapB.Slots.Where(s => s.ItemId == seed.WeaponId).Sum(s => s.Quantity);
+            }
+
+            Assert.Equal(successA ? 1 : 0, qtyA);
+            Assert.Equal(successB ? 1 : 0, qtyB);
+
+            using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+            var invRepo = new PostgresInventoryRepository(gate);
+            if (!successA)
+            {
+                var inv = await invRepo.GetAsync(characterIdA);
+                qtyA = inv.Slots.Where(s => s.ItemId == seed.WeaponId).Sum(s => s.Quantity);
+                Assert.Equal(0, qtyA);
+            }
+
+            if (!successB)
+            {
+                var inv = await invRepo.GetAsync(characterIdB);
+                qtyB = inv.Slots.Where(s => s.ItemId == seed.WeaponId).Sum(s => s.Quantity);
+                Assert.Equal(0, qtyB);
+            }
+
+            var stock = await gate.ExecuteAsync(async (db, ct) =>
+                await db.PlayerShopStock.AsNoTracking()
+                    .Where(s => s.ShopId == seed.ShopId && s.ItemId == seed.WeaponId)
+                    .Select(s => s.Remaining)
+                    .SingleOrDefaultAsync(ct));
+            Assert.Equal(0, stock);
+
+            var (goldA, goldB) = await gate.ExecuteAsync(async (db, ct) =>
+            {
+                var a = await db.PlayerCharacters.AsNoTracking().SingleAsync(c => c.Id == characterIdA, ct);
+                var b = await db.PlayerCharacters.AsNoTracking().SingleAsync(c => c.Id == characterIdB, ct);
+                return (a.Gold, b.Gold);
+            });
+            var winnerPaid = 100;
+            if (successA)
+            {
+                Assert.Equal(GameplayLimits.StartingGold - winnerPaid, goldA);
+                Assert.Equal(GameplayLimits.StartingGold, goldB);
+            }
+            else
+            {
+                Assert.Equal(GameplayLimits.StartingGold, goldA);
+                Assert.Equal(GameplayLimits.StartingGold - winnerPaid, goldB);
+            }
+
+            await host.StopAsync();
+            using var gate2 = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+            var stockAfterRestart = await gate2.ExecuteAsync(async (db, ct) =>
+                await db.PlayerShopStock.AsNoTracking()
+                    .Where(s => s.ShopId == seed.ShopId && s.ItemId == seed.WeaponId)
+                    .Select(s => s.Remaining)
+                    .SingleOrDefaultAsync(ct));
+            Assert.Equal(0, stockAfterRestart);
+        }
+        finally
+        {
+            await RestoreDefaultShopListingAsync(seed);
+            await host.StopAsync();
+        }
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
     public async Task ShopBuy_IdempotentRetry_DoesNotDuplicateItem()
     {
         var (seed, _) = await SeedPublishedContentAsync();
@@ -716,6 +830,56 @@ public sealed class Phase7PostgresE2ETests
     }
 
 
+    private async Task PublishLimitedStockWeaponListingAsync(Phase7PostgresContentSeedResult seed)
+    {
+        await SaveShopListingAsync(seed, [
+            new ShopListing { ItemId = seed.WeaponId, Price = 100, Stock = 1 },
+        ]);
+    }
+
+    private async Task RestoreDefaultShopListingAsync(Phase7PostgresContentSeedResult seed)
+    {
+        var shop = Phase7ContentSeed.CreateDefaultShop();
+        await SaveShopListingAsync(seed, shop.Listings);
+    }
+
+    private async Task SaveShopListingAsync(Phase7PostgresContentSeedResult seed, IReadOnlyList<ShopListing> listings)
+    {
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var items = new PostgresItemRepository(gate);
+        var shops = new PostgresShopRepository(gate, items);
+        var shop = Phase7ContentSeed.CreateDefaultShop();
+        shop.Listings = listings.ToList();
+
+        var revision = (await shops.LoadByIdAsync(seed.ShopId)
+            ?? throw new InvalidOperationException("Shop draft missing for shop listing publish.")).Revision;
+
+        for (var attempt = 0; attempt < 6; attempt++)
+        {
+            var saved = await shops.SaveAsync(new SaveShopRequest
+            {
+                ShopId = seed.ShopId,
+                Definition = shop,
+                ExpectedRevision = revision,
+                Intent = SaveContentIntent.Publish,
+            });
+            if (saved is SaveShopResult.Success)
+            {
+                return;
+            }
+
+            if (saved is SaveShopResult.Conflict conflict)
+            {
+                revision = conflict.CurrentRevision;
+                continue;
+            }
+
+            throw new InvalidOperationException("Shop listing publish failed: " + saved.GetType().Name);
+        }
+
+        throw new InvalidOperationException("Shop listing publish conflicted after retries.");
+    }
+
     private async Task<(Phase7PostgresContentSeedResult Seed, Guid? GroundItemId)> SeedPublishedContentAsync(
         bool seedGroundItem = false,
         bool useConsumableAsGround = false,
@@ -725,6 +889,7 @@ public sealed class Phase7PostgresE2ETests
         // FrogDbContext instances do not share the Npgsql pool during teardown.
         using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
         var seed = await Phase7PostgresContentSeed.PublishAsync(gate, monsterSpawnCount);
+        await RestoreDefaultShopListingAsync(seed);
         Guid? groundId = null;
         if (seedGroundItem)
         {

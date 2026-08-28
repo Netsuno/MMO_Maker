@@ -25,4 +25,21 @@ internal static class Phase7TestHelpers
             inventory ?? new InMemoryInventoryRepository(),
             NullPublishedWorldCatalog.Instance,
             SyntheticContentOptions);
+
+    internal static CombatGameplayService CreateCombatService(
+        InMemoryCharacterRepository characters,
+        Phase7PublishedContent content,
+        IInventoryRepository? inventory = null)
+    {
+        var charSvc = CreateCharacterService(characters, content, inventory);
+        return new CombatGameplayService(
+            content,
+            content,
+            content,
+            characters,
+            charSvc,
+            new CombatMutationRepository(),
+            new CharacterMutationCoordinator(),
+            new InMemoryMonsterKillRewardRepository(characters));
+    }
 }

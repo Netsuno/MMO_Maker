@@ -180,15 +180,14 @@ public sealed partial class PacketDispatcher
         }
 
         var result = await _inventoryGameplay.TryEquipAsync(session, payload.Span[0], cancellationToken).ConfigureAwait(false);
-        await _packetSender.SendEquipResultAsync(clientSession, result.Success, result.Message, cancellationToken);
-        if (result.Success)
+        if (!result.Success)
         {
-            // Persiste EquippedWeaponItemId/ArmorItemId sur le personnage : sans ce commit, l'equipement
-            // n'existait qu'en memoire session et se perdait a la reconnexion (nouvelle Session vierge
-            // rehydratee depuis le CharacterRecord persiste).
-            await _combatGameplay.PersistCombatStateAsync(session, cancellationToken).ConfigureAwait(false);
-            await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
+            await _packetSender.SendEquipResultAsync(clientSession, false, result.Message, cancellationToken);
+            return;
         }
+
+        await _packetSender.SendEquipResultAsync(clientSession, true, result.Message, cancellationToken);
+        await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
     }
 
     private async Task HandleUnequipRequestAsync(
@@ -210,13 +209,14 @@ public sealed partial class PacketDispatcher
 
         var slot = (EquipmentSlotKind)payload.Span[0];
         var result = await _inventoryGameplay.TryUnequipAsync(session, slot, cancellationToken).ConfigureAwait(false);
-        await _packetSender.SendUnequipResultAsync(clientSession, result.Success, result.Message, cancellationToken);
-        if (result.Success)
+        if (!result.Success)
         {
-            // Voir HandleEquipRequestAsync : persiste aussi le desequipement sur le personnage.
-            await _combatGameplay.PersistCombatStateAsync(session, cancellationToken).ConfigureAwait(false);
-            await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
+            await _packetSender.SendUnequipResultAsync(clientSession, false, result.Message, cancellationToken);
+            return;
         }
+
+        await _packetSender.SendUnequipResultAsync(clientSession, true, result.Message, cancellationToken);
+        await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
     }
 
     private async Task HandleDropItemRequestAsync(

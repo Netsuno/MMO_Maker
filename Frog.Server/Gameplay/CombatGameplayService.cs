@@ -13,7 +13,9 @@ public sealed class CombatGameplayService(
     IPublishedItemCatalog items,
     ICharacterRepository characters,
     CharacterGameplayService characterService,
-    ICombatMutationRepository combatMutations)
+    ICombatMutationRepository combatMutations,
+    CharacterMutationCoordinator mutationCoordinator,
+    IMonsterKillRewardRepository killRewards)
 {
     private readonly IPublishedNpcCatalog _npcs = npcs;
     private readonly IPublishedSpellCatalog _spells = spells;
@@ -21,6 +23,8 @@ public sealed class CombatGameplayService(
     private readonly ICharacterRepository _characters = characters;
     private readonly CharacterGameplayService _characterService = characterService;
     private readonly ICombatMutationRepository _combatMutations = combatMutations;
+    private readonly CharacterMutationCoordinator _mutationCoordinator = mutationCoordinator;
+    private readonly IMonsterKillRewardRepository _killRewards = killRewards;
     private readonly ConcurrentDictionary<Guid, Guid> _sessionTargets = new();
 
     public async Task<MonsterInstance?> SpawnMonsterAsync(
@@ -126,7 +130,12 @@ public sealed class CombatGameplayService(
         if (applied.MonsterKilled && applied.Monster is not null)
         {
             var xp = CombatFormulas.MonsterExperienceReward(applied.Monster.Level);
-            await GrantExperienceAsync(attacker, xp, ct).ConfigureAwait(false);
+            if (!await TryGrantMonsterKillRewardAsync(attacker, applied.Monster.InstanceId, applied.Monster.Level, xp, ct)
+                    .ConfigureAwait(false))
+            {
+                return MeleeCombatResult.Fail("Recompense non accordee.");
+            }
+
             return MeleeCombatResult.ForMonsterKilled(targetName, applied.DamageApplied, xp);
         }
 
@@ -219,7 +228,14 @@ public sealed class CombatGameplayService(
             if (applied.MonsterKilled && applied.Monster is not null)
             {
                 var xp = CombatFormulas.MonsterExperienceReward(applied.Monster.Level);
-                await GrantExperienceAsync(caster, xp, ct).ConfigureAwait(false);
+                if (!await TryGrantMonsterKillRewardAsync(caster, applied.Monster.InstanceId, applied.Monster.Level, xp, ct)
+                        .ConfigureAwait(false))
+                {
+                    caster.Mp += spell.ManaCost;
+                    caster.SpellCooldownsUtc.Remove(spellId);
+                    return SpellCombatResult.Fail("Recompense non accordee.");
+                }
+
                 await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
                 return SpellCombatResult.ForMonsterKilled(spell.Name, applied.DamageApplied, xp, caster.Mp);
             }
@@ -261,39 +277,48 @@ public sealed class CombatGameplayService(
         // victime depuis des connexions distinctes en meme temps.
         var weaponPower = await GetWeaponPowerAsync(attacker.EquippedWeaponItemId, ct).ConfigureAwait(false);
 
-        int damage;
-        bool killed;
-        lock (defender.CombatLock)
+        var defenderCharacterId = defender.RequireCharacterGuid();
+        var pvpResult = await _mutationCoordinator.RunExclusiveAsync(
+            defenderCharacterId,
+            async innerCt =>
+            {
+                if (defender.IsDead)
+                {
+                    return PlayerMeleeCombatResult.Fail("Cible deja morte.");
+                }
+
+                if (defender.CurrentMapId != attacker.CurrentMapId)
+                {
+                    return PlayerMeleeCombatResult.Fail("Pas sur la meme carte.");
+                }
+
+                if (!MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY))
+                {
+                    return PlayerMeleeCombatResult.Fail("Hors portee.");
+                }
+
+                var targetVit = defender.Stats?.Vit ?? 10;
+                var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
+                defender.Hp = Math.Max(0, defender.Hp - damage);
+                var killed = defender.Hp <= 0;
+                if (killed)
+                {
+                    defender.IsDead = true;
+                    defender.Hp = 0;
+                }
+
+                await PersistCombatStateAsync(defender, innerCt).ConfigureAwait(false);
+                return PlayerMeleeCombatResult.Hit(damage, killed);
+            },
+            ct).ConfigureAwait(false);
+
+        if (!pvpResult.Success)
         {
-            if (defender.IsDead)
-            {
-                return PlayerMeleeCombatResult.Fail("Cible deja morte.");
-            }
-
-            if (defender.CurrentMapId != attacker.CurrentMapId)
-            {
-                return PlayerMeleeCombatResult.Fail("Pas sur la meme carte.");
-            }
-
-            if (!MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY))
-            {
-                return PlayerMeleeCombatResult.Fail("Hors portee.");
-            }
-
-            var targetVit = defender.Stats?.Vit ?? 10;
-            damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
-            defender.Hp = Math.Max(0, defender.Hp - damage);
-            killed = defender.Hp <= 0;
-            if (killed)
-            {
-                defender.IsDead = true;
-                defender.Hp = 0;
-            }
+            return pvpResult;
         }
 
         attacker.LastMeleeUtc = now;
-        await PersistCombatStateAsync(defender, ct).ConfigureAwait(false);
-        return PlayerMeleeCombatResult.Hit(damage, killed);
+        return pvpResult;
     }
 
     public async Task<RespawnResult> TryRespawnAsync(Session session, CancellationToken ct = default)
@@ -341,31 +366,44 @@ public sealed class CombatGameplayService(
         await _characters.SaveAsync(session.ToCharacterPatch(record), ct).ConfigureAwait(false);
     }
 
-    private async Task GrantExperienceAsync(Session session, long xp, CancellationToken ct)
+    private async Task<bool> TryGrantMonsterKillRewardAsync(
+        Session session,
+        Guid monsterInstanceId,
+        int monsterLevel,
+        long experienceAmount,
+        CancellationToken ct)
     {
-        var (level, experience, levelsGained) = ProgressionCurve.ApplyExperience(session.Level, session.Experience, xp);
-        session.Level = level;
-        session.Experience = experience;
-        if (levelsGained > 0 && session.Stats is { } stats)
+        var stats = session.Stats ?? new CharacterStats(10, 10, 10, 10, 10, 10);
+        var result = await _killRewards.TryGrantKillRewardAsync(
+            session.RequireCharacterGuid(),
+            monsterInstanceId,
+            experienceAmount,
+            session.Level,
+            session.Experience,
+            stats,
+            session.MaxHp,
+            session.MaxMp,
+            session.Hp,
+            session.Mp,
+            ct).ConfigureAwait(false);
+        if (!result.Success)
         {
-            var maxHp = session.MaxHp;
-            var maxMp = session.MaxMp;
-            var str = stats.Str;
-            var agi = stats.Agi;
-            var vit = stats.Vit;
-            var intel = stats.Int;
-            var dex = stats.Dex;
-            var luck = stats.Luck;
-            ProgressionCurve.ApplyLevelUpBonuses(ref maxHp, ref maxMp, ref str, ref agi, ref vit, ref intel, ref dex, ref luck, levelsGained);
-            session.MaxHp = maxHp;
-            session.MaxMp = maxMp;
-            session.Stats = new CharacterStats(str, agi, vit, intel, dex, luck);
-            session.Hp = maxHp;
-            session.Mp = maxMp;
+            return false;
         }
 
-        session.LastExperienceGain = xp;
-        await PersistCombatStateAsync(session, ct).ConfigureAwait(false);
+        if (result.NewlyGranted)
+        {
+            session.Level = result.Level;
+            session.Experience = result.Experience;
+            session.Stats = result.Stats;
+            session.MaxHp = result.MaxHp;
+            session.MaxMp = result.MaxMp;
+            session.Hp = result.Hp;
+            session.Mp = result.Mp;
+            session.LastExperienceGain = result.ExperienceGranted;
+        }
+
+        return true;
     }
 
     private async Task<int> GetWeaponPowerAsync(Guid? weaponItemId, CancellationToken ct)

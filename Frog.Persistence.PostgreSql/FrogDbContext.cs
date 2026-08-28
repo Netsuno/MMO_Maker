@@ -70,6 +70,8 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<EconomyRequestIdEntity> PlayerEconomyRequestIds => Set<EconomyRequestIdEntity>();
 
+    public DbSet<MonsterKillRewardEntity> PlayerMonsterKillRewards => Set<MonsterKillRewardEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("world");
@@ -730,6 +732,13 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.Operation).HasMaxLength(64).IsRequired();
             e.Property(x => x.RequestFingerprint).HasColumnType("bytea").IsRequired();
             e.Property(x => x.ResultJson).HasColumnType("jsonb").IsRequired();
+        });
+
+        modelBuilder.Entity<MonsterKillRewardEntity>(e =>
+        {
+            e.ToTable("monster_kill_rewards", "player");
+            e.HasKey(x => new { x.CharacterId, x.MonsterInstanceId });
+            e.Property(x => x.ExperienceAmount).IsRequired();
         });
     }
 }

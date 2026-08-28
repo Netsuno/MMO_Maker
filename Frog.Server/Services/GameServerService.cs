@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -34,6 +35,9 @@ public sealed class GameServerService(
         private readonly ClientRegistry _clientRegistry = clientRegistry;
         private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
         private readonly IPlayerStateStore _playerStateStore = playerStateStore;
+        private readonly object _clientTasksLock = new();
+        private readonly List<Task> _clientTasks = new();
+        private int _acceptingClients = 1;
         private ServerSocket? _serverSocket;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -51,12 +55,52 @@ public sealed class GameServerService(
 
             GameServerLogs.ServerStarted(_log, _options.BindAddress, _options.Port);
 
+            using var stopAcceptingRegistration = stoppingToken.Register(() =>
+                Interlocked.Exchange(ref _acceptingClients, 0));
+
             try
             {
                 while (!stoppingToken.IsCancellationRequested)
                 {
                     var client = await _serverSocket.AcceptClientAsync(stoppingToken);
-                    _ = HandleClientAsync(new ClientSession(client), stoppingToken);
+                    if (Volatile.Read(ref _acceptingClients) == 0)
+                    {
+                        client.Dispose();
+                        continue;
+                    }
+
+                    var handlerTask = HandleClientAsync(new ClientSession(client), stoppingToken);
+                    lock (_clientTasksLock)
+                    {
+                        _clientTasks.Add(handlerTask);
+                    }
+
+                    _ = handlerTask.ContinueWith(
+                        static (task, state) =>
+                        {
+                            var self = (GameServerService)state!;
+                            lock (self._clientTasksLock)
+                            {
+                                self._clientTasks.Remove(task);
+                            }
+
+                            if (task.IsFaulted && task.Exception is not null)
+                            {
+                                foreach (var ex in task.Exception.InnerExceptions)
+                                {
+                                    if (ex is OperationCanceledException)
+                                    {
+                                        continue;
+                                    }
+
+                                    GameServerLogs.ClientHandlerFaulted(self._log, ex);
+                                }
+                            }
+                        },
+                        this,
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
                 }
             }
             catch (OperationCanceledException)
@@ -65,12 +109,33 @@ public sealed class GameServerService(
             }
             finally
             {
+                Interlocked.Exchange(ref _acceptingClients, 0);
                 if (_serverSocket is not null)
                 {
                     await _serverSocket.DisposeAsync();
                 }
 
+                Task[] pending;
+                lock (_clientTasksLock)
+                {
+                    pending = _clientTasks.ToArray();
+                }
+
+                await Task.WhenAll(pending.Select(AwaitHandlerObservingExceptions)).ConfigureAwait(false);
+
                 GameServerLogs.ServerStopped(_log);
+            }
+        }
+
+        private static async Task AwaitHandlerObservingExceptions(Task handlerTask)
+        {
+            try
+            {
+                await handlerTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during host shutdown.
             }
         }
 

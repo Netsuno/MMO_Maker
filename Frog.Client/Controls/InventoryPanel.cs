@@ -17,6 +17,7 @@ public sealed class InventoryPanel : UserControl
 
     public event Action<byte>? EquipRequested;
     public event Action<byte, int>? DropRequested;
+    public event Action? SelectionChanged;
 
     public InventoryPanel()
     {
@@ -45,6 +46,21 @@ public sealed class InventoryPanel : UserControl
                 DropRequested?.Invoke(row.SlotIndex, 1);
             }
         };
+        _list.SelectedIndexChanged += (_, _) =>
+        {
+            UpdateActionButtons();
+            SelectionChanged?.Invoke();
+        };
+    }
+
+    public byte? SelectedInventorySlot =>
+        _list.SelectedItem is InventoryRow row ? row.SlotIndex : null;
+
+    private void UpdateActionButtons()
+    {
+        var hasSelection = _list.SelectedItem is InventoryRow;
+        _btnEquip.Enabled = hasSelection;
+        _btnDrop.Enabled = hasSelection;
     }
 
     /// <summary>Résolution du nom publié (catalogue) pour un ItemId ; par défaut affiche le GUID brut.</summary>
@@ -77,6 +93,8 @@ public sealed class InventoryPanel : UserControl
         {
             _list.SelectedIndex = 0;
         }
+
+        UpdateActionButtons();
     }
 
     public Guid? EquippedWeaponItemId => _snapshot?.EquippedWeaponItemId;
@@ -85,14 +103,17 @@ public sealed class InventoryPanel : UserControl
 
     internal int ListedItemCountForTest => _list.Items.Count;
 
-    /// <summary>Texte affiché ("[slot] Nom ×qty") de la ligne sélectionnée ; null si aucune sélection.</summary>
+    internal byte? SelectedInventorySlotForTest => SelectedInventorySlot;
+
     internal string? SelectedItemTextForTest => _list.SelectedItem?.ToString();
 
-    internal void SelectFirstForTest()
+    internal void SelectFirstForTest() => SelectSlotByIndexForTest(0);
+
+    internal void SelectSlotByIndexForTest(int listIndex)
     {
-        if (_list.Items.Count > 0)
+        if (listIndex >= 0 && listIndex < _list.Items.Count)
         {
-            _list.SelectedIndex = 0;
+            _list.SelectedIndex = listIndex;
         }
     }
 

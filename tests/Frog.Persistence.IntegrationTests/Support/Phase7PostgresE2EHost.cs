@@ -15,7 +15,7 @@ internal static class Phase7PostgresE2EHost
         }
     }
 
-    public static IHostBuilder CreateBuilder(string connectionString, int port)
+    public static IHostBuilder CreateBuilder(string connectionString, int port, Action<IServiceCollection>? configureServices = null)
     {
         LoadPostgreSqlBackend();
         Frog.Persistence.PostgreSql.ServerAuth.PostgreSqlServerAuthBackendRegistration.Register();
@@ -24,6 +24,7 @@ internal static class Phase7PostgresE2EHost
             .CreateHostBuilder(configureServices: services =>
             {
                 services.PostConfigure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(5));
+                configureServices?.Invoke(services);
             })
             .ConfigureAppConfiguration((_, config) =>
             {
