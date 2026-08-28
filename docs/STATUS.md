@@ -10,8 +10,8 @@
   - Accepted evidence baseline (branch tip) : `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
 - **Phase 7 : P7-I pass complete — awaiting re-review**
   - Rejected tip (P7-I review) : `5ca27c77c3f5e281fe57ed562356112b34c818a1`
-  - Implementation / evidence tip : `c596253769a7b18719f9a424cc82c7873ecc4d60`
-  - CI (final green) : https://github.com/Netsuno/MMO_Maker/actions/runs/33138716501
+  - Implementation / evidence tip : `95a32ed5e6be37b35edf2a98bfae2ff7446a1359`
+  - CI (final green) : https://github.com/Netsuno/MMO_Maker/actions/runs/33138990836
   - Screenshot artifact : https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861#artifacts
   - Evidence : `docs/progress/phase-07-essential-gameplay/`
   - Suites : Frog.Tests **283 PASS**; PG integration **108 PASS**; editor smoke **35×3**; gameplay smoke **6×3**
