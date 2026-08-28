@@ -635,8 +635,37 @@ public sealed class GameplayClientSmokeTests
         {
             PrimeVictimForLethalPvpHit();
             var port = (int)Form.PortNumericForTest.Value;
+            var victimUser = User;
+            var killTask = Task.Run(() => RunPvpAttackerUntilDead("127.0.0.1", port, victimUser));
+            var deadline = DateTime.UtcNow + TimeSpan.FromMinutes(2);
+            while (!killTask.IsCompleted && DateTime.UtcNow < deadline)
+            {
+                System.Windows.Forms.Application.DoEvents();
+                if (Form.CombatIsDeadForTest)
+                {
+                    return;
+                }
+
+                Thread.Sleep(10);
+            }
+
+            if (Form.CombatIsDeadForTest)
+            {
+                return;
+            }
+
+            if (!killTask.IsCompleted)
+            {
+                throw new TimeoutException("Victim was not killed via public PvP melee.");
+            }
+
+            killTask.GetAwaiter().GetResult();
+        }
+
+        private static void RunPvpAttackerUntilDead(string host, int port, string victimUser)
+        {
             using var attacker = new SmokeTcpClient();
-            attacker.Connect("127.0.0.1", port);
+            attacker.Connect(host, port);
             attacker.ReadFrame();
             var attackerUser = $"atk-{Guid.NewGuid():N}"[..16];
             const string password = "smoke-pass-7";
@@ -651,40 +680,10 @@ public sealed class GameplayClientSmokeTests
             attacker.ReadUntil(PacketId.CharacterSelectResult);
             attacker.Drain();
 
-            attacker.Drain();
-
             for (var i = 0; i < 5; i++)
             {
-                var hpBefore = Form.CombatHpForTest;
-                attacker.Send(SmokeTcpPackets.Melee(User));
-                var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
-                while (DateTime.UtcNow < deadline)
-                {
-                    System.Windows.Forms.Application.DoEvents();
-                    if (attacker.TryReadFrame(out var frame) && frame is not null && frame[0] == (byte)PacketId.MeleeAttackResult)
-                    {
-                        break;
-                    }
-
-                    if (Form.CombatIsDeadForTest)
-                    {
-                        return;
-                    }
-
-                    var hpNow = Form.CombatHpForTest;
-                    if (hpBefore is not null && hpNow is not null && hpNow < hpBefore)
-                    {
-                        break;
-                    }
-
-                    Thread.Sleep(10);
-                }
-
-                if (Form.CombatIsDeadForTest)
-                {
-                    return;
-                }
-
+                attacker.Send(SmokeTcpPackets.Melee(victimUser));
+                attacker.ReadUntil(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(30));
                 Thread.Sleep(CombatFormulas.BasicAttackCooldownMs + 20);
             }
 
