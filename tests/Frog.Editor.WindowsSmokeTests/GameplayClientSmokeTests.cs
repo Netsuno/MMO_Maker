@@ -12,9 +12,8 @@ using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Server;
-using Frog.Server.Gameplay;
 using Frog.Server.Services;
-using Microsoft.Extensions.Configuration;
+using Frog.Server.Gameplay;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
@@ -608,10 +607,32 @@ public sealed class GameplayClientSmokeTests
         }
 
         /// <summary>
+        /// P7-I1 : abaisse les HP victime pour un coup PvP letal deterministe (evite 12+ tours / timeouts socket).
+        /// </summary>
+        public void PrimeVictimForLethalPvpHit(int hp = 8)
+        {
+            var charIdText = Form.SelectedCharacterIdForTest;
+            Assert.False(string.IsNullOrWhiteSpace(charIdText));
+            var charId = Guid.Parse(charIdText!);
+            var chars = _host.Services.GetRequiredService<Frog.Application.Gameplay.ICharacterRepository>();
+            var record = chars.FindByIdAsync(charId).GetAwaiter().GetResult();
+            Assert.NotNull(record);
+            chars.SaveAsync(record! with { Hp = hp, IsDead = false }).GetAwaiter().GetResult();
+
+            var connections = _host.Services.GetRequiredService<ConnectionManager>();
+            if (connections.TryGetSessionByUsername(User, out var session) && session is not null)
+            {
+                session.Hp = hp;
+                session.IsDead = false;
+            }
+        }
+
+        /// <summary>
         /// Tue le joueur du harness via un second client TCP et le protocole mêlée PvP public.
         /// </summary>
         public void KillVictimViaPvpForTest()
         {
+            PrimeVictimForLethalPvpHit();
             var port = (int)Form.PortNumericForTest.Value;
             using var attacker = new SmokeTcpClient();
             attacker.Connect("127.0.0.1", port);
@@ -629,7 +650,7 @@ public sealed class GameplayClientSmokeTests
             attacker.ReadUntil(PacketId.CharacterSelectResult);
             attacker.Drain();
 
-            for (var i = 0; i < 40; i++)
+            for (var i = 0; i < 5; i++)
             {
                 var hpBefore = Form.CombatHpForTest;
                 attacker.Send(SmokeTcpPackets.Melee(User));
