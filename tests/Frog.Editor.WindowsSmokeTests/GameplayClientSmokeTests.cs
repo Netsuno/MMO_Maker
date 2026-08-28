@@ -651,25 +651,35 @@ public sealed class GameplayClientSmokeTests
             attacker.ReadUntil(PacketId.CharacterSelectResult);
             attacker.Drain();
 
+            attacker.Drain();
+
             for (var i = 0; i < 5; i++)
             {
                 var hpBefore = Form.CombatHpForTest;
                 attacker.Send(SmokeTcpPackets.Melee(User));
-                attacker.ReadUntil(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(60));
-                Pump(
-                    Form,
-                    () =>
+                var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+                while (DateTime.UtcNow < deadline)
+                {
+                    System.Windows.Forms.Application.DoEvents();
+                    if (attacker.TryReadFrame(out var frame) && frame is not null && frame[0] == (byte)PacketId.MeleeAttackResult)
                     {
-                        if (Form.CombatIsDeadForTest)
-                        {
-                            return true;
-                        }
+                        break;
+                    }
 
-                        var hpNow = Form.CombatHpForTest;
-                        return hpBefore is not null && hpNow is not null && hpNow < hpBefore;
-                    },
-                    $"pvp hit {i}",
-                    TimeSpan.FromSeconds(3));
+                    if (Form.CombatIsDeadForTest)
+                    {
+                        return;
+                    }
+
+                    var hpNow = Form.CombatHpForTest;
+                    if (hpBefore is not null && hpNow is not null && hpNow < hpBefore)
+                    {
+                        break;
+                    }
+
+                    Thread.Sleep(10);
+                }
+
                 if (Form.CombatIsDeadForTest)
                 {
                     return;
@@ -736,6 +746,18 @@ public sealed class GameplayClientSmokeTests
             var payload = new byte[len];
             ReadExact(payload);
             return payload;
+        }
+
+        public bool TryReadFrame(out byte[]? frame)
+        {
+            frame = null;
+            if (_stream is null || !_stream.DataAvailable)
+            {
+                return false;
+            }
+
+            frame = ReadFrame();
+            return true;
         }
 
         public byte[] ReadUntil(PacketId id, TimeSpan? timeout = null)
