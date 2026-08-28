@@ -8,15 +8,13 @@
 - **Phase 6 : ACCEPTED**
   - Accepted implementation SHA : `99b782f8f205c0161c0bba8838d041714e39947e`
   - Accepted evidence baseline (branch tip) : `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
-  - CI (implementation) : https://github.com/Netsuno/MMO_Maker/actions/runs/32797918806
-  - CI (final tip) : https://github.com/Netsuno/MMO_Maker/actions/runs/32798293788
-- **Phase 7 : CHANGES REQUESTED — P7-I pass submitted, awaiting CI + re-review**
+- **Phase 7 : P7-I pass complete — awaiting re-review**
   - Rejected tip (P7-I review) : `5ca27c77c3f5e281fe57ed562356112b34c818a1`
-  - Implementation SHA (local green) : `fefa070` (pending CI)
-  - Evidence tip (branch tip) : `fefa070`
-  - CI : pending on push
+  - Implementation / evidence tip : `bfa86bafa1d367a8ab0127c2fff352113b439d65`
+  - CI (final green) : https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861
+  - Screenshot artifact : https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861#artifacts
   - Evidence : `docs/progress/phase-07-essential-gameplay/`
-  - Suites (local) : Frog.Tests **283 PASS**; PG integration **108 PASS**; editor/gameplay smokes **CI pending**
+  - Suites : Frog.Tests **283 PASS**; PG integration **108 PASS**; editor smoke **35×3**; gameplay smoke **6×3**
 
 ## Known issues
 

@@ -4,21 +4,23 @@
 
 | Item | Value |
 | --- | --- |
-| Implementation SHA (local green) | `fefa07080583c4cc53f16fd52f1606bac90b1442` |
-| Evidence tip | `fefa07080583c4cc53f16fd52f1606bac90b1442` (pending CI confirmation) |
-| Branch tip (PR body) | `fefa07080583c4cc53f16fd52f1606bac90b1442` |
-| CI (implementation) | pending — https://github.com/Netsuno/MMO_Maker/actions |
+| Implementation SHA | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
+| Evidence tip | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
+| Branch tip (PR body) | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
+| CI (final green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861 |
+| Screenshot artifact | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861#artifacts (`phase-07-gameplay-client-screenshots`) |
 | Date (UTC) | 2026-08-28 |
 
-## Environment (local agent)
+## Environment
 
 | Item | Value |
 | --- | --- |
-| OS | Linux 6.12.94+ x86_64 |
+| OS (local agent) | Linux 6.12.94+ x86_64 |
+| OS (CI gameplay smokes) | windows-latest |
 | .NET SDK | 8.0.424 |
 | PostgreSQL | `FROG_POSTGRES_TEST_CONNECTION_STRING` **[SET]** |
 
-## Commands and results (local)
+## Commands and results
 
 ### Release build
 
@@ -38,8 +40,6 @@ dotnet test Frog.Tests/Frog.Tests.csproj -c Release
 | Failed | 0 |
 | Skipped | 0 |
 
-Includes: `Phase7PvPCombatTests` (concurrent + lethal save failure/cancel), `Phase7MonsterKillRewardTests` (restore/retry/cancel through combat service).
-
 ### PostgreSQL integration (zero Phase 7 skips)
 
 ```bash
@@ -50,14 +50,17 @@ dotnet test tests/Frog.Persistence.IntegrationTests -c Release --filter Category
 | Failed | 0 |
 | Skipped | 0 |
 
-Includes new: `PostgresMonsterKillRewardTests` (grant, replay, race, fail/cancel/retry), `PostgresPvPCombatTests` (concurrent death, lethal save failure/cancel).
+### Editor smoke ×3 (CI)
 
-### Windows smokes (CI required — not runnable on Linux agent)
+| Suite | Result |
+| --- | --- |
+| 35 editor tests ×3 consecutive | **PASS** (first attempt each pass) |
 
-| Suite | Local | CI |
-| --- | --- | --- |
-| Editor smoke ×3 (35 tests each) | N/A (no WindowsDesktop) | pending |
-| Gameplay-client smoke ×6 tests ×3 | N/A (no WindowsDesktop) | pending |
+### Gameplay-client smoke ×6 tests ×3 (CI)
+
+| Suite | Result |
+| --- | --- |
+| 6 gameplay tests ×3 consecutive | **PASS** (first attempt each pass; ~36 s per pass) |
 
 ### git diff --check
 
@@ -65,11 +68,11 @@ Includes new: `PostgresMonsterKillRewardTests` (grant, replay, race, fail/cancel
 git diff --check f4db56592346d9bf0cad9ca153aaeff11ee65de8..HEAD
 ```
 
-| Status | **PASS** (Frog.Application.csproj normalized to LF) |
+| Status | **PASS** |
 
 ### git status
 
-| Status | **clean** (after commit `fefa070`) |
+| Status | **clean** (after evidence commit) |
 
 ## Phase 8
 

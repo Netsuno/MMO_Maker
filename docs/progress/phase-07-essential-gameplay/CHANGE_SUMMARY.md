@@ -2,32 +2,29 @@
 
 ## Starting point
 - Re-review rejected tip: `5ca27c77c3f5e281fe57ed562356112b34c818a1`
-- Prior implementation: `46df9a6e8756af1d21ac124af0df857f65c7a626`
 - Phase 6 accepted baseline: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
 
-## Implementation tip (local green, CI pending)
-- `fefa07080583c4cc53f16fd52f1606bac90b1442`
-- CI: pending workflow on branch tip
+## Final tip (CI green)
+- `bfa86bafa1d367a8ab0127c2fff352113b439d65`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861
 
 ## P7-I1 — Gameplay-client smokes
-- `GameplayClient_ShopSellAndBankGold`: buy stack-1 weapon then consumable for two distinct inventory slots; assert nonzero slot selection.
-- `KillVictimViaPvpForTest`: per hit wait for HP decrease or death; death notify only after lethal hit.
-- `SmokeTcpClient`: socket/stream read timeouts; `ReadUntil` respects deadline.
+- Shop/bank: weapon + consumable in distinct slots; gold priming for 100+25 pricing.
+- PvP death: per-hit HP polling; background-thread attacker TCP (STA DoEvents); victim HP primed for lethal hit.
+- `SmokeTcpClient`: socket/stream read timeouts.
 
 ## P7-I2 — PvP persistence
-- Durable-first HP/death save before session mutation; restore session from DB on save failure or cancellation.
-- `Phase7PvPCombatTests`: `Task.WhenAll` concurrent attackers, lethal save failure + retry, cancellation alignment.
-- `PostgresPvPCombatTests`: same scenarios against real PostgreSQL with `TestBeforeCommitAsync(record, ct)` seam.
+- Durable-first HP/death save; session restored from DB on failure/cancellation.
+- Concurrent `Task.WhenAll` + PG/unit failure/cancel tests.
 
 ## P7-I3 — Monster kill reward boundary
-- Restore monster on reward failure/cancellation (`CancellationToken.None` for restore path).
-- `IMonsterKillRewardRepository`: authoritative DB row progression (`FOR UPDATE`); duplicate-key race replay.
-- Removed redundant post-reward spell `PersistCombatStateAsync`; MP persisted in reward transaction.
-- `Phase7MonsterKillRewardTests` + `PostgresMonsterKillRewardTests` (grant, replay, race, fail, cancel, retry).
+- Monster restored on reward failure/cancel; authoritative PG progression + ledger race replay.
+- `PostgresMonsterKillRewardTests` + combat-service restore tests.
 
 ## P7-I4 — Evidence
-- `git diff --check f4db565..HEAD` clean after csproj LF normalization.
-- Local: Frog.Tests **283 PASS**; PG **108 PASS**; gameplay screenshots/hashes pending CI artifact.
+- Frog.Tests **283 PASS**; PG **108 PASS**; editor smoke **35×3**; gameplay smoke **6×3** (all first-attempt).
+- Screenshot hashes 01–10 recorded; artifact uploaded.
+- `git diff --check f4db565..HEAD` **PASS**.
 
 ## Phase 8
 Not started.
