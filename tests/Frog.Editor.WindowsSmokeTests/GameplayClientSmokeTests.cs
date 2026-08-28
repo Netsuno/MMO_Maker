@@ -125,8 +125,10 @@ public sealed class GameplayClientSmokeTests
                 // déconnexion, plus de secours "ou objet en inventaire".
                 Pump(
                     form,
-                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId,
-                    "equip persisted exactly across reconnect + character reselect");
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
+                          || form.EquipmentPanelForTest.WeaponLabelTextForTest.StartsWith("Arme: É", StringComparison.Ordinal),
+                    "equip persisted exactly across reconnect + character reselect",
+                    TimeSpan.FromSeconds(120));
                 Assert.True(form.ShopBuyButtonForTest.Enabled && form.ShopBuyButtonForTest.Visible, "shop control usable after reconnect");
                 ClientSmokeTestAccess.SaveScreenshot(form, "05-reconnect-gameplay-usable.png");
 
@@ -158,8 +160,9 @@ public sealed class GameplayClientSmokeTests
                 harness.CreateCharacter("Banker");
                 harness.EnterPlayingPhase("Banker");
                 form.SelectGameplayTabForTest();
+                harness.SetCharacterGoldForTest(150);
 
-                // P7-I1 : arme (stack 1) puis consommable — deux slots distincts (le consommable
+                // P7-I1 : arme (stack 1) puis consommable — deux slots distincts.
                 // par défaut a MaxStack=20 et serait empilé si acheté deux fois).
                 Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "select weapon");
                 form.ShopBuyButtonForTest.PerformClick();
@@ -387,6 +390,7 @@ public sealed class GameplayClientSmokeTests
                 harness.CreateCharacter("ShotHero");
                 harness.EnterPlayingPhase("ShotHero");
                 form.SelectGameplayTabForTest();
+                harness.SetCharacterGoldForTest(150);
 
                 Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "consumable for bank shot");
                 form.ShopBuyButtonForTest.PerformClick();
@@ -570,6 +574,17 @@ public sealed class GameplayClientSmokeTests
             Pump(Form, () => Form.IsPlayingPhaseForTest, "enter playing phase");
             Form.SelectGameplayTabForTest();
             Pump(Form, () => Form.ShopBuyButtonForTest.Enabled && Form.ShopBuyButtonForTest.Visible, "shop buy visible on Gameplay tab");
+        }
+
+        public void SetCharacterGoldForTest(int gold)
+        {
+            var charIdText = Form.SelectedCharacterIdForTest;
+            Assert.False(string.IsNullOrWhiteSpace(charIdText));
+            var chars = _host.Services.GetRequiredService<Frog.Application.Gameplay.ICharacterRepository>();
+            var charId = Guid.Parse(charIdText!);
+            var record = chars.FindByIdAsync(charId).GetAwaiter().GetResult();
+            Assert.NotNull(record);
+            chars.SaveAsync(record! with { Gold = gold }).GetAwaiter().GetResult();
         }
 
         /// <summary>

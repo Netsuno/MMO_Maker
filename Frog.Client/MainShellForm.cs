@@ -3014,6 +3014,8 @@ public sealed class MainShellForm : Form
     /// <summary>Dernier HP connu (dernier <see cref="Frog.Core.Protocol.CombatStateWire"/>) : null si aucun reçu encore.</summary>
     internal int? CombatHpForTest => _lastCombatState?.Hp;
 
+    internal int? CombatGoldForTest => _lastCombatState?.Gold;
+
     internal int? CombatMaxHpForTest => _lastCombatState?.MaxHp;
 
     internal bool CombatIsDeadForTest => _lastCombatState?.IsDead ?? false;
