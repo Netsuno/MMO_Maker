@@ -6,7 +6,7 @@ Output directory: `artifacts/phase-07-gameplay-client/`
 
 CI run: pending (implementation tip `46df9a6`)
 Artifact: `phase-07-gameplay-client-screenshots`
-Implementation SHA: `46df9a6b9c8e2f4a1d0e3b5c7a9f1e2d3c4b5a6` (full SHA after push)
+Implementation SHA: `46df9a6e8756af1d21ac124af0df857f65c7a626`
 
 All screenshots are 1044×759 PNG unless noted. No authentication or reconnect tokens appear in UI logs (verified: `Login OK` / `Reconnect OK` only).
 
