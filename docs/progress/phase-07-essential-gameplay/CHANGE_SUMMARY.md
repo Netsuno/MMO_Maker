@@ -5,8 +5,8 @@
 - Phase 6 accepted baseline: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
 
 ## Final tip (CI green)
-- `bfa86bafa1d367a8ab0127c2fff352113b439d65`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861
+- `c596253769a7b18719f9a424cc82c7873ecc4d60`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33138716501
 
 ## P7-I1 — Gameplay-client smokes
 - Shop/bank: weapon + consumable in distinct slots; gold priming for 100+25 pricing.

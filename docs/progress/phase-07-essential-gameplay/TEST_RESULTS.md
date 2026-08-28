@@ -4,10 +4,10 @@
 
 | Item | Value |
 | --- | --- |
-| Implementation SHA | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
-| Evidence tip | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
-| Branch tip (PR body) | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
-| CI (final green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861 |
+| Implementation SHA | `c596253769a7b18719f9a424cc82c7873ecc4d60` |
+| Evidence tip | `c596253769a7b18719f9a424cc82c7873ecc4d60` |
+| Branch tip (PR body) | `c596253769a7b18719f9a424cc82c7873ecc4d60` |
+| CI (final green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33138716501 |
 | Screenshot artifact | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861#artifacts (`phase-07-gameplay-client-screenshots`) |
 | Date (UTC) | 2026-08-28 |
 
