@@ -1,13 +1,13 @@
-# Phase 7 — TEST_RESULTS (P7-H1…H5 verification)
+# Phase 7 — TEST_RESULTS (P7-I1…I4 verification)
 
 ## Identity
 
 | Item | Value |
 | --- | --- |
-| Implementation SHA (local green) | `46df9a6e8756af1d21ac124af0df857f65c7a626` |
-| Evidence tip | pending after CI |
-| Branch tip (PR body) | `46df9a6e8756af1d21ac124af0df857f65c7a626` |
-| CI (implementation) | pending |
+| Implementation SHA (local green) | `fefa07080583c4cc53f16fd52f1606bac90b1442` |
+| Evidence tip | `fefa07080583c4cc53f16fd52f1606bac90b1442` (pending CI confirmation) |
+| Branch tip (PR body) | `fefa07080583c4cc53f16fd52f1606bac90b1442` |
+| CI (implementation) | pending — https://github.com/Netsuno/MMO_Maker/actions |
 | Date (UTC) | 2026-08-28 |
 
 ## Environment (local agent)
@@ -34,11 +34,11 @@ dotnet build Frog.Creator.sln -c Release
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release
 ```
 
-| Passed | **279** |
+| Passed | **283** |
 | Failed | 0 |
 | Skipped | 0 |
 
-Includes new: `Phase7EquipPersistenceTests`, `Phase7PvPCombatTests`, `Phase7MonsterKillRewardTests`.
+Includes: `Phase7PvPCombatTests` (concurrent + lethal save failure/cancel), `Phase7MonsterKillRewardTests` (restore/retry/cancel through combat service).
 
 ### PostgreSQL integration (zero Phase 7 skips)
 
@@ -46,27 +46,18 @@ Includes new: `Phase7EquipPersistenceTests`, `Phase7PvPCombatTests`, `Phase7Mons
 dotnet test tests/Frog.Persistence.IntegrationTests -c Release --filter Category=PostgreSql
 ```
 
-| Passed | **99** |
+| Passed | **108** |
 | Failed | 0 |
 | Skipped | 0 |
 
-Includes: `GameServerGracefulShutdownTests`, `ShopBuyRace_TwoClients_FinalStockUnit_ExactlyOneWinner`, full `Phase7PostgresE2ETests` 17-step flow.
+Includes new: `PostgresMonsterKillRewardTests` (grant, replay, race, fail/cancel/retry), `PostgresPvPCombatTests` (concurrent death, lethal save failure/cancel).
 
-### Multi-client matrix (corrected)
+### Windows smokes (CI required — not runnable on Linux agent)
 
-| Scenario | Clients | Evidence |
+| Suite | Local | CI |
 | --- | --- | --- |
-| Shop idempotent retry | 1 TCP | `ShopBuy_IdempotentRetry_DoesNotDuplicateItem` |
-| Shop final-stock race | **2 TCP**, 2 characters, distinct request IDs | `ShopBuyRace_TwoClients_FinalStockUnit_ExactlyOneWinner` |
-| Ground pickup race | 2 TCP | `GroundPickupRace_TwoClients_ExactlyOneWinner` |
-| Monster XP race | 2 TCP | `CombatRace_TwoClients_SameMonster_ExactlyOneExperienceGrant` |
-
-### Windows smokes (CI required)
-
-| Suite | Expected |
-| --- | --- |
-| Editor smoke ×3 | 35 PASS each |
-| Gameplay-client smoke ×6 tests ×3 | includes inventory selection, PvP death/respawn, screenshot flows |
+| Editor smoke ×3 (35 tests each) | N/A (no WindowsDesktop) | pending |
+| Gameplay-client smoke ×6 tests ×3 | N/A (no WindowsDesktop) | pending |
 
 ### git diff --check
 
@@ -74,7 +65,12 @@ Includes: `GameServerGracefulShutdownTests`, `ShopBuyRace_TwoClients_FinalStockU
 git diff --check f4db56592346d9bf0cad9ca153aaeff11ee65de8..HEAD
 ```
 
-| Status | **PASS** (after manifest whitespace fix) |
+| Status | **PASS** (Frog.Application.csproj normalized to LF) |
+
+### git status
+
+| Status | **clean** (after commit `fefa070`) |
 
 ## Phase 8
+
 Not started.

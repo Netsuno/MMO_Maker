@@ -1,38 +1,33 @@
-# Phase 7 — CHANGE_SUMMARY (P7-H1…H5)
+# Phase 7 — CHANGE_SUMMARY (P7-I1…I4)
 
 ## Starting point
-- Re-review rejected tip: `7ecb8d2c26ac3130b3f8557aba0ef78803601677`
+- Re-review rejected tip: `5ca27c77c3f5e281fe57ed562356112b34c818a1`
+- Prior implementation: `46df9a6e8756af1d21ac124af0df857f65c7a626`
 - Phase 6 accepted baseline: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
-- P7-G1…G6 remediations preserved on branch.
 
 ## Implementation tip (local green, CI pending)
-- `46df9a6e8756af1d21ac124af0df857f65c7a626`
-- CI: pending push workflow
+- `fefa07080583c4cc53f16fd52f1606bac90b1442`
+- CI: pending workflow on branch tip
 
-## P7-H1 — Equip/unequip single mutation boundary
-- Removed dispatcher-level `PersistCombatStateAsync` after equip/unequip; transfer repository is sole commit.
-- Session updated only from committed transfer result; snapshots sent after atomic success.
-- Added `Phase7EquipPersistenceTests` (no redundant character save, gold not overwritten, reconnect equipment).
+## P7-I1 — Gameplay-client smokes
+- `GameplayClient_ShopSellAndBankGold`: buy stack-1 weapon then consumable for two distinct inventory slots; assert nonzero slot selection.
+- `KillVictimViaPvpForTest`: per hit wait for HP decrease or death; death notify only after lethal hit.
+- `SmokeTcpClient`: socket/stream read timeouts; `ReadUntil` respects deadline.
 
-## P7-H2 — Shutdown + combat persistence
-- `GameServerService` tracks client handler tasks; stops accepting on shutdown; awaits all handlers.
-- `GameServerGracefulShutdownTests` blocks a real PG shop buy during `StopAsync`.
-- PvP HP/death mutation + persistence under `CharacterMutationCoordinator`.
-- Idempotent `IMonsterKillRewardRepository` (+ PG `monster_kill_rewards` migration) for monster XP.
-- `Phase7PvPCombatTests`, `Phase7MonsterKillRewardTests`.
+## P7-I2 — PvP persistence
+- Durable-first HP/death save before session mutation; restore session from DB on save failure or cancellation.
+- `Phase7PvPCombatTests`: `Task.WhenAll` concurrent attackers, lethal save failure + retry, cancellation alignment.
+- `PostgresPvPCombatTests`: same scenarios against real PostgreSQL with `TestBeforeCommitAsync(record, ct)` seam.
 
-## P7-H3 — Genuine two-client economy race
-- `ShopBuyRace_TwoClients_FinalStockUnit_ExactlyOneWinner` (two TCP clients, distinct request IDs, stock=0, exact gold/inventory, durable restart check).
+## P7-I3 — Monster kill reward boundary
+- Restore monster on reward failure/cancellation (`CancellationToken.None` for restore path).
+- `IMonsterKillRewardRepository`: authoritative DB row progression (`FOR UPDATE`); duplicate-key race replay.
+- Removed redundant post-reward spell `PersistCombatStateAsync`; MP persisted in reward transaction.
+- `Phase7MonsterKillRewardTests` + `PostgresMonsterKillRewardTests` (grant, replay, race, fail, cancel, retry).
 
-## P7-H4 — Gameplay UI smokes
-- Inventory row selection drives shop sell + bank deposit; bank list drives withdraw only.
-- Death via second-client PvP melee; respawn via visible `Respawn` button (no session mutation).
-- `GameplayClient_Phase7ScreenshotFlows` adds screenshots 06–10.
-
-## P7-H5 — Evidence
-- `git diff --check f4db56592346d9bf0cad9ca153aaeff11ee65de8..HEAD` clean after manifest whitespace fix.
-- Multi-client matrix corrected: idempotent single-client retry ≠ multi-client shop race.
-- STATUS **CHANGES REQUESTED** until CI green on implementation tip and screenshot hashes recorded.
+## P7-I4 — Evidence
+- `git diff --check f4db565..HEAD` clean after csproj LF normalization.
+- Local: Frog.Tests **283 PASS**; PG **108 PASS**; gameplay screenshots/hashes pending CI artifact.
 
 ## Phase 8
 Not started.

@@ -4,9 +4,9 @@ Smoke source: `GameplayClientSmokeTests` (Windows STA, in-memory server).
 
 Output directory: `artifacts/phase-07-gameplay-client/`
 
-CI run: pending (implementation tip `46df9a6`)
+CI run: pending (implementation tip `fefa07080583c4cc53f16fd52f1606bac90b1442`)
 Artifact: `phase-07-gameplay-client-screenshots`
-Implementation SHA: `46df9a6e8756af1d21ac124af0df857f65c7a626`
+Implementation SHA: `fefa07080583c4cc53f16fd52f1606bac90b1442`
 
 All screenshots are 1044×759 PNG unless noted. No authentication or reconnect tokens appear in UI logs (verified: `Login OK` / `Reconnect OK` only).
 
