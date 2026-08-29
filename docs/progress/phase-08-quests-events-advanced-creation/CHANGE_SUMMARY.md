@@ -27,6 +27,13 @@
 - Marqueurs canevas/mini-carte : styles Phase 8 (`action`, `player_contact`, `autorun`, `parallel`).
 - Client : bouton démo `WorldFlagsPatchRequest` retiré (`MainShellForm`).
 
+## P8-2 runtime foundation (in progress)
+
+- `MapEventRuntimeService` — sélection page Phase 8, conditions `character_switch`, commandes `show_text` + `set_switch`
+- `ICharacterWorldStateRepository` + table PG `player.character_world_switches`
+- `HandleInteractRequestAsync` délègue à l'interpréteur quand définition publiée disponible
+- Tests : `MapEventParameterSchemasTests`, `MapEventRuntimeServiceTests` (+5 unit), `PostgresCharacterWorldStateRepositoryTests` (+1 PG)
+
 ## Explicit non-goals (Phase 8)
 
 - Arbitrary Lua/C#/PowerShell execution

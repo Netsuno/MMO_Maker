@@ -46,6 +46,7 @@ public sealed partial class PacketDispatcher(
     CombatGameplayService combatGameplay,
     ShopBankGameplayService shopBankGameplay,
     PublishedCatalogService publishedCatalog,
+    MapEventRuntimeService mapEventRuntime,
     ChatRateLimiter chatRateLimiter,
     IOptions<PlaytestRuntimeOptions> playtestOptions,
     IOptions<PostgreSqlOptions> postgreSqlOptions,
@@ -71,6 +72,7 @@ public sealed partial class PacketDispatcher(
     private readonly CombatGameplayService _combatGameplay = combatGameplay;
     private readonly ShopBankGameplayService _shopBankGameplay = shopBankGameplay;
     private readonly PublishedCatalogService _publishedCatalog = publishedCatalog;
+    private readonly MapEventRuntimeService _mapEventRuntime = mapEventRuntime;
     private readonly ChatRateLimiter _chatRateLimiter = chatRateLimiter;
     private readonly PlaytestRuntimeOptions _playtest = playtestOptions.Value;
     private readonly PostgreSqlOptions _postgreSql = postgreSqlOptions.Value;
@@ -764,6 +766,33 @@ public sealed partial class PacketDispatcher(
         }
 
         var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
+        var runtimeResult = await _mapEventRuntime.TryExecuteInteractAsync(session, ev, cancellationToken)
+            .ConfigureAwait(false);
+        if (runtimeResult is not null)
+        {
+            ServerNetworkLogs.MapEventInteractFired(
+                _logger,
+                session.Username,
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY,
+                ev.Slug,
+                ev.PlacementId);
+
+            if (runtimeResult.SwitchesChanged)
+            {
+                await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+            }
+
+            var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+            await _packetSender.SendInteractResultAsync(
+                clientSession,
+                runtimeResult.Success,
+                clientMessage,
+                cancellationToken);
+            return;
+        }
+
         ServerNetworkLogs.MapEventInteractFired(
             _logger,
             session.Username,

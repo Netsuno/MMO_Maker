@@ -1,5 +1,6 @@
 #nullable enable
 using Frog.Application.Content;
+using Frog.Application.Events;
 using Frog.Application.Gameplay;
 using Frog.Application.Playtest;
 using Frog.Server.Config;
@@ -206,6 +207,8 @@ public static class FrogServerHostFactory
                             sp.GetRequiredService<IGroundItemRepository>(),
                             sp.GetRequiredService<IPublishedItemCatalog>()));
                     services.AddSingleton<IMonsterKillRewardRepository, InMemoryMonsterKillRewardRepository>();
+                    services.AddSingleton<ICharacterWorldStateRepository, InMemoryCharacterWorldStateRepository>();
+                    services.AddSingleton<IPublishedMapEventCatalog>(_ => NullPublishedMapEventCatalog.Instance);
 
                     services.AddSingleton<Phase7PublishedContent>();
                     services.AddSingleton<IPublishedClassCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
@@ -229,6 +232,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton<CombatGameplayService>();
                 services.AddSingleton<ShopBankGameplayService>();
                 services.AddSingleton<PublishedCatalogService>();
+                services.AddSingleton<MapEventRuntimeService>();
 
                 services.AddSingleton<InMemoryPlayerStateStore>();
                 services.AddSingleton<IPlayerStateStore>(sp =>

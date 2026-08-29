@@ -77,6 +77,8 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<MonsterKillRewardEntity> PlayerMonsterKillRewards => Set<MonsterKillRewardEntity>();
 
+    public DbSet<CharacterWorldSwitchEntity> PlayerCharacterWorldSwitches => Set<CharacterWorldSwitchEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("world");
@@ -798,6 +800,17 @@ public sealed class FrogDbContext : DbContext
             e.ToTable("monster_kill_rewards", "player");
             e.HasKey(x => new { x.CharacterId, x.MonsterInstanceId });
             e.Property(x => x.ExperienceAmount).IsRequired();
+        });
+
+        modelBuilder.Entity<CharacterWorldSwitchEntity>(e =>
+        {
+            e.ToTable("character_world_switches", "player");
+            e.HasKey(x => new { x.CharacterId, x.SwitchKey });
+            e.Property(x => x.SwitchKey).HasMaxLength(64).IsRequired();
+            e.HasOne(x => x.Character)
+                .WithMany(x => x.WorldSwitches)
+                .HasForeignKey(x => x.CharacterId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

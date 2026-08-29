@@ -1,4 +1,5 @@
 using Frog.Application.Content;
+using Frog.Application.Events;
 using Frog.Application.Gameplay;
 using Frog.Application.Identity;
 using Frog.Application.Maps;
@@ -38,6 +39,8 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
             new PostgresInventoryTransferRepository(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<IMonsterKillRewardRepository>(sp =>
             new PostgresMonsterKillRewardRepository(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<ICharacterWorldStateRepository>(sp =>
+            new PostgresCharacterWorldStateRepository(sp.GetRequiredService<FrogDbContextGate>()));
 
         RegisterPublishedCatalogs(services);
     }
