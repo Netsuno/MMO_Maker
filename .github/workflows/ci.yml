@@ -40,28 +40,38 @@ jobs:
         run: |
           $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
           $filter = "FullyQualifiedName!~GameplayClientSmoke"
+          $logs = @()
           for ($i = 1; $i -le 3; $i++) {
+            $log = "artifacts/ci-logs/editor-smoke-pass-$i.log"
+            New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
             Write-Host "=== Windows editor smoke pass $i/3 (first attempt only) ==="
-            dotnet test $project -c Release --no-build --verbosity normal --filter $filter
+            dotnet test $project -c Release --no-build --verbosity normal --filter $filter 2>&1 | Tee-Object -FilePath $log
+            $logs += $log
             if ($LASTEXITCODE -ne 0) {
               Write-Error "Windows editor smoke pass $i/3 failed"
               exit 1
             }
           }
+          ./scripts/ci-guard-lifecycle-logs.ps1 -LogPaths $logs
           Write-Host "=== Windows editor smoke 3/3 consecutive first-attempt passes OK ==="
 
       - name: Gameplay client smoke (in-memory server) ×3
         shell: pwsh
         run: |
           $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
+          $logs = @()
           for ($i = 1; $i -le 3; $i++) {
+            $log = "artifacts/ci-logs/gameplay-smoke-pass-$i.log"
+            New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
             Write-Host "=== Gameplay client smoke pass $i/3 (first attempt only) ==="
-            dotnet test $project -c Release --no-build --filter "FullyQualifiedName~GameplayClientSmoke"
+            dotnet test $project -c Release --no-build --filter "FullyQualifiedName~GameplayClientSmoke" 2>&1 | Tee-Object -FilePath $log
+            $logs += $log
             if ($LASTEXITCODE -ne 0) {
               Write-Error "Gameplay client smoke pass $i/3 failed"
               exit 1
             }
           }
+          ./scripts/ci-guard-lifecycle-logs.ps1 -LogPaths $logs
           Write-Host "=== Gameplay client smoke 3/3 consecutive first-attempt passes OK ==="
 
       - name: Upload Phase 6 editor UI screenshots
@@ -118,4 +128,12 @@ jobs:
       - name: Integration tests (PostgreSQL)
         env:
           FROG_POSTGRES_TEST_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only
-        run: dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release --no-build --verbosity normal
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/ci-logs
+          dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release --no-build --verbosity normal 2>&1 | tee artifacts/ci-logs/postgres-integration.log
+
+      - name: Guard PostgreSQL logs for lifecycle crash markers
+        shell: pwsh
+        run: ./scripts/ci-guard-lifecycle-logs.ps1 -LogPaths artifacts/ci-logs/postgres-integration.log

@@ -727,12 +727,13 @@ public sealed class GameplayClientSmokeTests
             }
 
             ClientSmokeTestAccess.CloseMainShell(Form);
-            var stopTask = _host.StopAsync();
-            var stopDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
-            while (!stopTask.IsCompleted && DateTime.UtcNow < stopDeadline)
+            try
             {
-                System.Windows.Forms.Application.DoEvents();
-                Thread.Sleep(10);
+                _host.StopAsync().WaitAsync(TimeSpan.FromSeconds(15)).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Gameplay smoke host StopAsync failed or timed out.", ex);
             }
 
             _host.Dispose();

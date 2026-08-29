@@ -18,12 +18,14 @@ public sealed class ClientSession : IAsyncDisposable
         _tcpClient = tcpClient;
         _stream = tcpClient.GetStream();
         ConnectionId = Guid.NewGuid();
+        RemoteEndPoint = tcpClient.Client?.RemoteEndPoint?.ToString() ?? "<unknown>";
     }
 
     /// <summary>Identifiant stable pour corrélation des logs sur la durée de la connexion TCP.</summary>
     public Guid ConnectionId { get; }
 
-    public string RemoteEndPoint => _tcpClient.Client.RemoteEndPoint?.ToString() ?? "<unknown>";
+    /// <summary>Endpoint distant figé à l'acceptation — ne lit jamais <see cref="TcpClient.Client"/> après fermeture.</summary>
+    public string RemoteEndPoint { get; }
     public Session? AuthenticatedSession { get; set; }
     public string? Username => AuthenticatedSession?.Username;
 

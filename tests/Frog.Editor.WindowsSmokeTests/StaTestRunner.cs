@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Windows.Threading;
 
@@ -6,6 +8,7 @@ namespace Frog.Editor.WindowsSmokeTests;
 
 /// <summary>
 /// Hôte STA unique pour tous les smokes UI : une Application WPF, un dispatcher, pas de parallélisme.
+/// Capture les exceptions UI/domaine et arrête proprement le thread STA en fin de collection.
 /// </summary>
 internal static class StaTestRunner
 {
@@ -13,6 +16,8 @@ internal static class StaTestRunner
     private static Thread? _thread;
     private static Dispatcher? _dispatcher;
     private static Exception? _hostFault;
+    private static readonly List<Exception> CapturedExceptions = new();
+    private static bool _hooksInstalled;
 
     public static void Run(Action testBody)
     {
@@ -39,6 +44,8 @@ internal static class StaTestRunner
         {
             throw captured;
         }
+
+        AssertClean();
     }
 
     /// <summary>Pompe le dispatcher courant (doit être appelé depuis le thread STA hôte).</summary>
@@ -59,6 +66,62 @@ internal static class StaTestRunner
         }
     }
 
+    public static void ShutdownSuite()
+    {
+        lock (Gate)
+        {
+            if (_dispatcher is null)
+            {
+                return;
+            }
+
+            try
+            {
+                _dispatcher.Invoke(() =>
+                {
+                    if (System.Windows.Application.Current is { } wpfApp)
+                    {
+                        wpfApp.Shutdown();
+                    }
+                });
+            }
+            catch
+            {
+                // Best effort — dispatcher may already be shutting down.
+            }
+
+            _dispatcher.InvokeShutdown();
+            if (!_thread!.Join(TimeSpan.FromSeconds(30)))
+            {
+                throw new TimeoutException("STA smoke host thread did not exit within 30 seconds.");
+            }
+
+            _dispatcher = null;
+            _thread = null;
+            _hooksInstalled = false;
+        }
+
+        AssertClean();
+    }
+
+    internal static void AssertClean()
+    {
+        lock (Gate)
+        {
+            if (CapturedExceptions.Count == 0)
+            {
+                return;
+            }
+
+            var details = string.Join(
+                Environment.NewLine + "---" + Environment.NewLine,
+                CapturedExceptions.Select(ex => ex.ToString()));
+            CapturedExceptions.Clear();
+            throw new InvalidOperationException(
+                $"Unexpected smoke lifecycle exception(s):{Environment.NewLine}{details}");
+        }
+    }
+
     private static void EnsureHost()
     {
         lock (Gate)
@@ -73,6 +136,7 @@ internal static class StaTestRunner
             {
                 try
                 {
+                    InstallExceptionHooks();
                     Frog.Editor.EditorSmokeTestAccess.EnsureWinFormsInitialized();
                     Frog.Editor.EditorSmokeTestAccess.EnsureWpfApplicationInitialized();
                     _dispatcher = Dispatcher.CurrentDispatcher;
@@ -86,7 +150,7 @@ internal static class StaTestRunner
                 }
             })
             {
-                IsBackground = true,
+                IsBackground = false,
                 Name = "Frog.Editor.WindowsSmoke.STA",
             };
             _thread.SetApartmentState(ApartmentState.STA);
@@ -95,6 +159,39 @@ internal static class StaTestRunner
             {
                 throw new TimeoutException("STA smoke host did not start.");
             }
+        }
+    }
+
+    private static void InstallExceptionHooks()
+    {
+        if (_hooksInstalled)
+        {
+            return;
+        }
+
+        System.Windows.Forms.Application.SetUnhandledExceptionMode(
+            System.Windows.Forms.UnhandledExceptionMode.CatchException);
+        System.Windows.Forms.Application.ThreadException += (_, args) => RecordException(args.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+            {
+                RecordException(ex);
+            }
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            RecordException(args.Exception);
+            args.SetObserved();
+        };
+        _hooksInstalled = true;
+    }
+
+    private static void RecordException(Exception ex)
+    {
+        lock (Gate)
+        {
+            CapturedExceptions.Add(ex);
         }
     }
 }

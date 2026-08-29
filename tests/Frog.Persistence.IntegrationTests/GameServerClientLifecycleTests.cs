@@ -34,7 +34,8 @@ public sealed class GameServerClientLifecycleTests
         var seed = await Phase7PostgresContentSeed.PublishAsync(seedGate);
         var port = Phase7TcpTestPorts.GetFreePort();
 
-        using var host = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port).Build();
+        var (builder, logs) = Phase7PostgresE2EHost.CreateBuilderWithLogCapture(_fixture.ConnectionString, port);
+        using var host = builder.Build();
         await host.StartAsync();
 
         try
@@ -64,11 +65,8 @@ public sealed class GameServerClientLifecycleTests
         }
         finally
         {
-            await host.StopAsync();
-            if (host is IAsyncDisposable asyncDisposable)
-            {
-                await asyncDisposable.DisposeAsync();
-            }
+            await StopHostObservingAsync(host);
+            logs.AssertNoUnexpectedErrors();
         }
     }
 
@@ -80,7 +78,8 @@ public sealed class GameServerClientLifecycleTests
         var seed = await Phase7PostgresContentSeed.PublishAsync(seedGate);
         var port = Phase7TcpTestPorts.GetFreePort();
 
-        using var host = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port).Build();
+        var (builder, logs) = Phase7PostgresE2EHost.CreateBuilderWithLogCapture(_fixture.ConnectionString, port);
+        using var host = builder.Build();
         await host.StartAsync();
 
         try
@@ -118,11 +117,8 @@ public sealed class GameServerClientLifecycleTests
         }
         finally
         {
-            await host.StopAsync();
-            if (host is IAsyncDisposable asyncDisposable)
-            {
-                await asyncDisposable.DisposeAsync();
-            }
+            await StopHostObservingAsync(host);
+            logs.AssertNoUnexpectedErrors();
         }
     }
 
@@ -134,7 +130,8 @@ public sealed class GameServerClientLifecycleTests
         var seed = await Phase7PostgresContentSeed.PublishAsync(seedGate);
         var port = Phase7TcpTestPorts.GetFreePort();
 
-        using var host = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port).Build();
+        var (builder, logs) = Phase7PostgresE2EHost.CreateBuilderWithLogCapture(_fixture.ConnectionString, port);
+        using var host = builder.Build();
         await host.StartAsync();
 
         var clients = new Phase7TcpTestClient[3];
@@ -152,8 +149,7 @@ public sealed class GameServerClientLifecycleTests
                     seed.ClassId);
             }
 
-            var stopTask = host.StopAsync();
-            await stopTask.WaitAsync(TimeSpan.FromSeconds(15));
+            await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(15));
         }
         finally
         {
@@ -169,6 +165,17 @@ public sealed class GameServerClientLifecycleTests
             {
                 await asyncDisposable.DisposeAsync();
             }
+
+            logs.AssertNoUnexpectedErrors();
+        }
+    }
+
+    private static async Task StopHostObservingAsync(IHost host)
+    {
+        await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        if (host is IAsyncDisposable asyncDisposable)
+        {
+            await asyncDisposable.DisposeAsync();
         }
     }
 

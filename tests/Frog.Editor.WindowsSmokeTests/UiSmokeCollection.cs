@@ -11,6 +11,10 @@ public sealed class UiSmokeCollectionDefinition : ICollectionFixture<UiSmokeColl
     public const string Name = "UiSmoke";
 }
 
-public sealed class UiSmokeCollectionMarker
+public sealed class UiSmokeCollectionMarker : IDisposable
 {
+    public void Dispose()
+    {
+        StaTestRunner.ShutdownSuite();
+    }
 }

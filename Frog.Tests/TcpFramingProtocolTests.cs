@@ -188,6 +188,21 @@ public sealed class TcpFramingProtocolTests
     }
 
     [Fact]
+    public async Task RemoteEndPoint_RemainsSafe_AfterDisconnectAndDispose()
+    {
+        await using var pair = await LoopbackPair.CreateAsync();
+        var endpoint = pair.Session.RemoteEndPoint;
+        Assert.False(string.IsNullOrWhiteSpace(endpoint));
+        Assert.NotEqual("<unknown>", endpoint);
+
+        pair.Session.Disconnect();
+        Assert.Equal(endpoint, pair.Session.RemoteEndPoint);
+
+        await pair.Session.DisposeAsync();
+        Assert.Equal(endpoint, pair.Session.RemoteEndPoint);
+    }
+
+    [Fact]
     public async Task Malicious_IntMax_Length_Rejected_Quickly()
     {
         await using var pair = await LoopbackPair.CreateAsync();
