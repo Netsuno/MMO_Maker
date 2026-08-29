@@ -4,11 +4,12 @@
 
 | Item | Value |
 | --- | --- |
-| Last code-bearing implementation (P7-I) | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
-| P7-J implementation + evidence tip | *(this commit — see branch tip / PR body for CI URL)* |
+| P7-I code-bearing tip | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
+| P7-J implementation + evidence tip | `947e665cf53ebad2d176868415f9f95a586c0e6a` |
 | Branch | `cursor/phase0-baseline-audit-02c7` |
 | PR | #2 (Draft) |
-| Screenshot artifact (preserved) | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861#artifacts (`phase-07-gameplay-client-screenshots`) |
+| CI (final green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33231613723 |
+| Screenshot artifact (preserved) | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861#artifacts |
 | Date (UTC) | 2026-08-29 |
 
 ## Environment
@@ -28,7 +29,7 @@
 dotnet build Frog.Creator.sln -c Release
 ```
 
-| Status | **PASS** (0 warnings target) |
+| Status | **PASS** (0 errors; SDK 8.0.424) |
 
 ### Unit / architecture / protocol / security-negative
 
@@ -46,20 +47,15 @@ dotnet test Frog.Tests/Frog.Tests.csproj -c Release
 dotnet test tests/Frog.Persistence.IntegrationTests -c Release --filter Category=PostgreSql
 ```
 
-| Passed | **115** (+7 P7-J: lifecycle, reward combat integration, PvP contamination) |
+| Passed | **115** |
 | Failed | 0 |
 | Skipped | 0 |
 
-P7-J additions:
-- `GameServerClientLifecycleTests` (disconnect/reconnect/shutdown)
-- `PostgresMonsterKillCombatTests` (final-hit reward failure/cancel via `CombatGameplayService`)
-- `PostgresPvPCombatTests` (lethal save failure/cancel EF contamination)
-
-### Editor smoke ×3 (CI, first attempt only — no retry loop)
+### Editor smoke ×3 (CI, first attempt only)
 
 | Suite | Result |
 | --- | --- |
-| 35 editor tests ×3 consecutive | **PASS** (first attempt each pass; delete-close deadlock fixed) |
+| 35 editor tests ×3 consecutive | **PASS** (first attempt each pass; delete-close fixed) |
 
 ### Gameplay-client smoke ×6 tests ×3 (CI, first attempt only)
 
@@ -74,6 +70,10 @@ git diff --check f4db56592346d9bf0cad9ca153aaeff11ee65de8..HEAD
 ```
 
 | Status | **PASS** |
+
+### git status
+
+| Status | **clean** (untracked `artifacts/` local only) |
 
 ## Phase 8
 

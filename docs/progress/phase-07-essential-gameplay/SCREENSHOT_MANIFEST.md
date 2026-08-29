@@ -5,9 +5,10 @@ Smoke source: `GameplayClientSmokeTests` (Windows STA, in-memory server).
 Output directory: `artifacts/phase-07-gameplay-client/`
 
 CI run (screenshots): https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861
-P7-J tip CI: see PR #2 body
+P7-J tip CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33231613723
 Artifact: `phase-07-gameplay-client-screenshots`
 P7-I code-bearing SHA: `bfa86bafa1d367a8ab0127c2fff352113b439d65`
+P7-J final SHA: `947e665cf53ebad2d176868415f9f95a586c0e6a`
 
 All screenshots are 1044×759 PNG. No authentication or reconnect tokens appear in UI logs (verified: `Login OK` / `Reconnect OK` only).
 

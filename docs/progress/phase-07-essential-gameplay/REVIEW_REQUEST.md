@@ -13,7 +13,8 @@
 | Phase 6 accepted evidence tip | `f4db56592346d9bf0cad9ca153aaeff11ee65de8` |
 | P7-J rejected tip | `d36169add732544841ba850edea7fce339894037` |
 | P7-I code-bearing tip | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
-| P7-J tip + CI | *(see PR body for exact SHA and green CI run)* |
+| **P7-J final tip** | `947e665cf53ebad2d176868415f9f95a586c0e6a` |
+| **CI (final green)** | https://github.com/Netsuno/MMO_Maker/actions/runs/33231613723 |
 | Screenshot artifact | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861 |
 | Phase 8 | **Not started** |
 
@@ -26,7 +27,7 @@
 | **P7-J3** Reward/PvP smoke false positives | Yes |
 | **P7-J4** Evidence accuracy, SDK pin, smoke retry removal | Yes |
 
-## Exact suite counts (P7-J tip)
+## Exact suite counts (947e665)
 
 | Suite | Status | Passed |
 | --- | --- | ---: |
