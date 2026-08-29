@@ -80,6 +80,12 @@ public sealed class FrogGameClient : IDisposable
     public event Action<ExperienceGainWire>? ExperienceGainReceived;
     public event Action? DeathNotifyReceived;
     public event Action<PublishedCatalogWire>? PublishedCatalogReceived;
+    public event Action<DialogueStateWire>? DialogueStatePushReceived;
+    public event Action<bool, string>? DialogueChoiceResultReceived;
+    public event Action<IReadOnlyList<QuestJournalEntryWire>>? QuestJournalSnapshotReceived;
+    public event Action<bool, string>? QuestTurnInResultReceived;
+    public event Action<bool, string>? CraftResultReceived;
+    public event Action<EnvironmentStateWire>? EnvironmentStatePushReceived;
     public event Action? ConnectionClosed;
 
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
@@ -584,6 +590,94 @@ public sealed class FrogGameClient : IDisposable
                 else
                 {
                     Post(() => ErrorReceived?.Invoke("PublishedCatalogResult: format invalide."));
+                }
+
+                break;
+
+            case PacketId.DialogueStatePush:
+                if (Phase8Wire.TryParseDialogueStatePush(
+                        body.Span,
+                        out var dialogueId,
+                        out var dialogueRevision,
+                        out var dialogueToken,
+                        out var speaker,
+                        out var dialogueText,
+                        out var dialogueChoices))
+                {
+                    var dialogueState = new DialogueStateWire
+                    {
+                        DialogueId = dialogueId,
+                        PublishedRevision = dialogueRevision,
+                        SessionToken = dialogueToken,
+                        Speaker = speaker,
+                        Text = dialogueText,
+                        Choices = dialogueChoices,
+                    };
+                    Post(() => DialogueStatePushReceived?.Invoke(dialogueState));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("DialogueStatePush: format invalide."));
+                }
+
+                break;
+
+            case PacketId.DialogueChoiceResult:
+                if (TryReadStatusMessage(body.Span, out var dcOk, out var dcMsg))
+                {
+                    Post(() => DialogueChoiceResultReceived?.Invoke(dcOk, dcMsg));
+                }
+
+                break;
+
+            case PacketId.QuestJournalSnapshot:
+                if (Phase8Wire.TryParseQuestJournalSnapshot(body.Span, out var journalEntries))
+                {
+                    Post(() => QuestJournalSnapshotReceived?.Invoke(journalEntries));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("QuestJournalSnapshot: format invalide."));
+                }
+
+                break;
+
+            case PacketId.QuestTurnInResult:
+                if (TryReadStatusMessage(body.Span, out var qtOk, out var qtMsg))
+                {
+                    Post(() => QuestTurnInResultReceived?.Invoke(qtOk, qtMsg));
+                }
+
+                break;
+
+            case PacketId.CraftResult:
+                if (TryReadStatusMessage(body.Span, out var crOk, out var crMsg))
+                {
+                    Post(() => CraftResultReceived?.Invoke(crOk, crMsg));
+                }
+
+                break;
+
+            case PacketId.EnvironmentStatePush:
+                if (Phase8Wire.TryParseEnvironmentState(
+                        body.Span,
+                        out var envMapId,
+                        out var envRegionId,
+                        out var envWeatherId,
+                        out var envLighting))
+                {
+                    var envState = new EnvironmentStateWire
+                    {
+                        MapId = envMapId,
+                        RegionId = envRegionId,
+                        WeatherProfileId = envWeatherId,
+                        LightingLevel = envLighting,
+                    };
+                    Post(() => EnvironmentStatePushReceived?.Invoke(envState));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("EnvironmentStatePush: format invalide."));
                 }
 
                 break;
@@ -1100,6 +1194,58 @@ public sealed class FrogGameClient : IDisposable
 
     public Task SendRespawnAsync(CancellationToken cancellationToken = default)
         => SendRawAsync([(byte)PacketId.RespawnRequest], cancellationToken);
+
+    public Task SendDialogueChoiceAsync(byte[] sessionToken, string choiceId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(choiceId);
+        var body = Phase8Wire.BuildDialogueChoiceRequest(sessionToken, choiceId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.DialogueChoiceRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendQuestTurnInAsync(Guid questId, CancellationToken cancellationToken = default)
+        => SendQuestTurnInAsync(questId, NewEconomyRequestId("quest-turn-in"), cancellationToken);
+
+    public Task SendQuestTurnInAsync(
+        Guid questId,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (questId == Guid.Empty || requestId == Guid.Empty)
+        {
+            throw new ArgumentException("Paramètres turn-in invalides.");
+        }
+
+        RememberEconomyRequestId("quest-turn-in", requestId);
+        var body = Phase8Wire.BuildQuestTurnInRequest(questId, requestId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.QuestTurnInRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendCraftAsync(Guid recipeId, CancellationToken cancellationToken = default)
+        => SendCraftAsync(recipeId, NewEconomyRequestId("craft"), cancellationToken);
+
+    public Task SendCraftAsync(
+        Guid recipeId,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (recipeId == Guid.Empty || requestId == Guid.Empty)
+        {
+            throw new ArgumentException("Paramètres craft invalides.");
+        }
+
+        RememberEconomyRequestId("craft", requestId);
+        var body = Phase8Wire.BuildCraftRequest(recipeId, requestId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.CraftRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
 
     private async Task SendRawAsync(byte[] payload, CancellationToken cancellationToken)
     {
