@@ -1,5 +1,6 @@
 using Frog.Application.Content;
 using Frog.Application.Maps;
+using Frog.Core.Enums;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Persistence.IntegrationTests.Support;
@@ -149,5 +150,27 @@ public sealed class PostgresMapEventRepositoryTests
         Assert.Equal(2, placements[0].TileX);
         Assert.Equal(3, placements[0].TileY);
         Assert.Equal(9002, placements[0].CatalogId);
+    }
+
+    private static Map CreateValidMap(string name, int width, int height)
+    {
+        var map = new Map { Name = name, Width = width, Height = height };
+        var ground = new Layer { LayerType = LayerType.Ground };
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                ground.Tiles.Add(new Tile
+                {
+                    X = x,
+                    Y = y,
+                    TilesetId = 1,
+                    Type = TileType.Ground,
+                });
+            }
+        }
+
+        map.Layers.Add(ground);
+        return map;
     }
 }
