@@ -225,7 +225,15 @@ public sealed class Phase8GameplayClientSmokeTests
             }
 
             ClientSmokeTestAccess.CloseMainShell(Form);
-            _host.StopAsync().GetAwaiter().GetResult();
+            try
+            {
+                _host.StopAsync().WaitAsync(TimeSpan.FromSeconds(15)).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Phase 8 smoke host StopAsync failed.", ex);
+            }
+
             _host.Dispose();
             ClientSmokeTestAccess.ResetHooks();
         }
