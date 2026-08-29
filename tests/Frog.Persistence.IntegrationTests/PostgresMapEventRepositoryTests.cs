@@ -97,19 +97,14 @@ public sealed class PostgresMapEventRepositoryTests
         });
         var eventId = Assert.IsType<SaveMapEventResult.Success>(eventSave).EventId;
 
-        var map = new Frog.Core.Models.Map
-        {
-            Name = "EventMap",
-            Width = 8,
-            Height = 8,
-        };
-        var mapSave = await mapRepo.SaveAsync(new Frog.Application.Maps.SaveMapRequest
+        var map = CreateValidMap("EventMap", 8, 8);
+        var mapSave = await mapRepo.SaveAsync(new SaveMapRequest
         {
             Map = map,
             ExpectedRevision = 0,
-            Intent = Frog.Application.Maps.SaveMapIntent.SaveDraft,
+            Intent = SaveMapIntent.SaveDraft,
         });
-        var mapId = Assert.IsType<Frog.Application.Maps.SaveMapResult.Success>(mapSave).MapId;
+        var mapId = Assert.IsType<SaveMapResult.Success>(mapSave).MapId;
 
         await gate.ExecuteAsync(async (db, ct) =>
         {
@@ -127,14 +122,14 @@ public sealed class PostgresMapEventRepositoryTests
             await db.SaveChangesAsync(ct);
         });
 
-        var publish = await mapRepo.SaveAsync(new Frog.Application.Maps.SaveMapRequest
+        var publish = await mapRepo.SaveAsync(new SaveMapRequest
         {
             MapId = mapId,
             Map = map,
             ExpectedRevision = 1,
-            Intent = Frog.Application.Maps.SaveMapIntent.Publish,
+            Intent = SaveMapIntent.Publish,
         });
-        Assert.IsType<Frog.Application.Maps.SaveMapResult.Success>(publish);
+        Assert.IsType<SaveMapResult.Success>(publish);
 
         int runtimeMapId = 0;
         await gate.ExecuteAsync(async (db, ct) =>
@@ -155,22 +150,7 @@ public sealed class PostgresMapEventRepositoryTests
     private static Map CreateValidMap(string name, int width, int height)
     {
         var map = new Map { Name = name, Width = width, Height = height };
-        var ground = new Layer { LayerType = LayerType.Ground };
-        for (var y = 0; y < height; y++)
-        {
-            for (var x = 0; x < width; x++)
-            {
-                ground.Tiles.Add(new Tile
-                {
-                    X = x,
-                    Y = y,
-                    TilesetId = 1,
-                    Type = TileType.Ground,
-                });
-            }
-        }
-
-        map.Layers.Add(ground);
+        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
         return map;
     }
 }
