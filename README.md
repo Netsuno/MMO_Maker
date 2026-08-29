@@ -45,7 +45,7 @@ Alignement (**vision MMO Maker** pour un MMO **2D Graal / Zelda SNES-like**).
 | **Rendu** | Vue **Zelda SNES / Graal Online**. Tuiles **32×32 px** pour l’instant (évolutif). |
 | **Mouvement** | **Pixels** (autoritaire **serveur**). |
 | **Combat mêlée** | **8 directions** ; **PvE only** au début ; timing **simple pour l’instant** (à affiner ensuite). Knockback **+ courte invulnérabilité** (style Zelda). **Joueurs :** pas traverser les uns les autres sauf maps avec **flag éditeur** (collision joueur désactivée / traversée). |
-| **NPC ennemis** | **Statiques ou patrouille simple** ; **scripts comportement rapidement après** (+ **Lua** pour événements côté map **créateur**, hors logique compilée dans le serveur core — pas priorité tout de suite mais prévu pour les « joueurs-auteurs »). |
+| **NPC ennemis** | **Statiques ou patrouille simple** ; comportement et événements carte via **moteur de commandes typées** data-driven (Phase 8) — pas d’exécution Lua/C# arbitraire côté serveur. |
 | **Cartes** | Objectif **plusieurs maps vite** (+ warps) ; pas d’**instances** pour l’instant ; plus tard : instances normales **+ procédurales**. |
 | **Téléchargement carte** | **HEAD révision / hash puis blob** tant que ça reste fiable ; cache client acceptable. |
 | **Événements (RPG Maker)** | **À faire bientôt** : événements sur cases, **liste en DB réutilisable** entre maps/cases, association sauvegardée avec la carte ou la tuile. |
@@ -66,8 +66,9 @@ Alignement (**vision MMO Maker** pour un MMO **2D Graal / Zelda SNES-like**).
 4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.  
 5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.  
 6. **Publication éditeur → PostgreSQL** (cartes puis événements / définitions progressives ; MariaDB = héritage seulement).  
-7. Pipeline **Lua** événements auteur‑carte sandboxé (après métadonnées stables).  
-8. Observabilité + **charges** : mesurer broadcasts par carte puis décisions **UDP / AOI**.
+7. **Phase 8** — événements carte, dialogues, quêtes, métiers, régions/météo, common events (moteur typé, PostgreSQL, serveur autoritaire).  
+8. **Phase 9** — packaging, administration, durcissement prod, certification charge.  
+9. Observabilité + **charges** : mesurer broadcasts par carte puis décisions **UDP / AOI**.
 
 ### Succès utilisateur minimal (vous l’avez défini)
 
@@ -190,21 +191,36 @@ Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (édit
 </details>
 
 <details>
-<summary><strong>Phase 7 — Scripts créateur</strong> (**P3**)</summary>
+<summary><strong>Phase 7 — Gameplay essentiel</strong> (**ACCEPTED**)</summary>
 
-- [ ] Choix **runtime + sandbox** (Lua, C# isolé ou DSL ; limites CPU/mémoire ; pas de fichier/réseau arbitraire par défaut).
-- [ ] **API documentée et stable** : hooks (connexion joueur, entrée carte, interaction, objet, PNJ/combat selon périmètre).
-- [ ] Erreurs **lisibles créateur** (logs, fichier/ligne si possible) et stratégie de **rechargement** sans redémarrage total si faisable.
+- [x] Client gameplay : register/login, personnage, inventaire, équipement, banque, shop, combat mêlée/sort, respawn, reconnexion.
+- [x] Serveur autoritaire PostgreSQL ; smoke Windows ×3 ; garde-fous lifecycle.
+- Voir [`docs/progress/phase-07-essential-gameplay/`](docs/progress/phase-07-essential-gameplay/).
 
 </details>
 
 <details>
-<summary><strong>Phase 8 — Distribution et confiance</strong> (**P3** — CI déjà fait)</summary>
+<summary><strong>Phase 8 — Quêtes, événements et création avancée</strong> (**IN PROGRESS**)</summary>
 
-- [ ] **Packaging** (ZIP ou installateur léger) + **exemple jouable** (`.fmap` + tilesets dans le dépôt ou release).
-- [ ] **Admin minimal** : mute, kick ou ban (modération liée aux canaux chat).
-- [ ] Hygiène **sécurité** (secrets hors repo en prod ; comptes ; TLS éventuellement plus tard).
-- [x] **CI** sur le dépôt : [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — build **Release** de `Frog.Creator.sln` + tests sur **windows-latest** (WinForms / WPF). Compléter ensuite tests intégration / PG.
+Roadmap autoritaire : `PRD_MMO_Maker_CSharp.md`. Moteur **data-driven typé** (pas Lua/C#/PowerShell arbitraire).
+
+- [ ] **P8-1** — Modèle PostgreSQL événements carte + éditeur Events (pages, conditions, commandes, triggers).
+- [ ] **P8-2** — Interpréteur d’événements serveur autoritaire + catalogue de commandes.
+- [ ] **P8-3** — Dialogues et quêtes (progression serveur, journal client).
+- [ ] **P8-4** — Métiers et recettes (craft instantané atomique).
+- [ ] **P8-5** — Régions, météo et éclairage.
+- [ ] **P8-6** — Common events et outils créateur avancés.
+- Voir [`docs/progress/phase-08-quests-events-advanced-creation/`](docs/progress/phase-08-quests-events-advanced-creation/).
+
+</details>
+
+<details>
+<summary><strong>Phase 9 — Distribution et confiance</strong> (**P3** — hors Phase 8)</summary>
+
+- [ ] **Packaging** (ZIP ou installateur léger) + **exemple jouable**.
+- [ ] **Admin minimal** : mute, kick ou ban (modération chat).
+- [ ] Hygiène **sécurité** prod ; certification charge / backup-restore.
+- [x] **CI** : [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — build Release + tests PostgreSQL + smoke Windows.
 
 </details>
 
@@ -222,8 +238,9 @@ Ordre de travail **court** : ce qui débloque le **socle MMO** en premier (évé
 | **P1** | **Phase 4** — persistance **au-delà de la position** (flags / inventaire léger MVP si besoin) + **collisions / règles** alignées carte servie + **exploitation des logs**. | Monde **sauvegardé** et serveur **exploitable** pour une bêta. |
 | **P2** | **Phase 5** — **HUD / UX** en jeu (chat lisible, retours combat) ; **options** (volume, fenêtre). L’écran **Connexion → Perso → Carte** est déjà posé (`MainShellForm`). | Objectif **deux joueurs + chat + dialogue + combat** avec une UI lisible. |
 | **P2** | **Phase 6** — **objets / armes** dans `Frog.Core` + chargement serveur + **éditeur de données** + boucle **loot / équipement / utilisation** côté serveur. | Décision produit : **objets** importants tôt. |
-| **P3** | **Phase 7** — **scripts créateur** (runtime sandbox + API stable + erreurs lisibles). | Après métadonnées stables (carte, événements, items). |
-| **P3** | **Phase 8** — **packaging** ZIP bêta, **admin** chat (mute/kick/ban), **sécurité** prod, tests **TCP / MariaDB** en CI. | Quand la boucle gameplay tient ; le **build + tests** CI existe déjà (`.github/workflows/ci.yml`). |
+| **P2** | **Phase 7** — **gameplay essentiel** (client, combat, économie, reconnexion). | **ACCEPTED** — voir `docs/progress/phase-07-essential-gameplay/`. |
+| **P1** | **Phase 8** — **événements, dialogues, quêtes, métiers, régions/météo** (moteur typé PG). | En cours — bloque la boucle création → gameplay data-driven. |
+| **P3** | **Phase 9** — **packaging** ZIP bêta, **admin** chat, **sécurité** prod, certification charge. | Après Phase 8 gate ; CI de base déjà en place. |
 
 **Jalons techniques** (section plus haut) : **multi-maps** est coché ; enchaîner **événements + DB** puis **PvE** / **items** reste cohérent avec ce tableau.
 
