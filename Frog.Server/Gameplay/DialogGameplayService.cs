@@ -3,35 +3,33 @@ using Frog.Core.Models;
 
 namespace Frog.Server.Gameplay;
 
-/// <summary>Dialogues typés côté serveur (P8-3).</summary>
-public sealed class DialogGameplayService(IPublishedDialogueCatalog dialogues)
+/// <summary>Dialogues typés côté serveur (P8-3 / P8-R4).</summary>
+public sealed class DialogGameplayService(
+    IPublishedDialogueCatalog dialogues,
+    DialogSessionService sessions)
 {
     private readonly IPublishedDialogueCatalog _dialogues = dialogues;
+    private readonly DialogSessionService _sessions = sessions;
+
+    public Task<DialogueSessionStart?> TryStartDialogueSessionAsync(
+        Guid characterId,
+        Guid dialogueId,
+        CancellationToken cancellationToken = default) =>
+        _sessions.TryStartSessionAsync(characterId, dialogueId, publishedRevision: 1, cancellationToken);
 
     public async Task<string?> TryStartDialogueAsync(
         Guid characterId,
         Guid dialogueId,
         CancellationToken cancellationToken = default)
     {
-        _ = characterId;
-        var definition = await _dialogues.TryGetPublishedByIdAsync(dialogueId, cancellationToken).ConfigureAwait(false);
-        if (definition is null)
+        var started = await TryStartDialogueSessionAsync(characterId, dialogueId, cancellationToken)
+            .ConfigureAwait(false);
+        if (started is null)
         {
             return null;
         }
 
-        if (definition.Lines.Count > 0)
-        {
-            var first = definition.Lines[0];
-            var speaker = string.IsNullOrWhiteSpace(first.Speaker) ? string.Empty : $"{first.Speaker}: ";
-            return speaker + first.Text;
-        }
-
-        if (definition.Choices.Count > 0)
-        {
-            return definition.Choices[0].Label;
-        }
-
-        return definition.Name;
+        var speaker = string.IsNullOrWhiteSpace(started.Speaker) ? string.Empty : $"{started.Speaker}: ";
+        return speaker + started.Text;
     }
 }

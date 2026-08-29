@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using Frog.Core.Enums;
+using Frog.Core.Protocol;
 
 namespace Frog.Persistence.IntegrationTests.Support;
 
@@ -173,6 +174,51 @@ internal static class Phase7TcpPacketBuilder
     }
 
     public static byte[] BuildRespawn() => [(byte)PacketId.RespawnRequest];
+
+    public static byte[] BuildMove(sbyte deltaX, sbyte deltaY) =>
+        [(byte)PacketId.MoveRequest, (byte)deltaX, (byte)deltaY];
+
+    public static byte[] BuildPositionSync(int pixelX, int pixelY)
+    {
+        var payload = new byte[1 + 8];
+        payload[0] = (byte)PacketId.PositionSyncRequest;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), pixelX);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(5), pixelY);
+        return payload;
+    }
+
+    public static byte[] BuildInteract() => [(byte)PacketId.InteractRequest];
+
+    public static byte[] BuildMapEventsRequest() => [(byte)PacketId.MapEventsRequest];
+
+    public static byte[] BuildPublishedCatalogRequest() => [(byte)PacketId.PublishedCatalogRequest];
+
+    public static byte[] BuildDialogueChoice(byte[] sessionToken, string choiceId)
+    {
+        var body = Phase8Wire.BuildDialogueChoiceRequest(sessionToken, choiceId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.DialogueChoiceRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
+
+    public static byte[] BuildQuestTurnIn(Guid questId, Guid requestId)
+    {
+        var body = Phase8Wire.BuildQuestTurnInRequest(questId, requestId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.QuestTurnInRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
+
+    public static byte[] BuildCraft(Guid recipeId, Guid requestId)
+    {
+        var body = Phase8Wire.BuildCraftRequest(recipeId, requestId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.CraftRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
 }
 
 internal sealed class Phase7TcpTestClient : IAsyncDisposable

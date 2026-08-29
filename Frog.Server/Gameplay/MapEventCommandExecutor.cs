@@ -6,6 +6,7 @@ using Frog.Core;
 using Frog.Core.Character;
 using Frog.Core.Events;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 using Frog.Server.Database;
 using Frog.Server.Models;
 using Frog.Server.Services;
@@ -29,7 +30,6 @@ public sealed class MapEventCommandExecutor
     private readonly ICharacterPayloadWriter _payloadWriter;
     private readonly MovementService _movement;
     private readonly ILogger<MapEventCommandExecutor> _logger;
-    private int _commonEventDepth;
 
     public MapEventCommandExecutor(
         ICharacterWorldStateRepository worldState,
@@ -68,13 +68,15 @@ public sealed class MapEventCommandExecutor
         MapEventExecutionState state,
         CancellationToken cancellationToken)
     {
-        var steps = 0;
+        var steps = state.TotalSteps;
         foreach (var command in commands)
         {
             if (++steps > MapEventRuntimeLimits.MaxExecutionSteps)
             {
                 return "Limite d'exécution événement atteinte.";
             }
+
+            state.TotalSteps = steps;
 
             var err = await ExecuteOneAsync(session, characterId, command, state, cancellationToken)
                 .ConfigureAwait(false);
@@ -383,6 +385,12 @@ public sealed class MapEventCommandExecutor
 
         var remaining = quantity;
         var snapshot = await _inventory.GetInventoryAsync(characterId, cancellationToken).ConfigureAwait(false);
+        var totalHave = snapshot.Slots.Where(s => s.ItemId == itemId).Sum(s => s.Quantity);
+        if (totalHave < quantity)
+        {
+            return "take_item: quantité insuffisante.";
+        }
+
         foreach (var slot in snapshot.Slots)
         {
             if (remaining <= 0)
@@ -474,13 +482,22 @@ public sealed class MapEventCommandExecutor
             return err;
         }
 
-        var summary = await _dialogues.TryStartDialogueAsync(characterId, dialogueId, cancellationToken)
+        var started = await _dialogues.TryStartDialogueSessionAsync(characterId, dialogueId, cancellationToken)
             .ConfigureAwait(false);
-        if (summary is null)
+        if (started is null)
         {
             return "Dialogue introuvable.";
         }
 
+        var speaker = string.IsNullOrWhiteSpace(started.Speaker) ? string.Empty : $"{started.Speaker}: ";
+        var summary = speaker + started.Text;
+        state.DialogueState = new DialogueStatePushWire(
+            dialogueId,
+            1,
+            started.SessionToken,
+            started.Speaker,
+            started.Text,
+            started.Choices);
         state.DialogueSummary = summary;
         state.ShowText ??= summary;
         return null;
@@ -524,8 +541,19 @@ public sealed class MapEventCommandExecutor
                     return turnErr;
                 }
 
-                summary = await _quests.TryTurnInQuestAsync(characterId, turnInId, cancellationToken).ConfigureAwait(false);
-                if (summary is not null && summary.Contains("récompense", StringComparison.OrdinalIgnoreCase))
+                var turnInResult = await _quests.TryTurnInQuestAsync(
+                        characterId,
+                        turnInId,
+                        Guid.NewGuid(),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (turnInResult is null || turnInResult.Status is QuestTurnInStatus.Failed or QuestTurnInStatus.NotReady)
+                {
+                    return turnInResult?.Message ?? "Turn-in quête invalide.";
+                }
+
+                summary = turnInResult.Message;
+                if (turnInResult.Status == QuestTurnInStatus.TurnedIn)
                 {
                     state.InventoryChanged = true;
                     state.GoldChanged = true;
@@ -585,33 +613,37 @@ public sealed class MapEventCommandExecutor
             return err;
         }
 
-        if (++_commonEventDepth > MapEventRuntimeLimits.MaxCommonEventRecursionDepth)
+        if (++state.CommonEventDepth > MapEventRuntimeLimits.MaxCommonEventRecursionDepth)
         {
             return "Profondeur call_common_event dépassée.";
         }
 
-        CommonEventDefinition? definition = null;
-        if (eventId != Guid.Empty)
+        try
         {
-            definition = await _commonEvents.TryGetPublishedByIdAsync(eventId, cancellationToken).ConfigureAwait(false);
-        }
-        else if (aliasId is not null)
-        {
-            definition = await _commonEvents.TryGetPublishedByAliasAsync(aliasId.Value, cancellationToken)
+            CommonEventDefinition? definition = null;
+            if (eventId != Guid.Empty)
+            {
+                definition = await _commonEvents.TryGetPublishedByIdAsync(eventId, cancellationToken).ConfigureAwait(false);
+            }
+            else if (aliasId is not null)
+            {
+                definition = await _commonEvents.TryGetPublishedByAliasAsync(aliasId.Value, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (definition is null || definition.Pages.Count == 0)
+            {
+                return "Événement commun introuvable.";
+            }
+
+            var page = definition.Pages.OrderBy(p => p.PageOrder).First();
+            return await ExecuteCommandsAsync(session, characterId, page.Commands, state, cancellationToken)
                 .ConfigureAwait(false);
         }
-
-        if (definition is null || definition.Pages.Count == 0)
+        finally
         {
-            _commonEventDepth--;
-            return "Événement commun introuvable.";
+            state.CommonEventDepth--;
         }
-
-        var page = definition.Pages.OrderBy(p => p.PageOrder).First();
-        var execErr = await ExecuteCommandsAsync(session, characterId, page.Commands, state, cancellationToken)
-            .ConfigureAwait(false);
-        _commonEventDepth--;
-        return execErr;
     }
 
     private async Task<int> CountItemAsync(Guid characterId, Guid itemId, CancellationToken cancellationToken)

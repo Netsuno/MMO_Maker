@@ -70,5 +70,14 @@ public static class PacketIds
     public const byte DeathNotify = 63;
     public const byte PublishedCatalogRequest = 64;
     public const byte PublishedCatalogResult = 65;
+    public const byte DialogueStatePush = 66;
+    public const byte DialogueChoiceRequest = 67;
+    public const byte DialogueChoiceResult = 68;
+    public const byte QuestJournalSnapshot = 69;
+    public const byte QuestTurnInRequest = 70;
+    public const byte QuestTurnInResult = 71;
+    public const byte CraftRequest = 72;
+    public const byte CraftResult = 73;
+    public const byte EnvironmentStatePush = 74;
     public const byte Error = 255;
 }

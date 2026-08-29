@@ -88,6 +88,16 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<EventCraftRequestEntity> PlayerEventCraftRequests => Set<EventCraftRequestEntity>();
 
+    public DbSet<QuestTurnInRequestEntity> PlayerQuestTurnInRequests => Set<QuestTurnInRequestEntity>();
+
+    public DbSet<Phase8ContentDefinitionEntity> Phase8ContentDefinitions => Set<Phase8ContentDefinitionEntity>();
+
+    public DbSet<Phase8ContentPublishedSnapshotEntity> Phase8ContentPublishedSnapshots =>
+        Set<Phase8ContentPublishedSnapshotEntity>();
+
+    public DbSet<Phase8ContentPublicationHistoryEntity> Phase8ContentPublicationHistory =>
+        Set<Phase8ContentPublicationHistoryEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("world");
@@ -838,6 +848,7 @@ public sealed class FrogDbContext : DbContext
             e.ToTable("character_quest_progress", "player");
             e.HasKey(x => new { x.CharacterId, x.QuestId });
             e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.ObjectiveCountersJson).HasColumnType("jsonb").HasDefaultValue("{}");
         });
 
         modelBuilder.Entity<CharacterProfessionProgressEntity>(e =>
@@ -851,6 +862,48 @@ public sealed class FrogDbContext : DbContext
             e.ToTable("event_craft_requests", "player");
             e.HasKey(x => new { x.CharacterId, x.RequestId });
             e.Property(x => x.RecipeId).IsRequired();
+        });
+
+        modelBuilder.Entity<QuestTurnInRequestEntity>(e =>
+        {
+            e.ToTable("quest_turn_in_requests", "player");
+            e.HasKey(x => new { x.CharacterId, x.RequestId });
+            e.Property(x => x.QuestId).IsRequired();
+            e.HasIndex(x => new { x.CharacterId, x.QuestId });
+        });
+
+        modelBuilder.Entity<Phase8ContentDefinitionEntity>(e =>
+        {
+            e.ToTable("phase8_content_definitions", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.PayloadJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.Revision).IsRequired().IsConcurrencyToken();
+            e.HasIndex(x => new { x.Kind, x.Name });
+            e.HasIndex(x => new { x.Kind, x.EditorAliasId }).IsUnique().HasFilter("editor_alias_id IS NOT NULL");
+        });
+
+        modelBuilder.Entity<Phase8ContentPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("phase8_content_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.PayloadJson).HasColumnType("jsonb").IsRequired();
+            e.HasIndex(x => new { x.ContentDefinitionId, x.Revision }).IsUnique();
+            e.HasOne(x => x.ContentDefinition)
+                .WithMany()
+                .HasForeignKey(x => x.ContentDefinitionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Phase8ContentPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("phase8_content_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ContentDefinitionId, x.Revision }).IsUnique();
+            e.HasOne(x => x.ContentDefinition)
+                .WithMany()
+                .HasForeignKey(x => x.ContentDefinitionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

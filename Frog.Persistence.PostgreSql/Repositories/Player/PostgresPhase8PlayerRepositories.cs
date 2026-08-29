@@ -45,6 +45,7 @@ public sealed class PostgresCharacterQuestRepository(FrogDbContextGate gate) : I
                     Status = progress.Status,
                     StageIndex = progress.StageIndex,
                     RewardClaimed = progress.RewardClaimed,
+                    ObjectiveCountersJson = PostgresQuestMutationRepository.SerializeCounters(progress.ObjectiveCounters),
                 });
             }
             else
@@ -52,6 +53,8 @@ public sealed class PostgresCharacterQuestRepository(FrogDbContextGate gate) : I
                 existing.Status = progress.Status;
                 existing.StageIndex = progress.StageIndex;
                 existing.RewardClaimed = progress.RewardClaimed;
+                existing.ObjectiveCountersJson =
+                    PostgresQuestMutationRepository.SerializeCounters(progress.ObjectiveCounters);
             }
 
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -66,6 +69,7 @@ public sealed class PostgresCharacterQuestRepository(FrogDbContextGate gate) : I
             Status = row.Status,
             StageIndex = row.StageIndex,
             RewardClaimed = row.RewardClaimed,
+            ObjectiveCounters = PostgresQuestMutationRepository.DeserializeCounters(row.ObjectiveCountersJson),
         };
 }
 

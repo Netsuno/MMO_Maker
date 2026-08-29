@@ -53,6 +53,7 @@ public sealed partial class PacketDispatcher
         await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
         await SendBankSnapshotAsync(clientSession, session, cancellationToken);
         await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
+        await SendPhase8SnapshotsAsync(clientSession, session, cancellationToken);
     }
 
     private Task SendCombatStateAsync(ClientSession clientSession, Session session, CancellationToken cancellationToken)

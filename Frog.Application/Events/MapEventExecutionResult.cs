@@ -1,3 +1,5 @@
+using Frog.Core.Protocol;
+
 namespace Frog.Application.Events;
 
 public sealed class MapEventExecutionResult
@@ -23,6 +25,8 @@ public sealed class MapEventExecutionResult
 
     public string? QuestSummary { get; init; }
 
+    public DialogueStatePushWire? DialogueState { get; init; }
+
     public static MapEventExecutionResult Ok(
         string message,
         string? showText = null,
@@ -32,7 +36,8 @@ public sealed class MapEventExecutionResult
         bool goldChanged = false,
         bool teleportApplied = false,
         string? dialogueSummary = null,
-        string? questSummary = null) =>
+        string? questSummary = null,
+        DialogueStatePushWire? dialogueState = null) =>
         new()
         {
             Success = true,
@@ -45,6 +50,7 @@ public sealed class MapEventExecutionResult
             TeleportApplied = teleportApplied,
             DialogueSummary = dialogueSummary,
             QuestSummary = questSummary,
+            DialogueState = dialogueState,
         };
 
     public static MapEventExecutionResult Fail(string message) =>

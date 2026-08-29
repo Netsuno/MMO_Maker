@@ -60,15 +60,15 @@ Alignement (**vision MMO Maker** pour un MMO **2D Graal / Zelda SNES-like**).
 
 ### Jalons technique proposés (ordre pour travailler en autonomie)
 
-1. [x] **Multi-maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).  
-2. [x] **Stats persistées + multi‑slots perso** (position **`character_world_state`**, stats JSON **Hero**, **`CharacterListRequest` / `CharacterSelectRequest`** + UI client liste / activer / écran carte).  
-3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter — **priorité P1** (voir section **Priorités courantes**).  
-4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.  
-5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.  
-6. **Publication éditeur → PostgreSQL** (cartes puis événements / définitions progressives ; MariaDB = héritage seulement).  
-7. **Phase 8** — événements carte, dialogues, quêtes, métiers, régions/météo, common events (moteur typé, PostgreSQL, serveur autoritaire).  
-8. **Phase 9** — packaging, administration, durcissement prod, certification charge.  
-9. Observabilité + **charges** : mesurer broadcasts par carte puis décisions **UDP / AOI**.
+1. [x] **Multi-maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).
+2. [x] **Stats persistées + multi‑slots perso** (position **`character_world_state`**, stats JSON **Hero**, **`CharacterListRequest` / `CharacterSelectRequest`** + UI client liste / activer / écran carte).
+3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter — **priorité P1** (voir section **Priorités courantes**).
+4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.
+5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.
+6. **Publication éditeur → PostgreSQL** (cartes puis événements / définitions progressives ; MariaDB = héritage seulement).
+7. **Phase 8** — événements carte, dialogues, quêtes, métiers, régions/météo, common events (moteur typé, PostgreSQL, serveur autoritaire).
+8. **Phase 9** — packaging, administration, durcissement prod, certification charge.
+9. Observabilité + **charges** : mesurer broadcasts par carte puis décisions **UDP / AOI**.
 
 ### Succès utilisateur minimal (vous l’avez défini)
 

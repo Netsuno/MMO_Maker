@@ -13,6 +13,19 @@ public sealed class CharacterQuestProgressEntity
     public int StageIndex { get; set; }
 
     public bool RewardClaimed { get; set; }
+
+    public string ObjectiveCountersJson { get; set; } = "{}";
+}
+
+public sealed class QuestTurnInRequestEntity
+{
+    public Guid CharacterId { get; set; }
+
+    public Guid RequestId { get; set; }
+
+    public Guid QuestId { get; set; }
+
+    public DateTimeOffset CompletedAtUtc { get; set; }
 }
 
 public sealed class CharacterProfessionProgressEntity

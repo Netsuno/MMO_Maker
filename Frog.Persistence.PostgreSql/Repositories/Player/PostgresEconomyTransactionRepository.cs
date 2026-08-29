@@ -798,7 +798,7 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
             new BankSnapshot(character.Id, bankSlots));
     }
 
-    private static InventorySlotRecord[] InventorySlotsFromRows(IReadOnlyList<InventorySlotEntity> rows)
+    internal static InventorySlotRecord[] InventorySlotsFromRows(IReadOnlyList<InventorySlotEntity> rows)
     {
         var slots = new InventorySlotRecord[GameplayLimits.InventorySlotCount];
         for (var i = 0; i < slots.Length; i++)
@@ -836,7 +836,7 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
         return slots;
     }
 
-    private static bool TryAddToInventory(InventorySlotRecord[] slots, Guid itemId, int quantity, int maxStack)
+    internal static bool TryAddToInventory(InventorySlotRecord[] slots, Guid itemId, int quantity, int maxStack)
     {
         var remaining = quantity;
         for (var i = 0; i < slots.Length && remaining > 0; i++)
@@ -928,7 +928,7 @@ public sealed class PostgresEconomyTransactionRepository : IEconomyTransactionRe
         return true;
     }
 
-    private static Task PersistInventorySlotsAsync(
+    internal static Task PersistInventorySlotsAsync(
         FrogDbContext db,
         Guid characterId,
         List<InventorySlotEntity> rows,

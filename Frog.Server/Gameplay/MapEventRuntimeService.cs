@@ -125,7 +125,8 @@ public sealed class MapEventRuntimeService
             state.GoldChanged,
             state.TeleportApplied,
             state.DialogueSummary,
-            state.QuestSummary);
+            state.QuestSummary,
+            state.DialogueState);
     }
 
     private async Task<MapEventPageDefinition?> SelectPageAsync(

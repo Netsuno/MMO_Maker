@@ -474,6 +474,59 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendDialogueStatePushAsync(
+        ClientSession session,
+        Guid dialogueId,
+        long publishedRevision,
+        ReadOnlySpan<byte> sessionToken,
+        string speaker,
+        string text,
+        IReadOnlyList<DialogueChoiceWire> choices,
+        CancellationToken cancellationToken)
+    {
+        var body = Phase8Wire.BuildDialogueStatePush(dialogueId, publishedRevision, sessionToken, speaker, text, choices);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.DialogueStatePush;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendDialogueChoiceResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.DialogueChoiceResult, success, message, cancellationToken);
+
+    public Task SendQuestJournalSnapshotAsync(
+        ClientSession session,
+        IReadOnlyList<QuestJournalEntryWire> entries,
+        CancellationToken cancellationToken)
+    {
+        var body = Phase8Wire.BuildQuestJournalSnapshot(entries);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.QuestJournalSnapshot;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendQuestTurnInResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.QuestTurnInResult, success, message, cancellationToken);
+
+    public Task SendCraftResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
+        => SendStatusMessageAsync(session, PacketId.CraftResult, success, message, cancellationToken);
+
+    public Task SendEnvironmentStatePushAsync(
+        ClientSession session,
+        int mapId,
+        Guid? regionId,
+        Guid? weatherProfileId,
+        byte lightingLevel,
+        CancellationToken cancellationToken)
+    {
+        var body = Phase8Wire.BuildEnvironmentState(mapId, regionId, weatherProfileId, lightingLevel);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.EnvironmentStatePush;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
     private static void WriteGuid(Span<byte> dest, Guid value) => value.TryWriteBytes(dest);
 
     private static Task SendStatusMessageAsync(ClientSession session, PacketId packetId, bool success, string message, CancellationToken cancellationToken)

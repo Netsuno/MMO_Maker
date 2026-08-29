@@ -91,4 +91,6 @@ public sealed class WeatherSnapshot
     public float LightingFactor { get; init; } = 1.0f;
 
     public Guid? RegionId { get; init; }
+
+    public Guid? WeatherProfileId { get; init; }
 }

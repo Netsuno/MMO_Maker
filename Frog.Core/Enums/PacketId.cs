@@ -98,5 +98,33 @@ public enum PacketId : byte
     PublishedCatalogRequest = 64,
     /// <summary>Réponse JSON <see cref="Frog.Core.Protocol.PublishedCatalogWire"/>.</summary>
     PublishedCatalogResult = 65,
+
+    /// <summary>État dialogue typé (speaker, texte, choix + token session).</summary>
+    DialogueStatePush = 66,
+
+    /// <summary>Choix dialogue avec token session opaque.</summary>
+    DialogueChoiceRequest = 67,
+
+    /// <summary>Résultat choix dialogue.</summary>
+    DialogueChoiceResult = 68,
+
+    /// <summary>Journal quêtes (JSON <see cref="Frog.Core.Protocol.QuestJournalEntryWire"/>).</summary>
+    QuestJournalSnapshot = 69,
+
+    /// <summary>Turn-in quête avec requestId idempotent.</summary>
+    QuestTurnInRequest = 70,
+
+    /// <summary>Résultat turn-in quête.</summary>
+    QuestTurnInResult = 71,
+
+    /// <summary>Craft recette avec requestId idempotent.</summary>
+    CraftRequest = 72,
+
+    /// <summary>Résultat craft.</summary>
+    CraftResult = 73,
+
+    /// <summary>Région/météo/éclairage carte courante.</summary>
+    EnvironmentStatePush = 74,
+
     Error = 255
 }

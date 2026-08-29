@@ -3,6 +3,7 @@ using System;
 using Frog.Persistence.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Frog.Persistence.PostgreSql.Migrations
 {
     [DbContext(typeof(FrogDbContext))]
-    partial class FrogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829180742_Phase8ContentDefinitions")]
+    partial class Phase8ContentDefinitions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1679,13 +1682,6 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("quest_id");
 
-                    b.Property<string>("ObjectiveCountersJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasDefaultValue("{}")
-                        .HasColumnName("objective_counters_json");
-
                     b.Property<bool>("RewardClaimed")
                         .HasColumnType("boolean")
                         .HasColumnName("reward_claimed");
@@ -1910,33 +1906,6 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasName("pk_monster_kill_rewards");
 
                     b.ToTable("monster_kill_rewards", "player");
-                });
-
-            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.QuestTurnInRequestEntity", b =>
-                {
-                    b.Property<Guid>("CharacterId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("character_id");
-
-                    b.Property<Guid>("RequestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("request_id");
-
-                    b.Property<DateTimeOffset>("CompletedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at_utc");
-
-                    b.Property<Guid>("QuestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("quest_id");
-
-                    b.HasKey("CharacterId", "RequestId")
-                        .HasName("pk_quest_turn_in_requests");
-
-                    b.HasIndex("CharacterId", "QuestId")
-                        .HasDatabaseName("ix_quest_turn_in_requests_character_id_quest_id");
-
-                    b.ToTable("quest_turn_in_requests", "player");
                 });
 
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.ShopStockEntity", b =>

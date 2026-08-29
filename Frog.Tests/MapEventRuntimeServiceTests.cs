@@ -158,13 +158,18 @@ public sealed class MapEventRuntimeServiceTests
             new InMemoryGroundItemRepository(),
             items,
             new InMemoryEquipmentRepository());
-        var quests = new QuestGameplayService(phase8, new InMemoryCharacterQuestRepository(), characters, inventory);
+        var questRepo = new InMemoryCharacterQuestRepository();
+        var quests = new QuestGameplayService(
+            phase8,
+            questRepo,
+            new InMemoryQuestMutationRepository(questRepo, characters, inventory, phase8));
+        var dialogSessions = new DialogSessionService(phase8, quests);
         var executor = new MapEventCommandExecutor(
             worldState,
             characters,
             inventory,
             items,
-            new DialogGameplayService(phase8),
+            new DialogGameplayService(phase8, dialogSessions),
             quests,
             phase8,
             phase8,

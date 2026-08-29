@@ -46,6 +46,27 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
         services.AddSingleton<ICharacterProfessionRepository>(sp =>
             new PostgresCharacterProfessionRepository(sp.GetRequiredService<FrogDbContextGate>()));
 
+        services.AddSingleton<PostgresPhase8PublishedCatalogs>(sp =>
+            new PostgresPhase8PublishedCatalogs(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<IPublishedDialogueCatalog>(sp => sp.GetRequiredService<PostgresPhase8PublishedCatalogs>());
+        services.AddSingleton<IPublishedQuestCatalog>(sp => sp.GetRequiredService<PostgresPhase8PublishedCatalogs>());
+        services.AddSingleton<IPublishedCommonEventCatalog>(sp => sp.GetRequiredService<PostgresPhase8PublishedCatalogs>());
+        services.AddSingleton<IPublishedProfessionCatalog>(sp => sp.GetRequiredService<PostgresPhase8PublishedCatalogs>());
+        services.AddSingleton<IPublishedRecipeCatalog>(sp => sp.GetRequiredService<PostgresPhase8PublishedCatalogs>());
+        services.AddSingleton<IPublishedRegionCatalog>(sp => sp.GetRequiredService<PostgresPhase8PublishedCatalogs>());
+        services.AddSingleton<IPublishedWeatherCatalog>(sp => sp.GetRequiredService<PostgresPhase8PublishedCatalogs>());
+        services.AddSingleton<IPhase8ContentEditorRepository>(sp => sp.GetRequiredService<PostgresPhase8PublishedCatalogs>());
+        services.AddSingleton<IEventCraftRepository>(sp =>
+            new PostgresEventCraftRepository(
+                sp.GetRequiredService<FrogDbContextGate>(),
+                sp.GetRequiredService<IPublishedRecipeCatalog>(),
+                sp.GetRequiredService<IPublishedItemCatalog>()));
+        services.AddSingleton<IQuestMutationRepository>(sp =>
+            new PostgresQuestMutationRepository(
+                sp.GetRequiredService<FrogDbContextGate>(),
+                sp.GetRequiredService<IPublishedQuestCatalog>(),
+                sp.GetRequiredService<IPublishedItemCatalog>()));
+
         RegisterPublishedCatalogs(services);
     }
 

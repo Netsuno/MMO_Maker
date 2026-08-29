@@ -310,6 +310,14 @@ public sealed class QuestObjectiveProgressWire
     public bool Completed { get; set; }
 }
 
+public sealed record DialogueStatePushWire(
+    Guid DialogueId,
+    long PublishedRevision,
+    byte[] SessionToken,
+    string Speaker,
+    string Text,
+    IReadOnlyList<DialogueChoiceWire> Choices);
+
 /// <summary>État dialogue poussé par le serveur (<see cref="Frog.Core.Enums.PacketId.DialogueStatePush"/>).</summary>
 public sealed class DialogueStateWire
 {

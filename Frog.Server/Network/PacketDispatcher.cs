@@ -52,6 +52,7 @@ public sealed partial class PacketDispatcher(
     IOptions<PlaytestRuntimeOptions> playtestOptions,
     IOptions<PostgreSqlOptions> postgreSqlOptions,
     PlaytestAuthTokenGate playtestAuthTokenGate,
+    Phase8GameplayHandlers phase8Handlers,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -78,6 +79,7 @@ public sealed partial class PacketDispatcher(
     private readonly PlaytestRuntimeOptions _playtest = playtestOptions.Value;
     private readonly PostgreSqlOptions _postgreSql = postgreSqlOptions.Value;
     private readonly PlaytestAuthTokenGate _playtestAuthTokenGate = playtestAuthTokenGate;
+    private readonly Phase8GameplayHandlers _phase8 = phase8Handlers;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
@@ -230,6 +232,12 @@ public sealed partial class PacketDispatcher(
 
             case PacketId.PublishedCatalogRequest:
                 await HandlePublishedCatalogRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.DialogueChoiceRequest:
+            case PacketId.QuestTurnInRequest:
+            case PacketId.CraftRequest:
+                await DispatchPhase8Async(clientSession, packetId, payload, cancellationToken);
                 break;
 
             default:
@@ -1023,6 +1031,20 @@ public sealed partial class PacketDispatcher(
                 session.CurrentMapId,
                 session.PixelX,
                 session.PixelY,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (result.DialogueState is not null)
+        {
+            var push = result.DialogueState;
+            await _packetSender.SendDialogueStatePushAsync(
+                clientSession,
+                push.DialogueId,
+                push.PublishedRevision,
+                push.SessionToken,
+                push.Speaker,
+                push.Text,
+                push.Choices,
                 cancellationToken).ConfigureAwait(false);
         }
     }
@@ -2062,6 +2084,16 @@ public sealed partial class PacketDispatcher(
         ReadOnlyMemory<byte> payload,
         CancellationToken cancellationToken)
     {
+        if (_postgreSql.Enabled)
+        {
+            await _packetSender.SendWorldFlagsPatchResultAsync(
+                clientSession,
+                false,
+                "WorldFlagsPatch desactive en production PostgreSQL (Phase 8).",
+                cancellationToken);
+            return;
+        }
+
         if (!TryGetActiveSession(clientSession, out var session))
         {
             await _packetSender.SendErrorAsync(clientSession, "Authentification requise.", cancellationToken);

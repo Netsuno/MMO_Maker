@@ -37,6 +37,7 @@ public sealed class WeatherGameplayService(
             WeatherKind = profile.WeatherKind,
             LightingFactor = profile.LightingFactor,
             RegionId = region.Id,
+            WeatherProfileId = profile.Id,
         };
     }
 }
