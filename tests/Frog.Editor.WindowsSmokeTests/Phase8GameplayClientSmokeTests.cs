@@ -142,7 +142,10 @@ public sealed class Phase8GameplayClientSmokeTests
             ClientSmokeTestAccess.SetPumpUntilForTest(StaTestRunner.PumpUntil);
             var port = GetFreePort();
             var host = FrogServerHostFactory
-                .CreateHostBuilder()
+                .CreateHostBuilder(configureServices: services =>
+                {
+                    services.PostConfigure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(5));
+                })
                 .ConfigureAppConfiguration((_, config) =>
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -168,11 +171,13 @@ public sealed class Phase8GameplayClientSmokeTests
         public void ConnectRegisterLogin()
         {
             Form.ConnectButtonForTest.PerformClick();
-            Pump(Form, () => Form.DisconnectButtonForTest.Enabled, "connect");
+            Pump(Form, () => Form.DisconnectButtonForTest.Enabled, "connect TCP");
             Form.RegisterButtonForTest.PerformClick();
-            Pump(Form, () => Form.LogContainsForTest("Inscription OK"), "register");
+            Pump(Form, () => Form.LogContainsForTest("Inscription OK"), "register success");
             Form.LoginButtonForTest.PerformClick();
-            Pump(Form, () => Form.StoredAuthTokenForTest is not null, "login");
+            Pump(Form, () => Form.StoredAuthTokenForTest is not null, "login token stored");
+            Pump(Form, () => Form.CharCreateButtonForTest.Enabled, "character create enabled after login");
+            Pump(Form, () => Form.CatalogClassesPopulatedForTest, "catalog classes after login");
         }
 
         public void CreateCharacter(string name)
@@ -184,7 +189,10 @@ public sealed class Phase8GameplayClientSmokeTests
             }
 
             Form.CharCreateButtonForTest.PerformClick();
-            Pump(Form, () => Form.CharactersComboForTest.Items.Count > 0, "character created");
+            Pump(
+                Form,
+                () => Form.CharactersComboForTest.Items.Count > 0 && Form.LogContainsForTest("Perso créé"),
+                "character created and listed");
         }
 
         public void EnterPlayingPhase(string name)
@@ -193,8 +201,9 @@ public sealed class Phase8GameplayClientSmokeTests
                 .FirstOrDefault(i => i.ToString()?.Contains(name, StringComparison.Ordinal) == true);
             Assert.NotNull(pick);
             Form.CharactersComboForTest.SelectedItem = pick;
+            Assert.False(string.IsNullOrWhiteSpace(Form.SelectedCharacterIdForTest));
             Form.EnterGameButtonForTest.PerformClick();
-            Pump(Form, () => Form.IsPlayingPhaseForTest, "playing phase");
+            Pump(Form, () => Form.IsPlayingPhaseForTest, "enter playing phase");
         }
 
         public void Dispose()
