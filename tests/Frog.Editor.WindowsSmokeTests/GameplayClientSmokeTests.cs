@@ -655,20 +655,17 @@ public sealed class GameplayClientSmokeTests
             var port = (int)Form.PortNumericForTest.Value;
             var victimUser = User;
             var killTask = Task.Run(() => RunPvpAttackerUntilDead("127.0.0.1", port, victimUser));
-            var deadline = DateTime.UtcNow + TimeSpan.FromMinutes(2);
-            while (!killTask.IsCompleted && DateTime.UtcNow < deadline)
-            {
-                System.Windows.Forms.Application.DoEvents();
-                Thread.Sleep(10);
-            }
-
-            if (!killTask.IsCompleted)
+            if (!killTask.Wait(TimeSpan.FromMinutes(2)))
             {
                 throw new TimeoutException("Victim was not killed via public PvP melee.");
             }
 
             killTask.GetAwaiter().GetResult();
-            Pump(Form, () => Form.CombatIsDeadForTest, "combat state dead after PvP kill");
+            Pump(
+                Form,
+                () => Form.CombatIsDeadForTest,
+                "combat state dead after PvP kill",
+                TimeSpan.FromSeconds(45));
         }
 
         private static void RunPvpAttackerUntilDead(string host, int port, string victimUser)
@@ -713,13 +710,27 @@ public sealed class GameplayClientSmokeTests
 
             _disposed = true;
             ClientSmokeTestAccess.CloseMainShell(Form);
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             try
             {
-                _host.StopAsync(cts.Token).GetAwaiter().GetResult();
+                var stopTask = Task.Run(async () =>
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    try
+                    {
+                        await _host.StopAsync(cts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                });
+                if (!stopTask.Wait(TimeSpan.FromSeconds(20)))
+                {
+                    throw new TimeoutException("In-memory gameplay server did not stop within 20 seconds.");
+                }
             }
-            catch (OperationCanceledException)
+            catch (TimeoutException)
             {
+                // Best effort — still dispose the host below.
             }
 
             _host.Dispose();
