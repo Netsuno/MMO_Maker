@@ -3116,4 +3116,14 @@ public sealed class MainShellForm : Form
         _txtLog.Text.Contains(fragment, StringComparison.Ordinal);
 
     internal string LogTextForTest => _txtLog.Text;
+
+    internal void SelectPhase8TabForTest() => _gameplayTabs.SelectedTab = _tabPhase8;
+
+    internal DialoguePanel DialoguePanelForTest => _dialoguePanel;
+
+    internal QuestJournalPanel QuestJournalPanelForTest => _questJournalPanel;
+
+    internal CraftPanel CraftPanelForTest => _craftPanel;
+
+    internal EnvironmentPanel EnvironmentPanelForTest => _environmentPanel;
 }

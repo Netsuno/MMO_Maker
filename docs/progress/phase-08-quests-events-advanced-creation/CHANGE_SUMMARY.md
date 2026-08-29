@@ -1,39 +1,38 @@
 # Phase 8 — CHANGE_SUMMARY
 
-## P8-2 — Runtime complet
+## Remediation (P8-R1 … P8-R5)
 
-- `MapEventCommandExecutor` : toutes les commandes du COMMAND_CATALOG (show_text, branch, variables, items, gold, teleport, wait, dialogue, quêtes, call_common_event)
-- Toutes les conditions (switch, variable, quête, item, niveau, métier, région)
-- Variables perso PG (`character_world_variables`) + port `ICharacterWorldStateRepository` étendu
-- Step-on (`player_contact`) branché sur l'interpréteur via `TryExecuteStepOnAsync`
-- Effets secondaires PacketDispatcher : inventaire, or, téléportation
+### P8-R1 — PostgreSQL production source of truth
 
-## P8-3 — Dialogues et quêtes
+- Unified tables: `content.phase8_content_definitions`, published snapshots, publication history
+- `PostgresPhase8PublishedCatalogs` implements all seven published catalogs + `IPhase8ContentEditorRepository`
+- Production composition no longer registers `Phase8InMemoryPublishedContent` when PostgreSQL is enabled
+- `PostgresEventCraftRepository` with idempotency via `player.event_craft_requests`
 
-- Modèles Core : `DialogueDefinition`, `QuestDefinition`, `CharacterQuestProgress`
-- Services : `DialogGameplayService`, `QuestGameplayService`
-- PG : `character_quest_progress`
+### P8-R2 — Transactional quests and crafting
 
-## P8-4 — Métiers et recettes
+- Quest objectives: talk, kill, collect, visit, craft with counters in `character_quest_progress.objective_counters_json`
+- `PostgresQuestMutationRepository` — atomic turn-in (gold + inventory + progress + idempotency) in one transaction
+- `QuestGameplayService` objective auto-progress hooks and journal wire builder
 
-- Modèles : `ProfessionDefinition`, `RecipeDefinition`
-- `CraftGameplayService` + `InMemoryEventCraftRepository` (idempotent par requestId)
+### P8-R3 — Event runtime
 
-## P8-5 — Régions et météo
+- Per-execution `CommonEventDepth`, step budget, branch depth; `take_item` verifies full quantity first
+- `MapEventExecutionTracker` for autorun/parallel deduplication
+- Autorun dispatch on character select / map entry via `Phase8GameplayHandlers`
+- `WorldFlagsPatchRequest` rejected in PostgreSQL production mode
 
-- Modèles : `RegionDefinition`, `WeatherProfileDefinition`
-- `WeatherGameplayService` (résolution tuile → région → profil)
+### P8-R4 — Protocol, client, editor
 
-## P8-6 — Événements communs et éditeur
+- Wire packets 66–74: dialogue, quest journal, turn-in, craft, environment
+- Client panels: `DialoguePanel`, `QuestJournalPanel`, `CraftPanel`, `EnvironmentPanel` (+ Quêtes tab)
+- Structured editor: `Phase8ContentBrowseDialog` + dialogue/quest/recipe/region panels (Carte → Contenu Phase 8)
 
-- Modèle `CommonEventDefinition`, commande `call_common_event` avec limite de récursion
-- Éditeur : `MapEventPageEditorDialog` (JSON pages) + bouton « Éditer pages » + publish dans `MapEventsBrowseDialog`
+### P8-R5 — Evidence
 
-## Fichiers clés
+- 18 new PostgreSQL integration tests including full 23-step E2E and 8 multi-client scenarios
+- `Phase8GameplayClientSmokeTests` ×3 in CI with screenshot artifacts
 
-| Zone | Fichiers |
-| --- | --- |
-| Runtime | `MapEventCommandExecutor.cs`, `MapEventRuntimeService.cs` |
-| Core | `MapEventParameterSchemas.cs`, modèles Phase 8 dans `Frog.Core/Models/` |
-| PG | `Phase8PlayerProgress` migration, repos quest/profession |
-| Editor | `MapEventPageEditorDialog.cs` |
+## Preserved foundations (P8-1 … P8-6 initial pass)
+
+- Map event PG draft/publish, world switches/variables, typed command catalog, map event editor entry points

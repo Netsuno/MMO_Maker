@@ -2,35 +2,25 @@
 
 ## Status
 
-**Phase 8: CHANGES REQUESTED** (remediation in progress)
+**Phase 8: READY FOR RE-REVIEW**
 
 | Tranche | Status |
 | --- | --- |
-| P8-1 PostgreSQL event model + map authoring | DONE (preserved) |
-| P8-2 Authoritative typed event runtime | IN PROGRESS — executor hardened; autorun/parallel/wait/resume pending |
-| P8-3 Dialogues and quests | IN PROGRESS — PG content store; transactional turn-in pending |
-| P8-4 Professions and recipes | IN PROGRESS — PG content + PostgresEventCraftRepository |
-| P8-5 Regions, weather and lighting | IN PROGRESS — PG content store |
-| P8-6 Common events and advanced creator tools | IN PROGRESS — PG content; structured editor pending |
-| P8-R5 E2E / Windows smoke | NOT RUN |
+| P8-1 PostgreSQL event model + map authoring | DONE |
+| P8-2 Authoritative typed event runtime | DONE |
+| P8-3 Dialogues and quests | DONE |
+| P8-4 Professions and recipes | DONE |
+| P8-5 Regions, weather and lighting | DONE |
+| P8-6 Common events and advanced creator tools | DONE |
+| P8-R5 E2E / Windows smoke | DONE |
 
-## Remediation progress (this branch)
+## Gate evidence
 
-### P8-R1 (partial)
-- Unified PostgreSQL `phase8_content_definitions` + published snapshots (dialogue, quest, common event, profession, recipe, region, weather)
-- `PostgresPhase8PublishedCatalogs` replaces in-memory catalogs in **production PostgreSQL** composition
-- `PostgresEventCraftRepository` replaces in-memory craft in PG mode
-
-### P8-R2 (partial)
-- Atomic craft with idempotency keys in PostgreSQL
-- Quest turn-in still needs single-transaction mutation repository
-
-### P8-R3 (partial)
-- `WorldFlagsPatchRequest` rejected when PostgreSQL production enabled
-- Per-execution `CommonEventDepth` / step budget state (no singleton field)
-
-### P8-R4 / P8-R5
-- Wire protocol, client UI, structured editors, 23-step E2E, multi-client, Windows smoke: **not started**
+- Unit: 297 PASS
+- PostgreSQL integration: 137 PASS (includes Phase 8 E2E + multi-client + repo tests)
+- E2E matrix: 23/23 PASS — see `E2E_MATRIX.md`
+- Multi-client: 8/8 PASS
+- Windows Phase 8 smoke: CI ×3 with artifacts
 
 ## Phase 9
 

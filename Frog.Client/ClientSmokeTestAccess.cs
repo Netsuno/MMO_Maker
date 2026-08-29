@@ -73,6 +73,23 @@ internal static class ClientSmokeTestAccess
     public static string ScreenshotDirectory =>
         Path.Combine(FindRepositoryRoot(), "artifacts", "phase-07-gameplay-client");
 
+    public static string Phase8ScreenshotDirectory =>
+        Path.Combine(FindRepositoryRoot(), "artifacts", "phase-08-gameplay-client");
+
+    public static void SavePhase8Screenshot(Form form, string fileName)
+    {
+        var directory = Path.GetFullPath(Phase8ScreenshotDirectory);
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, fileName);
+        using var bitmap = new Bitmap(Math.Max(1, form.Width), Math.Max(1, form.Height));
+        form.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+        bitmap.Save(path, ImageFormat.Png);
+        if (new FileInfo(path).Length == 0)
+        {
+            throw new InvalidOperationException($"Empty screenshot: {path}");
+        }
+    }
+
     public static void SaveScreenshot(Form form, string fileName)
     {
         var directory = Path.GetFullPath(ScreenshotDirectory);
