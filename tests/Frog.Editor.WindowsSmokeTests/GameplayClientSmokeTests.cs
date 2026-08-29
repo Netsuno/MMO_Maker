@@ -474,7 +474,13 @@ public sealed class GameplayClientSmokeTests
     private static void AssertNoLatePvpDamageAfterRespawn(MainShellForm form)
     {
         var maxHp = form.CombatMaxHpForTest;
-        Thread.Sleep(CombatFormulas.BasicAttackCooldownMs + 100);
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(CombatFormulas.BasicAttackCooldownMs + 500);
+        while (DateTime.UtcNow < deadline)
+        {
+            System.Windows.Forms.Application.DoEvents();
+            Thread.Sleep(10);
+        }
+
         Pump(form, () => form.CombatHpForTest == maxHp, "HP unchanged after respawn cooldown");
         Assert.Equal(maxHp, form.CombatHpForTest);
     }
@@ -739,7 +745,11 @@ public sealed class GameplayClientSmokeTests
         {
             _tcp.ReceiveTimeout = 60_000;
             _tcp.SendTimeout = 60_000;
-            _tcp.Connect(host, port);
+            if (!_tcp.ConnectAsync(host, port).Wait(TimeSpan.FromSeconds(15)))
+            {
+                throw new TimeoutException($"TCP connect to {host}:{port} timed out.");
+            }
+
             _stream = _tcp.GetStream();
             _stream.ReadTimeout = 60_000;
             _stream.WriteTimeout = 60_000;
