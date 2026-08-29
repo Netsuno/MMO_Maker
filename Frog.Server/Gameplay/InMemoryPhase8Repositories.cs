@@ -70,7 +70,10 @@ public sealed class InMemoryCharacterProfessionRepository : ICharacterProfession
 public sealed class InMemoryEventCraftRepository(
     IPublishedRecipeCatalog recipes,
     IInventoryRepository inventory,
-    IPublishedItemCatalog items) : IEventCraftRepository
+    IPublishedItemCatalog items,
+    ICharacterRepository? characters = null,
+    ICharacterProfessionRepository? professions = null,
+    IPublishedProfessionCatalog? professionCatalog = null) : IEventCraftRepository
 {
     private readonly ConcurrentDictionary<(Guid CharacterId, Guid RequestId), EventCraftResult> _completed = new();
 
@@ -89,6 +92,37 @@ public sealed class InMemoryEventCraftRepository(
         if (recipe is null)
         {
             return new EventCraftResult(EventCraftStatus.RecipeNotFound);
+        }
+
+        int? remainingGold = null;
+        int? goldSpent = null;
+        if (recipe.GoldCost > 0)
+        {
+            if (characters is null)
+            {
+                return new EventCraftResult(EventCraftStatus.Failed, "Dépôt personnage indisponible.");
+            }
+
+            var record = await characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+            if (record is null)
+            {
+                return new EventCraftResult(EventCraftStatus.Failed, "Personnage introuvable.");
+            }
+
+            if (record.Gold < recipe.GoldCost)
+            {
+                return new EventCraftResult(EventCraftStatus.InsufficientGold, "Or insuffisant.");
+            }
+
+            var newGold = checked(record.Gold - recipe.GoldCost);
+            await characters.SaveAsync(record with { Gold = newGold }, cancellationToken).ConfigureAwait(false);
+            goldSpent = recipe.GoldCost;
+            remainingGold = newGold;
+        }
+        else if (characters is not null)
+        {
+            var record = await characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+            remainingGold = record?.Gold;
         }
 
         var snapshot = await inventory.GetAsync(characterId, cancellationToken).ConfigureAwait(false);
@@ -146,7 +180,43 @@ public sealed class InMemoryEventCraftRepository(
             return new EventCraftResult(EventCraftStatus.InventoryFull, add.ErrorMessage);
         }
 
-        var result = new EventCraftResult(EventCraftStatus.Crafted, "Craft réussi.", add.Snapshot);
+        if (professions is not null && recipe.ProfessionId != Guid.Empty)
+        {
+            var prog = await professions.TryGetAsync(characterId, recipe.ProfessionId, cancellationToken)
+                .ConfigureAwait(false);
+            var oldXp = prog?.Experience ?? 0L;
+            var oldLevel = prog?.Level ?? 0;
+            var newXp = checked(oldXp + Math.Max(0L, recipe.ProfessionExperienceReward));
+            var maxLevel = 100;
+            if (professionCatalog is not null)
+            {
+                var def = await professionCatalog.TryGetPublishedByIdAsync(recipe.ProfessionId, cancellationToken)
+                    .ConfigureAwait(false);
+                if (def is not null && def.MaxLevel > 0)
+                {
+                    maxLevel = def.MaxLevel;
+                }
+            }
+
+            var computedLevel = Math.Min(maxLevel, 1 + (int)(newXp / 100));
+            await professions.UpsertAsync(
+                    new CharacterProfessionProgress
+                    {
+                        CharacterId = characterId,
+                        ProfessionId = recipe.ProfessionId,
+                        Level = Math.Max(oldLevel, computedLevel),
+                        Experience = newXp,
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var result = new EventCraftResult(
+            EventCraftStatus.Crafted,
+            "Craft réussi.",
+            add.Snapshot,
+            goldSpent,
+            remainingGold);
         _completed[(characterId, requestId)] = result;
         return result;
     }

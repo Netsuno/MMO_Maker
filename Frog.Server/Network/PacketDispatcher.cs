@@ -732,8 +732,27 @@ public sealed partial class PacketDispatcher(
 
         _connectionManager.TryTouchSession(session.Id);
         var mapId = session.CurrentMapId;
-        if (!_mapEventStore.TryGetEventsWireJson(mapId, out var json) || string.IsNullOrWhiteSpace(json))
+        string json;
+        try
         {
+            var (ok, placements) = await _mapEventStore.GetPlacementsAsync(mapId, cancellationToken)
+                .ConfigureAwait(false);
+            if (!ok)
+            {
+                json = "[]";
+            }
+            else if (_mapEventStore.TryGetEventsWireJson(mapId, out var cached) && !string.IsNullOrWhiteSpace(cached))
+            {
+                json = cached;
+            }
+            else
+            {
+                json = System.Text.Json.JsonSerializer.Serialize(placements);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Échec chargement catalogue map events pour map {MapId}", mapId);
             json = "[]";
         }
 
@@ -759,8 +778,16 @@ public sealed partial class PacketDispatcher(
 
         _connectionManager.TryTouchSession(session.Id);
 
-        if (!_mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        IReadOnlyList<MapEventWireEntry> placements;
+        try
         {
+            var (ok, list) = await _mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
+                .ConfigureAwait(false);
+            placements = ok ? list : Array.Empty<MapEventWireEntry>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Échec chargement placements pour interact map {MapId}", session.CurrentMapId);
             placements = Array.Empty<MapEventWireEntry>();
         }
 
@@ -873,12 +900,28 @@ public sealed partial class PacketDispatcher(
         if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
         {
             _combatGameplay.CancelForMapChange(session);
+            if (session.CharacterGuid is Guid mapChangeCharacterId)
+            {
+                _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId);
+            }
+
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
         }
 
         if (cellAfter != cellBefore)
         {
+            if (session.CharacterGuid is Guid visitCharacterId)
+            {
+                await _phase8.NotifyVisitProgressAsync(
+                        visitCharacterId,
+                        session.CurrentMapId,
+                        session.PositionX,
+                        session.PositionY,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
         }
     }
@@ -935,20 +978,44 @@ public sealed partial class PacketDispatcher(
         if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
         {
             _combatGameplay.CancelForMapChange(session);
+            if (session.CharacterGuid is Guid mapChangeCharacterId)
+            {
+                _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId);
+            }
+
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
         }
 
         if (cellAfter != cellBefore)
         {
+            if (session.CharacterGuid is Guid visitCharacterId)
+            {
+                await _phase8.NotifyVisitProgressAsync(
+                        visitCharacterId,
+                        session.CurrentMapId,
+                        session.PositionX,
+                        session.PositionY,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
         }
     }
 
     private async Task TryFireStepOnMapEventsAsync(ClientSession clientSession, Session session, CancellationToken cancellationToken)
     {
-        if (!_mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        IReadOnlyList<MapEventWireEntry> placements;
+        try
         {
+            var (ok, list) = await _mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
+                .ConfigureAwait(false);
+            placements = ok ? list : Array.Empty<MapEventWireEntry>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Échec chargement placements pour step-on map {MapId}", session.CurrentMapId);
             placements = Array.Empty<MapEventWireEntry>();
         }
 
@@ -1066,8 +1133,16 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
-        if (!_mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        IReadOnlyList<MapEventWireEntry> placements;
+        try
         {
+            var (ok, list) = await _mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
+                .ConfigureAwait(false);
+            placements = ok ? list : Array.Empty<MapEventWireEntry>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Échec chargement placements pour page map {MapId}", session.CurrentMapId);
             placements = Array.Empty<MapEventWireEntry>();
         }
 
@@ -1108,6 +1183,10 @@ public sealed partial class PacketDispatcher(
 
         _connectionManager.TryTouchSession(session.Id);
         await _packetSender.SendHeartbeatAckAsync(clientSession, cancellationToken);
+        await _phase8.TryResumeWaitingMapEventsAsync(clientSession, session, cancellationToken)
+            .ConfigureAwait(false);
+        await _phase8.TryFireParallelMapEventsAsync(clientSession, session, cancellationToken)
+            .ConfigureAwait(false);
         await TryFireAutoTileMapEventsOnHeartbeatAsync(clientSession, session, cancellationToken);
     }
 
@@ -1116,8 +1195,16 @@ public sealed partial class PacketDispatcher(
         Session session,
         CancellationToken cancellationToken)
     {
-        if (!_mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        IReadOnlyList<MapEventWireEntry> placements;
+        try
         {
+            var (ok, list) = await _mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
+                .ConfigureAwait(false);
+            placements = ok ? list : Array.Empty<MapEventWireEntry>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Échec chargement placements pour auto-tile map {MapId}", session.CurrentMapId);
             placements = Array.Empty<MapEventWireEntry>();
         }
 
@@ -1169,6 +1256,11 @@ public sealed partial class PacketDispatcher(
 
         var sessionId = session.Id;
         var username = session.Username;
+        if (session.CharacterGuid is Guid logoutCharacterId)
+        {
+            _phase8.CancelForCharacter(logoutCharacterId);
+        }
+
         if (!string.IsNullOrWhiteSpace(session.CharacterId))
         {
             _playerStateStore.UpsertForCharacter(
@@ -1234,6 +1326,15 @@ public sealed partial class PacketDispatcher(
                     attacker.Level,
                     attacker.Experience,
                     cancellationToken);
+            }
+
+            if (monsterResult.MonsterKilled
+                && monsterResult.NpcDefinitionId is Guid npcId
+                && attacker.CharacterGuid is Guid characterId)
+            {
+                await _phase8.NotifyKillProgressAsync(characterId, npcId, cancellationToken).ConfigureAwait(false);
+                await _phase8.SendQuestJournalAsync(clientSession, attacker, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             await SendCombatStateAsync(clientSession, attacker, cancellationToken);

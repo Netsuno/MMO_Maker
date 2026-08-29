@@ -42,5 +42,6 @@ public sealed partial class PacketDispatcher
         await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         await _phase8.SendEnvironmentStateAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         await _phase8.TryFireAutorunMapEventsAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+        await _phase8.TryFireParallelMapEventsAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
     }
 }

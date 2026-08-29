@@ -14,7 +14,7 @@ public readonly record struct Phase8ContentListRow(
     long? PublishedRevision);
 
 /// <summary>Catalogue Phase 8 (dialogues, quêtes, recettes, …) via PostgreSQL.</summary>
-public sealed class Phase8ContentPostgreSqlService : IDisposable
+public class Phase8ContentPostgreSqlService : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,22 +23,26 @@ public sealed class Phase8ContentPostgreSqlService : IDisposable
     };
 
     private readonly IPhase8ContentEditorRepository _repository;
-    private readonly FrogDbContextGate _gate;
+    private readonly FrogDbContextGate? _gate;
     private readonly bool _ownsGate;
 
     public Phase8ContentPostgreSqlService(
         IPhase8ContentEditorRepository repository,
-        FrogDbContextGate gate,
+        FrogDbContextGate? gate = null,
         bool ownsGate = false)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-        _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+        _gate = gate;
         _ownsGate = ownsGate;
+        if (_ownsGate && _gate is null)
+        {
+            throw new ArgumentException("ownsGate requires a non-null gate.", nameof(gate));
+        }
     }
 
     public ContentRepositoryCapabilities Capabilities => _repository.Capabilities;
 
-    public bool IsAvailable => Capabilities.IsDurablePersistence;
+    public bool IsAvailable => Capabilities.AllowsSave;
 
     public async Task<IReadOnlyList<Phase8ContentListRow>> ListAsync(
         Phase8ContentKind kind,
@@ -63,6 +67,9 @@ public sealed class Phase8ContentPostgreSqlService : IDisposable
         Phase8SaveContentRequest request,
         CancellationToken cancellationToken = default) =>
         _repository.SaveAsync(request, cancellationToken);
+
+    public Task<Phase8DeleteContentResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
+        _repository.DeleteAsync(id, cancellationToken);
 
     public static string CreateDefaultPayload(Phase8ContentKind kind, Guid id, string name)
     {
@@ -135,6 +142,88 @@ public sealed class Phase8ContentPostgreSqlService : IDisposable
         };
     }
 
+    /// <summary>Réécrit l'Id (et le Name si fourni) dans un payload JSON connu.</summary>
+    public static bool TryRewritePayloadIdentity(
+        Phase8ContentKind kind,
+        string payloadJson,
+        Guid newId,
+        string? newName,
+        out string rewrittenJson,
+        out string? error)
+    {
+        rewrittenJson = string.Empty;
+        error = null;
+        switch (kind)
+        {
+            case Phase8ContentKind.Dialogue when TryDeserialize(payloadJson, out DialogueDefinition d, out error):
+                d.Id = newId;
+                if (newName is not null)
+                {
+                    d.Name = newName;
+                }
+
+                rewrittenJson = Serialize(d);
+                return true;
+            case Phase8ContentKind.Quest when TryDeserialize(payloadJson, out QuestDefinition q, out error):
+                q.Id = newId;
+                if (newName is not null)
+                {
+                    q.Name = newName;
+                }
+
+                rewrittenJson = Serialize(q);
+                return true;
+            case Phase8ContentKind.CommonEvent when TryDeserialize(payloadJson, out CommonEventDefinition ce, out error):
+                ce.Id = newId;
+                if (newName is not null)
+                {
+                    ce.Name = newName;
+                }
+
+                rewrittenJson = Serialize(ce);
+                return true;
+            case Phase8ContentKind.Profession when TryDeserialize(payloadJson, out ProfessionDefinition p, out error):
+                p.Id = newId;
+                if (newName is not null)
+                {
+                    p.Name = newName;
+                }
+
+                rewrittenJson = Serialize(p);
+                return true;
+            case Phase8ContentKind.Recipe when TryDeserialize(payloadJson, out RecipeDefinition r, out error):
+                r.Id = newId;
+                if (newName is not null)
+                {
+                    r.Name = newName;
+                }
+
+                rewrittenJson = Serialize(r);
+                return true;
+            case Phase8ContentKind.Region when TryDeserialize(payloadJson, out RegionDefinition reg, out error):
+                reg.Id = newId;
+                if (newName is not null)
+                {
+                    reg.Name = newName;
+                }
+
+                rewrittenJson = Serialize(reg);
+                return true;
+            case Phase8ContentKind.WeatherProfile when TryDeserialize(payloadJson, out WeatherProfileDefinition w, out error):
+                w.Id = newId;
+                if (newName is not null)
+                {
+                    w.Name = newName;
+                }
+
+                rewrittenJson = Serialize(w);
+                return true;
+            default:
+                error ??= "Type de contenu inconnu ou JSON invalide.";
+                return false;
+        }
+    }
+
     public static bool TryValidatePayload(Phase8ContentKind kind, string payloadJson, out string? error)
     {
         error = null;
@@ -179,7 +268,21 @@ public sealed class Phase8ContentPostgreSqlService : IDisposable
     {
         if (_ownsGate)
         {
-            _gate.Dispose();
+            _gate?.Dispose();
         }
+    }
+}
+
+/// <summary>Service Phase 8 branché sur un dépôt mémoire (smoke Windows / tests).</summary>
+public sealed class InMemoryPhase8ContentEditorService : Phase8ContentPostgreSqlService
+{
+    public InMemoryPhase8ContentEditorService()
+        : base(new InMemoryPhase8ContentEditorRepository(), gate: null, ownsGate: false)
+    {
+    }
+
+    public InMemoryPhase8ContentEditorService(InMemoryPhase8ContentEditorRepository repository)
+        : base(repository ?? throw new ArgumentNullException(nameof(repository)), gate: null, ownsGate: false)
+    {
     }
 }

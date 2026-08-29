@@ -60,6 +60,15 @@ public abstract record Phase8SaveContentResult
     public sealed record PersistenceFailed(string Error) : Phase8SaveContentResult;
 }
 
+public abstract record Phase8DeleteContentResult
+{
+    public sealed record Success : Phase8DeleteContentResult;
+
+    public sealed record NotFound : Phase8DeleteContentResult;
+
+    public sealed record PersistenceFailed(string Error) : Phase8DeleteContentResult;
+}
+
 public interface IPhase8ContentEditorRepository
 {
     ContentRepositoryCapabilities Capabilities { get; }
@@ -71,4 +80,6 @@ public interface IPhase8ContentEditorRepository
     Task<IReadOnlyList<Phase8ContentSummary>> ListSummariesAsync(
         Phase8ContentKind kind,
         CancellationToken cancellationToken = default);
+
+    Task<Phase8DeleteContentResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 }

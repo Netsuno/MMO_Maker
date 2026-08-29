@@ -1,4 +1,5 @@
 using Frog.Application.Content;
+using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -160,12 +161,56 @@ public sealed class PostgresPhase8PublishedCatalogs
             return rows;
         }, cancellationToken);
 
+    public Task<Phase8DeleteContentResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
+        _gate.ExecuteAsync<Phase8DeleteContentResult>(async (db, ct) =>
+        {
+            try
+            {
+                var exists = await db.Phase8ContentDefinitions.AsNoTracking()
+                    .AnyAsync(e => e.Id == id, ct)
+                    .ConfigureAwait(false);
+                if (!exists)
+                {
+                    return new Phase8DeleteContentResult.NotFound();
+                }
+
+                await db.Phase8ContentPublicationHistory
+                    .Where(h => h.ContentDefinitionId == id)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+                await db.Phase8ContentPublishedSnapshots
+                    .Where(s => s.ContentDefinitionId == id)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+                await db.Phase8ContentDefinitions
+                    .Where(e => e.Id == id)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+                return new Phase8DeleteContentResult.Success();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return new Phase8DeleteContentResult.PersistenceFailed(ex.Message);
+            }
+        }, cancellationToken);
+
     private async Task<Phase8SaveContentResult> SaveCoreAsync(
         FrogDbContext db,
         Phase8SaveContentRequest request,
         CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
+        if (request.Intent == SaveContentIntent.Publish
+            && request.Kind == Phase8ContentKind.CommonEvent)
+        {
+            var cycleError = await ValidateCommonEventCyclesAsync(db, request, cancellationToken)
+                .ConfigureAwait(false);
+            if (cycleError is not null)
+            {
+                return new Phase8SaveContentResult.ValidationFailed(cycleError);
+            }
+        }
+
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -358,6 +403,65 @@ public sealed class PostgresPhase8PublishedCatalogs
 
     private static Phase8StoredContent ToStored(Phase8ContentDefinitionEntity entity) =>
         new(entity.Id, (Phase8ContentKind)entity.Kind, entity.Name, entity.EditorAliasId, entity.PayloadJson, entity.Revision, entity.Status, entity.PublishedRevision);
+
+    private async Task<string?> ValidateCommonEventCyclesAsync(
+        FrogDbContext db,
+        Phase8SaveContentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!Phase8ContentCodec.TryDeserializeCommonEvent(request.PayloadJson, out var publishing, out var deserializeError))
+        {
+            return deserializeError ?? "Événement commun invalide.";
+        }
+
+        var contentId = request.ContentId is Guid id && id != Guid.Empty
+            ? id
+            : request.NewId ?? publishing.Id;
+        if (contentId == Guid.Empty)
+        {
+            contentId = Guid.NewGuid();
+        }
+
+        publishing.Id = contentId;
+        if (string.IsNullOrWhiteSpace(publishing.Name))
+        {
+            publishing.Name = request.Name;
+        }
+
+        if (publishing.EditorAliasId is null && request.EditorAliasId is int alias)
+        {
+            publishing.EditorAliasId = alias;
+        }
+
+        var rows = await db.Phase8ContentPublishedSnapshots.AsNoTracking()
+            .Where(s => s.Kind == (byte)Phase8ContentKind.CommonEvent)
+            .OrderByDescending(s => s.Revision)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var byContent = new Dictionary<Guid, CommonEventDefinition>();
+        foreach (var row in rows)
+        {
+            if (byContent.ContainsKey(row.ContentDefinitionId))
+            {
+                continue;
+            }
+
+            if (Phase8ContentCodec.TryDeserializeCommonEvent(row.PayloadJson, out var existing, out _))
+            {
+                existing.Id = row.ContentDefinitionId;
+                if (existing.EditorAliasId is null && row.EditorAliasId is int publishedAlias)
+                {
+                    existing.EditorAliasId = publishedAlias;
+                }
+
+                byContent[row.ContentDefinitionId] = existing;
+            }
+        }
+
+        byContent[contentId] = publishing;
+        return CommonEventCycleDetector.DetectCycles(byContent.Values.ToList());
+    }
 
     private delegate bool TryDeserialize<T>(string json, out T value, out string? error);
 }

@@ -122,6 +122,7 @@ internal sealed class Phase8DialogueEditorPanel : Phase8EditorPanelBase
         var def = new DialogueDefinition
         {
             Id = ContentId,
+            Name = CatalogName,
             Lines = lines,
             Choices = choices,
         };

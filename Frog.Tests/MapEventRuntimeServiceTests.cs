@@ -182,6 +182,7 @@ public sealed class MapEventRuntimeServiceTests
             catalog,
             new CharacterMutationCoordinator(),
             executor,
+            new MapEventExecutionTracker(),
             NullLogger<MapEventRuntimeService>.Instance);
     }
 

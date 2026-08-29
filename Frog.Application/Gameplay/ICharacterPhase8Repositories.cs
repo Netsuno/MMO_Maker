@@ -47,6 +47,7 @@ public enum EventCraftStatus
     RecipeNotFound,
     InsufficientLevel,
     InsufficientIngredients,
+    InsufficientGold,
     InventoryFull,
     Failed,
 }
@@ -54,4 +55,6 @@ public enum EventCraftStatus
 public sealed record EventCraftResult(
     EventCraftStatus Status,
     string? Message = null,
-    InventorySnapshot? Inventory = null);
+    InventorySnapshot? Inventory = null,
+    int? GoldSpent = null,
+    int? RemainingGold = null);

@@ -8,6 +8,9 @@ internal abstract class Phase8EditorPanelBase : UserControl
     protected bool Binding;
     public Guid ContentId { get; set; } = Guid.Empty;
 
+    /// <summary>Nom catalogue (champ formulaire parent) — injecté avant TryBuildPayload.</summary>
+    public string CatalogName { get; set; } = string.Empty;
+
     public abstract Phase8ContentKind Kind { get; }
 
     public event Action? ContentChanged;

@@ -25,6 +25,15 @@ public sealed class MapEventExecutionState
 
     public bool StopExecution { get; set; }
 
+    /// <summary>Attente non terminale : reprise au heartbeat après <see cref="WaitUntilUtc"/>.</summary>
+    public bool Waiting { get; set; }
+
+    public DateTimeOffset? WaitUntilUtc { get; set; }
+
+    public int? ResumeCommandIndex { get; set; }
+
+    public IReadOnlyList<Frog.Core.Models.MapEventCommandDefinition>? PendingCommands { get; set; }
+
     public int CommonEventDepth { get; set; }
 
     public int TotalSteps { get; set; }

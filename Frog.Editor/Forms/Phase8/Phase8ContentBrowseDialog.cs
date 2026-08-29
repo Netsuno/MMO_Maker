@@ -24,6 +24,8 @@ internal sealed class Phase8ContentBrowseDialog : Form
     private readonly Panel _editorHost = new() { Dock = DockStyle.Fill, Padding = new Padding(4) };
     private readonly Button _btnReload = new() { Text = "Charger", AutoSize = true };
     private readonly Button _btnNew = new() { Text = "Nouveau", AutoSize = true };
+    private readonly Button _btnDuplicate = new() { Text = "Dupliquer", AutoSize = true };
+    private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
     private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
     private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
 
@@ -77,6 +79,8 @@ internal sealed class Phase8ContentBrowseDialog : Form
         top.Controls.Add(_txtFilter);
         top.Controls.Add(_btnReload);
         top.Controls.Add(_btnNew);
+        top.Controls.Add(_btnDuplicate);
+        top.Controls.Add(_btnDelete);
 
         var split = new SplitContainer
         {
@@ -124,6 +128,8 @@ internal sealed class Phase8ContentBrowseDialog : Form
         _btnSave.Enabled = canWrite;
         _btnPublish.Enabled = canWrite;
         _btnNew.Enabled = canWrite;
+        _btnDuplicate.Enabled = canWrite;
+        _btnDelete.Enabled = canWrite;
 
         _cbKind.SelectedIndexChanged += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
@@ -166,10 +172,20 @@ internal sealed class Phase8ContentBrowseDialog : Form
             await LoadDraftAsync(id, ct).ConfigureAwait(true);
         }, "select");
 
-        _txtName.TextChanged += (_, _) => MarkDirty();
+        _txtName.TextChanged += (_, _) =>
+        {
+            if (_activeEditor is not null)
+            {
+                _activeEditor.CatalogName = _txtName.Text;
+            }
+
+            MarkDirty();
+        };
         _numAlias.ValueChanged += (_, _) => MarkDirty();
         _btnReload.Click += (_, _) => _ = _lifecycle.RunAsync(ReloadListAsync, "reload");
         _btnNew.Click += (_, _) => _ = _lifecycle.RunAsync(NewDraftAsync, "new");
+        _btnDuplicate.Click += (_, _) => _ = _lifecycle.RunAsync(DuplicateDraftAsync, "duplicate");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(DeleteAsync, "delete");
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(ct => SaveAsync(SaveContentIntent.SaveDraft, ct), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(ct => SaveAsync(SaveContentIntent.Publish, ct), "publish");
 
@@ -181,6 +197,34 @@ internal sealed class Phase8ContentBrowseDialog : Form
         }, "init");
     }
 
+    internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
+
+    internal bool IsDirtyForTest => _dirty;
+
+    internal TextBox NameForTest => _txtName;
+
+    internal ComboBox KindComboForTest => _cbKind;
+
+    internal ListView ItemsForTest => _lvItems;
+
+    internal Button BtnNewForTest => _btnNew;
+
+    internal Button BtnSaveForTest => _btnSave;
+
+    internal Button BtnPublishForTest => _btnPublish;
+
+    internal Button BtnDeleteForTest => _btnDelete;
+
+    internal Button BtnDuplicateForTest => _btnDuplicate;
+
+    internal Phase8EditorPanelBase? ActiveEditorForTest => _activeEditor;
+
+    internal Guid CurrentIdForTest => _currentId;
+
+    internal long CurrentRevisionForTest => _currentRevision;
+
+    internal ContentPublishStatus CurrentStatusForTest => _currentStatus;
+
     private Phase8ContentKind SelectedKind =>
         _cbKind.SelectedItem is KindChoice choice ? choice.Kind : Phase8ContentKind.Dialogue;
 
@@ -190,9 +234,9 @@ internal sealed class Phase8ContentBrowseDialog : Form
         _editors[Phase8ContentKind.Quest] = new Phase8QuestEditorPanel();
         _editors[Phase8ContentKind.Recipe] = new Phase8RecipeEditorPanel();
         _editors[Phase8ContentKind.Region] = new Phase8RegionEditorPanel();
-        _editors[Phase8ContentKind.CommonEvent] = new Phase8JsonEditorPanel(Phase8ContentKind.CommonEvent);
-        _editors[Phase8ContentKind.Profession] = new Phase8JsonEditorPanel(Phase8ContentKind.Profession);
-        _editors[Phase8ContentKind.WeatherProfile] = new Phase8JsonEditorPanel(Phase8ContentKind.WeatherProfile);
+        _editors[Phase8ContentKind.CommonEvent] = new Phase8CommonEventEditorPanel();
+        _editors[Phase8ContentKind.Profession] = new Phase8ProfessionEditorPanel();
+        _editors[Phase8ContentKind.WeatherProfile] = new Phase8WeatherEditorPanel();
 
         foreach (var editor in _editors.Values)
         {
@@ -306,6 +350,7 @@ internal sealed class Phase8ContentBrowseDialog : Form
         if (_activeEditor is not null)
         {
             _activeEditor.ContentId = stored.Id;
+            _activeEditor.CatalogName = stored.Name;
         }
 
         _lblValidation.Text = string.Empty;
@@ -328,12 +373,102 @@ internal sealed class Phase8ContentBrowseDialog : Form
         _txtName.Text = DefaultNameForKind(SelectedKind);
         _numAlias.Value = 0;
         _activeEditor?.ResetForNew(newId);
+        if (_activeEditor is not null)
+        {
+            _activeEditor.CatalogName = _txtName.Text;
+        }
         _suppressList = true;
         _lvItems.SelectedItems.Clear();
         _suppressList = false;
         _lblValidation.Text = string.Empty;
         UpdateMetaLabel();
         await Task.CompletedTask.ConfigureAwait(true);
+    }
+
+    private async Task DuplicateDraftAsync(CancellationToken ct)
+    {
+        if (_activeEditor is null || _currentId == Guid.Empty)
+        {
+            _lblValidation.Text = "Sélectionnez un contenu à dupliquer.";
+            return;
+        }
+
+        if (!_activeEditor.TryBuildPayload(out var payloadJson, out var error))
+        {
+            _lblValidation.Text = error ?? "Payload invalide.";
+            return;
+        }
+
+        var newId = Guid.NewGuid();
+        var copyName = "Copie de " + (_txtName.Text.Trim().Length > 0 ? _txtName.Text.Trim() : DefaultNameForKind(SelectedKind));
+        if (!Phase8ContentPostgreSqlService.TryRewritePayloadIdentity(
+                SelectedKind,
+                payloadJson,
+                newId,
+                copyName,
+                out var rewritten,
+                out error))
+        {
+            _lblValidation.Text = error ?? "Duplication impossible.";
+            return;
+        }
+
+        _currentId = newId;
+        _currentRevision = 0;
+        _currentStatus = ContentPublishStatus.Draft;
+        _publishedRevision = null;
+        _dirty = true;
+        _txtName.Text = copyName;
+        _numAlias.Value = 0;
+        _activeEditor.LoadPayload(rewritten);
+        _activeEditor.ContentId = newId;
+        _activeEditor.CatalogName = copyName;
+        _suppressList = true;
+        _lvItems.SelectedItems.Clear();
+        _suppressList = false;
+        _lblValidation.Text = string.Empty;
+        UpdateMetaLabel();
+        await Task.CompletedTask.ConfigureAwait(true);
+    }
+
+    private async Task DeleteAsync(CancellationToken ct)
+    {
+        if (_currentId == Guid.Empty || _currentRevision == 0)
+        {
+            _lblValidation.Text = "Rien à supprimer (brouillon non enregistré).";
+            return;
+        }
+
+        if (GameDataUiMessageBox.Show(
+                this,
+                "Supprimer définitivement ce contenu ?",
+                "Phase 8",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning) != DialogResult.Yes)
+        {
+            return;
+        }
+
+        var result = await _service.DeleteAsync(_currentId, ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
+        switch (result)
+        {
+            case Phase8DeleteContentResult.Success:
+                ClearEditorSelection();
+                await ReloadListAsync(ct).ConfigureAwait(true);
+                GameDataUiMessageBox.Show(this, "Contenu supprimé.", "Phase 8");
+                break;
+            case Phase8DeleteContentResult.NotFound:
+                _lblValidation.Text = "Contenu introuvable.";
+                break;
+            case Phase8DeleteContentResult.PersistenceFailed failed:
+                _lblValidation.Text = failed.Error;
+                break;
+        }
     }
 
     private void ClearEditorSelection()
@@ -363,6 +498,7 @@ internal sealed class Phase8ContentBrowseDialog : Form
             return;
         }
 
+        _activeEditor.CatalogName = name;
         if (!_activeEditor.TryBuildPayload(out var payloadJson, out var error))
         {
             _lblValidation.Text = error ?? "Payload invalide.";
@@ -408,12 +544,10 @@ internal sealed class Phase8ContentBrowseDialog : Form
                 UpdateMetaLabel();
                 await ReloadListAsync(ct).ConfigureAwait(true);
                 SelectListItem(success.ContentId);
-                MessageBox.Show(
+                GameDataUiMessageBox.Show(
                     this,
                     intent == SaveContentIntent.Publish ? "Contenu publié." : "Brouillon enregistré.",
-                    "Phase 8",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                    "Phase 8");
                 break;
             case Phase8SaveContentResult.Conflict conflict:
                 _lblValidation.Text = $"Conflit de révision (courante={conflict.CurrentRevision}). Rechargez l'entrée.";
@@ -450,7 +584,7 @@ internal sealed class Phase8ContentBrowseDialog : Form
             return true;
         }
 
-        return MessageBox.Show(
+        return GameDataUiMessageBox.Show(
             this,
             "Modifications non enregistrées. Continuer ?",
             "Phase 8",
@@ -504,7 +638,7 @@ internal sealed class Phase8ContentBrowseDialog : Form
         if (!drained)
         {
             e.Cancel = true;
-            MessageBox.Show(this, "Opérations encore en cours.", "Phase 8", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            GameDataUiMessageBox.Show(this, "Opérations encore en cours.", "Phase 8", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 

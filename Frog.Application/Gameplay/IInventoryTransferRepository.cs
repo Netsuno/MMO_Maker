@@ -5,10 +5,11 @@ namespace Frog.Application.Gameplay;
 public sealed record InventoryTransferPickupResult(
     bool Success,
     string Message,
-    InventorySnapshot? Inventory = null)
+    InventorySnapshot? Inventory = null,
+    Guid? ItemId = null)
 {
-    public static InventoryTransferPickupResult Ok(InventorySnapshot inventory)
-        => new(true, "Ramasse.", inventory);
+    public static InventoryTransferPickupResult Ok(InventorySnapshot inventory, Guid itemId)
+        => new(true, "Ramasse.", inventory, itemId);
 
     public static InventoryTransferPickupResult Fail(string message)
         => new(false, message);

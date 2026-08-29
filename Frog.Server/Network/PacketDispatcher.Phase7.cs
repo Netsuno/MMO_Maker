@@ -271,6 +271,16 @@ public sealed partial class PacketDispatcher
         await _packetSender.SendPickupItemResultAsync(clientSession, result.Success, result.Message, cancellationToken);
         if (result.Success)
         {
+            if (session.CharacterGuid is Guid characterId
+                && result.ItemId is Guid itemId
+                && itemId != Guid.Empty)
+            {
+                await _phase8.NotifyCollectProgressAsync(characterId, itemId, cancellationToken)
+                    .ConfigureAwait(false);
+                await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
             await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
         }
@@ -309,6 +319,14 @@ public sealed partial class PacketDispatcher
                 session.Level,
                 session.Experience,
                 cancellationToken);
+        }
+
+        if (result.MonsterKilled
+            && result.NpcDefinitionId is Guid npcId
+            && session.CharacterGuid is Guid characterId)
+        {
+            await _phase8.NotifyKillProgressAsync(characterId, npcId, cancellationToken).ConfigureAwait(false);
+            await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         }
 
         await SendCombatStateAsync(clientSession, session, cancellationToken);

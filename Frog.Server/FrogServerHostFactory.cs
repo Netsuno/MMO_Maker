@@ -229,7 +229,10 @@ public static class FrogServerHostFactory
                         new InMemoryEventCraftRepository(
                             sp.GetRequiredService<IPublishedRecipeCatalog>(),
                             sp.GetRequiredService<IInventoryRepository>(),
-                            sp.GetRequiredService<IPublishedItemCatalog>()));
+                            sp.GetRequiredService<IPublishedItemCatalog>(),
+                            sp.GetRequiredService<ICharacterRepository>(),
+                            sp.GetRequiredService<ICharacterProfessionRepository>(),
+                            sp.GetRequiredService<IPublishedProfessionCatalog>()));
 
                     services.AddSingleton<Phase7PublishedContent>();
                     services.AddSingleton<IPublishedClassCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
@@ -326,7 +329,8 @@ public static class FrogServerHostFactory
                     if (usePostgreSql)
                     {
                         return new PublishedMapEventStoreAdapter(
-                            sp.GetRequiredService<Frog.Application.Content.IPublishedMapEventPlacementCatalog>());
+                            sp.GetRequiredService<Frog.Application.Content.IPublishedMapEventPlacementCatalog>(),
+                            sp.GetService<Microsoft.Extensions.Logging.ILogger<PublishedMapEventStoreAdapter>>());
                     }
 
                     var db = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;

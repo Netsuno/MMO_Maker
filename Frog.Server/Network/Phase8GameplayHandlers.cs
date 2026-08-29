@@ -21,6 +21,61 @@ public sealed class Phase8GameplayHandlers(
     IMapEventStore mapEventStore,
     PacketSender packetSender)
 {
+    public void CancelForCharacter(Guid characterId)
+    {
+        dialogSessions.CancelForCharacter(characterId);
+        executionTracker.ClearForCharacter(characterId);
+    }
+
+    public void ClearMapEventExecutionsForCharacter(Guid characterId) =>
+        executionTracker.ClearForCharacter(characterId);
+
+    public async Task NotifyTalkProgressAsync(
+        Guid characterId,
+        Guid dialogueId,
+        CancellationToken cancellationToken) =>
+        await quests.NotifyObjectiveProgressAsync(
+                characterId,
+                QuestObjectiveKind.Talk,
+                new QuestObjectiveSignal(DialogueId: dialogueId),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    public async Task NotifyKillProgressAsync(
+        Guid characterId,
+        Guid npcDefinitionId,
+        CancellationToken cancellationToken) =>
+        await quests.NotifyObjectiveProgressAsync(
+                characterId,
+                QuestObjectiveKind.Kill,
+                new QuestObjectiveSignal(NpcId: npcDefinitionId),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    public async Task NotifyCollectProgressAsync(
+        Guid characterId,
+        Guid itemId,
+        CancellationToken cancellationToken) =>
+        await quests.NotifyObjectiveProgressAsync(
+                characterId,
+                QuestObjectiveKind.Collect,
+                new QuestObjectiveSignal(ItemId: itemId),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    public async Task NotifyVisitProgressAsync(
+        Guid characterId,
+        int mapId,
+        int tileX,
+        int tileY,
+        CancellationToken cancellationToken) =>
+        await quests.NotifyObjectiveProgressAsync(
+                characterId,
+                QuestObjectiveKind.Visit,
+                new QuestObjectiveSignal(MapId: mapId, TileX: tileX, TileY: tileY),
+                cancellationToken)
+            .ConfigureAwait(false);
+
     public async Task SendQuestJournalAsync(
         ClientSession client,
         Session session,
@@ -54,6 +109,17 @@ public sealed class Phase8GameplayHandlers(
                 (byte)Math.Clamp((int)(snapshot.LightingFactor * 255), 0, 255),
                 cancellationToken)
             .ConfigureAwait(false);
+
+        if (session.CharacterGuid is Guid characterId)
+        {
+            await NotifyVisitProgressAsync(
+                    characterId,
+                    session.CurrentMapId,
+                    session.PositionX,
+                    session.PositionY,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     public async Task HandleDialogueChoiceRequestAsync(
@@ -176,6 +242,11 @@ public sealed class Phase8GameplayHandlers(
             .ConfigureAwait(false);
         if (ok)
         {
+            if (result.RemainingGold is int gold)
+            {
+                session.Gold = gold;
+            }
+
             await quests.NotifyObjectiveProgressAsync(
                     characterId,
                     QuestObjectiveKind.Craft,
@@ -183,6 +254,21 @@ public sealed class Phase8GameplayHandlers(
                     cancellationToken)
                 .ConfigureAwait(false);
             await SendQuestJournalAsync(client, session, cancellationToken).ConfigureAwait(false);
+            if (result.GoldSpent is int spent and > 0)
+            {
+                await packetSender.SendCombatStateAsync(
+                        client,
+                        session.Level,
+                        session.Experience,
+                        session.Hp,
+                        session.MaxHp,
+                        session.Mp,
+                        session.MaxMp,
+                        session.Gold,
+                        session.IsDead,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
     }
 
@@ -196,7 +282,9 @@ public sealed class Phase8GameplayHandlers(
             return;
         }
 
-        if (!mapEventStore.TryGetPlacements(session.CurrentMapId, out var placements))
+        var (ok, placements) = await mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
+            .ConfigureAwait(false);
+        if (!ok)
         {
             return;
         }
@@ -221,5 +309,60 @@ public sealed class Phase8GameplayHandlers(
             await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
                 .ConfigureAwait(false);
         }
+    }
+
+    public async Task TryFireParallelMapEventsAsync(
+        ClientSession client,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        if (session.CharacterGuid is not Guid characterId)
+        {
+            return;
+        }
+
+        var (ok, placements) = await mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
+            .ConfigureAwait(false);
+        if (!ok)
+        {
+            return;
+        }
+
+        foreach (var ev in placements.Where(p =>
+                     MapEventTriggerNormalization.NormalizeTriggerKind(p.TriggerKind)
+                     == Phase8MapEventTriggerKinds.Parallel))
+        {
+            if (!executionTracker.TryBeginParallel(characterId, ev.PlacementId, Guid.Empty, session.CurrentMapId))
+            {
+                continue;
+            }
+
+            try
+            {
+                var runtimeResult = await mapEventRuntime.TryExecuteParallelAsync(session, ev, cancellationToken)
+                    .ConfigureAwait(false);
+                if (runtimeResult is null)
+                {
+                    continue;
+                }
+
+                var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+                await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                executionTracker.EndParallel(characterId, ev.PlacementId, Guid.Empty);
+            }
+        }
+    }
+
+    public Task TryResumeWaitingMapEventsAsync(
+        ClientSession client,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        _ = client;
+        return mapEventRuntime.TryResumeWaitingAsync(session, cancellationToken);
     }
 }

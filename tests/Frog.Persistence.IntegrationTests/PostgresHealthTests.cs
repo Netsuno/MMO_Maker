@@ -14,6 +14,17 @@ public sealed class PostgresFactAttribute : FactAttribute
     }
 }
 
+public sealed class PostgresTheoryAttribute : TheoryAttribute
+{
+    public PostgresTheoryAttribute()
+    {
+        if (!IsolatedPostgresFixture.IsConfigured)
+        {
+            Skip = "FROG_POSTGRES_TEST_CONNECTION_STRING absent (2026-08-22, Task 4).";
+        }
+    }
+}
+
 [Collection("PostgresIsolated")]
 public sealed class PostgresHealthTests
 {

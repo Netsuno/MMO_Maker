@@ -203,6 +203,7 @@ internal sealed class Phase8QuestEditorPanel : Phase8EditorPanelBase
         var def = new QuestDefinition
         {
             Id = ContentId,
+            Name = CatalogName,
             Repeatable = _repeatable.Checked,
             PrerequisiteQuestIds = prereqs,
             Stages = _stageModels.Select(CloneStage).ToList(),

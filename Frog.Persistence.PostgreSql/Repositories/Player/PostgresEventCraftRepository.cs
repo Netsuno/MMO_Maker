@@ -1,6 +1,7 @@
 using Frog.Application.Content;
 using Frog.Application.Gameplay;
 using Frog.Core.Gameplay;
+using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities.Player;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,11 +11,13 @@ public sealed class PostgresEventCraftRepository(
     FrogDbContextGate gate,
     IPublishedRecipeCatalog recipes,
     IPublishedItemCatalog items,
+    IPublishedProfessionCatalog? professions = null,
     TimeProvider? clock = null) : IEventCraftRepository
 {
     private readonly FrogDbContextGate _gate = gate ?? throw new ArgumentNullException(nameof(gate));
     private readonly IPublishedRecipeCatalog _recipes = recipes ?? throw new ArgumentNullException(nameof(recipes));
     private readonly IPublishedItemCatalog _items = items ?? throw new ArgumentNullException(nameof(items));
+    private readonly IPublishedProfessionCatalog? _professions = professions;
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
 
     internal Func<CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
@@ -47,7 +50,16 @@ public sealed class PostgresEventCraftRepository(
                     .Select(s => new InventorySlotRecord(s.SlotIndex, s.ItemId, s.Quantity))
                     .ToListAsync(ct)
                     .ConfigureAwait(false);
-                return new EventCraftResult(EventCraftStatus.IdempotentReplay, "Craft déjà effectué.", new InventorySnapshot(characterId, replayInv));
+                var replayGold = await db.PlayerCharacters.AsNoTracking()
+                    .Where(c => c.Id == characterId)
+                    .Select(c => (int?)c.Gold)
+                    .FirstOrDefaultAsync(ct)
+                    .ConfigureAwait(false);
+                return new EventCraftResult(
+                    EventCraftStatus.IdempotentReplay,
+                    "Craft déjà effectué.",
+                    new InventorySnapshot(characterId, replayInv),
+                    RemainingGold: replayGold);
             }
 
             var recipe = await _recipes.TryGetPublishedByIdAsync(recipeId, ct).ConfigureAwait(false);
@@ -62,9 +74,35 @@ public sealed class PostgresEventCraftRepository(
                 return new EventCraftResult(EventCraftStatus.Failed, "Objet produit inconnu.");
             }
 
+            ProfessionDefinition? profession = null;
+            if (_professions is not null)
+            {
+                profession = await _professions.TryGetPublishedByIdAsync(recipe.ProfessionId, ct).ConfigureAwait(false);
+            }
+
             await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             try
             {
+                var character = await db.PlayerCharacters
+                    .FirstOrDefaultAsync(c => c.Id == characterId, ct)
+                    .ConfigureAwait(false);
+                if (character is null)
+                {
+                    return new EventCraftResult(EventCraftStatus.Failed, "Personnage introuvable.");
+                }
+
+                var goldSpent = 0;
+                if (recipe.GoldCost > 0)
+                {
+                    if (character.Gold < recipe.GoldCost)
+                    {
+                        return new EventCraftResult(EventCraftStatus.InsufficientGold, "Or insuffisant.");
+                    }
+
+                    character.Gold = checked(character.Gold - recipe.GoldCost);
+                    goldSpent = recipe.GoldCost;
+                }
+
                 var invRows = await db.PlayerInventorySlots
                     .Where(s => s.CharacterId == characterId)
                     .ToListAsync(ct)
@@ -114,6 +152,36 @@ public sealed class PostgresEventCraftRepository(
                 await PostgresEconomyTransactionRepository.PersistInventorySlotsAsync(db, characterId, invRows, slots, ct)
                     .ConfigureAwait(false);
 
+                if (recipe.ProfessionExperienceReward > 0 || recipe.ProfessionId != Guid.Empty)
+                {
+                    var prog = await db.PlayerCharacterProfessionProgress
+                        .FirstOrDefaultAsync(
+                            p => p.CharacterId == characterId && p.ProfessionId == recipe.ProfessionId,
+                            ct)
+                        .ConfigureAwait(false);
+                    var oldXp = prog?.Experience ?? 0L;
+                    var oldLevel = prog?.Level ?? 0;
+                    var newXp = checked(oldXp + Math.Max(0L, recipe.ProfessionExperienceReward));
+                    var maxLevel = profession?.MaxLevel > 0 ? profession.MaxLevel : 100;
+                    var computedLevel = Math.Min(maxLevel, 1 + (int)(newXp / 100));
+                    var newLevel = Math.Max(oldLevel, computedLevel);
+                    if (prog is null)
+                    {
+                        db.PlayerCharacterProfessionProgress.Add(new CharacterProfessionProgressEntity
+                        {
+                            CharacterId = characterId,
+                            ProfessionId = recipe.ProfessionId,
+                            Level = newLevel,
+                            Experience = newXp,
+                        });
+                    }
+                    else
+                    {
+                        prog.Experience = newXp;
+                        prog.Level = newLevel;
+                    }
+                }
+
                 db.PlayerEventCraftRequests.Add(new EventCraftRequestEntity
                 {
                     CharacterId = characterId,
@@ -134,7 +202,12 @@ public sealed class PostgresEventCraftRepository(
                 var snapshot = new InventorySnapshot(
                     characterId,
                     slots.Select(s => new InventorySlotRecord(s.SlotIndex, s.ItemId, s.Quantity)).ToList());
-                return new EventCraftResult(EventCraftStatus.Crafted, "Craft réussi.", snapshot);
+                return new EventCraftResult(
+                    EventCraftStatus.Crafted,
+                    "Craft réussi.",
+                    snapshot,
+                    goldSpent > 0 ? goldSpent : null,
+                    character.Gold);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

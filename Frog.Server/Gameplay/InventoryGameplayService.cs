@@ -163,7 +163,7 @@ public sealed class InventoryGameplayService(
             return PickupResult.Fail(result.Message);
         }
 
-        return PickupResult.Ok(result.Inventory);
+        return PickupResult.Ok(result.Inventory, result.ItemId ?? Guid.Empty);
     }
 
     public Task<IReadOnlyList<GroundItemRecord>> ListGroundOnMapAsync(int mapId, CancellationToken ct = default)
@@ -188,8 +188,8 @@ public sealed record DropResult(bool Success, string Message, InventorySnapshot?
     public static DropResult Fail(string message) => new(false, message);
 }
 
-public sealed record PickupResult(bool Success, string Message, InventorySnapshot? Inventory = null)
+public sealed record PickupResult(bool Success, string Message, InventorySnapshot? Inventory = null, Guid? ItemId = null)
 {
-    public static PickupResult Ok(InventorySnapshot inv) => new(true, "Ramasse.", inv);
+    public static PickupResult Ok(InventorySnapshot inv, Guid itemId) => new(true, "Ramasse.", inv, itemId);
     public static PickupResult Fail(string message) => new(false, message);
 }

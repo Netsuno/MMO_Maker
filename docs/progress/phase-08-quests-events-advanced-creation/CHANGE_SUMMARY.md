@@ -26,12 +26,15 @@
 
 - Wire packets 66–74: dialogue, quest journal, turn-in, craft, environment
 - Client panels: `DialoguePanel`, `QuestJournalPanel`, `CraftPanel`, `EnvironmentPanel` (+ Quêtes tab)
-- Structured editor: `Phase8ContentBrowseDialog` + dialogue/quest/recipe/region panels (Carte → Contenu Phase 8)
+- Structured editor: `Phase8ContentBrowseDialog` + dialogue/quest/recipe/region/**profession/weather/common-event** panels (Carte → Contenu Phase 8); Delete + Duplicate; in-memory smoke service
+
 
 ### P8-R5 — Evidence
 
-- 18 new PostgreSQL integration tests including full 23-step E2E and 8 multi-client scenarios
-- `Phase8GameplayClientSmokeTests` ×3 in CI with screenshot artifacts
+- PostgreSQL integration tests including full E2E matrix and multi-client scenarios
+- Draft invisibility Theory for all Phase 8 content kinds
+- `Phase8GameplayClientSmokeTests` + `Phase8EditorSmokeTests` via CI filter `FullyQualifiedName~.Phase8` ×3
+- Screenshot hash post-process: `scripts/update-phase8-screenshot-manifest.ps1`
 
 ## Preserved foundations (P8-1 … P8-6 initial pass)
 

@@ -42,6 +42,12 @@ public sealed class RecipeDefinition
 
     public int OutputQuantity { get; set; } = 1;
 
+    /// <summary>Coût en or déduit au craft (0 = gratuit).</summary>
+    public int GoldCost { get; set; }
+
+    /// <summary>XP métier accordée au craft réussi.</summary>
+    public long ProfessionExperienceReward { get; set; } = 10;
+
     public IReadOnlyList<RecipeIngredientDefinition> Ingredients { get; set; } = Array.Empty<RecipeIngredientDefinition>();
 
     public bool Validate(out string? error)
@@ -61,6 +67,18 @@ public sealed class RecipeDefinition
         if (OutputQuantity <= 0)
         {
             error = "OutputQuantity doit être > 0.";
+            return false;
+        }
+
+        if (GoldCost < 0)
+        {
+            error = "GoldCost doit être >= 0.";
+            return false;
+        }
+
+        if (ProfessionExperienceReward < 0)
+        {
+            error = "ProfessionExperienceReward doit être >= 0.";
             return false;
         }
 

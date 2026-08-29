@@ -319,7 +319,7 @@ Configurer `Frog.Server/appsettings.json` : `Server`, `MariaDb`, `Sessions`, `Pe
 
 ## 💬 Crédits & Origine
 
-Basé sur le projet open-source **FRoG Creator OSE v0.6.3** :  
+Basé sur le projet open-source **FRoG Creator OSE v0.6.3** :
 👉 [https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3)
 
 Modernisé et réorganisé par **Netsun**, pour la planification, l’analyse et la migration technique.

@@ -104,7 +104,7 @@ public sealed class InMemoryInventoryTransferRepository : IInventoryTransferRepo
                     throw;
                 }
 
-                return InventoryTransferPickupResult.Ok(new InventorySnapshot(characterId, slots));
+                return InventoryTransferPickupResult.Ok(new InventorySnapshot(characterId, slots), groundItem.ItemId);
             }
             finally
             {

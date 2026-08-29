@@ -154,14 +154,19 @@ public sealed class CombatGameplayService(
                 return MeleeCombatResult.Fail("Recompense non accordee.");
             }
 
-            return MeleeCombatResult.ForMonsterKilled(targetName, applied.DamageApplied, xp);
+            return MeleeCombatResult.ForMonsterKilled(
+                targetName,
+                applied.DamageApplied,
+                xp,
+                killedSnapshot.NpcDefinitionId);
         }
 
         return MeleeCombatResult.ForMonsterHit(
             targetName,
             applied.DamageApplied,
             applied.Monster!.Hp,
-            applied.Monster.MaxHp);
+            applied.Monster.MaxHp,
+            applied.Monster.NpcDefinitionId);
     }
 
     public async Task<SpellCombatResult> TryCastSpellAsync(
@@ -281,7 +286,12 @@ public sealed class CombatGameplayService(
                     return SpellCombatResult.Fail("Recompense non accordee.");
                 }
 
-                return SpellCombatResult.ForMonsterKilled(spell.Name, applied.DamageApplied, xp, caster.Mp);
+                return SpellCombatResult.ForMonsterKilled(
+                    spell.Name,
+                    applied.DamageApplied,
+                    xp,
+                    caster.Mp,
+                    killedSnapshot.NpcDefinitionId);
             }
 
             await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
@@ -290,7 +300,8 @@ public sealed class CombatGameplayService(
                 applied.DamageApplied,
                 applied.Monster!.Hp,
                 applied.Monster.MaxHp,
-                caster.Mp);
+                caster.Mp,
+                applied.Monster.NpcDefinitionId);
         }
 
         await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
@@ -577,16 +588,17 @@ public sealed record MeleeCombatResult(
     int Damage,
     long ExperienceGained = 0,
     int TargetHp = 0,
-    int TargetMaxHp = 0)
+    int TargetMaxHp = 0,
+    Guid? NpcDefinitionId = null)
 {
     public static MeleeCombatResult Fail(string message)
         => new(false, false, false, string.Empty, message, 0);
 
-    public static MeleeCombatResult ForMonsterHit(string name, int damage, int hp, int maxHp)
-        => new(true, true, false, name, "Touche.", damage, 0, hp, maxHp);
+    public static MeleeCombatResult ForMonsterHit(string name, int damage, int hp, int maxHp, Guid? npcDefinitionId = null)
+        => new(true, true, false, name, "Touche.", damage, 0, hp, maxHp, npcDefinitionId);
 
-    public static MeleeCombatResult ForMonsterKilled(string name, int damage, long xp)
-        => new(true, true, true, name, "Monstre vaincu.", damage, xp);
+    public static MeleeCombatResult ForMonsterKilled(string name, int damage, long xp, Guid? npcDefinitionId = null)
+        => new(true, true, true, name, "Monstre vaincu.", damage, xp, 0, 0, npcDefinitionId);
 }
 
 public sealed record SpellCombatResult(
@@ -599,7 +611,8 @@ public sealed record SpellCombatResult(
     long ExperienceGained = 0,
     int RemainingMp = 0,
     int TargetHp = 0,
-    int TargetMaxHp = 0)
+    int TargetMaxHp = 0,
+    Guid? NpcDefinitionId = null)
 {
     public static SpellCombatResult Fail(string message)
         => new(false, false, false, string.Empty, message, 0);
@@ -607,11 +620,22 @@ public sealed record SpellCombatResult(
     public static SpellCombatResult Cast(string spellName, int mp)
         => new(true, false, false, spellName, "Sort lance.", 0, 0, mp);
 
-    public static SpellCombatResult ForMonsterHit(string spellName, int damage, int hp, int maxHp, int mp)
-        => new(true, true, false, spellName, "Touche.", damage, 0, mp, hp, maxHp);
+    public static SpellCombatResult ForMonsterHit(
+        string spellName,
+        int damage,
+        int hp,
+        int maxHp,
+        int mp,
+        Guid? npcDefinitionId = null)
+        => new(true, true, false, spellName, "Touche.", damage, 0, mp, hp, maxHp, npcDefinitionId);
 
-    public static SpellCombatResult ForMonsterKilled(string spellName, int damage, long xp, int mp)
-        => new(true, true, true, spellName, "Monstre vaincu.", damage, xp, mp);
+    public static SpellCombatResult ForMonsterKilled(
+        string spellName,
+        int damage,
+        long xp,
+        int mp,
+        Guid? npcDefinitionId = null)
+        => new(true, true, true, spellName, "Monstre vaincu.", damage, xp, mp, 0, 0, npcDefinitionId);
 }
 
 public sealed record RespawnResult(bool Success, string Message)

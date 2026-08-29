@@ -94,6 +94,7 @@ internal sealed class Phase8RegionEditorPanel : Phase8EditorPanelBase
         var def = new RegionDefinition
         {
             Id = ContentId,
+            Name = CatalogName,
             MapId = (int)_mapId.Value,
             TileXMin = (int)_tileXMin.Value,
             TileYMin = (int)_tileYMin.Value,

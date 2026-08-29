@@ -129,6 +129,13 @@ public sealed class DialogSessionService
                 .ConfigureAwait(false);
         }
 
+        await _quests.NotifyObjectiveProgressAsync(
+                characterId,
+                QuestObjectiveKind.Talk,
+                new QuestObjectiveSignal(DialogueId: session.DialogueId),
+                cancellationToken)
+            .ConfigureAwait(false);
+
         return DialogueChoiceResult.Ok(choice.Label, questMessage);
     }
 

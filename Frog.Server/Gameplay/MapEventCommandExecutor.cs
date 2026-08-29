@@ -69,7 +69,13 @@ public sealed class MapEventCommandExecutor
         CancellationToken cancellationToken)
     {
         var steps = state.TotalSteps;
-        foreach (var command in commands)
+        var startIndex = state.ResumeCommandIndex ?? 0;
+        if (startIndex < 0)
+        {
+            startIndex = 0;
+        }
+
+        for (var i = startIndex; i < commands.Count; i++)
         {
             if (++steps > MapEventRuntimeLimits.MaxExecutionSteps)
             {
@@ -77,12 +83,29 @@ public sealed class MapEventCommandExecutor
             }
 
             state.TotalSteps = steps;
+            state.ResumeCommandIndex = null;
 
-            var err = await ExecuteOneAsync(session, characterId, command, state, cancellationToken)
+            var err = await ExecuteOneAsync(session, characterId, commands[i], state, cancellationToken)
                 .ConfigureAwait(false);
             if (err is not null)
             {
                 return err;
+            }
+
+            if (state.Waiting)
+            {
+                var afterCurrent = commands.Skip(i + 1).ToList();
+                if (state.PendingCommands is { Count: > 0 } nested)
+                {
+                    state.PendingCommands = nested.Concat(afterCurrent).ToList();
+                }
+                else
+                {
+                    state.PendingCommands = afterCurrent;
+                }
+
+                state.ResumeCommandIndex = 0;
+                break;
             }
 
             if (state.StopExecution)
@@ -254,12 +277,14 @@ public sealed class MapEventCommandExecutor
                 return ExecuteTeleport(session, command.ParameterJson, state);
 
             case MapEventCommandDiscriminators.Wait:
-                if (!MapEventParameterSchemas.TryParseWait(command.ParameterJson, out _, out var waitErr))
+                if (!MapEventParameterSchemas.TryParseWait(command.ParameterJson, out var waitMs, out var waitErr))
                 {
                     return waitErr;
                 }
 
-                state.StopExecution = true;
+                state.Waiting = true;
+                state.WaitUntilUtc = DateTimeOffset.UtcNow.AddMilliseconds(waitMs);
+                state.StopExecution = false;
                 return null;
 
             case MapEventCommandDiscriminators.StartDialogue:

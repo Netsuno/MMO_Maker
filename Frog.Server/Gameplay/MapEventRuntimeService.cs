@@ -14,17 +14,20 @@ public sealed class MapEventRuntimeService
     private readonly IPublishedMapEventCatalog _catalog;
     private readonly CharacterMutationCoordinator _mutations;
     private readonly MapEventCommandExecutor _commands;
+    private readonly MapEventExecutionTracker _executionTracker;
     private readonly ILogger<MapEventRuntimeService> _logger;
 
     public MapEventRuntimeService(
         IPublishedMapEventCatalog catalog,
         CharacterMutationCoordinator mutations,
         MapEventCommandExecutor commands,
+        MapEventExecutionTracker executionTracker,
         ILogger<MapEventRuntimeService> logger)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _mutations = mutations ?? throw new ArgumentNullException(nameof(mutations));
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+        _executionTracker = executionTracker ?? throw new ArgumentNullException(nameof(executionTracker));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -58,6 +61,16 @@ public sealed class MapEventRuntimeService
             Phase8MapEventTriggerKinds.Autorun,
             cancellationToken);
 
+    public Task<MapEventExecutionResult?> TryExecuteParallelAsync(
+        Session session,
+        MapEventWireEntry placement,
+        CancellationToken cancellationToken = default) =>
+        TryExecuteForTriggerAsync(
+            session,
+            placement,
+            Phase8MapEventTriggerKinds.Parallel,
+            cancellationToken);
+
     public Task<MapEventExecutionResult?> TryExecuteForTriggerAsync(
         Session session,
         MapEventWireEntry placement,
@@ -70,6 +83,44 @@ public sealed class MapEventRuntimeService
         }
 
         return ExecuteWithCatalogAsync(session, characterId, placement, triggerKind, cancellationToken);
+    }
+
+    public async Task TryResumeWaitingAsync(Session session, CancellationToken cancellationToken = default)
+    {
+        if (session.CharacterGuid is not Guid characterId || characterId == Guid.Empty)
+        {
+            return;
+        }
+
+        var ready = _executionTracker.TakeReadyWaits(characterId, DateTimeOffset.UtcNow);
+        foreach (var wait in ready)
+        {
+            await _mutations.RunExclusiveAsync(
+                characterId,
+                async ct =>
+                {
+                    var state = new MapEventExecutionState();
+                    var err = await _commands.ExecuteCommandsAsync(
+                            session,
+                            characterId,
+                            wait.RemainingCommands,
+                            state,
+                            ct)
+                        .ConfigureAwait(false);
+                    if (err is not null)
+                    {
+                        _logger.LogWarning(
+                            "Reprise wait événement échouée pour {CharacterId}: {Error}",
+                            characterId,
+                            err);
+                        return false;
+                    }
+
+                    RegisterWaitIfNeeded(characterId, state, wait.PlacementLabel);
+                    return true;
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task<MapEventExecutionResult?> ExecuteWithCatalogAsync(
@@ -115,7 +166,10 @@ public sealed class MapEventRuntimeService
             return MapEventExecutionResult.Fail(err);
         }
 
-        var message = state.ShowText ?? $"{placement.DisplayName} ({placement.Slug})";
+        var label = $"{placement.DisplayName} ({placement.Slug})";
+        RegisterWaitIfNeeded(characterId, state, label);
+
+        var message = state.ShowText ?? label;
         return MapEventExecutionResult.Ok(
             message,
             state.ShowText,
@@ -127,6 +181,24 @@ public sealed class MapEventRuntimeService
             state.DialogueSummary,
             state.QuestSummary,
             state.DialogueState);
+    }
+
+    private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)
+    {
+        if (!state.Waiting || state.WaitUntilUtc is not DateTimeOffset until)
+        {
+            return;
+        }
+
+        var remaining = state.PendingCommands ?? Array.Empty<MapEventCommandDefinition>();
+        if (remaining.Count == 0)
+        {
+            return;
+        }
+
+        _executionTracker.RegisterWait(
+            characterId,
+            new PendingWaitResume(until, remaining, label));
     }
 
     private async Task<MapEventPageDefinition?> SelectPageAsync(

@@ -65,6 +65,8 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideShopRepository = null;
         EditorTestHooks.OverrideResourceRepository = null;
         EditorTestHooks.OverrideResourceSpawnRepository = null;
+        EditorTestHooks.OverrideMapEventService = null;
+        EditorTestHooks.OverridePhase8ContentService = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;

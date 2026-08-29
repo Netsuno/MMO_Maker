@@ -2,25 +2,28 @@
 
 ## Status
 
-**Phase 8: READY FOR RE-REVIEW**
+**Phase 8: CHANGES REQUESTED** — second remediation pass (P0 gaps vs re-review).
 
 | Tranche | Status |
 | --- | --- |
 | P8-1 PostgreSQL event model + map authoring | DONE |
-| P8-2 Authoritative typed event runtime | DONE |
-| P8-3 Dialogues and quests | DONE |
-| P8-4 Professions and recipes | DONE |
+| P8-2 Authoritative typed event runtime | DONE (wait resume + parallel uniqueness + async cache) |
+| P8-3 Dialogues and quests | DONE (objective hooks: talk/kill/collect/visit/craft) |
+| P8-4 Professions and recipes | DONE (craft gold + profession XP in PG transaction) |
 | P8-5 Regions, weather and lighting | DONE |
-| P8-6 Common events and advanced creator tools | DONE |
-| P8-R5 E2E / Windows smoke | DONE |
+| P8-6 Common events and advanced creator tools | DONE (structured Profession/Weather/CommonEvent editors + cycle detect) |
+| P8-R5 E2E / Windows smoke | PENDING CI re-validation on this tip |
 
-## Gate evidence
+## This remediation (vs prior tip `6cad4cc`)
 
-- Unit: 297 PASS
-- PostgreSQL integration: 137 PASS (includes Phase 8 E2E + multi-client + repo tests)
-- E2E matrix: 23/23 PASS — see `E2E_MATRIX.md`
-- Multi-client: 8/8 PASS
-- Windows Phase 8 smoke: CI ×3 with artifacts
+- Quest objective auto-progress wired from dialogue, kill, pickup, visit, craft
+- Craft: GoldCost + ProfessionExperienceReward in same PG transaction
+- Parallel once-per-map-visit + wait resume on heartbeat
+- Common-event cycle detection at publish
+- Async map-event catalog with TTL + InvalidateAll (no sync-over-async)
+- Structured editors for remaining kinds; draft invisibility Theory ×7 kinds
+- Phase 8 editor smoke + client smoke under CI filter `~.Phase8` ×3
+- Screenshot manifest hasher script
 
 ## Phase 9
 

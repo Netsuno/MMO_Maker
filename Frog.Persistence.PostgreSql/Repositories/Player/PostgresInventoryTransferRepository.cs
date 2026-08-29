@@ -109,7 +109,7 @@ public sealed class PostgresInventoryTransferRepository : IInventoryTransferRepo
                 await db.SaveChangesAsync(ct).ConfigureAwait(false);
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
-                return InventoryTransferPickupResult.Ok(new InventorySnapshot(characterId, invSlots));
+                return InventoryTransferPickupResult.Ok(new InventorySnapshot(characterId, invSlots), ground.ItemId);
             }
             catch (Exception)
             {

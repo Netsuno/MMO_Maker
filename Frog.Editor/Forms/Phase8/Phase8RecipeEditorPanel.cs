@@ -161,6 +161,7 @@ internal sealed class Phase8RecipeEditorPanel : Phase8EditorPanelBase
         var def = new RecipeDefinition
         {
             Id = ContentId,
+            Name = CatalogName,
             ProfessionId = professionId,
             RequiredProfessionLevel = (int)_requiredLevel.Value,
             OutputItemId = outputItemId,
