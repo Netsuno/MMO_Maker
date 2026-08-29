@@ -1,6 +1,6 @@
 # Phase 7 — Known Issues
 
-## Remediations landed (P7-FIX / P7-R / P7-G / P7-I / P7-J)
+## Remediations landed (P7-FIX / P7-R / P7-G / P7-I / P7-J / P7-K)
 
 Prior rejection items were addressed in code. Remaining limitations:
 
