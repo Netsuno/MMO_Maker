@@ -3,7 +3,9 @@
 | Phase | Status |
 | --- | --- |
 | Phase 7 | ACCEPTED |
-| **Phase 8** | **CHANGES REQUESTED** (P0 remediation in progress on PR #2) |
+| **Phase 8** | **READY FOR RE-REVIEW** |
 | Phase 9 | Not started |
 
-Branch: `cursor/phase0-baseline-audit-02c7`
+Branch: `cursor/phase0-baseline-audit-02c7`  
+Final tip: `ab4c89a`  
+CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33273533085

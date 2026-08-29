@@ -375,6 +375,11 @@ internal sealed class Phase8ContentBrowseDialog : Form
         _currentStatus = ContentPublishStatus.Draft;
         _publishedRevision = null;
         _dirty = true;
+        if (_activeEditor is null)
+        {
+            SwapEditorPanel(SelectedKind);
+        }
+
         _txtName.Text = DefaultNameForKind(SelectedKind);
         _numAlias.Value = 0;
         _activeEditor?.ResetForNew(newId);

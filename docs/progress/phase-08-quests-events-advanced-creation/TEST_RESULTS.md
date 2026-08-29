@@ -1,42 +1,31 @@
 # Phase 8 — TEST_RESULTS
 
-Environment: Ubuntu 24.04 / Windows Server 2022 (CI), .NET SDK **8.0.424**, PostgreSQL **16** (CI service `postgres:16`).
+Environment: Windows Server 2022 + Ubuntu (CI), .NET SDK **8.0.424**, PostgreSQL **16**.
 
-| Suite | Command | Result | Passed | Failed | Skipped | Duration |
-| --- | --- | --- | ---: | ---: | ---: | --- |
-| Frog.Tests (unit/arch/protocol/security) | `dotnet test Frog.Tests/Frog.Tests.csproj -c Release` | **PASS** | 297 | 0 | 0 | ~17s |
-| PostgreSQL integration | `dotnet test tests/Frog.Persistence.IntegrationTests -c Release` | **PASS** (CI) | 137 | 0 | 0 | CI |
-| Phase 8 E2E (23-step matrix) | `Phase8PostgresE2ETests.FullScenario_AllMatrixSteps` | **PASS** (CI) | 1 | 0 | 0 | CI |
-| Phase 8 multi-client | `Phase8MultiClientE2ETests` (8 tests) | **PASS** (CI) | 8 | 0 | 0 | CI |
-| Phase 8 PG repos | `PostgresQuestMutationRepositoryTests`, `PostgresEventCraftRepositoryTests`, `PostgresPhase8ContentRepositoryTests` | **PASS** (CI) | 9 | 0 | 0 | CI |
-| Windows editor smoke (Phase 6) | CI ×3 consecutive | **PASS** (CI) | — | 0 | 0 | CI |
-| Phase 7 gameplay client smoke | CI ×3 consecutive | **PASS** (CI) | — | 0 | 0 | CI |
-| **Phase 8 gameplay client smoke** | CI filter `Phase8GameplayClientSmoke` ×3 | **PASS** (CI) | 3 | 0 | 0 | CI |
+| Suite | Result | Notes |
+| --- | --- | --- |
+| Frog.Tests | **PASS** 299 | tip `ab4c89a` |
+| PostgreSQL integration | **PASS** | CI run 33273533085 |
+| Phase 8 E2E 23-step | **PASS** | `Phase8PostgresE2ETests` |
+| Phase 8 multi-client ×8 | **PASS** | `Phase8MultiClientE2ETests` |
+| Phase 8 draft invisibility ×7 kinds | **PASS** | Theory |
+| Phase 8 Windows smoke ×3 | **PASS** | client + editor filter `~.Phase8` |
+| Phase 6/7 regression smokes ×3 | **PASS** | CI |
 
-## Phase 8 PostgreSQL additions (18 tests)
+## SHAs / CI
 
-- `PostgresPhase8ContentRepositoryTests` — draft invisibility + publish
-- `PostgresQuestMutationRepositoryTests` — idempotency, concurrency, rollback, restart
-- `PostgresEventCraftRepositoryTests` — idempotency, concurrency, rollback, restart
-- `Phase8PostgresE2ETests` — full 23-step headless network matrix
-- `Phase8MultiClientE2ETests` — 8 concurrency/isolation scenarios
-
-## Evidence SHAs
-
-| Item | SHA |
+| Item | Value |
 | --- | --- |
-| Phase 8 implementation (remediation merge) | `696a2afb079baebc05cda93a70579f617a27c50f` (pre-final smoke/doc tip) |
-| Final gate tip | `2481b8b` |
-| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33270317075 |
+| Final tip | `ab4c89a012ab6fc1224cde5f5ad961c4fdda24c6` |
+| CI | https://github.com/Netsuno/MMO_Maker/actions/runs/33273533085 |
+| Client screenshots artifact | `phase-08-gameplay-client-screenshots` |
+| Editor screenshots artifact | `phase-08-editor-screenshots` |
 
-## Logs / artifacts
+## Commands
 
-- CI PostgreSQL log: `artifacts/ci-logs/postgres-integration.log`
-- Phase 8 Windows screenshots: `artifacts/phase-08-gameplay-client/` (uploaded as `phase-08-gameplay-client-screenshots`)
-- Screenshot manifest: `SCREENSHOT_MANIFEST.md`
-
-## Scans (gate)
-
-- `NotImplementedException` / placeholder scans: no new Phase 8 production paths
-- Skipped tests: 0 in Frog.Tests and Frog.Persistence.IntegrationTests Phase 8 suites
-- `git diff --check`: Frog.Persistence.PostgreSql.csproj and README clean; pre-existing Frog.Legacy.csproj CRLF vs main unchanged
+```bash
+dotnet build Frog.Creator.sln -c Release
+dotnet test Frog.Tests/Frog.Tests.csproj -c Release
+dotnet test tests/Frog.Persistence.IntegrationTests -c Release
+# Windows CI: Phase 8 filter FullyQualifiedName~.Phase8 ×3
+```
