@@ -9,7 +9,7 @@
 | P8-1 … P8-6 | DONE |
 | P8-R1 … P8-R5 | DONE |
 
-Final tip: `ab4c89a` — CI https://github.com/Netsuno/MMO_Maker/actions/runs/33273533085
+Final tip: `67b527f` — CI https://github.com/Netsuno/MMO_Maker/actions/runs/33274156457
 
 ## Phase 9
 
