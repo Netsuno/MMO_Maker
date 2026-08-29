@@ -323,7 +323,7 @@ public sealed class ResourceEditorPanel : UserControl
         };
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         _btnSave.Enabled = capabilities.AllowsSave;
         _btnPublish.Enabled = capabilities.AllowsSave;
@@ -712,7 +712,7 @@ public sealed class ResourceSpawnEditorPanel : UserControl
         };
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
-        _btnDelete.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
 
         _btnSave.Enabled = capabilities.AllowsSave;
         _btnPublish.Enabled = capabilities.AllowsSave;

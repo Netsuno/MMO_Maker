@@ -174,12 +174,8 @@ public sealed class GameDataPanelLifecycleSmokeTests
                     barrierEntered.TrySetResult();
                     try
                     {
-                        using var reg = ct.Register(() =>
-                        {
-                            Volatile.Write(ref sawCancellation, true);
-                            releaseBarrier.TrySetResult();
-                        });
-                        await releaseBarrier.Task.WaitAsync(ct).ConfigureAwait(true);
+                        using var reg = ct.Register(() => Volatile.Write(ref sawCancellation, true));
+                        await releaseBarrier.Task.WaitAsync(ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
@@ -266,12 +262,8 @@ public sealed class GameDataPanelLifecycleSmokeTests
                 initEntered.TrySetResult();
                 try
                 {
-                    using var reg = ct.Register(() =>
-                    {
-                        Volatile.Write(ref sawCancel, true);
-                        releaseInit.TrySetResult();
-                    });
-                    await releaseInit.Task.WaitAsync(ct).ConfigureAwait(true);
+                    using var reg = ct.Register(() => Volatile.Write(ref sawCancel, true));
+                    await releaseInit.Task.WaitAsync(ct).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {

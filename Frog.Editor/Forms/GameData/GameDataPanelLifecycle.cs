@@ -99,6 +99,13 @@ internal sealed class GameDataPanelLifecycle : IDisposable
                 await barrier(operationName, opToken).ConfigureAwait(false);
             }
 
+            opToken.ThrowIfCancellationRequested();
+
+            if (_closing || _disposed)
+            {
+                return;
+            }
+
             if (serialize)
             {
                 await _gate.WaitAsync(opToken).ConfigureAwait(false);
