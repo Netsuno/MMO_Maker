@@ -85,6 +85,8 @@
                 <Separator />
                 <MenuItem Header="Événements carte…"
                           Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
+                <MenuItem Header="Contenu Phase 8…"
+                          Command="{x:Static local:MainWindow.CmdBrowsePhase8Content}" />
                 <MenuItem Header="Actualiser marqueurs événements"
                           Command="{x:Static local:MainWindow.CmdRefreshMapEventMarkers}" />
             </MenuItem>
