@@ -717,27 +717,12 @@ public sealed class GameplayClientSmokeTests
 
             _disposed = true;
             ClientSmokeTestAccess.CloseMainShell(Form);
-            try
+            var stopTask = _host.StopAsync();
+            var stopDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+            while (!stopTask.IsCompleted && DateTime.UtcNow < stopDeadline)
             {
-                var stopTask = Task.Run(async () =>
-                {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                    try
-                    {
-                        await _host.StopAsync(cts.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                    }
-                });
-                if (!stopTask.Wait(TimeSpan.FromSeconds(20)))
-                {
-                    throw new TimeoutException("In-memory gameplay server did not stop within 20 seconds.");
-                }
-            }
-            catch (TimeoutException)
-            {
-                // Best effort — still dispose the host below.
+                System.Windows.Forms.Application.DoEvents();
+                Thread.Sleep(10);
             }
 
             _host.Dispose();
