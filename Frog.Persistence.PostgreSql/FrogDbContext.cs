@@ -17,6 +17,11 @@ public sealed class FrogDbContext : DbContext
     public DbSet<MapCellEntity> MapCells => Set<MapCellEntity>();
     public DbSet<MapWarpEntity> MapWarps => Set<MapWarpEntity>();
     public DbSet<MapNpcSpawnEntity> MapNpcSpawns => Set<MapNpcSpawnEntity>();
+    public DbSet<MapEventPlacementEntity> MapEventPlacements => Set<MapEventPlacementEntity>();
+    public DbSet<MapPublishedEventPlacementEntity> MapPublishedEventPlacements => Set<MapPublishedEventPlacementEntity>();
+    public DbSet<MapEventDefinitionEntity> MapEventDefinitions => Set<MapEventDefinitionEntity>();
+    public DbSet<MapEventPublishedSnapshotEntity> MapEventPublishedSnapshots => Set<MapEventPublishedSnapshotEntity>();
+    public DbSet<MapEventPublicationHistoryEntity> MapEventPublicationHistory => Set<MapEventPublicationHistoryEntity>();
     public DbSet<MapPublishedSnapshotEntity> MapPublishedSnapshots => Set<MapPublishedSnapshotEntity>();
     public DbSet<MapPublishedCellEntity> MapPublishedCells => Set<MapPublishedCellEntity>();
     public DbSet<MapPublishedWarpEntity> MapPublishedWarps => Set<MapPublishedWarpEntity>();
@@ -96,6 +101,7 @@ public sealed class FrogDbContext : DbContext
             e.HasMany(x => x.Cells).WithOne(x => x.Map).HasForeignKey(x => x.MapId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Warps).WithOne(x => x.Map).HasForeignKey(x => x.MapId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.NpcSpawns).WithOne(x => x.Map).HasForeignKey(x => x.MapId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.EventPlacements).WithOne(x => x.Map).HasForeignKey(x => x.MapId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<MapCellEntity>(e =>
@@ -124,6 +130,16 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.NpcId).IsRequired();
         });
 
+        modelBuilder.Entity<MapEventPlacementEntity>(e =>
+        {
+            e.ToTable("map_event_placements", "world");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.MapId, x.TileX, x.TileY, x.EventDefinitionId }).IsUnique();
+            e.Property(x => x.TriggerKind).HasMaxLength(32).IsRequired();
+            e.Property(x => x.MovementKind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.RouteWaypointsJson).HasColumnType("jsonb").IsRequired();
+        });
+
         modelBuilder.Entity<MapPublishedSnapshotEntity>(e =>
         {
             e.ToTable("map_published_snapshots");
@@ -134,6 +150,7 @@ public sealed class FrogDbContext : DbContext
             e.HasMany(x => x.Cells).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Warps).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.NpcSpawns).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.EventPlacements).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<MapPublishedNpcSpawnEntity>(e =>
@@ -142,6 +159,16 @@ public sealed class FrogDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.SnapshotId, x.X, x.Y, x.NpcId });
             e.ToTable(t => t.HasCheckConstraint("ck_map_published_npc_spawns_tiles", "x >= 0 AND y >= 0"));
+        });
+
+        modelBuilder.Entity<MapPublishedEventPlacementEntity>(e =>
+        {
+            e.ToTable("map_published_event_placements", "world");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SnapshotId, x.TileX, x.TileY, x.EventDefinitionId });
+            e.Property(x => x.TriggerKind).HasMaxLength(32).IsRequired();
+            e.Property(x => x.MovementKind).HasMaxLength(16).IsRequired();
+            e.Property(x => x.RouteWaypointsJson).HasColumnType("jsonb").IsRequired();
         });
 
         modelBuilder.Entity<RuntimeMapBindingEntity>(e =>
@@ -260,6 +287,38 @@ public sealed class FrogDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.NpcId);
             e.HasOne(x => x.Npc).WithMany().HasForeignKey(x => x.NpcId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MapEventDefinitionEntity>(e =>
+        {
+            e.ToTable("map_event_definitions", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.CatalogSlug).IsUnique().HasFilter("catalog_slug IS NOT NULL");
+            e.HasIndex(x => x.EditorAliasId).IsUnique().HasFilter("editor_alias_id IS NOT NULL");
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            e.Property(x => x.CatalogSlug).HasMaxLength(64);
+            e.Property(x => x.PagesJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<MapEventPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("map_event_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.EventDefinitionId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            e.Property(x => x.CatalogSlug).HasMaxLength(64);
+            e.Property(x => x.PagesJson).HasColumnType("jsonb").IsRequired();
+            e.HasOne(x => x.EventDefinition).WithMany().HasForeignKey(x => x.EventDefinitionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MapEventPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("map_event_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.EventDefinitionId);
+            e.HasOne(x => x.EventDefinition).WithMany().HasForeignKey(x => x.EventDefinitionId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ItemEntity>(e =>

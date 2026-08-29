@@ -74,6 +74,12 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
         services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<PostgresShopRepository>());
         services.AddSingleton<IShopItemReferenceCatalog>(sp => sp.GetRequiredService<PostgresShopRepository>());
 
+        services.AddSingleton<PostgresMapEventRepository>(sp =>
+            new PostgresMapEventRepository(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<IMapEventRepository>(sp => sp.GetRequiredService<PostgresMapEventRepository>());
+        services.AddSingleton<IPublishedMapEventCatalog>(sp => sp.GetRequiredService<PostgresMapEventRepository>());
+        services.AddSingleton<IPublishedMapEventPlacementCatalog>(sp => sp.GetRequiredService<PostgresMapEventRepository>());
+
         services.AddSingleton<PostgresMapRepository>(sp =>
             new PostgresMapRepository(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<IMapRepository>(sp => sp.GetRequiredService<PostgresMapRepository>());

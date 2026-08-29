@@ -292,6 +292,36 @@ public sealed class PostgresMapRepository : IMapRepository
             }
         }
 
+        var draftEventPlacements = await db.MapEventPlacements.AsNoTracking()
+            .Where(p => p.MapId == draft.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var placement in draftEventPlacements)
+        {
+            var isPublished = await db.MapEventDefinitions.AsNoTracking()
+                .AnyAsync(
+                    e => e.Id == placement.EventDefinitionId && e.PublishedSnapshotId != null,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (!isPublished)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot publish map '{draft.Name}': event {placement.EventDefinitionId} is not published.");
+            }
+
+            snapshot.EventPlacements.Add(new MapPublishedEventPlacementEntity
+            {
+                Id = Guid.NewGuid(),
+                SnapshotId = snapshot.Id,
+                EventDefinitionId = placement.EventDefinitionId,
+                TileX = placement.TileX,
+                TileY = placement.TileY,
+                TriggerKind = placement.TriggerKind,
+                MovementKind = placement.MovementKind,
+                RouteWaypointsJson = placement.RouteWaypointsJson,
+            });
+        }
+
         db.MapPublishedSnapshots.Add(snapshot);
         db.MapPublicationHistory.Add(new MapPublicationHistoryEntity
         {

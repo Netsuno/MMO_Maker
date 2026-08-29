@@ -24,6 +24,7 @@ public sealed class MapEntity
     public List<MapCellEntity> Cells { get; set; } = new();
     public List<MapWarpEntity> Warps { get; set; } = new();
     public List<MapNpcSpawnEntity> NpcSpawns { get; set; } = new();
+    public List<MapEventPlacementEntity> EventPlacements { get; set; } = new();
 }
 
 public sealed class MapCellEntity
@@ -442,6 +443,7 @@ public sealed class MapPublishedSnapshotEntity
     public List<MapPublishedCellEntity> Cells { get; set; } = new();
     public List<MapPublishedWarpEntity> Warps { get; set; } = new();
     public List<MapPublishedNpcSpawnEntity> NpcSpawns { get; set; } = new();
+    public List<MapPublishedEventPlacementEntity> EventPlacements { get; set; } = new();
 }
 
 /// <summary>Spawn NPC/monstre immuable d’un snapshot publié (NpcId = Guid catalogue).</summary>
@@ -507,4 +509,68 @@ public sealed class MapPublicationHistoryEntity
     public long Revision { get; set; }
     public DateTimeOffset PublishedAtUtc { get; set; }
     public MapEntity Map { get; set; } = null!;
+}
+
+public sealed class MapEventDefinitionEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? CatalogSlug { get; set; }
+    public int? EditorAliasId { get; set; }
+    public string PagesJson { get; set; } = "[]";
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+public sealed class MapEventPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid EventDefinitionId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? CatalogSlug { get; set; }
+    public int? EditorAliasId { get; set; }
+    public string PagesJson { get; set; } = "[]";
+    public MapEventDefinitionEntity EventDefinition { get; set; } = null!;
+}
+
+public sealed class MapEventPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid EventDefinitionId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public MapEventDefinitionEntity EventDefinition { get; set; } = null!;
+}
+
+public sealed class MapEventPlacementEntity
+{
+    public Guid Id { get; set; }
+    public Guid MapId { get; set; }
+    public Guid EventDefinitionId { get; set; }
+    public int TileX { get; set; }
+    public int TileY { get; set; }
+    public string TriggerKind { get; set; } = "action";
+    public string MovementKind { get; set; } = "fixed";
+    public string RouteWaypointsJson { get; set; } = "[]";
+    public MapEntity Map { get; set; } = null!;
+}
+
+public sealed class MapPublishedEventPlacementEntity
+{
+    public Guid Id { get; set; }
+    public Guid SnapshotId { get; set; }
+    public Guid EventDefinitionId { get; set; }
+    public int TileX { get; set; }
+    public int TileY { get; set; }
+    public string TriggerKind { get; set; } = "action";
+    public string MovementKind { get; set; } = "fixed";
+    public string RouteWaypointsJson { get; set; } = "[]";
+    public MapPublishedSnapshotEntity Snapshot { get; set; } = null!;
 }

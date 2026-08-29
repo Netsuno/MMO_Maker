@@ -12,9 +12,13 @@
 - `README.md` — roadmap aligned to PRD: Phase 8 = quests/events/advanced creation; Phase 9 = packaging/admin.
 - Created `docs/progress/phase-08-quests-events-advanced-creation/` dossier.
 
-## Functional tranches
+## P8-1 foundation (in progress)
 
-_Pending — see PHASE_REPORT.md._
+- Core: `MapEventDefinition`, pages, typed conditions/commands, Phase 8 trigger kinds, runtime limits.
+- PostgreSQL: `map_event_definitions`, snapshots, `map_event_placements`, published placements on map publish.
+- `PostgresMapEventRepository`, `IPublishedMapEventPlacementCatalog`, `PublishedMapEventStoreAdapter`.
+- Production host selects PostgreSQL event store when PG enabled (MariaDB path isolated).
+- Tests: `MapEventDefinitionValidationTests` (+5 unit); `PostgresMapEventRepositoryTests` (+2 PG).
 
 ## Explicit non-goals (Phase 8)
 

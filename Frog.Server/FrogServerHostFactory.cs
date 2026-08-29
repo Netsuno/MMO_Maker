@@ -290,6 +290,12 @@ public static class FrogServerHostFactory
                     (ICharacterPayloadWriter)sp.GetRequiredService<ICharacterPayloadReader>());
                 services.AddSingleton<IMapEventStore>(sp =>
                 {
+                    if (usePostgreSql)
+                    {
+                        return new PublishedMapEventStoreAdapter(
+                            sp.GetRequiredService<Frog.Application.Content.IPublishedMapEventPlacementCatalog>());
+                    }
+
                     var db = sp.GetRequiredService<IOptions<MariaDbOptions>>().Value;
                     db.Validate();
                     if (!playtest.Enabled && db.Enabled)

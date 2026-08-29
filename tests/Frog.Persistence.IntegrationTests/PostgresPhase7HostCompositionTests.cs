@@ -8,6 +8,7 @@ using Frog.Persistence.PostgreSql.ServerAuth;
 using Frog.Persistence.IntegrationTests.Support;
 using Frog.Server;
 using Frog.Server.Config;
+using Frog.Server.Database;
 using Frog.Server.Gameplay;
 using Frog.Server.Services;
 using Microsoft.Extensions.Configuration;
@@ -71,6 +72,8 @@ public sealed class PostgresPhase7HostCompositionTests
             Assert.IsType<PostgresNpcRepository>(services.GetRequiredService<IPublishedNpcCatalog>());
             Assert.IsType<PostgresShopRepository>(services.GetRequiredService<IPublishedShopCatalog>());
             Assert.IsType<PostgresPublishedWorldCatalog>(services.GetRequiredService<IPublishedWorldCatalog>());
+            Assert.IsType<PostgresMapEventRepository>(services.GetRequiredService<IMapEventRepository>());
+            Assert.IsNotType<MariaDbMapEventStore>(services.GetRequiredService<IMapEventStore>());
             Assert.IsType<PublishedWorldMapBlobStore>(services.GetRequiredService<PublishedWorldMapBlobStore>());
             Assert.Null(services.GetService<Phase7PublishedContent>());
             Assert.Null(services.GetService<InMemoryCharacterRepository>());

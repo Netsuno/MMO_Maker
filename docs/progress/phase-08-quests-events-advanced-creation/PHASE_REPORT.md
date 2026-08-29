@@ -6,8 +6,8 @@
 
 | Tranche | Status |
 | --- | --- |
-| Transition metadata | IN PROGRESS |
-| **P8-1** PostgreSQL event model + map authoring | PENDING |
+| Transition metadata | DONE |
+| **P8-1** PostgreSQL event model + map authoring | IN PROGRESS (catalog, placements, PG store) |
 | **P8-2** Authoritative typed event runtime | PENDING |
 | **P8-3** Dialogues and quests | PENDING |
 | **P8-4** Professions and recipes | PENDING |
