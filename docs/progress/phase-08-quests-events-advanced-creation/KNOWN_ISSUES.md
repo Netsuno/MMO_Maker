@@ -9,9 +9,9 @@
 
 ## Legacy (P8-1 retirement target)
 
-- `MariaDbMapEventStore`, `MapEventsMariaDbReader`, `MapEventsMariaDbWriter` — MariaDB event path to be isolated from production composition.
+- `MariaDbMapEventStore`, `MapEventsMariaDbReader`, `MapEventsMariaDbWriter` — fichiers héritage conservés ; plus utilisés par l’éditeur ni la composition serveur PG.
 - `script_key` on legacy catalog — metadata only; must not execute.
-- `WorldFlagsPatchRequest` client demo — to be removed/disabled; switches/variables only via validated server commands.
+- ~~`WorldFlagsPatchRequest` client demo~~ — retiré du client ; switches/variables uniquement via commandes serveur validées (P8-2+).
 
 ## Phase 9
 

@@ -20,6 +20,13 @@
 - Production host selects PostgreSQL event store when PG enabled (MariaDB path isolated).
 - Tests: `MapEventDefinitionValidationTests` (+5 unit); `PostgresMapEventRepositoryTests` (+2 PG).
 
+## P8-1 editor + client cleanup
+
+- `EditorMapEventRepositoryFactory`, `MapEventsPostgreSqlService` — catalogue/placements via PostgreSQL (Guid map id, Phase 8 triggers).
+- `MapEventsBrowseDialog`, `MainForm`, `MainWindow` — événements carte branchés sur la carte catalogue courante (`CurrentMapId`), sans MariaDB ni `script_key`.
+- Marqueurs canevas/mini-carte : styles Phase 8 (`action`, `player_contact`, `autorun`, `parallel`).
+- Client : bouton démo `WorldFlagsPatchRequest` retiré (`MainShellForm`).
+
 ## Explicit non-goals (Phase 8)
 
 - Arbitrary Lua/C#/PowerShell execution
