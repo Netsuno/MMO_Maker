@@ -92,8 +92,10 @@ public sealed class Phase8EditorSmokeTests
                 Assert.True(dialog.LifecycleForTest.PendingCountForTest > 0);
                 SaveScreenshot(dialog, "06-close-during-pending.png");
 
-                dialog.Close();
+                // Release the barrier before Close so FormClosing drain cannot deadlock the STA pump.
                 releaseBarrier.TrySetResult();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "pending save drained");
+                dialog.Close();
                 PumpUntil(() => dialog.IsDisposed, "disposed after pending close");
             }
             finally
