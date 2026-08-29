@@ -655,7 +655,14 @@ public sealed class GameplayClientSmokeTests
             var port = (int)Form.PortNumericForTest.Value;
             var victimUser = User;
             var killTask = Task.Run(() => RunPvpAttackerUntilDead("127.0.0.1", port, victimUser));
-            if (!killTask.Wait(TimeSpan.FromMinutes(2)))
+            var deadline = DateTime.UtcNow + TimeSpan.FromMinutes(2);
+            while (!killTask.IsCompleted && DateTime.UtcNow < deadline)
+            {
+                System.Windows.Forms.Application.DoEvents();
+                Thread.Sleep(10);
+            }
+
+            if (!killTask.IsCompleted)
             {
                 throw new TimeoutException("Victim was not killed via public PvP melee.");
             }
