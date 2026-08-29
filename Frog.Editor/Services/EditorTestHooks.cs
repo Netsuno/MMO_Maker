@@ -27,6 +27,8 @@ internal static class EditorTestHooks
 
     public static IResourceSpawnRepository? OverrideResourceSpawnRepository { get; set; }
 
+    public static MapEventsPostgreSqlService? OverrideMapEventService { get; set; }
+
     public static IEditorDialogService? OverrideDialogService { get; set; }
 
     public static IPlaytestProcessLauncher? OverridePlaytestProcessLauncher { get; set; }

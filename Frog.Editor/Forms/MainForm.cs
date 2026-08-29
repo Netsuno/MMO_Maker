@@ -59,6 +59,7 @@ public sealed class MainForm : Form
     private System.Windows.Window? _wpfOwnerWindow;
     private MapWorkspaceSession? _workspace;
     private IMapRepository? _mapRepository;
+    private MapEventsPostgreSqlService? _mapEventService;
     private bool _catalogOpenInProgress;
     private bool _suppressDirtyTracking;
     private readonly IEditorDialogService _dialogService;
@@ -306,8 +307,8 @@ public sealed class MainForm : Form
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
-            mMap.DropDownItems.Add("Événements carte (MariaDB)…", null, (_, _) => BrowseMapEventsFromMariaDb());
-            mMap.DropDownItems.Add("Actualiser marqueurs événements (MariaDB)", null, (_, _) => RefreshMapEventMarkersFromMariaDb());
+            mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
+            mMap.DropDownItems.Add("Actualiser marqueurs événements", null, (_, _) => RefreshMapEventMarkers());
             mMap.DropDownItems.Add(
                 new ToolStripMenuItem("Astuce : Ctrl+clic droit sur la carte = menu événements (tuile sous curseur)")
                 {
@@ -320,7 +321,7 @@ public sealed class MainForm : Form
             mView.DropDownItems.Add(new ToolStripSeparator());
             mView.DropDownItems.Add("Réinitialiser la vue (zoom 100 %)", null, (_, _) => ResetMapView());
             mView.DropDownItems.Add(new ToolStripSeparator());
-            var mnuShowEventMarkers = new ToolStripMenuItem("Marqueurs événements (MariaDB)")
+            var mnuShowEventMarkers = new ToolStripMenuItem("Marqueurs événements")
             {
                 CheckOnClick = true,
                 Checked = true,
@@ -347,7 +348,7 @@ public sealed class MainForm : Form
             {
                 ApplyLayoutPercentages();
                 PositionMinimap();
-                BeginInvoke(new Action(RefreshMapEventMarkersFromMariaDb));
+                BeginInvoke(new Action(RefreshMapEventMarkers));
             };
             ResizeEnd += (_, _) => ApplyLayoutPercentages();
         }
@@ -693,6 +694,8 @@ public sealed class MainForm : Form
         var bundle = EditorMapRepositoryFactory.CreateBundle();
         _mapRepository = bundle.Repository;
         _persistenceCapabilities = bundle.Capabilities;
+        var eventBundle = EditorMapEventRepositoryFactory.CreateBundle();
+        _mapEventService = eventBundle.Service;
         _workspace = new MapWorkspaceSession(bundle.Repository);
         await _workspace.InitializeAsync().ConfigureAwait(true);
         ApplyWorkspaceMapToUi();
@@ -766,6 +769,7 @@ public sealed class MainForm : Form
             UpdateUndoRedoButtons();
             SyncMapsTree();
             UpdateMapChromeLabels();
+            RefreshMapEventMarkers();
         }
         finally
         {
@@ -1184,7 +1188,7 @@ public sealed class MainForm : Form
         UpdateUndoRedoButtons();
         SyncMapsTree();
         UpdateMapChromeLabels();
-        RefreshMapEventMarkersFromMariaDb();
+        RefreshMapEventMarkers();
         PushEditorStatusLine();
     }
 
@@ -1717,7 +1721,7 @@ public sealed class MainForm : Form
                 bytes);
             _lastPublishedFrogMapId = dlg.PublishedMapId;
             EditorLocalWorkstate.WriteLastPublishedFrogMapId(_lastPublishedFrogMapId);
-            RefreshMapEventMarkersFromMariaDb();
+            RefreshMapEventMarkers();
             MessageBox.Show(
                 GetDialogOwner(),
                 $"Carte publiée : frog_map id={dlg.PublishedMapId}, clé « {dlg.PublishedMapKey} ».",
@@ -1742,33 +1746,43 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
         var menu = new ContextMenuStrip();
         menu.Closed += (_, _) => menu.Dispose();
-        menu.Items.Add("Événements MariaDB (cette tuile)…", null, (_, _) => BrowseMapEventsFromMariaDb());
+        menu.Items.Add("Événements carte (cette tuile)…", null, (_, _) => BrowseMapEvents());
         menu.Show(Cursor.Position);
     }
 
-    internal void BrowseMapEventsFromMariaDb()
+    internal void BrowseMapEvents()
     {
-        if (!EditorMariaDbConfig.TryGetEnabledConnection(out var connectionString, out var hint))
+        if (_mapEventService is null || !_mapEventService.IsAvailable)
         {
-            MessageBox.Show(GetDialogOwner(), hint, "Événements carte", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(
+                GetDialogOwner(),
+                "Événements carte nécessitent PostgreSQL (FROG_POSTGRES_CONNECTION_STRING ou appsettings.Local.json).",
+                "Événements carte",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
             return;
         }
 
-        using var dlg = new MapEventsBrowseDialog(connectionString, initialMapId: _lastPublishedFrogMapId, defaultTileX: _lastHoverTile.X, defaultTileY: _lastHoverTile.Y);
+        var mapId = _workspace?.CurrentMapId ?? Guid.Empty;
+        using var dlg = new MapEventsBrowseDialog(
+            _mapEventService,
+            mapId,
+            defaultTileX: _lastHoverTile.X,
+            defaultTileY: _lastHoverTile.Y);
         dlg.ShowDialog(GetDialogOwner());
-        RefreshMapEventMarkersFromMariaDb();
+        RefreshMapEventMarkers();
     }
 
-    /// <summary>Recharge les placements <c>frog_map_event</c> pour <see cref="_lastPublishedFrogMapId"/> et met à jour l’overlay canevas.</summary>
-    internal void RefreshMapEventMarkersFromMariaDb()
+    /// <summary>Recharge les placements d'événements pour la carte catalogue courante et met à jour l'overlay canevas.</summary>
+    internal void RefreshMapEventMarkers()
     {
-        if (!EditorMariaDbConfig.TryGetEnabledConnection(out var connectionString, out _))
+        if (_mapEventService is null || !_mapEventService.IsAvailable)
         {
             _canvas.MapEventMarkers = null;
             return;
         }
 
-        if (_lastPublishedFrogMapId < 1)
+        if (_workspace?.CurrentMapId is not Guid mapId || mapId == Guid.Empty)
         {
             _canvas.MapEventMarkers = null;
             return;
@@ -1776,8 +1790,8 @@ public sealed class MainForm : Form
 
         try
         {
-            var rows = MapEventsMariaDbReader.LoadPlacementsForMap(connectionString, _lastPublishedFrogMapId);
-            _canvas.MapEventMarkers = MapEventsMariaDbReader.ToMarkerViews(rows);
+            var rows = _mapEventService.LoadPlacementsForMap(mapId);
+            _canvas.MapEventMarkers = MapEventsPostgreSqlService.ToMarkerViews(rows);
         }
         catch
         {
@@ -1863,7 +1877,7 @@ public sealed class MainForm : Form
         UpdateUndoRedoButtons();
         SyncMapsTree();
         UpdateMapChromeLabels();
-        RefreshMapEventMarkersFromMariaDb();
+        RefreshMapEventMarkers();
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
         {

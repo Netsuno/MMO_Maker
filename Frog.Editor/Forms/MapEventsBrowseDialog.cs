@@ -1,14 +1,14 @@
 using System.Collections.Generic;
-using Frog.Core.Protocol;
+using Frog.Core.Events;
 using Frog.Editor.Services;
 
 namespace Frog.Editor.Forms;
 
-/// <summary>Consultation et écriture MVP des événements <c>frog_map_event</c> / catalogue.</summary>
+/// <summary>Consultation et écriture MVP des événements carte / catalogue (PostgreSQL Phase 8).</summary>
 internal sealed class MapEventsBrowseDialog : Form
 {
-    private readonly string _connectionString;
-    private readonly NumericUpDown _numMapId = new() { Minimum = 1, Maximum = int.MaxValue, Value = 1, Width = 100 };
+    private readonly MapEventsPostgreSqlService _service;
+    private readonly Label _lblMapId = new() { AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
     private readonly NumericUpDown _numTileX = new() { Minimum = int.MinValue, Maximum = int.MaxValue, Width = 90 };
     private readonly NumericUpDown _numTileY = new() { Minimum = int.MinValue, Maximum = int.MaxValue, Width = 90 };
     private readonly Button _btnReload = new() { Text = "Charger", AutoSize = true };
@@ -32,48 +32,49 @@ internal sealed class MapEventsBrowseDialog : Form
 
     private readonly TextBox _txtNewSlug = new() { Width = 160, PlaceholderText = "ex. pnj_marchand" };
     private readonly TextBox _txtNewDisplay = new() { Width = 260, PlaceholderText = "Nom affiché" };
-    private readonly TextBox _txtNewScriptKey = new() { Width = 160, PlaceholderText = "script_key (opt.)" };
     private readonly Button _btnAddCatalog = new() { Text = "Ajouter au catalogue", AutoSize = true };
     private readonly Button _btnDeleteCatalogRow = new() { Text = "Supprimer entrée catalogue", AutoSize = true };
-    private readonly Button _btnApplyScriptKey = new() { Text = "Appliquer script_key (ligne catalogue)", AutoSize = true };
     private readonly TextBox _txtFilterCatalog = new() { Width = 220, PlaceholderText = "Filtrer catalogue…" };
     private readonly TextBox _txtFilterPlacements = new() { Width = 220, PlaceholderText = "Filtrer placements…" };
-    private readonly List<EventCatalogRow> _catalogRows = new();
-    private readonly List<MapEventPlacementRow> _placementRows = new();
+    private readonly List<PgEventCatalogRow> _catalogRows = new();
+    private readonly List<PgMapEventPlacementRow> _placementRows = new();
+    private Guid _mapId;
 
-    public MapEventsBrowseDialog(string connectionString, int initialMapId = 1, int defaultTileX = 0, int defaultTileY = 0)
+    public MapEventsBrowseDialog(MapEventsPostgreSqlService service, Guid mapId, int defaultTileX = 0, int defaultTileY = 0)
     {
-        _connectionString = connectionString;
-        Text = "Événements carte (MariaDB)";
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _mapId = mapId;
+        Text = "Événements carte (PostgreSQL)";
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         ShowInTaskbar = false;
         ClientSize = new Size(920, 600);
-        _numMapId.Value = Math.Clamp(initialMapId, 1, int.MaxValue);
+        _lblMapId.Text = FormatMapId(mapId);
         _numTileX.Value = defaultTileX;
         _numTileY.Value = defaultTileY;
 
-        _lvCatalog.Columns.Add("id", 50);
+        _lvCatalog.Columns.Add("event_id", 220);
         _lvCatalog.Columns.Add("slug", 160);
-        _lvCatalog.Columns.Add("display_name", 280);
-        _lvCatalog.Columns.Add("script_key", 200);
+        _lvCatalog.Columns.Add("name", 220);
+        _lvCatalog.Columns.Add("status", 80);
+        _lvCatalog.Columns.Add("pages", 50);
 
-        _lvPlacements.Columns.Add("id", 70);
-        _lvPlacements.Columns.Add("map_id", 60);
-        _lvPlacements.Columns.Add("catalog_id", 70);
+        _lvPlacements.Columns.Add("placement_id", 220);
+        _lvPlacements.Columns.Add("map_id", 220);
+        _lvPlacements.Columns.Add("event_id", 220);
         _lvPlacements.Columns.Add("tile_x", 60);
         _lvPlacements.Columns.Add("tile_y", 60);
         _lvPlacements.Columns.Add("slug", 140);
-        _lvPlacements.Columns.Add("display_name", 200);
-        _lvPlacements.Columns.Add("trigger_kind", 110);
+        _lvPlacements.Columns.Add("name", 160);
+        _lvPlacements.Columns.Add("trigger_kind", 120);
 
         _cbTrigger.Items.AddRange(new object[]
         {
-            "interact — action « Interagir » (touche E)",
-            "step_on — à l’arrivée sur la tuile (marche)",
-            "page — une fois par entrée sur la carte (tuile d’arrivée)",
-            "auto_tile — sur place : Heartbeat serveur (cooldown par placement)",
+            "action — interaction joueur (touche E)",
+            "player_contact — contact sur la tuile (marche)",
+            "autorun — exécution automatique à l'activation",
+            "parallel — exécution parallèle tant que la page est active",
         });
         _cbTrigger.SelectedIndex = 0;
 
@@ -84,8 +85,8 @@ internal sealed class MapEventsBrowseDialog : Form
             Padding = new Padding(8),
             WrapContents = false,
         };
-        top.Controls.Add(new Label { Text = "frog_map.id", AutoSize = true, Margin = new Padding(0, 8, 0, 0) });
-        top.Controls.Add(_numMapId);
+        top.Controls.Add(new Label { Text = "Carte", AutoSize = true, Margin = new Padding(0, 8, 4, 0) });
+        top.Controls.Add(_lblMapId);
         top.Controls.Add(_btnReload);
 
         var split = new SplitContainer
@@ -100,7 +101,7 @@ internal sealed class MapEventsBrowseDialog : Form
         catPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         catPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         catPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        catPanel.Controls.Add(new Label { Text = "frog_event_catalog (sélection = type à placer sur la carte)", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
+        catPanel.Controls.Add(new Label { Text = "Catalogue événements (sélection = type à placer sur la carte)", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
         var catFilterRow = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -122,11 +123,8 @@ internal sealed class MapEventsBrowseDialog : Form
         catNewRow.Controls.Add(_txtNewSlug);
         catNewRow.Controls.Add(new Label { Text = "Nom", AutoSize = true, Margin = new Padding(8, 10, 4, 0) });
         catNewRow.Controls.Add(_txtNewDisplay);
-        catNewRow.Controls.Add(new Label { Text = "script_key", AutoSize = true, Margin = new Padding(8, 10, 4, 0) });
-        catNewRow.Controls.Add(_txtNewScriptKey);
         catNewRow.Controls.Add(_btnAddCatalog);
         catNewRow.Controls.Add(_btnDeleteCatalogRow);
-        catNewRow.Controls.Add(_btnApplyScriptKey);
         catPanel.Controls.Add(catNewRow, 0, 2);
         catPanel.Controls.Add(_lvCatalog, 0, 3);
         split.Panel1.Controls.Add(catPanel);
@@ -158,7 +156,7 @@ internal sealed class MapEventsBrowseDialog : Form
             WrapContents = true,
             Padding = new Padding(0, 0, 0, 4),
         };
-        placeMid.Controls.Add(new Label { Text = "frog_map_event · ", AutoSize = true, Margin = new Padding(0, 4, 4, 0) });
+        placeMid.Controls.Add(new Label { Text = "Placements carte · ", AutoSize = true, Margin = new Padding(0, 4, 4, 0) });
         placeMid.Controls.Add(new Label { Text = "Filtre", AutoSize = true, Margin = new Padding(8, 4, 4, 0) });
         placeMid.Controls.Add(_txtFilterPlacements);
         placeOuter.Controls.Add(placeMid, 0, 1);
@@ -186,37 +184,38 @@ internal sealed class MapEventsBrowseDialog : Form
         _btnApplyTrigger.Click += (_, _) => ApplyTriggerSafe();
         _btnAddCatalog.Click += (_, _) => AddCatalogSafe();
         _btnDeleteCatalogRow.Click += (_, _) => DeleteCatalogRowSafe();
-        _btnApplyScriptKey.Click += (_, _) => ApplyScriptKeySafe();
         _txtFilterCatalog.TextChanged += (_, _) => RefreshFilteredLists();
         _txtFilterPlacements.TextChanged += (_, _) => RefreshFilteredLists();
         Shown += (_, _) => ReloadSafe();
     }
 
+    public void SetMapId(Guid mapId)
+    {
+        _mapId = mapId;
+        _lblMapId.Text = FormatMapId(mapId);
+    }
+
+    private static string FormatMapId(Guid mapId) =>
+        mapId == Guid.Empty ? "(aucune carte catalogue)" : mapId.ToString("D");
+
     private void AddCatalogSafe()
     {
         try
         {
-            if (!MapEventsMariaDbWriter.TryInsertCatalog(
-                    _connectionString,
-                    _txtNewSlug.Text,
-                    _txtNewDisplay.Text,
-                    _txtNewScriptKey.Text,
-                    out var newId,
-                    out var err))
+            if (!_service.TryInsertCatalog(_txtNewSlug.Text, _txtNewDisplay.Text, out var newId, out var err))
             {
                 MessageBox.Show(this, err, "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            MessageBox.Show(this, $"Entrée catalogue créée (id={newId}).", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, $"Entrée catalogue créée ({newId:D}).", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
             _txtNewSlug.Clear();
             _txtNewDisplay.Clear();
-            _txtNewScriptKey.Clear();
             Reload();
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, ex.Message, "PostgreSQL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -224,15 +223,15 @@ internal sealed class MapEventsBrowseDialog : Form
     {
         try
         {
-            if (!TryGetSingleSelectedFirstColumnInt(_lvCatalog, out var catalogId))
+            if (!TryGetSingleSelectedGuid(_lvCatalog, out var eventId))
             {
-                MessageBox.Show(this, "Sélectionnez une ligne du catalogue (colonne id).", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "Sélectionnez une ligne du catalogue (colonne event_id).", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             var ok = MessageBox.Show(
                 this,
-                $"Supprimer l’entrée catalogue id={catalogId} ?\nLes placements frog_map_event liés seront supprimés (cascade).",
+                $"Supprimer l'entrée catalogue {eventId:D} ?\nLes placements liés seront supprimés (cascade).",
                 "Confirmer",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
@@ -241,7 +240,7 @@ internal sealed class MapEventsBrowseDialog : Form
                 return;
             }
 
-            if (!MapEventsMariaDbWriter.TryDeleteCatalogById(_connectionString, catalogId, out var err))
+            if (!_service.TryDeleteCatalogById(eventId, out var err))
             {
                 MessageBox.Show(this, err, "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -251,7 +250,7 @@ internal sealed class MapEventsBrowseDialog : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, ex.Message, "PostgreSQL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -259,18 +258,23 @@ internal sealed class MapEventsBrowseDialog : Form
     {
         try
         {
-            if (!TryGetSingleSelectedFirstColumnInt(_lvCatalog, out var catalogId))
+            if (_mapId == Guid.Empty)
+            {
+                MessageBox.Show(this, "Ouvrez ou enregistrez une carte dans le catalogue PostgreSQL.", "Placer événement", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (!TryGetSingleSelectedGuid(_lvCatalog, out var eventId))
             {
                 MessageBox.Show(this, "Sélectionnez une ligne dans le catalogue (slug/type).", "Placer événement", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            var mapId = (int)_numMapId.Value;
             var tx = (int)_numTileX.Value;
             var ty = (int)_numTileY.Value;
-            if (!MapEventsMariaDbWriter.TryInsertPlacement(_connectionString, mapId, catalogId, tx, ty, GetTriggerKindFromUi(), out var err))
+            if (!_service.TryInsertPlacement(_mapId, eventId, tx, ty, GetTriggerKindFromUi(), out var err))
             {
-                MessageBox.Show(this, string.IsNullOrEmpty(err) ? "Placement déjà présent pour cette carte, tuile et type (INSERT IGNORE)." : err, "Placer événement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, err, "Placer événement", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -278,7 +282,7 @@ internal sealed class MapEventsBrowseDialog : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, ex.Message, "PostgreSQL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -286,14 +290,19 @@ internal sealed class MapEventsBrowseDialog : Form
     {
         try
         {
-            if (!TryGetSingleSelectedFirstColumnLong(_lvPlacements, out var rowId))
+            if (!TryGetSingleSelectedGuid(_lvPlacements, out var placementId))
             {
                 MessageBox.Show(this, "Sélectionnez une ligne de placement.", "Déclencheur", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            var mapId = (int)_numMapId.Value;
-            if (!MapEventsMariaDbWriter.TryUpdatePlacementTriggerKind(_connectionString, rowId, mapId, GetTriggerKindFromUi(), out var err))
+            if (_mapId == Guid.Empty)
+            {
+                MessageBox.Show(this, "Carte catalogue invalide.", "Déclencheur", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (!_service.TryUpdatePlacementTriggerKind(placementId, _mapId, GetTriggerKindFromUi(), out var err))
             {
                 MessageBox.Show(this, err, "Déclencheur", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -303,33 +312,38 @@ internal sealed class MapEventsBrowseDialog : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, ex.Message, "PostgreSQL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
     private string GetTriggerKindFromUi() =>
         _cbTrigger.SelectedIndex switch
         {
-            1 => MapEventTriggerKinds.StepOn,
-            2 => MapEventTriggerKinds.Page,
-            3 => MapEventTriggerKinds.AutoTile,
-            _ => MapEventTriggerKinds.Interact,
+            1 => Phase8MapEventTriggerKinds.PlayerContact,
+            2 => Phase8MapEventTriggerKinds.Autorun,
+            3 => Phase8MapEventTriggerKinds.Parallel,
+            _ => Phase8MapEventTriggerKinds.Action,
         };
 
     private void DeleteSelectedSafe()
     {
         try
         {
-            if (!TryGetSingleSelectedFirstColumnLong(_lvPlacements, out var rowId))
+            if (!TryGetSingleSelectedGuid(_lvPlacements, out var placementId))
             {
                 MessageBox.Show(this, "Sélectionnez une ligne de placement.", "Supprimer", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            var mapId = (int)_numMapId.Value;
+            if (_mapId == Guid.Empty)
+            {
+                MessageBox.Show(this, "Carte catalogue invalide.", "Supprimer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
             var ok = MessageBox.Show(
                 this,
-                $"Supprimer l’événement placement id={rowId} sur frog_map.id={mapId} ?",
+                $"Supprimer le placement {placementId:D} sur la carte {_mapId:D} ?",
                 "Confirmer",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
@@ -338,7 +352,7 @@ internal sealed class MapEventsBrowseDialog : Form
                 return;
             }
 
-            if (!MapEventsMariaDbWriter.TryDeletePlacement(_connectionString, rowId, mapId, out var err))
+            if (!_service.TryDeletePlacement(placementId, _mapId, out var err))
             {
                 MessageBox.Show(this, err, "Supprimer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -348,7 +362,7 @@ internal sealed class MapEventsBrowseDialog : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, ex.Message, "PostgreSQL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -360,47 +374,25 @@ internal sealed class MapEventsBrowseDialog : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
-    }
-
-    private void ApplyScriptKeySafe()
-    {
-        try
-        {
-            if (!TryGetSingleSelectedFirstColumnInt(_lvCatalog, out var catalogId))
-            {
-                MessageBox.Show(this, "Sélectionnez une ligne du catalogue (colonne id).", "script_key", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            if (!MapEventsMariaDbWriter.TryUpdateCatalogScriptKey(_connectionString, catalogId, _txtNewScriptKey.Text, out var err))
-            {
-                MessageBox.Show(this, err, "script_key", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            Reload();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, ex.Message, "MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, ex.Message, "PostgreSQL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
     private void Reload()
     {
         _catalogRows.Clear();
-        foreach (var row in MapEventsMariaDbReader.LoadCatalog(_connectionString))
+        foreach (var row in _service.LoadCatalog())
         {
             _catalogRows.Add(row);
         }
 
         _placementRows.Clear();
-        var mapId = (int)_numMapId.Value;
-        foreach (var row in MapEventsMariaDbReader.LoadPlacementsForMap(_connectionString, mapId))
+        if (_mapId != Guid.Empty)
         {
-            _placementRows.Add(row);
+            foreach (var row in _service.LoadPlacementsForMap(_mapId))
+            {
+                _placementRows.Add(row);
+            }
         }
 
         RefreshFilteredLists();
@@ -420,17 +412,17 @@ internal sealed class MapEventsBrowseDialog : Form
             {
                 if (cf.Length > 0)
                 {
-                    var sk = row.ScriptKey ?? string.Empty;
-                    if (!row.Slug.Contains(cf, o) && !row.DisplayName.Contains(cf, o) && !sk.Contains(cf, o))
+                    if (!row.Slug.Contains(cf, o) && !row.DisplayName.Contains(cf, o) && !row.EventId.ToString("D").Contains(cf, o))
                     {
                         continue;
                     }
                 }
 
-                var item = new ListViewItem(row.Id.ToString());
+                var item = new ListViewItem(row.EventId.ToString("D"));
                 item.SubItems.Add(row.Slug);
                 item.SubItems.Add(row.DisplayName);
-                item.SubItems.Add(row.ScriptKey ?? string.Empty);
+                item.SubItems.Add(row.Status.ToString());
+                item.SubItems.Add(row.PageCount.ToString());
                 _lvCatalog.Items.Add(item);
             }
 
@@ -440,16 +432,16 @@ internal sealed class MapEventsBrowseDialog : Form
                 if (pf.Length > 0)
                 {
                     var blob =
-                        $"{row.Id} {row.MapId} {row.EventCatalogId} {row.TileX} {row.TileY} {row.Slug} {row.DisplayName} {row.TriggerKind}";
+                        $"{row.Id} {row.MapId} {row.EventDefinitionId} {row.TileX} {row.TileY} {row.Slug} {row.DisplayName} {row.TriggerKind}";
                     if (!blob.Contains(pf, o))
                     {
                         continue;
                     }
                 }
 
-                var item = new ListViewItem(row.Id.ToString());
-                item.SubItems.Add(row.MapId.ToString());
-                item.SubItems.Add(row.EventCatalogId.ToString());
+                var item = new ListViewItem(row.Id.ToString("D"));
+                item.SubItems.Add(row.MapId.ToString("D"));
+                item.SubItems.Add(row.EventDefinitionId.ToString("D"));
                 item.SubItems.Add(row.TileX.ToString());
                 item.SubItems.Add(row.TileY.ToString());
                 item.SubItems.Add(row.Slug);
@@ -465,27 +457,14 @@ internal sealed class MapEventsBrowseDialog : Form
         }
     }
 
-    private static bool TryGetSingleSelectedFirstColumnInt(ListView lv, out int value)
+    private static bool TryGetSingleSelectedGuid(ListView lv, out Guid value)
     {
-        value = 0;
+        value = Guid.Empty;
         if (lv.SelectedItems.Count != 1)
         {
             return false;
         }
 
-        var t = lv.SelectedItems[0].Text;
-        return int.TryParse(t, out value) && value > 0;
-    }
-
-    private static bool TryGetSingleSelectedFirstColumnLong(ListView lv, out long value)
-    {
-        value = 0;
-        if (lv.SelectedItems.Count != 1)
-        {
-            return false;
-        }
-
-        var t = lv.SelectedItems[0].Text;
-        return long.TryParse(t, out value) && value > 0;
+        return Guid.TryParse(lv.SelectedItems[0].Text, out value) && value != Guid.Empty;
     }
 }

@@ -162,7 +162,6 @@ public sealed class MainShellForm : Form
     private readonly ListBox _lstGround = new() { Dock = DockStyle.Fill, IntegralHeight = false, Height = 70 };
     private readonly Button _btnPickup = new() { Text = "Ramasser", AutoSize = true, Enabled = false };
     private GroundItemsSnapshotWire? _groundSnapshot;
-    private readonly Button _btnWorldFlagsDemo = new() { Text = "Drapeau démo (worldFlags)", Enabled = false };
     private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _heartbeatTimer = new() { Interval = 45_000 };
@@ -276,7 +275,6 @@ public sealed class MainShellForm : Form
         ReleaseAllMoveKeys();
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = false;
-        _btnWorldFlagsDemo.Enabled = false;
         SetGameplayControlsEnabled(false);
         SetPhase(ClientUiPhase.CharacterSelect);
         _ = RefreshCharacterListAsync();
@@ -291,7 +289,6 @@ public sealed class MainShellForm : Form
 
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = true;
-        _btnWorldFlagsDemo.Enabled = true;
         SetGameplayControlsEnabled(true);
         _gameplayTabs.SelectedTab = _tabGameplay;
         SetPhase(ClientUiPhase.Playing);
@@ -789,7 +786,6 @@ public sealed class MainShellForm : Form
         StyleToolbarButton(_btnBankDepositGold);
         StyleToolbarButton(_btnBankWithdrawGold);
         StyleToolbarButton(_btnPickup);
-        StyleToolbarButton(_btnWorldFlagsDemo);
         StyleToolbarButton(_btnStatsApply);
         StyleToolbarButton(_btnBackDisconnect);
         StyleToolbarButton(_btnSwitchCharacter);
@@ -996,7 +992,6 @@ public sealed class MainShellForm : Form
         gameTop.Controls.Add(_cmbSpell);
         gameTop.Controls.Add(_btnSpell);
         gameTop.Controls.Add(_btnRespawn);
-        gameTop.Controls.Add(_btnWorldFlagsDemo);
         gameTop.Controls.Add(Lbl("Flèches = déplacement · E = interagir", topPad: 14));
 
         var gameLayout = new TableLayoutPanel
@@ -1067,7 +1062,6 @@ public sealed class MainShellForm : Form
         _inventoryPanel.DropRequested += (slot, qty) => _ = DropItemAsync(slot, qty);
         _inventoryPanel.SelectionChanged += UpdateInventoryActionButtons;
         _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
-        _btnWorldFlagsDemo.Click += async (_, _) => await SendWorldFlagsDemoPatchAsync();
         _btnSwitchCharacter.Click += (_, _) => GoToCharacterSelectPhase();
         _btnBackDisconnect.Click += async (_, _) => await DisconnectAsync();
 
@@ -1098,7 +1092,6 @@ public sealed class MainShellForm : Form
         _client.CharacterStatsUpdateResultReceived += OnCharacterStatsUpdateResult;
         _client.MapEventsResultReceived += OnMapEventsResult;
         _client.InteractResultReceived += OnInteractResult;
-        _client.WorldFlagsPatchResultReceived += OnWorldFlagsPatchResult;
         _client.ReconnectResultReceived += OnReconnectResult;
         _client.InventorySnapshotReceived += OnInventorySnapshot;
         _client.EquipResultReceived += (ok, msg) => AppendLog(ok ? "Équipement: " + msg : "Équipement refusé: " + msg);
@@ -1747,7 +1740,6 @@ public sealed class MainShellForm : Form
         _btnRegister.Enabled = false;
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
-        _btnWorldFlagsDemo.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
         ClearPublishedCatalogUi();
@@ -1840,7 +1832,6 @@ public sealed class MainShellForm : Form
         _btnMap.Enabled = true;
         _btnLogout.Enabled = true;
         _btnMelee.Enabled = false;
-        _btnWorldFlagsDemo.Enabled = false;
         _cmbCharacters.Enabled = true;
         _btnCharRefresh.Enabled = true;
         _btnEnterGame.Enabled = true;
@@ -1955,7 +1946,6 @@ public sealed class MainShellForm : Form
         _mapEvents.Clear();
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
-        _btnWorldFlagsDemo.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
         _awaitingPlayingPhase = false;
@@ -2099,28 +2089,6 @@ public sealed class MainShellForm : Form
     private void OnInteractResult(bool ok, string message)
     {
         AppendLog(ok ? "Interaction: " + message : "Interaction refusée: " + message);
-    }
-
-    private void OnWorldFlagsPatchResult(bool ok, string message)
-    {
-        AppendLog(ok ? "worldFlags: " + message : "worldFlags refusé: " + message);
-    }
-
-    private async Task SendWorldFlagsDemoPatchAsync()
-    {
-        if (_client is null || !_client.IsConnected)
-        {
-            return;
-        }
-
-        try
-        {
-            await _client.SendWorldFlagsPatchAsync("{\"demo_story\":true}", CancellationToken.None).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            AppendLog("WorldFlagsPatch: " + ex.Message);
-        }
     }
 
     private async Task SendInteractAsync()

@@ -582,10 +582,11 @@ public sealed class MapCanvas : Control
                 var badgeD = Math.Max(6, ts * 2 / 5);
                 var pad = Math.Max(1, ts / 14);
                 var badge = new Rectangle(rect.Right - badgeD - pad, rect.Y + pad, badgeD, badgeD);
-                var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
-                var page = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
-                var autoTile = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.AutoTile, StringComparison.Ordinal);
-                if (page)
+                var playerContact = MapEventMarkerColors.IsPlayerContactTrigger(m.PrimaryTriggerKind);
+                var legacyPage = MapEventMarkerColors.IsLegacyPageTrigger(m.PrimaryTriggerKind);
+                var autorun = MapEventMarkerColors.IsAutorunTrigger(m.PrimaryTriggerKind);
+                var parallel = MapEventMarkerColors.IsParallelTrigger(m.PrimaryTriggerKind);
+                if (legacyPage)
                 {
                     var rDot = Math.Max(3f, ts * 0.17f);
                     var cx = rect.Left + pad + rDot;
@@ -614,7 +615,7 @@ public sealed class MapCanvas : Control
                         g.DrawString(label, f, tb, countRect, sf);
                     }
                 }
-                else if (autoTile)
+                else if (autorun)
                 {
                     var inset = Math.Max(2, ts / 10);
                     var dashRect = new Rectangle(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
@@ -624,11 +625,24 @@ public sealed class MapCanvas : Control
                     };
                     g.DrawRectangle(dashPen, dashRect);
                 }
+                else if (parallel)
+                {
+                    var inset = Math.Max(2, ts / 10);
+                    var triRect = new Rectangle(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
+                    var pts = new[]
+                    {
+                        new Point(triRect.X + triRect.Width / 2, triRect.Y),
+                        new Point(triRect.Right, triRect.Bottom),
+                        new Point(triRect.X, triRect.Bottom),
+                    };
+                    using var triPen = new Pen(Color.FromArgb(220, fill), Math.Max(1.5f, ts / 20f));
+                    g.DrawPolygon(triPen, pts);
+                }
                 else
                 {
                     using (var brush = new SolidBrush(Color.FromArgb(150, fill)))
                     {
-                        if (stepOn)
+                        if (playerContact)
                         {
                             FillDiamond(g, brush, badge);
                         }
@@ -640,7 +654,7 @@ public sealed class MapCanvas : Control
 
                     using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
                     {
-                        if (stepOn)
+                        if (playerContact)
                         {
                             DrawDiamond(g, edge, badge);
                         }

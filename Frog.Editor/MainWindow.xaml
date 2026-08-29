@@ -83,9 +83,9 @@
                           Command="{x:Static local:MainWindow.CmdRefreshCatalog}"
                           InputGestureText="F5" />
                 <Separator />
-                <MenuItem Header="Événements carte (MariaDB, héritage)…"
+                <MenuItem Header="Événements carte…"
                           Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
-                <MenuItem Header="Actualiser marqueurs événements (MariaDB, héritage)"
+                <MenuItem Header="Actualiser marqueurs événements"
                           Command="{x:Static local:MainWindow.CmdRefreshMapEventMarkers}" />
             </MenuItem>
             <MenuItem Header="_Affichage" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
@@ -99,7 +99,7 @@
                 <MenuItem Header="Réinitialiser la vue (zoom 100 %)" Command="{x:Static local:MainWindow.CmdResetView}" />
                 <Separator />
                 <MenuItem x:Name="MnuShowEventMarkers"
-                          Header="Marqueurs événements (MariaDB, héritage)"
+                          Header="Marqueurs événements"
                           IsCheckable="True"
                           IsChecked="True"
                           Click="OnToggleMapEventMarkers" />
