@@ -60,6 +60,7 @@ public sealed class MainForm : Form
     private MapWorkspaceSession? _workspace;
     private IMapRepository? _mapRepository;
     private MapEventsPostgreSqlService? _mapEventService;
+    private Phase8ContentPostgreSqlService? _phase8ContentService;
     private bool _catalogOpenInProgress;
     private bool _suppressDirtyTracking;
     private readonly IEditorDialogService _dialogService;
@@ -308,6 +309,7 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
+            mMap.DropDownItems.Add("Contenu Phase 8…", null, (_, _) => BrowsePhase8Content());
             mMap.DropDownItems.Add("Actualiser marqueurs événements", null, (_, _) => RefreshMapEventMarkers());
             mMap.DropDownItems.Add(
                 new ToolStripMenuItem("Astuce : Ctrl+clic droit sur la carte = menu événements (tuile sous curseur)")
@@ -696,6 +698,8 @@ public sealed class MainForm : Form
         _persistenceCapabilities = bundle.Capabilities;
         var eventBundle = EditorMapEventRepositoryFactory.CreateBundle();
         _mapEventService = eventBundle.Service;
+        var phase8Bundle = EditorPhase8ContentRepositoryFactory.CreateBundle();
+        _phase8ContentService = phase8Bundle.Service;
         _workspace = new MapWorkspaceSession(bundle.Repository);
         await _workspace.InitializeAsync().ConfigureAwait(true);
         ApplyWorkspaceMapToUi();
@@ -1771,6 +1775,23 @@ public sealed class MainForm : Form
             defaultTileY: _lastHoverTile.Y);
         dlg.ShowDialog(GetDialogOwner());
         RefreshMapEventMarkers();
+    }
+
+    internal void BrowsePhase8Content()
+    {
+        if (_phase8ContentService is null || !_phase8ContentService.IsAvailable)
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                "Contenu Phase 8 nécessite PostgreSQL (FROG_POSTGRES_CONNECTION_STRING ou appsettings.Local.json).",
+                "Contenu Phase 8",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        using var dlg = new Phase8.Phase8ContentBrowseDialog(_phase8ContentService);
+        dlg.ShowDialog(GetDialogOwner());
     }
 
     /// <summary>Recharge les placements d'événements pour la carte catalogue courante et met à jour l'overlay canevas.</summary>

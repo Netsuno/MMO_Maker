@@ -29,6 +29,8 @@ internal static class EditorTestHooks
 
     public static MapEventsPostgreSqlService? OverrideMapEventService { get; set; }
 
+    public static Phase8ContentPostgreSqlService? OverridePhase8ContentService { get; set; }
+
     public static IEditorDialogService? OverrideDialogService { get; set; }
 
     public static IPlaytestProcessLauncher? OverridePlaytestProcessLauncher { get; set; }

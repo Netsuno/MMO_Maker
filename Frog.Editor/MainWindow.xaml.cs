@@ -100,6 +100,11 @@ public partial class MainWindow : Window
         nameof(CmdBrowseMapEvents),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdBrowsePhase8Content = new(
+        "Contenu Phase 8 (PostgreSQL)…",
+        nameof(CmdBrowsePhase8Content),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdRefreshMapEventMarkers = new(
         "Actualiser marqueurs événements (MariaDB, héritage)",
         nameof(CmdRefreshMapEventMarkers),
@@ -167,6 +172,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEvents()));
+        CommandBindings.Add(new CommandBinding(CmdBrowsePhase8Content, (_, _) => _editor.BrowsePhase8Content()));
         CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkers()));
         CommandBindings.Add(new CommandBinding(CmdRefreshCatalog, async (_, _) => await _editor.RefreshMapCatalogAsync()));
         CommandBindings.Add(new CommandBinding(CmdResetView, (_, _) => _editor.ResetMapView()));
