@@ -138,9 +138,14 @@ public sealed class MainShellForm : Form
     private readonly Label _lblCombat = new() { AutoSize = true, Text = "Combat: —", Margin = new Padding(4, 8, 4, 4) };
     private readonly InventoryPanel _inventoryPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
     private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
+    private readonly DialoguePanel _dialoguePanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 96) };
+    private readonly QuestJournalPanel _questJournalPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
+    private readonly CraftPanel _craftPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 56) };
+    private readonly EnvironmentPanel _environmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
     private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.Fill, MinimumSize = new Size(300, 0) };
     private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
     private readonly TabPage _tabGameplay = new("Gameplay") { Padding = new Padding(4) };
+    private readonly TabPage _tabPhase8 = new("Quêtes") { Padding = new Padding(4) };
     private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid (secours)", Visible = false };
     private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid (secours)", Visible = false };
     private readonly NumericUpDown _numShopQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
@@ -938,6 +943,7 @@ public sealed class MainShellForm : Form
         tabRight.TabPages.Clear();
         tabRight.TabPages.Add(_tabChat);
         tabRight.TabPages.Add(_tabGameplay);
+        tabRight.TabPages.Add(_tabPhase8);
         var tabChat = _tabChat;
         var tabGameplay = _tabGameplay;
 
@@ -974,6 +980,23 @@ public sealed class MainShellForm : Form
         rightChat.Controls.Add(_btnSendChat, 0, 2);
         tabChat.Controls.Add(rightChat);
         tabGameplay.Controls.Add(gameplayTab);
+
+        var phase8Tab = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 4,
+            Padding = new Padding(4),
+        };
+        phase8Tab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        phase8Tab.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+        phase8Tab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        phase8Tab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        phase8Tab.Controls.Add(_environmentPanel, 0, 0);
+        phase8Tab.Controls.Add(_questJournalPanel, 0, 1);
+        phase8Tab.Controls.Add(_dialoguePanel, 0, 2);
+        phase8Tab.Controls.Add(_craftPanel, 0, 3);
+        _tabPhase8.Controls.Add(phase8Tab);
 
         var center = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         center.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -1062,6 +1085,9 @@ public sealed class MainShellForm : Form
         _inventoryPanel.DropRequested += (slot, qty) => _ = DropItemAsync(slot, qty);
         _inventoryPanel.SelectionChanged += UpdateInventoryActionButtons;
         _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
+        _dialoguePanel.ChoiceRequested += (token, choiceId) => _ = SendDialogueChoiceAsync(token, choiceId);
+        _questJournalPanel.TurnInRequested += questId => _ = QuestTurnInAsync(questId);
+        _craftPanel.CraftRequested += recipeId => _ = CraftAsync(recipeId);
         _btnSwitchCharacter.Click += (_, _) => GoToCharacterSelectPhase();
         _btnBackDisconnect.Click += async (_, _) => await DisconnectAsync();
 
@@ -1111,6 +1137,23 @@ public sealed class MainShellForm : Form
             AppendLog($"XP +{gain.Amount} (niv {gain.Level}, total {gain.Experience})");
         _client.DeathNotifyReceived += () => AppendLog("Mort signalée par le serveur.");
         _client.PublishedCatalogReceived += OnPublishedCatalogReceived;
+        _client.DialogueStatePushReceived += OnDialogueStatePush;
+        _client.DialogueChoiceResultReceived += (ok, msg) =>
+        {
+            AppendLog(ok ? "Dialogue: " + msg : "Dialogue refusé: " + msg);
+            if (!ok)
+            {
+                _dialoguePanel.ClearDialogue();
+            }
+        };
+        _client.QuestJournalSnapshotReceived += OnQuestJournalSnapshot;
+        _client.QuestTurnInResultReceived += (ok, msg) => AppendLog(ok ? "Quête rendue: " + msg : "Turn-in refusé: " + msg);
+        _client.CraftResultReceived += (ok, msg) =>
+        {
+            AppendLog(ok ? "Craft: " + msg : "Craft refusé: " + msg);
+            _craftPanel.SetStatus(msg);
+        };
+        _client.EnvironmentStatePushReceived += OnEnvironmentStatePush;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
         _btnEnterGame.Click += async (_, _) => await ApplySelectedCharacterAsync();
@@ -1299,6 +1342,7 @@ public sealed class MainShellForm : Form
         _btnBankWithdrawGold.Enabled = enabled;
         _btnSpell.Enabled = enabled;
         _btnPickup.Enabled = enabled && _lstGround.Items.Count > 0;
+        _craftPanel.SetCraftEnabled(enabled);
         _cmbShop.Enabled = enabled && _cmbShop.Items.Count > 0;
         _cmbShopItem.Enabled = enabled && _cmbShopItem.Items.Count > 0;
         _cmbSpell.Enabled = enabled && _cmbSpell.Items.Count > 0;
@@ -1384,6 +1428,76 @@ public sealed class MainShellForm : Form
 
         _btnPickup.Enabled = _lstGround.Items.Count > 0;
         AppendLog($"Sol map={snapshot.MapId}: {snapshot.Items.Count} objet(s)");
+    }
+
+    private void OnDialogueStatePush(DialogueStateWire state)
+    {
+        _dialoguePanel.ApplyState(state);
+        AppendLog($"Dialogue: {state.Speaker} — {state.Choices.Count} choix");
+    }
+
+    private void OnQuestJournalSnapshot(IReadOnlyList<QuestJournalEntryWire> entries)
+    {
+        _questJournalPanel.ApplySnapshot(entries);
+        AppendLog($"Journal quêtes: {entries.Count} entrée(s)");
+    }
+
+    private void OnEnvironmentStatePush(EnvironmentStateWire state)
+    {
+        _environmentPanel.ApplyState(state);
+        AppendLog($"Environnement map={state.MapId} éclairage={state.LightingLevel}");
+    }
+
+    private async Task SendDialogueChoiceAsync(byte[] sessionToken, string choiceId)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendDialogueChoiceAsync(sessionToken, choiceId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Choix dialogue: " + ex.Message);
+        }
+    }
+
+    private async Task QuestTurnInAsync(Guid questId)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendQuestTurnInAsync(questId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Turn-in quête: " + ex.Message);
+        }
+    }
+
+    private async Task CraftAsync(Guid recipeId)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendCraftAsync(recipeId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Craft: " + ex.Message);
+            _craftPanel.SetStatus(ex.Message);
+        }
     }
 
     private async Task PickupSelectedGroundItemAsync()
