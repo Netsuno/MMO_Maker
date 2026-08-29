@@ -27,7 +27,7 @@ Environment: Ubuntu 24.04 / Windows Server 2022 (CI), .NET SDK **8.0.424**, Post
 | --- | --- |
 | Phase 8 implementation (remediation merge) | `696a2afb079baebc05cda93a70579f617a27c50f` (pre-final smoke/doc tip) |
 | Final gate tip | `2481b8b` |
-| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33270208453 |
+| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33270317075 |
 
 ## Logs / artifacts
 
