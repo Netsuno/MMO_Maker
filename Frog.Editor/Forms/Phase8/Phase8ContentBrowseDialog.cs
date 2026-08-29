@@ -190,9 +190,14 @@ internal sealed class Phase8ContentBrowseDialog : Form
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(ct => SaveAsync(SaveContentIntent.Publish, ct), "publish");
 
         FormClosing += Phase8ContentBrowseDialog_FormClosing;
+        SwapEditorPanel(SelectedKind);
         Shown += (_, _) => _ = _lifecycle.RunAsync(async ct =>
         {
-            SwapEditorPanel(SelectedKind);
+            if (_activeEditor is null)
+            {
+                SwapEditorPanel(SelectedKind);
+            }
+
             await ReloadListAsync(ct).ConfigureAwait(true);
         }, "init");
     }

@@ -32,11 +32,16 @@ public sealed class Phase8EditorSmokeTests
                 dialog = new Phase8ContentBrowseDialog(EditorTestHooks.OverridePhase8ContentService);
                 dialog.Show();
                 PumpUntil(() => dialog.LifecycleForTest.IsIdle, "init idle");
+                PumpUntil(() => dialog.ActiveEditorForTest is Phase8DialogueEditorPanel, "dialogue editor ready");
 
                 SaveScreenshot(dialog, "01-phase8-content-browse.png");
 
                 dialog.BtnNewForTest.PerformClick();
-                PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "new draft");
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle
+                          && dialog.IsDirtyForTest
+                          && dialog.ActiveEditorForTest is Phase8DialogueEditorPanel,
+                    "new draft");
                 dialog.NameForTest.Text = "Smoke Dialogue";
                 Assert.IsType<Phase8DialogueEditorPanel>(dialog.ActiveEditorForTest);
                 var dialogue = (Phase8DialogueEditorPanel)dialog.ActiveEditorForTest!;
