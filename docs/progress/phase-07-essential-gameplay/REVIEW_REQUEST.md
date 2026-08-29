@@ -14,8 +14,8 @@
 | P7-J rejected tip | `d36169add732544841ba850edea7fce339894037` |
 | P7-J implementation tip | `947e665cf53ebad2d176868415f9f95a586c0e6a` |
 | P7-K re-review rejected tip | `0ece3d9f8a64f4e34517696dce6e5ce20eabdd71` |
-| **P7-K final tip** | `b32e2755f4fd8d12a641f30192a0b49ce702959c` |
-| **CI (final green)** | https://github.com/Netsuno/MMO_Maker/actions/runs/33253088412 |
+| **P7-K final tip** | `54f3a2f165d5d07a883401d4ee67da847d7e9792` |
+| **CI (final green)** | https://github.com/Netsuno/MMO_Maker/actions/runs/33253329383 |
 | Screenshot artifact | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861 |
 | Phase 8 | **Not started** |
 
@@ -26,7 +26,7 @@
 | **P7-K1** Reconnect displacement handler NRE + log assertion | Yes |
 | **P7-K2** WinForms unhandled exception + StopAsync observation + CI log guard | Yes |
 
-## Exact suite counts (b32e275)
+## Exact suite counts (54f3a2f)
 
 | Suite | Status | Passed |
 | --- | --- | ---: |

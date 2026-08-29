@@ -7,10 +7,10 @@
 | P7-I code-bearing tip | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
 | P7-J implementation tip | `947e665cf53ebad2d176868415f9f95a586c0e6a` |
 | P7-K implementation tip | `2f107b3cdb9a677a00992b2296262c78eaff7c6a` |
-| P7-K evidence tip | `b32e2755f4fd8d12a641f30192a0b49ce702959c` |
+| P7-K evidence tip | `54f3a2f165d5d07a883401d4ee67da847d7e9792` |
 | Branch | `cursor/phase0-baseline-audit-02c7` |
 | PR | #2 (Draft) |
-| CI (final green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33253088412 |
+| CI (final green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33253329383 |
 | Screenshot artifact (preserved) | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861#artifacts |
 | Date (UTC) | 2026-08-29 |
 

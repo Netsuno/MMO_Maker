@@ -24,8 +24,8 @@
 | P7-I code-bearing tip | `bfa86bafa1d367a8ab0127c2fff352113b439d65` |
 | P7-J rejected tip | `d36169add732544841ba850edea7fce339894037` |
 | P7-J implementation tip | `947e665cf53ebad2d176868415f9f95a586c0e6a` |
-| **P7-K final tip** | `b32e2755f4fd8d12a641f30192a0b49ce702959c` |
-| **CI (final green)** | https://github.com/Netsuno/MMO_Maker/actions/runs/33253088412 |
+| **P7-K final tip** | `54f3a2f165d5d07a883401d4ee67da847d7e9792` |
+| **CI (final green)** | https://github.com/Netsuno/MMO_Maker/actions/runs/33253329383 |
 | Screenshot artifact | https://github.com/Netsuno/MMO_Maker/actions/runs/33138380861 |
 | Phase 8 | **Not started** |
 

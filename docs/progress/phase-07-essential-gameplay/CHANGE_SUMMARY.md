@@ -6,8 +6,8 @@
 - Phase 6 accepted baseline: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
 
 ## Final tip (CI green)
-- `b32e2755f4fd8d12a641f30192a0b49ce702959c`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33253088412
+- `54f3a2f165d5d07a883401d4ee67da847d7e9792`
+- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33253329383
 
 ## P7-K1 — Reconnect displacement handler fault
 - `ClientSession.RemoteEndPoint`: captured at accept time as immutable string; never reads disposed `TcpClient.Client`.
@@ -23,7 +23,7 @@
 ## Preserved (accepted P7-J)
 - PostgreSQL character-state detachment, PvP contamination/retry, reward failure seam, PG final-hit tests, PvP attacker await, post-respawn HP assert, CI smoke no-retry, SDK 8.0.424 pin, screenshot evidence.
 
-## Suite counts (b32e275 / CI 33253088412)
+## Suite counts (54f3a2f / CI 33253329383)
 
 | Suite | Result |
 | --- | --- |
