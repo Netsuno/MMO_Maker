@@ -90,9 +90,16 @@ public sealed class Phase8GameplayClientSmokeTests
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "05-craft-panel.png");
 
             form.DisconnectForTest();
-            Pump(form, () => !form.DisconnectButtonForTest.Enabled, "disconnect");
+            Pump(form, () => form.ConnectButtonForTest.Enabled && form.ConnectButtonForTest.Visible, "disconnect complete");
+            form.ConnectButtonForTest.PerformClick();
+            Pump(form, () => form.DisconnectButtonForTest.Enabled || form.BackDisconnectButtonForTest.Enabled, "reconnect TCP");
             form.ReconnectButtonForTest.PerformClick();
-            Pump(form, () => form.StoredAuthTokenForTest is not null && form.LogContainsForTest("Reconnect OK"), "reconnect login");
+            Pump(form, () => form.LogContainsForTest("Reconnect OK"), "reconnect success");
+            Pump(form, () => form.CharCreateButtonForTest.Enabled && form.CharCreateButtonForTest.Visible, "reconnect auth restored");
+            var pick = form.CharactersComboForTest.Items.Cast<object>()
+                .FirstOrDefault(i => i.ToString()?.Contains("P8Hero", StringComparison.Ordinal) == true);
+            Assert.NotNull(pick);
+            form.CharactersComboForTest.SelectedItem = pick;
             form.EnterGameButtonForTest.PerformClick();
             Pump(form, () => form.IsPlayingPhaseForTest, "reconnect playing");
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "06-reconnect-usable.png");
