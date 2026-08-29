@@ -118,6 +118,152 @@ public sealed class PostgresPvPCombatTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
+    public async Task LethalSaveFailure_DoesNotContaminateLaterUnrelatedSave()
+    {
+        using var gate = CreateGate();
+        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var chars = new PostgresCharacterRepository(gate);
+        var combat = CreateCombat(gate, chars);
+        var attacker = await CreateCharacterAsync(gate, seed, "A");
+        var victim = await CreateCharacterAsync(gate, seed, "Victim");
+        var sessionA = NewSession(attacker, "a");
+        var defender = NewSession(victim, "v");
+
+        var failLethal = true;
+        chars.TestBeforeCommitAsync = (record, _) =>
+        {
+            if (failLethal && record.IsDead && record.Hp == 0)
+            {
+                failLethal = false;
+                throw new IOException("injected lethal save failure");
+            }
+
+            return Task.CompletedTask;
+        };
+
+        var sawLethalIOException = false;
+        for (var i = 0; i < 20; i++)
+        {
+            sessionA.LastMeleeUtc = DateTime.MinValue;
+            try
+            {
+                await combat.TryMeleeAttackPlayerAsync(sessionA, defender);
+            }
+            catch (IOException)
+            {
+                sawLethalIOException = true;
+                break;
+            }
+        }
+
+        Assert.True(sawLethalIOException);
+
+        using var verifyGate = CreateGate();
+        var verifyChars = new PostgresCharacterRepository(verifyGate);
+        var saved = await verifyChars.FindByIdAsync(victim.Id);
+        Assert.NotNull(saved);
+        Assert.False(saved!.IsDead);
+        Assert.True(saved.Hp > 0);
+        Assert.Equal(saved.Hp, defender.Hp);
+        Assert.Equal(saved.IsDead, defender.IsDead);
+
+        chars.TestBeforeCommitAsync = null;
+        var victimRecord = await chars.FindByIdAsync(victim.Id);
+        Assert.NotNull(victimRecord);
+        var startingGold = victimRecord!.Gold;
+        await chars.SaveAsync(victimRecord with { Gold = startingGold + 1 });
+
+        var afterUnrelated = await verifyChars.FindByIdAsync(victim.Id);
+        Assert.NotNull(afterUnrelated);
+        Assert.False(afterUnrelated!.IsDead);
+        Assert.Equal(startingGold + 1, afterUnrelated.Gold);
+        Assert.True(afterUnrelated.Hp > 0);
+
+        sessionA.LastMeleeUtc = DateTime.MinValue;
+        var retry = await combat.TryMeleeAttackPlayerAsync(sessionA, defender);
+        while (!retry.TargetKilled && defender.Hp > 0)
+        {
+            sessionA.LastMeleeUtc = DateTime.MinValue;
+            retry = await combat.TryMeleeAttackPlayerAsync(sessionA, defender);
+        }
+
+        Assert.True(retry.TargetKilled);
+        Assert.True(defender.IsDead);
+        var final = await verifyChars.FindByIdAsync(victim.Id);
+        Assert.True(final!.IsDead);
+        Assert.Equal(0, final.Hp);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task LethalSaveCancellation_DoesNotContaminateLaterUnrelatedSave()
+    {
+        using var gate = CreateGate();
+        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var chars = new PostgresCharacterRepository(gate);
+        var combat = CreateCombat(gate, chars);
+        var attacker = await CreateCharacterAsync(gate, seed, "A");
+        var victim = await CreateCharacterAsync(gate, seed, "Victim");
+        var sessionA = NewSession(attacker, "a");
+        var defender = NewSession(victim, "v");
+        using var cts = new CancellationTokenSource();
+
+        chars.TestBeforeCommitAsync = (record, _) =>
+        {
+            if (record.IsDead && record.Hp == 0)
+            {
+                cts.Cancel();
+            }
+
+            return Task.CompletedTask;
+        };
+
+        while (defender.Hp > 8)
+        {
+            sessionA.LastMeleeUtc = DateTime.MinValue;
+            await combat.TryMeleeAttackPlayerAsync(sessionA, defender);
+        }
+
+        sessionA.LastMeleeUtc = DateTime.MinValue;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            combat.TryMeleeAttackPlayerAsync(sessionA, defender, cts.Token));
+
+        using var verifyGate = CreateGate();
+        var verifyChars = new PostgresCharacterRepository(verifyGate);
+        var saved = await verifyChars.FindByIdAsync(victim.Id);
+        Assert.NotNull(saved);
+        Assert.False(saved!.IsDead);
+        Assert.True(saved.Hp > 0);
+        Assert.Equal(saved.Hp, defender.Hp);
+        Assert.Equal(saved.IsDead, defender.IsDead);
+
+        chars.TestBeforeCommitAsync = null;
+        var victimRecord = await chars.FindByIdAsync(victim.Id);
+        Assert.NotNull(victimRecord);
+        var startingGold = victimRecord!.Gold;
+        await chars.SaveAsync(victimRecord with { Gold = startingGold + 1 });
+
+        var afterUnrelated = await verifyChars.FindByIdAsync(victim.Id);
+        Assert.NotNull(afterUnrelated);
+        Assert.False(afterUnrelated!.IsDead);
+        Assert.Equal(startingGold + 1, afterUnrelated.Gold);
+
+        sessionA.LastMeleeUtc = DateTime.MinValue;
+        var retry = await combat.TryMeleeAttackPlayerAsync(sessionA, defender);
+        while (!retry.TargetKilled && defender.Hp > 0)
+        {
+            sessionA.LastMeleeUtc = DateTime.MinValue;
+            retry = await combat.TryMeleeAttackPlayerAsync(sessionA, defender);
+        }
+
+        Assert.True(retry.TargetKilled);
+        var final = await verifyChars.FindByIdAsync(victim.Id);
+        Assert.True(final!.IsDead);
+        Assert.Equal(0, final.Hp);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
     public async Task LethalSaveCancellation_KeepsSessionAlignedWithDatabase()
     {
         using var gate = CreateGate();

@@ -1,30 +1,42 @@
-# Phase 7 — CHANGE_SUMMARY (P7-I1…I4)
+# Phase 7 — CHANGE_SUMMARY (P7-J)
 
 ## Starting point
-- Re-review rejected tip: `5ca27c77c3f5e281fe57ed562356112b34c818a1`
+- P7-I rejected tip: `d36169add732544841ba850edea7fce339894037`
+- Last code-bearing P7-I tip: `bfa86bafa1d367a8ab0127c2fff352113b439d65`
 - Phase 6 accepted baseline: `f4db56592346d9bf0cad9ca153aaeff11ee65de8`
 
-## Final tip (CI green)
-- `95a32ed5e6be37b35edf2a98bfae2ff7446a1359`
-- CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33138990836
+## P7-J1 — Client disconnect / shutdown lifecycle
+- `ClientSession`: `_disposing` gate, acquire/release guard, active-send drain before dispose.
+- `ClientNetworkExceptions.IsExpectedTermination`: IOException, SocketException, ObjectDisposedException, cancellation.
+- `GameServerService`: observe handler faults without stopping host; expected termination during shutdown/disconnect.
+- `PlayerLifecycleNotifier`: skip closed clients during leave fan-out.
+- `GameServerClientLifecycleTests`: disconnect during broadcast, reconnect displacement, multi-client shutdown.
 
-## P7-I1 — Gameplay-client smokes
-- Shop/bank: weapon + consumable in distinct slots; gold priming for 100+25 pricing.
-- PvP death: per-hit HP polling; background-thread attacker TCP (STA DoEvents); victim HP primed for lethal hit.
-- `SmokeTcpClient`: socket/stream read timeouts.
+## P7-J2 — PostgreSQL PvP EF tracking rollback
+- `PostgresCharacterRepository.SaveAsync`: detach tracked entity on any failure/cancellation before rethrow.
+- `PostgresPvPCombatTests`: lethal save failure/cancel must not contaminate unrelated later save; retry persists exactly one death.
 
-## P7-I2 — PvP persistence
-- Durable-first HP/death save; session restored from DB on failure/cancellation.
-- Concurrent `Task.WhenAll` + PG/unit failure/cancel tests.
+## P7-J3 — Reward / PvP smoke false positives
+- `Phase7MonsterKillRewardTests`: `FailNext=true` before first killing blow.
+- `CombatGameplayService`: reward persistence exceptions return `Recompense non accordee.` after monster restore (integration boundary).
+- `PostgresMonsterKillCombatTests`: final-hit failure/cancel/retry through `CombatGameplayService`.
+- `GameplayClientSmokeTests`: await PvP attacker task; stop after lethal hit; post-respawn HP cooldown assert.
 
-## P7-I3 — Monster kill reward boundary
-- Monster restored on reward failure/cancel; authoritative PG progression + ledger race replay.
-- `PostgresMonsterKillRewardTests` + combat-service restore tests.
+## P7-J4 — Evidence / CI discipline
+- `GameDataPanelLifecycle`: barrier no longer blocks UI thread (fixes delete-close timeout).
+- CI smoke steps: removed 2-attempt retry loops (first-attempt gate only).
+- `global.json`: SDK **8.0.424** pinned.
+- Evidence docs updated; screenshot hashes preserved from run `33138380861`.
 
-## P7-I4 — Evidence
-- Frog.Tests **283 PASS**; PG **108 PASS**; editor smoke **35×3**; gameplay smoke **6×3** (all first-attempt).
-- Screenshot hashes 01–10 recorded; artifact uploaded.
-- `git diff --check f4db565..HEAD` **PASS**.
+## Suite targets (P7-J tip)
+
+| Suite | Target |
+| --- | --- |
+| Frog.Tests | 283 PASS |
+| PG integration | 115 PASS |
+| Editor smoke | 35 ×3 first-attempt |
+| Gameplay smoke | 6 ×3 first-attempt |
 
 ## Phase 8
+
 Not started.

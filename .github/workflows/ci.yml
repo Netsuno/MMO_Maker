@@ -15,7 +15,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "8.0.424"
+
+      - name: Verify pinned SDK
+        run: dotnet --version
 
       - name: Restore
         run: dotnet restore Frog.Creator.sln
@@ -32,49 +35,30 @@ jobs:
         shell: pwsh
         run: |
           $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
-          # Exclude gameplay-client smokes — those run in the dedicated step below (35 editor tests).
           $filter = "FullyQualifiedName!~GameplayClientSmoke"
           for ($i = 1; $i -le 3; $i++) {
-            Write-Host "=== Windows editor smoke pass $i/3 ==="
-            $ok = $false
-            for ($attempt = 1; $attempt -le 2; $attempt++) {
-              Write-Host "=== attempt $attempt/2 ==="
-              dotnet test $project -c Release --no-build --verbosity normal --filter $filter
-              if ($LASTEXITCODE -eq 0) {
-                $ok = $true
-                break
-              }
-              Write-Warning "Windows editor smoke pass $i/3 attempt $attempt failed with exit code $LASTEXITCODE"
-            }
-            if (-not $ok) {
-              Write-Error "Windows editor smoke pass $i/3 failed after 2 attempts"
+            Write-Host "=== Windows editor smoke pass $i/3 (first attempt only) ==="
+            dotnet test $project -c Release --no-build --verbosity normal --filter $filter
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Windows editor smoke pass $i/3 failed"
               exit 1
             }
           }
-          Write-Host "=== Windows editor smoke 3/3 consecutive passes OK ==="
+          Write-Host "=== Windows editor smoke 3/3 consecutive first-attempt passes OK ==="
 
       - name: Gameplay client smoke (in-memory server) ×3
         shell: pwsh
         run: |
           $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
           for ($i = 1; $i -le 3; $i++) {
-            Write-Host "=== Gameplay client smoke pass $i/3 ==="
-            $ok = $false
-            for ($attempt = 1; $attempt -le 2; $attempt++) {
-              Write-Host "=== attempt $attempt/2 ==="
-              dotnet test $project -c Release --no-build --filter "FullyQualifiedName~GameplayClientSmoke"
-              if ($LASTEXITCODE -eq 0) {
-                $ok = $true
-                break
-              }
-              Write-Warning "Gameplay client smoke pass $i/3 attempt $attempt failed with exit code $LASTEXITCODE"
-            }
-            if (-not $ok) {
-              Write-Error "Gameplay client smoke pass $i/3 failed after 2 attempts"
+            Write-Host "=== Gameplay client smoke pass $i/3 (first attempt only) ==="
+            dotnet test $project -c Release --no-build --filter "FullyQualifiedName~GameplayClientSmoke"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Gameplay client smoke pass $i/3 failed"
               exit 1
             }
           }
-          Write-Host "=== Gameplay client smoke 3/3 consecutive passes OK ==="
+          Write-Host "=== Gameplay client smoke 3/3 consecutive first-attempt passes OK ==="
 
       - name: Upload Phase 6 editor UI screenshots
         if: always()
@@ -116,7 +100,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "8.0.424"
+
+      - name: Verify pinned SDK
+        run: dotnet --version
 
       - name: Restore
         run: dotnet restore Frog.Creator.sln

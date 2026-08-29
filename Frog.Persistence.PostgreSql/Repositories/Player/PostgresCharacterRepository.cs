@@ -169,12 +169,20 @@ public sealed class PostgresCharacterRepository : ICharacterRepository
 
             var updated = character with { UpdatedAtUtc = _clock.GetUtcNow() };
             PlayerEntityMapper.ApplyRecord(entity, updated);
-            if (TestBeforeCommitAsync is not null)
+            try
             {
-                await TestBeforeCommitAsync(updated, ct).ConfigureAwait(false);
-            }
+                if (TestBeforeCommitAsync is not null)
+                {
+                    await TestBeforeCommitAsync(updated, ct).ConfigureAwait(false);
+                }
 
-            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+                await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                db.Entry(entity).State = EntityState.Detached;
+                throw;
+            }
         }, cancellationToken);
 
     private static bool TryNormalizeDisplayName(string? input, out string normalized, out string errorMessage)

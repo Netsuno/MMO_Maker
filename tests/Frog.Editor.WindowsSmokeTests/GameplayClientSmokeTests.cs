@@ -314,6 +314,7 @@ public sealed class GameplayClientSmokeTests
                 Pump(form, () => form.LogContainsForTest("Respawn: Ressuscite."), "respawn success logged");
                 Pump(form, () => !form.CombatIsDeadForTest, "combat state cleared (not dead) after respawn");
                 Assert.Equal(form.CombatMaxHpForTest, form.CombatHpForTest);
+                AssertNoLatePvpDamageAfterRespawn(form);
             }
             finally
             {
@@ -423,6 +424,9 @@ public sealed class GameplayClientSmokeTests
                 ClientSmokeTestAccess.SaveScreenshot(form, "09-death-respawn-button.png");
                 form.RespawnButtonForTest.PerformClick();
                 Pump(form, () => form.LogContainsForTest("Respawn: Ressuscite."), "respawn after screenshot");
+                Pump(form, () => !form.CombatIsDeadForTest, "alive after respawn screenshot");
+                Assert.Equal(form.CombatMaxHpForTest, form.CombatHpForTest);
+                AssertNoLatePvpDamageAfterRespawn(form);
                 ClientSmokeTestAccess.SaveScreenshot(form, "10-post-respawn.png");
 
                 AssertScreenshots(
@@ -465,6 +469,14 @@ public sealed class GameplayClientSmokeTests
             Assert.True(File.Exists(path), $"Missing screenshot: {path}");
             Assert.True(new FileInfo(path).Length > 0, $"Empty screenshot: {path}");
         }
+    }
+
+    private static void AssertNoLatePvpDamageAfterRespawn(MainShellForm form)
+    {
+        var maxHp = form.CombatMaxHpForTest;
+        Thread.Sleep(CombatFormulas.BasicAttackCooldownMs + 100);
+        Pump(form, () => form.CombatHpForTest == maxHp, "HP unchanged after respawn cooldown");
+        Assert.Equal(maxHp, form.CombatHpForTest);
     }
 
     private static void Pump(MainShellForm form, Func<bool> predicate, string step, TimeSpan? timeout = null)
@@ -641,17 +653,7 @@ public sealed class GameplayClientSmokeTests
             while (!killTask.IsCompleted && DateTime.UtcNow < deadline)
             {
                 System.Windows.Forms.Application.DoEvents();
-                if (Form.CombatIsDeadForTest)
-                {
-                    return;
-                }
-
                 Thread.Sleep(10);
-            }
-
-            if (Form.CombatIsDeadForTest)
-            {
-                return;
             }
 
             if (!killTask.IsCompleted)
@@ -660,6 +662,7 @@ public sealed class GameplayClientSmokeTests
             }
 
             killTask.GetAwaiter().GetResult();
+            Pump(Form, () => Form.CombatIsDeadForTest, "combat state dead after PvP kill");
         }
 
         private static void RunPvpAttackerUntilDead(string host, int port, string victimUser)
@@ -683,7 +686,12 @@ public sealed class GameplayClientSmokeTests
             for (var i = 0; i < 5; i++)
             {
                 attacker.Send(SmokeTcpPackets.Melee(victimUser));
-                attacker.ReadUntil(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(30));
+                var result = attacker.ReadUntil(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(30));
+                if (SmokeTcpPackets.IsLethalMeleeResult(result))
+                {
+                    return;
+                }
+
                 Thread.Sleep(CombatFormulas.BasicAttackCooldownMs + 20);
             }
 
@@ -699,7 +707,15 @@ public sealed class GameplayClientSmokeTests
 
             _disposed = true;
             ClientSmokeTestAccess.CloseMainShell(Form);
-            _host.StopAsync().GetAwaiter().GetResult();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            try
+            {
+                _host.StopAsync(cts.Token).GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
             _host.Dispose();
             ClientSmokeTestAccess.ResetHooks();
         }
@@ -864,6 +880,25 @@ public sealed class GameplayClientSmokeTests
             payload[1] = (byte)t.Length;
             t.CopyTo(payload, 2);
             return payload;
+        }
+
+        public static bool IsLethalMeleeResult(ReadOnlySpan<byte> payload)
+        {
+            if (payload.Length < 4 || payload[0] != (byte)PacketId.MeleeAttackResult || payload[1] == 0)
+            {
+                return false;
+            }
+
+            var targetLen = payload[2];
+            var msgOffset = 3 + targetLen;
+            if (payload.Length < msgOffset + 2)
+            {
+                return false;
+            }
+
+            var msgLen = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(msgOffset));
+            var message = Encoding.UTF8.GetString(payload.Slice(msgOffset + 2, msgLen));
+            return message.Contains("vaincue", StringComparison.OrdinalIgnoreCase);
         }
 
         public static string DecodeCharacterId(ReadOnlySpan<byte> payload)

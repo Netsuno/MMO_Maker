@@ -1,14 +1,16 @@
 using System.Collections.Concurrent;
+using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Frog.Server.Config;
+using Frog.Server.Logging;
+using Frog.Server.Network;
+using Frog.Server.Persistence;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Frog.Server.Config;
-using Frog.Server.Network;
-using Frog.Server.Logging; // <= on utilise nos méthodes [LoggerMessage]
-using Frog.Server.Persistence;
 
 namespace Frog.Server.Services
 {
@@ -88,7 +90,7 @@ public sealed class GameServerService(
                             {
                                 foreach (var ex in task.Exception.InnerExceptions)
                                 {
-                                    if (ex is OperationCanceledException)
+                                    if (ClientNetworkExceptions.IsExpectedTermination(ex))
                                     {
                                         continue;
                                     }
@@ -133,9 +135,9 @@ public sealed class GameServerService(
             {
                 await handlerTask.ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ClientNetworkExceptions.IsExpectedTermination(ex))
             {
-                // Expected during host shutdown.
+                // Expected during host shutdown, peer disconnect, or displaced reconnect.
             }
         }
 
@@ -191,6 +193,10 @@ public sealed class GameServerService(
                     // ConsoleLifetime): stop reading rather than let this fault the discarded
                     // per-client task. The `await using` above still closes the socket in an
                     // orderly fashion, and the session cleanup below still runs.
+                }
+                catch (Exception ex) when (ClientNetworkExceptions.IsExpectedTermination(ex))
+                {
+                    // Normal peer disconnect during read/send.
                 }
 
                 ServerNetworkLogs.TcpClientDisconnected(

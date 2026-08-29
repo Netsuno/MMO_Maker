@@ -94,7 +94,9 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         {
             if (Services.EditorTestHooks.PanelOperationBarrierForTest is { } barrier)
             {
-                await InvokeOnUiAsync(() => barrier(operationName, opToken), opToken).ConfigureAwait(false);
+                // Never block the UI thread inside a barrier — close/dispose must remain able to
+                // cancel pending work while the STA pump continues.
+                await barrier(operationName, opToken).ConfigureAwait(false);
             }
 
             if (serialize)

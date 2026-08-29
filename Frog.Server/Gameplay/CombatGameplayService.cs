@@ -151,7 +151,7 @@ public sealed class CombatGameplayService(
             {
                 await RestoreMonsterAfterFailedRewardAsync(killedSnapshot, applied.DamageApplied)
                     .ConfigureAwait(false);
-                throw;
+                return MeleeCombatResult.Fail("Recompense non accordee.");
             }
 
             return MeleeCombatResult.ForMonsterKilled(targetName, applied.DamageApplied, xp);
@@ -278,7 +278,7 @@ public sealed class CombatGameplayService(
                     caster.SpellCooldownsUtc.Remove(spellId);
                     await RestoreMonsterAfterFailedRewardAsync(killedSnapshot, applied.DamageApplied)
                         .ConfigureAwait(false);
-                    throw;
+                    return SpellCombatResult.Fail("Recompense non accordee.");
                 }
 
                 return SpellCombatResult.ForMonsterKilled(spell.Name, applied.DamageApplied, xp, caster.Mp);

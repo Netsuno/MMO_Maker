@@ -96,6 +96,29 @@ public sealed class Phase7MonsterKillRewardTests
         var spawned = combat.SpawnMonster(1, Phase7ContentSeed.DefaultMonsterId, 64, 64);
         Assert.NotNull(spawned);
 
+        failingRewards.FailNext = true;
+
+        MeleeCombatResult? failedKill = null;
+        for (var i = 0; i < 12; i++)
+        {
+            session.LastMeleeUtc = DateTime.MinValue;
+            var result = await combat.TryMeleeAttackMonsterAsync(session, "Slime");
+            if (!result.Success && result.Message == "Recompense non accordee.")
+            {
+                failedKill = result;
+                break;
+            }
+        }
+
+        Assert.NotNull(failedKill);
+        Assert.False(failedKill!.Success);
+        Assert.Equal("Recompense non accordee.", failedKill.Message);
+        Assert.Contains(combatMutations.ListMonstersOnMap(1), m => m.InstanceId == spawned!.InstanceId && m.Hp > 0);
+        Assert.Equal(0, session.Experience);
+        var savedAfterFailure = await chars.FindByIdAsync(created.Character!.Id);
+        Assert.Equal(0, savedAfterFailure!.Experience);
+
+        failingRewards.FailNext = false;
         MeleeCombatResult? killingBlow = null;
         for (var i = 0; i < 12; i++)
         {
@@ -106,30 +129,10 @@ public sealed class Phase7MonsterKillRewardTests
                 killingBlow = result;
                 break;
             }
-
-            if (!result.Success && result.Message == "Recompense non accordee.")
-            {
-                failingRewards.FailNext = false;
-            }
-        }
-
-        if (killingBlow is null || !killingBlow.MonsterKilled)
-        {
-            failingRewards.FailNext = true;
-            session.LastMeleeUtc = DateTime.MinValue;
-            var failedKill = await combat.TryMeleeAttackMonsterAsync(session, "Slime");
-            Assert.False(failedKill.Success);
-            Assert.Equal("Recompense non accordee.", failedKill.Message);
-            Assert.Contains(combatMutations.ListMonstersOnMap(1), m => m.InstanceId == spawned!.InstanceId && m.Hp > 0);
-            Assert.Equal(0, session.Experience);
-
-            failingRewards.FailNext = false;
-            session.LastMeleeUtc = DateTime.MinValue;
-            killingBlow = await combat.TryMeleeAttackMonsterAsync(session, "Slime");
         }
 
         Assert.NotNull(killingBlow);
-        Assert.True(killingBlow.MonsterKilled);
+        Assert.True(killingBlow!.MonsterKilled);
         Assert.Equal(CombatFormulas.MonsterExperienceReward(1), session.Experience);
         Assert.DoesNotContain(combatMutations.ListMonstersOnMap(1), m => m.InstanceId == spawned!.InstanceId);
     }
