@@ -1,46 +1,39 @@
 # Phase 8 — CHANGE_SUMMARY
 
-## Starting point
+## P8-2 — Runtime complet
 
-- Phase 7 accepted code tip: `2f107b3cdb9a677a00992b2296262c78eaff7c6a`
-- Phase 8 starting tip: `3be393b756f32337972432a0571ffabd06a306bb`
-- Starting CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33254661855
+- `MapEventCommandExecutor` : toutes les commandes du COMMAND_CATALOG (show_text, branch, variables, items, gold, teleport, wait, dialogue, quêtes, call_common_event)
+- Toutes les conditions (switch, variable, quête, item, niveau, métier, région)
+- Variables perso PG (`character_world_variables`) + port `ICharacterWorldStateRepository` étendu
+- Step-on (`player_contact`) branché sur l'interpréteur via `TryExecuteStepOnAsync`
+- Effets secondaires PacketDispatcher : inventaire, or, téléportation
 
-## Transition (first commit)
+## P8-3 — Dialogues et quêtes
 
-- `docs/STATUS.md` — Phase 7 ACCEPTED; Phase 8 IN PROGRESS with baseline.
-- `README.md` — roadmap aligned to PRD: Phase 8 = quests/events/advanced creation; Phase 9 = packaging/admin.
-- Created `docs/progress/phase-08-quests-events-advanced-creation/` dossier.
+- Modèles Core : `DialogueDefinition`, `QuestDefinition`, `CharacterQuestProgress`
+- Services : `DialogGameplayService`, `QuestGameplayService`
+- PG : `character_quest_progress`
 
-## P8-1 foundation (in progress)
+## P8-4 — Métiers et recettes
 
-- Core: `MapEventDefinition`, pages, typed conditions/commands, Phase 8 trigger kinds, runtime limits.
-- PostgreSQL: `map_event_definitions`, snapshots, `map_event_placements`, published placements on map publish.
-- `PostgresMapEventRepository`, `IPublishedMapEventPlacementCatalog`, `PublishedMapEventStoreAdapter`.
-- Production host selects PostgreSQL event store when PG enabled (MariaDB path isolated).
-- Tests: `MapEventDefinitionValidationTests` (+5 unit); `PostgresMapEventRepositoryTests` (+2 PG).
+- Modèles : `ProfessionDefinition`, `RecipeDefinition`
+- `CraftGameplayService` + `InMemoryEventCraftRepository` (idempotent par requestId)
 
-## P8-1 editor + client cleanup
+## P8-5 — Régions et météo
 
-- `EditorMapEventRepositoryFactory`, `MapEventsPostgreSqlService` — catalogue/placements via PostgreSQL (Guid map id, Phase 8 triggers).
-- `MapEventsBrowseDialog`, `MainForm`, `MainWindow` — événements carte branchés sur la carte catalogue courante (`CurrentMapId`), sans MariaDB ni `script_key`.
-- Marqueurs canevas/mini-carte : styles Phase 8 (`action`, `player_contact`, `autorun`, `parallel`).
-- Client : bouton démo `WorldFlagsPatchRequest` retiré (`MainShellForm`).
+- Modèles : `RegionDefinition`, `WeatherProfileDefinition`
+- `WeatherGameplayService` (résolution tuile → région → profil)
 
-## P8-2 runtime foundation (in progress)
+## P8-6 — Événements communs et éditeur
 
-- `MapEventRuntimeService` — sélection page Phase 8, conditions `character_switch`, commandes `show_text` + `set_switch`
-- `ICharacterWorldStateRepository` + table PG `player.character_world_switches`
-- `HandleInteractRequestAsync` délègue à l'interpréteur quand définition publiée disponible
-- Tests : `MapEventParameterSchemasTests`, `MapEventRuntimeServiceTests` (+5 unit), `PostgresCharacterWorldStateRepositoryTests` (+1 PG)
+- Modèle `CommonEventDefinition`, commande `call_common_event` avec limite de récursion
+- Éditeur : `MapEventPageEditorDialog` (JSON pages) + bouton « Éditer pages » + publish dans `MapEventsBrowseDialog`
 
-## Explicit non-goals (Phase 8)
+## Fichiers clés
 
-- Arbitrary Lua/C#/PowerShell execution
-- Guilds, parties, player trading, auction houses
-- Packaging, deployment, backup/restore (Phase 9)
-- Instances or procedural worlds
-
-## Phase 9
-
-Not started.
+| Zone | Fichiers |
+| --- | --- |
+| Runtime | `MapEventCommandExecutor.cs`, `MapEventRuntimeService.cs` |
+| Core | `MapEventParameterSchemas.cs`, modèles Phase 8 dans `Frog.Core/Models/` |
+| PG | `Phase8PlayerProgress` migration, repos quest/profession |
+| Editor | `MapEventPageEditorDialog.cs` |

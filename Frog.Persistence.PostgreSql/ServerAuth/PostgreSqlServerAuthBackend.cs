@@ -41,6 +41,10 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
             new PostgresMonsterKillRewardRepository(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<ICharacterWorldStateRepository>(sp =>
             new PostgresCharacterWorldStateRepository(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<ICharacterQuestRepository>(sp =>
+            new PostgresCharacterQuestRepository(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<ICharacterProfessionRepository>(sp =>
+            new PostgresCharacterProfessionRepository(sp.GetRequiredService<FrogDbContextGate>()));
 
         RegisterPublishedCatalogs(services);
     }

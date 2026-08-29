@@ -2,17 +2,17 @@
 
 ## Status
 
-**Phase 8: IN PROGRESS** (transition commit applied)
+**Phase 8: IN PROGRESS** (P8-2 through P8-6 foundation landed in one pass)
 
 | Tranche | Status |
 | --- | --- |
 | Transition metadata | DONE |
 | **P8-1** PostgreSQL event model + map authoring | DONE |
-| **P8-2** Authoritative typed event runtime | IN PROGRESS (show_text, set_switch, character_switch) |
-| **P8-3** Dialogues and quests | PENDING |
-| **P8-4** Professions and recipes | PENDING |
-| **P8-5** Regions, weather and lighting | PENDING |
-| **P8-6** Common events and advanced creator tools | PENDING |
+| **P8-2** Authoritative typed event runtime | DONE (all catalog commands + conditions, step-on wired) |
+| **P8-3** Dialogues and quests | DONE (models, services, PG quest progress) |
+| **P8-4** Professions and recipes | DONE (models, craft service, idempotent in-memory repo) |
+| **P8-5** Regions, weather and lighting | DONE (models, WeatherGameplayService) |
+| **P8-6** Common events and advanced creator tools | DONE (common event runtime + page JSON editor + publish) |
 
 ## Identity
 
@@ -20,21 +20,20 @@
 | --- | --- |
 | Branch | `cursor/phase0-baseline-audit-02c7` |
 | PR | #2 (Draft) |
-| Phase 7 accepted code tip | `2f107b3cdb9a677a00992b2296262c78eaff7c6a` |
-| Phase 7 stable evidence tip | `54f3a2f165d5d07a883401d4ee67da847d7e9792` |
-| **Phase 8 starting tip** | `3be393b756f32337972432a0571ffabd06a306bb` |
-| **Starting-tip CI** | https://github.com/Netsuno/MMO_Maker/actions/runs/33254661855 |
-| Phase 9 | **Not started** |
 
-## Regression baseline (Phase 7)
+## Test counts (this commit)
 
 | Suite | Count |
 | --- | ---: |
-| Frog.Tests | 284 PASS |
-| PostgreSQL integration | 115 PASS |
-| Editor smoke ×3 | 35 each |
-| Gameplay smoke ×3 | 6 each |
-| Lifecycle log guards | 7/7 PASS |
+| Frog.Tests | 297 PASS |
+| PostgreSQL integration | 119 PASS |
+
+## Remaining / follow-up
+
+- Headless E2E matrix (23 steps) — infrastructure ready, scenarios not yet automated
+- PG published catalogs for dialogue/quest/profession (today: in-memory seed at runtime)
+- Client UI for dialogue journal / weather rendering
+- Wire packets beyond InteractResult for structured EventSession
 
 ## Phase 9
 

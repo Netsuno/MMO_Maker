@@ -4,12 +4,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using Frog.Application.Content;
 using Frog.Application.Events;
+using Frog.Core;
+using Frog.Core.Character;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Server.Database;
 using Frog.Server.Gameplay;
 using Frog.Server.Models;
+using Frog.Server.Persistence;
+using Frog.Server.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -49,31 +53,10 @@ public sealed class MapEventRuntimeServiceTests
         });
         var worldState = new InMemoryCharacterWorldStateRepository();
         var payload = new InMemoryCharacterPayloadReader();
-        var service = new MapEventRuntimeService(
-            catalog,
-            worldState,
-            new CharacterMutationCoordinator(),
-            payload,
-            payload,
-            NullLogger<MapEventRuntimeService>.Instance);
+        var service = CreateService(catalog, worldState, payload);
 
-        var session = new Session
-        {
-            Id = Guid.NewGuid(),
-            Username = "hero",
-            CharacterId = characterId.ToString("D"),
-            CharacterGuid = characterId,
-        };
-        var placement = new MapEventWireEntry
-        {
-            CatalogId = 42,
-            PlacementId = 1,
-            Slug = "gate",
-            DisplayName = "Porte",
-            TileX = 0,
-            TileY = 0,
-            TriggerKind = MapEventTriggerKinds.Interact,
-        };
+        var session = CreateSession(characterId);
+        var placement = CreatePlacement(42);
 
         var result = await service.TryExecuteInteractAsync(session, placement);
         Assert.NotNull(result);
@@ -118,15 +101,87 @@ public sealed class MapEventRuntimeServiceTests
         });
         var worldState = new InMemoryCharacterWorldStateRepository();
         var payload = new InMemoryCharacterPayloadReader();
-        var service = new MapEventRuntimeService(
-            catalog,
-            worldState,
-            new CharacterMutationCoordinator(),
-            payload,
-            payload,
-            NullLogger<MapEventRuntimeService>.Instance);
+        var service = CreateService(catalog, worldState, payload);
 
-        var session = new Session
+        var session = CreateSession(characterId);
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(7));
+        Assert.NotNull(result);
+        Assert.False(result!.Success);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_SetVariable_PersistsVariable()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Counter",
+            EditorAliasId = 99,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.AddVariable,
+                            ParameterJson = """{"variableId":"score","delta":5}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var worldState = new InMemoryCharacterWorldStateRepository();
+        var service = CreateService(catalog, worldState, new InMemoryCharacterPayloadReader());
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(99));
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.True(result.VariablesChanged);
+        Assert.Equal(5, await worldState.GetVariableAsync(characterId, "score"));
+    }
+
+    private static MapEventRuntimeService CreateService(
+        IPublishedMapEventCatalog catalog,
+        InMemoryCharacterWorldStateRepository worldState,
+        InMemoryCharacterPayloadReader payload)
+    {
+        var phase8 = new Phase8InMemoryPublishedContent();
+        var characters = new InMemoryCharacterRepository();
+        var items = new Phase7PublishedContent();
+        var inventoryRepo = new InMemoryInventoryRepository();
+        var inventory = new InventoryGameplayService(
+            inventoryRepo,
+            new InMemoryInventoryTransferRepository(inventoryRepo, new InMemoryEquipmentRepository(), new InMemoryGroundItemRepository(), items),
+            new InMemoryGroundItemRepository(),
+            items,
+            new InMemoryEquipmentRepository());
+        var quests = new QuestGameplayService(phase8, new InMemoryCharacterQuestRepository(), characters, inventory);
+        var executor = new MapEventCommandExecutor(
+            worldState,
+            characters,
+            inventory,
+            items,
+            new DialogGameplayService(phase8),
+            quests,
+            phase8,
+            phase8,
+            new InMemoryCharacterProfessionRepository(),
+            payload,
+            payload,
+            new MovementService(MapTestHelpers.CreateMapService(), new ConnectionManager()),
+            NullLogger<MapEventCommandExecutor>.Instance);
+        return new MapEventRuntimeService(
+            catalog,
+            new CharacterMutationCoordinator(),
+            executor,
+            NullLogger<MapEventRuntimeService>.Instance);
+    }
+
+    private static Session CreateSession(Guid characterId) =>
+        new()
         {
             Id = Guid.NewGuid(),
             Username = "hero",
@@ -134,21 +189,17 @@ public sealed class MapEventRuntimeServiceTests
             CharacterGuid = characterId,
         };
 
-        var result = await service.TryExecuteInteractAsync(
-            session,
-            new MapEventWireEntry
-            {
-                CatalogId = 7,
-                PlacementId = 1,
-                Slug = "gate",
-                DisplayName = "Porte",
-                TileX = 0,
-                TileY = 0,
-                TriggerKind = MapEventTriggerKinds.Interact,
-            });
-        Assert.NotNull(result);
-        Assert.False(result!.Success);
-    }
+    private static MapEventWireEntry CreatePlacement(int catalogId) =>
+        new()
+        {
+            CatalogId = catalogId,
+            PlacementId = 1,
+            Slug = "gate",
+            DisplayName = "Porte",
+            TileX = 0,
+            TileY = 0,
+            TriggerKind = MapEventTriggerKinds.Interact,
+        };
 
     private sealed class FakePublishedMapEventCatalog(MapEventDefinition definition) : IPublishedMapEventCatalog
     {

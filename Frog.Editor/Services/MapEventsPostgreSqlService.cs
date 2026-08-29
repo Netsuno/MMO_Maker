@@ -405,6 +405,48 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         }
     }
 
+    public async Task<string?> LoadPagesJsonAsync(Guid eventId)
+    {
+        var stored = await _repository.LoadByIdAsync(eventId).ConfigureAwait(false);
+        if (stored is null)
+        {
+            return null;
+        }
+
+        return MapEventPagesCodec.SerializePages(stored.Definition.Pages);
+    }
+
+    public async Task<bool> TrySavePagesAsync(Guid eventId, string pagesJson, bool publish)
+    {
+        var stored = await _repository.LoadByIdAsync(eventId).ConfigureAwait(false);
+        if (stored is null)
+        {
+            return false;
+        }
+
+        if (!MapEventPagesCodec.TryDeserializePages(pagesJson, out var pages, out _))
+        {
+            return false;
+        }
+
+        var definition = stored.Definition;
+        definition.Pages = pages;
+        if (!definition.Validate(out _))
+        {
+            return false;
+        }
+
+        var save = await _repository.SaveAsync(new SaveMapEventRequest
+        {
+            EventId = eventId,
+            Definition = definition,
+            ExpectedRevision = stored.Revision,
+            Intent = publish ? SaveContentIntent.Publish : SaveContentIntent.SaveDraft,
+        }).ConfigureAwait(false);
+
+        return save is SaveMapEventResult.Success;
+    }
+
     public void Dispose()
     {
         if (_ownsGate)

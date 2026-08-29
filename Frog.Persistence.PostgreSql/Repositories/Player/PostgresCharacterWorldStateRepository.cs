@@ -72,4 +72,103 @@ public sealed class PostgresCharacterWorldStateRepository(FrogDbContextGate gate
                 .ConfigureAwait(false);
             return rows.ToDictionary(r => r.SwitchKey, r => r.Value, StringComparer.Ordinal);
         }, cancellationToken);
+
+    public Task<int?> GetVariableAsync(Guid characterId, string variableId, CancellationToken cancellationToken = default)
+        => _gate.ExecuteAsync(async (db, ct) =>
+        {
+            if (characterId == Guid.Empty || string.IsNullOrWhiteSpace(variableId))
+            {
+                return (int?)null;
+            }
+
+            var row = await db.PlayerCharacterWorldVariables.AsNoTracking()
+                .Where(v => v.CharacterId == characterId && v.VariableKey == variableId)
+                .Select(v => (int?)v.Value)
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+            return row;
+        }, cancellationToken);
+
+    public Task SetVariableAsync(
+        Guid characterId,
+        string variableId,
+        int value,
+        CancellationToken cancellationToken = default)
+        => _gate.ExecuteAsync(async (db, ct) =>
+        {
+            if (characterId == Guid.Empty || string.IsNullOrWhiteSpace(variableId))
+            {
+                return;
+            }
+
+            var existing = await db.PlayerCharacterWorldVariables
+                .FirstOrDefaultAsync(v => v.CharacterId == characterId && v.VariableKey == variableId, ct)
+                .ConfigureAwait(false);
+            if (existing is null)
+            {
+                db.PlayerCharacterWorldVariables.Add(new Entities.Player.CharacterWorldVariableEntity
+                {
+                    CharacterId = characterId,
+                    VariableKey = variableId,
+                    Value = value,
+                });
+            }
+            else
+            {
+                existing.Value = value;
+            }
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            db.ChangeTracker.Clear();
+        }, cancellationToken);
+
+    public Task AddVariableAsync(
+        Guid characterId,
+        string variableId,
+        int delta,
+        CancellationToken cancellationToken = default)
+        => _gate.ExecuteAsync(async (db, ct) =>
+        {
+            if (characterId == Guid.Empty || string.IsNullOrWhiteSpace(variableId))
+            {
+                return;
+            }
+
+            var existing = await db.PlayerCharacterWorldVariables
+                .FirstOrDefaultAsync(v => v.CharacterId == characterId && v.VariableKey == variableId, ct)
+                .ConfigureAwait(false);
+            if (existing is null)
+            {
+                db.PlayerCharacterWorldVariables.Add(new Entities.Player.CharacterWorldVariableEntity
+                {
+                    CharacterId = characterId,
+                    VariableKey = variableId,
+                    Value = delta,
+                });
+            }
+            else
+            {
+                existing.Value = checked(existing.Value + delta);
+            }
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            db.ChangeTracker.Clear();
+        }, cancellationToken);
+
+    public Task<IReadOnlyDictionary<string, int>> GetAllVariablesAsync(
+        Guid characterId,
+        CancellationToken cancellationToken = default)
+        => _gate.ExecuteAsync<IReadOnlyDictionary<string, int>>(async (db, ct) =>
+        {
+            if (characterId == Guid.Empty)
+            {
+                return new Dictionary<string, int>();
+            }
+
+            var rows = await db.PlayerCharacterWorldVariables.AsNoTracking()
+                .Where(v => v.CharacterId == characterId)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+            return rows.ToDictionary(r => r.VariableKey, r => r.Value, StringComparer.Ordinal);
+        }, cancellationToken);
 }

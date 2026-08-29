@@ -65,4 +65,6 @@ public sealed class CharacterEntity
     public ICollection<BankSlotEntity> BankSlots { get; set; } = new List<BankSlotEntity>();
 
     public ICollection<CharacterWorldSwitchEntity> WorldSwitches { get; set; } = new List<CharacterWorldSwitchEntity>();
+
+    public ICollection<CharacterWorldVariableEntity> WorldVariables { get; set; } = new List<CharacterWorldVariableEntity>();
 }

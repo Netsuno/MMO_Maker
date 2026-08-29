@@ -212,6 +212,49 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
         return true;
     }
 
+    /// <summary>Téléportation événement (Phase 8) vers une tuile d'une carte chargée.</summary>
+    public bool TryTeleportToTile(Session session, int targetMapId, int tileX, int tileY, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+        if (!_mapService.TryEnsureMapLoaded(targetMapId))
+        {
+            errorMessage = "Carte destination indisponible.";
+            return false;
+        }
+
+        if (!_mapService.TryGetMapBounds(targetMapId, out var dw, out var dh))
+        {
+            errorMessage = "Carte destination invalide.";
+            return false;
+        }
+
+        if (tileX < 0 || tileY < 0 || tileX >= dw || tileY >= dh)
+        {
+            errorMessage = "Tuile destination hors limites.";
+            return false;
+        }
+
+        if (_mapService.IsBlocked(targetMapId, tileX, tileY))
+        {
+            errorMessage = "Tuile destination bloquée.";
+            return false;
+        }
+
+        if (!_mapService.AllowsPlayerOverlapOnMap(targetMapId) &&
+            IsCellOccupiedByOther(session, targetMapId, tileX, tileY))
+        {
+            errorMessage = "Tuile destination occupée.";
+            return false;
+        }
+
+        session.CurrentMapId = targetMapId;
+        session.PositionX = tileX;
+        session.PositionY = tileY;
+        SessionPixelSync.SyncFromTileGrid(session);
+        session.LastPositionSyncUtc = DateTime.UtcNow;
+        return true;
+    }
+
     private bool IsCellOccupiedByOther(Session self, int mapId, int x, int y)
     {
         foreach (var other in _connectionManager.GetActiveSessions())

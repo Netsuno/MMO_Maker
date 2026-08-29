@@ -38,4 +38,25 @@ public sealed class MapEventParameterSchemasTests
         Assert.False(expected);
         Assert.Null(err);
     }
+
+    [Fact]
+    public void TryParseAddVariable_ValidJson()
+    {
+        Assert.True(MapEventParameterSchemas.TryParseAddVariable(
+            """{"variableId":"score","delta":10}""",
+            out var id,
+            out var delta,
+            out var err));
+        Assert.Equal("score", id);
+        Assert.Equal(10, delta);
+        Assert.Null(err);
+    }
+
+    [Fact]
+    public void EvaluateVariableCompare_Operators()
+    {
+        Assert.True(MapEventParameterSchemas.EvaluateVariableCompare(5, "eq", 5));
+        Assert.True(MapEventParameterSchemas.EvaluateVariableCompare(3, "lt", 5));
+        Assert.False(MapEventParameterSchemas.EvaluateVariableCompare(7, "lte", 5));
+    }
 }

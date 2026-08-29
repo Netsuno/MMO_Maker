@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Frog.Application.Events;
 using Frog.Application.Gameplay;
 using Frog.Application.Identity;
 using Frog.Application.Playtest;
@@ -784,6 +785,9 @@ public sealed partial class PacketDispatcher(
                 await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
             }
 
+            await ApplyMapEventSideEffectsAsync(clientSession, session, runtimeResult, cancellationToken)
+                .ConfigureAwait(false);
+
             var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
             await _packetSender.SendInteractResultAsync(
                 clientSession,
@@ -950,6 +954,36 @@ public sealed partial class PacketDispatcher(
         }
 
         var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
+        var runtimeResult = await _mapEventRuntime.TryExecuteStepOnAsync(session, ev, cancellationToken)
+            .ConfigureAwait(false);
+        if (runtimeResult is not null)
+        {
+            ServerNetworkLogs.MapEventStepOnFired(
+                _logger,
+                session.Username,
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY,
+                ev.Slug,
+                ev.PlacementId);
+
+            if (runtimeResult.SwitchesChanged)
+            {
+                await TrySendCharacterPayloadAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+            }
+
+            await ApplyMapEventSideEffectsAsync(clientSession, session, runtimeResult, cancellationToken)
+                .ConfigureAwait(false);
+
+            var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+            await _packetSender.SendInteractResultAsync(
+                clientSession,
+                runtimeResult.Success,
+                clientMessage,
+                cancellationToken);
+            return;
+        }
+
         ServerNetworkLogs.MapEventStepOnFired(
             _logger,
             session.Username,
@@ -963,6 +997,34 @@ public sealed partial class PacketDispatcher(
             true,
             $"[Marche] {ev.DisplayName} ({ev.Slug})",
             cancellationToken);
+    }
+
+    private async Task ApplyMapEventSideEffectsAsync(
+        ClientSession clientSession,
+        Session session,
+        MapEventExecutionResult result,
+        CancellationToken cancellationToken)
+    {
+        if (result.InventoryChanged && UsesAccountGameplay(session))
+        {
+            await SendInventorySnapshotAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (result.GoldChanged && UsesAccountGameplay(session))
+        {
+            await SendCombatStateAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (result.TeleportApplied)
+        {
+            await _packetSender.SendPositionUpdateAsync(
+                clientSession,
+                session.Username ?? string.Empty,
+                session.CurrentMapId,
+                session.PixelX,
+                session.PixelY,
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static void ReleasePageTriggerForPreviousMap(Session session, int previousMapId)

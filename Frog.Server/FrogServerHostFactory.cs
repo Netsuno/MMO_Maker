@@ -209,6 +209,21 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IMonsterKillRewardRepository, InMemoryMonsterKillRewardRepository>();
                     services.AddSingleton<ICharacterWorldStateRepository, InMemoryCharacterWorldStateRepository>();
                     services.AddSingleton<IPublishedMapEventCatalog>(_ => NullPublishedMapEventCatalog.Instance);
+                    services.AddSingleton<ICharacterQuestRepository, InMemoryCharacterQuestRepository>();
+                    services.AddSingleton<ICharacterProfessionRepository, InMemoryCharacterProfessionRepository>();
+                    services.AddSingleton<Phase8InMemoryPublishedContent>();
+                    services.AddSingleton<IPublishedDialogueCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedQuestCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedCommonEventCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedProfessionCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedRecipeCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedRegionCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedWeatherCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IEventCraftRepository>(sp =>
+                        new InMemoryEventCraftRepository(
+                            sp.GetRequiredService<IPublishedRecipeCatalog>(),
+                            sp.GetRequiredService<IInventoryRepository>(),
+                            sp.GetRequiredService<IPublishedItemCatalog>()));
 
                     services.AddSingleton<Phase7PublishedContent>();
                     services.AddSingleton<IPublishedClassCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
@@ -223,6 +238,19 @@ public static class FrogServerHostFactory
                 {
                     services.AddSingleton<PublishedWorldMapBlobStore>();
                     services.AddHostedService<PublishedWorldBootstrapHostedService>();
+                    services.AddSingleton<Phase8InMemoryPublishedContent>();
+                    services.AddSingleton<IPublishedDialogueCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedQuestCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedCommonEventCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedProfessionCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedRecipeCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedRegionCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IPublishedWeatherCatalog>(sp => sp.GetRequiredService<Phase8InMemoryPublishedContent>());
+                    services.AddSingleton<IEventCraftRepository>(sp =>
+                        new InMemoryEventCraftRepository(
+                            sp.GetRequiredService<IPublishedRecipeCatalog>(),
+                            sp.GetRequiredService<IInventoryRepository>(),
+                            sp.GetRequiredService<IPublishedItemCatalog>()));
                 }
 
                 services.AddSingleton<CharacterMutationCoordinator>();
@@ -232,6 +260,11 @@ public static class FrogServerHostFactory
                 services.AddSingleton<CombatGameplayService>();
                 services.AddSingleton<ShopBankGameplayService>();
                 services.AddSingleton<PublishedCatalogService>();
+                services.AddSingleton<MapEventCommandExecutor>();
+                services.AddSingleton<DialogGameplayService>();
+                services.AddSingleton<QuestGameplayService>();
+                services.AddSingleton<CraftGameplayService>();
+                services.AddSingleton<WeatherGameplayService>();
                 services.AddSingleton<MapEventRuntimeService>();
 
                 services.AddSingleton<InMemoryPlayerStateStore>();

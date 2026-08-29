@@ -79,6 +79,15 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<CharacterWorldSwitchEntity> PlayerCharacterWorldSwitches => Set<CharacterWorldSwitchEntity>();
 
+    public DbSet<CharacterWorldVariableEntity> PlayerCharacterWorldVariables => Set<CharacterWorldVariableEntity>();
+
+    public DbSet<CharacterQuestProgressEntity> PlayerCharacterQuestProgress => Set<CharacterQuestProgressEntity>();
+
+    public DbSet<CharacterProfessionProgressEntity> PlayerCharacterProfessionProgress =>
+        Set<CharacterProfessionProgressEntity>();
+
+    public DbSet<EventCraftRequestEntity> PlayerEventCraftRequests => Set<EventCraftRequestEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("world");
@@ -811,6 +820,37 @@ public sealed class FrogDbContext : DbContext
                 .WithMany(x => x.WorldSwitches)
                 .HasForeignKey(x => x.CharacterId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CharacterWorldVariableEntity>(e =>
+        {
+            e.ToTable("character_world_variables", "player");
+            e.HasKey(x => new { x.CharacterId, x.VariableKey });
+            e.Property(x => x.VariableKey).HasMaxLength(64).IsRequired();
+            e.HasOne<CharacterEntity>()
+                .WithMany(x => x.WorldVariables)
+                .HasForeignKey(x => x.CharacterId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CharacterQuestProgressEntity>(e =>
+        {
+            e.ToTable("character_quest_progress", "player");
+            e.HasKey(x => new { x.CharacterId, x.QuestId });
+            e.Property(x => x.Status).HasConversion<byte>();
+        });
+
+        modelBuilder.Entity<CharacterProfessionProgressEntity>(e =>
+        {
+            e.ToTable("character_profession_progress", "player");
+            e.HasKey(x => new { x.CharacterId, x.ProfessionId });
+        });
+
+        modelBuilder.Entity<EventCraftRequestEntity>(e =>
+        {
+            e.ToTable("event_craft_requests", "player");
+            e.HasKey(x => new { x.CharacterId, x.RequestId });
+            e.Property(x => x.RecipeId).IsRequired();
         });
     }
 }

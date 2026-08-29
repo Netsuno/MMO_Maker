@@ -36,6 +36,21 @@ public sealed class PostgresCharacterWorldStateRepositoryTests
         Assert.True(v);
     }
 
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task SetVariable_RoundTrips()
+    {
+        using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var characterId = await CreateCharacterAsync(gate);
+        var repo = new PostgresCharacterWorldStateRepository(gate);
+
+        await repo.SetVariableAsync(characterId, "score", 42);
+        Assert.Equal(42, await repo.GetVariableAsync(characterId, "score"));
+
+        await repo.AddVariableAsync(characterId, "score", 8);
+        Assert.Equal(50, await repo.GetVariableAsync(characterId, "score"));
+    }
+
     private static async Task<Guid> CreateCharacterAsync(FrogDbContextGate gate)
     {
         var seed = await Phase7PostgresContentSeed.PublishAsync(gate);

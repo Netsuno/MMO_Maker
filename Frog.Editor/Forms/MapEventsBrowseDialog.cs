@@ -34,6 +34,7 @@ internal sealed class MapEventsBrowseDialog : Form
     private readonly TextBox _txtNewDisplay = new() { Width = 260, PlaceholderText = "Nom affiché" };
     private readonly Button _btnAddCatalog = new() { Text = "Ajouter au catalogue", AutoSize = true };
     private readonly Button _btnDeleteCatalogRow = new() { Text = "Supprimer entrée catalogue", AutoSize = true };
+    private readonly Button _btnEditPages = new() { Text = "Éditer pages…", AutoSize = true };
     private readonly TextBox _txtFilterCatalog = new() { Width = 220, PlaceholderText = "Filtrer catalogue…" };
     private readonly TextBox _txtFilterPlacements = new() { Width = 220, PlaceholderText = "Filtrer placements…" };
     private readonly List<PgEventCatalogRow> _catalogRows = new();
@@ -124,6 +125,7 @@ internal sealed class MapEventsBrowseDialog : Form
         catNewRow.Controls.Add(new Label { Text = "Nom", AutoSize = true, Margin = new Padding(8, 10, 4, 0) });
         catNewRow.Controls.Add(_txtNewDisplay);
         catNewRow.Controls.Add(_btnAddCatalog);
+        catNewRow.Controls.Add(_btnEditPages);
         catNewRow.Controls.Add(_btnDeleteCatalogRow);
         catPanel.Controls.Add(catNewRow, 0, 2);
         catPanel.Controls.Add(_lvCatalog, 0, 3);
@@ -183,6 +185,7 @@ internal sealed class MapEventsBrowseDialog : Form
         _btnDeleteSelected.Click += (_, _) => DeleteSelectedSafe();
         _btnApplyTrigger.Click += (_, _) => ApplyTriggerSafe();
         _btnAddCatalog.Click += (_, _) => AddCatalogSafe();
+        _btnEditPages.Click += (_, _) => EditPagesSafe();
         _btnDeleteCatalogRow.Click += (_, _) => DeleteCatalogRowSafe();
         _txtFilterCatalog.TextChanged += (_, _) => RefreshFilteredLists();
         _txtFilterPlacements.TextChanged += (_, _) => RefreshFilteredLists();
@@ -197,6 +200,28 @@ internal sealed class MapEventsBrowseDialog : Form
 
     private static string FormatMapId(Guid mapId) =>
         mapId == Guid.Empty ? "(aucune carte catalogue)" : mapId.ToString("D");
+
+    private void EditPagesSafe()
+    {
+        try
+        {
+            if (!TryGetSingleSelectedGuid(_lvCatalog, out var eventId))
+            {
+                MessageBox.Show(this, "Sélectionnez une entrée catalogue.", "Pages", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var row = _catalogRows.FirstOrDefault(r => r.EventId == eventId);
+            var name = row.DisplayName ?? eventId.ToString("D");
+            using var dlg = new MapEventPageEditorDialog(_service, eventId, name);
+            dlg.ShowDialog(this);
+            Reload();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Pages", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
 
     private void AddCatalogSafe()
     {

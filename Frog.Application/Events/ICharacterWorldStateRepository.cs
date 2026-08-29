@@ -10,4 +10,22 @@ public interface ICharacterWorldStateRepository
     Task<IReadOnlyDictionary<string, bool>> GetAllSwitchesAsync(
         Guid characterId,
         CancellationToken cancellationToken = default);
+
+    Task<int?> GetVariableAsync(Guid characterId, string variableId, CancellationToken cancellationToken = default);
+
+    Task SetVariableAsync(
+        Guid characterId,
+        string variableId,
+        int value,
+        CancellationToken cancellationToken = default);
+
+    Task AddVariableAsync(
+        Guid characterId,
+        string variableId,
+        int delta,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<string, int>> GetAllVariablesAsync(
+        Guid characterId,
+        CancellationToken cancellationToken = default);
 }

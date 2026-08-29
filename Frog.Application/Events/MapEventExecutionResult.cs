@@ -11,13 +11,40 @@ public sealed class MapEventExecutionResult
 
     public bool SwitchesChanged { get; init; }
 
-    public static MapEventExecutionResult Ok(string message, string? showText = null, bool switchesChanged = false) =>
+    public bool VariablesChanged { get; init; }
+
+    public bool InventoryChanged { get; init; }
+
+    public bool GoldChanged { get; init; }
+
+    public bool TeleportApplied { get; init; }
+
+    public string? DialogueSummary { get; init; }
+
+    public string? QuestSummary { get; init; }
+
+    public static MapEventExecutionResult Ok(
+        string message,
+        string? showText = null,
+        bool switchesChanged = false,
+        bool variablesChanged = false,
+        bool inventoryChanged = false,
+        bool goldChanged = false,
+        bool teleportApplied = false,
+        string? dialogueSummary = null,
+        string? questSummary = null) =>
         new()
         {
             Success = true,
             Message = message,
             ShowText = showText,
             SwitchesChanged = switchesChanged,
+            VariablesChanged = variablesChanged,
+            InventoryChanged = inventoryChanged,
+            GoldChanged = goldChanged,
+            TeleportApplied = teleportApplied,
+            DialogueSummary = dialogueSummary,
+            QuestSummary = questSummary,
         };
 
     public static MapEventExecutionResult Fail(string message) =>
