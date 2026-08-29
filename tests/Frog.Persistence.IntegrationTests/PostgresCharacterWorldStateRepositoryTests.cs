@@ -1,6 +1,9 @@
-using Frog.Application.Events;
+using Frog.Application.Gameplay;
+using Frog.Application.Identity;
+using Frog.Core.Gameplay;
 using Frog.Persistence.IntegrationTests.Support;
 using Frog.Persistence.PostgreSql;
+using Frog.Persistence.PostgreSql.Repositories.Auth;
 using Frog.Persistence.PostgreSql.Repositories.Player;
 using Xunit;
 
@@ -21,8 +24,8 @@ public sealed class PostgresCharacterWorldStateRepositoryTests
     public async Task SetSwitch_RoundTrips()
     {
         using var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+        var characterId = await CreateCharacterAsync(gate);
         var repo = new PostgresCharacterWorldStateRepository(gate);
-        var characterId = Guid.NewGuid();
 
         await repo.SetSwitchAsync(characterId, "door_open", true);
         var value = await repo.GetSwitchAsync(characterId, "door_open");
@@ -31,5 +34,26 @@ public sealed class PostgresCharacterWorldStateRepositoryTests
         var all = await repo.GetAllSwitchesAsync(characterId);
         Assert.True(all.TryGetValue("door_open", out var v));
         Assert.True(v);
+    }
+
+    private static async Task<Guid> CreateCharacterAsync(FrogDbContextGate gate)
+    {
+        var seed = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var accounts = new PostgresAccountRepository(gate);
+        var created = await accounts.TryCreateAsync($"ws-{Guid.NewGuid():N}"[..16], "password12345");
+        var chars = new PostgresCharacterRepository(gate);
+        var character = await chars.CreateAsync(
+            created.AccountId!.Value,
+            "SwitchHero",
+            seed.ClassId,
+            new CharacterStats(10, 10, 10, 10, 10, 10),
+            100,
+            50,
+            seed.SpellId,
+            1,
+            32,
+            48);
+        Assert.Equal(CharacterCreateStatus.Created, character.Status);
+        return character.Character!.Id;
     }
 }
