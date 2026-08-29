@@ -26,7 +26,7 @@ Environment: Ubuntu 24.04 / Windows Server 2022 (CI), .NET SDK **8.0.424**, Post
 | Item | SHA |
 | --- | --- |
 | Phase 8 implementation (remediation merge) | `696a2afb079baebc05cda93a70579f617a27c50f` (pre-final smoke/doc tip) |
-| Final gate tip | _(recorded after push — see PR #2 CI)_ |
+| Final gate tip | `1aec0e4` |
 
 ## Logs / artifacts
 

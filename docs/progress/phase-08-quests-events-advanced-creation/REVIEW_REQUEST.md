@@ -12,7 +12,7 @@
 | PR | https://github.com/Netsuno/MMO_Maker/pull/2 |
 | Accepted Phase 7 baseline | `3be393b756f32337972432a0571ffabd06a306bb` |
 | Prior rejected Phase 8 head | `779d4f9546ac45468c6d33dcdc48917605bc88ef` |
-| Remediation tip | _(see PR commits / CI green SHA)_ |
+| Remediation tip | `1aec0e4` |
 | Phase 9 | **Not started** |
 
 ## Remediation checklist (P8-R1 … P8-R5)
