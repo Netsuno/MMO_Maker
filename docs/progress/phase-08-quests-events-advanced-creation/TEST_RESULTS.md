@@ -16,8 +16,8 @@ Environment: Windows Server 2022 + Ubuntu (CI), .NET SDK **8.0.424**, PostgreSQL
 
 | Item | Value |
 | --- | --- |
-| Final tip | `ab4c89a012ab6fc1224cde5f5ad961c4fdda24c6` |
-| CI | https://github.com/Netsuno/MMO_Maker/actions/runs/33273533085 |
+| Final tip | `67b527f0fe55af5b5ca9a9128f922e397ceef26c` |
+| CI | https://github.com/Netsuno/MMO_Maker/actions/runs/33274156457 |
 | Client screenshots artifact | `phase-08-gameplay-client-screenshots` |
 | Editor screenshots artifact | `phase-08-editor-screenshots` |
 

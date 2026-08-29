@@ -12,8 +12,8 @@
 | PR | https://github.com/Netsuno/MMO_Maker/pull/2 |
 | Accepted Phase 7 baseline | `3be393b756f32337972432a0571ffabd06a306bb` |
 | Prior rejected head | `779d4f9546ac45468c6d33dcdc48917605bc88ef` |
-| Final evidence tip | `ab4c89a012ab6fc1224cde5f5ad961c4fdda24c6` |
-| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33273533085 |
+| Final evidence tip | `67b527f0fe55af5b5ca9a9128f922e397ceef26c` |
+| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33274156457 |
 | Phase 9 | **Not started** |
 
 ## Remediation checklist (P8-R1 … P8-R5)
