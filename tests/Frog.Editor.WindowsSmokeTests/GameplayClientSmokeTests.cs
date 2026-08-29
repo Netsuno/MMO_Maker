@@ -716,6 +716,16 @@ public sealed class GameplayClientSmokeTests
             }
 
             _disposed = true;
+            if (!Form.IsDisposed)
+            {
+                Form.DisconnectForTest();
+                for (var i = 0; i < 30; i++)
+                {
+                    System.Windows.Forms.Application.DoEvents();
+                    Thread.Sleep(10);
+                }
+            }
+
             ClientSmokeTestAccess.CloseMainShell(Form);
             var stopTask = _host.StopAsync();
             var stopDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
