@@ -92,6 +92,8 @@ public sealed class Phase8GameplayClientSmokeTests
             form.DisconnectForTest();
             Pump(form, () => !form.DisconnectButtonForTest.Enabled, "disconnect");
             form.ReconnectButtonForTest.PerformClick();
+            Pump(form, () => form.StoredAuthTokenForTest is not null && form.LogContainsForTest("Reconnect OK"), "reconnect login");
+            form.EnterGameButtonForTest.PerformClick();
             Pump(form, () => form.IsPlayingPhaseForTest, "reconnect playing");
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "06-reconnect-usable.png");
         });

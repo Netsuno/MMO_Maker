@@ -64,7 +64,7 @@ jobs:
             $log = "artifacts/ci-logs/gameplay-smoke-pass-$i.log"
             New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
             Write-Host "=== Gameplay client smoke pass $i/3 (first attempt only) ==="
-            dotnet test $project -c Release --no-build --filter "FullyQualifiedName~GameplayClientSmoke" 2>&1 | Tee-Object -FilePath $log
+            dotnet test $project -c Release --no-build --filter "FullyQualifiedName=Frog.Editor.WindowsSmokeTests.GameplayClientSmokeTests" 2>&1 | Tee-Object -FilePath $log
             $logs += $log
             if ($LASTEXITCODE -ne 0) {
               Write-Error "Gameplay client smoke pass $i/3 failed"
@@ -83,7 +83,7 @@ jobs:
             $log = "artifacts/ci-logs/phase8-gameplay-smoke-pass-$i.log"
             New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
             Write-Host "=== Phase 8 gameplay smoke pass $i/3 ==="
-            dotnet test $project -c Release --no-build --filter "FullyQualifiedName~Phase8GameplayClientSmoke" 2>&1 | Tee-Object -FilePath $log
+            dotnet test $project -c Release --no-build --filter "FullyQualifiedName=Frog.Editor.WindowsSmokeTests.Phase8GameplayClientSmokeTests" 2>&1 | Tee-Object -FilePath $log
             $logs += $log
             if ($LASTEXITCODE -ne 0) {
               Write-Error "Phase 8 gameplay smoke pass $i/3 failed"
