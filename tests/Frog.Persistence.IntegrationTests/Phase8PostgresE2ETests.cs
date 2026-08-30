@@ -159,15 +159,27 @@ public sealed class Phase8PostgresE2ETests
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.WaitEventTileX, seed.WaitEventTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
-            _ = await client.ReadUntilAsync(PacketId.InteractResult);
-            await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
-            await Task.Delay(500);
-            await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
-            using (var gate = CreateGate())
+            var waitInteract = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(waitInteract, out var waitOk, out _));
+            Assert.True(waitOk);
+
+            var switchSet = false;
+            for (var i = 0; i < 8; i++)
             {
-                var world = new PostgresCharacterWorldStateRepository(gate);
-                Assert.True(await world.GetSwitchAsync(characterGuid, seed.WaitSwitchId));
+                await Phase8MovementTestHelpers.SendHeartbeatAsync(client);
+                await Task.Delay(200);
+                using (var gate = CreateGate())
+                {
+                    var world = new PostgresCharacterWorldStateRepository(gate);
+                    if (await world.GetSwitchAsync(characterGuid, seed.WaitSwitchId) == true)
+                    {
+                        switchSet = true;
+                        break;
+                    }
+                }
             }
+
+            Assert.True(switchSet);
 
             // Step 18 (parallel): heartbeat fires parallel map event; repeats on subsequent heartbeats
             await Phase8MovementTestHelpers.SendHeartbeatAsync(client);

@@ -143,10 +143,58 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Equal(5, await worldState.GetVariableAsync(characterId, "score"));
     }
 
+    [Fact]
+    public async Task WaitResume_ExecutesDeferredSetSwitchAfterDelay()
+    {
+        var characterId = Guid.NewGuid();
+        var tracker = new MapEventExecutionTracker();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "WaitGate",
+            EditorAliasId = 99,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.Wait,
+                            ParameterJson = """{"milliseconds":100}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = """{"switchId":"wait_done","value":true}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var worldState = new InMemoryCharacterWorldStateRepository();
+        var payload = new InMemoryCharacterPayloadReader();
+        var service = CreateService(catalog, worldState, payload, tracker);
+
+        var session = CreateSession(characterId);
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(99));
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.NotEqual(true, await worldState.GetSwitchAsync(characterId, "wait_done"));
+
+        await Task.Delay(150);
+        await service.TryResumeWaitingAsync(session);
+
+        Assert.True(await worldState.GetSwitchAsync(characterId, "wait_done"));
+    }
+
     private static MapEventRuntimeService CreateService(
         IPublishedMapEventCatalog catalog,
         InMemoryCharacterWorldStateRepository worldState,
-        InMemoryCharacterPayloadReader payload)
+        InMemoryCharacterPayloadReader payload,
+        MapEventExecutionTracker? tracker = null)
     {
         var phase8 = new Phase8InMemoryPublishedContent();
         var characters = new InMemoryCharacterRepository();
@@ -183,7 +231,7 @@ public sealed class MapEventRuntimeServiceTests
             catalog,
             new CharacterMutationCoordinator(),
             executor,
-            new MapEventExecutionTracker(),
+            tracker ?? new MapEventExecutionTracker(),
             NullLogger<MapEventRuntimeService>.Instance);
     }
 
