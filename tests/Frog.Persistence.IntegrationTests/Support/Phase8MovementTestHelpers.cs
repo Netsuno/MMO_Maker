@@ -27,6 +27,7 @@ internal static class Phase8MovementTestHelpers
         _ = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
 
         var (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(targetX, targetY);
+        await Task.Delay(1100);
         await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPositionSync(pixelX, pixelY));
         return await client.ReadUntilAsync(PacketId.Error, TimeSpan.FromSeconds(5));
     }
@@ -41,6 +42,7 @@ internal static class Phase8MovementTestHelpers
         _ = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
 
         var (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(targetX, targetY);
+        await Task.Delay(1100);
         await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPositionSync(pixelX, pixelY));
         _ = await client.ReadUntilAsync(PacketId.PositionUpdate);
         if (drainSideEffects)
