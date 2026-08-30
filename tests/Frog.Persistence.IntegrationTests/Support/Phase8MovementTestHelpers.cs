@@ -44,7 +44,15 @@ internal static class Phase8MovementTestHelpers
         var (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(targetX, targetY);
         await Task.Delay(1100);
         await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPositionSync(pixelX, pixelY));
-        _ = await client.ReadUntilAsync(PacketId.PositionUpdate);
+        var moveResult = await client.ReadUntilAnyAsync(
+            [PacketId.PositionUpdate, PacketId.Error],
+            TimeSpan.FromSeconds(5));
+        if (moveResult[0] == (byte)PacketId.Error &&
+            Phase8WireDecoders.TryDecodeError(moveResult, out var moveError))
+        {
+            throw new InvalidOperationException($"PositionSync to ({targetX},{targetY}) failed: {moveError}");
+        }
+
         if (drainSideEffects)
         {
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(150));

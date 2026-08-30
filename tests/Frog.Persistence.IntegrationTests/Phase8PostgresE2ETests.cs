@@ -199,6 +199,7 @@ public sealed class Phase8PostgresE2ETests
                 client, seed.RouteBlockTileX, seed.RouteBlockTileY);
             Assert.True(Phase8WireDecoders.TryDecodeError(blockedMove, out var blockMsg));
             Assert.Contains("evenement", blockMsg, StringComparison.OrdinalIgnoreCase);
+            await client.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
             // Step 12 continued: acquire profession via public map event path (not DB seed)
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.LearnProfessionTileX, seed.LearnProfessionTileY);

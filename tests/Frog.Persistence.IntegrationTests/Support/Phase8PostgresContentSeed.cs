@@ -595,6 +595,7 @@ public static class Phase8PostgresContentSeed
                 PageOrder = 0,
                 Priority = 0,
                 TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
                 Commands =
                 [
                     new MapEventCommandDefinition
@@ -609,6 +610,7 @@ public static class Phase8PostgresContentSeed
                 PageOrder = 1,
                 Priority = 10,
                 TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
                 Conditions =
                 [
                     new MapEventConditionDefinition
@@ -639,6 +641,7 @@ public static class Phase8PostgresContentSeed
             {
                 PageOrder = 0,
                 TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
                 Commands =
                 [
                     new MapEventCommandDefinition
@@ -666,6 +669,7 @@ public static class Phase8PostgresContentSeed
             {
                 PageOrder = 0,
                 TriggerKind = Phase8MapEventTriggerKinds.Autorun,
+                BlocksCollision = false,
                 Commands =
                 [
                     new MapEventCommandDefinition
@@ -688,6 +692,7 @@ public static class Phase8PostgresContentSeed
             {
                 PageOrder = 0,
                 TriggerKind = Phase8MapEventTriggerKinds.PlayerContact,
+                BlocksCollision = false,
                 Commands =
                 [
                     new MapEventCommandDefinition
@@ -710,6 +715,7 @@ public static class Phase8PostgresContentSeed
             {
                 PageOrder = 0,
                 TriggerKind = Phase8MapEventTriggerKinds.Parallel,
+                BlocksCollision = false,
                 Commands =
                 [
                     new MapEventCommandDefinition
@@ -761,6 +767,7 @@ public static class Phase8PostgresContentSeed
             {
                 PageOrder = 0,
                 TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
                 Commands =
                 [
                     new MapEventCommandDefinition
@@ -788,6 +795,7 @@ public static class Phase8PostgresContentSeed
             {
                 PageOrder = 0,
                 TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
                 Commands =
                 [
                     new MapEventCommandDefinition
