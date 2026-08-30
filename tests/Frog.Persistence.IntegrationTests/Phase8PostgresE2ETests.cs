@@ -85,6 +85,26 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(seed.WeatherProfileId, envWeatherId);
             Assert.Equal(seed.ExpectedLightingLevel, lighting);
 
+            // Step 19 continued: cross region boundary via public movement + re-select
+            await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.Region2TileX, seed.Region2TileY);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
+            _ = await client.ReadUntilAsync(PacketId.CharacterSelectResult);
+            var envRegion2 = await client.ReadUntilAsync(PacketId.EnvironmentStatePush);
+            Assert.True(Phase8WireDecoders.TryDecodeEnvironmentState(
+                envRegion2, out var env2MapId, out var env2RegionId, out var env2WeatherId, out var lighting2));
+            Assert.Equal(seed.RuntimeMapId, env2MapId);
+            Assert.Equal(seed.Region2Id, env2RegionId);
+            Assert.Equal(seed.WeatherProfile2Id, env2WeatherId);
+            Assert.Equal(seed.ExpectedLightingLevel2, lighting2);
+
+            // Common-event execution via call_common_event on published map event
+            await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.CommonEventTileX, seed.CommonEventTileY);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var commonEventResult = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(commonEventResult, out var commonOk, out var commonMsg));
+            Assert.True(commonOk);
+            Assert.Contains("Common event fired", commonMsg);
+
             // Step 18: autorun already consumed during first bootstrap; re-select must not repeat
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
 
@@ -319,28 +339,17 @@ public sealed class Phase8PostgresE2ETests
             Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(persistedJournal, out var persistedEntries));
             Assert.Equal((byte)CharacterQuestStatus.Completed, Phase8WireDecoders.FindQuestEntry(persistedEntries, seed.QuestId)!.Status);
 
-            // Step 22: republish + refresh (dialogue text change visible after reconnect)
+            // Step 22: republish + live refresh (same server process, no restart)
             const string republishedText = "Republished greeting.";
             using (var gate = CreateGate())
             {
                 await Phase8PostgresContentSeed.RepublishDialogueAsync(gate, republishedText).ConfigureAwait(false);
             }
-        }
-        finally
-        {
-            await host2.StopAsync();
-        }
 
-        // Step 22 continued: boot refreshed server and verify republished dialogue via new session
-        using var host3 = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port).Build();
-        await host3.StartAsync();
-        try
-        {
             var user2 = $"p8b-{Guid.NewGuid():N}"[..16];
-            const string password = "password12345";
             await using var refreshClient = new Phase7TcpTestClient();
             var refreshCharacterId = await RegisterLoginSelectReturningIdAsync(
-                refreshClient, port, user2, password, "Refresher", seed.Phase7.ClassId);
+                refreshClient, port, user2, "password12345", "Refresher", seed.Phase7.ClassId);
             _ = await refreshClient.ReadUntilAsync(PacketId.QuestJournalSnapshot);
             _ = await refreshClient.ReadUntilAsync(PacketId.EnvironmentStatePush);
             await refreshClient.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
@@ -363,7 +372,7 @@ public sealed class Phase8PostgresE2ETests
         finally
         {
             // Step 23: clean shutdown
-            await host3.StopAsync();
+            await host2.StopAsync();
         }
     }
 

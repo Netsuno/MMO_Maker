@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -72,6 +73,48 @@ public sealed class MapEventMovementServiceTests
         Assert.True(service.IsTileBlockedByEvent(1, 4, 1));
         clock.Advance(TimeSpan.FromMilliseconds(200));
         service.TickMap(1);
+        Assert.True(service.IsTileBlockedByEvent(1, 4, 1));
+    }
+
+    [Fact]
+    public void TickMap_DoesNotAdvanceOntoOccupiedPlayerTile()
+    {
+        var clock = new SteppingClock();
+        var service = new MapEventMovementService(clock);
+        var placement = CreateRoutePlacement(4, 0);
+        service.SyncMapPlacements(1, [placement]);
+        service.TickMap(1, new HashSet<(int, int)> { (4, 1) });
+        var runtime = service.ApplyRuntimePositions(1, [placement]).Single();
+        Assert.Equal(0, runtime.TileY);
+    }
+
+    [Fact]
+    public async Task TickMapAsync_ConcurrentCalls_AdvanceRouteOnlyOnce()
+    {
+        var clock = new SteppingClock();
+        var service = new MapEventMovementService(clock);
+        var placement = CreateRoutePlacement(4, 0);
+        service.SyncMapPlacements(1, [placement]);
+
+        await Task.WhenAll(
+            service.TickMapAsync(1, null),
+            service.TickMapAsync(1, null));
+
+        var runtime = service.ApplyRuntimePositions(1, [placement]).Single();
+        Assert.Equal(1, runtime.TileY);
+    }
+
+    [Fact]
+    public void ResolveRuntimePlacements_UsesMovedTileForInteraction()
+    {
+        var service = new MapEventMovementService();
+        var placement = CreateRoutePlacement(4, 0);
+        service.SyncMapPlacements(1, [placement]);
+        service.TickMap(1);
+        var runtime = service.ResolveRuntimePlacements(1, [placement]).Single();
+        Assert.Equal(4, runtime.TileX);
+        Assert.Equal(1, runtime.TileY);
+        Assert.False(service.IsTileBlockedByEvent(1, 4, 0));
         Assert.True(service.IsTileBlockedByEvent(1, 4, 1));
     }
 

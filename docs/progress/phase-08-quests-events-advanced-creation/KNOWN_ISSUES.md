@@ -13,7 +13,7 @@
 - `script_key` on legacy catalog — metadata only; must not execute.
 - `WorldFlagsPatchRequest` — rejected in PostgreSQL production; client demo button removed in prior pass.
 - Event `wait` resume across disconnect — deferred; waits pause page execution (not permanent server termination).
-- Parallel runner heartbeat re-entry — autorun fires once per map visit; parallel uses dedup tracker (full movement-route collision deferred).
+- Parallel runner heartbeat re-entry — autorun fires once per map visit; parallel uses dedup tracker.
 
 ## Phase 9
 

@@ -67,6 +67,10 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
                 sp.GetRequiredService<FrogDbContextGate>(),
                 sp.GetRequiredService<IPublishedQuestCatalog>(),
                 sp.GetRequiredService<IPublishedItemCatalog>()));
+        services.AddSingleton<IMapEventMutationRepository>(sp =>
+            new PostgresMapEventMutationRepository(
+                sp.GetRequiredService<FrogDbContextGate>(),
+                sp.GetRequiredService<IPublishedItemCatalog>()));
 
         RegisterPublishedCatalogs(services);
     }

@@ -64,7 +64,16 @@ public sealed record Phase8PostgresContentSeedResult(
     int QuestRewardGold,
     string GateSwitchId,
     string WaitSwitchId,
-    byte ExpectedLightingLevel);
+    byte ExpectedLightingLevel,
+    Guid Region2Id,
+    Guid WeatherProfile2Id,
+    int Region2TileX,
+    int Region2TileY,
+    byte ExpectedLightingLevel2,
+    Guid CommonEventId,
+    int CommonEventCallerMapEventAliasId,
+    int CommonEventTileX,
+    int CommonEventTileY);
 
 /// <summary>Publie le contenu Phase 8 minimal (Guids déterministes) dans PostgreSQL.</summary>
 public static class Phase8PostgresContentSeed
@@ -76,6 +85,15 @@ public static class Phase8PostgresContentSeed
     public static readonly Guid DefaultRecipeId = Guid.Parse("bbbbbbbb-0004-4000-8000-000000000001");
     public static readonly Guid DefaultRegionId = Guid.Parse("bbbbbbbb-0005-4000-8000-000000000001");
     public static readonly Guid DefaultWeatherProfileId = Guid.Parse("bbbbbbbb-0006-4000-8000-000000000001");
+    public static readonly Guid DefaultRegion2Id = Guid.Parse("bbbbbbbb-0005-4000-8000-000000000002");
+    public static readonly Guid DefaultWeatherProfile2Id = Guid.Parse("bbbbbbbb-0006-4000-8000-000000000002");
+    public static readonly Guid DefaultCommonEventId = Guid.Parse("bbbbbbbb-0007-4000-8000-000000000001");
+
+    public const int CommonEventCallerMapEventAliasId = 8110;
+    public const int Region2TileX = 7;
+    public const int Region2TileY = 0;
+    public const int CommonEventTileX = 7;
+    public const int CommonEventTileY = 3;
 
     public const int GateMapEventAliasId = 8101;
     public const int KeyMapEventAliasId = 8102;
@@ -122,12 +140,15 @@ public static class Phase8PostgresContentSeed
         await EnsurePublishedProfessionAsync(phase8Repo).ConfigureAwait(false);
         await EnsurePublishedRecipeAsync(phase8Repo, phase7.ConsumableId).ConfigureAwait(false);
         await EnsurePublishedWeatherAsync(phase8Repo).ConfigureAwait(false);
+        await EnsurePublishedWeather2Async(phase8Repo).ConfigureAwait(false);
 
         var runtimeMapId = phase7.RuntimeMapId;
         await EnsurePublishedRegionAsync(phase8Repo, runtimeMapId).ConfigureAwait(false);
+        await EnsurePublishedRegion2Async(phase8Repo, runtimeMapId).ConfigureAwait(false);
+        await EnsurePublishedCommonEventAsync(phase8Repo).ConfigureAwait(false);
 
         var mapEvents = new PostgresMapEventRepository(gate);
-        var (gateEventId, keyEventId, autorunEventId, contactEventId, parallelEventId, routeEventId, waitEventId, learnProfessionEventId, onceRewardEventId) =
+        var (gateEventId, keyEventId, autorunEventId, contactEventId, parallelEventId, routeEventId, waitEventId, learnProfessionEventId, onceRewardEventId, commonCallerEventId) =
             await EnsurePublishedMapEventsAsync(mapEvents).ConfigureAwait(false);
 
         await EnsureMapEventPlacementsAsync(
@@ -141,9 +162,11 @@ public static class Phase8PostgresContentSeed
             routeEventId,
             waitEventId,
             learnProfessionEventId,
-            onceRewardEventId).ConfigureAwait(false);
+            onceRewardEventId,
+            commonCallerEventId).ConfigureAwait(false);
 
         var lighting = (byte)Math.Clamp((int)(CreateDefaultWeather().LightingFactor * 255), 0, 255);
+        var lighting2 = (byte)Math.Clamp((int)(CreateSecondWeather().LightingFactor * 255), 0, 255);
 
         return new Phase8PostgresContentSeedResult(
             phase7,
@@ -196,7 +219,16 @@ public static class Phase8PostgresContentSeed
             QuestRewardGold,
             GateSwitchId,
             WaitSwitchId,
-            lighting);
+            lighting,
+            DefaultRegion2Id,
+            DefaultWeatherProfile2Id,
+            Region2TileX,
+            Region2TileY,
+            lighting2,
+            DefaultCommonEventId,
+            CommonEventCallerMapEventAliasId,
+            CommonEventTileX,
+            CommonEventTileY);
     }
 
     public static DialogueDefinition CreateDefaultDialogue(Guid questId) => new()
@@ -285,6 +317,14 @@ public static class Phase8PostgresContentSeed
         LightingFactor = 0.5f,
     };
 
+    public static WeatherProfileDefinition CreateSecondWeather() => new()
+    {
+        Id = DefaultWeatherProfile2Id,
+        Name = "Clear Skies",
+        WeatherKind = "clear",
+        LightingFactor = 1.0f,
+    };
+
     public static RegionDefinition CreateDefaultRegion(int runtimeMapId) => new()
     {
         Id = DefaultRegionId,
@@ -295,6 +335,18 @@ public static class Phase8PostgresContentSeed
         TileXMax = 5,
         TileYMax = 5,
         WeatherProfileId = DefaultWeatherProfileId,
+    };
+
+    public static RegionDefinition CreateSecondRegion(int runtimeMapId) => new()
+    {
+        Id = DefaultRegion2Id,
+        Name = "East Region",
+        MapId = runtimeMapId,
+        TileXMin = 6,
+        TileYMin = 0,
+        TileXMax = 10,
+        TileYMax = 5,
+        WeatherProfileId = DefaultWeatherProfile2Id,
     };
 
     public static async Task RepublishDialogueAsync(FrogDbContextGate gate, string newText)
@@ -530,7 +582,91 @@ public static class Phase8PostgresContentSeed
         }).ConfigureAwait(false);
     }
 
-    private static async Task<(Guid GateId, Guid KeyId, Guid AutorunId, Guid ContactId, Guid ParallelId, Guid RouteId, Guid WaitId, Guid LearnProfessionId, Guid OnceRewardId)> EnsurePublishedMapEventsAsync(
+    private static async Task EnsurePublishedWeather2Async(PostgresPhase8PublishedCatalogs repo)
+    {
+        IPublishedWeatherCatalog catalog = repo;
+        if (await catalog.TryGetPublishedByIdAsync(DefaultWeatherProfile2Id).ConfigureAwait(false) is not null)
+        {
+            return;
+        }
+
+        var weather = CreateSecondWeather();
+        var payload = Phase8ContentCodec.SerializeWeather(weather);
+        _ = await repo.SaveAsync(new Phase8SaveContentRequest
+        {
+            NewId = DefaultWeatherProfile2Id,
+            Kind = Phase8ContentKind.WeatherProfile,
+            Name = weather.Name,
+            PayloadJson = payload,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }).ConfigureAwait(false);
+    }
+
+    private static async Task EnsurePublishedRegion2Async(PostgresPhase8PublishedCatalogs repo, int runtimeMapId)
+    {
+        IPublishedRegionCatalog catalog = repo;
+        if (await catalog.TryGetRegionForTileAsync(runtimeMapId, Region2TileX, Region2TileY).ConfigureAwait(false)
+            is { Id: var id } && id == DefaultRegion2Id)
+        {
+            return;
+        }
+
+        var region = CreateSecondRegion(runtimeMapId);
+        var payload = Phase8ContentCodec.SerializeRegion(region);
+        _ = await repo.SaveAsync(new Phase8SaveContentRequest
+        {
+            NewId = DefaultRegion2Id,
+            Kind = Phase8ContentKind.Region,
+            Name = region.Name,
+            PayloadJson = payload,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }).ConfigureAwait(false);
+    }
+
+    private static async Task EnsurePublishedCommonEventAsync(PostgresPhase8PublishedCatalogs repo)
+    {
+        IPublishedCommonEventCatalog catalog = repo;
+        if (await catalog.TryGetPublishedByIdAsync(DefaultCommonEventId).ConfigureAwait(false) is not null)
+        {
+            return;
+        }
+
+        var common = new CommonEventDefinition
+        {
+            Id = DefaultCommonEventId,
+            Name = "Phase8 Common Helper",
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"Common event fired."}""",
+                        },
+                    ],
+                },
+            ],
+        };
+        var payload = Phase8ContentCodec.SerializeCommonEvent(common);
+        _ = await repo.SaveAsync(new Phase8SaveContentRequest
+        {
+            NewId = DefaultCommonEventId,
+            Kind = Phase8ContentKind.CommonEvent,
+            Name = common.Name,
+            PayloadJson = payload,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }).ConfigureAwait(false);
+    }
+
+    private static async Task<(Guid GateId, Guid KeyId, Guid AutorunId, Guid ContactId, Guid ParallelId, Guid RouteId, Guid WaitId, Guid LearnProfessionId, Guid OnceRewardId, Guid CommonCallerId)> EnsurePublishedMapEventsAsync(
         PostgresMapEventRepository mapEvents)
     {
         var gateId = await EnsureMapEventAsync(
@@ -578,7 +714,12 @@ public static class Phase8PostgresContentSeed
             OnceRewardMapEventAliasId,
             "Phase8 Once Chest",
             CreateOnceRewardMapEventDefinition()).ConfigureAwait(false);
-        return (gateId, keyId, autorunId, contactId, parallelId, routeId, waitId, learnProfessionId, onceRewardId);
+        var commonCallerId = await EnsureMapEventAsync(
+            mapEvents,
+            CommonEventCallerMapEventAliasId,
+            "Phase8 Common Caller",
+            CreateCommonCallerMapEventDefinition()).ConfigureAwait(false);
+        return (gateId, keyId, autorunId, contactId, parallelId, routeId, waitId, learnProfessionId, onceRewardId, commonCallerId);
     }
 
     private static async Task<Guid> EnsureMapEventAsync(
@@ -833,6 +974,29 @@ public static class Phase8PostgresContentSeed
         ],
     };
 
+    private static MapEventDefinition CreateCommonCallerMapEventDefinition() => new()
+    {
+        Name = "Phase8 Common Caller",
+        EditorAliasId = CommonEventCallerMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                        ParameterJson = $$"""{"commonEventId":"{{DefaultCommonEventId:D}}"}""",
+                    },
+                ],
+            },
+        ],
+    };
+
     private static MapEventDefinition CreateLearnProfessionMapEventDefinition() => new()
     {
         Name = "Phase8 Learn Profession",
@@ -872,7 +1036,8 @@ public static class Phase8PostgresContentSeed
         Guid routeEventId,
         Guid waitEventId,
         Guid learnProfessionEventId,
-        Guid onceRewardEventId)
+        Guid onceRewardEventId,
+        Guid commonCallerEventId)
     {
         await gate.ExecuteAsync(async (db, ct) =>
         {
@@ -901,7 +1066,8 @@ public static class Phase8PostgresContentSeed
                 CreateRoutePlacement(mapId, routeEventId, RouteEventTileX, RouteEventTileY, routeWaypoints),
                 CreatePlacement(mapId, waitEventId, WaitEventTileX, WaitEventTileY, Phase8MapEventTriggerKinds.Action),
                 CreatePlacement(mapId, learnProfessionEventId, LearnProfessionTileX, LearnProfessionTileY, Phase8MapEventTriggerKinds.Action),
-                CreatePlacement(mapId, onceRewardEventId, OnceRewardEventTileX, OnceRewardEventTileY, Phase8MapEventTriggerKinds.Action));
+                CreatePlacement(mapId, onceRewardEventId, OnceRewardEventTileX, OnceRewardEventTileY, Phase8MapEventTriggerKinds.Action),
+                CreatePlacement(mapId, commonCallerEventId, CommonEventTileX, CommonEventTileY, Phase8MapEventTriggerKinds.Action));
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
         }).ConfigureAwait(false);
 

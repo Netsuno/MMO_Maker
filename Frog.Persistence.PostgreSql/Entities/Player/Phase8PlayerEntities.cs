@@ -49,3 +49,18 @@ public sealed class EventCraftRequestEntity
 
     public DateTimeOffset CompletedAtUtc { get; set; }
 }
+
+public sealed class MapEventExecutionRequestEntity
+{
+    public Guid CharacterId { get; set; }
+
+    public Guid RequestId { get; set; }
+
+    public long PlacementId { get; set; }
+
+    public int CatalogAliasId { get; set; }
+
+    public string ResultJson { get; set; } = "{}";
+
+    public DateTimeOffset CompletedAtUtc { get; set; }
+}

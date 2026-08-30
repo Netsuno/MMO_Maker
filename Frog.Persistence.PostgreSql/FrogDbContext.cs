@@ -88,6 +88,9 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<EventCraftRequestEntity> PlayerEventCraftRequests => Set<EventCraftRequestEntity>();
 
+    public DbSet<MapEventExecutionRequestEntity> PlayerMapEventExecutionRequests =>
+        Set<MapEventExecutionRequestEntity>();
+
     public DbSet<QuestTurnInRequestEntity> PlayerQuestTurnInRequests => Set<QuestTurnInRequestEntity>();
 
     public DbSet<Phase8ContentDefinitionEntity> Phase8ContentDefinitions => Set<Phase8ContentDefinitionEntity>();
@@ -862,6 +865,14 @@ public sealed class FrogDbContext : DbContext
             e.ToTable("event_craft_requests", "player");
             e.HasKey(x => new { x.CharacterId, x.RequestId });
             e.Property(x => x.RecipeId).IsRequired();
+        });
+
+        modelBuilder.Entity<MapEventExecutionRequestEntity>(e =>
+        {
+            e.ToTable("map_event_execution_requests", "player");
+            e.HasKey(x => new { x.CharacterId, x.RequestId });
+            e.Property(x => x.ResultJson).HasColumnType("jsonb").IsRequired();
+            e.HasIndex(x => new { x.CharacterId, x.PlacementId, x.CatalogAliasId });
         });
 
         modelBuilder.Entity<QuestTurnInRequestEntity>(e =>

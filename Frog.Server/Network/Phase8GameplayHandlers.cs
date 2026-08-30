@@ -8,6 +8,7 @@ using Frog.Server.Config;
 using Frog.Server.Database;
 using Frog.Server.Gameplay;
 using Frog.Server.Models;
+using Frog.Server.Services;
 using Microsoft.Extensions.Options;
 
 namespace Frog.Server.Network;
@@ -23,10 +24,13 @@ public sealed class Phase8GameplayHandlers(
     MapEventExecutionTracker executionTracker,
     MapEventMovementService eventMovement,
     IMapEventStore mapEventStore,
+    ConnectionManager connectionManager,
     PacketSender packetSender,
     IOptions<Phase8SmokeBootstrapOptions> smokeOptions)
 {
     private readonly Phase8SmokeBootstrapOptions _smoke = smokeOptions.Value;
+    private readonly ConnectionManager _connectionManager = connectionManager;
+
     public void CancelForCharacter(Guid characterId)
     {
         dialogSessions.CancelForCharacter(characterId);
@@ -39,20 +43,30 @@ public sealed class Phase8GameplayHandlers(
         if (mapId is int mid)
         {
             executionTracker.ClearAutorunForMap(characterId, mid);
-            eventMovement.ClearMap(mid);
         }
     }
 
-    public async Task<string> BuildMapEventsWireJsonAsync(int mapId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<MapEventWireEntry>> GetRuntimePlacementsForMapAsync(
+        int mapId,
+        CancellationToken cancellationToken = default)
     {
         var (ok, placements) = await mapEventStore.GetPlacementsAsync(mapId, cancellationToken).ConfigureAwait(false);
         if (!ok || placements.Count == 0)
         {
+            return Array.Empty<MapEventWireEntry>();
+        }
+
+        return eventMovement.ResolveRuntimePlacements(mapId, placements);
+    }
+
+    public async Task<string> BuildMapEventsWireJsonAsync(int mapId, CancellationToken cancellationToken)
+    {
+        var runtime = await GetRuntimePlacementsForMapAsync(mapId, cancellationToken).ConfigureAwait(false);
+        if (runtime.Count == 0)
+        {
             return "[]";
         }
 
-        eventMovement.SyncMapPlacements(mapId, placements);
-        var runtime = eventMovement.ApplyRuntimePositions(mapId, placements);
         return System.Text.Json.JsonSerializer.Serialize(runtime);
     }
 
@@ -66,8 +80,15 @@ public sealed class Phase8GameplayHandlers(
         }
 
         eventMovement.SyncMapPlacements(mapId, placements);
-        eventMovement.TickMap(mapId);
+        var playerTiles = BuildOccupiedPlayerTiles(mapId);
+        await eventMovement.TickMapAsync(mapId, playerTiles, cancellationToken).ConfigureAwait(false);
     }
+
+    private HashSet<(int TileX, int TileY)> BuildOccupiedPlayerTiles(int mapId) =>
+        _connectionManager.GetActiveSessions()
+            .Where(s => s.CurrentMapId == mapId)
+            .Select(s => (s.PositionX, s.PositionY))
+            .ToHashSet();
 
     public async Task NotifyTalkProgressAsync(
         Guid characterId,

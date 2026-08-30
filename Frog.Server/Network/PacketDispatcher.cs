@@ -766,18 +766,7 @@ public sealed partial class PacketDispatcher(
 
         _connectionManager.TryTouchSession(session.Id);
 
-        IReadOnlyList<MapEventWireEntry> placements;
-        try
-        {
-            var (ok, list) = await _mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
-                .ConfigureAwait(false);
-            placements = ok ? list : Array.Empty<MapEventWireEntry>();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Échec chargement placements pour interact map {MapId}", session.CurrentMapId);
-            placements = Array.Empty<MapEventWireEntry>();
-        }
+        var placements = await GetRuntimePlacementsForSessionMapAsync(session, cancellationToken).ConfigureAwait(false);
 
         var here = placements
             .Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY)
@@ -994,18 +983,7 @@ public sealed partial class PacketDispatcher(
 
     private async Task TryFireStepOnMapEventsAsync(ClientSession clientSession, Session session, CancellationToken cancellationToken)
     {
-        IReadOnlyList<MapEventWireEntry> placements;
-        try
-        {
-            var (ok, list) = await _mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
-                .ConfigureAwait(false);
-            placements = ok ? list : Array.Empty<MapEventWireEntry>();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Échec chargement placements pour step-on map {MapId}", session.CurrentMapId);
-            placements = Array.Empty<MapEventWireEntry>();
-        }
+        var placements = await GetRuntimePlacementsForSessionMapAsync(session, cancellationToken).ConfigureAwait(false);
 
         var here = placements
             .Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY)
@@ -1114,6 +1092,22 @@ public sealed partial class PacketDispatcher(
         session.PageTriggerSatisfiedMapIds.Remove(previousMapId);
     }
 
+    private async Task<IReadOnlyList<MapEventWireEntry>> GetRuntimePlacementsForSessionMapAsync(
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _phase8.GetRuntimePlacementsForMapAsync(session.CurrentMapId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Échec chargement placements runtime map {MapId}", session.CurrentMapId);
+            return Array.Empty<MapEventWireEntry>();
+        }
+    }
+
     private async Task TryFirePageMapEventsAsync(ClientSession clientSession, Session session, CancellationToken cancellationToken)
     {
         if (session.PageTriggerSatisfiedMapIds.Contains(session.CurrentMapId))
@@ -1121,18 +1115,7 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
-        IReadOnlyList<MapEventWireEntry> placements;
-        try
-        {
-            var (ok, list) = await _mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
-                .ConfigureAwait(false);
-            placements = ok ? list : Array.Empty<MapEventWireEntry>();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Échec chargement placements pour page map {MapId}", session.CurrentMapId);
-            placements = Array.Empty<MapEventWireEntry>();
-        }
+        var placements = await GetRuntimePlacementsForSessionMapAsync(session, cancellationToken).ConfigureAwait(false);
 
         var here = placements
             .Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY)
@@ -1184,18 +1167,7 @@ public sealed partial class PacketDispatcher(
         Session session,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<MapEventWireEntry> placements;
-        try
-        {
-            var (ok, list) = await _mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
-                .ConfigureAwait(false);
-            placements = ok ? list : Array.Empty<MapEventWireEntry>();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Échec chargement placements pour auto-tile map {MapId}", session.CurrentMapId);
-            placements = Array.Empty<MapEventWireEntry>();
-        }
+        var placements = await GetRuntimePlacementsForSessionMapAsync(session, cancellationToken).ConfigureAwait(false);
 
         var candidates = placements
             .Where(p => p.TileX == session.PositionX && p.TileY == session.PositionY)

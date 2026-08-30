@@ -15,6 +15,7 @@ public sealed class MapEventRuntimeService
     private readonly CharacterMutationCoordinator _mutations;
     private readonly MapEventCommandExecutor _commands;
     private readonly MapEventExecutionTracker _executionTracker;
+    private readonly IMapEventMutationRepository? _mutationRepository;
     private readonly ILogger<MapEventRuntimeService> _logger;
 
     public MapEventRuntimeService(
@@ -22,13 +23,15 @@ public sealed class MapEventRuntimeService
         CharacterMutationCoordinator mutations,
         MapEventCommandExecutor commands,
         MapEventExecutionTracker executionTracker,
-        ILogger<MapEventRuntimeService> logger)
+        ILogger<MapEventRuntimeService> logger,
+        IMapEventMutationRepository? mutationRepository = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _mutations = mutations ?? throw new ArgumentNullException(nameof(mutations));
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
         _executionTracker = executionTracker ?? throw new ArgumentNullException(nameof(executionTracker));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _mutationRepository = mutationRepository;
     }
 
     public Task<MapEventExecutionResult?> TryExecuteInteractAsync(
@@ -158,6 +161,50 @@ public sealed class MapEventRuntimeService
             return MapEventExecutionResult.Fail("Aucune page active pour cet événement.");
         }
 
+        if (_mutationRepository is not null && CanExecuteTransactionally(page.Commands))
+        {
+            var requestId = session.GetOrCreateMapEventRequestId(placement.PlacementId);
+            var mutation = await _mutationRepository.TryExecutePageAsync(
+                    characterId,
+                    requestId,
+                    placement.PlacementId,
+                    placement.CatalogId,
+                    page.Commands,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (mutation.Status == MapEventMutationStatus.Failed)
+            {
+                return MapEventExecutionResult.Fail(mutation.ErrorMessage ?? "Exécution événement échouée.");
+            }
+
+            session.ClearMapEventRequestId(placement.PlacementId);
+            var snap = mutation.Snapshot;
+            if (snap?.ResultGold is int gold)
+            {
+                session.Gold = gold;
+            }
+
+            var label = $"{placement.DisplayName} ({placement.Slug})";
+            if (snap?.Waiting == true && snap.WaitUntilUtc is DateTimeOffset until && snap.PendingCommands is { Count: > 0 } pending)
+            {
+                _executionTracker.RegisterWait(characterId, new PendingWaitResume(until, pending, label));
+            }
+
+            var message = snap?.ShowText ?? label;
+            return MapEventExecutionResult.Ok(
+                message,
+                snap?.ShowText,
+                snap?.SwitchesChanged ?? false,
+                snap?.VariablesChanged ?? false,
+                snap?.InventoryChanged ?? false,
+                snap?.GoldChanged ?? false,
+                false,
+                null,
+                null,
+                null);
+        }
+
         var state = new MapEventExecutionState();
         var err = await _commands.ExecuteCommandsAsync(session, characterId, page.Commands, state, cancellationToken)
             .ConfigureAwait(false);
@@ -166,12 +213,12 @@ public sealed class MapEventRuntimeService
             return MapEventExecutionResult.Fail(err);
         }
 
-        var label = $"{placement.DisplayName} ({placement.Slug})";
-        RegisterWaitIfNeeded(characterId, state, label);
+        var placementLabel = $"{placement.DisplayName} ({placement.Slug})";
+        RegisterWaitIfNeeded(characterId, state, placementLabel);
 
-        var message = state.ShowText ?? label;
+        var resultMessage = state.ShowText ?? placementLabel;
         return MapEventExecutionResult.Ok(
-            message,
+            message: resultMessage,
             state.ShowText,
             state.SwitchesChanged,
             state.VariablesChanged,
@@ -181,6 +228,26 @@ public sealed class MapEventRuntimeService
             state.DialogueSummary,
             state.QuestSummary,
             state.DialogueState);
+    }
+
+    private static bool CanExecuteTransactionally(IReadOnlyList<MapEventCommandDefinition> commands)
+    {
+        foreach (var cmd in commands)
+        {
+            if (cmd.Discriminator is MapEventCommandDiscriminators.StartDialogue
+                or MapEventCommandDiscriminators.StartQuest
+                or MapEventCommandDiscriminators.AdvanceQuest
+                or MapEventCommandDiscriminators.TurnInQuest
+                or MapEventCommandDiscriminators.Teleport
+                or MapEventCommandDiscriminators.Branch
+                or MapEventCommandDiscriminators.CallCommonEvent
+                or MapEventCommandDiscriminators.LearnProfession)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)

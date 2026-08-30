@@ -81,6 +81,7 @@ public sealed class MainForm : Form
     private PlaytestOrchestrator? _playtestOrchestrator;
     private CancellationTokenSource? _playtestCts;
     private bool _playtestBusy;
+    private EditorMainFormCloseCoordinator? _closeCoordinator;
 
     /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
     internal Control LeftShellForWpf => _leftColumnPanel;
@@ -104,6 +105,10 @@ public sealed class MainForm : Form
     internal bool HasUnsavedChangesForTest() => _workspace?.IsDirty == true;
 
     internal bool IsCloseConfirmedForTest() => _closeConfirmed;
+
+    internal EditorMainFormCloseCoordinator? CloseCoordinatorForTest => _closeCoordinator;
+
+    internal bool IsEditorClosingForTest() => _closeCoordinator?.IsEditorClosingForTest == true;
 
     internal void SaveMap()
     {
@@ -201,49 +206,31 @@ public sealed class MainForm : Form
         _dialogService = EditorTestHooks.OverrideDialogService
                          ?? new WinFormsEditorDialogService(GetDialogOwner);
 
-        if (!embedAsWpfChild)
-        {
-            FormClosing += (_, e) =>
+        _closeCoordinator = new EditorMainFormCloseCoordinator(
+            () => StopPlaytestAsync(),
+            () => _workspaceInitTask,
+            () => new EditorPostgreSqlScope?[] { _mapDatabaseScope, _mapEventDatabaseScope, _phase8DatabaseScope },
+            DisposeWorkspaceServicesAndScopes,
+            SetClosingUiState,
+            () => _saveInProgress || _workspace?.IsSaveInProgress == true || (_workspaceInitTask is { IsCompleted: false }),
+            () =>
             {
-                if (_closeConfirmed || _workspace?.IsDirty != true)
+                if (!IsDisposed && _closeCoordinator?.AllowFinalCloseForTest == true)
                 {
-                    return;
-                }
-
-                e.Cancel = true;
-                BeginInvoke(new Action(async () =>
-                {
-                    if (await ConfirmCloseAsync().ConfigureAwait(true))
+                    BeginInvoke(new Action(() =>
                     {
-                        _closeConfirmed = true;
-                        Close();
-                    }
-                }));
-            };
-        }
+                        if (!IsDisposed)
+                        {
+                            Close();
+                        }
+                    }));
+                }
+            });
 
-        FormClosed += async (_, _) =>
+        FormClosing += MainForm_FormClosing;
+
+        FormClosed += (_, _) =>
         {
-            // Fallback only — primary await is MainWindow coordinated close / Quit.
-            try
-            {
-                await StopPlaytestAsync().ConfigureAwait(true);
-            }
-            catch
-            {
-                // best-effort cleanup
-            }
-
-            _mapEventService?.Dispose();
-            _mapEventService = null;
-            _phase8ContentService = null;
-            _mapEventDatabaseScope?.Dispose();
-            _mapEventDatabaseScope = null;
-            _phase8DatabaseScope?.Dispose();
-            _phase8DatabaseScope = null;
-            _mapDatabaseScope?.Dispose();
-            _mapDatabaseScope = null;
-
             TilesetCache.Clear();
         };
 
@@ -705,23 +692,122 @@ public sealed class MainForm : Form
         await _workspaceInitTask.ConfigureAwait(true);
     }
 
-    private async System.Threading.Tasks.Task InitializeWorkspaceCoreAsync()
+    private async System.Threading.Tasks.Task InitializeWorkspaceCoreAsync(CancellationToken cancellationToken = default)
     {
-        var bundle = await EditorMapRepositoryFactory.CreateBundleAsync().ConfigureAwait(true);
+        _closeCoordinator?.BeginWorkspaceInitialization();
+        var initToken = _closeCoordinator?.WorkspaceInitToken ?? cancellationToken;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(initToken, cancellationToken);
+
+        if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } initBarrier)
+        {
+            await initBarrier("map", linked.Token).ConfigureAwait(true);
+        }
+
+        var bundle = await EditorMapRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
+        linked.Token.ThrowIfCancellationRequested();
         _mapRepository = bundle.Repository;
         _persistenceCapabilities = bundle.Capabilities;
         _mapDatabaseScope = bundle.DatabaseScope;
-        var eventBundle = await EditorMapEventRepositoryFactory.CreateBundleAsync().ConfigureAwait(true);
+
+        if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } mapEventBarrier)
+        {
+            await mapEventBarrier("mapEvent", linked.Token).ConfigureAwait(true);
+        }
+
+        var eventBundle = await EditorMapEventRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
+        linked.Token.ThrowIfCancellationRequested();
         _mapEventService = eventBundle.Service;
         _mapEventDatabaseScope = eventBundle.DatabaseScope;
-        var phase8Bundle = await EditorPhase8ContentRepositoryFactory.CreateBundleAsync().ConfigureAwait(true);
+
+        if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } phase8Barrier)
+        {
+            await phase8Barrier("phase8", linked.Token).ConfigureAwait(true);
+        }
+
+        var phase8Bundle = await EditorPhase8ContentRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
+        linked.Token.ThrowIfCancellationRequested();
         _phase8ContentService = phase8Bundle.Service;
         _phase8DatabaseScope = phase8Bundle.DatabaseScope;
+
+        if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } workspaceBarrier)
+        {
+            await workspaceBarrier("workspace", linked.Token).ConfigureAwait(true);
+        }
+
         _workspace = new MapWorkspaceSession(bundle.Repository);
         await _workspace.InitializeAsync().ConfigureAwait(true);
         ApplyWorkspaceMapToUi();
         UpdatePersistenceMenuState();
         PushEditorStatusLine();
+    }
+
+    private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (_closeCoordinator is null)
+        {
+            return;
+        }
+
+        if (_closeCoordinator.TryHandleFormClosing(e, ConfirmCloseForShutdownAsync))
+        {
+            return;
+        }
+    }
+
+    private async Task<bool> ConfirmCloseForShutdownAsync()
+    {
+        if (_closeConfirmed || _closeCoordinator?.AllowFinalCloseForTest == true)
+        {
+            return true;
+        }
+
+        if (_workspace?.IsDirty == true)
+        {
+            var proceed = await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true);
+            if (!proceed)
+            {
+                return false;
+            }
+        }
+
+        _closeConfirmed = true;
+        return true;
+    }
+
+    private void DisposeWorkspaceServicesAndScopes()
+    {
+        _mapEventService?.Dispose();
+        _mapEventService = null;
+        _phase8ContentService = null;
+        _mapEventDatabaseScope?.Dispose();
+        _mapEventDatabaseScope = null;
+        _phase8DatabaseScope?.Dispose();
+        _phase8DatabaseScope = null;
+        _mapDatabaseScope?.Dispose();
+        _mapDatabaseScope = null;
+    }
+
+    private void SetClosingUiState(bool enabled)
+    {
+        if (_menuStrip is not null)
+        {
+            _menuStrip.Enabled = enabled;
+        }
+
+        if (_mnuSave is not null)
+        {
+            _mnuSave.Enabled = enabled;
+        }
+
+        if (_mnuPublish is not null)
+        {
+            _mnuPublish.Enabled = enabled;
+        }
+
+        if (_canvas is not null)
+        {
+            _canvas.Enabled = enabled;
+        }
     }
 
     internal async System.Threading.Tasks.Task RefreshMapCatalogAsync()

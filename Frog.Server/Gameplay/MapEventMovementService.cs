@@ -9,6 +9,7 @@ namespace Frog.Server.Gameplay;
 public sealed class MapEventMovementService
 {
     private readonly ConcurrentDictionary<(int MapId, long PlacementId), PlacementRuntimeState> _states = new();
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _mapTickLocks = new();
     private readonly TimeProvider _clock;
 
     public MapEventMovementService(TimeProvider? clock = null) =>
@@ -31,6 +32,20 @@ public sealed class MapEventMovementService
         {
             _states.TryRemove(key, out _);
         }
+    }
+
+    /// <summary>Snapshot autoritaire : sync + positions runtime pour une carte.</summary>
+    public IReadOnlyList<MapEventWireEntry> ResolveRuntimePlacements(
+        int mapId,
+        IReadOnlyList<MapEventWireEntry> placements)
+    {
+        if (placements.Count == 0)
+        {
+            return placements;
+        }
+
+        SyncMapPlacements(mapId, placements);
+        return ApplyRuntimePositions(mapId, placements);
     }
 
     public IReadOnlyList<MapEventWireEntry> ApplyRuntimePositions(int mapId, IReadOnlyList<MapEventWireEntry> placements)
@@ -68,15 +83,53 @@ public sealed class MapEventMovementService
         return updated;
     }
 
-    public void TickMap(int mapId)
+    public void TickMap(int mapId, IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles = null)
     {
-        var now = _clock.GetUtcNow();
-        foreach (var key in _states.Keys.Where(k => k.MapId == mapId).ToList())
+        var gate = _mapTickLocks.GetOrAdd(mapId, static _ => new SemaphoreSlim(1, 1));
+        if (!gate.Wait(0))
         {
-            if (_states.TryGetValue(key, out var state))
+            return;
+        }
+
+        try
+        {
+            var now = _clock.GetUtcNow();
+            foreach (var key in _states.Keys.Where(k => k.MapId == mapId).ToList())
             {
-                AdvanceRoute(key.MapId, key.PlacementId, state, now);
+                if (_states.TryGetValue(key, out var state))
+                {
+                    AdvanceRoute(key.MapId, key.PlacementId, state, now, occupiedPlayerTiles);
+                }
             }
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public async Task TickMapAsync(
+        int mapId,
+        IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles,
+        CancellationToken cancellationToken = default)
+    {
+        var gate = _mapTickLocks.GetOrAdd(mapId, static _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var now = _clock.GetUtcNow();
+            foreach (var key in _states.Keys.Where(k => k.MapId == mapId).ToList())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_states.TryGetValue(key, out var state))
+                {
+                    AdvanceRoute(key.MapId, key.PlacementId, state, now, occupiedPlayerTiles);
+                }
+            }
+        }
+        finally
+        {
+            gate.Release();
         }
     }
 
@@ -118,6 +171,8 @@ public sealed class MapEventMovementService
 
     public void ClearAll() => _states.Clear();
 
+    internal int ActiveStateCountForTest => _states.Count;
+
     private static PlacementRuntimeState CreateState(int mapId, MapEventWireEntry placement) =>
         RefreshConfig(
             new PlacementRuntimeState
@@ -145,7 +200,12 @@ public sealed class MapEventMovementService
         return state;
     }
 
-    private void AdvanceRoute(int mapId, long placementId, PlacementRuntimeState state, DateTimeOffset nowUtc)
+    private void AdvanceRoute(
+        int mapId,
+        long placementId,
+        PlacementRuntimeState state,
+        DateTimeOffset nowUtc,
+        IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles)
     {
         if (state.MovementKind != MapEventMovementKinds.Route || state.RouteWaypoints.Count < 2)
         {
@@ -159,7 +219,8 @@ public sealed class MapEventMovementService
 
         var nextIndex = (state.WaypointIndex + 1) % state.RouteWaypoints.Count;
         var target = state.RouteWaypoints[nextIndex];
-        if (IsTileBlockedByEvent(mapId, target.TileX, target.TileY, placementId))
+        if (IsTileBlockedByEvent(mapId, target.TileX, target.TileY, placementId)
+            || IsTileOccupiedByPlayer(target.TileX, target.TileY, occupiedPlayerTiles))
         {
             state.NextAdvanceUtc = nowUtc.AddMilliseconds(Math.Max(250, target.WaitMs));
             return;
@@ -170,6 +231,12 @@ public sealed class MapEventMovementService
         state.TileY = target.TileY;
         state.NextAdvanceUtc = nowUtc.AddMilliseconds(Math.Max(250, target.WaitMs));
     }
+
+    private static bool IsTileOccupiedByPlayer(
+        int tileX,
+        int tileY,
+        IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles) =>
+        occupiedPlayerTiles?.Contains((tileX, tileY)) == true;
 
     private sealed class PlacementRuntimeState
     {

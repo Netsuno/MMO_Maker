@@ -73,6 +73,22 @@ public sealed class Session
     /// <summary>Dernier <c>InteractResult</c> auto-tuile par <c>placementId</c> (réinitialisé au changement de case carte).</summary>
     public Dictionary<long, DateTime> MapEventAutoTileLastFiredUtc { get; } = new();
 
+    /// <summary>RequestId stable par placement pour idempotence exécution événement (P8-I4).</summary>
+    public Dictionary<long, Guid> MapEventPendingRequestIds { get; } = new();
+
+    public Guid GetOrCreateMapEventRequestId(long placementId)
+    {
+        if (!MapEventPendingRequestIds.TryGetValue(placementId, out var id) || id == Guid.Empty)
+        {
+            id = Guid.NewGuid();
+            MapEventPendingRequestIds[placementId] = id;
+        }
+
+        return id;
+    }
+
+    public void ClearMapEventRequestId(long placementId) => MapEventPendingRequestIds.Remove(placementId);
+
     /// <summary>Limite <see cref="Frog.Core.Enums.PacketId.MoveRequest"/> + <see cref="Frog.Core.Enums.PacketId.PositionSyncRequest"/> par seconde.</summary>
     public MovementPacketRateGate MovementPacketRateGate { get; } = new();
 }

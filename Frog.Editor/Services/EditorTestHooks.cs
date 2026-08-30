@@ -70,9 +70,10 @@ internal static class EditorTestHooks
     /// <summary>Smoke : barrière injectée pendant l’initialisation Données de jeu.</summary>
     public static Func<CancellationToken, Task>? GameDataInitBarrierForTest { get; set; }
 
-    /// <summary>
-    /// Smoke : barrière injectée avant chaque opération panneau (permet de bloquer Refresh/Save/Publish/Delete).
-    /// </summary>
+    /// <summary>Smoke / tests : barrière injectée pendant l'initialisation MainForm (map/mapEvent/phase8/workspace).</summary>
+    public static Func<string, CancellationToken, Task>? MainWorkspaceInitBarrierForTest { get; set; }
+
+    /// <summary>Smoke : barrière injectée avant chaque opération panneau (permet de bloquer Refresh/Save/Publish/Delete).</summary>
     public static Func<string, CancellationToken, Task>? PanelOperationBarrierForTest { get; set; }
 
     /// <summary>Smoke : exceptions observées par les cycle-of-life panneau.</summary>

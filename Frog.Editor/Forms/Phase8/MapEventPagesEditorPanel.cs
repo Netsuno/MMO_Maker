@@ -3,24 +3,41 @@ using Frog.Core.Models;
 
 namespace Frog.Editor.Forms.Phase8;
 
-/// <summary>Éditeur structuré de pages d'événement (trigger + commandes).</summary>
+/// <summary>Éditeur structuré de pages d'événement (P8-I2).</summary>
 internal sealed class MapEventPagesEditorPanel : UserControl
 {
-    private readonly ListBox _pages = new() { Width = 160, Height = 140 };
+    private readonly ListBox _pages = new() { Width = 160, Height = 120 };
+    private readonly NumericUpDown _priority = new() { Width = 80, Minimum = 0, Maximum = 9999 };
     private readonly ComboBox _trigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
-    private readonly DataGridView _commands = CreateGrid();
+    private readonly ComboBox _movement = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
+    private readonly DataGridView _waypoints = CreateWaypointGrid();
+    private readonly NumericUpDown _appearanceGraphic = new() { Width = 60, Minimum = 0, Maximum = 255 };
+    private readonly NumericUpDown _appearanceDirection = new() { Width = 60, Minimum = 0, Maximum = 7 };
+    private readonly CheckBox _blocksCollision = new() { Text = "Bloque collision", Checked = true, AutoSize = true };
+    private readonly DataGridView _conditions = CreateConditionGrid();
+    private readonly ListBox _commands = new() { Width = 160, Height = 100 };
+    private readonly MapEventCommandParameterPanel _commandParams = new() { AutoSize = true };
+    private readonly Label _validationLabel = new() { AutoSize = true, ForeColor = Color.Firebrick, MaximumSize = new Size(640, 0) };
 
     private readonly List<MapEventPageDefinition> _pageModels = new();
+    private readonly List<MapEventCommandDefinition> _commandModels = new();
     private int _selectedPageIndex = -1;
+    private int _selectedCommandIndex = -1;
     private bool _binding;
 
     public MapEventPagesEditorPanel()
     {
         Dock = DockStyle.Fill;
+        AutoScroll = true;
 
         foreach (var kind in Phase8MapEventTriggerKinds.All.OrderBy(k => k, StringComparer.Ordinal))
         {
             _trigger.Items.Add(kind);
+        }
+
+        foreach (var mk in MapEventMovementKinds.All.OrderBy(k => k, StringComparer.Ordinal))
+        {
+            _movement.Items.Add(mk);
         }
 
         if (_trigger.Items.Count > 0)
@@ -28,49 +45,134 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             _trigger.SelectedIndex = 0;
         }
 
-        _commands.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Discriminator", Width = 160 });
-        _commands.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "SchemaVersion", Width = 90 });
-        _commands.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "ParameterJson", Width = 360 });
+        if (_movement.Items.Count > 0)
+        {
+            _movement.SelectedIndex = 0;
+        }
 
-        var pagePanel = new FlowLayoutPanel
+        _conditions.Columns.Add(new DataGridViewComboBoxColumn
+        {
+            HeaderText = "Kind",
+            Width = 180,
+            DataSource = MapEventConditionKinds.All.OrderBy(k => k, StringComparer.Ordinal).ToList(),
+        });
+        _conditions.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "ParameterJson", Width = 360 });
+
+        var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
+            ColumnCount = 2,
             AutoSize = true,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
+            AutoScroll = true,
+            Padding = new Padding(8),
         };
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        void Row(string label, Control control)
+        {
+            var row = root.RowCount++;
+            root.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row);
+            root.Controls.Add(control, 1, row);
+        }
+
         var pageButtons = new FlowLayoutPanel { AutoSize = true };
         var btnAddPage = new Button { Text = "Ajouter page", AutoSize = true };
         var btnRemovePage = new Button { Text = "Retirer page", AutoSize = true };
         btnAddPage.Click += (_, _) => AddPage();
         btnRemovePage.Click += (_, _) => RemovePage();
+        pageButtons.Controls.Add(_pages);
         pageButtons.Controls.Add(btnAddPage);
         pageButtons.Controls.Add(btnRemovePage);
-        pagePanel.Controls.Add(_pages);
-        pagePanel.Controls.Add(pageButtons);
-        pagePanel.Controls.Add(new Label { Text = "TriggerKind", AutoSize = true, Margin = new Padding(0, 8, 0, 0) });
-        pagePanel.Controls.Add(_trigger);
-        pagePanel.Controls.Add(new Label { Text = "Commandes", AutoSize = true, Margin = new Padding(0, 8, 0, 0) });
-        pagePanel.Controls.Add(_commands);
+        Row("Pages", pageButtons);
+
+        Row("Priorité", _priority);
+        Row("TriggerKind", _trigger);
+        Row("MovementKind", _movement);
+
+        var wpButtons = new FlowLayoutPanel { AutoSize = true };
+        var btnAddWp = new Button { Text = "+ waypoint", AutoSize = true };
+        var btnRemoveWp = new Button { Text = "- waypoint", AutoSize = true };
+        btnAddWp.Click += (_, _) => { _waypoints.Rows.Add(0, 0, 250); OnPageFieldChanged(); };
+        btnRemoveWp.Click += (_, _) =>
+        {
+            if (_waypoints.CurrentRow is { IsNewRow: false } row)
+            {
+                _waypoints.Rows.Remove(row);
+                OnPageFieldChanged();
+            }
+        };
+        wpButtons.Controls.Add(_waypoints);
+        wpButtons.Controls.Add(btnAddWp);
+        wpButtons.Controls.Add(btnRemoveWp);
+        Row("Route waypoints", wpButtons);
+
+        var appearance = new FlowLayoutPanel { AutoSize = true };
+        appearance.Controls.Add(new Label { Text = "GraphicId", AutoSize = true });
+        appearance.Controls.Add(_appearanceGraphic);
+        appearance.Controls.Add(new Label { Text = "Direction", AutoSize = true, Margin = new Padding(12, 0, 0, 0) });
+        appearance.Controls.Add(_appearanceDirection);
+        appearance.Controls.Add(_blocksCollision);
+        Row("Apparence / collision", appearance);
+
+        var condButtons = new FlowLayoutPanel { AutoSize = true };
+        var btnAddCond = new Button { Text = "+ condition", AutoSize = true };
+        var btnRemoveCond = new Button { Text = "- condition", AutoSize = true };
+        btnAddCond.Click += (_, _) =>
+        {
+            _conditions.Rows.Add(MapEventConditionKinds.CharacterSwitch, "{\"switchId\":\"x\",\"value\":true}");
+            OnPageFieldChanged();
+        };
+        btnRemoveCond.Click += (_, _) =>
+        {
+            if (_conditions.CurrentRow is { IsNewRow: false } row)
+            {
+                _conditions.Rows.Remove(row);
+                OnPageFieldChanged();
+            }
+        };
+        condButtons.Controls.Add(_conditions);
+        condButtons.Controls.Add(btnAddCond);
+        condButtons.Controls.Add(btnRemoveCond);
+        Row("Conditions", condButtons);
+
         var cmdButtons = new FlowLayoutPanel { AutoSize = true };
-        var btnAddCmd = new Button { Text = "Ajouter commande", AutoSize = true };
-        var btnRemoveCmd = new Button { Text = "Retirer commande", AutoSize = true };
+        var btnAddCmd = new Button { Text = "+ commande", AutoSize = true };
+        var btnRemoveCmd = new Button { Text = "- commande", AutoSize = true };
         btnAddCmd.Click += (_, _) => AddCommand();
         btnRemoveCmd.Click += (_, _) => RemoveCommand();
+        cmdButtons.Controls.Add(_commands);
         cmdButtons.Controls.Add(btnAddCmd);
         cmdButtons.Controls.Add(btnRemoveCmd);
-        pagePanel.Controls.Add(cmdButtons);
-        Controls.Add(pagePanel);
+        Row("Commandes", cmdButtons);
+        Row("Paramètres commande", _commandParams);
+        Row("Validation", _validationLabel);
 
+        Controls.Add(root);
+
+        _priority.ValueChanged += (_, _) => OnPageFieldChanged();
         _trigger.SelectedIndexChanged += (_, _) => OnPageFieldChanged();
+        _movement.SelectedIndexChanged += (_, _) => OnPageFieldChanged();
+        _appearanceGraphic.ValueChanged += (_, _) => OnPageFieldChanged();
+        _appearanceDirection.ValueChanged += (_, _) => OnPageFieldChanged();
+        _blocksCollision.CheckedChanged += (_, _) => OnPageFieldChanged();
         _pages.SelectedIndexChanged += (_, _) => SelectPage(_pages.SelectedIndex);
-        _commands.CellValueChanged += (_, _) => OnPageFieldChanged();
-        _commands.RowsRemoved += (_, _) => OnPageFieldChanged();
-        _commands.CurrentCellDirtyStateChanged += (_, _) =>
+        _commands.SelectedIndexChanged += (_, _) => SelectCommand(_commands.SelectedIndex);
+        _commandParams.ParametersChanged += () => OnCommandFieldChanged();
+        _waypoints.CellValueChanged += (_, _) => OnPageFieldChanged();
+        _conditions.CellValueChanged += (_, _) => OnPageFieldChanged();
+        _waypoints.CurrentCellDirtyStateChanged += (_, _) =>
         {
-            if (_commands.IsCurrentCellDirty)
+            if (_waypoints.IsCurrentCellDirty)
             {
-                _commands.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                _waypoints.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        };
+        _conditions.CurrentCellDirtyStateChanged += (_, _) =>
+        {
+            if (_conditions.IsCurrentCellDirty)
+            {
+                _conditions.CommitEdit(DataGridViewDataErrorContexts.Commit);
             }
         };
     }
@@ -81,7 +183,19 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     internal ComboBox TriggerForTest => _trigger;
 
-    internal DataGridView CommandsForTest => _commands;
+    internal NumericUpDown PriorityForTest => _priority;
+
+    internal ComboBox MovementForTest => _movement;
+
+    internal DataGridView WaypointsForTest => _waypoints;
+
+    internal DataGridView ConditionsForTest => _conditions;
+
+    internal ListBox CommandsForTest => _commands;
+
+    internal MapEventCommandParameterPanel CommandParamsForTest => _commandParams;
+
+    internal Label ValidationLabelForTest => _validationLabel;
 
     public void LoadPages(IReadOnlyList<MapEventPageDefinition> pages)
     {
@@ -99,8 +213,10 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             else
             {
                 _selectedPageIndex = -1;
-                _commands.Rows.Clear();
+                ClearPageUi();
             }
+
+            _validationLabel.Text = string.Empty;
         }
         finally
         {
@@ -110,9 +226,21 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     public bool TryBuildPages(out IReadOnlyList<MapEventPageDefinition> pages, out string? error)
     {
+        FlushCurrentCommand();
         FlushCurrentPage();
         pages = _pageModels.Select(ClonePage).ToList();
+        for (var i = 0; i < pages.Count; i++)
+        {
+            if (!pages[i].Validate(out error))
+            {
+                error = $"Page {i + 1}: {error}";
+                _validationLabel.Text = error;
+                return false;
+            }
+        }
+
         error = null;
+        _validationLabel.Text = string.Empty;
         return true;
     }
 
@@ -152,7 +280,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         }
         else
         {
-            _commands.Rows.Clear();
+            ClearPageUi();
         }
 
         NotifyChanged();
@@ -160,6 +288,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private void SelectPage(int index)
     {
+        FlushCurrentCommand();
         FlushCurrentPage();
         _selectedPageIndex = index;
         if (index < 0 || index >= _pageModels.Count)
@@ -171,12 +300,43 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         try
         {
             var page = _pageModels[index];
+            _priority.Value = Math.Clamp(page.Priority, (int)_priority.Minimum, (int)_priority.Maximum);
             var triggerIndex = _trigger.Items.IndexOf(page.TriggerKind);
             _trigger.SelectedIndex = triggerIndex >= 0 ? triggerIndex : 0;
-            _commands.Rows.Clear();
-            foreach (var cmd in page.Commands)
+            var moveIndex = _movement.Items.IndexOf(page.MovementKind);
+            _movement.SelectedIndex = moveIndex >= 0 ? moveIndex : 0;
+            _appearanceGraphic.Value = page.AppearanceGraphicId;
+            _appearanceDirection.Value = page.AppearanceDirection;
+            _blocksCollision.Checked = page.BlocksCollision;
+
+            _waypoints.Rows.Clear();
+            foreach (var wp in page.RouteWaypoints)
             {
-                _commands.Rows.Add(cmd.Discriminator, cmd.SchemaVersion.ToString(), cmd.ParameterJson);
+                _waypoints.Rows.Add(wp.TileX, wp.TileY, wp.WaitMs);
+            }
+
+            _conditions.Rows.Clear();
+            foreach (var cond in page.Conditions)
+            {
+                _conditions.Rows.Add(cond.Kind, cond.ParameterJson);
+            }
+
+            _commandModels.Clear();
+            _commandModels.AddRange(page.Commands.Select(c => new MapEventCommandDefinition
+            {
+                Discriminator = c.Discriminator,
+                SchemaVersion = c.SchemaVersion,
+                ParameterJson = c.ParameterJson,
+            }));
+            RefreshCommandList();
+            if (_commandModels.Count > 0)
+            {
+                _commands.SelectedIndex = 0;
+                SelectCommand(0);
+            }
+            else
+            {
+                _selectedCommandIndex = -1;
             }
         }
         finally
@@ -185,10 +345,88 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         }
     }
 
+    private void SelectCommand(int index)
+    {
+        FlushCurrentCommand();
+        _selectedCommandIndex = index;
+        if (index < 0 || index >= _commandModels.Count)
+        {
+            return;
+        }
+
+        _binding = true;
+        try
+        {
+            _commandParams.LoadCommand(_commandModels[index]);
+        }
+        finally
+        {
+            _binding = false;
+        }
+    }
+
+    private void AddCommand()
+    {
+        FlushCurrentCommand();
+        _commandModels.Add(new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.ShowText,
+            SchemaVersion = 1,
+            ParameterJson = "{\"text\":\"…\"}",
+        });
+        RefreshCommandList();
+        _commands.SelectedIndex = _commandModels.Count - 1;
+        OnPageFieldChanged();
+    }
+
+    private void RemoveCommand()
+    {
+        if (_selectedCommandIndex < 0 || _selectedCommandIndex >= _commandModels.Count)
+        {
+            return;
+        }
+
+        _commandModels.RemoveAt(_selectedCommandIndex);
+        RefreshCommandList();
+        _selectedCommandIndex = Math.Min(_selectedCommandIndex, _commandModels.Count - 1);
+        if (_selectedCommandIndex >= 0)
+        {
+            _commands.SelectedIndex = _selectedCommandIndex;
+            SelectCommand(_selectedCommandIndex);
+        }
+
+        OnPageFieldChanged();
+    }
+
     private void OnPageFieldChanged()
     {
+        FlushCurrentCommand();
         FlushCurrentPage();
         NotifyChanged();
+    }
+
+    private void OnCommandFieldChanged()
+    {
+        FlushCurrentCommand();
+        NotifyChanged();
+    }
+
+    private void FlushCurrentCommand()
+    {
+        if (_binding || _selectedCommandIndex < 0 || _selectedCommandIndex >= _commandModels.Count)
+        {
+            return;
+        }
+
+        if (!_commandParams.TryBuildCommand(out var cmd, out var err))
+        {
+            _validationLabel.Text = err ?? "Commande invalide.";
+            return;
+        }
+
+        _commandModels[_selectedCommandIndex] = cmd;
+        RefreshCommandList();
+        _commands.SelectedIndex = _selectedCommandIndex;
     }
 
     private void FlushCurrentPage()
@@ -198,19 +436,32 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             return;
         }
 
-        var commands = new List<MapEventCommandDefinition>();
-        foreach (DataGridViewRow row in _commands.Rows)
+        var conditions = new List<MapEventConditionDefinition>();
+        foreach (DataGridViewRow row in _conditions.Rows)
         {
             if (row.IsNewRow)
             {
                 continue;
             }
 
-            commands.Add(new MapEventCommandDefinition
+            var kind = Convert.ToString(row.Cells[0].Value) ?? string.Empty;
+            var paramJson = Convert.ToString(row.Cells[1].Value) ?? "{}";
+            conditions.Add(new MapEventConditionDefinition { Kind = kind, ParameterJson = paramJson });
+        }
+
+        var waypoints = new List<MapEventRouteWaypoint>();
+        foreach (DataGridViewRow row in _waypoints.Rows)
+        {
+            if (row.IsNewRow)
             {
-                Discriminator = Convert.ToString(row.Cells[0].Value) ?? string.Empty,
-                SchemaVersion = int.TryParse(Convert.ToString(row.Cells[1].Value), out var ver) ? ver : 1,
-                ParameterJson = Convert.ToString(row.Cells[2].Value) ?? "{}",
+                continue;
+            }
+
+            waypoints.Add(new MapEventRouteWaypoint
+            {
+                TileX = int.TryParse(Convert.ToString(row.Cells[0].Value), out var tx) ? tx : 0,
+                TileY = int.TryParse(Convert.ToString(row.Cells[1].Value), out var ty) ? ty : 0,
+                WaitMs = int.TryParse(Convert.ToString(row.Cells[2].Value), out var wait) ? wait : 250,
             });
         }
 
@@ -218,31 +469,29 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         _pageModels[_selectedPageIndex] = new MapEventPageDefinition
         {
             PageOrder = existing.PageOrder,
-            Priority = existing.Priority,
+            Priority = (int)_priority.Value,
             TriggerKind = _trigger.SelectedItem as string ?? Phase8MapEventTriggerKinds.Action,
-            MovementKind = existing.MovementKind,
-            RouteWaypoints = existing.RouteWaypoints,
-            AppearanceGraphicId = existing.AppearanceGraphicId,
-            AppearanceDirection = existing.AppearanceDirection,
-            BlocksCollision = existing.BlocksCollision,
-            Conditions = existing.Conditions,
-            Commands = commands,
+            MovementKind = _movement.SelectedItem as string ?? MapEventMovementKinds.Fixed,
+            RouteWaypoints = waypoints,
+            AppearanceGraphicId = (byte)_appearanceGraphic.Value,
+            AppearanceDirection = (byte)_appearanceDirection.Value,
+            BlocksCollision = _blocksCollision.Checked,
+            Conditions = conditions,
+            Commands = _commandModels.Select(c => new MapEventCommandDefinition
+            {
+                Discriminator = c.Discriminator,
+                SchemaVersion = c.SchemaVersion,
+                ParameterJson = c.ParameterJson,
+            }).ToList(),
         };
     }
 
-    private void AddCommand()
+    private void ClearPageUi()
     {
-        _commands.Rows.Add(MapEventCommandDiscriminators.ShowText, "1", "{\"text\":\"…\"}");
-        OnPageFieldChanged();
-    }
-
-    private void RemoveCommand()
-    {
-        if (_commands.CurrentRow is { IsNewRow: false } row)
-        {
-            _commands.Rows.Remove(row);
-            OnPageFieldChanged();
-        }
+        _waypoints.Rows.Clear();
+        _conditions.Rows.Clear();
+        _commandModels.Clear();
+        _commands.Items.Clear();
     }
 
     private void RefreshPageList()
@@ -250,7 +499,17 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         _pages.Items.Clear();
         for (var i = 0; i < _pageModels.Count; i++)
         {
-            _pages.Items.Add($"Page {i + 1}");
+            var page = _pageModels[i];
+            _pages.Items.Add($"P{i + 1} pri={page.Priority} {page.TriggerKind}");
+        }
+    }
+
+    private void RefreshCommandList()
+    {
+        _commands.Items.Clear();
+        for (var i = 0; i < _commandModels.Count; i++)
+        {
+            _commands.Items.Add($"{i + 1}. {_commandModels[i].Discriminator}");
         }
     }
 
@@ -273,7 +532,11 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             AppearanceGraphicId = page.AppearanceGraphicId,
             AppearanceDirection = page.AppearanceDirection,
             BlocksCollision = page.BlocksCollision,
-            Conditions = page.Conditions.ToList(),
+            Conditions = page.Conditions.Select(c => new MapEventConditionDefinition
+            {
+                Kind = c.Kind,
+                ParameterJson = c.ParameterJson,
+            }).ToList(),
             Commands = page.Commands.Select(c => new MapEventCommandDefinition
             {
                 Discriminator = c.Discriminator,
@@ -282,10 +545,26 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             }).ToList(),
         };
 
-    private static DataGridView CreateGrid() => new()
+    private static DataGridView CreateWaypointGrid()
     {
-        Width = 640,
-        Height = 160,
+        var grid = new DataGridView
+        {
+            Width = 360,
+            Height = 90,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            RowHeadersVisible = false,
+        };
+        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TileX", Width = 60 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TileY", Width = 60 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "WaitMs", Width = 80 });
+        return grid;
+    }
+
+    private static DataGridView CreateConditionGrid() => new()
+    {
+        Width = 560,
+        Height = 90,
         AllowUserToAddRows = false,
         AllowUserToDeleteRows = false,
         AutoGenerateColumns = false,
