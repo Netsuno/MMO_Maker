@@ -4,8 +4,8 @@ Environment: Windows Server 2022 + Ubuntu (CI), .NET SDK **8.0.424**, PostgreSQL
 
 | Suite | Result | Notes |
 | --- | --- | --- |
-| Frog.Tests | **PASS** 307 | tip `ffafcf3`; 0 skipped |
-| PostgreSQL integration | **PASS** (local agent) | requires PG service |
+| Frog.Tests | **PASS** 313 | 0 skipped |
+| PostgreSQL integration | **PASS** 143 | 0 skipped |
 | Phase 8 E2E 23-step | **PASS** | `Phase8PostgresE2ETests` |
 | Phase 8 multi-client ×8 | **PASS** | `Phase8MultiClientE2ETests` |
 | Phase 8 draft invisibility ×7 kinds | **PASS** | Theory |
@@ -16,8 +16,8 @@ Environment: Windows Server 2022 + Ubuntu (CI), .NET SDK **8.0.424**, PostgreSQL
 
 | Item | Value |
 | --- | --- |
-| Final tip | `ffafcf3` |
-| CI | pending after push |
+| Final tip | `9c6a3e0` |
+| CI | https://github.com/Netsuno/MMO_Maker/actions/runs/33290850769 |
 | Client screenshots artifact | `phase-08-gameplay-client-screenshots` |
 | Editor screenshots artifact | `phase-08-editor-screenshots` |
 
@@ -29,3 +29,5 @@ dotnet test Frog.Tests/Frog.Tests.csproj -c Release
 dotnet test tests/Frog.Persistence.IntegrationTests -c Release
 # Windows CI: Phase 8 filter FullyQualifiedName~.Phase8 ×3
 ```
+
+Skipped tests: none reported in Frog.Tests or PostgreSQL integration suites.

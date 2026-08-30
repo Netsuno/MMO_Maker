@@ -252,6 +252,11 @@ public sealed class Phase8EditorSmokeTests
                 Assert.True(dialog.LifecycleForTest.PendingCountForTest > 0);
                 Assert.False(dialog.LifecycleForTest.IsIdle);
 
+                if (operationName == "save")
+                {
+                    SaveScreenshot(dialog, "06-close-during-pending.png");
+                }
+
                 EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
                 dialog.Close();
 
