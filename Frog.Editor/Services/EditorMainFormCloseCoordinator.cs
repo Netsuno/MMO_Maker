@@ -170,7 +170,8 @@ internal sealed class EditorMainFormCloseCoordinator
         {
             try
             {
-                await initTask.WaitAsync(timeout).ConfigureAwait(true);
+                // ConfigureAwait(false): do not block the STA pump while waiting on a non-coop init.
+                await initTask.WaitAsync(timeout).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -184,7 +185,7 @@ internal sealed class EditorMainFormCloseCoordinator
 
         try
         {
-            await _stopPlaytestAsync().ConfigureAwait(true);
+            await _stopPlaytestAsync().ConfigureAwait(false);
         }
         catch
         {
@@ -194,7 +195,7 @@ internal sealed class EditorMainFormCloseCoordinator
         var deadline = DateTime.UtcNow + timeout;
         while (_hasPendingOperations() && DateTime.UtcNow < deadline)
         {
-            await Task.Delay(50).ConfigureAwait(true);
+            await Task.Delay(50).ConfigureAwait(false);
         }
 
         if (_hasPendingOperations())
@@ -219,7 +220,7 @@ internal sealed class EditorMainFormCloseCoordinator
             {
                 await scope.DrainAsync(_closeCts?.Token ?? CancellationToken.None)
                     .WaitAsync(remaining)
-                    .ConfigureAwait(true);
+                    .ConfigureAwait(false);
             }
             catch (TimeoutException)
             {

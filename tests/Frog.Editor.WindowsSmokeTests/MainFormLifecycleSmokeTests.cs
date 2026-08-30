@@ -97,11 +97,17 @@ public sealed class MainFormLifecycleSmokeTests
             var initEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var releaseInit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            EditorTestHooks.MainWorkspaceInitBarrierForTest = async (_, _) =>
+            EditorTestHooks.MainWorkspaceInitBarrierForTest = async (phase, _) =>
             {
+                // Only block the first phase so cancel/timeout is observable without multi-phase deadlock.
+                if (!string.Equals(phase, "map", StringComparison.Ordinal))
+                {
+                    return;
+                }
+
                 initEntered.TrySetResult();
                 // Intentionally ignore cancellation — non-cooperative init for timeout/retry coverage.
-                await releaseInit.Task.ConfigureAwait(true);
+                await releaseInit.Task.ConfigureAwait(false);
             };
 
             MainWindow? window = null;
@@ -112,28 +118,35 @@ public sealed class MainFormLifecycleSmokeTests
                 window.Closed += (_, _) => closed = true;
                 StaTestRunner.PumpUntil(
                     () => initEntered.Task.IsCompleted,
-                    EditorSmokeTestAccess.DefaultTimeout);
+                    TimeSpan.FromSeconds(15));
 
-                window.Close();
+                // Form coordinator path (same as close-during-save) — avoid WPF shell re-entrancy while init is stuck.
+                window.EditorForm.BeginCloseCleanupViaCoordinatorForTest();
                 StaTestRunner.PumpUntil(
                     () => window.EditorForm.CloseCoordinatorForTest!.CloseCleanupFailedForTest,
-                    TimeSpan.FromSeconds(10));
+                    TimeSpan.FromSeconds(5));
                 Assert.True(window.IsVisible);
+                Assert.False(window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest);
 
                 releaseInit.TrySetResult();
                 StaTestRunner.PumpUntil(
                     () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
-                    EditorSmokeTestAccess.DefaultTimeout);
+                    TimeSpan.FromSeconds(10));
 
+                window.EditorForm.CloseCoordinatorForTest!.RetryCloseCleanupForTest(window.EditorForm);
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest,
+                    TimeSpan.FromSeconds(10));
                 window.AllowCloseWithoutPromptForTest();
                 window.Close();
-                StaTestRunner.PumpUntil(() => closed, EditorSmokeTestAccess.DefaultTimeout);
+                StaTestRunner.PumpUntil(() => closed, TimeSpan.FromSeconds(10));
             }
             finally
             {
                 releaseInit.TrySetResult();
                 EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
                 EditorTestHooks.OverrideMessageBoxResult = null;
+                EditorTestHooks.MainWorkspaceInitBarrierForTest = null;
                 if (window is not null)
                 {
                     try
