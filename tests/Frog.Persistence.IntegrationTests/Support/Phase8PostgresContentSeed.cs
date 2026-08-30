@@ -95,6 +95,8 @@ public static class Phase8PostgresContentSeed
     public const int RouteEventTileY = 0;
     public const int RouteBlockTileX = 4;
     public const int RouteBlockTileY = 1;
+    /// <summary>Dwell on the block tile so E2E collision checks stay deterministic (route loops otherwise).</summary>
+    public const int RouteBlockDwellMs = 30_000;
     public const int WaitEventTileX = 5;
     public const int WaitEventTileY = 1;
     public const int LearnProfessionTileX = 0;
@@ -735,7 +737,7 @@ public static class Phase8PostgresContentSeed
                 RouteWaypoints =
                 [
                     new MapEventRouteWaypoint { TileX = RouteEventTileX, TileY = RouteEventTileY, WaitMs = 250 },
-                    new MapEventRouteWaypoint { TileX = RouteBlockTileX, TileY = RouteBlockTileY, WaitMs = 250 },
+                    new MapEventRouteWaypoint { TileX = RouteBlockTileX, TileY = RouteBlockTileY, WaitMs = RouteBlockDwellMs },
                 ],
                 Commands =
                 [
@@ -830,7 +832,7 @@ public static class Phase8PostgresContentSeed
             var routeWaypoints = MapEventPersistenceMapper.SerializeRouteWaypoints(
             [
                 new MapEventRouteWaypoint { TileX = RouteEventTileX, TileY = RouteEventTileY, WaitMs = 250 },
-                new MapEventRouteWaypoint { TileX = RouteBlockTileX, TileY = RouteBlockTileY, WaitMs = 250 },
+                new MapEventRouteWaypoint { TileX = RouteBlockTileX, TileY = RouteBlockTileY, WaitMs = RouteBlockDwellMs },
             ]);
 
             db.MapEventPlacements.AddRange(

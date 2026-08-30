@@ -191,11 +191,9 @@ public sealed class Phase8PostgresE2ETests
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel2, out _, out var parallelMsg2));
             Assert.Contains("Parallel pulse", parallelMsg2);
 
-            // Step 18 (route movement): route event blocks collision tile after movement tick
-            for (var i = 0; i < 4; i++)
-            {
-                await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
-            }
+            // Step 18 (route movement): one heartbeat advances route to the block tile (long dwell keeps it there)
+            await Phase8MovementTestHelpers.SendHeartbeatAsync(client);
+            await Task.Delay(300);
 
             var blockedMove = await Phase8MovementTestHelpers.TryMoveToTileExpectingErrorAsync(
                 client, seed.RouteBlockTileX, seed.RouteBlockTileY);
