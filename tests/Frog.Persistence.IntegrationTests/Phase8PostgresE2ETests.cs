@@ -506,10 +506,9 @@ public sealed class Phase8PostgresE2ETests
                 if (castResult.Length > 1 && castResult[1] != 0)
                 {
                     var followUp = await client.ReadUntilAnyAsync(
-                        [PacketId.ExperienceGain, PacketId.CombatState, PacketId.QuestJournalSnapshot],
+                        [PacketId.ExperienceGain, PacketId.CombatState],
                         TimeSpan.FromSeconds(3));
-                    if (followUp[0] == (byte)PacketId.ExperienceGain
-                        || followUp[0] == (byte)PacketId.QuestJournalSnapshot)
+                    if (followUp[0] == (byte)PacketId.ExperienceGain)
                     {
                         return;
                     }
@@ -524,14 +523,9 @@ public sealed class Phase8PostgresE2ETests
             try
             {
                 var frame = await client.ReadUntilAnyAsync(
-                    [PacketId.MeleeAttackResult, PacketId.ExperienceGain, PacketId.QuestJournalSnapshot],
+                    [PacketId.MeleeAttackResult, PacketId.ExperienceGain, PacketId.CombatState],
                     TimeSpan.FromSeconds(3));
-                if (frame[0] == (byte)PacketId.MeleeAttackResult && frame.Length > 1 && frame[1] != 0)
-                {
-                    return;
-                }
-
-                if (frame[0] == (byte)PacketId.ExperienceGain || frame[0] == (byte)PacketId.QuestJournalSnapshot)
+                if (frame[0] == (byte)PacketId.ExperienceGain)
                 {
                     return;
                 }
