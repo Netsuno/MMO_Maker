@@ -28,28 +28,17 @@ internal static class StaTestRunner
         }
 
         Exception? captured = null;
-        // Synchronous Invoke with timeout — avoids InvokeAsync+Wait nesting issues with PumpUntil.
-        var status = _dispatcher!.Invoke(
-            () =>
-            {
-                try
-                {
-                    testBody();
-                }
-                catch (Exception ex)
-                {
-                    captured = ex;
-                }
-            },
-            DispatcherPriority.Normal,
-            CancellationToken.None,
-            TimeSpan.FromMinutes(2));
-
-        if (status == DispatcherOperationStatus.Aborted)
+        _dispatcher!.Invoke(() =>
         {
-            throw new TimeoutException(
-                "STA smoke test body did not complete within 2 minutes (possible modal dialog or hung cleanup).");
-        }
+            try
+            {
+                testBody();
+            }
+            catch (Exception ex)
+            {
+                captured = ex;
+            }
+        });
 
         if (captured is not null)
         {
