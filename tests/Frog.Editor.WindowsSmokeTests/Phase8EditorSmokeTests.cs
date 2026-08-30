@@ -25,6 +25,7 @@ public sealed class Phase8EditorSmokeTests
             lock (Sync)
             {
                 StaTestRunner.ClearCapturedExceptionsForTest();
+                EditorSmokeTestAccess.EnsureWinFormsInitialized();
                 body();
             }
         });
@@ -35,7 +36,6 @@ public sealed class Phase8EditorSmokeTests
     {
         RunLocked(() =>
         {
-            EditorSmokeTestAccess.EnsureWinFormsInitialized();
             EditorSmokeTestAccess.ResetHooks();
             EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
             EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();

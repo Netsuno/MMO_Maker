@@ -150,17 +150,6 @@ public sealed class Phase8PostgresE2ETests
             Assert.True(contactInv.Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity) >= 2);
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
-            // Step 18 (parallel): heartbeat fires parallel map event; repeats on subsequent heartbeats
-            await Phase8MovementTestHelpers.SendHeartbeatAsync(client);
-            var parallel1 = await client.ReadUntilAsync(PacketId.InteractResult);
-            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel1, out _, out var parallelMsg1));
-            Assert.Contains("Parallel pulse", parallelMsg1);
-            await Phase8MovementTestHelpers.SendHeartbeatAsync(client);
-            var parallel2 = await client.ReadUntilAsync(PacketId.InteractResult);
-            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel2, out _, out var parallelMsg2));
-            Assert.Contains("Parallel pulse", parallelMsg2);
-            await client.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
-
             // Step 18 (wait/resume): action event waits then sets switch via heartbeat resume
             using (var gate = CreateGate())
             {
@@ -179,6 +168,16 @@ public sealed class Phase8PostgresE2ETests
                 var world = new PostgresCharacterWorldStateRepository(gate);
                 Assert.True(await world.GetSwitchAsync(characterGuid, seed.WaitSwitchId));
             }
+
+            // Step 18 (parallel): heartbeat fires parallel map event; repeats on subsequent heartbeats
+            await Phase8MovementTestHelpers.SendHeartbeatAsync(client);
+            var parallel1 = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel1, out _, out var parallelMsg1));
+            Assert.Contains("Parallel pulse", parallelMsg1);
+            await Phase8MovementTestHelpers.SendHeartbeatAsync(client);
+            var parallel2 = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel2, out _, out var parallelMsg2));
+            Assert.Contains("Parallel pulse", parallelMsg2);
 
             // Step 18 (route movement): route event blocks collision tile after movement tick
             for (var i = 0; i < 4; i++)
