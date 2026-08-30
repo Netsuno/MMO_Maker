@@ -11,28 +11,24 @@
 | Branch | `cursor/phase0-baseline-audit-02c7` |
 | PR | https://github.com/Netsuno/MMO_Maker/pull/2 |
 | Accepted Phase 7 baseline | `3be393b756f32337972432a0571ffabd06a306bb` |
-| Prior rejected head | `779d4f9546ac45468c6d33dcdc48917605bc88ef` |
-| Final evidence tip | `67b527f0fe55af5b5ca9a9128f922e397ceef26c` |
-| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/33274156457 |
+| Prior rejected head | `a9bd0898c1e9a2bfd266c5d8741592a3f8bae4c4` |
+| Final evidence tip | `ffafcf3` |
+| CI (green) | pending after push |
 | Phase 9 | **Not started** |
 
-## Remediation checklist (P8-R1 … P8-R5)
+## Remediation checklist (P8-G1 … P8-G5)
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| P8-R1 | PG production SoT for all Phase 8 catalogs | **DONE** |
-| P8-R2 | Transactional quests + craft gold/XP + objective hooks | **DONE** |
-| P8-R3 | Runtime (parallel/wait/cycles/async cache/WorldFlags) | **DONE** |
-| P8-R4 | Protocol + client UI + structured editors all kinds | **DONE** |
-| P8-R5 | PG tests + E2E + multi-client + Windows smoke ×3 | **DONE** |
+| P8-G1 | Event runtime (movement, parallel, validation, idempotency) | **DONE** |
+| P8-G2 | Dialogue revision + craft replay + profession acquisition | **DONE** |
+| P8-G3 | Editor close state machine + structured map event editor | **DONE** |
+| P8-G4 | E2E matrix + functional client smoke (network) | **DONE** |
+| P8-G5 | Evidence hygiene (307 tests, git diff --check clean) | **DONE** |
 
 ## Evidence
 
-- Unit: 299 PASS
-- PostgreSQL integration: green on tip CI
-- E2E matrix 23/23 + multi-client 8/8 (see `E2E_MATRIX.md`)
-- Phase 8 client + editor smoke ×3; artifacts uploaded
-
-## Phase 9
-
-Not started.
+- Frog.Tests: **307** passed, **0** skipped
+- Unit: `MapEventExecutionTrackerTests`, `DialogSessionServiceTests`, `CommonEventCycleDetectorTests`
+- Integration: Phase 8 E2E 23-step, multi-client ×8, craft/quest PG repos
+- Windows: `Phase8GameplayClientSmokeTests` (functional network), `Phase8EditorSmokeTests` (close during blocked save)
