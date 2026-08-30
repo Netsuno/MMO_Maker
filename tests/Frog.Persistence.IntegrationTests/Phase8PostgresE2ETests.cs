@@ -168,8 +168,7 @@ public sealed class Phase8PostgresE2ETests
             Assert.False(replayOk);
 
             // Step 12: all five quest objective kinds via public gameplay (Talk done via dialogue accept)
-            await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.VisitObjectiveTileX, seed.VisitObjectiveTileY);
-            _ = await ReselectAndReadQuestJournalAsync(client, characterId);
+            await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.Region2TileX, seed.Region2TileY);
             AssertObjectiveCounter(characterGuid, seed.QuestId, 1, 0, 1);
             var visitJournal = await ReselectAndReadQuestJournalAsync(client, characterId);
             var visitQuest = Phase8WireDecoders.FindQuestEntry(visitJournal, seed.QuestId);
@@ -466,6 +465,7 @@ public sealed class Phase8PostgresE2ETests
         _ = await client.ReadUntilAsync(PacketId.BankSnapshot);
         _ = await client.ReadUntilAsync(PacketId.GroundItemsSnapshot);
         var journalFrame = await client.ReadUntilAsync(PacketId.QuestJournalSnapshot);
+        _ = await client.ReadUntilAsync(PacketId.EnvironmentStatePush);
         Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(journalFrame, out var journal));
         return journal;
     }

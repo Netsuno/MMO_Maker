@@ -108,6 +108,12 @@ public sealed class MainForm : Form
 
     internal EditorMainFormCloseCoordinator? CloseCoordinatorForTest => _closeCoordinator;
 
+    internal void BeginCloseCleanupViaCoordinatorForTest()
+    {
+        var args = new FormClosingEventArgs(CloseReason.UserClosing, cancel: false);
+        _ = _closeCoordinator?.TryHandleFormClosing(args, ConfirmCloseForShutdownAsync);
+    }
+
     internal bool IsEditorClosingForTest() => _closeCoordinator?.IsEditorClosingForTest == true;
 
     internal void SaveMap()

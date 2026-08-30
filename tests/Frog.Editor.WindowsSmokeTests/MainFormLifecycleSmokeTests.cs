@@ -106,7 +106,7 @@ public sealed class MainFormLifecycleSmokeTests
                     () => initEntered.Task.IsCompleted,
                     EditorSmokeTestAccess.DefaultTimeout);
 
-                window.EditorForm.Close();
+                window.EditorForm.BeginCloseCleanupViaCoordinatorForTest();
                 StaTestRunner.PumpUntil(
                     () => window.EditorForm.CloseCoordinatorForTest!.CloseCleanupFailedForTest,
                     TimeSpan.FromSeconds(10));
