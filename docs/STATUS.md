@@ -7,7 +7,7 @@
 | Phase 9 | Not started |
 
 Branch: `cursor/phase0-baseline-audit-02c7`
-Final tip: `85ae9f0`
-CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33291657106
+Final tip: `7137c17`
+CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071
 
-P8-G1–G5 remediation complete: server-authoritative event movement/collision, repeatable parallel semantics, dialogue revision binding, craft replay correctness, editor close state machine, functional client smoke (network packets), publication parameter validation, E2E matrix corrections, evidence hygiene.
+P8-G1–G5 re-review remediation: atomic once-grant (`TryClaimSwitchAsync`), map movement clear on map change, condition parameter validation, async editor PostgreSQL init/disposal, map-event once-reward same-character race E2E, editor close-during-block smoke assertions, runtime tests (321 Frog.Tests / 144 PG integration).
