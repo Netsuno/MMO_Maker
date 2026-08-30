@@ -70,37 +70,202 @@ public sealed class Phase8EditorSmokeTests
                 dialog.BtnNewForTest.PerformClick();
                 PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "dirty discard → new");
                 SaveScreenshot(dialog, "05-dirty-discard.png");
+            }
+            finally
+            {
+                EditorTestHooks.PanelOperationBarrierForTest = null;
+                if (dialog is { IsDisposed: false })
+                {
+                    EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                    try
+                    {
+                        dialog.Close();
+                        PumpUntil(() => dialog.IsDisposed, "teardown close");
+                    }
+                    catch
+                    {
+                        // teardown best-effort
+                    }
+                }
 
-                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
-                dialog.NameForTest.Text = "Pending Close";
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(Phase8ContentKind.Dialogue)]
+    [InlineData(Phase8ContentKind.Quest)]
+    [InlineData(Phase8ContentKind.CommonEvent)]
+    [InlineData(Phase8ContentKind.Profession)]
+    [InlineData(Phase8ContentKind.Recipe)]
+    [InlineData(Phase8ContentKind.Region)]
+    [InlineData(Phase8ContentKind.WeatherProfile)]
+    public void Phase8Editor_AllContentKinds_MinimalNewDraft(Phase8ContentKind kind)
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+            EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();
+
+            Phase8ContentBrowseDialog? dialog = null;
+            try
+            {
+                dialog = new Phase8ContentBrowseDialog(EditorTestHooks.OverridePhase8ContentService);
+                dialog.Show();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "init idle");
+
+                SelectKind(dialog, kind);
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "kind switched");
+
+                dialog.BtnNewForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "new draft");
+                dialog.NameForTest.Text = $"Smoke {kind}";
+                Assert.NotNull(dialog.ActiveEditorForTest);
+                Assert.Equal(kind, dialog.ActiveEditorForTest!.Kind);
+                Assert.True(dialog.ActiveEditorForTest.TryBuildPayload(out _, out var error), error);
+
+                dialog.BtnSaveForTest.PerformClick();
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle && !dialog.IsDirtyForTest && dialog.CurrentRevisionForTest > 0,
+                    "save draft");
+            }
+            finally
+            {
+                if (dialog is { IsDisposed: false })
+                {
+                    EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                    dialog.Close();
+                    PumpUntil(() => dialog.IsDisposed, "dispose");
+                }
+
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("reload")]
+    [InlineData("save")]
+    [InlineData("publish")]
+    [InlineData("delete")]
+    public void Phase8Editor_RealClose_WhileOperationPending_DrainsThenDisposes(string operationName)
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            var observed = new List<Exception>();
+            EditorTestHooks.OnPanelLifecycleExceptionForTest = ex =>
+            {
+                lock (observed)
+                {
+                    observed.Add(ex);
+                }
+            };
+
+            EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+            EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();
+
+            Phase8ContentBrowseDialog? dialog = null;
+            try
+            {
+                dialog = new Phase8ContentBrowseDialog(EditorTestHooks.OverridePhase8ContentService);
+                dialog.Show();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "init idle");
+
+                if (operationName is "save" or "publish" or "delete")
+                {
+                    dialog.BtnNewForTest.PerformClick();
+                    PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "new draft");
+                    dialog.NameForTest.Text = $"CloseDuring-{operationName}";
+                    if (operationName is "publish" or "delete")
+                    {
+                        dialog.BtnSaveForTest.PerformClick();
+                        PumpUntil(
+                            () => dialog.LifecycleForTest.IsIdle && !dialog.IsDirtyForTest,
+                            "prerequisite save");
+                    }
+                }
+
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "idle before barrier");
+
                 var barrierEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var releaseBarrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var sawCancellation = false;
+
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
                 EditorTestHooks.PanelOperationBarrierForTest = async (name, ct) =>
                 {
-                    if (!string.Equals(name, "save", StringComparison.Ordinal))
+                    if (!string.Equals(name, operationName, StringComparison.Ordinal))
                     {
                         return;
                     }
 
                     barrierEntered.TrySetResult();
-                    using var reg = ct.Register(() => { });
-                    await releaseBarrier.Task.WaitAsync(ct).ConfigureAwait(false);
+                    try
+                    {
+                        using var reg = ct.Register(() => Volatile.Write(ref sawCancellation, true));
+                        await releaseBarrier.Task.WaitAsync(ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Volatile.Write(ref sawCancellation, true);
+                        throw;
+                    }
                 };
 
-                dialog.BtnSaveForTest.PerformClick();
-                PumpUntil(() => barrierEntered.Task.IsCompleted, "barrier entered");
-                Assert.True(dialog.LifecycleForTest.PendingCountForTest > 0);
-                SaveScreenshot(dialog, "06-close-during-pending.png");
+                switch (operationName)
+                {
+                    case "reload":
+                        dialog.BtnNewForTest.PerformClick();
+                        PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "draft for reload");
+                        dialog.BtnSaveForTest.PerformClick();
+                        PumpUntil(() => dialog.LifecycleForTest.IsIdle && !dialog.IsDirtyForTest, "saved for reload");
+                        dialog.BtnReloadForTest.PerformClick();
+                        break;
+                    case "save":
+                        dialog.BtnSaveForTest.PerformClick();
+                        break;
+                    case "publish":
+                        dialog.BtnPublishForTest.PerformClick();
+                        break;
+                    case "delete":
+                        dialog.BtnDeleteForTest.PerformClick();
+                        break;
+                }
 
-                // Release the barrier before Close so FormClosing drain cannot deadlock the STA pump.
-                releaseBarrier.TrySetResult();
-                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "pending save drained");
+                StaTestRunner.PumpUntil(() => barrierEntered.Task.IsCompleted, TimeSpan.FromSeconds(10));
+                Assert.True(dialog.LifecycleForTest.PendingCountForTest > 0);
+                Assert.False(dialog.LifecycleForTest.IsIdle);
+
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
                 dialog.Close();
-                PumpUntil(() => dialog.IsDisposed, "disposed after pending close");
+
+                var disposeTimeout = TimeSpan.FromSeconds(60);
+                try
+                {
+                    StaTestRunner.PumpUntil(() => dialog.IsDisposed, disposeTimeout);
+                }
+                catch (TimeoutException)
+                {
+                    throw new TimeoutException(
+                        $"Phase 8 dialog did not dispose within {disposeTimeout.TotalSeconds:0}s while '{operationName}' was pending. " +
+                        $"PendingCount={dialog.LifecycleForTest.PendingCountForTest}, IsIdle={dialog.LifecycleForTest.IsIdle}, sawCancellation={Volatile.Read(ref sawCancellation)}.");
+                }
+
+                Assert.True(Volatile.Read(ref sawCancellation));
+                Assert.Null(dialog.CloseCleanupExceptionForTest);
+                Assert.False(dialog.CloseCleanupFailedForTest);
+                Assert.Empty(observed);
+                Assert.True(dialog.IsDisposed);
+
+                releaseBarrier.TrySetResult();
             }
             finally
             {
                 EditorTestHooks.PanelOperationBarrierForTest = null;
+                EditorTestHooks.OnPanelLifecycleExceptionForTest = null;
                 if (dialog is { IsDisposed: false })
                 {
                     EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
@@ -117,6 +282,162 @@ public sealed class Phase8EditorSmokeTests
                 EditorSmokeTestAccess.ResetHooks();
             }
         });
+    }
+
+    [Fact]
+    public void Phase8Editor_RealClose_WhileInitializationPending_CancelsAndDisposes()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+            EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();
+
+            var initEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseInit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var sawCancel = false;
+
+            EditorTestHooks.PanelOperationBarrierForTest = async (name, ct) =>
+            {
+                if (!string.Equals(name, "init", StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                initEntered.TrySetResult();
+                try
+                {
+                    using var reg = ct.Register(() => Volatile.Write(ref sawCancel, true));
+                    await releaseInit.Task.WaitAsync(ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    Volatile.Write(ref sawCancel, true);
+                    throw;
+                }
+            };
+
+            Phase8ContentBrowseDialog? dialog = null;
+            try
+            {
+                dialog = new Phase8ContentBrowseDialog(EditorTestHooks.OverridePhase8ContentService);
+                dialog.Show();
+
+                StaTestRunner.PumpUntil(() => initEntered.Task.IsCompleted, EditorSmokeTestAccess.DefaultTimeout);
+                Assert.False(dialog.LifecycleForTest.IsIdle);
+
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                dialog.Close();
+                StaTestRunner.PumpUntil(() => dialog.IsDisposed, EditorSmokeTestAccess.DefaultTimeout);
+
+                Assert.True(Volatile.Read(ref sawCancel));
+                Assert.False(dialog.CloseCleanupFailedForTest);
+                Assert.True(dialog.IsDisposed);
+            }
+            finally
+            {
+                EditorTestHooks.PanelOperationBarrierForTest = null;
+                releaseInit.TrySetResult();
+                if (dialog is { IsDisposed: false })
+                {
+                    EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                    try
+                    {
+                        dialog.Close();
+                    }
+                    catch
+                    {
+                        // teardown best-effort
+                    }
+                }
+
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    [Fact]
+    public void Phase8Editor_NonCooperativeOperation_TimeoutKeepsDialogAlive_ThenRetryCloses()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            EditorTestHooks.GameDataCloseCleanupTimeoutForTest = TimeSpan.FromMilliseconds(400);
+            EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+            EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();
+
+            Phase8ContentBrowseDialog? dialog = null;
+            try
+            {
+                dialog = new Phase8ContentBrowseDialog(EditorTestHooks.OverridePhase8ContentService);
+                dialog.Show();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "init idle");
+
+                dialog.BtnNewForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "new draft");
+                dialog.NameForTest.Text = "NonCoop";
+
+                var barrierEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var releaseBarrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                EditorTestHooks.PanelOperationBarrierForTest = async (name, _) =>
+                {
+                    if (!string.Equals(name, "save", StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    barrierEntered.TrySetResult();
+                    await releaseBarrier.Task.ConfigureAwait(true);
+                };
+
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+                dialog.BtnSaveForTest.PerformClick();
+                StaTestRunner.PumpUntil(() => barrierEntered.Task.IsCompleted, EditorSmokeTestAccess.DefaultTimeout);
+                Assert.False(dialog.LifecycleForTest.IsIdle);
+
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                dialog.Close();
+                StaTestRunner.PumpUntil(() => dialog.CloseCleanupFailedForTest, TimeSpan.FromSeconds(10));
+
+                Assert.False(dialog.IsDisposed);
+                Assert.True(dialog.Visible);
+                Assert.True(dialog.CloseCleanupFailedForTest);
+
+                releaseBarrier.TrySetResult();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "drain after release");
+
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                dialog.RetryCloseCleanupForTest();
+                StaTestRunner.PumpUntil(() => dialog.IsDisposed, EditorSmokeTestAccess.DefaultTimeout);
+
+                Assert.True(dialog.IsDisposed);
+            }
+            finally
+            {
+                EditorTestHooks.PanelOperationBarrierForTest = null;
+                EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
+                if (dialog is { IsDisposed: false })
+                {
+                    EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                    try
+                    {
+                        dialog.Close();
+                    }
+                    catch
+                    {
+                        // teardown best-effort
+                    }
+                }
+
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    private static void SelectKind(Phase8ContentBrowseDialog dialog, Phase8ContentKind kind)
+    {
+        dialog.KindComboForTest.SelectedIndex = (int)kind - 1;
     }
 
     private static void PumpUntil(Func<bool> predicate, string step)

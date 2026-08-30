@@ -20,6 +20,7 @@ using Frog.Editor.Ui;
 using Frog.Editor.Config;
 using Frog.Editor.Interop;
 using Frog.Editor.Services;
+using Frog.Persistence.PostgreSql;
 
 namespace Frog.Editor.Forms;
 
@@ -61,6 +62,7 @@ public sealed class MainForm : Form
     private IMapRepository? _mapRepository;
     private MapEventsPostgreSqlService? _mapEventService;
     private Phase8ContentPostgreSqlService? _phase8ContentService;
+    private EditorPostgreSqlScope? _phase8DatabaseScope;
     private bool _catalogOpenInProgress;
     private bool _suppressDirtyTracking;
     private readonly IEditorDialogService _dialogService;
@@ -698,8 +700,9 @@ public sealed class MainForm : Form
         _persistenceCapabilities = bundle.Capabilities;
         var eventBundle = EditorMapEventRepositoryFactory.CreateBundle();
         _mapEventService = eventBundle.Service;
-        var phase8Bundle = EditorPhase8ContentRepositoryFactory.CreateBundle();
+        var phase8Bundle = await EditorPhase8ContentRepositoryFactory.CreateBundleAsync().ConfigureAwait(true);
         _phase8ContentService = phase8Bundle.Service;
+        _phase8DatabaseScope = phase8Bundle.DatabaseScope;
         _workspace = new MapWorkspaceSession(bundle.Repository);
         await _workspace.InitializeAsync().ConfigureAwait(true);
         ApplyWorkspaceMapToUi();

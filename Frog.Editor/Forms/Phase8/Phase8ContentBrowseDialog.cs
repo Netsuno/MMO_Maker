@@ -41,6 +41,10 @@ internal sealed class Phase8ContentBrowseDialog : Form
     private Phase8EditorPanelBase? _activeEditor;
     private Phase8ContentKind _committedKind = Phase8ContentKind.Dialogue;
     private bool _suppressKindChange;
+    private bool _allowCloseAfterCleanup;
+    private bool _cleanupRunning;
+    private bool _closeCleanupFailed;
+    private Exception? _closeCleanupException;
 
     public Phase8ContentBrowseDialog(Phase8ContentPostgreSqlService service)
     {
@@ -222,6 +226,8 @@ internal sealed class Phase8ContentBrowseDialog : Form
 
     internal Button BtnDuplicateForTest => _btnDuplicate;
 
+    internal Button BtnReloadForTest => _btnReload;
+
     internal Phase8EditorPanelBase? ActiveEditorForTest => _activeEditor;
 
     internal Guid CurrentIdForTest => _currentId;
@@ -229,6 +235,24 @@ internal sealed class Phase8ContentBrowseDialog : Form
     internal long CurrentRevisionForTest => _currentRevision;
 
     internal ContentPublishStatus CurrentStatusForTest => _currentStatus;
+
+    internal Exception? CloseCleanupExceptionForTest => _closeCleanupException;
+
+    internal bool CloseCleanupFailedForTest => _closeCleanupFailed;
+
+    internal bool AllowFinalCloseForTest => _allowCloseAfterCleanup;
+
+    internal void RetryCloseCleanupForTest()
+    {
+        if (_allowCloseAfterCleanup || _cleanupRunning || IsDisposed)
+        {
+            return;
+        }
+
+        _cleanupRunning = true;
+        SetClosingUiState(enabled: false);
+        _ = RunAsyncCloseCleanupAndMaybeFinishAsync();
+    }
 
     private Phase8ContentKind SelectedKind =>
         _cbKind.SelectedItem is KindChoice choice ? choice.Kind : Phase8ContentKind.Dialogue;
@@ -635,24 +659,135 @@ internal sealed class Phase8ContentBrowseDialog : Form
         }
     }
 
-    private async void Phase8ContentBrowseDialog_FormClosing(object? sender, FormClosingEventArgs e)
+    private void Phase8ContentBrowseDialog_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (!ConfirmDiscardIfDirty())
+        if (_allowCloseAfterCleanup)
+        {
+            return;
+        }
+
+        if (_dirty && !ConfirmDiscardIfDirty())
         {
             e.Cancel = true;
             return;
         }
 
+        e.Cancel = true;
+        if (_cleanupRunning)
+        {
+            return;
+        }
+
+        _cleanupRunning = true;
+        SetClosingUiState(enabled: false);
+        _ = RunAsyncCloseCleanupAndMaybeFinishAsync();
+    }
+
+    private async Task RunAsyncCloseCleanupAndMaybeFinishAsync()
+    {
+        var timeout = EditorTestHooks.GameDataCloseCleanupTimeoutForTest ?? TimeSpan.FromSeconds(30);
+        try
+        {
+            var success = await RunCloseCleanupAsync(timeout).ConfigureAwait(true);
+            if (!success)
+            {
+                _closeCleanupFailed = true;
+                _cleanupRunning = false;
+                SetClosingUiState(enabled: true);
+                if (!IsDisposed)
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        if (IsDisposed)
+                        {
+                            return;
+                        }
+
+                        GameDataUiMessageBox.Show(
+                            this,
+                            "La fermeture a expiré : une opération Phase 8 est encore en cours. "
+                            + "Attendez la fin de l’opération puis réessayez de fermer.",
+                            "Phase 8",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                    }));
+                }
+
+                return;
+            }
+
+            _lifecycle.Dispose();
+            _closeCleanupFailed = false;
+            _allowCloseAfterCleanup = true;
+            _cleanupRunning = false;
+            if (!IsDisposed)
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed)
+                    {
+                        Close();
+                    }
+                }));
+            }
+        }
+        catch (Exception ex)
+        {
+            _closeCleanupException = ex;
+            _closeCleanupFailed = true;
+            _cleanupRunning = false;
+            SetClosingUiState(enabled: true);
+            if (!IsDisposed)
+            {
+                var message = $"Échec du nettoyage à la fermeture : {ex.Message}";
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed)
+                    {
+                        return;
+                    }
+
+                    GameDataUiMessageBox.Show(
+                        this,
+                        message,
+                        "Phase 8",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }));
+            }
+        }
+    }
+
+    private async Task<bool> RunCloseCleanupAsync(TimeSpan timeout)
+    {
         _lifecycle.BeginClosing();
-        var drained = await _lifecycle.DrainAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
-        if (!drained)
+
+        var drained = await _lifecycle.DrainAsync(timeout).ConfigureAwait(true);
+        if (!drained || !_lifecycle.IsIdle)
         {
-            e.Cancel = true;
-            GameDataUiMessageBox.Show(this, "Opérations encore en cours.", "Phase 8", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
+            return false;
         }
 
-        _lifecycle.Dispose();
+        return true;
+    }
+
+    private void SetClosingUiState(bool enabled)
+    {
+        _cbKind.Enabled = enabled;
+        _txtFilter.Enabled = enabled;
+        _lvItems.Enabled = enabled;
+        _txtName.Enabled = enabled;
+        _numAlias.Enabled = enabled;
+        _btnReload.Enabled = enabled;
+        _btnNew.Enabled = enabled;
+        _btnDuplicate.Enabled = enabled;
+        _btnDelete.Enabled = enabled;
+        _btnSave.Enabled = enabled;
+        _btnPublish.Enabled = enabled;
+        if (_activeEditor is not null)
+        {
+            _activeEditor.Enabled = enabled;
+        }
     }
 
     private static string FormatKindLabel(Phase8ContentKind kind) => kind switch
