@@ -42,7 +42,7 @@ public sealed class Phase8GameplayClientSmokeTests
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "02-dialogue-choices.png");
             form.DialoguePanelForTest.ClickFirstChoiceForTest();
             Pump(form, () => form.LogContainsForTest("Journal quêtes:"), "quest journal after choice");
-            Assert.True(form.QuestJournalPanelForTest.EntryCountForTest > 0);
+            Pump(form, () => form.QuestJournalPanelForTest.EntryCountForTest > 0, "quest journal entries");
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "03-quest-journal.png");
 
             Pump(form, () => form.EnvironmentPanelForTest.MapLabelTextForTest.Contains("Carte: 1"), "environment push");

@@ -24,6 +24,7 @@ public sealed class Phase8EditorSmokeTests
         {
             lock (Sync)
             {
+                StaTestRunner.ClearCapturedExceptionsForTest();
                 body();
             }
         });

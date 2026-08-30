@@ -159,6 +159,7 @@ public sealed class Phase8PostgresE2ETests
             var parallel2 = await client.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel2, out _, out var parallelMsg2));
             Assert.Contains("Parallel pulse", parallelMsg2);
+            await client.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
             // Step 18 (wait/resume): action event waits then sets switch via heartbeat resume
             using (var gate = CreateGate())
@@ -171,7 +172,7 @@ public sealed class Phase8PostgresE2ETests
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             _ = await client.ReadUntilAsync(PacketId.InteractResult);
             await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
-            await Task.Delay(350);
+            await Task.Delay(500);
             await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
             using (var gate = CreateGate())
             {

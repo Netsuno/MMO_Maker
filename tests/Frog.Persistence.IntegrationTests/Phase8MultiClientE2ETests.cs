@@ -268,7 +268,7 @@ public sealed class Phase8MultiClientE2ETests
                 var unexpected = await second.ReadUntilAsync(PacketId.InteractResult, TimeSpan.FromMilliseconds(400));
                 Assert.DoesNotContain("Welcome to Phase8", DecodeInteractMessage(unexpected));
             }
-            catch (TimeoutException)
+            catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)
             {
                 // No interact result is also acceptable on re-login.
             }

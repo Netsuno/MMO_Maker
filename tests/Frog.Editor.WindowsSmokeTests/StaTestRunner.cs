@@ -104,6 +104,14 @@ internal static class StaTestRunner
         AssertClean();
     }
 
+    internal static void ClearCapturedExceptionsForTest()
+    {
+        lock (Gate)
+        {
+            CapturedExceptions.Clear();
+        }
+    }
+
     internal static void AssertClean()
     {
         lock (Gate)

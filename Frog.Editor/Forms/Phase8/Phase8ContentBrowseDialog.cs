@@ -195,15 +195,23 @@ internal sealed class Phase8ContentBrowseDialog : Form
 
         FormClosing += Phase8ContentBrowseDialog_FormClosing;
         SwapEditorPanel(SelectedKind);
-        Shown += (_, _) => _ = _lifecycle.RunAsync(async ct =>
+        Shown += (_, _) =>
         {
-            if (_activeEditor is null)
+            if (IsDisposed || _cleanupRunning || _allowCloseAfterCleanup)
             {
-                SwapEditorPanel(SelectedKind);
+                return;
             }
 
-            await ReloadListAsync(ct).ConfigureAwait(true);
-        }, "init");
+            _ = _lifecycle.RunAsync(async ct =>
+            {
+                if (_activeEditor is null)
+                {
+                    SwapEditorPanel(SelectedKind);
+                }
+
+                await ReloadListAsync(ct).ConfigureAwait(true);
+            }, "init");
+        };
     }
 
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;

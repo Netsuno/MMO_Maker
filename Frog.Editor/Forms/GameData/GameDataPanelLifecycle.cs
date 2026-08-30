@@ -52,8 +52,7 @@ internal sealed class GameDataPanelLifecycle : IDisposable
 
     private Task StartTrackedAsync(Func<CancellationToken, Task> action, string operationName, bool serialize)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_closing || _lifetimeCts.IsCancellationRequested)
+        if (_disposed || _closing || _lifetimeCts.IsCancellationRequested)
         {
             return Task.CompletedTask;
         }

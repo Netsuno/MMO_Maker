@@ -37,6 +37,7 @@ internal static class Phase8MovementTestHelpers
         int targetY,
         bool drainSideEffects = true)
     {
+        await client.DrainPendingAsync(TimeSpan.FromMilliseconds(100));
         await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMapRequest());
         _ = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
 
