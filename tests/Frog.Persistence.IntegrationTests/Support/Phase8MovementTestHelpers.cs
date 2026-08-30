@@ -6,10 +6,15 @@ namespace Frog.Persistence.IntegrationTests.Support;
 
 internal static class Phase8MovementTestHelpers
 {
-    public static async Task SendHeartbeatAndDrainAsync(Phase7TcpTestClient client)
+    public static async Task SendHeartbeatAsync(Phase7TcpTestClient client)
     {
         await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildHeartbeat());
         _ = await client.ReadUntilAsync(PacketId.HeartbeatAck);
+    }
+
+    public static async Task SendHeartbeatAndDrainAsync(Phase7TcpTestClient client)
+    {
+        await SendHeartbeatAsync(client);
         await client.DrainPendingAsync(TimeSpan.FromMilliseconds(150));
     }
 

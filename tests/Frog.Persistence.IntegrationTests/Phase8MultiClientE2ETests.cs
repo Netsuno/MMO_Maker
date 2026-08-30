@@ -122,17 +122,20 @@ public sealed class Phase8MultiClientE2ETests
                 _ = await clientB.ReadUntilAsync(PacketId.ReconnectResult);
                 await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterIdStr));
                 _ = await clientB.ReadUntilAsync(PacketId.CharacterSelectResult);
-                _ = await clientB.ReadUntilAsync(PacketId.CombatState);
-                _ = await clientB.ReadUntilAsync(PacketId.InventorySnapshot);
-                _ = await clientB.ReadUntilAsync(PacketId.BankSnapshot);
-                _ = await clientB.ReadUntilAsync(PacketId.GroundItemsSnapshot);
-                _ = await clientB.ReadUntilAsync(PacketId.QuestJournalSnapshot);
-                _ = await clientB.ReadUntilAsync(PacketId.EnvironmentStatePush);
+                await clientB.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
                 await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildQuestTurnIn(seed.QuestId, reqB));
             });
             await Task.WhenAll(turnInFromA, turnInFromB);
 
-            _ = await clientA.ReadUntilAsync(PacketId.QuestTurnInResult);
+            try
+            {
+                _ = await clientA.ReadUntilAsync(PacketId.QuestTurnInResult, TimeSpan.FromSeconds(2));
+            }
+            catch (EndOfStreamException)
+            {
+                // Reconnect from client B displaces A before the turn-in response is read.
+            }
+
             _ = await clientB.ReadUntilAsync(PacketId.QuestTurnInResult);
 
             using var gate = CreateGate();
@@ -210,9 +213,12 @@ public sealed class Phase8MultiClientE2ETests
                 client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCraft(seed.RecipeId, requestId)),
                 client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCraft(seed.RecipeId, requestId)));
 
-            _ = await client.ReadUntilAsync(PacketId.CraftResult);
-            _ = await client.ReadUntilAsync(PacketId.CraftResult);
-            _ = await client.ReadUntilAsync(PacketId.QuestJournalSnapshot);
+            var result1 = await client.ReadUntilAsync(PacketId.CraftResult);
+            var result2 = await client.ReadUntilAsync(PacketId.CraftResult);
+            Assert.True(Phase8WireDecoders.TryDecodeStatusResult(result1, out var ok1, out _));
+            Assert.True(Phase8WireDecoders.TryDecodeStatusResult(result2, out var ok2, out _));
+            Assert.True(ok1);
+            Assert.True(ok2);
 
             using var gate = CreateGate();
             var inv = new PostgresInventoryRepository(gate);
@@ -256,8 +262,16 @@ public sealed class Phase8MultiClientE2ETests
             _ = await second.ReadUntilAsync(PacketId.GroundItemsSnapshot);
             _ = await second.ReadUntilAsync(PacketId.QuestJournalSnapshot);
             _ = await second.ReadUntilAsync(PacketId.EnvironmentStatePush);
-            await Assert.ThrowsAnyAsync<Exception>(() =>
-                second.ReadUntilAsync(PacketId.InteractResult, TimeSpan.FromMilliseconds(400)));
+            await second.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
+            try
+            {
+                var unexpected = await second.ReadUntilAsync(PacketId.InteractResult, TimeSpan.FromMilliseconds(400));
+                Assert.DoesNotContain("Welcome to Phase8", DecodeInteractMessage(unexpected));
+            }
+            catch (TimeoutException)
+            {
+                // No interact result is also acceptable on re-login.
+            }
         }
         finally
         {

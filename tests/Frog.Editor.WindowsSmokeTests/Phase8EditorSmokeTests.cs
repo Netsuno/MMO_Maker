@@ -16,10 +16,23 @@ namespace Frog.Editor.WindowsSmokeTests;
 [Collection(UiSmokeCollectionDefinition.Name)]
 public sealed class Phase8EditorSmokeTests
 {
+    private static readonly object Sync = new();
+
+    private static void RunLocked(Action body)
+    {
+        StaTestRunner.Run(() =>
+        {
+            lock (Sync)
+            {
+                body();
+            }
+        });
+    }
+
     [Fact]
     public void Phase8Editor_DialogueDraftPublishDirtyDiscard_AndCloseDuringPendingOp()
     {
-        StaTestRunner.Run(() =>
+        RunLocked(() =>
         {
             EditorSmokeTestAccess.EnsureWinFormsInitialized();
             EditorSmokeTestAccess.ResetHooks();
@@ -103,7 +116,7 @@ public sealed class Phase8EditorSmokeTests
     [InlineData(Phase8ContentKind.WeatherProfile)]
     public void Phase8Editor_AllContentKinds_MinimalNewDraft(Phase8ContentKind kind)
     {
-        StaTestRunner.Run(() =>
+        RunLocked(() =>
         {
             EditorSmokeTestAccess.ResetHooks();
             EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
@@ -152,7 +165,7 @@ public sealed class Phase8EditorSmokeTests
     [InlineData("delete")]
     public void Phase8Editor_RealClose_WhileOperationPending_DrainsThenDisposes(string operationName)
     {
-        StaTestRunner.Run(() =>
+        RunLocked(() =>
         {
             EditorSmokeTestAccess.ResetHooks();
             var observed = new List<Exception>();
@@ -287,7 +300,7 @@ public sealed class Phase8EditorSmokeTests
     [Fact]
     public void Phase8Editor_RealClose_WhileInitializationPending_CancelsAndDisposes()
     {
-        StaTestRunner.Run(() =>
+        RunLocked(() =>
         {
             EditorSmokeTestAccess.ResetHooks();
             EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
@@ -359,7 +372,7 @@ public sealed class Phase8EditorSmokeTests
     [Fact]
     public void Phase8Editor_NonCooperativeOperation_TimeoutKeepsDialogAlive_ThenRetryCloses()
     {
-        StaTestRunner.Run(() =>
+        RunLocked(() =>
         {
             EditorSmokeTestAccess.ResetHooks();
             EditorTestHooks.GameDataCloseCleanupTimeoutForTest = TimeSpan.FromMilliseconds(400);

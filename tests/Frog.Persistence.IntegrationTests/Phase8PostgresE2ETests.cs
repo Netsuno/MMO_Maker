@@ -151,11 +151,11 @@ public sealed class Phase8PostgresE2ETests
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
             // Step 18 (parallel): heartbeat fires parallel map event; repeats on subsequent heartbeats
-            await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
+            await Phase8MovementTestHelpers.SendHeartbeatAsync(client);
             var parallel1 = await client.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel1, out _, out var parallelMsg1));
             Assert.Contains("Parallel pulse", parallelMsg1);
-            await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
+            await Phase8MovementTestHelpers.SendHeartbeatAsync(client);
             var parallel2 = await client.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel2, out _, out var parallelMsg2));
             Assert.Contains("Parallel pulse", parallelMsg2);

@@ -48,12 +48,15 @@ public sealed class Phase8GameplayClientSmokeTests
             Pump(form, () => form.EnvironmentPanelForTest.MapLabelTextForTest.Contains("Carte: 1"), "environment push");
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "04-environment.png");
 
+            form.SelectGameplayTabForTest();
+            Pump(form, () => form.ShopBuyButtonForTest.Enabled, "shop buy enabled on gameplay tab");
             form.ShopBuyButtonForTest.PerformClick();
-            Pump(form, () => form.LogContainsForTest("Achat reussi"), "shop buy for craft ingredient");
+            Pump(form, () => form.LogContainsForTest("Achat: Achat reussi"), "shop buy for craft ingredient");
             form.AcquireProfessionForTest(opts.ProfessionId);
-            Pump(form, () => form.LogContainsForTest("Métier"), "profession acquired");
+            Pump(form, () => form.LogContainsForTest("Métier:") && form.LogContainsForTest("acquis"), "profession acquired");
+            form.SelectPhase8TabForTest();
             form.CraftPanelForTest.RecipeIdTextBoxForTest.Text = opts.RecipeId.ToString();
-            Assert.True(form.CraftPanelForTest.CraftButtonForTest.Enabled);
+            Pump(form, () => form.CraftPanelForTest.CraftButtonForTest.Enabled, "craft button enabled in playing phase");
             form.CraftPanelForTest.ClickCraftForTest();
             Pump(
                 form,

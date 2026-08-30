@@ -26,10 +26,11 @@ public sealed class PostgresEventCraftRepositoryTests
         var characterId = await CreateCharacterAsync(gate, seed);
         await Phase8PostgresContentSeed.SeedInventoryIngredientsAsync(gate, characterId, seed.Phase7.ConsumableId, 2)
             .ConfigureAwait(false);
+        await Phase8PostgresContentSeed.SeedProfessionProgressAsync(gate, characterId).ConfigureAwait(false);
 
         var recipes = new PostgresPhase8PublishedCatalogs(gate);
         var items = new PostgresItemRepository(gate);
-        var repo = new PostgresEventCraftRepository(gate, recipes, items);
+        var repo = new PostgresEventCraftRepository(gate, recipes, items, recipes);
         var requestId = Guid.NewGuid();
 
         var first = await repo.TryCraftAsync(characterId, seed.RecipeId, requestId);
@@ -55,10 +56,11 @@ public sealed class PostgresEventCraftRepositoryTests
         var characterId = await CreateCharacterAsync(gate, seed);
         await Phase8PostgresContentSeed.SeedInventoryIngredientsAsync(gate, characterId, seed.Phase7.ConsumableId, 2)
             .ConfigureAwait(false);
+        await Phase8PostgresContentSeed.SeedProfessionProgressAsync(gate, characterId).ConfigureAwait(false);
 
         var recipes = new PostgresPhase8PublishedCatalogs(gate);
         var items = new PostgresItemRepository(gate);
-        var repo = new PostgresEventCraftRepository(gate, recipes, items);
+        var repo = new PostgresEventCraftRepository(gate, recipes, items, recipes);
         var requestA = Guid.NewGuid();
         var requestB = Guid.NewGuid();
 
@@ -85,10 +87,11 @@ public sealed class PostgresEventCraftRepositoryTests
         var characterId = await CreateCharacterAsync(gate, seed);
         await Phase8PostgresContentSeed.SeedInventoryIngredientsAsync(gate, characterId, seed.Phase7.ConsumableId, 2)
             .ConfigureAwait(false);
+        await Phase8PostgresContentSeed.SeedProfessionProgressAsync(gate, characterId).ConfigureAwait(false);
 
         var recipes = new PostgresPhase8PublishedCatalogs(gate);
         var items = new PostgresItemRepository(gate);
-        var repo = new PostgresEventCraftRepository(gate, recipes, items)
+        var repo = new PostgresEventCraftRepository(gate, recipes, items, recipes)
         {
             TestBeforeCommitAsync = _ => throw new InvalidOperationException("injected"),
         };
@@ -118,14 +121,17 @@ public sealed class PostgresEventCraftRepositoryTests
         var repo = new PostgresEventCraftRepository(
             gate,
             new PostgresPhase8PublishedCatalogs(gate),
-            new PostgresItemRepository(gate));
+            new PostgresItemRepository(gate),
+            new PostgresPhase8PublishedCatalogs(gate));
+        await Phase8PostgresContentSeed.SeedProfessionProgressAsync(gate, characterId).ConfigureAwait(false);
         Assert.Equal(EventCraftStatus.Crafted, (await repo.TryCraftAsync(characterId, seed.RecipeId, requestId)).Status);
 
         using var gate2 = CreateGate();
         var replayRepo = new PostgresEventCraftRepository(
             gate2,
             new PostgresPhase8PublishedCatalogs(gate2),
-            new PostgresItemRepository(gate2));
+            new PostgresItemRepository(gate2),
+            new PostgresPhase8PublishedCatalogs(gate2));
         var replay = await replayRepo.TryCraftAsync(characterId, seed.RecipeId, requestId);
         Assert.Equal(EventCraftStatus.IdempotentReplay, replay.Status);
     }

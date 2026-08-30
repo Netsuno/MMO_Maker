@@ -234,6 +234,7 @@ internal static class Phase7TcpPacketBuilder
 
 internal sealed class Phase7TcpTestClient : IAsyncDisposable
 {
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
     private TcpClient? _tcp;
     private NetworkStream? _stream;
 
@@ -246,10 +247,18 @@ internal sealed class Phase7TcpTestClient : IAsyncDisposable
 
     public async Task SendFrameAsync(byte[] payload)
     {
-        var frame = new byte[4 + payload.Length];
-        BinaryPrimitives.WriteInt32LittleEndian(frame, payload.Length);
-        payload.CopyTo(frame, 4);
-        await _stream!.WriteAsync(frame);
+        await _sendLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var frame = new byte[4 + payload.Length];
+            BinaryPrimitives.WriteInt32LittleEndian(frame, payload.Length);
+            payload.CopyTo(frame, 4);
+            await _stream!.WriteAsync(frame).ConfigureAwait(false);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
     }
 
     public async Task<byte[]> ReadFrameAsync(TimeSpan? timeout = null)
