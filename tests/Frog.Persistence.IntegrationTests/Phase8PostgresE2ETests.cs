@@ -187,9 +187,8 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(3, collectQuest!.StageIndex);
             AssertObjectiveCounter(characterGuid, seed.QuestId, 2, 0, 1);
 
-            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMelee("Slime"));
-            var killMelee = await client.ReadUntilAsync(PacketId.MeleeAttackResult);
-            Assert.NotEqual(0, killMelee[1]);
+            await Phase8MovementTestHelpers.TeleportToTileAsync(client, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
+            await AssertSlimeKilledViaMeleeAsync(client);
             var killJournal = await client.ReadUntilAsync(PacketId.QuestJournalSnapshot);
             Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(killJournal, out var killedJournal));
             var killQuest = Phase8WireDecoders.FindQuestEntry(killedJournal, seed.QuestId);
@@ -494,5 +493,29 @@ public sealed class Phase8PostgresE2ETests
         _ = await tcp.ReadUntilAsync(PacketId.BankSnapshot);
         _ = await tcp.ReadUntilAsync(PacketId.GroundItemsSnapshot);
         return Guid.Parse(id);
+    }
+
+    private static async Task AssertSlimeKilledViaMeleeAsync(Phase7TcpTestClient client)
+    {
+        for (var attempt = 0; attempt < 12; attempt++)
+        {
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMelee("Slime"));
+            var frame = await client.ReadUntilAnyAsync(
+                [PacketId.MeleeAttackResult, PacketId.ExperienceGain, PacketId.CombatState],
+                TimeSpan.FromSeconds(3));
+            if (frame[0] == (byte)PacketId.MeleeAttackResult && frame.Length > 1 && frame[1] != 0)
+            {
+                return;
+            }
+
+            if (frame[0] == (byte)PacketId.ExperienceGain)
+            {
+                return;
+            }
+
+            await Task.Delay(CombatFormulas.BasicAttackCooldownMs + 50);
+        }
+
+        throw new TimeoutException("Slime kill melee did not succeed within retry budget.");
     }
 }

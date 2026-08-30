@@ -114,13 +114,12 @@ public sealed class MainFormLifecycleSmokeTests
 
                 releaseInit.TrySetResult();
                 StaTestRunner.PumpUntil(
-                    () => window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest
-                          || window.EditorForm.CloseCoordinatorForTest!.IsCleanupRunningForTest == false,
-                    EditorSmokeTestAccess.DefaultTimeout);
+                    () => !window.EditorForm.CloseCoordinatorForTest!.IsCleanupRunningForTest,
+                    TimeSpan.FromSeconds(5));
                 window.EditorForm.CloseCoordinatorForTest!.RetryCloseCleanupForTest(window.EditorForm);
                 StaTestRunner.PumpUntil(
                     () => window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest,
-                    EditorSmokeTestAccess.DefaultTimeout);
+                    TimeSpan.FromSeconds(15));
             }
             finally
             {
