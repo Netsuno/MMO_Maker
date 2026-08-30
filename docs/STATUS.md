@@ -6,6 +6,8 @@
 | **Phase 8** | **READY FOR RE-REVIEW** |
 | Phase 9 | Not started |
 
-Branch: `cursor/phase0-baseline-audit-02c7`  
-Final tip: `67b527f`  
-CI: https://github.com/Netsuno/MMO_Maker/actions/runs/33274156457
+Branch: `cursor/phase0-baseline-audit-02c7`
+Final tip: `ffafcf3`
+CI: pending (push triggers new run)
+
+P8-G1–G5 remediation complete on tip `ffafcf3`: server-authoritative event movement/collision, repeatable parallel semantics, dialogue revision binding, craft replay correctness, editor close state machine, functional client smoke (network packets), publication parameter validation, E2E matrix corrections.

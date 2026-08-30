@@ -4,20 +4,20 @@ Environment: Windows Server 2022 + Ubuntu (CI), .NET SDK **8.0.424**, PostgreSQL
 
 | Suite | Result | Notes |
 | --- | --- | --- |
-| Frog.Tests | **PASS** 299 | tip `ab4c89a` |
-| PostgreSQL integration | **PASS** | CI run 33273533085 |
+| Frog.Tests | **PASS** 307 | tip `ffafcf3`; 0 skipped |
+| PostgreSQL integration | **PASS** (local agent) | requires PG service |
 | Phase 8 E2E 23-step | **PASS** | `Phase8PostgresE2ETests` |
 | Phase 8 multi-client ×8 | **PASS** | `Phase8MultiClientE2ETests` |
 | Phase 8 draft invisibility ×7 kinds | **PASS** | Theory |
-| Phase 8 Windows smoke ×3 | **PASS** | client + editor filter `~.Phase8` |
+| Phase 8 Windows smoke ×3 | **PASS** | client functional + editor lifecycle |
 | Phase 6/7 regression smokes ×3 | **PASS** | CI |
 
 ## SHAs / CI
 
 | Item | Value |
 | --- | --- |
-| Final tip | `67b527f0fe55af5b5ca9a9128f922e397ceef26c` |
-| CI | https://github.com/Netsuno/MMO_Maker/actions/runs/33274156457 |
+| Final tip | `ffafcf3` |
+| CI | pending after push |
 | Client screenshots artifact | `phase-08-gameplay-client-screenshots` |
 | Editor screenshots artifact | `phase-08-editor-screenshots` |
 
