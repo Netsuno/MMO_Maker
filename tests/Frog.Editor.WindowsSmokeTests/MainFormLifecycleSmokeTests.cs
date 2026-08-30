@@ -91,10 +91,11 @@ public sealed class MainFormLifecycleSmokeTests
             var initEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var releaseInit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            EditorTestHooks.MainWorkspaceInitBarrierForTest = async (_, ct) =>
+            EditorTestHooks.MainWorkspaceInitBarrierForTest = async (_, _) =>
             {
                 initEntered.TrySetResult();
-                await releaseInit.Task.WaitAsync(ct).ConfigureAwait(true);
+                // Intentionally ignore cancellation — non-cooperative init for timeout/retry coverage.
+                await releaseInit.Task.ConfigureAwait(true);
             };
 
             MainWindow? window = null;
@@ -105,7 +106,7 @@ public sealed class MainFormLifecycleSmokeTests
                     () => initEntered.Task.IsCompleted,
                     EditorSmokeTestAccess.DefaultTimeout);
 
-                window.Close();
+                window.EditorForm.Close();
                 StaTestRunner.PumpUntil(
                     () => window.EditorForm.CloseCoordinatorForTest!.CloseCleanupFailedForTest,
                     TimeSpan.FromSeconds(10));

@@ -169,6 +169,7 @@ public sealed class Phase8PostgresE2ETests
 
             // Step 12: all five quest objective kinds via public gameplay (Talk done via dialogue accept)
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.VisitObjectiveTileX, seed.VisitObjectiveTileY);
+            _ = await ReselectAndReadQuestJournalAsync(client, characterId);
             AssertObjectiveCounter(characterGuid, seed.QuestId, 1, 0, 1);
             var visitJournal = await ReselectAndReadQuestJournalAsync(client, characterId);
             var visitQuest = Phase8WireDecoders.FindQuestEntry(visitJournal, seed.QuestId);

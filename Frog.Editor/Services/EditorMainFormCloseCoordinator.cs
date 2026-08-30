@@ -151,6 +151,10 @@ internal sealed class EditorMainFormCloseCoordinator
             {
                 // Init cancelled — continue draining scopes.
             }
+            catch (TimeoutException)
+            {
+                return false;
+            }
         }
 
         try

@@ -601,7 +601,20 @@ public static class Phase8PostgresContentSeed
 
             for (var objectiveIndex = 0; objectiveIndex < expectedStage.Objectives.Count; objectiveIndex++)
             {
-                if (publishedStage.Objectives[objectiveIndex].Kind != expectedStage.Objectives[objectiveIndex].Kind)
+                var publishedObjective = publishedStage.Objectives[objectiveIndex];
+                var expectedObjective = expectedStage.Objectives[objectiveIndex];
+                if (publishedObjective.Kind != expectedObjective.Kind)
+                {
+                    return false;
+                }
+
+                if (publishedObjective.TargetMapId != expectedObjective.TargetMapId
+                    || publishedObjective.TargetTileX != expectedObjective.TargetTileX
+                    || publishedObjective.TargetTileY != expectedObjective.TargetTileY
+                    || publishedObjective.TargetNpcId != expectedObjective.TargetNpcId
+                    || publishedObjective.TargetItemId != expectedObjective.TargetItemId
+                    || publishedObjective.TargetRecipeId != expectedObjective.TargetRecipeId
+                    || publishedObjective.TargetDialogueId != expectedObjective.TargetDialogueId)
                 {
                     return false;
                 }
