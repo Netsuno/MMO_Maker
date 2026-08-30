@@ -425,8 +425,19 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         }
 
         _commandModels[_selectedCommandIndex] = cmd;
-        RefreshCommandList();
-        _commands.SelectedIndex = _selectedCommandIndex;
+        _binding = true;
+        try
+        {
+            RefreshCommandList();
+            if (_commands.SelectedIndex != _selectedCommandIndex)
+            {
+                _commands.SelectedIndex = _selectedCommandIndex;
+            }
+        }
+        finally
+        {
+            _binding = false;
+        }
     }
 
     private void FlushCurrentPage()

@@ -1784,6 +1784,15 @@ public sealed partial class PacketDispatcher(
             }
 
             session.ApplyFromCharacter(record);
+            if (_playerStateStore.TryGetForCharacter(newCharacterId, out var persistedWorld)
+                && _mapService.TryEnsureMapLoaded(persistedWorld.MapId))
+            {
+                session.CurrentMapId = persistedWorld.MapId;
+                session.PixelX = persistedWorld.X;
+                session.PixelY = persistedWorld.Y;
+                SessionPixelSync.SyncTileFromPixels(session);
+            }
+
             _mapService.TryEnsureMapLoaded(session.CurrentMapId);
             ClampSessionPixelsAndSyncTiles(session);
             _connectionManager.TryTouchSession(session.Id);
