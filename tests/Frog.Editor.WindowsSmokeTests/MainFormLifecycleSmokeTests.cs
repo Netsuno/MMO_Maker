@@ -120,6 +120,7 @@ public sealed class MainFormLifecycleSmokeTests
                     () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
                     EditorSmokeTestAccess.DefaultTimeout);
 
+                window.AllowCloseWithoutPromptForTest();
                 window.Close();
                 StaTestRunner.PumpUntil(() => closed, EditorSmokeTestAccess.DefaultTimeout);
             }

@@ -189,13 +189,12 @@ public sealed class Phase8PostgresE2ETests
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
             await AssertSlimeKilledForQuestAsync(client, seed.Phase7.SpellId);
-            var killJournal = await client.ReadUntilAsync(PacketId.QuestJournalSnapshot);
-            Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(killJournal, out var killedJournal));
-            var killQuest = Phase8WireDecoders.FindQuestEntry(killedJournal, seed.QuestId);
+            AssertObjectiveCounter(characterGuid, seed.QuestId, 3, 0, 1);
+            var killJournal = await ReselectAndReadQuestJournalAsync(client, characterId);
+            var killQuest = Phase8WireDecoders.FindQuestEntry(killJournal, seed.QuestId);
             Assert.NotNull(killQuest);
             Assert.Equal(4, killQuest!.StageIndex);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 3, 0, 1);
-            _ = await client.ReadUntilAsync(PacketId.CombatState);
+            await client.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
             // Step 12 continued: objectives via gameplay — step-on gives ingredients
             var invAfterContact = await Phase8MovementTestHelpers.TeleportOntoContactAndReadInventoryAsync(
@@ -503,15 +502,9 @@ public sealed class Phase8PostgresE2ETests
             try
             {
                 var castResult = await client.ReadUntilAsync(PacketId.SpellCastResult, TimeSpan.FromSeconds(3));
-                if (castResult.Length > 1 && castResult[1] != 0)
+                if (castResult.Length > 1 && castResult[1] != 0 && await TryReadMonsterKillProofAsync(client))
                 {
-                    var followUp = await client.ReadUntilAnyAsync(
-                        [PacketId.ExperienceGain, PacketId.CombatState],
-                        TimeSpan.FromSeconds(3));
-                    if (followUp[0] == (byte)PacketId.ExperienceGain)
-                    {
-                        return;
-                    }
+                    return;
                 }
             }
             catch (TimeoutException)
@@ -523,9 +516,18 @@ public sealed class Phase8PostgresE2ETests
             try
             {
                 var frame = await client.ReadUntilAnyAsync(
-                    [PacketId.MeleeAttackResult, PacketId.ExperienceGain, PacketId.CombatState],
+                    [PacketId.MeleeAttackResult, PacketId.ExperienceGain, PacketId.QuestJournalSnapshot],
                     TimeSpan.FromSeconds(3));
-                if (frame[0] == (byte)PacketId.ExperienceGain)
+                if (frame[0] == (byte)PacketId.ExperienceGain || frame[0] == (byte)PacketId.QuestJournalSnapshot)
+                {
+                    await client.DrainPendingAsync(TimeSpan.FromMilliseconds(100));
+                    return;
+                }
+
+                if (frame[0] == (byte)PacketId.MeleeAttackResult
+                    && frame.Length > 1
+                    && frame[1] != 0
+                    && await TryReadMonsterKillProofAsync(client))
                 {
                     return;
                 }
@@ -539,5 +541,26 @@ public sealed class Phase8PostgresE2ETests
         }
 
         throw new TimeoutException("Slime kill did not succeed within retry budget.");
+    }
+
+    private static async Task<bool> TryReadMonsterKillProofAsync(Phase7TcpTestClient client)
+    {
+        try
+        {
+            var frame = await client.ReadUntilAnyAsync(
+                [PacketId.ExperienceGain, PacketId.QuestJournalSnapshot, PacketId.CombatState],
+                TimeSpan.FromSeconds(3));
+            if (frame[0] == (byte)PacketId.CombatState)
+            {
+                return false;
+            }
+
+            await client.DrainPendingAsync(TimeSpan.FromMilliseconds(100));
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
     }
 }
