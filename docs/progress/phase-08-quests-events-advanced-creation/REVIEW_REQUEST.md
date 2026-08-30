@@ -32,4 +32,4 @@
 - PostgreSQL integration: **144** passed, **0** skipped
 - Unit: `MapEventMovementServiceTests`, `MapEventExecutionTrackerTests`, `MapEventRuntimeServiceTests`, `MapEventPageSelectorTests`, `MapEventCommandParameterValidatorTests`, `DialogSessionServiceTests`
 - Integration: Phase 8 E2E 23-step, multi-client ×9 (incl. `MapEventOnceRewardRace_SameCharacter_ExactlyOneItem`), craft/quest PG repos
-- Windows: `Phase8GameplayClientSmokeTests` (functional network), `Phase8EditorSmokeTests` (close during blocked save, form alive until cancel) ×3
+- Windows: `Phase8GameplayClientSmokeTests` (functional network), `Phase8EditorSmokeTests` (close during blocked save), `MainFormLifecycleSmokeTests` (init cancel + close-during-save + dispose-once + ActiveScopeCount→0) ×3

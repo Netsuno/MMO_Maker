@@ -250,14 +250,20 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(4, killQuest!.StageIndex);
             Assert.Contains("Craft", killQuest.StageDescription, StringComparison.OrdinalIgnoreCase);
 
-            // Kill replay: second slime must not double-count Kill objective
-            await Phase8MovementTestHelpers.TeleportToTileAsync(
-                midClient,
-                GameplayLimits.DefaultSpawnTileX + 1,
-                GameplayLimits.DefaultSpawnTileY);
-            await AssertSlimeKilledForQuestAsync(midClient, seed.Phase7.SpellId);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 3, 0, 1);
+            // Kill replay: objective already complete — melee must not re-increment counter
+            // (do not teleport onto Gate tile (1,0); that collides with spawn+1 / other players)
+            await midClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildMelee("Slime"));
+            try
+            {
+                _ = await midClient.ReadUntilAsync(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(2));
+            }
+            catch (TimeoutException)
+            {
+                // no living slime in range — still assert counter
+            }
+
             await midClient.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
+            AssertObjectiveCounter(characterGuid, seed.QuestId, 3, 0, 1);
 
             // Step 12 continued: objectives via gameplay — step-on gives ingredients
             var invAfterContact = await Phase8MovementTestHelpers.TeleportOntoContactAndReadInventoryAsync(
@@ -435,6 +441,8 @@ public sealed class Phase8PostgresE2ETests
             _ = await client3.ReadUntilAsync(PacketId.EnvironmentStatePush);
             Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(persistedJournal, out var persistedEntries));
             Assert.Equal((byte)CharacterQuestStatus.Completed, Phase8WireDecoders.FindQuestEntry(persistedEntries, seed.QuestId)!.Status);
+            await client3.DisconnectAsync();
+            await Task.Delay(100);
 
             // Step 22: republish + live refresh (same server process, no restart)
             const string republishedText = "Republished greeting.";

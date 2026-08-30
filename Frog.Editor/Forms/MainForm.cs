@@ -100,6 +100,14 @@ public sealed class MainForm : Form
 
     internal bool IsSaveInProgressForTest() => _saveInProgress;
 
+    /// <summary>True when save/publish/init/close-cleanup must finish before WPF shell teardown.</summary>
+    internal bool HasPendingEditorOperations()
+        => _saveInProgress
+           || _workspace?.IsSaveInProgress == true
+           || _pendingSaveOperation is { IsCompleted: false }
+           || IsWorkspaceInitializationPendingForTest
+           || IsEditorClosingForTest();
+
     internal Task? PendingSaveOperationForTest => _pendingSaveOperation;
 
     internal bool HasUnsavedChangesForTest() => _workspace?.IsDirty == true;

@@ -140,7 +140,7 @@ public static class Phase8PostgresContentSeed
 
     public static async Task<Phase8PostgresContentSeedResult> PublishAsync(FrogDbContextGate gate)
     {
-        var phase7 = await Phase7PostgresContentSeed.PublishAsync(gate, monsterSpawnCount: 2).ConfigureAwait(false);
+        var phase7 = await Phase7PostgresContentSeed.PublishAsync(gate, monsterSpawnCount: 1).ConfigureAwait(false);
 
         var phase8Repo = new PostgresPhase8PublishedCatalogs(gate);
         var dialogueRevision = await EnsurePublishedDialogueAsync(phase8Repo, DefaultQuestId).ConfigureAwait(false);

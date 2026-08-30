@@ -28,7 +28,8 @@ internal static class StaTestRunner
         }
 
         Exception? captured = null;
-        _dispatcher!.Invoke(() =>
+        // Bound the STA invoke so a hung test body cannot block the runner forever.
+        var completed = _dispatcher!.InvokeAsync(() =>
         {
             try
             {
@@ -39,6 +40,12 @@ internal static class StaTestRunner
                 captured = ex;
             }
         });
+
+        if (completed.Wait(TimeSpan.FromMinutes(2)) != DispatcherOperationStatus.Completed)
+        {
+            throw new TimeoutException(
+                "STA smoke test body did not complete within 2 minutes (possible modal dialog or hung cleanup).");
+        }
 
         if (captured is not null)
         {
@@ -91,9 +98,9 @@ internal static class StaTestRunner
             }
 
             _dispatcher.InvokeShutdown();
-            if (!_thread!.Join(TimeSpan.FromSeconds(30)))
+            if (!_thread!.Join(TimeSpan.FromSeconds(15)))
             {
-                throw new TimeoutException("STA smoke host thread did not exit within 30 seconds.");
+                throw new TimeoutException("STA smoke host thread did not exit within 15 seconds.");
             }
 
             _dispatcher = null;

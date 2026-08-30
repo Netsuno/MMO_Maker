@@ -13,6 +13,7 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -31,9 +32,16 @@ jobs:
         run: dotnet build Frog.Creator.sln -c Release --no-restore
 
       - name: Test unitaires (Release)
-        run: dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build --verbosity normal
+        timeout-minutes: 10
+        run: >
+          dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
+          --verbosity normal
+          --logger "console;verbosity=detailed"
+          --blame-hang --blame-hang-timeout 2m --blame-hang-dump-type mini
+          --results-directory TestResults/unit
 
       - name: Smoke UI éditeur Windows (mémoire) ×3
+        timeout-minutes: 10
         env:
           FROG_EDITOR_FORCE_IN_MEMORY: "1"
         shell: pwsh
@@ -45,7 +53,11 @@ jobs:
             $log = "artifacts/ci-logs/editor-smoke-pass-$i.log"
             New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
             Write-Host "=== Windows editor smoke pass $i/3 (first attempt only) ==="
-            dotnet test $project -c Release --no-build --verbosity normal --filter $filter 2>&1 | Tee-Object -FilePath $log
+            dotnet test $project -c Release --no-build --verbosity detailed --filter $filter `
+              --logger "console;verbosity=detailed" `
+              --blame-hang --blame-hang-timeout 2m --blame-hang-dump-type mini `
+              --results-directory "TestResults/editor-smoke-$i" `
+              2>&1 | Tee-Object -FilePath $log
             $logs += $log
             if ($LASTEXITCODE -ne 0) {
               Write-Error "Windows editor smoke pass $i/3 failed"
@@ -56,6 +68,7 @@ jobs:
           Write-Host "=== Windows editor smoke 3/3 consecutive first-attempt passes OK ==="
 
       - name: Gameplay client smoke (in-memory server) ×3
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
@@ -64,7 +77,12 @@ jobs:
             $log = "artifacts/ci-logs/gameplay-smoke-pass-$i.log"
             New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
             Write-Host "=== Gameplay client smoke pass $i/3 (first attempt only) ==="
-            dotnet test $project -c Release --no-build --filter "FullyQualifiedName~.GameplayClientSmokeTests.&FullyQualifiedName!~Phase8" 2>&1 | Tee-Object -FilePath $log
+            dotnet test $project -c Release --no-build --verbosity detailed `
+              --filter "FullyQualifiedName~.GameplayClientSmokeTests.&FullyQualifiedName!~Phase8" `
+              --logger "console;verbosity=detailed" `
+              --blame-hang --blame-hang-timeout 2m --blame-hang-dump-type mini `
+              --results-directory "TestResults/gameplay-smoke-$i" `
+              2>&1 | Tee-Object -FilePath $log
             $logs += $log
             if ($LASTEXITCODE -ne 0) {
               Write-Error "Gameplay client smoke pass $i/3 failed"
@@ -75,6 +93,7 @@ jobs:
           Write-Host "=== Gameplay client smoke 3/3 consecutive first-attempt passes OK ==="
 
       - name: Phase 8 smoke (client + editor) ×3
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
@@ -83,7 +102,12 @@ jobs:
             $log = "artifacts/ci-logs/phase8-smoke-pass-$i.log"
             New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
             Write-Host "=== Phase 8 smoke pass $i/3 ==="
-            dotnet test $project -c Release --no-build --filter "FullyQualifiedName~.Phase8" 2>&1 | Tee-Object -FilePath $log
+            dotnet test $project -c Release --no-build --verbosity detailed `
+              --filter "FullyQualifiedName~.Phase8" `
+              --logger "console;verbosity=detailed" `
+              --blame-hang --blame-hang-timeout 2m --blame-hang-dump-type mini `
+              --results-directory "TestResults/phase8-smoke-$i" `
+              2>&1 | Tee-Object -FilePath $log
             $logs += $log
             if ($LASTEXITCODE -ne 0) {
               Write-Error "Phase 8 smoke pass $i/3 failed"
@@ -93,6 +117,20 @@ jobs:
           ./scripts/ci-guard-lifecycle-logs.ps1 -LogPaths $logs
           ./scripts/update-phase8-screenshot-manifest.ps1
           Write-Host "=== Phase 8 smoke 3/3 consecutive passes OK ==="
+
+      - name: Upload hang dumps and CI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ci-diagnostics
+          path: |
+            TestResults/**
+            artifacts/ci-logs/**
+            **/*Sequence_*.xml
+            **/*.dmp
+            **/*hang*.txt
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload Phase 6 editor UI screenshots
         if: always()
@@ -132,6 +170,7 @@ jobs:
 
   postgres-integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -164,14 +203,37 @@ jobs:
         run: dotnet build Frog.Creator.sln -c Release --no-restore
 
       - name: Integration tests (PostgreSQL)
+        timeout-minutes: 15
         env:
           FROG_POSTGRES_TEST_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only
         shell: bash
         run: |
           set -o pipefail
-          mkdir -p artifacts/ci-logs
-          dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release --no-build --verbosity normal 2>&1 | tee artifacts/ci-logs/postgres-integration.log
+          mkdir -p artifacts/ci-logs TestResults/postgres
+          dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj \
+            -c Release --no-build --verbosity detailed \
+            --logger "console;verbosity=detailed" \
+            --blame-hang --blame-hang-timeout 3m --blame-hang-dump-type mini \
+            --results-directory TestResults/postgres \
+            2>&1 | tee artifacts/ci-logs/postgres-integration.log
 
       - name: Guard PostgreSQL logs for lifecycle crash markers
+        if: always()
         shell: pwsh
-        run: ./scripts/ci-guard-lifecycle-logs.ps1 -LogPaths artifacts/ci-logs/postgres-integration.log
+        run: |
+          if (Test-Path artifacts/ci-logs/postgres-integration.log) {
+            ./scripts/ci-guard-lifecycle-logs.ps1 -LogPaths artifacts/ci-logs/postgres-integration.log
+          }
+
+      - name: Upload PostgreSQL diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-ci-diagnostics
+          path: |
+            TestResults/**
+            artifacts/ci-logs/**
+            **/*Sequence_*.xml
+            **/*.dmp
+          if-no-files-found: warn
+          retention-days: 14

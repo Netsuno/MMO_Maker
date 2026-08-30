@@ -223,9 +223,9 @@ public partial class MainWindow : Window
                              || _editor.IsPlaytestBusyForTest()
                              || _editor.HasOwnedPlaytestProcessesForTest();
         var dirty = _editor.HasUnsavedChangesForTest();
-        var initPending = _editor.IsWorkspaceInitializationPendingForTest;
+        var pendingEditorOps = _editor.HasPendingEditorOperations();
 
-        if (!playtestActive && !dirty && !initPending)
+        if (!playtestActive && !dirty && !pendingEditorOps)
         {
             return;
         }
@@ -263,7 +263,8 @@ public partial class MainWindow : Window
                         return;
                     }
                 }
-                else if (initPending || playtestActive)
+
+                if (playtestActive || _editor.HasPendingEditorOperations())
                 {
                     if (!await _editor.TryCoordinatedShutdownAsync().ConfigureAwait(true))
                     {

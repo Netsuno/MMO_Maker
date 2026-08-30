@@ -132,13 +132,22 @@ public sealed class MainFormLifecycleSmokeTests
             finally
             {
                 releaseInit.TrySetResult();
+                EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
+                EditorTestHooks.OverrideMessageBoxResult = null;
                 if (window is not null)
                 {
+                    try
+                    {
+                        window.AllowCloseWithoutPromptForTest();
+                    }
+                    catch
+                    {
+                        // best-effort
+                    }
+
                     EditorSmokeTestAccess.ForceCloseMainWindow(window);
                 }
 
-                EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
-                EditorTestHooks.OverrideMessageBoxResult = null;
                 EditorSmokeTestAccess.ResetHooks();
             }
         });
@@ -222,9 +231,19 @@ public sealed class MainFormLifecycleSmokeTests
             {
                 releaseSave.TrySetResult();
                 EditorTestHooks.MainFormSaveBarrierForTest = null;
-                if (window is { } w && !closed)
+                EditorTestHooks.OverrideMessageBoxResult = null;
+                if (window is not null)
                 {
-                    EditorSmokeTestAccess.ForceCloseMainWindow(w);
+                    try
+                    {
+                        window.AllowCloseWithoutPromptForTest();
+                    }
+                    catch
+                    {
+                        // best-effort
+                    }
+
+                    EditorSmokeTestAccess.ForceCloseMainWindow(window);
                 }
 
                 mapScope?.Dispose();
@@ -317,8 +336,18 @@ public sealed class MainFormLifecycleSmokeTests
                 releaseSave.TrySetResult();
                 EditorTestHooks.MainFormSaveBarrierForTest = null;
                 EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
-                if (window is not null && !closed)
+                EditorTestHooks.OverrideMessageBoxResult = null;
+                if (window is not null)
                 {
+                    try
+                    {
+                        window.AllowCloseWithoutPromptForTest();
+                    }
+                    catch
+                    {
+                        // best-effort
+                    }
+
                     EditorSmokeTestAccess.ForceCloseMainWindow(window);
                 }
 

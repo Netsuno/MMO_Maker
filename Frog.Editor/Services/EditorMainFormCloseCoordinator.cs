@@ -202,12 +202,6 @@ internal sealed class EditorMainFormCloseCoordinator
             return false;
         }
 
-        var remaining = deadline - DateTime.UtcNow;
-        if (remaining <= TimeSpan.Zero)
-        {
-            remaining = TimeSpan.FromMilliseconds(250);
-        }
-
         foreach (var scope in _getScopes())
         {
             if (scope is null || scope.IsDisposed)
@@ -215,7 +209,27 @@ internal sealed class EditorMainFormCloseCoordinator
                 continue;
             }
 
-            await scope.DrainAsync(_closeCts?.Token ?? CancellationToken.None).ConfigureAwait(true);
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                await scope.DrainAsync(_closeCts?.Token ?? CancellationToken.None)
+                    .WaitAsync(remaining)
+                    .ConfigureAwait(true);
+            }
+            catch (TimeoutException)
+            {
+                // Preserve scopes — caller surfaces CloseCleanupFailed and keeps window alive.
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
         }
 
         if (!_disposed)
