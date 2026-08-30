@@ -91,6 +91,43 @@ public sealed class DialogSessionServiceTests
         Assert.Contains(started.Choices, c => c.ChoiceId == "accept" && c.Label == "Accept quest");
     }
 
+    [Fact]
+    public async Task TryChooseAsync_RejectsExpiredSession()
+    {
+        var clock = new SteppingDialogueClock();
+        var dialogueId = Guid.NewGuid();
+        var phase8 = new Phase8InMemoryPublishedContent();
+        phase8.RegisterDialogue(new DialogueDefinition
+        {
+            Id = dialogueId,
+            Name = "Guide",
+            Lines = [new DialogueLineDefinition { Speaker = "Guide", Text = "Expires soon" }],
+            Choices = [new DialogueChoiceDefinition { ChoiceId = "accept", Label = "Accept" }],
+        });
+        var sessions = new DialogSessionService(
+            new RevisionBindingDialogueCatalog(phase8, dialogueId, 1),
+            CreateQuestService(phase8),
+            clock);
+        var characterId = Guid.NewGuid();
+        var started = await sessions.TryStartSessionAsync(characterId, dialogueId);
+        Assert.NotNull(started);
+
+        clock.Advance(TimeSpan.FromMinutes(30));
+        var result = await sessions.TryChooseAsync(characterId, started!.SessionToken, "accept");
+        Assert.NotNull(result);
+        Assert.False(result!.Success);
+        Assert.Contains("expir", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class SteppingDialogueClock : TimeProvider
+    {
+        private DateTimeOffset _utcNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        public void Advance(TimeSpan delta) => _utcNow += delta;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+    }
+
     private static QuestGameplayService CreateQuestService(Phase8InMemoryPublishedContent phase8)
     {
         var questRepo = new InMemoryCharacterQuestRepository();

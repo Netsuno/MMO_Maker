@@ -62,6 +62,8 @@ public sealed class MainForm : Form
     private IMapRepository? _mapRepository;
     private MapEventsPostgreSqlService? _mapEventService;
     private Phase8ContentPostgreSqlService? _phase8ContentService;
+    private EditorPostgreSqlScope? _mapDatabaseScope;
+    private EditorPostgreSqlScope? _mapEventDatabaseScope;
     private EditorPostgreSqlScope? _phase8DatabaseScope;
     private bool _catalogOpenInProgress;
     private bool _suppressDirtyTracking;
@@ -231,6 +233,16 @@ public sealed class MainForm : Form
             {
                 // best-effort cleanup
             }
+
+            _mapEventService?.Dispose();
+            _mapEventService = null;
+            _phase8ContentService = null;
+            _mapEventDatabaseScope?.Dispose();
+            _mapEventDatabaseScope = null;
+            _phase8DatabaseScope?.Dispose();
+            _phase8DatabaseScope = null;
+            _mapDatabaseScope?.Dispose();
+            _mapDatabaseScope = null;
 
             TilesetCache.Clear();
         };
@@ -695,11 +707,13 @@ public sealed class MainForm : Form
 
     private async System.Threading.Tasks.Task InitializeWorkspaceCoreAsync()
     {
-        var bundle = EditorMapRepositoryFactory.CreateBundle();
+        var bundle = await EditorMapRepositoryFactory.CreateBundleAsync().ConfigureAwait(true);
         _mapRepository = bundle.Repository;
         _persistenceCapabilities = bundle.Capabilities;
-        var eventBundle = EditorMapEventRepositoryFactory.CreateBundle();
+        _mapDatabaseScope = bundle.DatabaseScope;
+        var eventBundle = await EditorMapEventRepositoryFactory.CreateBundleAsync().ConfigureAwait(true);
         _mapEventService = eventBundle.Service;
+        _mapEventDatabaseScope = eventBundle.DatabaseScope;
         var phase8Bundle = await EditorPhase8ContentRepositoryFactory.CreateBundleAsync().ConfigureAwait(true);
         _phase8ContentService = phase8Bundle.Service;
         _phase8DatabaseScope = phase8Bundle.DatabaseScope;

@@ -397,18 +397,45 @@ public sealed class MapEventCommandExecutor
         MapEventExecutionState state,
         CancellationToken cancellationToken)
     {
-        if (!MapEventParameterSchemas.TryParseItemMutation(command.ParameterJson, out var itemId, out var quantity, out var err))
+        if (!MapEventParameterSchemas.TryParseItemMutation(
+                command.ParameterJson,
+                out var itemId,
+                out var quantity,
+                out var onceKey,
+                out var err))
         {
             return err;
         }
 
         if (command.Discriminator == MapEventCommandDiscriminators.GiveItem)
         {
+            string? switchKey = null;
+            if (!string.IsNullOrEmpty(onceKey))
+            {
+                switchKey = MapEventOnceGrantKeys.SwitchKeyFor(onceKey);
+                if (!await _worldState.TryClaimSwitchAsync(characterId, switchKey, cancellationToken)
+                        .ConfigureAwait(false))
+                {
+                    return null;
+                }
+            }
+
             var add = await _inventory.TryAddItemAsync(characterId, itemId, quantity, cancellationToken)
                 .ConfigureAwait(false);
             if (add.Status != InventoryMutationStatus.Ok)
             {
+                if (switchKey is not null)
+                {
+                    await _worldState.SetSwitchAsync(characterId, switchKey, false, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
                 return add.ErrorMessage ?? "give_item échoué.";
+            }
+
+            if (switchKey is not null)
+            {
+                state.SwitchesChanged = true;
             }
 
             state.InventoryChanged = true;
@@ -462,28 +489,57 @@ public sealed class MapEventCommandExecutor
         MapEventExecutionState state,
         CancellationToken cancellationToken)
     {
-        if (!MapEventParameterSchemas.TryParseGoldMutation(command.ParameterJson, out var amount, out var err))
+        if (!MapEventParameterSchemas.TryParseGoldMutation(
+                command.ParameterJson,
+                out var amount,
+                out var onceKey,
+                out var err))
         {
             return err;
         }
 
-        var character = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
-        if (character is null)
+        if (command.Discriminator == MapEventCommandDiscriminators.GiveGold && !string.IsNullOrEmpty(onceKey))
+        {
+            var switchKey = MapEventOnceGrantKeys.SwitchKeyFor(onceKey);
+            if (!await _worldState.TryClaimSwitchAsync(characterId, switchKey, cancellationToken).ConfigureAwait(false))
+            {
+                return null;
+            }
+
+            var character = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+            if (character is null)
+            {
+                await _worldState.SetSwitchAsync(characterId, switchKey, false, cancellationToken).ConfigureAwait(false);
+                return "Personnage introuvable.";
+            }
+
+            var newGold = character.Gold + amount;
+            var updated = character with { Gold = newGold };
+            await _characters.SaveAsync(updated, cancellationToken).ConfigureAwait(false);
+            session.Gold = newGold;
+            state.GoldChanged = true;
+            state.SwitchesChanged = true;
+            return null;
+        }
+
+        var characterForGold = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+        if (characterForGold is null)
         {
             return "Personnage introuvable.";
         }
 
         var delta = command.Discriminator == MapEventCommandDiscriminators.GiveGold ? amount : -amount;
-        var newGold = character.Gold + delta;
-        if (newGold < 0)
+        var updatedGold = characterForGold.Gold + delta;
+        if (updatedGold < 0)
         {
             return "take_gold: or insuffisant.";
         }
 
-        var updated = character with { Gold = newGold };
-        await _characters.SaveAsync(updated, cancellationToken).ConfigureAwait(false);
-        session.Gold = newGold;
+        var saved = characterForGold with { Gold = updatedGold };
+        await _characters.SaveAsync(saved, cancellationToken).ConfigureAwait(false);
+        session.Gold = updatedGold;
         state.GoldChanged = true;
+
         return null;
     }
 
@@ -693,7 +749,16 @@ public sealed class MapEventCommandExecutor
                 return "Événement commun introuvable.";
             }
 
-            var page = definition.Pages.OrderBy(p => p.PageOrder).First();
+            var page = await MapEventPageSelector.SelectBestPageAsync(
+                    definition.Pages,
+                    placementTrigger: null,
+                    condition => EvaluateConditionAsync(session, characterId, condition, cancellationToken))
+                .ConfigureAwait(false);
+            if (page is null)
+            {
+                return "Aucune page active pour cet événement commun.";
+            }
+
             return await ExecuteCommandsAsync(session, characterId, page.Commands, state, cancellationToken)
                 .ConfigureAwait(false);
         }

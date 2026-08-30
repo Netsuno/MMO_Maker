@@ -1,4 +1,5 @@
 using Frog.Application.Events;
+using Frog.Persistence.PostgreSql.Entities.Player;
 using Microsoft.EntityFrameworkCore;
 
 namespace Frog.Persistence.PostgreSql.Repositories.Player;
@@ -54,6 +55,60 @@ public sealed class PostgresCharacterWorldStateRepository(FrogDbContextGate gate
 
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
             db.ChangeTracker.Clear();
+        }, cancellationToken);
+
+    public Task<bool> TryClaimSwitchAsync(
+        Guid characterId,
+        string switchId,
+        CancellationToken cancellationToken = default)
+        => _gate.ExecuteAsync(async (db, ct) =>
+        {
+            if (characterId == Guid.Empty || string.IsNullOrWhiteSpace(switchId))
+            {
+                return false;
+            }
+
+            var existing = await db.PlayerCharacterWorldSwitches.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.CharacterId == characterId && s.SwitchKey == switchId, ct)
+                .ConfigureAwait(false);
+            if (existing is { Value: true })
+            {
+                return false;
+            }
+
+            if (existing is null)
+            {
+                db.PlayerCharacterWorldSwitches.Add(new CharacterWorldSwitchEntity
+                {
+                    CharacterId = characterId,
+                    SwitchKey = switchId,
+                    Value = true,
+                });
+            }
+            else
+            {
+                var tracked = await db.PlayerCharacterWorldSwitches
+                    .FirstAsync(s => s.CharacterId == characterId && s.SwitchKey == switchId, ct)
+                    .ConfigureAwait(false);
+                if (tracked.Value)
+                {
+                    return false;
+                }
+
+                tracked.Value = true;
+            }
+
+            try
+            {
+                await db.SaveChangesAsync(ct).ConfigureAwait(false);
+                db.ChangeTracker.Clear();
+                return true;
+            }
+            catch (DbUpdateException)
+            {
+                db.ChangeTracker.Clear();
+                return false;
+            }
         }, cancellationToken);
 
     public Task<IReadOnlyDictionary<string, bool>> GetAllSwitchesAsync(

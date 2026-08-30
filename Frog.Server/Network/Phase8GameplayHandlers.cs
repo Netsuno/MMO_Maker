@@ -39,6 +39,7 @@ public sealed class Phase8GameplayHandlers(
         if (mapId is int mid)
         {
             executionTracker.ClearAutorunForMap(characterId, mid);
+            eventMovement.ClearMap(mid);
         }
     }
 

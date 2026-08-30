@@ -1,5 +1,7 @@
 namespace Frog.Core.Models;
 
+using Frog.Core.Events;
+
 /// <summary>Condition typée — pas d'expression libre.</summary>
 public sealed class MapEventConditionDefinition
 {
@@ -23,6 +25,11 @@ public sealed class MapEventConditionDefinition
         if (!MapEventConditionKinds.IsSupported(Kind))
         {
             error = $"Kind de condition inconnu: {Kind}.";
+            return false;
+        }
+
+        if (!MapEventConditionParameterValidator.ValidateParameters(this, out error))
+        {
             return false;
         }
 

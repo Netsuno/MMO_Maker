@@ -26,7 +26,8 @@ public sealed class GameServerService(
     ConnectionManager connectionManager,
     ClientRegistry clientRegistry,
     PlayerLifecycleNotifier playerLifecycleNotifier,
-    IPlayerStateStore playerStateStore)
+    IPlayerStateStore playerStateStore,
+    Phase8GameplayHandlers phase8Handlers)
         : BackgroundService
     {
         private readonly ILogger<GameServerService> _log = log;
@@ -37,6 +38,7 @@ public sealed class GameServerService(
         private readonly ClientRegistry _clientRegistry = clientRegistry;
         private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
         private readonly IPlayerStateStore _playerStateStore = playerStateStore;
+        private readonly Phase8GameplayHandlers _phase8Handlers = phase8Handlers;
         private readonly object _clientTasksLock = new();
         private readonly List<Task> _clientTasks = new();
         private int _acceptingClients = 1;
@@ -213,6 +215,11 @@ public sealed class GameServerService(
                     var sessionId = clientSession.AuthenticatedSession.Id;
                     var s = clientSession.AuthenticatedSession;
                     var username = s.Username;
+                    if (s.CharacterGuid is Guid disconnectCharacterId)
+                    {
+                        _phase8Handlers.CancelForCharacter(disconnectCharacterId);
+                    }
+
                     if (!string.IsNullOrWhiteSpace(s.CharacterId))
                     {
                         _playerStateStore.UpsertForCharacter(

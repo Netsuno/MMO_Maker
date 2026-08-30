@@ -6,7 +6,10 @@ using Microsoft.Extensions.Configuration;
 namespace Frog.Editor.Services;
 
 /// <summary>Résultat de la composition root éditeur.</summary>
-public sealed record EditorMapRepositoryBundle(IMapRepository Repository, MapRepositoryCapabilities Capabilities);
+public sealed record EditorMapRepositoryBundle(
+    IMapRepository Repository,
+    MapRepositoryCapabilities Capabilities,
+    EditorPostgreSqlScope? DatabaseScope = null);
 
 /// <summary>
 /// Composition root éditeur : PostgreSQL si chaîne fournie, sinon mémoire (carte démo hors DB).
@@ -42,6 +45,48 @@ public static class EditorMapRepositoryFactory
         gate.Db.Database.Migrate();
         var pgRepo = new PostgresMapRepository(gate);
         return new EditorMapRepositoryBundle(pgRepo, pgRepo.Capabilities);
+    }
+
+    public static async Task<EditorMapRepositoryBundle> CreateBundleAsync(CancellationToken cancellationToken = default)
+    {
+        if (EditorTestHooks.OverrideMapRepository is { } injected)
+        {
+            return new EditorMapRepositoryBundle(injected, injected.Capabilities);
+        }
+
+        if (string.Equals(Environment.GetEnvironmentVariable(EnvForceInMemory), "1", StringComparison.Ordinal))
+        {
+            var testRepo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryTest);
+            return new EditorMapRepositoryBundle(testRepo, testRepo.Capabilities);
+        }
+
+        var cs = ResolveConnectionString();
+        if (string.IsNullOrWhiteSpace(cs))
+        {
+            var demoRepo = new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryDemo);
+            return new EditorMapRepositoryBundle(demoRepo, demoRepo.Capabilities);
+        }
+
+        var scope = new EditorPostgreSqlScope(cs);
+        try
+        {
+            if (EditorTestHooks.OverridePostgreSqlMigrateForTest is { } overrideMigrate)
+            {
+                await overrideMigrate(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await scope.MigrateAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var pgRepo = new PostgresMapRepository(scope.Gate);
+            return new EditorMapRepositoryBundle(pgRepo, pgRepo.Capabilities, scope);
+        }
+        catch
+        {
+            scope.Dispose();
+            throw;
+        }
     }
 
     public static string DescribeBackend() => CreateBundle().Capabilities.DisplayLabel;

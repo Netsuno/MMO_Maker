@@ -26,6 +26,14 @@ public static class MapEventParameterSchemas
                 return false;
             }
 
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "text" },
+                    out error))
+            {
+                return false;
+            }
+
             return true;
         }
         catch (JsonException ex)
@@ -304,10 +312,16 @@ public static class MapEventParameterSchemas
         }
     }
 
-    public static bool TryParseItemMutation(string parameterJson, out Guid itemId, out int quantity, out string? error)
+    public static bool TryParseItemMutation(
+        string parameterJson,
+        out Guid itemId,
+        out int quantity,
+        out string? onceKey,
+        out string? error)
     {
         itemId = Guid.Empty;
         quantity = 0;
+        onceKey = null;
         error = null;
         try
         {
@@ -323,25 +337,27 @@ public static class MapEventParameterSchemas
                 return false;
             }
 
-            return true;
-        }
-        catch (JsonException ex)
-        {
-            error = "JSON invalide: " + ex.Message;
-            return false;
-        }
-    }
-
-    public static bool TryParseGoldMutation(string parameterJson, out int amount, out string? error)
-    {
-        amount = 0;
-        error = null;
-        try
-        {
-            using var doc = JsonDocument.Parse(parameterJson);
-            if (!doc.RootElement.TryGetProperty("amount", out var amtEl) || !amtEl.TryGetInt32(out amount) || amount <= 0)
+            if (doc.RootElement.TryGetProperty("onceKey", out var onceEl))
             {
-                error = "amount (int > 0) requis.";
+                if (onceEl.ValueKind != JsonValueKind.String)
+                {
+                    error = "onceKey (string) invalide.";
+                    return false;
+                }
+
+                onceKey = onceEl.GetString()?.Trim();
+                if (string.IsNullOrEmpty(onceKey) || onceKey.Length > 64)
+                {
+                    error = "onceKey vide ou trop long (max 64).";
+                    return false;
+                }
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "itemId", "quantity", "onceKey" },
+                    out error))
+            {
                 return false;
             }
 
@@ -353,6 +369,63 @@ public static class MapEventParameterSchemas
             return false;
         }
     }
+
+    public static bool TryParseGoldMutation(
+        string parameterJson,
+        out int amount,
+        out string? onceKey,
+        out string? error)
+    {
+        amount = 0;
+        onceKey = null;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!doc.RootElement.TryGetProperty("amount", out var amtEl) || !amtEl.TryGetInt32(out amount) || amount <= 0)
+            {
+                error = "amount (int > 0) requis.";
+                return false;
+            }
+
+            if (doc.RootElement.TryGetProperty("onceKey", out var onceEl))
+            {
+                if (onceEl.ValueKind != JsonValueKind.String)
+                {
+                    error = "onceKey (string) invalide.";
+                    return false;
+                }
+
+                onceKey = onceEl.GetString()?.Trim();
+                if (string.IsNullOrEmpty(onceKey) || onceKey.Length > 64)
+                {
+                    error = "onceKey vide ou trop long (max 64).";
+                    return false;
+                }
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "amount", "onceKey" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseItemMutation(string parameterJson, out Guid itemId, out int quantity, out string? error) =>
+        TryParseItemMutation(parameterJson, out itemId, out quantity, out _, out error);
+
+    public static bool TryParseGoldMutation(string parameterJson, out int amount, out string? error) =>
+        TryParseGoldMutation(parameterJson, out amount, out _, out error);
 
     public static bool TryParseTeleport(string parameterJson, out int mapId, out int tileX, out int tileY, out string? error)
     {

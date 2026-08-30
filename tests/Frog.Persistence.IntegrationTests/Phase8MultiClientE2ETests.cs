@@ -151,6 +151,76 @@ public sealed class Phase8MultiClientE2ETests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
+    public async Task MapEventOnceRewardRace_SameCharacter_ExactlyOneItem()
+    {
+        var seed = await SeedAsync();
+        var port = Phase7TcpTestPorts.GetFreePort();
+        using var host = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port).Build();
+        await host.StartAsync();
+        try
+        {
+            await using var clientA = new Phase7TcpTestClient();
+            await using var clientB = new Phase7TcpTestClient();
+            var (token, characterIdStr) = await RegisterReturningTokenAndIdAsync(clientA, port, seed, "OnceRace");
+            var characterId = Guid.Parse(characterIdStr);
+            _ = await clientA.ReadUntilAsync(PacketId.QuestJournalSnapshot);
+            _ = await clientA.ReadUntilAsync(PacketId.EnvironmentStatePush);
+            await clientA.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
+
+            await Phase8MovementTestHelpers.TeleportToTileAsync(clientA, seed.OnceRewardEventTileX, seed.OnceRewardEventTileY);
+
+            using var gateBefore = CreateGate();
+            var invBefore = new PostgresInventoryRepository(gateBefore);
+            var qtyBefore = (await invBefore.GetAsync(characterId)).Slots
+                .Where(s => s.ItemId == seed.Phase7.ConsumableId)
+                .Sum(s => s.Quantity);
+
+            var interactFromA = clientA.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var interactFromB = Task.Run(async () =>
+            {
+                await clientB.ConnectAsync("127.0.0.1", port);
+                _ = await clientB.ReadFrameAsync();
+                await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildReconnect(token));
+                _ = await clientB.ReadUntilAsync(PacketId.ReconnectResult);
+                await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterIdStr));
+                _ = await clientB.ReadUntilAsync(PacketId.CharacterSelectResult);
+                await clientB.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
+                await Phase8MovementTestHelpers.TeleportToTileAsync(clientB, seed.OnceRewardEventTileX, seed.OnceRewardEventTileY);
+                await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            });
+            await Task.WhenAll(interactFromA, interactFromB);
+
+            try
+            {
+                _ = await clientA.ReadUntilAsync(PacketId.InteractResult, TimeSpan.FromSeconds(2));
+            }
+            catch (EndOfStreamException)
+            {
+                // Reconnect from client B displaces A before the interact response is read.
+            }
+
+            _ = await clientB.ReadUntilAsync(PacketId.InteractResult);
+
+            using var gate = CreateGate();
+            var inv = new PostgresInventoryRepository(gate);
+            var qty = (await inv.GetAsync(characterId)).Slots
+                .Where(s => s.ItemId == seed.Phase7.ConsumableId)
+                .Sum(s => s.Quantity);
+            Assert.Equal(qtyBefore + 1, qty);
+
+            var world = new PostgresCharacterWorldStateRepository(gate);
+            Assert.True(await world.GetSwitchAsync(
+                characterId,
+                Frog.Core.Events.MapEventOnceGrantKeys.SwitchKeyFor(seed.OnceRewardOnceKey)));
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
     public async Task CraftRace_DuplicateRequestIds_PerCharacterIdempotent()
     {
         var seed = await SeedAsync();

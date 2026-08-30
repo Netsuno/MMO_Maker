@@ -41,6 +41,24 @@ public static class EditorPhase8ContentRepositoryFactory
         return new EditorPhase8ContentRepositoryBundle(null, ContentRepositoryCapabilities.PostgreSql);
     }
 
+    private static bool IsPostgreSqlBackend()
+    {
+        if (EditorTestHooks.OverridePhase8ContentService is not null)
+        {
+            return false;
+        }
+
+        if (string.Equals(
+                Environment.GetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory),
+                "1",
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(EditorMapRepositoryFactory.ResolveConnectionString());
+    }
+
     public static async Task<EditorPhase8ContentRepositoryBundle> CreateBundleAsync(
         CancellationToken cancellationToken = default)
     {
@@ -57,18 +75,12 @@ public static class EditorPhase8ContentRepositoryFactory
             return new EditorPhase8ContentRepositoryBundle(null, ContentRepositoryCapabilities.InMemoryTest);
         }
 
-        var mapBundle = EditorMapRepositoryFactory.CreateBundle();
-        if (!mapBundle.Capabilities.IsDurablePersistence)
+        if (!IsPostgreSqlBackend())
         {
             return new EditorPhase8ContentRepositoryBundle(null, ContentRepositoryCapabilities.InMemoryDemo);
         }
 
-        var connectionString = EditorMapRepositoryFactory.ResolveConnectionString();
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return new EditorPhase8ContentRepositoryBundle(null, ContentRepositoryCapabilities.InMemoryDemo);
-        }
-
+        var connectionString = EditorMapRepositoryFactory.ResolveConnectionString()!;
         var scope = new EditorPostgreSqlScope(connectionString);
         try
         {

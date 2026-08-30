@@ -38,6 +38,8 @@ public sealed record Phase8PostgresContentSeedResult(
     int WaitMapEventAliasId,
     Guid LearnProfessionMapEventId,
     int LearnProfessionMapEventAliasId,
+    Guid OnceRewardMapEventId,
+    int OnceRewardMapEventAliasId,
     Guid MapId,
     int RuntimeMapId,
     int GateEventTileX,
@@ -56,6 +58,9 @@ public sealed record Phase8PostgresContentSeedResult(
     int WaitEventTileY,
     int LearnProfessionTileX,
     int LearnProfessionTileY,
+    int OnceRewardEventTileX,
+    int OnceRewardEventTileY,
+    string OnceRewardOnceKey,
     int QuestRewardGold,
     string GateSwitchId,
     string WaitSwitchId,
@@ -79,8 +84,10 @@ public static class Phase8PostgresContentSeed
     public const int RouteMapEventAliasId = 8106;
     public const int WaitMapEventAliasId = 8107;
     public const int LearnProfessionMapEventAliasId = 8108;
+    public const int OnceRewardMapEventAliasId = 8109;
     public const string GateSwitchId = "phase8_gate";
     public const string WaitSwitchId = "phase8_wait_done";
+    public const string OnceRewardOnceKey = "phase8-once-chest";
     public const int QuestRewardGold = 50;
 
     public const int GateEventTileX = 1;
@@ -101,6 +108,8 @@ public static class Phase8PostgresContentSeed
     public const int WaitEventTileY = 1;
     public const int LearnProfessionTileX = 0;
     public const int LearnProfessionTileY = 3;
+    public const int OnceRewardEventTileX = 3;
+    public const int OnceRewardEventTileY = 0;
 
     public static async Task<Phase8PostgresContentSeedResult> PublishAsync(FrogDbContextGate gate)
     {
@@ -118,7 +127,7 @@ public static class Phase8PostgresContentSeed
         await EnsurePublishedRegionAsync(phase8Repo, runtimeMapId).ConfigureAwait(false);
 
         var mapEvents = new PostgresMapEventRepository(gate);
-        var (gateEventId, keyEventId, autorunEventId, contactEventId, parallelEventId, routeEventId, waitEventId, learnProfessionEventId) =
+        var (gateEventId, keyEventId, autorunEventId, contactEventId, parallelEventId, routeEventId, waitEventId, learnProfessionEventId, onceRewardEventId) =
             await EnsurePublishedMapEventsAsync(mapEvents).ConfigureAwait(false);
 
         await EnsureMapEventPlacementsAsync(
@@ -131,7 +140,8 @@ public static class Phase8PostgresContentSeed
             parallelEventId,
             routeEventId,
             waitEventId,
-            learnProfessionEventId).ConfigureAwait(false);
+            learnProfessionEventId,
+            onceRewardEventId).ConfigureAwait(false);
 
         var lighting = (byte)Math.Clamp((int)(CreateDefaultWeather().LightingFactor * 255), 0, 255);
 
@@ -160,6 +170,8 @@ public static class Phase8PostgresContentSeed
             WaitMapEventAliasId,
             learnProfessionEventId,
             LearnProfessionMapEventAliasId,
+            onceRewardEventId,
+            OnceRewardMapEventAliasId,
             phase7.MapId,
             runtimeMapId,
             GateEventTileX,
@@ -178,6 +190,9 @@ public static class Phase8PostgresContentSeed
             WaitEventTileY,
             LearnProfessionTileX,
             LearnProfessionTileY,
+            OnceRewardEventTileX,
+            OnceRewardEventTileY,
+            OnceRewardOnceKey,
             QuestRewardGold,
             GateSwitchId,
             WaitSwitchId,
@@ -515,7 +530,7 @@ public static class Phase8PostgresContentSeed
         }).ConfigureAwait(false);
     }
 
-    private static async Task<(Guid GateId, Guid KeyId, Guid AutorunId, Guid ContactId, Guid ParallelId, Guid RouteId, Guid WaitId, Guid LearnProfessionId)> EnsurePublishedMapEventsAsync(
+    private static async Task<(Guid GateId, Guid KeyId, Guid AutorunId, Guid ContactId, Guid ParallelId, Guid RouteId, Guid WaitId, Guid LearnProfessionId, Guid OnceRewardId)> EnsurePublishedMapEventsAsync(
         PostgresMapEventRepository mapEvents)
     {
         var gateId = await EnsureMapEventAsync(
@@ -558,7 +573,12 @@ public static class Phase8PostgresContentSeed
             LearnProfessionMapEventAliasId,
             "Phase8 Learn Profession",
             CreateLearnProfessionMapEventDefinition()).ConfigureAwait(false);
-        return (gateId, keyId, autorunId, contactId, parallelId, routeId, waitId, learnProfessionId);
+        var onceRewardId = await EnsureMapEventAsync(
+            mapEvents,
+            OnceRewardMapEventAliasId,
+            "Phase8 Once Chest",
+            CreateOnceRewardMapEventDefinition()).ConfigureAwait(false);
+        return (gateId, keyId, autorunId, contactId, parallelId, routeId, waitId, learnProfessionId, onceRewardId);
     }
 
     private static async Task<Guid> EnsureMapEventAsync(
@@ -785,6 +805,34 @@ public static class Phase8PostgresContentSeed
         ],
     };
 
+    private static MapEventDefinition CreateOnceRewardMapEventDefinition() => new()
+    {
+        Name = "Phase8 Once Chest",
+        EditorAliasId = OnceRewardMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.GiveItem,
+                        ParameterJson = $$"""{"itemId":"{{Phase7ContentSeed.DefaultItemId:D}}","quantity":1,"onceKey":"{{OnceRewardOnceKey}}"}""",
+                    },
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = """{"text":"Once chest opened."}""",
+                    },
+                ],
+            },
+        ],
+    };
+
     private static MapEventDefinition CreateLearnProfessionMapEventDefinition() => new()
     {
         Name = "Phase8 Learn Profession",
@@ -823,7 +871,8 @@ public static class Phase8PostgresContentSeed
         Guid parallelEventId,
         Guid routeEventId,
         Guid waitEventId,
-        Guid learnProfessionEventId)
+        Guid learnProfessionEventId,
+        Guid onceRewardEventId)
     {
         await gate.ExecuteAsync(async (db, ct) =>
         {
@@ -832,7 +881,7 @@ public static class Phase8PostgresContentSeed
                 .Select(p => p.EventDefinitionId)
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
-            if (existing.Contains(learnProfessionEventId))
+            if (existing.Contains(onceRewardEventId))
             {
                 return;
             }
@@ -851,7 +900,8 @@ public static class Phase8PostgresContentSeed
                 CreatePlacement(mapId, parallelEventId, ParallelEventTileX, ParallelEventTileY, Phase8MapEventTriggerKinds.Parallel),
                 CreateRoutePlacement(mapId, routeEventId, RouteEventTileX, RouteEventTileY, routeWaypoints),
                 CreatePlacement(mapId, waitEventId, WaitEventTileX, WaitEventTileY, Phase8MapEventTriggerKinds.Action),
-                CreatePlacement(mapId, learnProfessionEventId, LearnProfessionTileX, LearnProfessionTileY, Phase8MapEventTriggerKinds.Action));
+                CreatePlacement(mapId, learnProfessionEventId, LearnProfessionTileX, LearnProfessionTileY, Phase8MapEventTriggerKinds.Action),
+                CreatePlacement(mapId, onceRewardEventId, OnceRewardEventTileX, OnceRewardEventTileY, Phase8MapEventTriggerKinds.Action));
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
         }).ConfigureAwait(false);
 

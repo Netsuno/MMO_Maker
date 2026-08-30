@@ -35,6 +35,27 @@ public sealed class InMemoryCharacterWorldStateRepository : ICharacterWorldState
         return Task.CompletedTask;
     }
 
+    public Task<bool> TryClaimSwitchAsync(
+        Guid characterId,
+        string switchId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        if (characterId == Guid.Empty || string.IsNullOrWhiteSpace(switchId))
+        {
+            return Task.FromResult(false);
+        }
+
+        var key = (characterId, switchId);
+        if (_switches.TryGetValue(key, out var existing) && existing)
+        {
+            return Task.FromResult(false);
+        }
+
+        _switches[key] = true;
+        return Task.FromResult(true);
+    }
+
     public Task<IReadOnlyDictionary<string, bool>> GetAllSwitchesAsync(
         Guid characterId,
         CancellationToken cancellationToken = default)

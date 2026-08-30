@@ -7,6 +7,12 @@ public interface ICharacterWorldStateRepository
 
     Task SetSwitchAsync(Guid characterId, string switchId, bool value, CancellationToken cancellationToken = default);
 
+    /// <summary>Réserve un interrupteur (false→true) ; retourne false si déjà true (grant unique déjà consommé).</summary>
+    Task<bool> TryClaimSwitchAsync(
+        Guid characterId,
+        string switchId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyDictionary<string, bool>> GetAllSwitchesAsync(
         Guid characterId,
         CancellationToken cancellationToken = default);

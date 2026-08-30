@@ -206,32 +206,20 @@ public sealed class MapEventRuntimeService
         Guid characterId,
         MapEventDefinition definition,
         string placementTrigger,
-        CancellationToken cancellationToken)
-    {
-        MapEventPageDefinition? best = null;
-        var bestPriority = int.MinValue;
+        CancellationToken cancellationToken) =>
+        await MapEventPageSelector.SelectBestPageAsync(
+            definition.Pages,
+            placementTrigger,
+            condition => EvaluateConditionAsync(session, characterId, condition, cancellationToken))
+            .ConfigureAwait(false);
 
-        foreach (var page in definition.Pages.OrderBy(p => p.PageOrder))
-        {
-            if (!string.Equals(page.TriggerKind, placementTrigger, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (!await ConditionsPassAsync(session, characterId, page.Conditions, cancellationToken).ConfigureAwait(false))
-            {
-                continue;
-            }
-
-            if (page.Priority > bestPriority)
-            {
-                bestPriority = page.Priority;
-                best = page;
-            }
-        }
-
-        return best;
-    }
+    private async Task<bool> EvaluateConditionAsync(
+        Session session,
+        Guid characterId,
+        MapEventConditionDefinition condition,
+        CancellationToken cancellationToken) =>
+        await _commands.EvaluateConditionAsync(session, characterId, condition, cancellationToken)
+            .ConfigureAwait(false);
 
     private async Task<bool> ConditionsPassAsync(
         Session session,
@@ -241,7 +229,7 @@ public sealed class MapEventRuntimeService
     {
         foreach (var condition in conditions)
         {
-            if (!await _commands.EvaluateConditionAsync(session, characterId, condition, cancellationToken)
+            if (!await EvaluateConditionAsync(session, characterId, condition, cancellationToken)
                     .ConfigureAwait(false))
             {
                 return false;

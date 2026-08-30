@@ -251,6 +251,7 @@ public sealed class Phase8EditorSmokeTests
                 StaTestRunner.PumpUntil(() => barrierEntered.Task.IsCompleted, TimeSpan.FromSeconds(10));
                 Assert.True(dialog.LifecycleForTest.PendingCountForTest > 0);
                 Assert.False(dialog.LifecycleForTest.IsIdle);
+                Assert.False(dialog.IsDisposed);
 
                 if (operationName == "save")
                 {
@@ -259,6 +260,12 @@ public sealed class Phase8EditorSmokeTests
 
                 EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
                 dialog.Close();
+
+                StaTestRunner.PumpUntil(
+                    () => dialog.IsDisposed || Volatile.Read(ref sawCancellation),
+                    TimeSpan.FromSeconds(5));
+                Assert.False(dialog.IsDisposed);
+                Assert.True(Volatile.Read(ref sawCancellation));
 
                 var disposeTimeout = TimeSpan.FromSeconds(60);
                 try

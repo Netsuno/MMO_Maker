@@ -34,8 +34,8 @@ Headless PostgreSQL-backed network scenario (mandatory gate). Status updated as 
 | --- | --- |
 | Per-character switch/quest isolation | PASS (`PerCharacterSwitchAndQuest_IsolatedBetweenClients`) |
 | Dialogue token single-character | PASS (`DialogueToken_SingleCharacterOnly`) |
-| One-time event reward concurrency | PASS (`CraftRace_DuplicateRequestIds_PerCharacterIdempotent`) |
-| Simultaneous quest completion | PASS (`QuestTurnInRace_TwoClients_ExactlyOneRewardEach`) |
+| One-time event reward concurrency | PASS (`MapEventOnceRewardRace_SameCharacter_ExactlyOneItem`) |
+| Simultaneous quest completion | PASS (`QuestTurnInRace_SameCharacter_ExactlyOneReward`) |
 | Concurrent craft + duplicate request IDs | PASS (`CraftConcurrentRetry_SameClient_NoDuplication`) |
 | Parallel/autorun without duplicate runners | PASS (`AutorunMapEvent_DoesNotDuplicateOnSecondLogin`) |
 | Consistent map weather/lighting | PASS (`EnvironmentState_ConsistentAcrossClientsOnSameMap`) |
