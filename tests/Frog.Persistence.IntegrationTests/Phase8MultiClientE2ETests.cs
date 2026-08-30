@@ -94,7 +94,7 @@ public sealed class Phase8MultiClientE2ETests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
-    public async Task QuestTurnInRace_TwoClients_ExactlyOneRewardEach()
+    public async Task QuestTurnInRace_SameCharacter_ExactlyOneReward()
     {
         var seed = await SeedAsync();
         var port = Phase7TcpTestPorts.GetFreePort();
@@ -102,32 +102,43 @@ public sealed class Phase8MultiClientE2ETests
         await host.StartAsync();
         try
         {
-            await using var a = new Phase7TcpTestClient();
-            await using var b = new Phase7TcpTestClient();
-            var idA = await RegisterAsync(a, port, seed, "QuestA");
-            var idB = await RegisterAsync(b, port, seed, "QuestB");
-            await PrepareQuestReadyAsync(a, seed, idA);
-            await PrepareQuestReadyAsync(b, seed, idB);
+            await using var clientA = new Phase7TcpTestClient();
+            await using var clientB = new Phase7TcpTestClient();
+            var (token, characterIdStr) = await RegisterReturningTokenAndIdAsync(clientA, port, seed, "QuestRace");
+            var characterId = Guid.Parse(characterIdStr);
+            _ = await clientA.ReadUntilAsync(PacketId.QuestJournalSnapshot);
+            _ = await clientA.ReadUntilAsync(PacketId.EnvironmentStatePush);
+            await clientA.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
+            await PrepareQuestReadyAsync(clientA, seed, characterId);
 
             var reqA = Guid.NewGuid();
             var reqB = Guid.NewGuid();
-            await Task.WhenAll(
-                a.SendFrameAsync(Phase7TcpPacketBuilder.BuildQuestTurnIn(seed.QuestId, reqA)),
-                b.SendFrameAsync(Phase7TcpPacketBuilder.BuildQuestTurnIn(seed.QuestId, reqB)));
+            var turnInFromA = clientA.SendFrameAsync(Phase7TcpPacketBuilder.BuildQuestTurnIn(seed.QuestId, reqA));
+            var turnInFromB = Task.Run(async () =>
+            {
+                await clientB.ConnectAsync("127.0.0.1", port);
+                _ = await clientB.ReadFrameAsync();
+                await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildReconnect(token));
+                _ = await clientB.ReadUntilAsync(PacketId.ReconnectResult);
+                await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterIdStr));
+                _ = await clientB.ReadUntilAsync(PacketId.CharacterSelectResult);
+                _ = await clientB.ReadUntilAsync(PacketId.CombatState);
+                _ = await clientB.ReadUntilAsync(PacketId.InventorySnapshot);
+                _ = await clientB.ReadUntilAsync(PacketId.BankSnapshot);
+                _ = await clientB.ReadUntilAsync(PacketId.GroundItemsSnapshot);
+                _ = await clientB.ReadUntilAsync(PacketId.QuestJournalSnapshot);
+                _ = await clientB.ReadUntilAsync(PacketId.EnvironmentStatePush);
+                await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildQuestTurnIn(seed.QuestId, reqB));
+            });
+            await Task.WhenAll(turnInFromA, turnInFromB);
 
-            var resultA = await a.ReadUntilAsync(PacketId.QuestTurnInResult);
-            var resultB = await b.ReadUntilAsync(PacketId.QuestTurnInResult);
-            Assert.True(Phase8WireDecoders.TryDecodeStatusResult(resultA, out var okA, out _));
-            Assert.True(Phase8WireDecoders.TryDecodeStatusResult(resultB, out var okB, out _));
-            Assert.True(okA);
-            Assert.True(okB);
+            _ = await clientA.ReadUntilAsync(PacketId.QuestTurnInResult);
+            _ = await clientB.ReadUntilAsync(PacketId.QuestTurnInResult);
 
             using var gate = CreateGate();
             var chars = new PostgresCharacterRepository(gate);
-            var goldA = (await chars.FindByIdAsync(idA))!.Gold;
-            var goldB = (await chars.FindByIdAsync(idB))!.Gold;
-            Assert.Equal(GameplayLimits.StartingGold + seed.QuestRewardGold, goldA);
-            Assert.Equal(GameplayLimits.StartingGold + seed.QuestRewardGold, goldB);
+            var gold = (await chars.FindByIdAsync(characterId))!.Gold;
+            Assert.Equal(GameplayLimits.StartingGold + seed.QuestRewardGold, gold);
         }
         finally
         {
@@ -149,6 +160,8 @@ public sealed class Phase8MultiClientE2ETests
             await using var b = new Phase7TcpTestClient();
             var idA = await RegisterAsync(a, port, seed, "CraftA");
             var idB = await RegisterAsync(b, port, seed, "CraftB");
+            await AcquireProfessionViaNetworkAsync(a, seed);
+            await AcquireProfessionViaNetworkAsync(b, seed);
             await SeedCraftPrerequisitesAsync(idA, seed);
             await SeedCraftPrerequisitesAsync(idB, seed);
 
@@ -189,6 +202,7 @@ public sealed class Phase8MultiClientE2ETests
         {
             await using var client = new Phase7TcpTestClient();
             var id = await RegisterAsync(client, port, seed, "Crafter");
+            await AcquireProfessionViaNetworkAsync(client, seed);
             await SeedCraftPrerequisitesAsync(id, seed);
 
             var requestId = Guid.NewGuid();
@@ -367,9 +381,18 @@ public sealed class Phase8MultiClientE2ETests
     private async Task SeedCraftPrerequisitesAsync(Guid characterId, Phase8PostgresContentSeedResult seed)
     {
         using var gate = CreateGate();
-        await Phase8PostgresContentSeed.SeedProfessionProgressAsync(gate, characterId).ConfigureAwait(false);
         await Phase8PostgresContentSeed.SeedInventoryIngredientsAsync(gate, characterId, seed.Phase7.ConsumableId, 2)
             .ConfigureAwait(false);
+    }
+
+    private static async Task AcquireProfessionViaNetworkAsync(
+        Phase7TcpTestClient client,
+        Phase8PostgresContentSeedResult seed)
+    {
+        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildAcquireProfession(seed.ProfessionId));
+        var result = await client.ReadUntilAsync(PacketId.AcquireProfessionResult);
+        Assert.True(Phase8WireDecoders.TryDecodeStatusResult(result, out var ok, out _));
+        Assert.True(ok);
     }
 
     private static async Task SkipPhase8BootstrapAsync(Phase7TcpTestClient client)

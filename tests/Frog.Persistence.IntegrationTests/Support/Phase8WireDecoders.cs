@@ -103,4 +103,22 @@ public static class Phase8WireDecoders
         IReadOnlyList<QuestJournalEntryWire> entries,
         Guid questId) =>
         entries.FirstOrDefault(e => e.QuestId == questId);
+
+    public static bool TryDecodeError(ReadOnlySpan<byte> payload, out string message)
+    {
+        message = string.Empty;
+        if (payload.Length < 2 || payload[0] != (byte)PacketId.Error)
+        {
+            return false;
+        }
+
+        var len = payload[1];
+        if (payload.Length != 2 + len)
+        {
+            return false;
+        }
+
+        message = System.Text.Encoding.UTF8.GetString(payload.Slice(2, len));
+        return true;
+    }
 }

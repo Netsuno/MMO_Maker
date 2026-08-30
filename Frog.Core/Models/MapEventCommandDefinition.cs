@@ -57,12 +57,13 @@ public static class MapEventCommandDiscriminators
     public const string Teleport = "teleport";
     public const string Wait = "wait";
     public const string CallCommonEvent = "call_common_event";
+    public const string LearnProfession = "learn_profession";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         ShowText, StartDialogue, Branch, SetSwitch, SetVariable, AddVariable, SubVariable,
         GiveItem, TakeItem, GiveGold, TakeGold, StartQuest, AdvanceQuest, TurnInQuest,
-        Teleport, Wait, CallCommonEvent,
+        Teleport, Wait, CallCommonEvent, LearnProfession,
     };
 
     public static bool IsKnown(string discriminator) => All.Contains(discriminator);

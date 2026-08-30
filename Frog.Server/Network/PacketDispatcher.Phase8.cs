@@ -31,6 +31,10 @@ public sealed partial class PacketDispatcher
                 await _phase8.HandleCraftRequestAsync(clientSession, session, payload, cancellationToken)
                     .ConfigureAwait(false);
                 break;
+            case PacketId.AcquireProfessionRequest:
+                await _phase8.HandleAcquireProfessionRequestAsync(clientSession, session, payload, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
         }
     }
 

@@ -174,6 +174,7 @@ public sealed class MapEventRuntimeServiceTests
             phase8,
             phase8,
             new InMemoryCharacterProfessionRepository(),
+            new ProfessionGameplayService(phase8, new InMemoryCharacterProfessionRepository()),
             payload,
             payload,
             new MovementService(MapTestHelpers.CreateMapService(), new ConnectionManager()),

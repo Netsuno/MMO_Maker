@@ -1,12 +1,17 @@
 using Frog.Core.Constants;
+using Frog.Server.Gameplay;
 using Frog.Server.Models;
 
 namespace Frog.Server.Services;
 
-public sealed class MovementService(MapService mapService, ConnectionManager connectionManager)
+public sealed class MovementService(
+    MapService mapService,
+    ConnectionManager connectionManager,
+    MapEventMovementService? eventMovement = null)
 {
     private readonly MapService _mapService = mapService;
     private readonly ConnectionManager _connectionManager = connectionManager;
+    private readonly MapEventMovementService? _eventMovement = eventMovement;
 
     public bool TryApplyMove(Session session, sbyte deltaX, sbyte deltaY, out string errorMessage)
     {
@@ -129,6 +134,14 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
         if (_mapService.IsBlockedForPlayerCircle(mapId, newPx, newPy, r, ts))
         {
             errorMessage = "Mouvement bloque par collision.";
+            return false;
+        }
+
+        var tileX = newPx / ts;
+        var tileY = newPy / ts;
+        if (_eventMovement?.IsTileBlockedByEvent(mapId, tileX, tileY) == true)
+        {
+            errorMessage = "Mouvement bloque par un evenement.";
             return false;
         }
 

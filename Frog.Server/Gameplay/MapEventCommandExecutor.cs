@@ -26,6 +26,7 @@ public sealed class MapEventCommandExecutor
     private readonly IPublishedCommonEventCatalog _commonEvents;
     private readonly IPublishedRegionCatalog _regions;
     private readonly ICharacterProfessionRepository _professions;
+    private readonly ProfessionGameplayService _professionGameplay;
     private readonly ICharacterPayloadReader _payloadReader;
     private readonly ICharacterPayloadWriter _payloadWriter;
     private readonly MovementService _movement;
@@ -41,6 +42,7 @@ public sealed class MapEventCommandExecutor
         IPublishedCommonEventCatalog commonEvents,
         IPublishedRegionCatalog regions,
         ICharacterProfessionRepository professions,
+        ProfessionGameplayService professionGameplay,
         ICharacterPayloadReader payloadReader,
         ICharacterPayloadWriter payloadWriter,
         MovementService movement,
@@ -55,6 +57,7 @@ public sealed class MapEventCommandExecutor
         _commonEvents = commonEvents;
         _regions = regions;
         _professions = professions;
+        _professionGameplay = professionGameplay;
         _payloadReader = payloadReader;
         _payloadWriter = payloadWriter;
         _movement = movement;
@@ -305,6 +308,10 @@ public sealed class MapEventCommandExecutor
                 return await ExecuteCallCommonEventAsync(session, characterId, command.ParameterJson, state, cancellationToken)
                     .ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.LearnProfession:
+                return await ExecuteLearnProfessionAsync(characterId, command.ParameterJson, state, cancellationToken)
+                    .ConfigureAwait(false);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -496,6 +503,31 @@ public sealed class MapEventCommandExecutor
         return null;
     }
 
+    private async Task<string?> ExecuteLearnProfessionAsync(
+        Guid characterId,
+        string parameterJson,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        if (!MapEventParameterSchemas.TryParseLearnProfession(parameterJson, out var professionId, out var err))
+        {
+            return err;
+        }
+
+        var (success, message) = await _professionGameplay.TryAcquireProfessionAsync(
+                characterId,
+                professionId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!success)
+        {
+            return message;
+        }
+
+        state.ShowText ??= message;
+        return null;
+    }
+
     private async Task<string?> ExecuteStartDialogueAsync(
         Guid characterId,
         string parameterJson,
@@ -518,7 +550,7 @@ public sealed class MapEventCommandExecutor
         var summary = speaker + started.Text;
         state.DialogueState = new DialogueStatePushWire(
             dialogueId,
-            1,
+            started.PublishedRevision,
             started.SessionToken,
             started.Speaker,
             started.Text,

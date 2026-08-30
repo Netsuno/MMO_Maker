@@ -81,6 +81,16 @@ internal static class MapEventPersistenceMapper
         MapEventPublishedSnapshotEntity catalogSnapshot,
         long placementWireId)
     {
+        var blocksCollision = true;
+        if (MapEventPagesCodec.TryDeserializePages(catalogSnapshot.PagesJson, out var pages, out _))
+        {
+            var page = pages.OrderByDescending(p => p.Priority).FirstOrDefault();
+            if (page is not null)
+            {
+                blocksCollision = page.BlocksCollision;
+            }
+        }
+
         return new MapEventWireEntry
         {
             PlacementId = placementWireId,
@@ -92,6 +102,9 @@ internal static class MapEventPersistenceMapper
             TileX = placement.TileX,
             TileY = placement.TileY,
             TriggerKind = Phase8MapEventTriggerKinds.ToWireTriggerKind(placement.TriggerKind),
+            MovementKind = placement.MovementKind,
+            RouteWaypoints = DeserializeRouteWaypoints(placement.RouteWaypointsJson),
+            BlocksCollision = blocksCollision,
         };
     }
 

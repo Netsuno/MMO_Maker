@@ -274,6 +274,25 @@ public static class Phase8Wire
 
         return true;
     }
+
+    public static bool TryParseAcquireProfessionRequest(ReadOnlySpan<byte> payload, out Guid professionId)
+    {
+        professionId = Guid.Empty;
+        if (payload.Length < 16)
+        {
+            return false;
+        }
+
+        professionId = new Guid(payload.Slice(0, 16));
+        return professionId != Guid.Empty;
+    }
+
+    public static byte[] BuildAcquireProfessionRequest(Guid professionId)
+    {
+        var payload = new byte[16];
+        professionId.TryWriteBytes(payload);
+        return payload;
+    }
 }
 
 public sealed class DialogueChoiceWire

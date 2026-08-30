@@ -126,5 +126,11 @@ public enum PacketId : byte
     /// <summary>Région/météo/éclairage carte courante.</summary>
     EnvironmentStatePush = 74,
 
+    /// <summary>Acquisition d'un métier publié.</summary>
+    AcquireProfessionRequest = 75,
+
+    /// <summary>Résultat acquisition métier.</summary>
+    AcquireProfessionResult = 76,
+
     Error = 255
 }

@@ -219,6 +219,17 @@ internal static class Phase7TcpPacketBuilder
         body.CopyTo(payload.AsSpan(1));
         return payload;
     }
+
+    public static byte[] BuildAcquireProfession(Guid professionId)
+    {
+        var body = Phase8Wire.BuildAcquireProfessionRequest(professionId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.AcquireProfessionRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
+
+    public static byte[] BuildHeartbeat() => [(byte)PacketId.HeartbeatRequest];
 }
 
 internal sealed class Phase7TcpTestClient : IAsyncDisposable

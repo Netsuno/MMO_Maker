@@ -457,6 +457,28 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseLearnProfession(string parameterJson, out Guid professionId, out string? error)
+    {
+        professionId = Guid.Empty;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!TryParseGuidProperty(doc.RootElement, "professionId", out professionId, out error))
+            {
+                error = "learn_profession: " + (error ?? "professionId requis.");
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "learn_profession: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     public static bool TryParseAdvanceQuest(
         string parameterJson,
         out Guid questId,

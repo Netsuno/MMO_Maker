@@ -41,6 +41,9 @@ public sealed class PostgresPhase8PublishedCatalogs
     public Task<DialogueDefinition?> TryGetPublishedByAliasAsync(int editorAliasId, CancellationToken cancellationToken = default) =>
         TryGetPublishedKindByAliasAsync<DialogueDefinition>(editorAliasId, Phase8ContentKind.Dialogue, Phase8ContentCodec.TryDeserializeDialogue, cancellationToken);
 
+    public Task<long?> TryGetPublishedRevisionByIdAsync(Guid dialogueId, CancellationToken cancellationToken = default) =>
+        TryGetPublishedRevisionByIdAsync(dialogueId, Phase8ContentKind.Dialogue, cancellationToken);
+
     Task<IReadOnlyList<QuestDefinition>> IPublishedQuestCatalog.ListPublishedAsync(CancellationToken cancellationToken) =>
         ListPublishedKindAsync<QuestDefinition>(Phase8ContentKind.Quest, Phase8ContentCodec.TryDeserializeQuest, cancellationToken);
 
@@ -84,7 +87,7 @@ public sealed class PostgresPhase8PublishedCatalogs
         int mapId,
         int tileX,
         int tileY,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken) =>
         _gate.ExecuteAsync(async (db, ct) =>
         {
             var snapshots = await db.Phase8ContentPublishedSnapshots.AsNoTracking()
@@ -379,6 +382,21 @@ public sealed class PostgresPhase8PublishedCatalogs
             }
 
             return deserialize(row.PayloadJson, out var item, out _) ? item : default;
+        }, cancellationToken);
+
+    private Task<long?> TryGetPublishedRevisionByIdAsync(
+        Guid id,
+        Phase8ContentKind kind,
+        CancellationToken cancellationToken) =>
+        _gate.ExecuteAsync(async (db, ct) =>
+        {
+            var revision = await db.Phase8ContentPublishedSnapshots.AsNoTracking()
+                .Where(s => s.Kind == (byte)kind && s.ContentDefinitionId == id)
+                .OrderByDescending(s => s.Revision)
+                .Select(s => (long?)s.Revision)
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+            return revision;
         }, cancellationToken);
 
     private Task<T?> TryGetPublishedKindByAliasAsync<T>(

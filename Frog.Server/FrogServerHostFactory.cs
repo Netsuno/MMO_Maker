@@ -258,10 +258,12 @@ public static class FrogServerHostFactory
                 services.AddSingleton<PublishedCatalogService>();
                 services.AddSingleton<MapEventCommandExecutor>();
                 services.AddSingleton<MapEventExecutionTracker>();
+                services.AddSingleton<MapEventMovementService>();
                 services.AddSingleton<DialogSessionService>();
                 services.AddSingleton<DialogGameplayService>();
                 services.AddSingleton<QuestGameplayService>();
                 services.AddSingleton<CraftGameplayService>();
+                services.AddSingleton<ProfessionGameplayService>();
                 services.AddSingleton<WeatherGameplayService>();
                 services.AddSingleton<MapEventRuntimeService>();
                 services.AddSingleton<Phase8GameplayHandlers>();

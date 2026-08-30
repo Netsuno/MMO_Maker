@@ -9,17 +9,11 @@ public sealed class MapEventExecutionTracker
 {
     private readonly ConcurrentDictionary<string, byte> _activeParallel = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _firedAutorun = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, byte> _firedParallel = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, List<PendingWaitResume>> _pendingWaits = new();
 
     public bool TryBeginParallel(Guid characterId, long placementId, Guid eventDefinitionId, int mapId)
     {
-        var onceKey = $"{characterId:N}:{mapId}:{placementId}:{eventDefinitionId:N}:parallel";
-        if (!_firedParallel.TryAdd(onceKey, 0))
-        {
-            return false;
-        }
-
+        _ = mapId;
         var key = BuildKey(characterId, placementId, eventDefinitionId, Phase8MapEventTriggerKinds.Parallel);
         return _activeParallel.TryAdd(key, 0);
     }
@@ -97,11 +91,6 @@ public sealed class MapEventExecutionTracker
             _firedAutorun.TryRemove(key, out _);
         }
 
-        foreach (var key in _firedParallel.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
-        {
-            _firedParallel.TryRemove(key, out _);
-        }
-
         _pendingWaits.TryRemove(characterId, out _);
     }
 
@@ -111,11 +100,6 @@ public sealed class MapEventExecutionTracker
         foreach (var key in _firedAutorun.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
         {
             _firedAutorun.TryRemove(key, out _);
-        }
-
-        foreach (var key in _firedParallel.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
-        {
-            _firedParallel.TryRemove(key, out _);
         }
     }
 

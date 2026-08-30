@@ -15,6 +15,9 @@ public sealed class NullPublishedDialogueCatalog : IPublishedDialogueCatalog
 
     public Task<DialogueDefinition?> TryGetPublishedByAliasAsync(int editorAliasId, CancellationToken cancellationToken = default) =>
         Task.FromResult<DialogueDefinition?>(null);
+
+    public Task<long?> TryGetPublishedRevisionByIdAsync(Guid dialogueId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<long?>(null);
 }
 
 public sealed class NullPublishedQuestCatalog : IPublishedQuestCatalog

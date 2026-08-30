@@ -9,6 +9,8 @@ public interface IPublishedDialogueCatalog
     Task<DialogueDefinition?> TryGetPublishedByIdAsync(Guid dialogueId, CancellationToken cancellationToken = default);
 
     Task<DialogueDefinition?> TryGetPublishedByAliasAsync(int editorAliasId, CancellationToken cancellationToken = default);
+
+    Task<long?> TryGetPublishedRevisionByIdAsync(Guid dialogueId, CancellationToken cancellationToken = default);
 }
 
 public interface IPublishedQuestCatalog

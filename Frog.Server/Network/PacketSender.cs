@@ -512,6 +512,13 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
     public Task SendCraftResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.CraftResult, success, message, cancellationToken);
 
+    public Task SendAcquireProfessionResultAsync(
+        ClientSession session,
+        bool success,
+        string message,
+        CancellationToken cancellationToken) =>
+        SendStatusMessageAsync(session, PacketId.AcquireProfessionResult, success, message, cancellationToken);
+
     public Task SendEnvironmentStatePushAsync(
         ClientSession session,
         int mapId,

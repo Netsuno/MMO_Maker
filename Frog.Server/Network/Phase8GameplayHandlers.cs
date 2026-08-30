@@ -15,9 +15,11 @@ public sealed class Phase8GameplayHandlers(
     DialogSessionService dialogSessions,
     QuestGameplayService quests,
     CraftGameplayService craft,
+    ProfessionGameplayService professions,
     WeatherGameplayService weather,
     MapEventRuntimeService mapEventRuntime,
     MapEventExecutionTracker executionTracker,
+    MapEventMovementService eventMovement,
     IMapEventStore mapEventStore,
     PacketSender packetSender)
 {
@@ -27,8 +29,40 @@ public sealed class Phase8GameplayHandlers(
         executionTracker.ClearForCharacter(characterId);
     }
 
-    public void ClearMapEventExecutionsForCharacter(Guid characterId) =>
+    public void ClearMapEventExecutionsForCharacter(Guid characterId, int? mapId = null)
+    {
         executionTracker.ClearForCharacter(characterId);
+        if (mapId is int mid)
+        {
+            executionTracker.ClearAutorunForMap(characterId, mid);
+        }
+    }
+
+    public async Task<string> BuildMapEventsWireJsonAsync(int mapId, CancellationToken cancellationToken)
+    {
+        var (ok, placements) = await mapEventStore.GetPlacementsAsync(mapId, cancellationToken).ConfigureAwait(false);
+        if (!ok || placements.Count == 0)
+        {
+            return "[]";
+        }
+
+        eventMovement.SyncMapPlacements(mapId, placements);
+        var runtime = eventMovement.ApplyRuntimePositions(mapId, placements);
+        return System.Text.Json.JsonSerializer.Serialize(runtime);
+    }
+
+    public async Task TickMapEventMovementAsync(Session session, CancellationToken cancellationToken)
+    {
+        var mapId = session.CurrentMapId;
+        var (ok, placements) = await mapEventStore.GetPlacementsAsync(mapId, cancellationToken).ConfigureAwait(false);
+        if (!ok)
+        {
+            return;
+        }
+
+        eventMovement.SyncMapPlacements(mapId, placements);
+        eventMovement.TickMap(mapId);
+    }
 
     public async Task NotifyTalkProgressAsync(
         Guid characterId,
@@ -240,7 +274,7 @@ public sealed class Phase8GameplayHandlers(
         var ok = result.Status is EventCraftStatus.Crafted or EventCraftStatus.IdempotentReplay;
         await packetSender.SendCraftResultAsync(client, ok, result.Message ?? result.Status.ToString(), cancellationToken)
             .ConfigureAwait(false);
-        if (ok)
+        if (result.Status == EventCraftStatus.Crafted)
         {
             if (result.RemainingGold is int gold)
             {
@@ -270,6 +304,39 @@ public sealed class Phase8GameplayHandlers(
                     .ConfigureAwait(false);
             }
         }
+        else if (result.Status == EventCraftStatus.IdempotentReplay && result.RemainingGold is int replayGold)
+        {
+            session.Gold = replayGold;
+        }
+    }
+
+    public async Task HandleAcquireProfessionRequestAsync(
+        ClientSession client,
+        Session session,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (session.CharacterGuid is not Guid characterId)
+        {
+            await packetSender.SendAcquireProfessionResultAsync(client, false, "Personnage requis.", cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!Phase8Wire.TryParseAcquireProfessionRequest(payload.Span, out var professionId))
+        {
+            await packetSender.SendAcquireProfessionResultAsync(client, false, "Payload invalide.", cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var (success, message) = await professions.TryAcquireProfessionAsync(
+                characterId,
+                professionId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await packetSender.SendAcquireProfessionResultAsync(client, success, message, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task TryFireAutorunMapEventsAsync(

@@ -237,6 +237,7 @@ public sealed partial class PacketDispatcher(
             case PacketId.DialogueChoiceRequest:
             case PacketId.QuestTurnInRequest:
             case PacketId.CraftRequest:
+            case PacketId.AcquireProfessionRequest:
                 await DispatchPhase8Async(clientSession, packetId, payload, cancellationToken);
                 break;
 
@@ -735,20 +736,7 @@ public sealed partial class PacketDispatcher(
         string json;
         try
         {
-            var (ok, placements) = await _mapEventStore.GetPlacementsAsync(mapId, cancellationToken)
-                .ConfigureAwait(false);
-            if (!ok)
-            {
-                json = "[]";
-            }
-            else if (_mapEventStore.TryGetEventsWireJson(mapId, out var cached) && !string.IsNullOrWhiteSpace(cached))
-            {
-                json = cached;
-            }
-            else
-            {
-                json = System.Text.Json.JsonSerializer.Serialize(placements);
-            }
+            json = await _phase8.BuildMapEventsWireJsonAsync(mapId, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -902,7 +890,7 @@ public sealed partial class PacketDispatcher(
             _combatGameplay.CancelForMapChange(session);
             if (session.CharacterGuid is Guid mapChangeCharacterId)
             {
-                _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId);
+                _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId, cellBefore.CurrentMapId);
             }
 
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
@@ -980,7 +968,7 @@ public sealed partial class PacketDispatcher(
             _combatGameplay.CancelForMapChange(session);
             if (session.CharacterGuid is Guid mapChangeCharacterId)
             {
-                _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId);
+                _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId, cellBefore.CurrentMapId);
             }
 
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
@@ -1185,6 +1173,7 @@ public sealed partial class PacketDispatcher(
         await _packetSender.SendHeartbeatAckAsync(clientSession, cancellationToken);
         await _phase8.TryResumeWaitingMapEventsAsync(clientSession, session, cancellationToken)
             .ConfigureAwait(false);
+        await _phase8.TickMapEventMovementAsync(session, cancellationToken).ConfigureAwait(false);
         await _phase8.TryFireParallelMapEventsAsync(clientSession, session, cancellationToken)
             .ConfigureAwait(false);
         await TryFireAutoTileMapEventsOnHeartbeatAsync(clientSession, session, cancellationToken);

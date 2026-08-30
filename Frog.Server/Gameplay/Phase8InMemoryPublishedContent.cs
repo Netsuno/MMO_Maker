@@ -44,6 +44,9 @@ public sealed class Phase8InMemoryPublishedContent
     Task<DialogueDefinition?> IPublishedDialogueCatalog.TryGetPublishedByAliasAsync(int editorAliasId, CancellationToken cancellationToken) =>
         Task.FromResult(_dialogues.FirstOrDefault(d => d.EditorAliasId == editorAliasId));
 
+    Task<long?> IPublishedDialogueCatalog.TryGetPublishedRevisionByIdAsync(Guid dialogueId, CancellationToken cancellationToken) =>
+        Task.FromResult<long?>(_dialogues.Any(d => d.Id == dialogueId) ? 1L : null);
+
     Task<IReadOnlyList<QuestDefinition>> IPublishedQuestCatalog.ListPublishedAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<QuestDefinition>>(_quests.ToList());
 

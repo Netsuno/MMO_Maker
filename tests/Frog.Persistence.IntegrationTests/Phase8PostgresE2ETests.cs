@@ -150,10 +150,53 @@ public sealed class Phase8PostgresE2ETests
             Assert.True(contactInv.Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity) >= 2);
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
+            // Step 18 (parallel): heartbeat fires parallel map event; repeats on subsequent heartbeats
+            await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
+            var parallel1 = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel1, out _, out var parallelMsg1));
+            Assert.Contains("Parallel pulse", parallelMsg1);
+            await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
+            var parallel2 = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(parallel2, out _, out var parallelMsg2));
+            Assert.Contains("Parallel pulse", parallelMsg2);
+
+            // Step 18 (wait/resume): action event waits then sets switch via heartbeat resume
             using (var gate = CreateGate())
             {
-                await Phase8PostgresContentSeed.SeedProfessionProgressAsync(gate, characterGuid).ConfigureAwait(false);
+                var world = new PostgresCharacterWorldStateRepository(gate);
+                Assert.False(await world.GetSwitchAsync(characterGuid, seed.WaitSwitchId) ?? false);
             }
+
+            await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.WaitEventTileX, seed.WaitEventTileY);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            _ = await client.ReadUntilAsync(PacketId.InteractResult);
+            await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
+            await Task.Delay(350);
+            await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
+            using (var gate = CreateGate())
+            {
+                var world = new PostgresCharacterWorldStateRepository(gate);
+                Assert.True(await world.GetSwitchAsync(characterGuid, seed.WaitSwitchId));
+            }
+
+            // Step 18 (route movement): route event blocks collision tile after movement tick
+            for (var i = 0; i < 4; i++)
+            {
+                await Phase8MovementTestHelpers.SendHeartbeatAndDrainAsync(client);
+            }
+
+            var blockedMove = await Phase8MovementTestHelpers.TryMoveToTileExpectingErrorAsync(
+                client, seed.RouteBlockTileX, seed.RouteBlockTileY);
+            Assert.True(Phase8WireDecoders.TryDecodeError(blockedMove, out var blockMsg));
+            Assert.Contains("evenement", blockMsg, StringComparison.OrdinalIgnoreCase);
+
+            // Step 12 continued: acquire profession via public map event path (not DB seed)
+            await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.LearnProfessionTileX, seed.LearnProfessionTileY);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var learnProfession = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(learnProfession, out var learnOk, out var learnMsg));
+            Assert.True(learnOk);
+            Assert.Contains("Profession learned", learnMsg);
 
             // Step 14: craft recipe — atomic state
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCraft(seed.RecipeId, craftRequestId));
@@ -166,17 +209,24 @@ public sealed class Phase8PostgresE2ETests
             Assert.NotNull(readyQuest);
             Assert.Equal((byte)CharacterQuestStatus.ReadyToTurnIn, readyQuest!.Status);
 
-            // Step 15: retry craft — no duplication
+            // Step 15: retry craft — no duplication; quest objective not replayed
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCraft(seed.RecipeId, craftRequestId));
             var craftReplay = await client.ReadUntilAsync(PacketId.CraftResult);
             Assert.True(Phase8WireDecoders.TryDecodeStatusResult(craftReplay, out var craftReplayOk, out _));
             Assert.True(craftReplayOk);
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                client.ReadUntilAsync(PacketId.QuestJournalSnapshot, TimeSpan.FromMilliseconds(400)));
             using (var gate = CreateGate())
             {
                 var inv = new PostgresInventoryRepository(gate);
                 var craftInv = await inv.GetAsync(characterGuid).ConfigureAwait(false);
                 var consumableQty = craftInv.Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity);
                 Assert.Equal(1, consumableQty);
+                var questRepo = new PostgresCharacterQuestRepository(gate);
+                var progress = await questRepo.TryGetAsync(characterGuid, seed.QuestId).ConfigureAwait(false);
+                Assert.NotNull(progress);
+                Assert.Equal(CharacterQuestStatus.ReadyToTurnIn, progress!.Status);
+                Assert.Equal(1, progress.ObjectiveCounters.GetValueOrDefault(QuestObjectiveKeys.For(0, 0)));
             }
 
             // Step 16: quest completion — reward once
@@ -284,10 +334,10 @@ public sealed class Phase8PostgresE2ETests
             _ = await refreshClient.ReadUntilAsync(PacketId.EnvironmentStatePush);
             await refreshClient.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
 
-            using (var gate = CreateGate())
-            {
-                await Phase8PostgresContentSeed.SeedProfessionProgressAsync(gate, refreshCharacterId).ConfigureAwait(false);
-            }
+            await refreshClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildAcquireProfession(seed.ProfessionId));
+            var acquireResult = await refreshClient.ReadUntilAsync(PacketId.AcquireProfessionResult);
+            Assert.True(Phase8WireDecoders.TryDecodeStatusResult(acquireResult, out var acquireOk, out _));
+            Assert.True(acquireOk);
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(refreshClient, seed.KeyEventTileX, seed.KeyEventTileY);
             await refreshClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());

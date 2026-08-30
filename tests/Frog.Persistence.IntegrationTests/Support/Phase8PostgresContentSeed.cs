@@ -30,6 +30,14 @@ public sealed record Phase8PostgresContentSeedResult(
     Guid AutorunMapEventId,
     Guid ContactMapEventId,
     int ContactMapEventAliasId,
+    Guid ParallelMapEventId,
+    int ParallelMapEventAliasId,
+    Guid RouteMapEventId,
+    int RouteMapEventAliasId,
+    Guid WaitMapEventId,
+    int WaitMapEventAliasId,
+    Guid LearnProfessionMapEventId,
+    int LearnProfessionMapEventAliasId,
     Guid MapId,
     int RuntimeMapId,
     int GateEventTileX,
@@ -38,8 +46,19 @@ public sealed record Phase8PostgresContentSeedResult(
     int KeyEventTileY,
     int ContactEventTileX,
     int ContactEventTileY,
+    int ParallelEventTileX,
+    int ParallelEventTileY,
+    int RouteEventTileX,
+    int RouteEventTileY,
+    int RouteBlockTileX,
+    int RouteBlockTileY,
+    int WaitEventTileX,
+    int WaitEventTileY,
+    int LearnProfessionTileX,
+    int LearnProfessionTileY,
     int QuestRewardGold,
     string GateSwitchId,
+    string WaitSwitchId,
     byte ExpectedLightingLevel);
 
 /// <summary>Publie le contenu Phase 8 minimal (Guids déterministes) dans PostgreSQL.</summary>
@@ -56,7 +75,12 @@ public static class Phase8PostgresContentSeed
     public const int GateMapEventAliasId = 8101;
     public const int KeyMapEventAliasId = 8102;
     public const int ContactMapEventAliasId = 8104;
+    public const int ParallelMapEventAliasId = 8105;
+    public const int RouteMapEventAliasId = 8106;
+    public const int WaitMapEventAliasId = 8107;
+    public const int LearnProfessionMapEventAliasId = 8108;
     public const string GateSwitchId = "phase8_gate";
+    public const string WaitSwitchId = "phase8_wait_done";
     public const int QuestRewardGold = 50;
 
     public const int GateEventTileX = 1;
@@ -65,6 +89,16 @@ public static class Phase8PostgresContentSeed
     public const int KeyEventTileY = 1;
     public const int ContactEventTileX = 2;
     public const int ContactEventTileY = 0;
+    public const int ParallelEventTileX = 0;
+    public const int ParallelEventTileY = 2;
+    public const int RouteEventTileX = 4;
+    public const int RouteEventTileY = 0;
+    public const int RouteBlockTileX = 4;
+    public const int RouteBlockTileY = 1;
+    public const int WaitEventTileX = 5;
+    public const int WaitEventTileY = 1;
+    public const int LearnProfessionTileX = 0;
+    public const int LearnProfessionTileY = 3;
 
     public static async Task<Phase8PostgresContentSeedResult> PublishAsync(FrogDbContextGate gate)
     {
@@ -82,7 +116,7 @@ public static class Phase8PostgresContentSeed
         await EnsurePublishedRegionAsync(phase8Repo, runtimeMapId).ConfigureAwait(false);
 
         var mapEvents = new PostgresMapEventRepository(gate);
-        var (gateEventId, keyEventId, autorunEventId, contactEventId) =
+        var (gateEventId, keyEventId, autorunEventId, contactEventId, parallelEventId, routeEventId, waitEventId, learnProfessionEventId) =
             await EnsurePublishedMapEventsAsync(mapEvents).ConfigureAwait(false);
 
         await EnsureMapEventPlacementsAsync(
@@ -91,7 +125,11 @@ public static class Phase8PostgresContentSeed
             gateEventId,
             keyEventId,
             autorunEventId,
-            contactEventId).ConfigureAwait(false);
+            contactEventId,
+            parallelEventId,
+            routeEventId,
+            waitEventId,
+            learnProfessionEventId).ConfigureAwait(false);
 
         var lighting = (byte)Math.Clamp((int)(CreateDefaultWeather().LightingFactor * 255), 0, 255);
 
@@ -112,6 +150,14 @@ public static class Phase8PostgresContentSeed
             autorunEventId,
             contactEventId,
             ContactMapEventAliasId,
+            parallelEventId,
+            ParallelMapEventAliasId,
+            routeEventId,
+            RouteMapEventAliasId,
+            waitEventId,
+            WaitMapEventAliasId,
+            learnProfessionEventId,
+            LearnProfessionMapEventAliasId,
             phase7.MapId,
             runtimeMapId,
             GateEventTileX,
@@ -120,8 +166,19 @@ public static class Phase8PostgresContentSeed
             KeyEventTileY,
             ContactEventTileX,
             ContactEventTileY,
+            ParallelEventTileX,
+            ParallelEventTileY,
+            RouteEventTileX,
+            RouteEventTileY,
+            RouteBlockTileX,
+            RouteBlockTileY,
+            WaitEventTileX,
+            WaitEventTileY,
+            LearnProfessionTileX,
+            LearnProfessionTileY,
             QuestRewardGold,
             GateSwitchId,
+            WaitSwitchId,
             lighting);
     }
 
@@ -456,7 +513,7 @@ public static class Phase8PostgresContentSeed
         }).ConfigureAwait(false);
     }
 
-    private static async Task<(Guid GateId, Guid KeyId, Guid AutorunId, Guid ContactId)> EnsurePublishedMapEventsAsync(
+    private static async Task<(Guid GateId, Guid KeyId, Guid AutorunId, Guid ContactId, Guid ParallelId, Guid RouteId, Guid WaitId, Guid LearnProfessionId)> EnsurePublishedMapEventsAsync(
         PostgresMapEventRepository mapEvents)
     {
         var gateId = await EnsureMapEventAsync(
@@ -479,7 +536,27 @@ public static class Phase8PostgresContentSeed
             ContactMapEventAliasId,
             "Phase8 Contact",
             CreateContactMapEventDefinition()).ConfigureAwait(false);
-        return (gateId, keyId, autorunId, contactId);
+        var parallelId = await EnsureMapEventAsync(
+            mapEvents,
+            ParallelMapEventAliasId,
+            "Phase8 Parallel",
+            CreateParallelMapEventDefinition()).ConfigureAwait(false);
+        var routeId = await EnsureMapEventAsync(
+            mapEvents,
+            RouteMapEventAliasId,
+            "Phase8 Route Blocker",
+            CreateRouteMapEventDefinition()).ConfigureAwait(false);
+        var waitId = await EnsureMapEventAsync(
+            mapEvents,
+            WaitMapEventAliasId,
+            "Phase8 Wait",
+            CreateWaitMapEventDefinition()).ConfigureAwait(false);
+        var learnProfessionId = await EnsureMapEventAsync(
+            mapEvents,
+            LearnProfessionMapEventAliasId,
+            "Phase8 Learn Profession",
+            CreateLearnProfessionMapEventDefinition()).ConfigureAwait(false);
+        return (gateId, keyId, autorunId, contactId, parallelId, routeId, waitId, learnProfessionId);
     }
 
     private static async Task<Guid> EnsureMapEventAsync(
@@ -621,13 +698,122 @@ public static class Phase8PostgresContentSeed
         ],
     };
 
+    private static MapEventDefinition CreateParallelMapEventDefinition() => new()
+    {
+        Name = "Phase8 Parallel",
+        EditorAliasId = ParallelMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Parallel,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = """{"text":"Parallel pulse."}""",
+                    },
+                ],
+            },
+        ],
+    };
+
+    private static MapEventDefinition CreateRouteMapEventDefinition() => new()
+    {
+        Name = "Phase8 Route Blocker",
+        EditorAliasId = RouteMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                MovementKind = MapEventMovementKinds.Route,
+                BlocksCollision = true,
+                RouteWaypoints =
+                [
+                    new MapEventRouteWaypoint { TileX = RouteEventTileX, TileY = RouteEventTileY, WaitMs = 250 },
+                    new MapEventRouteWaypoint { TileX = RouteBlockTileX, TileY = RouteBlockTileY, WaitMs = 250 },
+                ],
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = """{"text":"Route patrol."}""",
+                    },
+                ],
+            },
+        ],
+    };
+
+    private static MapEventDefinition CreateWaitMapEventDefinition() => new()
+    {
+        Name = "Phase8 Wait",
+        EditorAliasId = WaitMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.Wait,
+                        ParameterJson = """{"milliseconds":300}""",
+                    },
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                        ParameterJson = $$"""{"switchId":"{{WaitSwitchId}}","value":true}""",
+                    },
+                ],
+            },
+        ],
+    };
+
+    private static MapEventDefinition CreateLearnProfessionMapEventDefinition() => new()
+    {
+        Name = "Phase8 Learn Profession",
+        EditorAliasId = LearnProfessionMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.LearnProfession,
+                        ParameterJson = $$"""{"professionId":"{{DefaultProfessionId:D}}"}""",
+                    },
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = """{"text":"Profession learned."}""",
+                    },
+                ],
+            },
+        ],
+    };
+
     private static async Task EnsureMapEventPlacementsAsync(
         FrogDbContextGate gate,
         Guid mapId,
         Guid gateEventId,
         Guid keyEventId,
         Guid autorunEventId,
-        Guid contactEventId)
+        Guid contactEventId,
+        Guid parallelEventId,
+        Guid routeEventId,
+        Guid waitEventId,
+        Guid learnProfessionEventId)
     {
         await gate.ExecuteAsync(async (db, ct) =>
         {
@@ -636,16 +822,26 @@ public static class Phase8PostgresContentSeed
                 .Select(p => p.EventDefinitionId)
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
-            if (existing.Contains(gateEventId))
+            if (existing.Contains(learnProfessionEventId))
             {
                 return;
             }
+
+            var routeWaypoints = MapEventPersistenceMapper.SerializeRouteWaypoints(
+            [
+                new MapEventRouteWaypoint { TileX = RouteEventTileX, TileY = RouteEventTileY, WaitMs = 250 },
+                new MapEventRouteWaypoint { TileX = RouteBlockTileX, TileY = RouteBlockTileY, WaitMs = 250 },
+            ]);
 
             db.MapEventPlacements.AddRange(
                 CreatePlacement(mapId, gateEventId, GateEventTileX, GateEventTileY, Phase8MapEventTriggerKinds.Action),
                 CreatePlacement(mapId, keyEventId, KeyEventTileX, KeyEventTileY, Phase8MapEventTriggerKinds.Action),
                 CreatePlacement(mapId, autorunEventId, 3, 3, Phase8MapEventTriggerKinds.Autorun),
-                CreatePlacement(mapId, contactEventId, ContactEventTileX, ContactEventTileY, Phase8MapEventTriggerKinds.PlayerContact));
+                CreatePlacement(mapId, contactEventId, ContactEventTileX, ContactEventTileY, Phase8MapEventTriggerKinds.PlayerContact),
+                CreatePlacement(mapId, parallelEventId, ParallelEventTileX, ParallelEventTileY, Phase8MapEventTriggerKinds.Parallel),
+                CreateRoutePlacement(mapId, routeEventId, RouteEventTileX, RouteEventTileY, routeWaypoints),
+                CreatePlacement(mapId, waitEventId, WaitEventTileX, WaitEventTileY, Phase8MapEventTriggerKinds.Action),
+                CreatePlacement(mapId, learnProfessionEventId, LearnProfessionTileX, LearnProfessionTileY, Phase8MapEventTriggerKinds.Action));
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
@@ -661,6 +857,24 @@ public static class Phase8PostgresContentSeed
         }).ConfigureAwait(false);
         _ = AssertMapSaveSuccess(republish);
     }
+
+    private static MapEventPlacementEntity CreateRoutePlacement(
+        Guid mapId,
+        Guid eventId,
+        int tileX,
+        int tileY,
+        string routeWaypointsJson) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            MapId = mapId,
+            EventDefinitionId = eventId,
+            TileX = tileX,
+            TileY = tileY,
+            TriggerKind = Phase8MapEventTriggerKinds.Action,
+            MovementKind = MapEventMovementKinds.Route,
+            RouteWaypointsJson = routeWaypointsJson,
+        };
 
     private static MapEventPlacementEntity CreatePlacement(
         Guid mapId,

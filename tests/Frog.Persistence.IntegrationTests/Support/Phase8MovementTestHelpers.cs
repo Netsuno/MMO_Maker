@@ -6,6 +6,26 @@ namespace Frog.Persistence.IntegrationTests.Support;
 
 internal static class Phase8MovementTestHelpers
 {
+    public static async Task SendHeartbeatAndDrainAsync(Phase7TcpTestClient client)
+    {
+        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildHeartbeat());
+        _ = await client.ReadUntilAsync(PacketId.HeartbeatAck);
+        await client.DrainPendingAsync(TimeSpan.FromMilliseconds(150));
+    }
+
+    public static async Task<byte[]> TryMoveToTileExpectingErrorAsync(
+        Phase7TcpTestClient client,
+        int targetX,
+        int targetY)
+    {
+        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMapRequest());
+        _ = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
+
+        var (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(targetX, targetY);
+        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPositionSync(pixelX, pixelY));
+        return await client.ReadUntilAsync(PacketId.Error, TimeSpan.FromSeconds(5));
+    }
+
     public static async Task TeleportToTileAsync(
         Phase7TcpTestClient client,
         int targetX,

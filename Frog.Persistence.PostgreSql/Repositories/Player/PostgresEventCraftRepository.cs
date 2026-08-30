@@ -159,27 +159,21 @@ public sealed class PostgresEventCraftRepository(
                             p => p.CharacterId == characterId && p.ProfessionId == recipe.ProfessionId,
                             ct)
                         .ConfigureAwait(false);
-                    var oldXp = prog?.Experience ?? 0L;
-                    var oldLevel = prog?.Level ?? 0;
+                    if (prog is null || prog.Level < recipe.RequiredProfessionLevel)
+                    {
+                        return new EventCraftResult(
+                            EventCraftStatus.InsufficientLevel,
+                            $"Niveau métier insuffisant ({prog?.Level ?? 0}/{recipe.RequiredProfessionLevel}).");
+                    }
+
+                    var oldXp = prog.Experience;
+                    var oldLevel = prog.Level;
                     var newXp = checked(oldXp + Math.Max(0L, recipe.ProfessionExperienceReward));
                     var maxLevel = profession?.MaxLevel > 0 ? profession.MaxLevel : 100;
                     var computedLevel = Math.Min(maxLevel, 1 + (int)(newXp / 100));
                     var newLevel = Math.Max(oldLevel, computedLevel);
-                    if (prog is null)
-                    {
-                        db.PlayerCharacterProfessionProgress.Add(new CharacterProfessionProgressEntity
-                        {
-                            CharacterId = characterId,
-                            ProfessionId = recipe.ProfessionId,
-                            Level = newLevel,
-                            Experience = newXp,
-                        });
-                    }
-                    else
-                    {
-                        prog.Experience = newXp;
-                        prog.Level = newLevel;
-                    }
+                    prog.Experience = newXp;
+                    prog.Level = newLevel;
                 }
 
                 db.PlayerEventCraftRequests.Add(new EventCraftRequestEntity

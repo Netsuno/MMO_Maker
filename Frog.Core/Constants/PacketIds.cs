@@ -79,5 +79,7 @@ public static class PacketIds
     public const byte CraftRequest = 72;
     public const byte CraftResult = 73;
     public const byte EnvironmentStatePush = 74;
+    public const byte AcquireProfessionRequest = 75;
+    public const byte AcquireProfessionResult = 76;
     public const byte Error = 255;
 }

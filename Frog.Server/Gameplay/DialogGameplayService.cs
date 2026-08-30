@@ -15,7 +15,7 @@ public sealed class DialogGameplayService(
         Guid characterId,
         Guid dialogueId,
         CancellationToken cancellationToken = default) =>
-        _sessions.TryStartSessionAsync(characterId, dialogueId, publishedRevision: 1, cancellationToken);
+        _sessions.TryStartSessionAsync(characterId, dialogueId, cancellationToken);
 
     public async Task<string?> TryStartDialogueAsync(
         Guid characterId,

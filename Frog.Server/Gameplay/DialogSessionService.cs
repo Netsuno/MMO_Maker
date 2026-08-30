@@ -27,7 +27,6 @@ public sealed class DialogSessionService
     public async Task<DialogueSessionStart?> TryStartSessionAsync(
         Guid characterId,
         Guid dialogueId,
-        long publishedRevision,
         CancellationToken cancellationToken = default)
     {
         var definition = await _dialogues.TryGetPublishedByIdAsync(dialogueId, cancellationToken).ConfigureAwait(false);
@@ -36,8 +35,32 @@ public sealed class DialogSessionService
             return null;
         }
 
+        var revision = await _dialogues.TryGetPublishedRevisionByIdAsync(dialogueId, cancellationToken)
+            .ConfigureAwait(false);
+        if (revision is null or <= 0)
+        {
+            return null;
+        }
+
+        return TryStartSessionCore(characterId, dialogueId, definition, revision.Value);
+    }
+
+    internal DialogueSessionStart? TryStartSessionCore(
+        Guid characterId,
+        Guid dialogueId,
+        DialogueDefinition definition,
+        long publishedRevision)
+    {
         var token = RandomNumberGenerator.GetBytes(Phase8Wire.DialogueSessionTokenBytes);
         var tokenKey = Convert.ToHexString(token);
+        var boundChoices = definition.Choices
+            .Select(c => new DialogueChoiceDefinition
+            {
+                ChoiceId = c.ChoiceId,
+                Label = c.Label,
+                StartQuestId = c.StartQuestId,
+            })
+            .ToList();
         var session = new DialogueSession
         {
             CharacterId = characterId,
@@ -45,20 +68,20 @@ public sealed class DialogSessionService
             PublishedRevision = publishedRevision,
             Token = token,
             ExpiresAtUtc = _clock.GetUtcNow().AddMinutes(10),
-            UsedChoiceIds = new HashSet<string>(StringComparer.Ordinal),
+            BoundSpeaker = definition.Lines.Count > 0 ? definition.Lines[0].Speaker : string.Empty,
+            BoundText = definition.Lines.Count > 0
+                ? definition.Lines[0].Text
+                : boundChoices.Count > 0
+                    ? boundChoices[0].Label
+                    : definition.Name,
+            BoundChoices = boundChoices,
         };
         _sessions[tokenKey] = session;
 
-        var speaker = definition.Lines.Count > 0 ? definition.Lines[0].Speaker : string.Empty;
-        var text = definition.Lines.Count > 0
-            ? definition.Lines[0].Text
-            : definition.Choices.Count > 0
-                ? definition.Choices[0].Label
-                : definition.Name;
-        var choices = definition.Choices
+        var choices = boundChoices
             .Select(c => new DialogueChoiceWire { ChoiceId = c.ChoiceId, Label = c.Label })
             .ToList();
-        return new DialogueSessionStart(token, speaker, text, choices);
+        return new DialogueSessionStart(token, publishedRevision, session.BoundSpeaker, session.BoundText, choices);
     }
 
     public Task<DialogueChoiceResult?> TryChooseAsync(
@@ -81,49 +104,52 @@ public sealed class DialogSessionService
         string choiceId,
         CancellationToken cancellationToken)
     {
-        if (sessionToken.Length != Phase8Wire.DialogueSessionTokenBytes)
-        {
-            return DialogueChoiceResult.Rejected("Token session invalide.");
-        }
-
         var tokenKey = Convert.ToHexString(sessionToken);
         if (!_sessions.TryGetValue(tokenKey, out var session))
         {
             return DialogueChoiceResult.Rejected("Session dialogue expirée ou inconnue.");
         }
 
-        if (session.CharacterId != characterId)
+        lock (session.Sync)
         {
-            return DialogueChoiceResult.Rejected("Session dialogue appartient à un autre personnage.");
+            if (session.Consumed)
+            {
+                return DialogueChoiceResult.Rejected("Session dialogue déjà consommée.");
+            }
+
+            if (session.CharacterId != characterId)
+            {
+                return DialogueChoiceResult.Rejected("Session dialogue appartient à un autre personnage.");
+            }
+
+            if (_clock.GetUtcNow() > session.ExpiresAtUtc)
+            {
+                _sessions.TryRemove(tokenKey, out _);
+                return DialogueChoiceResult.Rejected("Session dialogue expirée.");
+            }
+
+            var choice = session.BoundChoices.FirstOrDefault(c => c.ChoiceId == choiceId);
+            if (choice is null)
+            {
+                return DialogueChoiceResult.Rejected("Choix invalide.");
+            }
+
+            session.Consumed = true;
         }
 
-        if (_clock.GetUtcNow() > session.ExpiresAtUtc)
+        var currentRevision = await _dialogues.TryGetPublishedRevisionByIdAsync(session.DialogueId, cancellationToken)
+            .ConfigureAwait(false);
+        if (currentRevision != session.PublishedRevision)
         {
             _sessions.TryRemove(tokenKey, out _);
-            return DialogueChoiceResult.Rejected("Session dialogue expirée.");
+            return DialogueChoiceResult.Rejected("Dialogue republié — session expirée.");
         }
 
-        if (session.UsedChoiceIds.Contains(choiceId))
-        {
-            return DialogueChoiceResult.Rejected("Choix déjà utilisé.");
-        }
+        _sessions.TryRemove(tokenKey, out _);
 
-        var definition = await _dialogues.TryGetPublishedByIdAsync(session.DialogueId, cancellationToken)
-            .ConfigureAwait(false);
-        if (definition is null)
-        {
-            return DialogueChoiceResult.Rejected("Dialogue introuvable.");
-        }
-
-        var choice = definition.Choices.FirstOrDefault(c => c.ChoiceId == choiceId);
-        if (choice is null)
-        {
-            return DialogueChoiceResult.Rejected("Choix invalide.");
-        }
-
-        session.UsedChoiceIds.Add(choiceId);
+        var boundChoice = session.BoundChoices.First(c => c.ChoiceId == choiceId);
         string? questMessage = null;
-        if (choice.StartQuestId is Guid questId)
+        if (boundChoice.StartQuestId is Guid questId)
         {
             questMessage = await _quests.TryStartQuestAsync(characterId, questId, cancellationToken)
                 .ConfigureAwait(false);
@@ -136,7 +162,7 @@ public sealed class DialogSessionService
                 cancellationToken)
             .ConfigureAwait(false);
 
-        return DialogueChoiceResult.Ok(choice.Label, questMessage);
+        return DialogueChoiceResult.Ok(boundChoice.Label, questMessage);
     }
 
     public void CancelForCharacter(Guid characterId)
@@ -153,6 +179,7 @@ public sealed class DialogSessionService
 
 public sealed record DialogueSessionStart(
     byte[] SessionToken,
+    long PublishedRevision,
     string Speaker,
     string Text,
     IReadOnlyList<DialogueChoiceWire> Choices);
@@ -177,5 +204,13 @@ internal sealed class DialogueSession
 
     public required DateTimeOffset ExpiresAtUtc { get; init; }
 
-    public required HashSet<string> UsedChoiceIds { get; init; }
+    public required string BoundSpeaker { get; init; }
+
+    public required string BoundText { get; init; }
+
+    public required IReadOnlyList<DialogueChoiceDefinition> BoundChoices { get; init; }
+
+    public bool Consumed { get; set; }
+
+    public object Sync { get; } = new();
 }
