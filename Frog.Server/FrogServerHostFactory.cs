@@ -131,6 +131,9 @@ public static class FrogServerHostFactory
                 services
                     .AddOptions<WorldMapOptions>()
                     .Bind(ctx.Configuration.GetSection("Maps"));
+                services
+                    .AddOptions<Phase8SmokeBootstrapOptions>()
+                    .Bind(ctx.Configuration.GetSection(Phase8SmokeBootstrapOptions.SectionName));
 
                 var pg = ctx.Configuration.GetSection("PostgreSql").Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
                 if (string.IsNullOrWhiteSpace(pg.ConnectionString))

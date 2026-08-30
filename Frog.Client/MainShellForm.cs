@@ -1153,6 +1153,8 @@ public sealed class MainShellForm : Form
             AppendLog(ok ? "Craft: " + msg : "Craft refusé: " + msg);
             _craftPanel.SetStatus(msg);
         };
+        _client.AcquireProfessionResultReceived += (ok, msg) =>
+            AppendLog(ok ? "Métier: " + msg : "Métier refusé: " + msg);
         _client.EnvironmentStatePushReceived += OnEnvironmentStatePush;
         _client.ConnectionClosed += OnConnectionClosed;
         _btnCharRefresh.Click += async (_, _) => await RefreshCharacterListAsync();
@@ -1497,6 +1499,23 @@ public sealed class MainShellForm : Form
         {
             AppendLog("Craft: " + ex.Message);
             _craftPanel.SetStatus(ex.Message);
+        }
+    }
+
+    private async Task AcquireProfessionAsync(Guid professionId)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendAcquireProfessionAsync(professionId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Métier: " + ex.Message);
         }
     }
 
@@ -3126,4 +3145,6 @@ public sealed class MainShellForm : Form
     internal CraftPanel CraftPanelForTest => _craftPanel;
 
     internal EnvironmentPanel EnvironmentPanelForTest => _environmentPanel;
+
+    internal void AcquireProfessionForTest(Guid professionId) => _ = AcquireProfessionAsync(professionId);
 }

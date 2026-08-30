@@ -6,10 +6,10 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Windows.Forms;
 using Frog.Client;
-using Frog.Client.Controls;
-using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Server;
+using Frog.Server.Config;
+using Frog.Server.Gameplay;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,75 +18,47 @@ using Xunit;
 namespace Frog.Editor.WindowsSmokeTests;
 
 /// <summary>
-/// Phase 8 Windows smoke: structured panels (dialogue, quest journal, craft, environment) and reconnect.
+/// Phase 8 functional client smoke: real server packets and UI controls (no ApplyState injection).
 /// Screenshots → artifacts/phase-08-gameplay-client/.
 /// </summary>
 [Collection(UiSmokeCollectionDefinition.Name)]
 public sealed class Phase8GameplayClientSmokeTests
 {
     [Fact]
-    public void Phase8Client_PanelsAndReconnect_Screenshots()
+    public void Phase8Client_NetworkPanelsAndReconnect_Screenshots()
     {
         StaTestRunner.Run(() =>
         {
             using var harness = Phase8SmokeHarness.Create();
             var form = harness.Form;
+            var opts = new Phase8SmokeBootstrapOptions();
             harness.ConnectRegisterLogin();
             harness.CreateCharacter("P8Hero");
             harness.EnterPlayingPhase("P8Hero");
             form.SelectPhase8TabForTest();
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "01-phase8-tab.png");
 
-            var token = new byte[Phase8Wire.DialogueSessionTokenBytes];
-            form.DialoguePanelForTest.ApplyState(new DialogueStateWire
-            {
-                DialogueId = Guid.NewGuid(),
-                PublishedRevision = 1,
-                SessionToken = token,
-                Speaker = "Guide",
-                Text = "Bienvenue dans la quête.",
-                Choices =
-                [
-                    new DialogueChoiceWire { ChoiceId = "accept", Label = "Accepter" },
-                ],
-            });
-            Assert.Equal(1, form.DialoguePanelForTest.ChoiceButtonCountForTest);
+            Pump(form, () => form.DialoguePanelForTest.ChoiceButtonCountForTest > 0, "dialogue push from server");
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "02-dialogue-choices.png");
-
-            form.QuestJournalPanelForTest.ApplySnapshot(new[]
-            {
-                new QuestJournalEntryWire
-                {
-                    QuestId = Guid.NewGuid(),
-                    Name = "Quête fumée",
-                    Status = (byte)CharacterQuestStatus.Active,
-                    StageDescription = "Parler au guide",
-                    Objectives =
-                    [
-                        new QuestObjectiveProgressWire
-                        {
-                            Description = "Parler au guide",
-                            Current = 0,
-                            Required = 1,
-                        },
-                    ],
-                },
-            });
-            Assert.Equal(1, form.QuestJournalPanelForTest.EntryCountForTest);
+            form.DialoguePanelForTest.ClickFirstChoiceForTest();
+            Pump(form, () => form.LogContainsForTest("Journal quêtes:"), "quest journal after choice");
+            Assert.True(form.QuestJournalPanelForTest.EntryCountForTest > 0);
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "03-quest-journal.png");
 
-            form.EnvironmentPanelForTest.ApplyState(new EnvironmentStateWire
-            {
-                MapId = 1,
-                RegionId = Guid.NewGuid(),
-                WeatherProfileId = Guid.NewGuid(),
-                LightingLevel = 180,
-            });
-            Assert.Contains("Carte: 1", form.EnvironmentPanelForTest.MapLabelTextForTest);
+            Pump(form, () => form.EnvironmentPanelForTest.MapLabelTextForTest.Contains("Carte: 1"), "environment push");
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "04-environment.png");
 
-            form.CraftPanelForTest.RecipeIdTextBoxForTest.Text = Guid.NewGuid().ToString();
-            form.CraftPanelForTest.SetCraftEnabled(true);
+            form.ShopBuyButtonForTest.PerformClick();
+            Pump(form, () => form.LogContainsForTest("Achat reussi"), "shop buy for craft ingredient");
+            form.AcquireProfessionForTest(opts.ProfessionId);
+            Pump(form, () => form.LogContainsForTest("Métier"), "profession acquired");
+            form.CraftPanelForTest.RecipeIdTextBoxForTest.Text = opts.RecipeId.ToString();
+            Assert.True(form.CraftPanelForTest.CraftButtonForTest.Enabled);
+            form.CraftPanelForTest.ClickCraftForTest();
+            Pump(
+                form,
+                () => form.LogContainsForTest("Craft:") || form.CraftPanelForTest.StatusTextForTest.Contains("Craft"),
+                "craft result");
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "05-craft-panel.png");
 
             form.DisconnectForTest();
@@ -102,6 +74,7 @@ public sealed class Phase8GameplayClientSmokeTests
             form.CharactersComboForTest.SelectedItem = pick;
             form.EnterGameButtonForTest.PerformClick();
             Pump(form, () => form.IsPlayingPhaseForTest, "reconnect playing");
+            Pump(form, () => form.DialoguePanelForTest.ChoiceButtonCountForTest > 0, "dialogue after reconnect");
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "06-reconnect-usable.png");
         });
     }
@@ -154,10 +127,13 @@ public sealed class Phase8GameplayClientSmokeTests
                         ["Server:BindAddress"] = "127.0.0.1",
                         ["MariaDb:Enabled"] = "false",
                         ["PostgreSql:AllowInMemoryFallback"] = "true",
+                        ["Phase8Smoke:Enabled"] = "true",
                     });
                 })
                 .Build();
             host.Start();
+            var phase8 = host.Services.GetRequiredService<Phase8InMemoryPublishedContent>();
+            Phase8SmokeContentRegistrar.Register(phase8);
             var user = $"p8-{Guid.NewGuid():N}"[..18];
             const string password = "smoke-pass-8";
             var form = ClientSmokeTestAccess.CreateAndShowMainShell();

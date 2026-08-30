@@ -85,6 +85,7 @@ public sealed class FrogGameClient : IDisposable
     public event Action<IReadOnlyList<QuestJournalEntryWire>>? QuestJournalSnapshotReceived;
     public event Action<bool, string>? QuestTurnInResultReceived;
     public event Action<bool, string>? CraftResultReceived;
+    public event Action<bool, string>? AcquireProfessionResultReceived;
     public event Action<EnvironmentStateWire>? EnvironmentStatePushReceived;
     public event Action? ConnectionClosed;
 
@@ -654,6 +655,14 @@ public sealed class FrogGameClient : IDisposable
                 if (TryReadStatusMessage(body.Span, out var crOk, out var crMsg))
                 {
                     Post(() => CraftResultReceived?.Invoke(crOk, crMsg));
+                }
+
+                break;
+
+            case PacketId.AcquireProfessionResult:
+                if (TryReadStatusMessage(body.Span, out var apOk, out var apMsg))
+                {
+                    Post(() => AcquireProfessionResultReceived?.Invoke(apOk, apMsg));
                 }
 
                 break;
@@ -1243,6 +1252,20 @@ public sealed class FrogGameClient : IDisposable
         var body = Phase8Wire.BuildCraftRequest(recipeId, requestId);
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.CraftRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendAcquireProfessionAsync(Guid professionId, CancellationToken cancellationToken = default)
+    {
+        if (professionId == Guid.Empty)
+        {
+            throw new ArgumentException("ProfessionId requis.", nameof(professionId));
+        }
+
+        var body = Phase8Wire.BuildAcquireProfessionRequest(professionId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.AcquireProfessionRequest;
         body.CopyTo(payload.AsSpan(1));
         return SendRawAsync(payload, cancellationToken);
     }

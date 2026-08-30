@@ -121,6 +121,11 @@ public sealed class MapEventPageDefinition
             {
                 return false;
             }
+
+            if (!MapEventCommandParameterValidator.ValidateParameters(cmd, out error))
+            {
+                return false;
+            }
         }
 
         error = null;

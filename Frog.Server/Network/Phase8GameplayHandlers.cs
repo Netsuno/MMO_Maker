@@ -4,9 +4,11 @@ using Frog.Core.Enums;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Server.Config;
 using Frog.Server.Database;
 using Frog.Server.Gameplay;
 using Frog.Server.Models;
+using Microsoft.Extensions.Options;
 
 namespace Frog.Server.Network;
 
@@ -21,8 +23,10 @@ public sealed class Phase8GameplayHandlers(
     MapEventExecutionTracker executionTracker,
     MapEventMovementService eventMovement,
     IMapEventStore mapEventStore,
-    PacketSender packetSender)
+    PacketSender packetSender,
+    IOptions<Phase8SmokeBootstrapOptions> smokeOptions)
 {
+    private readonly Phase8SmokeBootstrapOptions _smoke = smokeOptions.Value;
     public void CancelForCharacter(Guid characterId)
     {
         dialogSessions.CancelForCharacter(characterId);
@@ -122,6 +126,33 @@ public sealed class Phase8GameplayHandlers(
 
         var entries = await quests.BuildJournalAsync(characterId, cancellationToken).ConfigureAwait(false);
         await packetSender.SendQuestJournalSnapshotAsync(client, entries, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task TryPushSmokeBootstrapAsync(
+        ClientSession client,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        if (!_smoke.Enabled || session.CharacterGuid is not Guid characterId)
+        {
+            return;
+        }
+
+        var started = await dialogSessions.TryStartSessionAsync(characterId, _smoke.DialogueId, cancellationToken)
+            .ConfigureAwait(false);
+        if (started is not null)
+        {
+            await packetSender.SendDialogueStatePushAsync(
+                    client,
+                    _smoke.DialogueId,
+                    started.PublishedRevision,
+                    started.SessionToken,
+                    started.Speaker,
+                    started.Text,
+                    started.Choices,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     public async Task SendEnvironmentStateAsync(

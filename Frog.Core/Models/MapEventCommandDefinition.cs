@@ -27,6 +27,12 @@ public sealed class MapEventCommandDefinition
             return false;
         }
 
+        if (System.Text.Encoding.UTF8.GetByteCount(ParameterJson) > MapEventRuntimeLimits.MaxCommandParameterBytes)
+        {
+            error = "Paramètres de commande trop volumineux (octets UTF-8).";
+            return false;
+        }
+
         if (!MapEventCommandDiscriminators.IsKnown(Discriminator))
         {
             error = $"Commande inconnue: {Discriminator}.";

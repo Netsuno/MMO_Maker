@@ -43,6 +43,7 @@ public sealed partial class PacketDispatcher
         Session session,
         CancellationToken cancellationToken)
     {
+        await _phase8.TryPushSmokeBootstrapAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         await _phase8.SendEnvironmentStateAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         await _phase8.TryFireAutorunMapEventsAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
