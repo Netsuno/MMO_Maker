@@ -19,6 +19,10 @@
 
 Client screenshots `01`/`02` and `03`/`04` historically shared SHA-256 digests (identical pixel buffers from earlier CI tip `7137c17`). Manifest retained for gate archaeology; regenerate unique captures on a green tip when visual evidence is re-audited. Functional gate evidence is the PostgreSQL E2E + Windows smoke ×3, not screenshot uniqueness alone.
 
+## Smoke coverage note
+
+`MainForm_NonCooperativeInit` UI smoke was removed: blocking workspace init across `WaitAsync` + shared STA `PumpUntil` deadlocked the editor smoke host (CI hang 2m / blame-hang abort). P8-I1 remains covered by cooperative init-cancel theory tests, `MainForm_RealClose_WhileSavePending_*`, and `MainForm_NonCooperativeSave_*`.
+
 ## Phase 9
 
 Not started.
