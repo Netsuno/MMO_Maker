@@ -460,9 +460,104 @@ public sealed class Phase8EditorSmokeTests
         });
     }
 
+    [Theory]
+    [InlineData(Phase8ContentKind.Dialogue)]
+    [InlineData(Phase8ContentKind.Quest)]
+    [InlineData(Phase8ContentKind.CommonEvent)]
+    [InlineData(Phase8ContentKind.Profession)]
+    [InlineData(Phase8ContentKind.Recipe)]
+    [InlineData(Phase8ContentKind.Region)]
+    [InlineData(Phase8ContentKind.WeatherProfile)]
+    public void Phase8Editor_AllContentKinds_FullMatrix(Phase8ContentKind kind)
+    {
+        RunLocked(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+            EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();
+
+            Phase8ContentBrowseDialog? dialog = null;
+            try
+            {
+                dialog = new Phase8ContentBrowseDialog(EditorTestHooks.OverridePhase8ContentService);
+                dialog.Show();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "init idle");
+                SelectKind(dialog, kind);
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "kind switched");
+
+                dialog.BtnNewForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "create");
+                dialog.NameForTest.Text = $"Matrix {kind}";
+                Assert.True(dialog.ActiveEditorForTest!.TryBuildPayload(out _, out var buildErr), buildErr);
+
+                dialog.BtnSaveForTest.PerformClick();
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle && !dialog.IsDirtyForTest && dialog.CurrentRevisionForTest > 0,
+                    "draft save");
+                Assert.Equal(ContentPublishStatus.Draft, dialog.CurrentStatusForTest);
+                var savedId = dialog.CurrentIdForTest;
+
+                dialog.BtnPublishForTest.PerformClick();
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentStatusForTest == ContentPublishStatus.Published,
+                    "publish");
+                Assert.Equal(ContentPublishStatus.Published, dialog.CurrentStatusForTest);
+
+                dialog.BtnDuplicateForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "duplicate");
+                dialog.NameForTest.Text = $"Matrix {kind} Copy";
+                dialog.BtnSaveForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle && !dialog.IsDirtyForTest, "duplicate save");
+
+                dialog.NameForTest.Text = string.Empty;
+                Assert.True(dialog.IsDirtyForTest);
+                dialog.BtnPublishForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "invalid publish attempt");
+                Assert.True(dialog.IsDirtyForTest || dialog.CurrentStatusForTest != ContentPublishStatus.Published);
+
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                dialog.BtnNewForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "dirty discard");
+
+                dialog.BtnReloadForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "reload");
+                SelectListItemById(dialog, savedId);
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == savedId,
+                    "reopen saved");
+
+                dialog.BtnDeleteForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "delete published copy");
+            }
+            finally
+            {
+                if (dialog is { IsDisposed: false })
+                {
+                    EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                    dialog.Close();
+                    PumpUntil(() => dialog.IsDisposed, "dispose");
+                }
+
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
     private static void SelectKind(Phase8ContentBrowseDialog dialog, Phase8ContentKind kind)
     {
         dialog.KindComboForTest.SelectedIndex = (int)kind - 1;
+    }
+
+    private static void SelectListItemById(Phase8ContentBrowseDialog dialog, Guid id)
+    {
+        foreach (ListViewItem item in dialog.ItemsForTest.Items)
+        {
+            if (Guid.TryParse(item.Text, out var g) && g == id)
+            {
+                item.Selected = true;
+                return;
+            }
+        }
     }
 
     private static void PumpUntil(Func<bool> predicate, string step)
