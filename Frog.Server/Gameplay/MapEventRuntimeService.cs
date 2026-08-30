@@ -12,6 +12,7 @@ namespace Frog.Server.Gameplay;
 public sealed class MapEventRuntimeService
 {
     private readonly IPublishedMapEventCatalog _catalog;
+    private readonly IPublishedCommonEventCatalog _commonEvents;
     private readonly CharacterMutationCoordinator _mutations;
     private readonly MapEventCommandExecutor _commands;
     private readonly MapEventExecutionTracker _executionTracker;
@@ -20,6 +21,7 @@ public sealed class MapEventRuntimeService
 
     public MapEventRuntimeService(
         IPublishedMapEventCatalog catalog,
+        IPublishedCommonEventCatalog commonEvents,
         CharacterMutationCoordinator mutations,
         MapEventCommandExecutor commands,
         MapEventExecutionTracker executionTracker,
@@ -27,6 +29,7 @@ public sealed class MapEventRuntimeService
         IMapEventMutationRepository? mutationRepository = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _commonEvents = commonEvents ?? throw new ArgumentNullException(nameof(commonEvents));
         _mutations = mutations ?? throw new ArgumentNullException(nameof(mutations));
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
         _executionTracker = executionTracker ?? throw new ArgumentNullException(nameof(executionTracker));
@@ -161,15 +164,36 @@ public sealed class MapEventRuntimeService
             return MapEventExecutionResult.Fail("Aucune page active pour cet événement.");
         }
 
-        if (_mutationRepository is not null && CanExecuteTransactionally(page.Commands))
+        if (_mutationRepository is not null && MapEventExecutionPlanner.CanExecuteTransactionally(page.Commands))
         {
             var requestId = session.GetOrCreateMapEventRequestId(placement.PlacementId);
+            var (flattened, flattenErr) = await _commands.FlattenBranchesAsync(
+                    session,
+                    characterId,
+                    page.Commands,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (flattenErr is not null)
+            {
+                return MapEventExecutionResult.Fail(flattenErr);
+            }
+
+            var plannedCommands = await MapEventExecutionPlanner.ResolveCommandsAsync(
+                    _commonEvents,
+                    flattened,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (plannedCommands.Error is not null)
+            {
+                return MapEventExecutionResult.Fail(plannedCommands.Error);
+            }
+
             var mutation = await _mutationRepository.TryExecutePageAsync(
                     characterId,
                     requestId,
                     placement.PlacementId,
                     placement.CatalogId,
-                    page.Commands,
+                    plannedCommands.Commands,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -178,7 +202,7 @@ public sealed class MapEventRuntimeService
                 return MapEventExecutionResult.Fail(mutation.ErrorMessage ?? "Exécution événement échouée.");
             }
 
-            session.ClearMapEventRequestId(placement.PlacementId);
+            // Keep requestId after success so public-path replay resolves to committed ledger row.
             var snap = mutation.Snapshot;
             if (snap?.ResultGold is int gold)
             {
@@ -228,26 +252,6 @@ public sealed class MapEventRuntimeService
             state.DialogueSummary,
             state.QuestSummary,
             state.DialogueState);
-    }
-
-    private static bool CanExecuteTransactionally(IReadOnlyList<MapEventCommandDefinition> commands)
-    {
-        foreach (var cmd in commands)
-        {
-            if (cmd.Discriminator is MapEventCommandDiscriminators.StartDialogue
-                or MapEventCommandDiscriminators.StartQuest
-                or MapEventCommandDiscriminators.AdvanceQuest
-                or MapEventCommandDiscriminators.TurnInQuest
-                or MapEventCommandDiscriminators.Teleport
-                or MapEventCommandDiscriminators.Branch
-                or MapEventCommandDiscriminators.CallCommonEvent
-                or MapEventCommandDiscriminators.LearnProfession)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)

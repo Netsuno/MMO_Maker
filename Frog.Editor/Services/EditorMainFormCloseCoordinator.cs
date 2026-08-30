@@ -162,16 +162,23 @@ internal sealed class EditorMainFormCloseCoordinator
 
     public async Task<bool> RunCloseCleanupAsync(TimeSpan timeout)
     {
+        var deadline = DateTime.UtcNow + timeout;
+
+        static TimeSpan Remaining(DateTime deadlineUtc)
+        {
+            var remaining = deadlineUtc - DateTime.UtcNow;
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+
         CancelWorkspaceInitialization();
         CancelPendingOperations();
 
         var initTask = _getWorkspaceInitTask();
-        if (initTask is not null)
+        if (initTask is not null && !initTask.IsCompleted)
         {
             try
             {
-                // ConfigureAwait(false): do not block the STA pump while waiting on a non-coop init.
-                await initTask.WaitAsync(timeout).ConfigureAwait(false);
+                await initTask.WaitAsync(Remaining(deadline)).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -183,19 +190,29 @@ internal sealed class EditorMainFormCloseCoordinator
             }
         }
 
+        if (Remaining(deadline) <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
         try
         {
-            await _stopPlaytestAsync().ConfigureAwait(false);
+            // StopPlaytestAsync touches WinForms controls — stay on the UI sync context.
+            await _stopPlaytestAsync().ConfigureAwait(true);
         }
         catch
         {
             // best-effort
         }
 
-        var deadline = DateTime.UtcNow + timeout;
-        while (_hasPendingOperations() && DateTime.UtcNow < deadline)
+        while (_hasPendingOperations() && Remaining(deadline) > TimeSpan.Zero)
         {
-            await Task.Delay(50).ConfigureAwait(false);
+            var slice = Remaining(deadline);
+            var delayMs = (int)Math.Min(50, slice.TotalMilliseconds);
+            if (delayMs > 0)
+            {
+                await Task.Delay(delayMs).ConfigureAwait(false);
+            }
         }
 
         if (_hasPendingOperations())
@@ -210,7 +227,7 @@ internal sealed class EditorMainFormCloseCoordinator
                 continue;
             }
 
-            var remaining = deadline - DateTime.UtcNow;
+            var remaining = Remaining(deadline);
             if (remaining <= TimeSpan.Zero)
             {
                 return false;

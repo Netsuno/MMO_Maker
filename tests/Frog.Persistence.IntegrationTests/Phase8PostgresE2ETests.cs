@@ -77,19 +77,8 @@ public sealed class Phase8PostgresE2ETests
             Assert.Null(Phase8WireDecoders.FindQuestEntry(initialJournal, seed.DraftQuestId));
             Assert.Null(Phase8WireDecoders.FindQuestEntry(initialJournal, seed.QuestId));
 
-            // Step 19: region boundary — weather/lighting at spawn (re-select refreshes environment)
-            var envFrame = await client.ReadUntilAsync(PacketId.EnvironmentStatePush);
-            Assert.True(Phase8WireDecoders.TryDecodeEnvironmentState(
-                envFrame, out var envMapId, out var envRegionId, out var envWeatherId, out var lighting));
-            Assert.Equal(seed.RuntimeMapId, envMapId);
-            Assert.Equal(seed.RegionId, envRegionId);
-            Assert.Equal(seed.WeatherProfileId, envWeatherId);
-            Assert.Equal(seed.ExpectedLightingLevel, lighting);
-
-            // Step 19 continued: cross region boundary via public movement + re-select
+            // Step 19: region boundary — EnvironmentStatePush after movement (no re-select)
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.Region2TileX, seed.Region2TileY);
-            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
-            _ = await client.ReadUntilAsync(PacketId.CharacterSelectResult);
             var envRegion2 = await client.ReadUntilAsync(PacketId.EnvironmentStatePush);
             Assert.True(Phase8WireDecoders.TryDecodeEnvironmentState(
                 envRegion2, out var env2MapId, out var env2RegionId, out var env2WeatherId, out var lighting2));
@@ -100,16 +89,33 @@ public sealed class Phase8PostgresE2ETests
 
             // Common-event execution via call_common_event on published map event
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.CommonEventTileX, seed.CommonEventTileY);
+            using (var gate = CreateGate())
+            {
+                var world = new PostgresCharacterWorldStateRepository(gate);
+                Assert.False(await world.GetSwitchAsync(characterGuid, Phase8PostgresContentSeed.CommonEventSwitchId) ?? false);
+            }
+
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var commonEventResult = await client.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(commonEventResult, out var commonOk, out var commonMsg));
             Assert.True(commonOk);
             Assert.Contains("Common event fired", commonMsg);
+            using (var gate = CreateGate())
+            {
+                var world = new PostgresCharacterWorldStateRepository(gate);
+                Assert.True(await world.GetSwitchAsync(characterGuid, Phase8PostgresContentSeed.CommonEventSwitchId));
+            }
 
             // Step 18: autorun already consumed during first bootstrap; re-select must not repeat
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
 
             // Step 7 + 11 (page 0): action trigger on gate while switch false
+            using (var gate = CreateGate())
+            {
+                var world = new PostgresCharacterWorldStateRepository(gate);
+                Assert.False(await world.GetSwitchAsync(characterGuid, seed.GateSwitchId) ?? false);
+            }
+
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.GateEventTileX, seed.GateEventTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var locked = await client.ReadUntilAsync(PacketId.InteractResult);
@@ -122,6 +128,11 @@ public sealed class Phase8PostgresE2ETests
             var keyResult = await client.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(keyResult, out var keyOk, out _));
             Assert.True(keyOk);
+            using (var gate = CreateGate())
+            {
+                var world = new PostgresCharacterWorldStateRepository(gate);
+                Assert.True(await world.GetSwitchAsync(characterGuid, seed.GateSwitchId));
+            }
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.GateEventTileX, seed.GateEventTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
@@ -194,24 +205,16 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(3, collectQuest!.StageIndex);
             AssertObjectiveCounter(characterGuid, seed.QuestId, 2, 0, 1);
 
-            // Collect replay: second matching pickup must not double-count
-            Guid secondCollectGroundId;
-            using (var gate = CreateGate())
-            {
-                secondCollectGroundId = await Phase8PostgresContentSeed.SeedGroundCollectItemAsync(
-                    gate,
-                    seed.Phase7.WeaponId,
-                    seed.RuntimeMapId,
-                    seed.VisitObjectiveTileX,
-                    seed.VisitObjectiveTileY).ConfigureAwait(false);
-            }
-
-            await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.VisitObjectiveTileX, seed.VisitObjectiveTileY);
-            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(secondCollectGroundId));
+            // Collect replay: second matching pickup (pre-seeded) must not double-count
+            await Phase8MovementTestHelpers.TeleportToTileAsync(
+                client, seed.CollectObjectiveTileX + 1, seed.CollectObjectiveTileY);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(seed.SecondCollectGroundItemId));
             var pickupReplay = await client.ReadUntilAsync(PacketId.PickupItemResult);
             Assert.NotEqual(0, pickupReplay[1]);
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
             AssertObjectiveCounter(characterGuid, seed.QuestId, 2, 0, 1);
+            await Assert.ThrowsAnyAsync<TimeoutException>(async () =>
+                await client.ReadUntilAsync(PacketId.QuestJournalSnapshot, TimeSpan.FromMilliseconds(400)));
 
             // Mid-progress reconnect: Talk/Visit/Collect counters must persist
             await client.DisconnectAsync();
@@ -250,20 +253,15 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(4, killQuest!.StageIndex);
             Assert.Contains("Craft", killQuest.StageDescription, StringComparison.OrdinalIgnoreCase);
 
-            // Kill replay: objective already complete — melee must not re-increment counter
-            // (do not teleport onto Gate tile (1,0); that collides with spawn+1 / other players)
-            await midClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildMelee("Slime"));
-            try
-            {
-                _ = await midClient.ReadUntilAsync(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(2));
-            }
-            catch (TimeoutException)
-            {
-                // no living slime in range — still assert counter
-            }
-
-            await midClient.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
+            // Kill replay: second slime kill must not re-increment completed Kill counter
+            await Phase8MovementTestHelpers.TeleportToTileAsync(
+                midClient, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
+            await AssertSlimeKilledForQuestAsync(midClient, seed.Phase7.SpellId);
             AssertObjectiveCounter(characterGuid, seed.QuestId, 3, 0, 1);
+            var killReplayJournal = await ReselectAndReadQuestJournalAsync(midClient, characterId);
+            var killReplayQuest = Phase8WireDecoders.FindQuestEntry(killReplayJournal, seed.QuestId);
+            Assert.NotNull(killReplayQuest);
+            Assert.Equal(4, killReplayQuest!.StageIndex);
 
             // Step 12 continued: objectives via gameplay — step-on gives ingredients
             var invAfterContact = await Phase8MovementTestHelpers.TeleportOntoContactAndReadInventoryAsync(

@@ -177,6 +177,16 @@ public sealed class Phase8GameplayHandlers(
         }
     }
 
+    public async Task<WeatherSnapshot> GetWeatherSnapshotForSessionAsync(
+        Session session,
+        CancellationToken cancellationToken = default) =>
+        await weather.GetWeatherForSessionAsync(
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY,
+                cancellationToken)
+            .ConfigureAwait(false);
+
     public async Task SendEnvironmentStateAsync(
         ClientSession client,
         Session session,
@@ -196,6 +206,7 @@ public sealed class Phase8GameplayHandlers(
                 (byte)Math.Clamp((int)(snapshot.LightingFactor * 255), 0, 255),
                 cancellationToken)
             .ConfigureAwait(false);
+        session.LastEnvironmentRegionId = snapshot.RegionId;
 
         if (session.CharacterGuid is Guid characterId)
         {

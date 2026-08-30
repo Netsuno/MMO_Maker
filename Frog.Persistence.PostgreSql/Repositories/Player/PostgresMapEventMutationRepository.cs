@@ -125,6 +125,8 @@ public sealed class PostgresMapEventMutationRepository(
                         .ConfigureAwait(false);
                 }
 
+                snapshot.ResultGold = character.Gold;
+
                 db.PlayerMapEventExecutionRequests.Add(new MapEventExecutionRequestEntity
                 {
                     CharacterId = characterId,
@@ -498,6 +500,7 @@ public sealed class PostgresMapEventMutationRepository(
             VariablesChanged = snapshot.VariablesChanged,
             InventoryChanged = snapshot.InventoryChanged,
             GoldChanged = snapshot.GoldChanged,
+            ResultGold = snapshot.ResultGold,
             Waiting = waiting,
             WaitUntilUtc = snapshot.WaitUntilUtc,
             PendingCommands = pending.Count > 0 ? pending.ToList() : null,
@@ -520,6 +523,7 @@ public sealed class PostgresMapEventMutationRepository(
                 VariablesChanged = stored.VariablesChanged,
                 InventoryChanged = stored.InventoryChanged,
                 GoldChanged = stored.GoldChanged,
+                ResultGold = stored.ResultGold,
                 Waiting = stored.Waiting,
                 WaitUntilUtc = stored.WaitUntilUtc,
                 PendingCommands = stored.PendingCommands,
@@ -542,6 +546,8 @@ public sealed class PostgresMapEventMutationRepository(
         public bool InventoryChanged { get; set; }
 
         public bool GoldChanged { get; set; }
+
+        public int? ResultGold { get; set; }
 
         public bool Waiting { get; set; }
 

@@ -76,6 +76,9 @@ public sealed class Session
     /// <summary>RequestId stable par placement pour idempotence exécution événement (P8-I4).</summary>
     public Dictionary<long, Guid> MapEventPendingRequestIds { get; } = new();
 
+    /// <summary>Dernière région environnement poussée au client (P8-I5 boundary).</summary>
+    public Guid? LastEnvironmentRegionId { get; set; }
+
     public Guid GetOrCreateMapEventRequestId(long placementId)
     {
         if (!MapEventPendingRequestIds.TryGetValue(placementId, out var id) || id == Guid.Empty)

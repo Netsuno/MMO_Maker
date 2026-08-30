@@ -78,7 +78,8 @@ public sealed record Phase8PostgresContentSeedResult(
     int VisitObjectiveTileY,
     int CollectObjectiveTileX,
     int CollectObjectiveTileY,
-    Guid CollectGroundItemId);
+    Guid CollectGroundItemId,
+    Guid SecondCollectGroundItemId);
 
 /// <summary>Publie le contenu Phase 8 minimal (Guids déterministes) dans PostgreSQL.</summary>
 public static class Phase8PostgresContentSeed
@@ -113,6 +114,7 @@ public static class Phase8PostgresContentSeed
     public const int LearnProfessionMapEventAliasId = 8108;
     public const int OnceRewardMapEventAliasId = 8109;
     public const string GateSwitchId = "phase8_gate";
+    public const string CommonEventSwitchId = "phase8_common_fired";
     public const string WaitSwitchId = "phase8_wait_done";
     public const string OnceRewardOnceKey = "phase8-once-chest";
     public const int QuestRewardGold = 50;
@@ -140,7 +142,7 @@ public static class Phase8PostgresContentSeed
 
     public static async Task<Phase8PostgresContentSeedResult> PublishAsync(FrogDbContextGate gate)
     {
-        var phase7 = await Phase7PostgresContentSeed.PublishAsync(gate, monsterSpawnCount: 1).ConfigureAwait(false);
+        var phase7 = await Phase7PostgresContentSeed.PublishAsync(gate, monsterSpawnCount: 2).ConfigureAwait(false);
 
         var phase8Repo = new PostgresPhase8PublishedCatalogs(gate);
         var dialogueRevision = await EnsurePublishedDialogueAsync(phase8Repo, DefaultQuestId).ConfigureAwait(false);
@@ -184,6 +186,13 @@ public static class Phase8PostgresContentSeed
             phase7.WeaponId,
             phase7.RuntimeMapId,
             CollectObjectiveTileX,
+            CollectObjectiveTileY).ConfigureAwait(false);
+
+        var secondCollectGroundItemId = await SeedGroundCollectItemAsync(
+            gate,
+            phase7.WeaponId,
+            phase7.RuntimeMapId,
+            CollectObjectiveTileX + 1,
             CollectObjectiveTileY).ConfigureAwait(false);
 
         var lighting = (byte)Math.Clamp((int)(CreateDefaultWeather().LightingFactor * 255), 0, 255);
@@ -254,7 +263,8 @@ public static class Phase8PostgresContentSeed
             VisitObjectiveTileY,
             CollectObjectiveTileX,
             CollectObjectiveTileY,
-            collectGroundItemId);
+            collectGroundItemId,
+            secondCollectGroundItemId);
     }
 
     public static DialogueDefinition CreateDefaultDialogue(Guid questId) => new()
@@ -817,6 +827,11 @@ public static class Phase8PostgresContentSeed
                     TriggerKind = Phase8MapEventTriggerKinds.Action,
                     Commands =
                     [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = $$"""{"switchId":"{{CommonEventSwitchId}}","value":true}""",
+                        },
                         new MapEventCommandDefinition
                         {
                             Discriminator = MapEventCommandDiscriminators.ShowText,

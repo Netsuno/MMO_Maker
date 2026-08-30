@@ -277,6 +277,7 @@ public sealed class MapEventRuntimeServiceTests
             NullLogger<MapEventCommandExecutor>.Instance);
         var service = new MapEventRuntimeService(
             catalog,
+            phase8,
             new CharacterMutationCoordinator(),
             executor,
             new MapEventExecutionTracker(),
@@ -377,6 +378,7 @@ public sealed class MapEventRuntimeServiceTests
             NullLogger<MapEventCommandExecutor>.Instance);
         return new MapEventRuntimeService(
             catalog,
+            phase8,
             new CharacterMutationCoordinator(),
             executor,
             tracker ?? new MapEventExecutionTracker(),

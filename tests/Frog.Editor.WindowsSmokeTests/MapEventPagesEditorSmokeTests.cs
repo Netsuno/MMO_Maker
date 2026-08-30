@@ -62,7 +62,7 @@ public sealed class MapEventPagesEditorSmokeTests
             Assert.Equal(3, (int)panel.PriorityForTest.Value);
             Assert.Equal(MapEventMovementKinds.Route, panel.MovementForTest.SelectedItem);
             Assert.Equal(2, panel.WaypointsForTest.Rows.Count);
-            Assert.Equal(1, panel.ConditionsForTest.Rows.Count);
+            Assert.Equal(1, panel.ConditionsForTest.Items.Count);
             Assert.Equal(2, panel.CommandsForTest.Items.Count);
 
             panel.PriorityForTest.Value = 5;

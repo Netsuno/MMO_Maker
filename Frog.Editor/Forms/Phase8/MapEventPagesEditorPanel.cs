@@ -14,14 +14,17 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     private readonly NumericUpDown _appearanceGraphic = new() { Width = 60, Minimum = 0, Maximum = 255 };
     private readonly NumericUpDown _appearanceDirection = new() { Width = 60, Minimum = 0, Maximum = 7 };
     private readonly CheckBox _blocksCollision = new() { Text = "Bloque collision", Checked = true, AutoSize = true };
-    private readonly DataGridView _conditions = CreateConditionGrid();
+    private readonly ListBox _conditions = new() { Width = 160, Height = 80 };
+    private readonly MapEventConditionParameterPanel _conditionParams = new() { AutoSize = true };
     private readonly ListBox _commands = new() { Width = 160, Height = 100 };
     private readonly MapEventCommandParameterPanel _commandParams = new() { AutoSize = true };
     private readonly Label _validationLabel = new() { AutoSize = true, ForeColor = Color.Firebrick, MaximumSize = new Size(640, 0) };
 
     private readonly List<MapEventPageDefinition> _pageModels = new();
+    private readonly List<MapEventConditionDefinition> _conditionModels = new();
     private readonly List<MapEventCommandDefinition> _commandModels = new();
     private int _selectedPageIndex = -1;
+    private int _selectedConditionIndex = -1;
     private int _selectedCommandIndex = -1;
     private bool _binding;
 
@@ -49,14 +52,6 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         {
             _movement.SelectedIndex = 0;
         }
-
-        _conditions.Columns.Add(new DataGridViewComboBoxColumn
-        {
-            HeaderText = "Kind",
-            Width = 180,
-            DataSource = MapEventConditionKinds.All.OrderBy(k => k, StringComparer.Ordinal).ToList(),
-        });
-        _conditions.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "ParameterJson", Width = 360 });
 
         var root = new TableLayoutPanel
         {
@@ -115,25 +110,17 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         appearance.Controls.Add(_blocksCollision);
         Row("Apparence / collision", appearance);
 
-        var condButtons = new FlowLayoutPanel { AutoSize = true };
+        var condButtons = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        var condListRow = new FlowLayoutPanel { AutoSize = true };
         var btnAddCond = new Button { Text = "+ condition", AutoSize = true };
         var btnRemoveCond = new Button { Text = "- condition", AutoSize = true };
-        btnAddCond.Click += (_, _) =>
-        {
-            _conditions.Rows.Add(MapEventConditionKinds.CharacterSwitch, "{\"switchId\":\"x\",\"value\":true}");
-            OnPageFieldChanged();
-        };
-        btnRemoveCond.Click += (_, _) =>
-        {
-            if (_conditions.CurrentRow is { IsNewRow: false } row)
-            {
-                _conditions.Rows.Remove(row);
-                OnPageFieldChanged();
-            }
-        };
-        condButtons.Controls.Add(_conditions);
-        condButtons.Controls.Add(btnAddCond);
-        condButtons.Controls.Add(btnRemoveCond);
+        btnAddCond.Click += (_, _) => AddCondition();
+        btnRemoveCond.Click += (_, _) => RemoveCondition();
+        condListRow.Controls.Add(_conditions);
+        condListRow.Controls.Add(btnAddCond);
+        condListRow.Controls.Add(btnRemoveCond);
+        condButtons.Controls.Add(condListRow);
+        condButtons.Controls.Add(_conditionParams);
         Row("Conditions", condButtons);
 
         var cmdButtons = new FlowLayoutPanel { AutoSize = true };
@@ -157,22 +144,16 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         _appearanceDirection.ValueChanged += (_, _) => OnPageFieldChanged();
         _blocksCollision.CheckedChanged += (_, _) => OnPageFieldChanged();
         _pages.SelectedIndexChanged += (_, _) => SelectPage(_pages.SelectedIndex);
+        _conditions.SelectedIndexChanged += (_, _) => SelectCondition(_conditions.SelectedIndex);
         _commands.SelectedIndexChanged += (_, _) => SelectCommand(_commands.SelectedIndex);
         _commandParams.ParametersChanged += () => OnCommandFieldChanged();
+        _conditionParams.ParametersChanged += () => OnConditionFieldChanged();
         _waypoints.CellValueChanged += (_, _) => OnPageFieldChanged();
-        _conditions.CellValueChanged += (_, _) => OnPageFieldChanged();
         _waypoints.CurrentCellDirtyStateChanged += (_, _) =>
         {
             if (_waypoints.IsCurrentCellDirty)
             {
                 _waypoints.CommitEdit(DataGridViewDataErrorContexts.Commit);
-            }
-        };
-        _conditions.CurrentCellDirtyStateChanged += (_, _) =>
-        {
-            if (_conditions.IsCurrentCellDirty)
-            {
-                _conditions.CommitEdit(DataGridViewDataErrorContexts.Commit);
             }
         };
     }
@@ -189,7 +170,9 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     internal DataGridView WaypointsForTest => _waypoints;
 
-    internal DataGridView ConditionsForTest => _conditions;
+    internal ListBox ConditionsForTest => _conditions;
+
+    internal MapEventConditionParameterPanel ConditionParamsForTest => _conditionParams;
 
     internal ListBox CommandsForTest => _commands;
 
@@ -315,10 +298,25 @@ internal sealed class MapEventPagesEditorPanel : UserControl
                 _waypoints.Rows.Add(wp.TileX, wp.TileY, wp.WaitMs);
             }
 
-            _conditions.Rows.Clear();
+            _conditionModels.Clear();
             foreach (var cond in page.Conditions)
             {
-                _conditions.Rows.Add(cond.Kind, cond.ParameterJson);
+                _conditionModels.Add(new MapEventConditionDefinition
+                {
+                    Kind = cond.Kind,
+                    ParameterJson = cond.ParameterJson,
+                });
+            }
+
+            RefreshConditionList();
+            if (_conditionModels.Count > 0)
+            {
+                _conditions.SelectedIndex = 0;
+                SelectCondition(0);
+            }
+            else
+            {
+                _selectedConditionIndex = -1;
             }
 
             _commandModels.Clear();
@@ -365,6 +363,102 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         }
     }
 
+    private void SelectCondition(int index)
+    {
+        FlushCurrentCondition();
+        _selectedConditionIndex = index;
+        if (index < 0 || index >= _conditionModels.Count)
+        {
+            return;
+        }
+
+        _binding = true;
+        try
+        {
+            _conditionParams.LoadCondition(_conditionModels[index]);
+        }
+        finally
+        {
+            _binding = false;
+        }
+    }
+
+    private void AddCondition()
+    {
+        FlushCurrentCondition();
+        _conditionModels.Add(new MapEventConditionDefinition
+        {
+            Kind = MapEventConditionKinds.CharacterSwitch,
+            ParameterJson = """{"switchId":"gate_open","value":true}""",
+        });
+        RefreshConditionList();
+        _conditions.SelectedIndex = _conditionModels.Count - 1;
+        OnPageFieldChanged();
+    }
+
+    private void RemoveCondition()
+    {
+        if (_selectedConditionIndex < 0 || _selectedConditionIndex >= _conditionModels.Count)
+        {
+            return;
+        }
+
+        _conditionModels.RemoveAt(_selectedConditionIndex);
+        RefreshConditionList();
+        _selectedConditionIndex = Math.Min(_selectedConditionIndex, _conditionModels.Count - 1);
+        if (_selectedConditionIndex >= 0)
+        {
+            _conditions.SelectedIndex = _selectedConditionIndex;
+            SelectCondition(_selectedConditionIndex);
+        }
+
+        OnPageFieldChanged();
+    }
+
+    private void OnConditionFieldChanged()
+    {
+        FlushCurrentCondition();
+        NotifyChanged();
+    }
+
+    private void FlushCurrentCondition()
+    {
+        if (_binding || _selectedConditionIndex < 0 || _selectedConditionIndex >= _conditionModels.Count)
+        {
+            return;
+        }
+
+        if (!_conditionParams.TryBuildCondition(out var cond, out var err))
+        {
+            _validationLabel.Text = err ?? "Condition invalide.";
+            return;
+        }
+
+        _conditionModels[_selectedConditionIndex] = cond;
+        _binding = true;
+        try
+        {
+            RefreshConditionList();
+            if (_conditions.SelectedIndex != _selectedConditionIndex)
+            {
+                _conditions.SelectedIndex = _selectedConditionIndex;
+            }
+        }
+        finally
+        {
+            _binding = false;
+        }
+    }
+
+    private void RefreshConditionList()
+    {
+        _conditions.Items.Clear();
+        for (var i = 0; i < _conditionModels.Count; i++)
+        {
+            _conditions.Items.Add($"{i + 1}. {_conditionModels[i].Kind}");
+        }
+    }
+
     private void AddCommand()
     {
         FlushCurrentCommand();
@@ -401,6 +495,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     private void OnPageFieldChanged()
     {
         FlushCurrentCommand();
+        FlushCurrentCondition();
         FlushCurrentPage();
         NotifyChanged();
     }
@@ -447,18 +542,11 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             return;
         }
 
-        var conditions = new List<MapEventConditionDefinition>();
-        foreach (DataGridViewRow row in _conditions.Rows)
+        var conditions = _conditionModels.Select(c => new MapEventConditionDefinition
         {
-            if (row.IsNewRow)
-            {
-                continue;
-            }
-
-            var kind = Convert.ToString(row.Cells[0].Value) ?? string.Empty;
-            var paramJson = Convert.ToString(row.Cells[1].Value) ?? "{}";
-            conditions.Add(new MapEventConditionDefinition { Kind = kind, ParameterJson = paramJson });
-        }
+            Kind = c.Kind,
+            ParameterJson = c.ParameterJson,
+        }).ToList();
 
         var waypoints = new List<MapEventRouteWaypoint>();
         foreach (DataGridViewRow row in _waypoints.Rows)
@@ -500,7 +588,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     private void ClearPageUi()
     {
         _waypoints.Rows.Clear();
-        _conditions.Rows.Clear();
+        _conditionModels.Clear();
+        _conditions.Items.Clear();
         _commandModels.Clear();
         _commands.Items.Clear();
     }
@@ -571,14 +660,4 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "WaitMs", Width = 80 });
         return grid;
     }
-
-    private static DataGridView CreateConditionGrid() => new()
-    {
-        Width = 560,
-        Height = 90,
-        AllowUserToAddRows = false,
-        AllowUserToDeleteRows = false,
-        AutoGenerateColumns = false,
-        RowHeadersVisible = false,
-    };
 }

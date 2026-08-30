@@ -978,6 +978,17 @@ public sealed partial class PacketDispatcher(
             }
 
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
+
+            if (cellAfter.CurrentMapId == cellBefore.CurrentMapId)
+            {
+                var snapshot = await _phase8.GetWeatherSnapshotForSessionAsync(session, cancellationToken)
+                    .ConfigureAwait(false);
+                if (snapshot.RegionId is Guid regionId && regionId != session.LastEnvironmentRegionId)
+                {
+                    await _phase8.SendEnvironmentStateAsync(clientSession, session, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
         }
     }
 

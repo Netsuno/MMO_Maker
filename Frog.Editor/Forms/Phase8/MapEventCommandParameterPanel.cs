@@ -21,6 +21,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
     private bool _binding;
     private readonly List<Control> _dynamicFields = new();
+    private MapEventConditionParameterPanel? _branchCondition;
+    private MapEventCommandListPanel? _branchThen;
+    private MapEventCommandListPanel? _branchElse;
 
     public MapEventCommandParameterPanel()
     {
@@ -144,6 +147,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         }
 
         _dynamicFields.Clear();
+        _branchCondition = null;
+        _branchThen = null;
+        _branchElse = null;
         var discriminator = _discriminator.SelectedItem as string ?? MapEventCommandDiscriminators.ShowText;
         AddFieldsForDiscriminator(discriminator);
     }
@@ -206,25 +212,15 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddLabeled("professionId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
                 break;
             case MapEventCommandDiscriminators.Branch:
-                AddLabeled("conditionKind", new ComboBox
-                {
-                    DropDownStyle = ComboBoxStyle.DropDownList,
-                    Width = 200,
-                });
-                var condKind = (ComboBox)_dynamicFields[^1];
-                foreach (var k in MapEventConditionKinds.All.OrderBy(x => x, StringComparer.Ordinal))
-                {
-                    condKind.Items.Add(k);
-                }
-
-                if (condKind.Items.Count > 0)
-                {
-                    condKind.SelectedIndex = 0;
-                }
-
-                AddLabeled("conditionJson", new TextBox { Width = 360, Text = "{\"switchId\":\"x\",\"value\":true}" });
-                AddLabeled("thenJson", new TextBox { Width = 360, Text = "[]" });
-                AddLabeled("elseJson", new TextBox { Width = 360, Text = "[]" });
+                _branchCondition = new MapEventConditionParameterPanel();
+                _branchThen = new MapEventCommandListPanel();
+                _branchElse = new MapEventCommandListPanel();
+                _branchCondition.ParametersChanged += () => NotifyChanged();
+                _branchThen.CommandsChanged += () => NotifyChanged();
+                _branchElse.CommandsChanged += () => NotifyChanged();
+                AddLabeled("condition", _branchCondition);
+                AddLabeled("thenCommands", _branchThen);
+                AddLabeled("elseCommands", _branchElse);
                 break;
             default:
                 AddLabeled("parameterJson", new TextBox { Width = 360, Text = "{}" });
@@ -460,6 +456,32 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }
 
                     break;
+                case MapEventCommandDiscriminators.Branch:
+                    if (_branchCondition is not null
+                        && root.TryGetProperty("conditionKind", out var condKindEl))
+                    {
+                        var condKind = condKindEl.GetString() ?? MapEventConditionKinds.CharacterSwitch;
+                        var condParam = root.TryGetProperty("conditionParameterJson", out var condParamEl)
+                            ? condParamEl.GetString() ?? "{}"
+                            : "{}";
+                        _branchCondition.LoadCondition(new MapEventConditionDefinition
+                        {
+                            Kind = condKind,
+                            ParameterJson = condParam,
+                        });
+                    }
+
+                    if (_branchThen is not null && root.TryGetProperty("thenCommands", out var thenEl))
+                    {
+                        _branchThen.LoadCommands(ParseCommandArray(thenEl));
+                    }
+
+                    if (_branchElse is not null && root.TryGetProperty("elseCommands", out var elseEl))
+                    {
+                        _branchElse.LoadCommands(ParseCommandArray(elseEl));
+                    }
+
+                    break;
             }
         }
         catch
@@ -468,11 +490,49 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         }
     }
 
+    private static IReadOnlyList<MapEventCommandDefinition> ParseCommandArray(JsonElement arrayEl)
+    {
+        if (arrayEl.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<MapEventCommandDefinition>();
+        }
+
+        var list = new List<MapEventCommandDefinition>();
+        foreach (var item in arrayEl.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var discriminator = item.TryGetProperty("discriminator", out var discEl)
+                ? discEl.GetString() ?? MapEventCommandDiscriminators.ShowText
+                : MapEventCommandDiscriminators.ShowText;
+            var paramJson = item.TryGetProperty("parameterJson", out var paramEl)
+                ? paramEl.GetString() ?? "{}"
+                : "{}";
+            list.Add(new MapEventCommandDefinition
+            {
+                Discriminator = discriminator,
+                SchemaVersion = 1,
+                ParameterJson = paramJson,
+            });
+        }
+
+        return list;
+    }
+
     private bool TryBuildParameterJson(string discriminator, out string json, out string? error)
     {
         error = null;
         try
         {
+            if (discriminator == MapEventCommandDiscriminators.Branch)
+            {
+                json = BuildBranchJson(out error);
+                return error is null;
+            }
+
             json = discriminator switch
             {
                 MapEventCommandDiscriminators.ShowText =>
@@ -512,8 +572,6 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }),
                 MapEventCommandDiscriminators.LearnProfession =>
                     JsonSerializer.Serialize(new { professionId = GetText("professionId") }),
-                MapEventCommandDiscriminators.Branch =>
-                    GetText("parameterJson"),
                 _ => GetText("parameterJson"),
             };
             return true;
@@ -551,5 +609,38 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         }
 
         return JsonSerializer.Serialize(new { amount = GetInt("amount"), onceKey = once });
+    }
+
+    private string BuildBranchJson(out string? error)
+    {
+        error = null;
+        if (_branchCondition is null || _branchThen is null || _branchElse is null)
+        {
+            error = "branch: éditeur incomplet.";
+            return "{}";
+        }
+
+        if (!_branchCondition.TryBuildCondition(out var condition, out error))
+        {
+            return "{}";
+        }
+
+        if (!_branchThen.TryBuildCommands(out var thenCommands, out error))
+        {
+            return "{}";
+        }
+
+        if (!_branchElse.TryBuildCommands(out var elseCommands, out error))
+        {
+            return "{}";
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            conditionKind = condition.Kind,
+            conditionParameterJson = condition.ParameterJson,
+            thenCommands = thenCommands.Select(c => new { discriminator = c.Discriminator, parameterJson = c.ParameterJson }),
+            elseCommands = elseCommands.Select(c => new { discriminator = c.Discriminator, parameterJson = c.ParameterJson }),
+        });
     }
 }

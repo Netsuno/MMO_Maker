@@ -118,6 +118,28 @@ public sealed class MapEventMovementServiceTests
         Assert.True(service.IsTileBlockedByEvent(1, 4, 1));
     }
 
+    [Fact]
+    public async Task ResolveRuntimePlacements_ConcurrentWithTick_ReturnsConsistentCoordinates()
+    {
+        var clock = new SteppingClock();
+        var service = new MapEventMovementService(clock);
+        var placement = CreateRoutePlacement(4, 0);
+        service.SyncMapPlacements(1, [placement]);
+
+        var tasks = Enumerable.Range(0, 32).Select(async _ =>
+        {
+            await service.TickMapAsync(1, null);
+            var runtime = service.ResolveRuntimePlacements(1, [placement]).Single();
+            Assert.True(runtime.TileY is 0 or 1);
+            if (runtime.TileY == 1)
+            {
+                Assert.True(service.IsTileBlockedByEvent(1, 4, 1));
+            }
+        });
+
+        await Task.WhenAll(tasks);
+    }
+
     private static MapEventWireEntry CreateRoutePlacement(
         int startX,
         int startY,

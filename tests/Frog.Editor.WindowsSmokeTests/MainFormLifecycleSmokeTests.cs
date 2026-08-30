@@ -84,11 +84,7 @@ public sealed class MainFormLifecycleSmokeTests
         });
     }
 
-    // Non-cooperative workspace-init close is covered indirectly by:
-    // - MainForm_RealClose_WhileInitializationPending_* (cooperative cancel)
-    // - MainForm_NonCooperativeSave_* (timeout keeps scopes alive + retry)
-    // A direct non-coop init smoke deadlocks the shared STA host (init WaitAsync + PumpUntil)
-    // and aborts the entire editor smoke pass — removed to keep CI live.
+    // Non-cooperative workspace-init close: EditorMainFormCloseCoordinatorTests (pure coordinator, no STA pump).
 
     [Fact]
     public void MainForm_RealClose_WhileSavePending_DrainsThenDisposes()
