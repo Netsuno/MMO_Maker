@@ -8,6 +8,7 @@ public sealed class EditorPostgreSqlScope : IDisposable
     private static int _activeScopeCount;
     private static int _migrateCallCount;
     private bool _disposed;
+    private int _disposeCallCount;
 
     public EditorPostgreSqlScope(string connectionString)
     {
@@ -24,6 +25,8 @@ public sealed class EditorPostgreSqlScope : IDisposable
     public FrogDbContext Db => Gate.Db;
 
     public bool IsDisposed => _disposed;
+
+    public int DisposeCallCountForTest => Volatile.Read(ref _disposeCallCount);
 
     public static int ActiveScopeCountForTest => Volatile.Read(ref _activeScopeCount);
 
@@ -58,6 +61,7 @@ public sealed class EditorPostgreSqlScope : IDisposable
         }
 
         _disposed = true;
+        Interlocked.Exchange(ref _disposeCallCount, 1);
         Gate.Dispose();
         Interlocked.Decrement(ref _activeScopeCount);
     }

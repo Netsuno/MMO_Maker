@@ -34,6 +34,8 @@ public sealed class MapEventsPostgreSqlService : IDisposable
     private readonly IMapEventRepository _repository;
     private readonly FrogDbContextGate _gate;
     private readonly bool _ownsGate;
+    private bool _disposed;
+    private int _disposeCallCount;
 
     public MapEventsPostgreSqlService(IMapEventRepository repository, FrogDbContextGate gate, bool ownsGate = false)
     {
@@ -45,6 +47,10 @@ public sealed class MapEventsPostgreSqlService : IDisposable
     public ContentRepositoryCapabilities Capabilities => _repository.Capabilities;
 
     public bool IsAvailable => Capabilities.IsDurablePersistence;
+
+    public bool IsDisposedForTest => _disposed;
+
+    public int DisposeCallCountForTest => Volatile.Read(ref _disposeCallCount);
 
     public IReadOnlyList<PgEventCatalogRow> LoadCatalog()
     {
@@ -449,6 +455,13 @@ public sealed class MapEventsPostgreSqlService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        Interlocked.Exchange(ref _disposeCallCount, 1);
         if (_ownsGate)
         {
             _gate.Dispose();

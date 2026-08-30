@@ -15,8 +15,8 @@ Headless PostgreSQL-backed network scenario (mandatory gate). Status updated as 
 | 9 | Reject invalid/replayed dialogue choice | `Phase8PostgresE2ETests` | PASS |
 | 10 | Valid choice → quest start | `Phase8PostgresE2ETests` | PASS |
 | 11 | Page change after condition change | `Phase8PostgresE2ETests` | PASS |
-| 12 | Objectives via public gameplay paths | `Phase8PostgresE2ETests` | PASS |
-| 13 | Disconnect/reconnect quest progress | `Phase8PostgresE2ETests` | PASS |
+| 12 | Objectives via public gameplay (Talk/Visit/Collect/Kill/Craft) + counter asserts + per-kind replay | `Phase8PostgresE2ETests` | PASS |
+| 13 | Disconnect/reconnect quest progress (mid-progress + completed) | `Phase8PostgresE2ETests` | PASS |
 | 14 | Craft recipe — atomic state | `Phase8PostgresE2ETests` | PASS |
 | 15 | Retry craft — no duplication | `Phase8PostgresE2ETests` | PASS |
 | 16 | Quest completion — reward once | `Phase8PostgresE2ETests` | PASS |

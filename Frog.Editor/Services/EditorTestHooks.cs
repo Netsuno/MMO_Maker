@@ -73,6 +73,9 @@ internal static class EditorTestHooks
     /// <summary>Smoke / tests : barrière injectée pendant l'initialisation MainForm (map/mapEvent/phase8/workspace).</summary>
     public static Func<string, CancellationToken, Task>? MainWorkspaceInitBarrierForTest { get; set; }
 
+    /// <summary>Smoke : barrière injectée pendant Save/Publish MainForm (P8-I1 close-during-save).</summary>
+    public static Func<string, CancellationToken, Task>? MainFormSaveBarrierForTest { get; set; }
+
     /// <summary>Smoke : barrière injectée avant chaque opération panneau (permet de bloquer Refresh/Save/Publish/Delete).</summary>
     public static Func<string, CancellationToken, Task>? PanelOperationBarrierForTest { get; set; }
 

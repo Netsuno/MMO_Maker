@@ -15,6 +15,10 @@
 - Event `wait` resume across disconnect — deferred; waits pause page execution (not permanent server termination).
 - Parallel runner heartbeat re-entry — autorun fires once per map visit; parallel uses dedup tracker.
 
+## Screenshot evidence note
+
+Client screenshots `01`/`02` and `03`/`04` historically shared SHA-256 digests (identical pixel buffers from earlier CI tip `7137c17`). Manifest retained for gate archaeology; regenerate unique captures on a green tip when visual evidence is re-audited. Functional gate evidence is the PostgreSQL E2E + Windows smoke ×3, not screenshot uniqueness alone.
+
 ## Phase 9
 
 Not started.

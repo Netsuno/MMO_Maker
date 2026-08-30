@@ -16,6 +16,7 @@ internal sealed class EditorMainFormCloseCoordinator
 
     private CancellationTokenSource? _workspaceInitCts;
     private CancellationTokenSource? _closeCts;
+    private CancellationTokenSource? _pendingOpsCts;
     private bool _allowCloseAfterCleanup;
     private bool _cleanupRunning;
     private bool _closeCleanupFailed;
@@ -44,6 +45,20 @@ internal sealed class EditorMainFormCloseCoordinator
     public CancellationToken WorkspaceInitToken =>
         (_workspaceInitCts ??= new CancellationTokenSource()).Token;
 
+    public CancellationToken PendingOperationsToken
+    {
+        get
+        {
+            if (_pendingOpsCts is null || _pendingOpsCts.IsCancellationRequested)
+            {
+                _pendingOpsCts?.Dispose();
+                _pendingOpsCts = new CancellationTokenSource();
+            }
+
+            return _pendingOpsCts.Token;
+        }
+    }
+
     public bool AllowFinalCloseForTest => _allowCloseAfterCleanup;
 
     public bool CloseCleanupFailedForTest => _closeCleanupFailed;
@@ -64,6 +79,11 @@ internal sealed class EditorMainFormCloseCoordinator
     public void CancelWorkspaceInitialization()
     {
         _workspaceInitCts?.Cancel();
+    }
+
+    public void CancelPendingOperations()
+    {
+        _pendingOpsCts?.Cancel();
     }
 
     public bool TryHandleFormClosing(FormClosingEventArgs e, Func<Task<bool>> confirmDiscardIfDirtyAsync)
@@ -106,6 +126,7 @@ internal sealed class EditorMainFormCloseCoordinator
 
         _cleanupRunning = true;
         _editorClosing = true;
+        CancelPendingOperations();
         _closeCts?.Cancel();
         _closeCts = new CancellationTokenSource();
         _setClosingUiState(false);
@@ -142,6 +163,7 @@ internal sealed class EditorMainFormCloseCoordinator
     public async Task<bool> RunCloseCleanupAsync(TimeSpan timeout)
     {
         CancelWorkspaceInitialization();
+        CancelPendingOperations();
 
         var initTask = _getWorkspaceInitTask();
         if (initTask is not null)
@@ -221,6 +243,7 @@ internal sealed class EditorMainFormCloseCoordinator
         }
 
         _editorClosing = true;
+        CancelPendingOperations();
         _closeCts?.Cancel();
         _closeCts = new CancellationTokenSource();
         _setClosingUiState(false);

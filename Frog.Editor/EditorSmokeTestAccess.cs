@@ -86,6 +86,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
         EditorTestHooks.GameDataInitBarrierForTest = null;
         EditorTestHooks.MainWorkspaceInitBarrierForTest = null;
+        EditorTestHooks.MainFormSaveBarrierForTest = null;
         _pumpUntil = null;
         TilesetCache.Clear();
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");

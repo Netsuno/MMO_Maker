@@ -9,11 +9,16 @@ public sealed class FrogDbContextGate : IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly AsyncLocal<int> _reentrancyDepth = new();
     private bool _disposed;
+    private int _disposeCallCount;
 
     public FrogDbContextGate(FrogDbContext db)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
     }
+
+    public bool IsDisposedForTest => _disposed;
+
+    public int DisposeCallCountForTest => Volatile.Read(ref _disposeCallCount);
 
     public FrogDbContext Db
     {
@@ -91,6 +96,7 @@ public sealed class FrogDbContextGate : IDisposable
         }
 
         _disposed = true;
+        Interlocked.Exchange(ref _disposeCallCount, 1);
         try
         {
             _db.ChangeTracker.Clear();

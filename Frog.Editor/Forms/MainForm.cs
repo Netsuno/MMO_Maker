@@ -108,6 +108,31 @@ public sealed class MainForm : Form
 
     internal EditorMainFormCloseCoordinator? CloseCoordinatorForTest => _closeCoordinator;
 
+    internal EditorPostgreSqlScope? MapDatabaseScopeForTest => _mapDatabaseScope;
+
+    internal EditorPostgreSqlScope? MapEventDatabaseScopeForTest => _mapEventDatabaseScope;
+
+    internal EditorPostgreSqlScope? Phase8DatabaseScopeForTest => _phase8DatabaseScope;
+
+    internal MapEventsPostgreSqlService? MapEventServiceForTest => _mapEventService;
+
+    internal Phase8ContentPostgreSqlService? Phase8ContentServiceForTest => _phase8ContentService;
+
+    /// <summary>Attache des scopes/services pour vérifier dispose (FORCE_IN_MEMORY laisse ces champs null).</summary>
+    internal void AttachScopesAndServicesForDisposeTest(
+        EditorPostgreSqlScope mapScope,
+        EditorPostgreSqlScope mapEventScope,
+        EditorPostgreSqlScope phase8Scope,
+        MapEventsPostgreSqlService mapEventService,
+        Phase8ContentPostgreSqlService phase8Service)
+    {
+        _mapDatabaseScope = mapScope ?? throw new ArgumentNullException(nameof(mapScope));
+        _mapEventDatabaseScope = mapEventScope ?? throw new ArgumentNullException(nameof(mapEventScope));
+        _phase8DatabaseScope = phase8Scope ?? throw new ArgumentNullException(nameof(phase8Scope));
+        _mapEventService = mapEventService ?? throw new ArgumentNullException(nameof(mapEventService));
+        _phase8ContentService = phase8Service ?? throw new ArgumentNullException(nameof(phase8Service));
+    }
+
     internal void BeginCloseCleanupViaCoordinatorForTest()
     {
         var args = new FormClosingEventArgs(CloseReason.UserClosing, cancel: false);
@@ -799,6 +824,7 @@ public sealed class MainForm : Form
     {
         _mapEventService?.Dispose();
         _mapEventService = null;
+        _phase8ContentService?.Dispose();
         _phase8ContentService = null;
         _mapEventDatabaseScope?.Dispose();
         _mapEventDatabaseScope = null;
@@ -1345,7 +1371,17 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
         try
         {
+            if (EditorTestHooks.MainFormSaveBarrierForTest is { } saveBarrier)
+            {
+                await saveBarrier("save", _closeCoordinator?.PendingOperationsToken ?? CancellationToken.None)
+                    .ConfigureAwait(true);
+            }
+
             await operation().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Close cancelled the pending save — expected for P8-I1 cooperative drain.
         }
         catch (Exception ex)
         {

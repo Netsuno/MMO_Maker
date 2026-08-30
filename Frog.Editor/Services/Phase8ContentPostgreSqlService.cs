@@ -25,6 +25,8 @@ public class Phase8ContentPostgreSqlService : IDisposable
     private readonly IPhase8ContentEditorRepository _repository;
     private readonly FrogDbContextGate? _gate;
     private readonly bool _ownsGate;
+    private bool _disposed;
+    private int _disposeCallCount;
 
     public Phase8ContentPostgreSqlService(
         IPhase8ContentEditorRepository repository,
@@ -43,6 +45,10 @@ public class Phase8ContentPostgreSqlService : IDisposable
     public ContentRepositoryCapabilities Capabilities => _repository.Capabilities;
 
     public bool IsAvailable => Capabilities.AllowsSave;
+
+    public bool IsDisposedForTest => _disposed;
+
+    public int DisposeCallCountForTest => Volatile.Read(ref _disposeCallCount);
 
     public async Task<IReadOnlyList<Phase8ContentListRow>> ListAsync(
         Phase8ContentKind kind,
@@ -266,6 +272,13 @@ public class Phase8ContentPostgreSqlService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        Interlocked.Exchange(ref _disposeCallCount, 1);
         if (_ownsGate)
         {
             _gate?.Dispose();

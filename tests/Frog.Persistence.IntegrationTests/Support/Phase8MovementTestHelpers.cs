@@ -56,6 +56,17 @@ internal static class Phase8MovementTestHelpers
             {
                 throw new InvalidOperationException($"PositionSync to ({targetX},{targetY}) failed: {moveError}");
             }
+
+            if (moveResult[0] == (byte)PacketId.PositionUpdate
+                && Phase7WireDecoders.TryDecodePositionUpdate(moveResult, out _, out _, out var px, out var py))
+            {
+                var tileX = px / WorldMetrics.DefaultTileSizePixels;
+                var tileY = py / WorldMetrics.DefaultTileSizePixels;
+                if (tileX == targetX && tileY == targetY)
+                {
+                    break;
+                }
+            }
         }
 
         if (drainSideEffects)
