@@ -145,18 +145,16 @@ public sealed class PostgresMapEventMutationRepositoryTests
         var seed = await Phase8PostgresContentSeed.PublishAsync(gate).ConfigureAwait(false);
         var characterId = await CreateCharacterAsync(gate, seed);
         var items = new PostgresItemRepository(gate);
-        var repo = new PostgresMapEventMutationRepository(gate, items)
+        var repo = new PostgresMapEventMutationRepository(gate, items);
+        var injectOnce = 0;
+        repo.TestBeforeCommitAsync = _ =>
         {
-            TestBeforeCommitAsync = ct =>
+            if (Interlocked.CompareExchange(ref injectOnce, 1, 0) == 0)
             {
-                if (Volatile.Read(ref _injectOnce) == 0)
-                {
-                    Interlocked.Exchange(ref _injectOnce, 1);
-                    throw new InvalidOperationException("injected-before-commit");
-                }
+                throw new InvalidOperationException("injected-before-commit");
+            }
 
-                return Task.CompletedTask;
-            },
+            return Task.CompletedTask;
         };
 
         var commands = new[]
@@ -181,8 +179,6 @@ public sealed class PostgresMapEventMutationRepositoryTests
             .Sum(s => s.Quantity);
         Assert.Equal(1, qty);
     }
-
-    private static int _injectOnce;
 
     private FrogDbContextGate CreateGate()
         => new(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));

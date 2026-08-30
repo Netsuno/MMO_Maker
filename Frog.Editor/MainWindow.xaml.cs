@@ -223,8 +223,9 @@ public partial class MainWindow : Window
                              || _editor.IsPlaytestBusyForTest()
                              || _editor.HasOwnedPlaytestProcessesForTest();
         var dirty = _editor.HasUnsavedChangesForTest();
+        var initPending = _editor.IsWorkspaceInitializationPendingForTest;
 
-        if (!playtestActive && !dirty)
+        if (!playtestActive && !dirty && !initPending)
         {
             return;
         }
@@ -258,6 +259,13 @@ public partial class MainWindow : Window
                 if (_editor.HasUnsavedChangesForTest())
                 {
                     if (!await _editor.TryRequestCloseAsync().ConfigureAwait(true))
+                    {
+                        return;
+                    }
+                }
+                else if (initPending || playtestActive)
+                {
+                    if (!await _editor.TryCoordinatedShutdownAsync().ConfigureAwait(true))
                     {
                         return;
                     }

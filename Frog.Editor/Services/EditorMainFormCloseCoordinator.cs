@@ -197,4 +197,39 @@ internal sealed class EditorMainFormCloseCoordinator
 
         return true;
     }
+
+    /// <summary>Shutdown sans fermer la fenêtre (ex. fermeture MainWindow WPF pendant init).</summary>
+    internal async Task<bool> TryShutdownWithoutCloseAsync(
+        Func<Task<bool>> confirmDiscardIfDirtyAsync,
+        TimeSpan timeout)
+    {
+        if (_allowCloseAfterCleanup)
+        {
+            return true;
+        }
+
+        if (!await confirmDiscardIfDirtyAsync().ConfigureAwait(true))
+        {
+            return false;
+        }
+
+        _editorClosing = true;
+        _closeCts?.Cancel();
+        _closeCts = new CancellationTokenSource();
+        _setClosingUiState(false);
+
+        var success = await RunCloseCleanupAsync(timeout).ConfigureAwait(true);
+        if (!success)
+        {
+            _closeCleanupFailed = true;
+            _editorClosing = false;
+            _setClosingUiState(true);
+            return false;
+        }
+
+        _closeCleanupFailed = false;
+        _allowCloseAfterCleanup = true;
+        _editorClosing = false;
+        return true;
+    }
 }

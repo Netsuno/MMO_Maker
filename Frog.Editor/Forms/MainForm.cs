@@ -679,6 +679,21 @@ public sealed class MainForm : Form
     private Task? _workspaceInitTask;
     internal Task WorkspaceInitializationTask => _workspaceInitTask ?? Task.CompletedTask;
 
+    internal bool IsWorkspaceInitializationPendingForTest =>
+        _workspaceInitTask is { IsCompleted: false };
+
+    internal async Task<bool> TryCoordinatedShutdownAsync()
+    {
+        if (_closeCoordinator is null || _closeCoordinator.AllowFinalCloseForTest)
+        {
+            return true;
+        }
+
+        var timeout = EditorTestHooks.GameDataCloseCleanupTimeoutForTest ?? TimeSpan.FromSeconds(30);
+        return await _closeCoordinator.TryShutdownWithoutCloseAsync(ConfirmCloseForShutdownAsync, timeout)
+            .ConfigureAwait(true);
+    }
+
     /// <summary>Initialise le catalogue (PostgreSQL ou mémoire) et ouvre la carte démo.</summary>
     internal async System.Threading.Tasks.Task InitializeWorkspaceAsync()
     {

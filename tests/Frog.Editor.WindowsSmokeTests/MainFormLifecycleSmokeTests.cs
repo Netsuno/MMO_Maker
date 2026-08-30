@@ -35,7 +35,7 @@ public sealed class MainFormLifecycleSmokeTests
                 try
                 {
                     using var reg = ct.Register(() => Volatile.Write(ref sawCancel, true));
-                    await releaseInit.Task.WaitAsync(ct).ConfigureAwait(false);
+                    await releaseInit.Task.WaitAsync(ct).ConfigureAwait(true);
                 }
                 catch (OperationCanceledException)
                 {
@@ -57,9 +57,12 @@ public sealed class MainFormLifecycleSmokeTests
                 Assert.False(window.EditorForm.WorkspaceInitializationTask.IsCompleted);
 
                 window.Close();
-                StaTestRunner.PumpUntil(() => closed, EditorSmokeTestAccess.DefaultTimeout);
-
+                StaTestRunner.PumpUntil(
+                    () => Volatile.Read(ref sawCancel)
+                          || window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest,
+                    EditorSmokeTestAccess.DefaultTimeout);
                 Assert.True(Volatile.Read(ref sawCancel));
+                StaTestRunner.PumpUntil(() => closed, EditorSmokeTestAccess.DefaultTimeout);
                 var coord = window.EditorForm.CloseCoordinatorForTest!;
                 Assert.False(coord.CloseCleanupFailedForTest);
             }
@@ -91,7 +94,7 @@ public sealed class MainFormLifecycleSmokeTests
             EditorTestHooks.MainWorkspaceInitBarrierForTest = async (_, ct) =>
             {
                 initEntered.TrySetResult();
-                await releaseInit.Task.WaitAsync(ct).ConfigureAwait(false);
+                await releaseInit.Task.WaitAsync(ct).ConfigureAwait(true);
             };
 
             MainWindow? window = null;
@@ -105,10 +108,14 @@ public sealed class MainFormLifecycleSmokeTests
                 window.Close();
                 StaTestRunner.PumpUntil(
                     () => window.EditorForm.CloseCoordinatorForTest!.CloseCleanupFailedForTest,
-                    TimeSpan.FromSeconds(5));
+                    TimeSpan.FromSeconds(10));
                 Assert.True(window.IsVisible);
 
                 releaseInit.TrySetResult();
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest
+                          || window.EditorForm.CloseCoordinatorForTest!.IsCleanupRunningForTest == false,
+                    EditorSmokeTestAccess.DefaultTimeout);
                 window.EditorForm.CloseCoordinatorForTest!.RetryCloseCleanupForTest(window.EditorForm);
                 StaTestRunner.PumpUntil(
                     () => window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest,

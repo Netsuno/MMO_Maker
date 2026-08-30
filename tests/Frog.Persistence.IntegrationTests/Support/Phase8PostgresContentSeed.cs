@@ -73,7 +73,12 @@ public sealed record Phase8PostgresContentSeedResult(
     Guid CommonEventId,
     int CommonEventCallerMapEventAliasId,
     int CommonEventTileX,
-    int CommonEventTileY);
+    int CommonEventTileY,
+    int VisitObjectiveTileX,
+    int VisitObjectiveTileY,
+    int CollectObjectiveTileX,
+    int CollectObjectiveTileY,
+    Guid CollectGroundItemId);
 
 /// <summary>Publie le contenu Phase 8 minimal (Guids déterministes) dans PostgreSQL.</summary>
 public static class Phase8PostgresContentSeed
@@ -94,6 +99,10 @@ public static class Phase8PostgresContentSeed
     public const int Region2TileY = 0;
     public const int CommonEventTileX = 7;
     public const int CommonEventTileY = 3;
+    public const int VisitObjectiveTileX = 8;
+    public const int VisitObjectiveTileY = 4;
+    public const int CollectObjectiveTileX = 9;
+    public const int CollectObjectiveTileY = 4;
 
     public const int GateMapEventAliasId = 8101;
     public const int KeyMapEventAliasId = 8102;
@@ -131,11 +140,16 @@ public static class Phase8PostgresContentSeed
 
     public static async Task<Phase8PostgresContentSeedResult> PublishAsync(FrogDbContextGate gate)
     {
-        var phase7 = await Phase7PostgresContentSeed.PublishAsync(gate, monsterSpawnCount: 0).ConfigureAwait(false);
+        var phase7 = await Phase7PostgresContentSeed.PublishAsync(gate, monsterSpawnCount: 1).ConfigureAwait(false);
 
         var phase8Repo = new PostgresPhase8PublishedCatalogs(gate);
         var dialogueRevision = await EnsurePublishedDialogueAsync(phase8Repo, DefaultQuestId).ConfigureAwait(false);
-        await EnsurePublishedQuestAsync(phase8Repo, phase7.ConsumableId).ConfigureAwait(false);
+        await EnsurePublishedQuestAsync(
+            phase8Repo,
+            phase7.ConsumableId,
+            phase7.MonsterId,
+            phase7.WeaponId,
+            phase7.RuntimeMapId).ConfigureAwait(false);
         await EnsureDraftQuestAsync(phase8Repo).ConfigureAwait(false);
         await EnsurePublishedProfessionAsync(phase8Repo).ConfigureAwait(false);
         await EnsurePublishedRecipeAsync(phase8Repo, phase7.ConsumableId).ConfigureAwait(false);
@@ -164,6 +178,13 @@ public static class Phase8PostgresContentSeed
             learnProfessionEventId,
             onceRewardEventId,
             commonCallerEventId).ConfigureAwait(false);
+
+        var collectGroundItemId = await SeedGroundCollectItemAsync(
+            gate,
+            phase7.WeaponId,
+            phase7.RuntimeMapId,
+            CollectObjectiveTileX,
+            CollectObjectiveTileY).ConfigureAwait(false);
 
         var lighting = (byte)Math.Clamp((int)(CreateDefaultWeather().LightingFactor * 255), 0, 255);
         var lighting2 = (byte)Math.Clamp((int)(CreateSecondWeather().LightingFactor * 255), 0, 255);
@@ -228,7 +249,12 @@ public static class Phase8PostgresContentSeed
             DefaultCommonEventId,
             CommonEventCallerMapEventAliasId,
             CommonEventTileX,
-            CommonEventTileY);
+            CommonEventTileY,
+            VisitObjectiveTileX,
+            VisitObjectiveTileY,
+            CollectObjectiveTileX,
+            CollectObjectiveTileY,
+            collectGroundItemId);
     }
 
     public static DialogueDefinition CreateDefaultDialogue(Guid questId) => new()
@@ -251,13 +277,75 @@ public static class Phase8PostgresContentSeed
         ],
     };
 
-    public static QuestDefinition CreateDefaultQuest(Guid consumableId) => new()
+    public static QuestDefinition CreateDefaultQuest(
+        Guid consumableId,
+        Guid monsterId,
+        Guid collectItemId,
+        int runtimeMapId) => new()
     {
         Id = DefaultQuestId,
         Name = "Phase8 E2E Quest",
         EditorAliasId = 8002,
         Stages =
         [
+            new QuestStageDefinition
+            {
+                Description = "Speak with the guide",
+                Objectives =
+                [
+                    new QuestObjectiveDefinition
+                    {
+                        Kind = QuestObjectiveKind.Talk,
+                        Description = "Talk to the guide",
+                        RequiredCount = 1,
+                        TargetDialogueId = DefaultDialogueId,
+                    },
+                ],
+            },
+            new QuestStageDefinition
+            {
+                Description = "Visit the marker tile",
+                Objectives =
+                [
+                    new QuestObjectiveDefinition
+                    {
+                        Kind = QuestObjectiveKind.Visit,
+                        Description = "Visit the marker",
+                        RequiredCount = 1,
+                        TargetMapId = runtimeMapId,
+                        TargetTileX = VisitObjectiveTileX,
+                        TargetTileY = VisitObjectiveTileY,
+                    },
+                ],
+            },
+            new QuestStageDefinition
+            {
+                Description = "Collect the field weapon",
+                Objectives =
+                [
+                    new QuestObjectiveDefinition
+                    {
+                        Kind = QuestObjectiveKind.Collect,
+                        Description = "Pick up the weapon",
+                        RequiredCount = 1,
+                        TargetItemId = collectItemId,
+                    },
+                ],
+            },
+            new QuestStageDefinition
+            {
+                Description = "Slay the slime",
+                Objectives =
+                [
+                    new QuestObjectiveDefinition
+                    {
+                        Kind = QuestObjectiveKind.Kill,
+                        Description = "Kill the slime",
+                        RequiredCount = 1,
+                        TargetNpcId = monsterId,
+                    },
+                ],
+            },
             new QuestStageDefinition
             {
                 Description = "Craft the potion bundle",
@@ -449,26 +537,97 @@ public static class Phase8PostgresContentSeed
         return AssertSuccess(saved).PublishedRevision ?? 1;
     }
 
-    private static async Task EnsurePublishedQuestAsync(PostgresPhase8PublishedCatalogs repo, Guid consumableId)
+    private static async Task EnsurePublishedQuestAsync(
+        PostgresPhase8PublishedCatalogs repo,
+        Guid consumableId,
+        Guid monsterId,
+        Guid collectItemId,
+        int runtimeMapId)
     {
         IPublishedQuestCatalog catalog = repo;
-        if (await catalog.TryGetPublishedByIdAsync(DefaultQuestId).ConfigureAwait(false) is not null)
+        var quest = CreateDefaultQuest(consumableId, monsterId, collectItemId, runtimeMapId);
+        var existing = await catalog.TryGetPublishedByIdAsync(DefaultQuestId).ConfigureAwait(false);
+        if (existing is not null && QuestStructureMatches(existing, quest))
         {
             return;
         }
 
-        var quest = CreateDefaultQuest(consumableId);
         var payload = Phase8ContentCodec.SerializeQuest(quest);
-        _ = await repo.SaveAsync(new Phase8SaveContentRequest
+        if (existing is null)
         {
-            NewId = DefaultQuestId,
+            _ = await repo.SaveAsync(new Phase8SaveContentRequest
+            {
+                NewId = DefaultQuestId,
+                Kind = Phase8ContentKind.Quest,
+                Name = quest.Name,
+                EditorAliasId = quest.EditorAliasId,
+                PayloadJson = payload,
+                ExpectedRevision = 0,
+                Intent = SaveContentIntent.Publish,
+            }).ConfigureAwait(false);
+            return;
+        }
+
+        var draft = await repo.LoadDraftByIdAsync(DefaultQuestId).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("Quest draft missing for repair.");
+        var repaired = await repo.SaveAsync(new Phase8SaveContentRequest
+        {
+            ContentId = DefaultQuestId,
             Kind = Phase8ContentKind.Quest,
             Name = quest.Name,
             EditorAliasId = quest.EditorAliasId,
             PayloadJson = payload,
-            ExpectedRevision = 0,
+            ExpectedRevision = draft.Revision,
             Intent = SaveContentIntent.Publish,
         }).ConfigureAwait(false);
+        _ = AssertSuccess(repaired);
+    }
+
+    private static bool QuestStructureMatches(QuestDefinition published, QuestDefinition expected)
+    {
+        if (published.Stages.Count != expected.Stages.Count)
+        {
+            return false;
+        }
+
+        for (var stageIndex = 0; stageIndex < expected.Stages.Count; stageIndex++)
+        {
+            var publishedStage = published.Stages[stageIndex];
+            var expectedStage = expected.Stages[stageIndex];
+            if (publishedStage.Objectives.Count != expectedStage.Objectives.Count)
+            {
+                return false;
+            }
+
+            for (var objectiveIndex = 0; objectiveIndex < expectedStage.Objectives.Count; objectiveIndex++)
+            {
+                if (publishedStage.Objectives[objectiveIndex].Kind != expectedStage.Objectives[objectiveIndex].Kind)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    public static async Task<Guid> SeedGroundCollectItemAsync(
+        FrogDbContextGate gate,
+        Guid itemId,
+        int runtimeMapId,
+        int tileX,
+        int tileY)
+    {
+        var ground = new PostgresGroundItemRepository(gate);
+        var (pixelX, pixelY) = Frog.Core.Constants.WorldMetrics.TileCenterToPixels(tileX, tileY);
+        var dropped = await ground.DropAsync(runtimeMapId, pixelX, pixelY, itemId, 1, null)
+            .ConfigureAwait(false);
+        if (dropped.Status != GroundItemMutationStatus.Ok || dropped.Item is null)
+        {
+            throw new InvalidOperationException("Collect objective ground item seed failed: " + dropped.Status);
+        }
+
+        return dropped.Item.Id;
     }
 
     private static async Task EnsureDraftQuestAsync(PostgresPhase8PublishedCatalogs repo)

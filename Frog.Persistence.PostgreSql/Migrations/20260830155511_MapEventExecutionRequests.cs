@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -29,7 +29,7 @@ namespace Frog.Persistence.PostgreSql.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "ix_map_event_execution_requests_character_id_placement_id_catal~",
+                name: "ix_map_event_execution_requests_character_id_placement_id_cata",
                 schema: "player",
                 table: "map_event_execution_requests",
                 columns: new[] { "character_id", "placement_id", "catalog_alias_id" });
