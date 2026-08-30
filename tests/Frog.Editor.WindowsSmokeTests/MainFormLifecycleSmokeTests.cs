@@ -87,6 +87,7 @@ public sealed class MainFormLifecycleSmokeTests
             EditorSmokeTestAccess.ConfigureInMemoryRepository();
             EditorSmokeTestAccess.SetPumpUntilForTest(StaTestRunner.PumpUntil);
             EditorTestHooks.GameDataCloseCleanupTimeoutForTest = TimeSpan.FromMilliseconds(200);
+            EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
 
             var initEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var releaseInit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -99,14 +100,16 @@ public sealed class MainFormLifecycleSmokeTests
             };
 
             MainWindow? window = null;
+            var closed = false;
             try
             {
                 window = EditorSmokeTestAccess.CreateAndShowMainWindow();
+                window.Closed += (_, _) => closed = true;
                 StaTestRunner.PumpUntil(
                     () => initEntered.Task.IsCompleted,
                     EditorSmokeTestAccess.DefaultTimeout);
 
-                window.EditorForm.BeginCloseCleanupViaCoordinatorForTest();
+                window.Close();
                 StaTestRunner.PumpUntil(
                     () => window.EditorForm.CloseCoordinatorForTest!.CloseCleanupFailedForTest,
                     TimeSpan.FromSeconds(10));
@@ -114,12 +117,11 @@ public sealed class MainFormLifecycleSmokeTests
 
                 releaseInit.TrySetResult();
                 StaTestRunner.PumpUntil(
-                    () => !window.EditorForm.CloseCoordinatorForTest!.IsCleanupRunningForTest,
-                    TimeSpan.FromSeconds(5));
-                window.EditorForm.CloseCoordinatorForTest!.RetryCloseCleanupForTest(window.EditorForm);
-                StaTestRunner.PumpUntil(
-                    () => window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest,
-                    TimeSpan.FromSeconds(15));
+                    () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
+                    EditorSmokeTestAccess.DefaultTimeout);
+
+                window.Close();
+                StaTestRunner.PumpUntil(() => closed, EditorSmokeTestAccess.DefaultTimeout);
             }
             finally
             {
@@ -130,6 +132,7 @@ public sealed class MainFormLifecycleSmokeTests
                 }
 
                 EditorTestHooks.GameDataCloseCleanupTimeoutForTest = null;
+                EditorTestHooks.OverrideMessageBoxResult = null;
                 EditorSmokeTestAccess.ResetHooks();
             }
         });

@@ -38,19 +38,24 @@ internal static class Phase8MovementTestHelpers
         int targetY,
         bool drainSideEffects = true)
     {
-        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMapRequest());
-        _ = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
-
-        var (pixelX, pixelY) = WorldMetrics.TileCenterToPixels(targetX, targetY);
-        await Task.Delay(1100);
-        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPositionSync(pixelX, pixelY));
-        var moveResult = await client.ReadUntilAnyAsync(
-            [PacketId.PositionUpdate, PacketId.Error],
-            TimeSpan.FromSeconds(5));
-        if (moveResult[0] == (byte)PacketId.Error &&
-            Phase8WireDecoders.TryDecodeError(moveResult, out var moveError))
+        var (targetPx, targetPy) = WorldMetrics.TileCenterToPixels(targetX, targetY);
+        // Server anti-cheat caps per-sync travel (~228 px). Repeat hops until we reach the tile.
+        const int maxHops = 8;
+        for (var hop = 0; hop < maxHops; hop++)
         {
-            throw new InvalidOperationException($"PositionSync to ({targetX},{targetY}) failed: {moveError}");
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMapRequest());
+            _ = await client.ReadUntilAnyAsync([PacketId.MapData, PacketId.MapAlreadySynced]);
+
+            await Task.Delay(1100);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPositionSync(targetPx, targetPy));
+            var moveResult = await client.ReadUntilAnyAsync(
+                [PacketId.PositionUpdate, PacketId.Error],
+                TimeSpan.FromSeconds(5));
+            if (moveResult[0] == (byte)PacketId.Error &&
+                Phase8WireDecoders.TryDecodeError(moveResult, out var moveError))
+            {
+                throw new InvalidOperationException($"PositionSync to ({targetX},{targetY}) failed: {moveError}");
+            }
         }
 
         if (drainSideEffects)

@@ -98,6 +98,9 @@ internal sealed class EditorMainFormCloseCoordinator
     {
         if (!await confirmDiscardIfDirtyAsync().ConfigureAwait(true))
         {
+            _cleanupRunning = false;
+            _editorClosing = false;
+            _setClosingUiState(true);
             return;
         }
 

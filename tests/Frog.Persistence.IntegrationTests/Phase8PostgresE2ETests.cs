@@ -188,7 +188,7 @@ public sealed class Phase8PostgresE2ETests
             AssertObjectiveCounter(characterGuid, seed.QuestId, 2, 0, 1);
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
-            await AssertSlimeKilledViaMeleeAsync(client);
+            await AssertSlimeKilledForQuestAsync(client, seed.Phase7.SpellId);
             var killJournal = await client.ReadUntilAsync(PacketId.QuestJournalSnapshot);
             Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(killJournal, out var killedJournal));
             var killQuest = Phase8WireDecoders.FindQuestEntry(killedJournal, seed.QuestId);
@@ -495,27 +495,55 @@ public sealed class Phase8PostgresE2ETests
         return Guid.Parse(id);
     }
 
-    private static async Task AssertSlimeKilledViaMeleeAsync(Phase7TcpTestClient client)
+    private static async Task AssertSlimeKilledForQuestAsync(Phase7TcpTestClient client, Guid spellId)
     {
         for (var attempt = 0; attempt < 12; attempt++)
         {
-            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMelee("Slime"));
-            var frame = await client.ReadUntilAnyAsync(
-                [PacketId.MeleeAttackResult, PacketId.ExperienceGain, PacketId.CombatState],
-                TimeSpan.FromSeconds(3));
-            if (frame[0] == (byte)PacketId.MeleeAttackResult && frame.Length > 1 && frame[1] != 0)
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildSpellCast(spellId, "Slime"));
+            try
             {
-                return;
+                var castResult = await client.ReadUntilAsync(PacketId.SpellCastResult, TimeSpan.FromSeconds(3));
+                if (castResult.Length > 1 && castResult[1] != 0)
+                {
+                    var followUp = await client.ReadUntilAnyAsync(
+                        [PacketId.ExperienceGain, PacketId.CombatState, PacketId.QuestJournalSnapshot],
+                        TimeSpan.FromSeconds(3));
+                    if (followUp[0] == (byte)PacketId.ExperienceGain
+                        || followUp[0] == (byte)PacketId.QuestJournalSnapshot)
+                    {
+                        return;
+                    }
+                }
+            }
+            catch (TimeoutException)
+            {
+                // retry
             }
 
-            if (frame[0] == (byte)PacketId.ExperienceGain)
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildMelee("Slime"));
+            try
             {
-                return;
+                var frame = await client.ReadUntilAnyAsync(
+                    [PacketId.MeleeAttackResult, PacketId.ExperienceGain, PacketId.QuestJournalSnapshot],
+                    TimeSpan.FromSeconds(3));
+                if (frame[0] == (byte)PacketId.MeleeAttackResult && frame.Length > 1 && frame[1] != 0)
+                {
+                    return;
+                }
+
+                if (frame[0] == (byte)PacketId.ExperienceGain || frame[0] == (byte)PacketId.QuestJournalSnapshot)
+                {
+                    return;
+                }
+            }
+            catch (TimeoutException)
+            {
+                // retry
             }
 
             await Task.Delay(CombatFormulas.BasicAttackCooldownMs + 50);
         }
 
-        throw new TimeoutException("Slime kill melee did not succeed within retry budget.");
+        throw new TimeoutException("Slime kill did not succeed within retry budget.");
     }
 }
