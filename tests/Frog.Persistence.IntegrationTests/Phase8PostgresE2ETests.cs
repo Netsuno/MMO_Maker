@@ -78,7 +78,8 @@ public sealed class Phase8PostgresE2ETests
             Assert.Null(Phase8WireDecoders.FindQuestEntry(initialJournal, seed.QuestId));
 
             // Step 19: region boundary — EnvironmentStatePush after movement (no re-select)
-            await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.Region2TileX, seed.Region2TileY);
+            await Phase8MovementTestHelpers.TeleportToTileAsync(
+                client, seed.Region2TileX, seed.Region2TileY, drainSideEffects: false);
             var envRegion2 = await client.ReadUntilAsync(PacketId.EnvironmentStatePush);
             Assert.True(Phase8WireDecoders.TryDecodeEnvironmentState(
                 envRegion2, out var env2MapId, out var env2RegionId, out var env2WeatherId, out var lighting2));

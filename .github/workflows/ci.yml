@@ -29,7 +29,7 @@ jobs:
         run: dotnet restore Frog.Creator.sln
 
       - name: Build (Release)
-        run: dotnet build Frog.Creator.sln -c Release --no-restore
+        run: dotnet build Frog.Creator.sln -c Release --no-restore /m:1
 
       - name: Test unitaires (Release)
         timeout-minutes: 10
@@ -200,7 +200,7 @@ jobs:
         run: dotnet restore Frog.Creator.sln
 
       - name: Build (Release)
-        run: dotnet build Frog.Creator.sln -c Release --no-restore
+        run: dotnet build Frog.Creator.sln -c Release --no-restore /m:1
 
       - name: Integration tests (PostgreSQL)
         timeout-minutes: 15
