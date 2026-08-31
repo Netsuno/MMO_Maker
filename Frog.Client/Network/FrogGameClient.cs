@@ -2,9 +2,11 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.IO;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -26,6 +28,7 @@ public sealed class FrogGameClient : IDisposable
     private int _mapRequestHintMapId = 1;
     private volatile bool _intentionalDisconnect;
     private readonly MapSerializer _mapSerializer = new();
+    private readonly Dictionary<string, Guid> _lastEconomyRequestIds = new(StringComparer.Ordinal);
 
     public FrogGameClient(SynchronizationContext uiContext)
     {
@@ -59,7 +62,35 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? InteractResultReceived;
     /// <summary>Réponse <see cref="PacketId.WorldFlagsPatchRequest"/> (même forme que stats).</summary>
     public event Action<bool, string>? WorldFlagsPatchResultReceived;
+    public event Action<bool, string>? ReconnectResultReceived;
+    public event Action<InventorySnapshotWire>? InventorySnapshotReceived;
+    public event Action<bool, string>? EquipResultReceived;
+    public event Action<bool, string>? UnequipResultReceived;
+    public event Action<bool, string>? DropItemResultReceived;
+    public event Action<bool, string>? PickupItemResultReceived;
+    public event Action<GroundItemsSnapshotWire>? GroundItemsSnapshotReceived;
+    public event Action<bool, string>? SpellCastResultReceived;
+    public event Action<CombatStateWire>? CombatStateReceived;
+    public event Action<bool, string>? ShopBuyResultReceived;
+    public event Action<bool, string>? ShopSellResultReceived;
+    public event Action<bool, string>? BankDepositResultReceived;
+    public event Action<bool, string>? BankWithdrawResultReceived;
+    public event Action<BankSnapshotWire>? BankSnapshotReceived;
+    public event Action<bool, string>? RespawnResultReceived;
+    public event Action<ExperienceGainWire>? ExperienceGainReceived;
+    public event Action? DeathNotifyReceived;
+    public event Action<PublishedCatalogWire>? PublishedCatalogReceived;
+    public event Action<DialogueStateWire>? DialogueStatePushReceived;
+    public event Action<bool, string>? DialogueChoiceResultReceived;
+    public event Action<IReadOnlyList<QuestJournalEntryWire>>? QuestJournalSnapshotReceived;
+    public event Action<bool, string>? QuestTurnInResultReceived;
+    public event Action<bool, string>? CraftResultReceived;
+    public event Action<bool, string>? AcquireProfessionResultReceived;
+    public event Action<EnvironmentStateWire>? EnvironmentStatePushReceived;
     public event Action? ConnectionClosed;
+
+    /// <summary>Dernier catalogue publié reçu du serveur.</summary>
+    public PublishedCatalogWire? LatestPublishedCatalog { get; private set; }
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
     {
@@ -398,6 +429,268 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.ReconnectResult:
+                if (TryReadStatusMessage(body.Span, out var rcOk, out var rcMsg))
+                {
+                    Post(() => ReconnectResultReceived?.Invoke(rcOk, rcMsg));
+                }
+
+                break;
+
+            case PacketId.InventorySnapshot:
+                if (Phase7PacketCodec.TryParseInventorySnapshot(body.Span, out var invSnap))
+                {
+                    Post(() => InventorySnapshotReceived?.Invoke(invSnap));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("InventorySnapshot: format invalide."));
+                }
+
+                break;
+
+            case PacketId.EquipResult:
+                if (TryReadStatusMessage(body.Span, out var eqOk, out var eqMsg))
+                {
+                    Post(() => EquipResultReceived?.Invoke(eqOk, eqMsg));
+                }
+
+                break;
+
+            case PacketId.UnequipResult:
+                if (TryReadStatusMessage(body.Span, out var ueOk, out var ueMsg))
+                {
+                    Post(() => UnequipResultReceived?.Invoke(ueOk, ueMsg));
+                }
+
+                break;
+
+            case PacketId.DropItemResult:
+                if (TryReadStatusMessage(body.Span, out var drOk, out var drMsg))
+                {
+                    Post(() => DropItemResultReceived?.Invoke(drOk, drMsg));
+                }
+
+                break;
+
+            case PacketId.PickupItemResult:
+                if (TryReadStatusMessage(body.Span, out var puOk, out var puMsg))
+                {
+                    Post(() => PickupItemResultReceived?.Invoke(puOk, puMsg));
+                }
+
+                break;
+
+            case PacketId.GroundItemsSnapshot:
+                if (Phase7PacketCodec.TryParseGroundItemsSnapshot(body.Span, out var groundSnap))
+                {
+                    Post(() => GroundItemsSnapshotReceived?.Invoke(groundSnap));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("GroundItemsSnapshot: format invalide."));
+                }
+
+                break;
+
+            case PacketId.SpellCastResult:
+                if (TryReadStatusMessage(body.Span, out var spOk, out var spMsg))
+                {
+                    Post(() => SpellCastResultReceived?.Invoke(spOk, spMsg));
+                }
+
+                break;
+
+            case PacketId.CombatState:
+                if (Phase7PacketCodec.TryParseCombatState(body.Span, out var combat))
+                {
+                    Post(() => CombatStateReceived?.Invoke(combat));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("CombatState: format invalide."));
+                }
+
+                break;
+
+            case PacketId.ShopBuyResult:
+                if (TryReadStatusMessage(body.Span, out var buyOk, out var buyMsg))
+                {
+                    Post(() => ShopBuyResultReceived?.Invoke(buyOk, buyMsg));
+                }
+
+                break;
+
+            case PacketId.ShopSellResult:
+                if (TryReadStatusMessage(body.Span, out var sellOk, out var sellMsg))
+                {
+                    Post(() => ShopSellResultReceived?.Invoke(sellOk, sellMsg));
+                }
+
+                break;
+
+            case PacketId.BankDepositResult:
+                if (TryReadStatusMessage(body.Span, out var bdOk, out var bdMsg))
+                {
+                    Post(() => BankDepositResultReceived?.Invoke(bdOk, bdMsg));
+                }
+
+                break;
+
+            case PacketId.BankWithdrawResult:
+                if (TryReadStatusMessage(body.Span, out var bwOk, out var bwMsg))
+                {
+                    Post(() => BankWithdrawResultReceived?.Invoke(bwOk, bwMsg));
+                }
+
+                break;
+
+            case PacketId.BankSnapshot:
+                if (Phase7PacketCodec.TryParseBankSnapshot(body.Span, out var bankSnap))
+                {
+                    Post(() => BankSnapshotReceived?.Invoke(bankSnap));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("BankSnapshot: format invalide."));
+                }
+
+                break;
+
+            case PacketId.RespawnResult:
+                if (TryReadStatusMessage(body.Span, out var rsOk, out var rsMsg))
+                {
+                    Post(() => RespawnResultReceived?.Invoke(rsOk, rsMsg));
+                }
+
+                break;
+
+            case PacketId.ExperienceGain:
+                if (Phase7PacketCodec.TryParseExperienceGain(body.Span, out var xpGain))
+                {
+                    Post(() => ExperienceGainReceived?.Invoke(xpGain));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("ExperienceGain: format invalide."));
+                }
+
+                break;
+
+            case PacketId.DeathNotify:
+                Post(() => DeathNotifyReceived?.Invoke());
+                break;
+
+            case PacketId.PublishedCatalogResult:
+                if (TryReadLengthPrefixedUtf8Json(body.Span, out var catalogJson)
+                    && TryDeserializePublishedCatalog(catalogJson, out var catalog))
+                {
+                    LatestPublishedCatalog = catalog;
+                    Post(() => PublishedCatalogReceived?.Invoke(catalog));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("PublishedCatalogResult: format invalide."));
+                }
+
+                break;
+
+            case PacketId.DialogueStatePush:
+                if (Phase8Wire.TryParseDialogueStatePush(
+                        body.Span,
+                        out var dialogueId,
+                        out var dialogueRevision,
+                        out var dialogueToken,
+                        out var speaker,
+                        out var dialogueText,
+                        out var dialogueChoices))
+                {
+                    var dialogueState = new DialogueStateWire
+                    {
+                        DialogueId = dialogueId,
+                        PublishedRevision = dialogueRevision,
+                        SessionToken = dialogueToken,
+                        Speaker = speaker,
+                        Text = dialogueText,
+                        Choices = dialogueChoices,
+                    };
+                    Post(() => DialogueStatePushReceived?.Invoke(dialogueState));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("DialogueStatePush: format invalide."));
+                }
+
+                break;
+
+            case PacketId.DialogueChoiceResult:
+                if (TryReadStatusMessage(body.Span, out var dcOk, out var dcMsg))
+                {
+                    Post(() => DialogueChoiceResultReceived?.Invoke(dcOk, dcMsg));
+                }
+
+                break;
+
+            case PacketId.QuestJournalSnapshot:
+                if (Phase8Wire.TryParseQuestJournalSnapshot(body.Span, out var journalEntries))
+                {
+                    Post(() => QuestJournalSnapshotReceived?.Invoke(journalEntries));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("QuestJournalSnapshot: format invalide."));
+                }
+
+                break;
+
+            case PacketId.QuestTurnInResult:
+                if (TryReadStatusMessage(body.Span, out var qtOk, out var qtMsg))
+                {
+                    Post(() => QuestTurnInResultReceived?.Invoke(qtOk, qtMsg));
+                }
+
+                break;
+
+            case PacketId.CraftResult:
+                if (TryReadStatusMessage(body.Span, out var crOk, out var crMsg))
+                {
+                    Post(() => CraftResultReceived?.Invoke(crOk, crMsg));
+                }
+
+                break;
+
+            case PacketId.AcquireProfessionResult:
+                if (TryReadStatusMessage(body.Span, out var apOk, out var apMsg))
+                {
+                    Post(() => AcquireProfessionResultReceived?.Invoke(apOk, apMsg));
+                }
+
+                break;
+
+            case PacketId.EnvironmentStatePush:
+                if (Phase8Wire.TryParseEnvironmentState(
+                        body.Span,
+                        out var envMapId,
+                        out var envRegionId,
+                        out var envWeatherId,
+                        out var envLighting))
+                {
+                    var envState = new EnvironmentStateWire
+                    {
+                        MapId = envMapId,
+                        RegionId = envRegionId,
+                        WeatherProfileId = envWeatherId,
+                        LightingLevel = envLighting,
+                    };
+                    Post(() => EnvironmentStatePushReceived?.Invoke(envState));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("EnvironmentStatePush: format invalide."));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -526,6 +819,9 @@ public sealed class FrogGameClient : IDisposable
     public Task SendCharacterListRequestAsync(CancellationToken cancellationToken = default)
         => SendRawAsync([(byte)PacketId.CharacterListRequest], cancellationToken);
 
+    public Task SendPublishedCatalogRequestAsync(CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.PublishedCatalogRequest], cancellationToken);
+
     public Task SendCharacterSelectAsync(string characterId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(characterId);
@@ -544,6 +840,10 @@ public sealed class FrogGameClient : IDisposable
 
     /// <summary>Nom affichage : max 32 caractères Unicode, UTF‑8 max 128 octets (aligné serveur).</summary>
     public Task SendCharacterCreateAsync(string displayName, CancellationToken cancellationToken = default)
+        => SendCharacterCreateAsync(displayName, null, cancellationToken);
+
+    /// <summary>Création avec classe publiée (Guid 16 octets optionnel après le nom).</summary>
+    public Task SendCharacterCreateAsync(string displayName, Guid? classId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         var trimmed = displayName.Trim();
@@ -558,10 +858,17 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentException("Nom UTF-8 trop long.");
         }
 
-        var payload = new byte[1 + 1 + nameBytes.Length];
+        var payload = classId is Guid cid
+            ? new byte[1 + 1 + nameBytes.Length + 16]
+            : new byte[1 + 1 + nameBytes.Length];
         payload[0] = (byte)PacketId.CharacterCreateRequest;
         payload[1] = (byte)nameBytes.Length;
         nameBytes.CopyTo(payload.AsSpan(2));
+        if (classId is Guid classGuid)
+        {
+            classGuid.TryWriteBytes(payload.AsSpan(2 + nameBytes.Length));
+        }
+
         return SendRawAsync(payload, cancellationToken);
     }
 
@@ -662,6 +969,305 @@ public sealed class FrogGameClient : IDisposable
         payload[1] = (byte)t.Length;
         t.CopyTo(payload.AsSpan(2));
         await SendRawAsync(payload, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task SendReconnectAsync(string token, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        var t = Encoding.UTF8.GetBytes(token);
+        if (t.Length is 0 or > ushort.MaxValue)
+        {
+            throw new ArgumentException("Jeton reconnect invalide.");
+        }
+
+        var payload = new byte[1 + sizeof(ushort) + t.Length];
+        payload[0] = (byte)PacketId.ReconnectRequest;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1), (ushort)t.Length);
+        t.CopyTo(payload.AsSpan(1 + sizeof(ushort)));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendEquipAsync(byte slotIndex, CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.EquipRequest, slotIndex], cancellationToken);
+
+    public Task SendUnequipAsync(EquipmentSlotKind slot, CancellationToken cancellationToken = default)
+    {
+        if (slot is not (EquipmentSlotKind.Weapon or EquipmentSlotKind.Armor))
+        {
+            throw new ArgumentException("Slot d'équipement invalide.", nameof(slot));
+        }
+
+        return SendRawAsync([(byte)PacketId.UnequipRequest, (byte)slot], cancellationToken);
+    }
+
+    public Task SendDropItemAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        var payload = new byte[1 + 1 + sizeof(int)];
+        payload[0] = (byte)PacketId.DropItemRequest;
+        payload[1] = slotIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendPickupItemAsync(Guid groundItemId, CancellationToken cancellationToken = default)
+    {
+        if (groundItemId == Guid.Empty)
+        {
+            throw new ArgumentException("Ground item id invalide.", nameof(groundItemId));
+        }
+
+        var payload = new byte[1 + 16];
+        payload[0] = (byte)PacketId.PickupItemRequest;
+        groundItemId.TryWriteBytes(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendSpellCastAsync(Guid spellId, string targetName, CancellationToken cancellationToken = default)
+    {
+        if (spellId == Guid.Empty)
+        {
+            throw new ArgumentException("Spell id invalide.", nameof(spellId));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetName);
+        var t = Encoding.UTF8.GetBytes(targetName.Trim());
+        if (t.Length is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes)
+        {
+            throw new ArgumentException("Cible sort invalide.");
+        }
+
+        var payload = new byte[1 + 16 + 1 + t.Length];
+        payload[0] = (byte)PacketId.SpellCastRequest;
+        spellId.TryWriteBytes(payload.AsSpan(1));
+        payload[17] = (byte)t.Length;
+        t.CopyTo(payload.AsSpan(18));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendShopBuyAsync(Guid shopId, Guid itemId, int quantity, CancellationToken cancellationToken = default)
+        => SendShopBuyAsync(shopId, itemId, quantity, NewEconomyRequestId("buy"), cancellationToken);
+
+    public Task SendShopBuyAsync(
+        Guid shopId,
+        Guid itemId,
+        int quantity,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (shopId == Guid.Empty || itemId == Guid.Empty || quantity <= 0 || requestId == Guid.Empty)
+        {
+            throw new ArgumentException("Paramètres achat invalides.");
+        }
+
+        RememberEconomyRequestId("buy", requestId);
+        var payload = new byte[1 + 16 + 16 + 4 + 16];
+        payload[0] = (byte)PacketId.ShopBuyRequest;
+        shopId.TryWriteBytes(payload.AsSpan(1));
+        itemId.TryWriteBytes(payload.AsSpan(17));
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(33), quantity);
+        requestId.TryWriteBytes(payload.AsSpan(37));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendShopSellAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+        => SendShopSellAsync(slotIndex, quantity, NewEconomyRequestId("sell"), cancellationToken);
+
+    public Task SendShopSellAsync(
+        byte slotIndex,
+        int quantity,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0 || requestId == Guid.Empty)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        RememberEconomyRequestId("sell", requestId);
+        var payload = new byte[1 + 1 + sizeof(int) + 16];
+        payload[0] = (byte)PacketId.ShopSellRequest;
+        payload[1] = slotIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        requestId.TryWriteBytes(payload.AsSpan(6));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankDepositItemAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+        => SendBankDepositItemAsync(slotIndex, quantity, NewEconomyRequestId("bank-deposit-item"), cancellationToken);
+
+    public Task SendBankDepositItemAsync(
+        byte slotIndex,
+        int quantity,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0 || requestId == Guid.Empty)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        RememberEconomyRequestId("bank-deposit-item", requestId);
+        var payload = new byte[1 + 1 + sizeof(int) + 16];
+        payload[0] = (byte)PacketId.BankDepositRequest;
+        payload[1] = slotIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        requestId.TryWriteBytes(payload.AsSpan(6));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankWithdrawItemAsync(byte slotIndex, int quantity, CancellationToken cancellationToken = default)
+        => SendBankWithdrawItemAsync(slotIndex, quantity, NewEconomyRequestId("bank-withdraw-item"), cancellationToken);
+
+    public Task SendBankWithdrawItemAsync(
+        byte slotIndex,
+        int quantity,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0 || requestId == Guid.Empty)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        RememberEconomyRequestId("bank-withdraw-item", requestId);
+        var payload = new byte[1 + 1 + sizeof(int) + 16];
+        payload[0] = (byte)PacketId.BankWithdrawRequest;
+        payload[1] = slotIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(2), quantity);
+        requestId.TryWriteBytes(payload.AsSpan(6));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankDepositGoldAsync(int amount, CancellationToken cancellationToken = default)
+        => SendBankDepositGoldAsync(amount, NewEconomyRequestId("bank-deposit-gold"), cancellationToken);
+
+    public Task SendBankDepositGoldAsync(int amount, Guid requestId, CancellationToken cancellationToken = default)
+    {
+        if (amount <= 0 || requestId == Guid.Empty)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        }
+
+        RememberEconomyRequestId("bank-deposit-gold", requestId);
+        var payload = new byte[1 + sizeof(int) + 16];
+        payload[0] = (byte)PacketId.BankDepositRequest;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), amount);
+        requestId.TryWriteBytes(payload.AsSpan(5));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendBankWithdrawGoldAsync(int amount, CancellationToken cancellationToken = default)
+        => SendBankWithdrawGoldAsync(amount, NewEconomyRequestId("bank-withdraw-gold"), cancellationToken);
+
+    public Task SendBankWithdrawGoldAsync(int amount, Guid requestId, CancellationToken cancellationToken = default)
+    {
+        if (amount <= 0 || requestId == Guid.Empty)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        }
+
+        RememberEconomyRequestId("bank-withdraw-gold", requestId);
+        var payload = new byte[1 + sizeof(int) + 16];
+        payload[0] = (byte)PacketId.BankWithdrawRequest;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), amount);
+        requestId.TryWriteBytes(payload.AsSpan(5));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public void ClearEconomyRequestId(string operation)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        _lastEconomyRequestIds.Remove(operation);
+    }
+
+    public bool PeekEconomyRequestId(string operation, out Guid requestId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        return _lastEconomyRequestIds.TryGetValue(operation, out requestId);
+    }
+
+    private Guid NewEconomyRequestId(string operation)
+    {
+        var id = Guid.NewGuid();
+        _lastEconomyRequestIds[operation] = id;
+        return id;
+    }
+
+    private void RememberEconomyRequestId(string operation, Guid requestId)
+        => _lastEconomyRequestIds[operation] = requestId;
+
+    public Task SendRespawnAsync(CancellationToken cancellationToken = default)
+        => SendRawAsync([(byte)PacketId.RespawnRequest], cancellationToken);
+
+    public Task SendDialogueChoiceAsync(byte[] sessionToken, string choiceId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(choiceId);
+        var body = Phase8Wire.BuildDialogueChoiceRequest(sessionToken, choiceId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.DialogueChoiceRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendQuestTurnInAsync(Guid questId, CancellationToken cancellationToken = default)
+        => SendQuestTurnInAsync(questId, NewEconomyRequestId("quest-turn-in"), cancellationToken);
+
+    public Task SendQuestTurnInAsync(
+        Guid questId,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (questId == Guid.Empty || requestId == Guid.Empty)
+        {
+            throw new ArgumentException("Paramètres turn-in invalides.");
+        }
+
+        RememberEconomyRequestId("quest-turn-in", requestId);
+        var body = Phase8Wire.BuildQuestTurnInRequest(questId, requestId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.QuestTurnInRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendCraftAsync(Guid recipeId, CancellationToken cancellationToken = default)
+        => SendCraftAsync(recipeId, NewEconomyRequestId("craft"), cancellationToken);
+
+    public Task SendCraftAsync(
+        Guid recipeId,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (recipeId == Guid.Empty || requestId == Guid.Empty)
+        {
+            throw new ArgumentException("Paramètres craft invalides.");
+        }
+
+        RememberEconomyRequestId("craft", requestId);
+        var body = Phase8Wire.BuildCraftRequest(recipeId, requestId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.CraftRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendAcquireProfessionAsync(Guid professionId, CancellationToken cancellationToken = default)
+    {
+        if (professionId == Guid.Empty)
+        {
+            throw new ArgumentException("ProfessionId requis.", nameof(professionId));
+        }
+
+        var body = Phase8Wire.BuildAcquireProfessionRequest(professionId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.AcquireProfessionRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
     }
 
     private async Task SendRawAsync(byte[] payload, CancellationToken cancellationToken)
@@ -831,6 +1437,9 @@ public sealed class FrogGameClient : IDisposable
     }
 
     private static bool TryReadCharacterListResult(ReadOnlySpan<byte> span, out string json)
+        => TryReadLengthPrefixedUtf8Json(span, out json);
+
+    private static bool TryReadLengthPrefixedUtf8Json(ReadOnlySpan<byte> span, out string json)
     {
         json = string.Empty;
         if (span.Length < sizeof(ushort))
@@ -846,6 +1455,31 @@ public sealed class FrogGameClient : IDisposable
 
         json = Encoding.UTF8.GetString(span.Slice(sizeof(ushort), len));
         return true;
+    }
+
+    private static bool TryDeserializePublishedCatalog(string json, out PublishedCatalogWire catalog)
+    {
+        catalog = new PublishedCatalogWire();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<PublishedCatalogWire>(json);
+            if (parsed is null)
+            {
+                return false;
+            }
+
+            catalog = parsed;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool TryReadMapEventsResult(ReadOnlySpan<byte> span, out int mapId, out string json)

@@ -1,6 +1,9 @@
 {
+  "PostgreSql": {
+    "ConnectionString": "Host=127.0.0.1;Port=5432;Database=frog;Username=frog;Password=CHANGE_ME"
+  },
   "MariaDb": {
-    "Enabled": true,
+    "Enabled": false,
     "ConnectionString": "Server=127.0.0.1;Port=3306;Database=frog;User Id=frog;Password=CHANGE_ME;"
   }
 }

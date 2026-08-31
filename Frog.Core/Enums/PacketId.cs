@@ -59,5 +59,78 @@ public enum PacketId : byte
 
     /// <summary>Résultat patch drapeaux (même forme courte que <see cref="LoginResult"/>).</summary>
     WorldFlagsPatchResult = 35,
+
+    /// <summary>Reconnexion via jeton opaque émis au login (UTF-8, longueur UInt16 LE).</summary>
+    ReconnectRequest = 36,
+
+    /// <summary>Résultat reconnexion (même forme que <see cref="LoginResult"/>).</summary>
+    ReconnectResult = 37,
+
+    /// <summary>État inventaire + équipement (binaire).</summary>
+    InventorySnapshot = 38,
+    EquipRequest = 39,
+    EquipResult = 40,
+    UnequipRequest = 41,
+    UnequipResult = 42,
+    DropItemRequest = 43,
+    DropItemResult = 44,
+    PickupItemRequest = 45,
+    PickupItemResult = 46,
+    GroundItemsSnapshot = 47,
+    SpellCastRequest = 48,
+    SpellCastResult = 49,
+    /// <summary>HP/MP/niveau/XP/or/mort du perso actif.</summary>
+    CombatState = 50,
+    ShopBuyRequest = 51,
+    ShopBuyResult = 52,
+    ShopSellRequest = 53,
+    ShopSellResult = 54,
+    BankDepositRequest = 55,
+    BankDepositResult = 56,
+    BankWithdrawRequest = 57,
+    BankWithdrawResult = 58,
+    BankSnapshot = 59,
+    RespawnRequest = 60,
+    RespawnResult = 61,
+    ExperienceGain = 62,
+    DeathNotify = 63,
+    /// <summary>Demande le catalogue contenu publié (classes/items/spells/shops/NPCs).</summary>
+    PublishedCatalogRequest = 64,
+    /// <summary>Réponse JSON <see cref="Frog.Core.Protocol.PublishedCatalogWire"/>.</summary>
+    PublishedCatalogResult = 65,
+
+    /// <summary>État dialogue typé (speaker, texte, choix + token session).</summary>
+    DialogueStatePush = 66,
+
+    /// <summary>Choix dialogue avec token session opaque.</summary>
+    DialogueChoiceRequest = 67,
+
+    /// <summary>Résultat choix dialogue.</summary>
+    DialogueChoiceResult = 68,
+
+    /// <summary>Journal quêtes (JSON <see cref="Frog.Core.Protocol.QuestJournalEntryWire"/>).</summary>
+    QuestJournalSnapshot = 69,
+
+    /// <summary>Turn-in quête avec requestId idempotent.</summary>
+    QuestTurnInRequest = 70,
+
+    /// <summary>Résultat turn-in quête.</summary>
+    QuestTurnInResult = 71,
+
+    /// <summary>Craft recette avec requestId idempotent.</summary>
+    CraftRequest = 72,
+
+    /// <summary>Résultat craft.</summary>
+    CraftResult = 73,
+
+    /// <summary>Région/météo/éclairage carte courante.</summary>
+    EnvironmentStatePush = 74,
+
+    /// <summary>Acquisition d'un métier publié.</summary>
+    AcquireProfessionRequest = 75,
+
+    /// <summary>Résultat acquisition métier.</summary>
+    AcquireProfessionResult = 76,
+
     Error = 255
 }

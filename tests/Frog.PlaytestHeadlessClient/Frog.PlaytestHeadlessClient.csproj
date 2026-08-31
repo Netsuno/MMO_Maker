@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Frog.PlaytestHeadlessClient</RootNamespace>
+  </PropertyGroup>
+    <ItemGroup>
+    <ProjectReference Include="..\..\Frog.Core\Frog.Core.csproj" />
+    <ProjectReference Include="..\..\Frog.Application\Frog.Application.csproj" />
+  </ItemGroup>
+</Project>

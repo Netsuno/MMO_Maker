@@ -10,4 +10,15 @@ public interface IMapEventStore
 
     /// <summary>Placements courants (cache serveur invalidé si la base change).</summary>
     bool TryGetPlacements(int mapId, out IReadOnlyList<MapEventWireEntry> placements);
+
+    /// <summary>Version async préférée (remplit le cache sans bloquer sur sync-over-async).</summary>
+    Task<(bool Ok, IReadOnlyList<MapEventWireEntry> Placements)> GetPlacementsAsync(
+        int mapId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Invalide tout le cache placements. À appeler après republish carte / événement carte
+    /// (hook serveur) pour forcer un rechargement depuis le catalogue publié.
+    /// </summary>
+    void InvalidateAll();
 }

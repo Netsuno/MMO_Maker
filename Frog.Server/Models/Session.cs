@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Frog.Application.Gameplay;
 using Frog.Server.Services;
 
 namespace Frog.Server.Models;
@@ -7,6 +8,8 @@ public sealed class Session
 {
     public required Guid Id { get; init; }
     public required string Username { get; init; }
+    public Guid AccountId { get; set; }
+    public Guid? AuthSessionId { get; set; }
     public DateTime ConnectedUtc { get; init; } = DateTime.UtcNow;
     public DateTime LastActivityUtc { get; set; } = DateTime.UtcNow;
     /// <summary>Tuile contenant le <b>centre</b> joueur (<c>floor(PixelX / tailleTuile)</c>) — collisions discrètes, warps, interactions.</summary>
@@ -27,14 +30,67 @@ public sealed class Session
     /// <summary>Dernière acceptation <see cref="Frog.Server.Services.MovementService.TryApplyReportedPixelPosition"/> (anti-triche vitesse).</summary>
     public DateTime LastPositionSyncUtc { get; set; }
 
-    /// <summary><c>frog_character.id</c> (UUID texte) du perso par défaut, rempli après login.</summary>
+    /// <summary><c>frog_character.id</c> (UUID texte) du perso actif.</summary>
     public string? CharacterId { get; set; }
+
+    /// <summary>UUID du personnage actif (Phase 7 gameplay).</summary>
+    public Guid? CharacterGuid { get; set; }
+
+    public int Level { get; set; } = 1;
+    public long Experience { get; set; }
+    public int Hp { get; set; }
+    public int MaxHp { get; set; }
+    public int Mp { get; set; }
+    public int MaxMp { get; set; }
+    public int Gold { get; set; }
+    public int BankGold { get; set; }
+    public bool IsDead { get; set; }
+    public CharacterStats? Stats { get; set; }
+    public Guid? ClassId { get; set; }
+    public Guid? StartingSpellId { get; set; }
+    public Guid? EquippedWeaponItemId { get; set; }
+    public Guid? EquippedArmorItemId { get; set; }
+    public long LastExperienceGain { get; set; }
+
+    /// <summary>Fin de recharge par sort (UTC).</summary>
+    public Dictionary<Guid, DateTime> SpellCooldownsUtc { get; } = new();
+
+    public DateTime LastMeleeUtc { get; set; }
+
+    /// <summary>
+    /// Verrou pour les mutations HP joueur (melee PvP) : plusieurs attaquants peuvent
+    /// cibler cette session depuis des connexions/taches distinctes en meme temps, donc la
+    /// lecture-modification-ecriture de <see cref="Hp"/>/<see cref="IsDead"/> doit etre
+    /// serialisee par victime (cf. CombatGameplayService.TryMeleeAttackPlayerAsync).
+    /// </summary>
+    public object CombatLock { get; } = new();
+
+    public HashSet<Guid> KnownSpellIds { get; } = new();
 
     /// <summary>Cartes pour lesquelles un événement <c>page</c> a déjà été joué cette session (réarmé en quittant la carte).</summary>
     public HashSet<int> PageTriggerSatisfiedMapIds { get; } = new();
 
     /// <summary>Dernier <c>InteractResult</c> auto-tuile par <c>placementId</c> (réinitialisé au changement de case carte).</summary>
     public Dictionary<long, DateTime> MapEventAutoTileLastFiredUtc { get; } = new();
+
+    /// <summary>RequestId stable par placement pour idempotence exécution événement (P8-I4).</summary>
+    public Dictionary<long, Guid> MapEventPendingRequestIds { get; } = new();
+
+    /// <summary>Dernière région environnement poussée au client (P8-I5 boundary).</summary>
+    public Guid? LastEnvironmentRegionId { get; set; }
+
+    public Guid GetOrCreateMapEventRequestId(long placementId)
+    {
+        if (!MapEventPendingRequestIds.TryGetValue(placementId, out var id) || id == Guid.Empty)
+        {
+            id = Guid.NewGuid();
+            MapEventPendingRequestIds[placementId] = id;
+        }
+
+        return id;
+    }
+
+    public void ClearMapEventRequestId(long placementId) => MapEventPendingRequestIds.Remove(placementId);
 
     /// <summary>Limite <see cref="Frog.Core.Enums.PacketId.MoveRequest"/> + <see cref="Frog.Core.Enums.PacketId.PositionSyncRequest"/> par seconde.</summary>
     public MovementPacketRateGate MovementPacketRateGate { get; } = new();

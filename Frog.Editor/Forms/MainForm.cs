@@ -6,6 +6,8 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using System.Windows.Interop;
+using Frog.Application.Maps;
+using Frog.Application.Playtest;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
@@ -18,6 +20,7 @@ using Frog.Editor.Ui;
 using Frog.Editor.Config;
 using Frog.Editor.Interop;
 using Frog.Editor.Services;
+using Frog.Persistence.PostgreSql;
 
 namespace Frog.Editor.Forms;
 
@@ -55,6 +58,30 @@ public sealed class MainForm : Form
     private readonly Panel _mapHeader;
     private readonly Label _lblMapWorkspaceTitle;
     private System.Windows.Window? _wpfOwnerWindow;
+    private MapWorkspaceSession? _workspace;
+    private IMapRepository? _mapRepository;
+    private MapEventsPostgreSqlService? _mapEventService;
+    private Phase8ContentPostgreSqlService? _phase8ContentService;
+    private EditorPostgreSqlScope? _mapDatabaseScope;
+    private EditorPostgreSqlScope? _mapEventDatabaseScope;
+    private EditorPostgreSqlScope? _phase8DatabaseScope;
+    private bool _catalogOpenInProgress;
+    private bool _suppressDirtyTracking;
+    private readonly IEditorDialogService _dialogService;
+    private MapRepositoryCapabilities _persistenceCapabilities = MapRepositoryCapabilities.InMemoryDemo;
+    private bool _saveInProgress;
+    private bool _closeConfirmed;
+    private bool _propGridUndoCaptured;
+    private Task? _pendingSaveOperation;
+    private ToolStripMenuItem? _mnuSave;
+    private ToolStripMenuItem? _mnuPublish;
+    private ToolStripMenuItem? _mnuPlaytest;
+    private ToolStripMenuItem? _mnuStopPlaytest;
+    private EditorPlaytestProcessLauncher? _playtestLauncher;
+    private PlaytestOrchestrator? _playtestOrchestrator;
+    private CancellationTokenSource? _playtestCts;
+    private bool _playtestBusy;
+    private EditorMainFormCloseCoordinator? _closeCoordinator;
 
     /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
     internal Control LeftShellForWpf => _leftColumnPanel;
@@ -64,6 +91,116 @@ public sealed class MainForm : Form
 
     /// <summary>Tuiles + couches + grille de propriétés.</summary>
     internal Control RightShellForWpf => _splitRightTileset;
+
+    internal Map? GetCanvasMapForTest() => _canvas.Map;
+
+    internal MapWorkspaceSession? GetWorkspaceSessionForTest() => _workspace;
+
+    internal MapRepositoryCapabilities GetPersistenceCapabilitiesForTest() => _persistenceCapabilities;
+
+    internal bool IsSaveInProgressForTest() => _saveInProgress;
+
+    /// <summary>True when save/publish/init/close-cleanup must finish before WPF shell teardown.</summary>
+    internal bool HasPendingEditorOperations()
+        => _saveInProgress
+           || _workspace?.IsSaveInProgress == true
+           || _pendingSaveOperation is { IsCompleted: false }
+           || IsWorkspaceInitializationPendingForTest
+           || IsEditorClosingForTest();
+
+    internal Task? PendingSaveOperationForTest => _pendingSaveOperation;
+
+    internal bool HasUnsavedChangesForTest() => _workspace?.IsDirty == true;
+
+    internal bool IsCloseConfirmedForTest() => _closeConfirmed;
+
+    internal EditorMainFormCloseCoordinator? CloseCoordinatorForTest => _closeCoordinator;
+
+    internal EditorPostgreSqlScope? MapDatabaseScopeForTest => _mapDatabaseScope;
+
+    internal EditorPostgreSqlScope? MapEventDatabaseScopeForTest => _mapEventDatabaseScope;
+
+    internal EditorPostgreSqlScope? Phase8DatabaseScopeForTest => _phase8DatabaseScope;
+
+    internal MapEventsPostgreSqlService? MapEventServiceForTest => _mapEventService;
+
+    internal Phase8ContentPostgreSqlService? Phase8ContentServiceForTest => _phase8ContentService;
+
+    /// <summary>Attache des scopes/services pour vérifier dispose (FORCE_IN_MEMORY laisse ces champs null).</summary>
+    internal void AttachScopesAndServicesForDisposeTest(
+        EditorPostgreSqlScope mapScope,
+        EditorPostgreSqlScope mapEventScope,
+        EditorPostgreSqlScope phase8Scope,
+        MapEventsPostgreSqlService mapEventService,
+        Phase8ContentPostgreSqlService phase8Service)
+    {
+        _mapDatabaseScope = mapScope ?? throw new ArgumentNullException(nameof(mapScope));
+        _mapEventDatabaseScope = mapEventScope ?? throw new ArgumentNullException(nameof(mapEventScope));
+        _phase8DatabaseScope = phase8Scope ?? throw new ArgumentNullException(nameof(phase8Scope));
+        _mapEventService = mapEventService ?? throw new ArgumentNullException(nameof(mapEventService));
+        _phase8ContentService = phase8Service ?? throw new ArgumentNullException(nameof(phase8Service));
+    }
+
+    internal void BeginCloseCleanupViaCoordinatorForTest()
+    {
+        var args = new FormClosingEventArgs(CloseReason.UserClosing, cancel: false);
+        _ = _closeCoordinator?.TryHandleFormClosing(args, ConfirmCloseForShutdownAsync);
+    }
+
+    internal bool IsEditorClosingForTest() => _closeCoordinator?.IsEditorClosingForTest == true;
+
+    internal void SaveMap()
+    {
+        if (_saveInProgress)
+        {
+            return;
+        }
+
+        _pendingSaveOperation = RunSaveOperationAsync(SaveMapCoreAsync);
+    }
+
+    internal void PublishMap()
+    {
+        if (_saveInProgress)
+        {
+            return;
+        }
+
+        _pendingSaveOperation = RunSaveOperationAsync(PublishMapCoreAsync);
+    }
+
+    internal Task SaveMapCoreForTestAsync() => SaveMapCoreAsync();
+
+    internal Task PublishMapCoreForTestAsync() => PublishMapCoreAsync();
+
+    internal async Task<bool> TryRequestCloseAsync() => await ConfirmCloseAsync().ConfigureAwait(true);
+
+    public bool CanExecuteSaveOrPublish()
+        => _workspace is not null
+           && _persistenceCapabilities.AllowsSave
+           && !_saveInProgress
+           && _workspace.IsSaveInProgress != true;
+
+    internal async Task<bool> ConfirmCloseAsync()
+    {
+        if (_closeConfirmed || _workspace?.IsDirty != true)
+        {
+            return true;
+        }
+
+        var proceed = await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true);
+        if (proceed)
+        {
+            _closeConfirmed = true;
+        }
+
+        return proceed;
+    }
+
+    internal bool AreShellHostsReadyForTest() =>
+        _leftColumnPanel.IsHandleCreated
+        && _wfMapDockPanel.IsHandleCreated
+        && _splitRightTileset.IsHandleCreated;
 
     internal void SetWpfOwnerWindow(System.Windows.Window window) => _wpfOwnerWindow = window;
 
@@ -88,7 +225,7 @@ public sealed class MainForm : Form
     {
         _embedAsWpfChild = embedAsWpfChild;
         _lastPublishedFrogMapId = EditorLocalWorkstate.ReadLastPublishedFrogMapId();
-        Text = "Frog — Éditeur de cartes";
+        Text = "MMO Maker — Éditeur";
         MinimumSize = new Size(1100, 720);
         if (embedAsWpfChild)
         {
@@ -105,8 +242,36 @@ public sealed class MainForm : Form
 
         KeyPreview = true;
         EditorChrome.ApplyFormChrome(this);
+        _dialogService = EditorTestHooks.OverrideDialogService
+                         ?? new WinFormsEditorDialogService(GetDialogOwner);
 
-        FormClosed += (_, _) => TilesetCache.Clear();
+        _closeCoordinator = new EditorMainFormCloseCoordinator(
+            () => StopPlaytestAsync(),
+            () => _workspaceInitTask,
+            () => new EditorPostgreSqlScope?[] { _mapDatabaseScope, _mapEventDatabaseScope, _phase8DatabaseScope },
+            DisposeWorkspaceServicesAndScopes,
+            SetClosingUiState,
+            () => _saveInProgress || _workspace?.IsSaveInProgress == true || (_workspaceInitTask is { IsCompleted: false }),
+            () =>
+            {
+                if (!IsDisposed && _closeCoordinator?.AllowFinalCloseForTest == true)
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        if (!IsDisposed)
+                        {
+                            Close();
+                        }
+                    }));
+                }
+            });
+
+        FormClosing += MainForm_FormClosing;
+
+        FormClosed += (_, _) =>
+        {
+            TilesetCache.Clear();
+        };
 
         if (!embedAsWpfChild)
         {
@@ -125,13 +290,29 @@ public sealed class MainForm : Form
                 ShowShortcutKeys = true,
             });
             mFile.DropDownItems.Add(new ToolStripSeparator());
-            mFile.DropDownItems.Add(new ToolStripMenuItem("Enregistrer", null, (_, _) => SaveMap())
+            var mnuSave = new ToolStripMenuItem("Enregistrer (PostgreSQL)", null, (_, _) => SaveMap())
             {
                 ShortcutKeys = Keys.Control | Keys.S,
                 ShowShortcutKeys = true,
-            });
-            mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB…", null, (_, _) => PublishMapToMariaDb()));
+            };
+            var mnuPublish = new ToolStripMenuItem("Publier (PostgreSQL)…", null, (_, _) => PublishMap());
+            mFile.DropDownItems.Add(mnuSave);
+            mFile.DropDownItems.Add(mnuPublish);
+            _mnuSave = mnuSave;
+            _mnuPublish = mnuPublish;
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Exporter fichier .fmap…", null, (_, _) => ExportMapToFile()));
+            mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB… (héritage)", null, (_, _) => PublishMapToMariaDb()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Lancer le client Frog…", null, (_, _) => LaunchFrogGameClient()));
+            _mnuPlaytest = new ToolStripMenuItem("Playtest (publier + serveur + client)…", null, async (_, _) => await StartPlaytestAsync())
+            {
+                ShortcutKeys = Keys.F5 | Keys.Control,
+            };
+            _mnuStopPlaytest = new ToolStripMenuItem("Arrêter le playtest", null, async (_, _) => await StopPlaytestAsync())
+            {
+                Enabled = false,
+            };
+            mFile.DropDownItems.Add(_mnuPlaytest);
+            mFile.DropDownItems.Add(_mnuStopPlaytest);
             mFile.DropDownItems.Add(new ToolStripSeparator());
             mFile.DropDownItems.Add("Quitter", null, (_, _) =>
             {
@@ -166,8 +347,10 @@ public sealed class MainForm : Form
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
-            mMap.DropDownItems.Add("Événements carte (MariaDB)…", null, (_, _) => BrowseMapEventsFromMariaDb());
-            mMap.DropDownItems.Add("Actualiser marqueurs événements (MariaDB)", null, (_, _) => RefreshMapEventMarkersFromMariaDb());
+            mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
+            mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
+            mMap.DropDownItems.Add("Contenu Phase 8…", null, (_, _) => BrowsePhase8Content());
+            mMap.DropDownItems.Add("Actualiser marqueurs événements", null, (_, _) => RefreshMapEventMarkers());
             mMap.DropDownItems.Add(
                 new ToolStripMenuItem("Astuce : Ctrl+clic droit sur la carte = menu événements (tuile sous curseur)")
                 {
@@ -180,7 +363,7 @@ public sealed class MainForm : Form
             mView.DropDownItems.Add(new ToolStripSeparator());
             mView.DropDownItems.Add("Réinitialiser la vue (zoom 100 %)", null, (_, _) => ResetMapView());
             mView.DropDownItems.Add(new ToolStripSeparator());
-            var mnuShowEventMarkers = new ToolStripMenuItem("Marqueurs événements (MariaDB)")
+            var mnuShowEventMarkers = new ToolStripMenuItem("Marqueurs événements")
             {
                 CheckOnClick = true,
                 Checked = true,
@@ -207,7 +390,7 @@ public sealed class MainForm : Form
             {
                 ApplyLayoutPercentages();
                 PositionMinimap();
-                BeginInvoke(new Action(RefreshMapEventMarkersFromMariaDb));
+                BeginInvoke(new Action(RefreshMapEventMarkers));
             };
             ResizeEnd += (_, _) => ApplyLayoutPercentages();
         }
@@ -260,6 +443,7 @@ public sealed class MainForm : Form
         _canvas.TileContextMenuRequested += OnTileContextMenuRequested;
         _canvas.MapReplaced += OnMapReplaced;
         _canvas.UndoHistoryChanged += UpdateUndoRedoButtons;
+        _canvas.MapEdited += OnMapEdited;
 
         if (_mnuShowEventMarkers is not null)
         {
@@ -293,6 +477,7 @@ public sealed class MainForm : Form
         };
 
         _mapsProjectPanel = new MapsProjectPanel();
+        _mapsProjectPanel.CatalogMapOpenRequested += (_, mapId) => _ = OpenCatalogMapAsync(mapId);
         _mapsElementHost = new ElementHost
         {
             Dock = DockStyle.Fill,
@@ -418,7 +603,17 @@ public sealed class MainForm : Form
                 return;
             }
 
-            _canvas.Map.Layers[t.index].Visible = t.visible;
+            if (!_suppressDirtyTracking && _canvas.Map is not null)
+            {
+                _canvas.History.PushBeforeChange(_canvas.Map);
+                _canvas.Map.Layers[t.index].Visible = t.visible;
+                OnMapEdited();
+                UpdateUndoRedoButtons();
+            }
+            else if (_canvas.Map is not null)
+            {
+                _canvas.Map.Layers[t.index].Visible = t.visible;
+            }
             _canvas.Invalidate();
         };
         _layersProjectPanel.RenameLayerRequested += (_, _) => RenameLayerDisplay();
@@ -439,12 +634,32 @@ public sealed class MainForm : Form
         _propGrid = new PropertyGrid { Dock = DockStyle.Fill, HelpVisible = false };
         EditorChrome.StylePropertyGrid(_propGrid);
         _propGrid.Font = EditorChrome.BodyFont;
+        _propGrid.SelectedObjectsChanged += (_, _) => _propGridUndoCaptured = false;
+        _propGrid.MouseDown += (_, _) =>
+        {
+            if (_propGridUndoCaptured || _suppressDirtyTracking || _canvas.Map is null)
+            {
+                return;
+            }
+
+            _canvas.History.PushBeforeChange(_canvas.Map);
+            _propGridUndoCaptured = true;
+        };
         _propGrid.PropertyValueChanged += (_, _) =>
         {
+            if (_suppressDirtyTracking || _canvas.Map is null)
+            {
+                return;
+            }
+
             if (_propGrid.SelectedObject is Map)
             {
                 UpdateMapChromeLabels();
             }
+
+            OnMapEdited();
+            UpdateUndoRedoButtons();
+            _propGridUndoCaptured = false;
         };
         _mapsProjectPanel.CurrentMapNodeSelected += (_, _) =>
         {
@@ -488,8 +703,8 @@ public sealed class MainForm : Form
             Controls.Add(_splitLeft!);
         }
 
-        var map = new Map { Width = 20, Height = 15, Name = "Nouvelle carte" };
-        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        // Placeholder jusqu’à InitializeWorkspaceAsync (session catalogue + carte démo).
+        var map = DemoMapFactory.CreateStarter();
         _canvas.Map = map;
         _propGrid.SelectedObject = _canvas.Map;
         RefreshLayersUi();
@@ -497,6 +712,232 @@ public sealed class MainForm : Form
         RefreshTilesetList();
         SyncMapsTree();
         UpdateMapChromeLabels();
+        PushEditorStatusLine();
+    }
+
+    private Task? _workspaceInitTask;
+    internal Task WorkspaceInitializationTask => _workspaceInitTask ?? Task.CompletedTask;
+
+    internal bool IsWorkspaceInitializationPendingForTest =>
+        _workspaceInitTask is { IsCompleted: false };
+
+    internal async Task<bool> TryCoordinatedShutdownAsync()
+    {
+        if (_closeCoordinator is null || _closeCoordinator.AllowFinalCloseForTest)
+        {
+            return true;
+        }
+
+        var timeout = EditorTestHooks.GameDataCloseCleanupTimeoutForTest ?? TimeSpan.FromSeconds(30);
+        return await _closeCoordinator.TryShutdownWithoutCloseAsync(ConfirmCloseForShutdownAsync, timeout)
+            .ConfigureAwait(true);
+    }
+
+    /// <summary>Initialise le catalogue (PostgreSQL ou mémoire) et ouvre la carte démo.</summary>
+    internal async System.Threading.Tasks.Task InitializeWorkspaceAsync()
+    {
+        if (_workspaceInitTask is { IsCompleted: false })
+        {
+            await _workspaceInitTask.ConfigureAwait(true);
+            return;
+        }
+
+        _workspaceInitTask = InitializeWorkspaceCoreAsync();
+        await _workspaceInitTask.ConfigureAwait(true);
+    }
+
+    private async System.Threading.Tasks.Task InitializeWorkspaceCoreAsync(CancellationToken cancellationToken = default)
+    {
+        _closeCoordinator?.BeginWorkspaceInitialization();
+        var initToken = _closeCoordinator?.WorkspaceInitToken ?? cancellationToken;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(initToken, cancellationToken);
+
+        if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } initBarrier)
+        {
+            await initBarrier("map", linked.Token).ConfigureAwait(true);
+        }
+
+        var bundle = await EditorMapRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
+        linked.Token.ThrowIfCancellationRequested();
+        _mapRepository = bundle.Repository;
+        _persistenceCapabilities = bundle.Capabilities;
+        _mapDatabaseScope = bundle.DatabaseScope;
+
+        if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } mapEventBarrier)
+        {
+            await mapEventBarrier("mapEvent", linked.Token).ConfigureAwait(true);
+        }
+
+        var eventBundle = await EditorMapEventRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
+        linked.Token.ThrowIfCancellationRequested();
+        _mapEventService = eventBundle.Service;
+        _mapEventDatabaseScope = eventBundle.DatabaseScope;
+
+        if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } phase8Barrier)
+        {
+            await phase8Barrier("phase8", linked.Token).ConfigureAwait(true);
+        }
+
+        var phase8Bundle = await EditorPhase8ContentRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
+        linked.Token.ThrowIfCancellationRequested();
+        _phase8ContentService = phase8Bundle.Service;
+        _phase8DatabaseScope = phase8Bundle.DatabaseScope;
+
+        if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } workspaceBarrier)
+        {
+            await workspaceBarrier("workspace", linked.Token).ConfigureAwait(true);
+        }
+
+        _workspace = new MapWorkspaceSession(bundle.Repository);
+        await _workspace.InitializeAsync().ConfigureAwait(true);
+        ApplyWorkspaceMapToUi();
+        UpdatePersistenceMenuState();
+        PushEditorStatusLine();
+    }
+
+    private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (_closeCoordinator is null)
+        {
+            return;
+        }
+
+        if (_closeCoordinator.TryHandleFormClosing(e, ConfirmCloseForShutdownAsync))
+        {
+            return;
+        }
+    }
+
+    private async Task<bool> ConfirmCloseForShutdownAsync()
+    {
+        if (_closeConfirmed || _closeCoordinator?.AllowFinalCloseForTest == true)
+        {
+            return true;
+        }
+
+        if (_workspace?.IsDirty == true)
+        {
+            var proceed = await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true);
+            if (!proceed)
+            {
+                return false;
+            }
+        }
+
+        _closeConfirmed = true;
+        return true;
+    }
+
+    private void DisposeWorkspaceServicesAndScopes()
+    {
+        _mapEventService?.Dispose();
+        _mapEventService = null;
+        _phase8ContentService?.Dispose();
+        _phase8ContentService = null;
+        _mapEventDatabaseScope?.Dispose();
+        _mapEventDatabaseScope = null;
+        _phase8DatabaseScope?.Dispose();
+        _phase8DatabaseScope = null;
+        _mapDatabaseScope?.Dispose();
+        _mapDatabaseScope = null;
+    }
+
+    private void SetClosingUiState(bool enabled)
+    {
+        if (_menuStrip is not null)
+        {
+            _menuStrip.Enabled = enabled;
+        }
+
+        if (_mnuSave is not null)
+        {
+            _mnuSave.Enabled = enabled;
+        }
+
+        if (_mnuPublish is not null)
+        {
+            _mnuPublish.Enabled = enabled;
+        }
+
+        if (_canvas is not null)
+        {
+            _canvas.Enabled = enabled;
+        }
+    }
+
+    internal async System.Threading.Tasks.Task RefreshMapCatalogAsync()
+    {
+        if (_workspace is null)
+        {
+            await InitializeWorkspaceAsync().ConfigureAwait(true);
+            return;
+        }
+
+        await _workspace.RefreshCatalogAsync().ConfigureAwait(true);
+        SyncMapsTree();
+        PushEditorStatusLine();
+    }
+
+    private async System.Threading.Tasks.Task OpenCatalogMapAsync(Guid mapId)
+    {
+        if (_workspace is null || _catalogOpenInProgress)
+        {
+            return;
+        }
+
+        if (_workspace.CurrentMapId == mapId)
+        {
+            return;
+        }
+
+        _catalogOpenInProgress = true;
+        try
+        {
+            if (_workspace.IsDirty && !await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true))
+            {
+                return;
+            }
+
+            if (!await _workspace.OpenMapAsync(mapId).ConfigureAwait(true))
+            {
+                MessageBox.Show(GetDialogOwner(), $"Carte {mapId} introuvable dans le catalogue.", "Monde", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            ApplyWorkspaceMapToUi();
+        }
+        finally
+        {
+            _catalogOpenInProgress = false;
+        }
+    }
+
+    private void ApplyWorkspaceMapToUi()
+    {
+        if (_workspace?.CurrentMap is null)
+        {
+            return;
+        }
+
+        _suppressDirtyTracking = true;
+        try
+        {
+            _canvas.ClearHistory();
+            _canvas.Map = _workspace.CurrentMap;
+            _canvas.DefaultWarpTargetMapId = _workspace.CurrentMapId;
+            _propGrid.SelectedObject = _canvas.Map;
+            RefreshLayersUi();
+            _canvas.Invalidate();
+            UpdateUndoRedoButtons();
+            SyncMapsTree();
+            UpdateMapChromeLabels();
+            RefreshMapEventMarkers();
+        }
+        finally
+        {
+            _suppressDirtyTracking = false;
+        }
+
         PushEditorStatusLine();
     }
 
@@ -523,7 +964,16 @@ public sealed class MainForm : Form
     private void PushEditorStatusLine()
     {
         var zoomPct = (int)Math.Round(_canvas.Zoom * 100f);
-        var text = $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %    ·    Ctrl+clic droit : événements";
+        var backend = _persistenceCapabilities.DisplayLabel;
+        var busy = _saveInProgress || _workspace?.IsSaveInProgress == true ? "    ·    enregistrement…" : "";
+        var rev = _workspace is null
+            ? ""
+            : _workspace.CurrentMapId is Guid id
+                ? $"    ·    carte {id.ToString("N")[..8]} r{_workspace.CurrentRevision}{FormatStatusSuffix()}"
+                : "    ·    brouillon local";
+        var dirty = _workspace?.IsDirty == true ? "    ·    modifié" : "";
+        var text =
+            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -538,7 +988,19 @@ public sealed class MainForm : Form
 
     internal void EditorZoomOut() => _canvas.ZoomOutTowardCenter();
 
-    private void SyncMapsTree() => _mapsProjectPanel.RefreshFromMap(_canvas.Map?.Name);
+    private void SyncMapsTree()
+    {
+        if (_workspace is not null)
+        {
+            _mapsProjectPanel.RefreshCatalog(
+                _workspace.Catalog,
+                _workspace.CurrentMapId,
+                _workspace.CurrentMapId is null ? _workspace.CurrentMap?.Name ?? _canvas.Map?.Name : null);
+            return;
+        }
+
+        _mapsProjectPanel.RefreshFromMap(_canvas.Map?.Name);
+    }
 
     private void UpdateMapChromeLabels()
     {
@@ -663,12 +1125,34 @@ public sealed class MainForm : Form
         }
     }
 
+    private string FormatStatusSuffix()
+    {
+        if (_workspace is null)
+        {
+            return string.Empty;
+        }
+
+        return _workspace.CurrentStatus == MapPublishStatus.Published ? " publiée" : " brouillon";
+    }
+
+    private void OnMapEdited()
+    {
+        if (_suppressDirtyTracking)
+        {
+            return;
+        }
+
+        _workspace?.MarkDirty();
+        PushEditorStatusLine();
+    }
+
     private void OnMapReplaced()
     {
         RefreshLayersUi();
         _propGrid.SelectedObject = _canvas.Map;
         UpdateUndoRedoButtons();
         UpdateMapChromeLabels();
+        OnMapEdited();
     }
 
     internal void DoUndo()
@@ -746,6 +1230,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
     private void RemoveLayer()
@@ -762,6 +1247,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
     private void RenameLayerDisplay()
@@ -785,6 +1271,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
     private void ChangeLayerEngineType()
@@ -817,6 +1304,7 @@ public sealed class MainForm : Form
         RefreshLayersUi();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
     private void ToggleLayerLock()
@@ -827,13 +1315,23 @@ public sealed class MainForm : Form
             return;
         }
 
+        _canvas.History.PushBeforeChange(_canvas.Map);
         _canvas.Map.Layers[ix].Locked = !_canvas.Map.Layers[ix].Locked;
         RefreshLayersUi();
         _canvas.Invalidate();
+        UpdateUndoRedoButtons();
+        OnMapEdited();
     }
 
-    internal void CreateNewMap()
+    internal void CreateNewMap() => _ = CreateNewMapCoreAsync();
+
+    private async System.Threading.Tasks.Task CreateNewMapCoreAsync()
     {
+        if (_workspace?.IsDirty == true && !await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true))
+        {
+            return;
+        }
+
         using var dlg = new NewMapDialog();
         if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
@@ -842,6 +1340,8 @@ public sealed class MainForm : Form
 
         var map = new Map { Width = dlg.MapWidth, Height = dlg.MapHeight, Name = dlg.MapName };
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        _workspace?.AdoptLocalDraft(map);
+        _canvas.DefaultWarpTargetMapId = null;
         _canvas.ClearHistory();
         _canvas.Map = map;
         _propGrid.SelectedObject = map;
@@ -850,7 +1350,8 @@ public sealed class MainForm : Form
         UpdateUndoRedoButtons();
         SyncMapsTree();
         UpdateMapChromeLabels();
-        RefreshMapEventMarkersFromMariaDb();
+        RefreshMapEventMarkers();
+        PushEditorStatusLine();
     }
 
     internal void OpenTileset()
@@ -866,7 +1367,46 @@ public sealed class MainForm : Form
         RefreshTilesetList();
     }
 
-    internal void SaveMap()
+    private async System.Threading.Tasks.Task RunSaveOperationAsync(Func<System.Threading.Tasks.Task> operation)
+    {
+        if (_saveInProgress)
+        {
+            return;
+        }
+
+        _saveInProgress = true;
+        UpdatePersistenceMenuState();
+        PushEditorStatusLine();
+        try
+        {
+            if (EditorTestHooks.MainFormSaveBarrierForTest is { } saveBarrier)
+            {
+                await saveBarrier("save", _closeCoordinator?.PendingOperationsToken ?? CancellationToken.None)
+                    .ConfigureAwait(true);
+            }
+
+            await operation().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Close cancelled the pending save — expected for P8-I1 cooperative drain.
+        }
+        catch (Exception ex)
+        {
+            _dialogService.ShowError(
+                $"Erreur inattendue pendant l’enregistrement : {ex.Message}\nLa carte modifiée reste en mémoire.",
+                "Enregistrement échoué");
+        }
+        finally
+        {
+            _saveInProgress = false;
+            UpdatePersistenceMenuState();
+            PushEditorStatusLine();
+            _pendingSaveOperation = null;
+        }
+    }
+
+    internal void ExportMapToFile()
     {
         if (_canvas.Map is null)
         {
@@ -883,12 +1423,428 @@ public sealed class MainForm : Form
         var bytes = serializer.Serialize(_canvas.Map);
         File.WriteAllBytes(sfd.FileName, bytes);
         SaveTilesetManifestNextToMap(sfd.FileName);
-        MessageBox.Show(GetDialogOwner(), "Carte et manifeste tilesets (.tilesets.json) sauvegardés.", "Succès", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(GetDialogOwner(), "Carte et manifeste tilesets (.tilesets.json) exportés.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private async System.Threading.Tasks.Task SaveMapCoreAsync()
+    {
+        if (_workspace is null || _canvas.Map is null)
+        {
+            _dialogService.ShowInfo("Catalogue non initialisé.", "Enregistrement");
+            return;
+        }
+
+        if (!_persistenceCapabilities.AllowsSave)
+        {
+            _dialogService.ShowWarning(
+                "Cette session n’est pas persistante. Configurez PostgreSQL pour enregistrer durablement.",
+                "Enregistrement indisponible");
+            return;
+        }
+
+        if (!_canvas.Map.Validate(out var err))
+        {
+            _dialogService.ShowWarning(err ?? "Carte invalide.", "Enregistrement");
+            return;
+        }
+
+        var result = await _workspace.SaveCurrentAsync(SaveMapIntent.SaveDraft).ConfigureAwait(true);
+        await HandleSaveResultAsync(result, published: false).ConfigureAwait(true);
+    }
+
+    private async System.Threading.Tasks.Task PublishMapCoreAsync()
+    {
+        if (_workspace is null || _canvas.Map is null)
+        {
+            _dialogService.ShowInfo("Catalogue non initialisé.", "Publication");
+            return;
+        }
+
+        if (!_persistenceCapabilities.AllowsSave)
+        {
+            _dialogService.ShowWarning(
+                "Cette session n’est pas persistante. Configurez PostgreSQL pour publier durablement.",
+                "Publication indisponible");
+            return;
+        }
+
+        if (!_canvas.Map.Validate(out var err))
+        {
+            _dialogService.ShowWarning(err ?? "Carte invalide.", "Publication");
+            return;
+        }
+
+        var persistenceLabel = _persistenceCapabilities.IsDurablePersistence ? "PostgreSQL" : _persistenceCapabilities.DisplayLabel;
+        if (!_dialogService.ConfirmYesNo(
+                $"Publier cette carte vers {persistenceLabel} ? Une révision publiée immuable sera conservée.",
+                "Publication"))
+        {
+            return;
+        }
+
+        var result = await _workspace.SaveCurrentAsync(SaveMapIntent.Publish).ConfigureAwait(true);
+        await HandleSaveResultAsync(result, published: true).ConfigureAwait(true);
+    }
+
+    private async System.Threading.Tasks.Task HandleSaveResultAsync(SaveMapResult result, bool published)
+    {
+        var persistenceLabel = _persistenceCapabilities.IsDurablePersistence ? "PostgreSQL" : _persistenceCapabilities.DisplayLabel;
+        switch (result)
+        {
+            case SaveMapResult.Success success:
+                _canvas.DefaultWarpTargetMapId = _workspace!.CurrentMapId;
+                SyncMapsTree();
+                PushEditorStatusLine();
+                UpdateMapChromeLabels();
+                var label = published ? "publiée" : "enregistrée";
+                _dialogService.ShowInfo(
+                    $"Carte {label} ({persistenceLabel}, id {success.MapId:N}, révision {success.NewRevision}).",
+                    published ? $"Publication {persistenceLabel}" : $"Enregistrement {persistenceLabel}");
+                break;
+            case SaveMapResult.ValidationFailed failed:
+                _dialogService.ShowWarning(failed.Error, "Validation");
+                break;
+            case SaveMapResult.NotDurable notDurable:
+                _dialogService.ShowWarning(notDurable.Message, published ? "Publication indisponible" : "Enregistrement indisponible");
+                break;
+            case SaveMapResult.PersistenceFailed failed:
+                _dialogService.ShowError(
+                    $"Échec de persistance ({persistenceLabel}) : {failed.Error}\nLa carte modifiée reste en mémoire.",
+                    published ? "Publication échouée" : "Enregistrement échoué");
+                break;
+            case SaveMapResult.Conflict conflict:
+                if (!_dialogService.ConfirmYesNo(
+                        $"Conflit de révision (attendue r{_workspace!.CurrentRevision}, serveur r{conflict.CurrentRevision}). Recharger la carte depuis le catalogue ?",
+                        "Conflit"))
+                {
+                    break;
+                }
+
+                if (await _workspace.ReloadCurrentAsync().ConfigureAwait(true))
+                {
+                    ApplyWorkspaceMapToUi();
+                }
+
+                break;
+        }
+    }
+
+    private async System.Threading.Tasks.Task<bool> TryDiscardOrSaveBeforeSwitchAsync()
+    {
+        var answer = _dialogService.PromptSaveDiscardCancel(
+            "Modifications non enregistrées. Enregistrer avant de continuer ?",
+            "Modifications");
+        return answer switch
+        {
+            EditorPromptChoice.Cancel => false,
+            EditorPromptChoice.Discard => true,
+            EditorPromptChoice.Save => await TrySaveBeforeSwitchAsync(),
+            _ => false,
+        };
+    }
+
+    private async System.Threading.Tasks.Task<bool> TrySaveBeforeSwitchAsync()
+    {
+        await SaveMapCoreAsync().ConfigureAwait(true);
+        return _workspace?.IsDirty != true;
+    }
+
+    private void UpdatePersistenceMenuState()
+    {
+        var enabled = CanExecuteSaveOrPublish();
+        if (_mnuSave is not null)
+        {
+            _mnuSave.Enabled = enabled;
+            _mnuSave.Text = _persistenceCapabilities.IsDurablePersistence
+                ? "Enregistrer (PostgreSQL)"
+                : _persistenceCapabilities.AllowsSave
+                    ? "Enregistrer (test mémoire)"
+                    : "Enregistrer (non persistant)";
+        }
+
+        if (_mnuPublish is not null)
+        {
+            _mnuPublish.Enabled = enabled;
+            _mnuPublish.Text = _persistenceCapabilities.IsDurablePersistence
+                ? "Publier (PostgreSQL)…"
+                : _persistenceCapabilities.AllowsSave
+                    ? "Publier (test mémoire)…"
+                    : "Publier (non persistant)…";
+        }
+    }
+
+    internal void EditSelectedWarpDestination()
+    {
+        if (_canvas.Map is null || _workspace is null)
+        {
+            return;
+        }
+
+        var layerIndex = GetSelectedLayerIndex();
+        if (layerIndex < 0 || layerIndex >= _canvas.Map.Layers.Count)
+        {
+            return;
+        }
+
+        var tile = _canvas.Map.Layers[layerIndex].Tiles.FirstOrDefault(t => t.X == _lastHoverTile.X && t.Y == _lastHoverTile.Y);
+        if (tile is null || tile.Type != TileType.Warp)
+        {
+            MessageBox.Show(GetDialogOwner(), "Sélectionnez une tuile warp (couche attributs) sous le curseur.", "Warp", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        EditWarpDestination(tile);
+    }
+
+    internal void EditWarpDestination(Tile tile)
+    {
+        if (_canvas.Map is null || _workspace is null)
+        {
+            return;
+        }
+
+        using var dlg = new Dialogs.WarpDestinationDialog(
+            _workspace.Catalog,
+            tile.WarpTargetMapId == Guid.Empty ? _workspace.CurrentMapId ?? Guid.Empty : tile.WarpTargetMapId,
+            tile.WarpTargetX,
+            tile.WarpTargetY,
+            _canvas.Map.Width,
+            _canvas.Map.Height);
+        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (!dlg.TryValidate(out var verr))
+        {
+            MessageBox.Show(GetDialogOwner(), verr, "Warp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        _canvas.History.PushBeforeChange(_canvas.Map);
+        tile.WarpTargetMapId = dlg.TargetMapId;
+        tile.WarpTargetX = dlg.TargetX;
+        tile.WarpTargetY = dlg.TargetY;
+        _workspace.MarkDirty();
+        _canvas.Invalidate();
+        UpdateUndoRedoButtons();
+        PushEditorStatusLine();
     }
 
     internal void LaunchFrogGameClient()
     {
         EditorFrogClientLauncher.Launch(GetDialogOwner());
+    }
+
+    internal bool IsPlaytestActiveForTest()
+        => _playtestOrchestrator?.ActiveSession?.IsActive == true;
+
+    internal bool IsPlaytestBusyForTest() => _playtestBusy;
+
+    internal bool HasOwnedPlaytestProcessesForTest()
+        => _playtestLauncher?.HasOwnedProcesses == true
+           || _playtestOrchestrator?.ActiveSession is { Server: not null } or { Client: not null };
+
+    internal string? LastPlaytestErrorForTest { get; private set; }
+
+    internal IReadOnlyList<string> DrainPlaytestLauncherLogsForTest()
+        => _playtestLauncher?.DrainLogsSnapshot() ?? Array.Empty<string>();
+
+    internal PlaytestSessionState? GetPlaytestSessionForTest()
+        => _playtestOrchestrator?.ActiveSession;
+
+    internal async Task StartPlaytestAsync()
+    {
+        if (_playtestBusy)
+        {
+            return;
+        }
+
+        if (_workspace is null)
+        {
+            LastPlaytestErrorForTest = "Workspace non initialisé.";
+            _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+            return;
+        }
+
+        _playtestBusy = true;
+        LastPlaytestErrorForTest = null;
+        UpdatePlaytestMenuState();
+        _playtestCts = new CancellationTokenSource();
+        var ct = _playtestCts.Token;
+
+        try
+        {
+            // Gate durable avant résolution des exécutables (messages actionnables stables en smoke).
+            if (!EditorTestHooks.AllowNonDurablePlaytest && !_persistenceCapabilities.IsDurablePersistence)
+            {
+                LastPlaytestErrorForTest =
+                    "Playtest impossible : PostgreSQL durable requis (les brouillons mémoire ne sont pas playtestables).";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            string serverExe;
+            if (!string.IsNullOrWhiteSpace(EditorTestHooks.OverrideServerExePath))
+            {
+                serverExe = EditorTestHooks.OverrideServerExePath;
+            }
+            else if (!EditorFrogServerLauncher.TryResolveExecutable(out serverExe, out _))
+            {
+                LastPlaytestErrorForTest = "Frog.Server introuvable. Compilez le serveur (Release/Debug) ou indiquez le chemin.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            string clientExe;
+            if (!string.IsNullOrWhiteSpace(EditorTestHooks.OverrideClientExePath))
+            {
+                clientExe = EditorTestHooks.OverrideClientExePath;
+            }
+            else if (!EditorFrogClientLauncher.TryResolveExecutable(out clientExe))
+            {
+                LastPlaytestErrorForTest = "Frog.Client.exe introuvable.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            _playtestLauncher = new EditorPlaytestProcessLauncher();
+            var launcher = EditorTestHooks.OverridePlaytestProcessLauncher
+                           ?? (IPlaytestProcessLauncher)_playtestLauncher;
+            if (_mapRepository is null)
+            {
+                LastPlaytestErrorForTest = "Dépôt carte non initialisé.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            var preparer = new PlaytestMapPreparer(_mapRepository);
+            _playtestOrchestrator = new PlaytestOrchestrator(preparer, launcher);
+
+            if (_workspace.CurrentMap is null)
+            {
+                LastPlaytestErrorForTest = "Aucune carte ouverte.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            var map = _workspace.CurrentMap;
+            var defaultX = Math.Clamp(_lastHoverTile.X, 0, Math.Max(0, map.Width - 1));
+            var defaultY = Math.Clamp(_lastHoverTile.Y, 0, Math.Max(0, map.Height - 1));
+            int spawnX;
+            int spawnY;
+            if (EditorTestHooks.OverrideSpawnTile is { } forcedSpawn)
+            {
+                spawnX = forcedSpawn.X;
+                spawnY = forcedSpawn.Y;
+            }
+            else
+            {
+                using var spawnDlg = new Dialogs.PlaytestSpawnDialog(map.Width, map.Height, defaultX, defaultY);
+                if (spawnDlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+                {
+                    LastPlaytestErrorForTest = "Playtest annulé (spawn).";
+                    return;
+                }
+
+                spawnX = spawnDlg.TileX;
+                spawnY = spawnDlg.TileY;
+            }
+
+            var port = EditorFrogServerLauncher.FindFreeTcpPort();
+            var prepare = new PlaytestPrepareRequest
+            {
+                CorrelationId = Guid.NewGuid(),
+                Host = "127.0.0.1",
+                Port = port,
+                SpawnTileX = spawnX,
+                SpawnTileY = spawnY,
+                RequireDurablePersistence = !EditorTestHooks.AllowNonDurablePlaytest,
+                PublishCurrentBeforeLaunch = true,
+            };
+
+            var result = await _playtestOrchestrator.StartAsync(_workspace, prepare, serverExe, clientExe, ct)
+                .ConfigureAwait(true);
+
+            if (result is PlaytestPreparationResult.Failed failed)
+            {
+                LastPlaytestErrorForTest = failed.Error;
+                _dialogService.ShowWarning(
+                    failed.Error + Environment.NewLine + Environment.NewLine + $"(code: {failed.Kind})",
+                    "Playtest");
+                return;
+            }
+
+            if (result is PlaytestPreparationResult.Success success)
+            {
+                var lines = new List<string>();
+                if (_playtestOrchestrator.ActiveSession?.LogLines is { } sessionLogs)
+                {
+                    lines.AddRange(sessionLogs);
+                }
+
+                if (_playtestLauncher is not null)
+                {
+                    lines.AddRange(_playtestLauncher.DrainLogsSnapshot());
+                }
+
+                var summary = lines.Count > 0
+                    ? string.Join(Environment.NewLine, lines.TakeLast(40))
+                    : $"Playtest prêt — MapId={success.Plan.PrimaryCanonicalMapId} rev={success.Plan.PrimaryPublishedRevision} spawn=({success.Plan.Spawn.TileX},{success.Plan.Spawn.TileY})";
+                _dialogService.ShowInfo(summary, "Playtest");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            LastPlaytestErrorForTest = "Playtest annulé.";
+        }
+        catch (Exception ex)
+        {
+            LastPlaytestErrorForTest = ex.Message;
+            _dialogService.ShowError("Échec playtest : " + ex.Message, "Playtest");
+        }
+        finally
+        {
+            _playtestBusy = false;
+            UpdatePlaytestMenuState();
+            PushEditorStatusLine();
+        }
+    }
+
+    internal async Task StopPlaytestAsync()
+    {
+        try
+        {
+            _playtestCts?.Cancel();
+            if (_playtestOrchestrator is not null)
+            {
+                await _playtestOrchestrator.StopAsync().ConfigureAwait(true);
+            }
+
+            if (_playtestLauncher is not null)
+            {
+                await _playtestLauncher.StopAllOwnedAsync().ConfigureAwait(true);
+            }
+        }
+        finally
+        {
+            UpdatePlaytestMenuState();
+            PushEditorStatusLine();
+        }
+    }
+
+    private void UpdatePlaytestMenuState()
+    {
+        var active = _playtestOrchestrator?.ActiveSession?.IsActive == true;
+        if (_mnuPlaytest is not null)
+        {
+            _mnuPlaytest.Enabled = !_playtestBusy && !active;
+        }
+
+        if (_mnuStopPlaytest is not null)
+        {
+            _mnuStopPlaytest.Enabled = active || _playtestBusy;
+        }
     }
 
     internal void PublishMapToMariaDb()
@@ -937,7 +1893,7 @@ public sealed class MainForm : Form
                 bytes);
             _lastPublishedFrogMapId = dlg.PublishedMapId;
             EditorLocalWorkstate.WriteLastPublishedFrogMapId(_lastPublishedFrogMapId);
-            RefreshMapEventMarkersFromMariaDb();
+            RefreshMapEventMarkers();
             MessageBox.Show(
                 GetDialogOwner(),
                 $"Carte publiée : frog_map id={dlg.PublishedMapId}, clé « {dlg.PublishedMapKey} ».",
@@ -962,33 +1918,60 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
         var menu = new ContextMenuStrip();
         menu.Closed += (_, _) => menu.Dispose();
-        menu.Items.Add("Événements MariaDB (cette tuile)…", null, (_, _) => BrowseMapEventsFromMariaDb());
+        menu.Items.Add("Événements carte (cette tuile)…", null, (_, _) => BrowseMapEvents());
         menu.Show(Cursor.Position);
     }
 
-    internal void BrowseMapEventsFromMariaDb()
+    internal void BrowseMapEvents()
     {
-        if (!EditorMariaDbConfig.TryGetEnabledConnection(out var connectionString, out var hint))
+        if (_mapEventService is null || !_mapEventService.IsAvailable)
         {
-            MessageBox.Show(GetDialogOwner(), hint, "Événements carte", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(
+                GetDialogOwner(),
+                "Événements carte nécessitent PostgreSQL (FROG_POSTGRES_CONNECTION_STRING ou appsettings.Local.json).",
+                "Événements carte",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
             return;
         }
 
-        using var dlg = new MapEventsBrowseDialog(connectionString, initialMapId: _lastPublishedFrogMapId, defaultTileX: _lastHoverTile.X, defaultTileY: _lastHoverTile.Y);
+        var mapId = _workspace?.CurrentMapId ?? Guid.Empty;
+        using var dlg = new MapEventsBrowseDialog(
+            _mapEventService,
+            mapId,
+            defaultTileX: _lastHoverTile.X,
+            defaultTileY: _lastHoverTile.Y);
         dlg.ShowDialog(GetDialogOwner());
-        RefreshMapEventMarkersFromMariaDb();
+        RefreshMapEventMarkers();
     }
 
-    /// <summary>Recharge les placements <c>frog_map_event</c> pour <see cref="_lastPublishedFrogMapId"/> et met à jour l’overlay canevas.</summary>
-    internal void RefreshMapEventMarkersFromMariaDb()
+    internal void BrowsePhase8Content()
     {
-        if (!EditorMariaDbConfig.TryGetEnabledConnection(out var connectionString, out _))
+        if (_phase8ContentService is null || !_phase8ContentService.IsAvailable)
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                "Contenu Phase 8 nécessite PostgreSQL (FROG_POSTGRES_CONNECTION_STRING ou appsettings.Local.json).",
+                "Contenu Phase 8",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        using var dlg = new Phase8.Phase8ContentBrowseDialog(_phase8ContentService);
+        dlg.ShowDialog(GetDialogOwner());
+    }
+
+    /// <summary>Recharge les placements d'événements pour la carte catalogue courante et met à jour l'overlay canevas.</summary>
+    internal void RefreshMapEventMarkers()
+    {
+        if (_mapEventService is null || !_mapEventService.IsAvailable)
         {
             _canvas.MapEventMarkers = null;
             return;
         }
 
-        if (_lastPublishedFrogMapId < 1)
+        if (_workspace?.CurrentMapId is not Guid mapId || mapId == Guid.Empty)
         {
             _canvas.MapEventMarkers = null;
             return;
@@ -996,8 +1979,8 @@ public sealed class MainForm : Form
 
         try
         {
-            var rows = MapEventsMariaDbReader.LoadPlacementsForMap(connectionString, _lastPublishedFrogMapId);
-            _canvas.MapEventMarkers = MapEventsMariaDbReader.ToMarkerViews(rows);
+            var rows = _mapEventService.LoadPlacementsForMap(mapId);
+            _canvas.MapEventMarkers = MapEventsPostgreSqlService.ToMarkerViews(rows);
         }
         catch
         {
@@ -1044,8 +2027,15 @@ public sealed class MainForm : Form
         File.WriteAllBytes(manifestPath, TilesetManifestJson.Serialize(manifest));
     }
 
-    internal void LoadMap()
+    internal void LoadMap() => _ = LoadMapCoreAsync();
+
+    private async System.Threading.Tasks.Task LoadMapCoreAsync()
     {
+        if (_workspace?.IsDirty == true && !await TryDiscardOrSaveBeforeSwitchAsync().ConfigureAwait(true))
+        {
+            return;
+        }
+
         using var ofd = new OpenFileDialog { Filter = "Frog Map|*.fmap" };
         if (ofd.ShowDialog(GetDialogOwner()) != DialogResult.OK)
         {
@@ -1062,6 +2052,7 @@ public sealed class MainForm : Form
 
         _canvas.ClearHistory();
         _canvas.Map = map;
+        _workspace?.AdoptLocalDraft(map);
         _canvas.ActiveTilesetId = 0;
         if (TilesetCache.ListRegistered().Count > 0)
         {
@@ -1075,7 +2066,7 @@ public sealed class MainForm : Form
         UpdateUndoRedoButtons();
         SyncMapsTree();
         UpdateMapChromeLabels();
-        RefreshMapEventMarkersFromMariaDb();
+        RefreshMapEventMarkers();
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
         {
@@ -1088,6 +2079,8 @@ public sealed class MainForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
         }
+
+        PushEditorStatusLine();
     }
 
     /// <summary>

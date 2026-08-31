@@ -4,13 +4,13 @@
         <OutputType>Exe</OutputType>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <LangVersion>latest</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <PlatformTarget>x64</PlatformTarget>
     </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
+        <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -34,5 +34,15 @@
         <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
         <PackageReference Include="MySqlConnector" Version="2.4.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11">
+            <ExcludeAssets>compile;build;native;contentfiles;analyzers;buildtransitive</ExcludeAssets>
+            <IncludeAssets>runtime</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="EFCore.NamingConventions" Version="8.0.3">
+            <ExcludeAssets>compile;build;native;contentfiles;analyzers;buildtransitive</ExcludeAssets>
+            <IncludeAssets>runtime</IncludeAssets>
+        </PackageReference>
     </ItemGroup>
+
+    <Import Project="Build\CopyPostgreSqlRuntime.targets" />
 </Project>

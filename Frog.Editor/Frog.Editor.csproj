@@ -11,6 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Frog.Editor.WindowsSmokeTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Config\" />
     <Folder Include="Interop\" />
     <Folder Include="IO\" />
@@ -20,6 +24,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
+    <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
+    <ProjectReference Include="..\Frog.Persistence.PostgreSql\Frog.Persistence.PostgreSql.csproj" />
   </ItemGroup>
 
   <ItemGroup>

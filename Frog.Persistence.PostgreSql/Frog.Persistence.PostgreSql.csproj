@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
+    <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" Version="8.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Frog.Persistence.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

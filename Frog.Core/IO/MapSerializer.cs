@@ -18,7 +18,7 @@ public sealed class MapSerializer : ISerializer<Map>
     private const string Magic = "FMAP";
 
     /// <summary>Version courante des fichiers / blobs écrits (.fmap, <c>MapData</c>).</summary>
-    private const byte FileVersionCurrent = 4;
+    private const byte FileVersionCurrent = 5;
 
     /// <summary>Compatibilité lecture seule avec les anciens blobs déjà livrés.</summary>
     private const byte FileVersionLegacy = 3;
@@ -77,9 +77,9 @@ public sealed class MapSerializer : ISerializer<Map>
             throw new InvalidDataException($"Magic invalide: '{magic}' (attendu '{Magic}').");
 
         var version = br.ReadByte();
-        if (version is not (FileVersionLegacy or FileVersionCurrent))
+        if (version is not (FileVersionLegacy or 4 or FileVersionCurrent))
             throw new InvalidDataException(
-                $"Version .fmap non supportée: {version}. Mettre à jour le client/serveur (versions attendues: {FileVersionLegacy} ou {FileVersionCurrent}).");
+                $"Version .fmap non supportée: {version}. Mettre à jour le client/serveur (versions attendues: {FileVersionLegacy}, 4 ou {FileVersionCurrent}).");
 
         var map = new Map
         {
@@ -88,7 +88,7 @@ public sealed class MapSerializer : ISerializer<Map>
             Name = ReadUtf8(br)
         };
 
-        if (version == FileVersionCurrent)
+        if (version is 4 or FileVersionCurrent)
         {
             var flags = br.ReadByte();
             map.AllowPlayerOverlap = (flags & 1) != 0;
@@ -117,7 +117,7 @@ public sealed class MapSerializer : ISerializer<Map>
                 DisplayName = displayName ?? string.Empty
             };
 
-            ReadTilesIntoLayer(layer, br, tileCount);
+            ReadTilesIntoLayer(layer, br, tileCount, version);
             map.Layers.Add(layer);
         }
 
@@ -138,7 +138,8 @@ public sealed class MapSerializer : ISerializer<Map>
 
         if (t.Type == TileType.Warp)
         {
-            bw.Write(t.WarpTargetMapId);
+            var bytes = t.WarpTargetMapId.ToByteArray();
+            bw.Write(bytes);
             bw.Write(t.WarpTargetX);
             bw.Write(t.WarpTargetY);
         }
@@ -149,7 +150,7 @@ public sealed class MapSerializer : ISerializer<Map>
         }
     }
 
-    private static void ReadTilesIntoLayer(Layer layer, BinaryReader br, int tileCount)
+    private static void ReadTilesIntoLayer(Layer layer, BinaryReader br, int tileCount, byte fileVersion)
     {
         for (var j = 0; j < tileCount; j++)
         {
@@ -165,7 +166,22 @@ public sealed class MapSerializer : ISerializer<Map>
 
             if (tile.Type == TileType.Warp)
             {
-                tile.WarpTargetMapId = br.ReadInt32();
+                if (fileVersion >= FileVersionCurrent)
+                {
+                    var guidBytes = br.ReadBytes(16);
+                    if (guidBytes.Length != 16)
+                    {
+                        throw new EndOfStreamException("Flux terminé pendant la lecture du warp Guid.");
+                    }
+
+                    tile.WarpTargetMapId = new Guid(guidBytes);
+                }
+                else
+                {
+                    _ = br.ReadInt32();
+                    tile.WarpTargetMapId = Guid.Empty;
+                }
+
                 tile.WarpTargetX = br.ReadInt32();
                 tile.WarpTargetY = br.ReadInt32();
             }

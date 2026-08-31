@@ -1,12 +1,15 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Maps;
 using Frog.Core.Models;
+using Frog.Application.Identity;
 using Frog.Server.Database;
+using Frog.Server.Security;
 using Frog.Server.Network;
 using Frog.Server.Persistence;
 using Frog.Server.Services;
@@ -20,36 +23,38 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void AuthService_ValidatesBootstrapAccount()
     {
-        var repository = new AccountRepository();
-        var auth = new AuthService(repository);
+        var repository = new InMemoryAccountRepository();
+        var auth = new AuthService(repository, new LoginRateLimiter());
 
-        Assert.True(auth.ValidateCredentials("demo", "demo"));
-        Assert.False(auth.ValidateCredentials("demo", "wrong"));
+        var result = auth.TryAuthenticateAsync("demo", "demo", "test", default).GetAwaiter().GetResult();
+        Assert.True(result.Success);
+        var bad = auth.TryAuthenticateAsync("demo", "wrong", "test", default).GetAwaiter().GetResult();
+        Assert.False(bad.Success);
     }
 
     [Fact]
-    public void AccountRepository_CanCreateAndReadAccount()
+    public async Task AccountRepository_CanCreateAndReadAccount()
     {
-        var repository = new AccountRepository();
-        var created = repository.Create("new-user", "p@ssword");
-        var found = repository.TryGetByUsername("new-user", out var account);
+        var repository = new InMemoryAccountRepository();
+        var created = await repository.TryCreateAsync("new-user", "p@ssword123");
+        var found = await repository.FindByUsernameAsync("new-user");
 
-        Assert.True(created);
-        Assert.True(found);
-        Assert.Equal("new-user", account.Username);
+        Assert.Equal(AccountCreateStatus.Created, created.Status);
+        Assert.NotNull(found);
+        Assert.Equal("new-user", found!.Username);
     }
 
     [Fact]
-    public void AuthService_CanRegisterNewAccount()
+    public async Task AuthService_CanRegisterNewAccount()
     {
-        var repository = new AccountRepository();
-        var auth = new AuthService(repository);
+        var repository = new InMemoryAccountRepository();
+        var auth = new AuthService(repository, new LoginRateLimiter());
 
-        var created = auth.RegisterAccount("fresh-user", "fresh-pass");
-        var authenticated = auth.ValidateCredentials("fresh-user", "fresh-pass");
+        var created = await auth.RegisterAccountAsync("fresh-user", "fresh-pass");
+        var authenticated = await auth.TryAuthenticateAsync("fresh-user", "fresh-pass", "test");
 
-        Assert.True(created);
-        Assert.True(authenticated);
+        Assert.Equal(AccountCreateStatus.Created, created.Status);
+        Assert.True(authenticated.Success);
     }
 
     [Fact]
@@ -335,7 +340,7 @@ public sealed class Sprint1ServerTests
         var store = new MemoryMapBlobStore();
         store.Seed(42, serializer.Serialize(interior), revision: 7);
 
-        var outdoor = MapSamples.StarterMeadow(42);
+        var outdoor = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(42));
         var tmp = Path.Combine(Path.GetTempPath(), $"frog-outdoor-{Guid.NewGuid():N}.fmap");
         File.WriteAllBytes(tmp, serializer.Serialize(outdoor));
 
@@ -399,7 +404,7 @@ public sealed class Sprint1ServerTests
         var store = new MemoryMapBlobStore();
         store.Seed(42, serializer.Serialize(interior), revision: 11);
 
-        var outdoor = MapSamples.StarterMeadow(42);
+        var outdoor = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(42));
         var tmp = Path.Combine(Path.GetTempPath(), $"frog-fp-test-{Guid.NewGuid():N}.fmap");
         File.WriteAllBytes(tmp, serializer.Serialize(outdoor));
 
@@ -459,7 +464,7 @@ public sealed class Sprint1ServerTests
     [Fact]
     public void MovementService_AllowsMoveOntoOtherPlayerWhenMapFlagEnabled()
     {
-        var map = MapSamples.StarterMeadow(MapService.DefaultWorldMapId);
+        var map = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(MapService.DefaultWorldMapId));
         map.AllowPlayerOverlap = true;
         var mapService = MapTestHelpers.CreateMapServiceFromMap(map);
         var connections = new ConnectionManager();

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using Frog.Application.Content;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.IO;
@@ -21,6 +22,8 @@ public sealed class MapService
     private readonly MapSerializer _mapSerializer = new();
     private readonly IMapBlobStore _mapBlobStore;
     private readonly ILogger<MapService> _logger;
+    private readonly bool _requirePublishedWorld;
+    private IPublishedWorldCatalog? _publishedWorld;
 
     /// <summary>Couches monde : fichier / secours puis cartes lazy depuis <see cref="IMapBlobStore"/>.</summary>
     private readonly Dictionary<int, MapChunk> _chunks = new();
@@ -28,14 +31,27 @@ public sealed class MapService
     /// <summary>Warps (map source, tuile) → destination.</summary>
     private readonly Dictionary<(int MapId, int X, int Y), (int TargetMapId, int TargetX, int TargetY)> _warps = new();
 
+    private int _defaultWorldMapId = DefaultWorldMapId;
+
+    public int PrimaryWorldMapId => _defaultWorldMapId;
+
     public MapService(
         IOptions<WorldMapOptions> worldMapOptions,
+        IOptions<Phase7ContentOptions> contentOptions,
         IMapBlobStore mapBlobStore,
         ILogger<MapService> logger)
     {
         _mapBlobStore = mapBlobStore;
         _logger = logger;
+        _requirePublishedWorld = contentOptions.Value.RequirePublishedWorld;
         var options = worldMapOptions.Value;
+
+        if (_requirePublishedWorld)
+        {
+            // Cartes chargées par PublishedWorldBootstrapHostedService après DI.
+            logger.LogInformation("MapService waiting for published PostgreSQL world bootstrap.");
+            return;
+        }
 
         Map primaryModel;
         var rawPath = options.WorldMapPath;
@@ -72,10 +88,57 @@ public sealed class MapService
 
         _warps.TrimExcess();
         _chunks.TrimExcess();
+        _ = primaryModel;
+    }
+
+    /// <summary>Remplace le monde runtime par les cartes publiées PostgreSQL.</summary>
+    public void LoadPublishedWorld(
+        IReadOnlyList<PublishedMapRuntimeEntry> maps,
+        IPublishedWorldCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(maps);
+        ArgumentNullException.ThrowIfNull(catalog);
+        if (maps.Count == 0)
+        {
+            throw new InvalidOperationException("LoadPublishedWorld requires at least one published map.");
+        }
+
+        _publishedWorld = catalog;
+        _chunks.Clear();
+        _warps.Clear();
+
+        foreach (var m in maps.OrderBy(x => x.RuntimeMapId))
+        {
+            var sha = Convert.FromHexString(m.ContentSha256Hex);
+            UpsertChunkFromParts(m.RuntimeMapId, m.Map, (byte[])m.SerializedFmap.Clone(), sha, m.PublishedRevision);
+        }
+
+        var start = maps[0].RuntimeMapId;
+        try
+        {
+            var cfg = catalog.GetSpawnConfigAsync().GetAwaiter().GetResult();
+            start = cfg.StartRuntimeMapId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Spawn config unavailable while loading published world; using first map.");
+        }
+
+        _defaultWorldMapId = start;
+        _logger.LogInformation(
+            "Published world registered maps={Count} primaryRuntime={Primary}",
+            maps.Count,
+            _defaultWorldMapId);
     }
 
     private Map TryLoadFromDatabaseOrBootstrapWorld(WorldMapOptions options)
     {
+        if (_requirePublishedWorld)
+        {
+            throw new InvalidOperationException(
+                "Published world required but MapService bootstrap was invoked without LoadPublishedWorld.");
+        }
+
         var blobId = options.DatabaseFallbackMapId;
         if (blobId <= 0)
         {
@@ -107,7 +170,13 @@ public sealed class MapService
     /// <summary>Starter Meadow hors DB : blobs sérialisés en mémoire pour cohérence hash.</summary>
     private Map RegisterStandaloneSampleWorldChunk(int headLookupBlobIdForFingerprint)
     {
-        var map = MapSamples.StarterMeadow(DefaultWorldMapId);
+        if (_requirePublishedWorld)
+        {
+            throw new InvalidOperationException(
+                "Refusing to load built-in Starter Meadow while RequirePublishedWorld=true.");
+        }
+
+        var map = MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(DefaultWorldMapId));
         var bytes = _mapSerializer.Serialize(map);
         RegisterWorldChunkFromModel(
             DefaultWorldMapId,
@@ -235,11 +304,28 @@ public sealed class MapService
                     continue;
                 }
 
-                var destinationMap =
-                    tile.WarpTargetMapId == 0 ? DefaultWorldMapId : tile.WarpTargetMapId;
+                var destinationMap = ResolveRuntimeMapIdFromWarpTarget(tile.WarpTargetMapId);
                 _warps[(sourceMapId, tile.X, tile.Y)] = (destinationMap, tile.WarpTargetX, tile.WarpTargetY);
             }
         }
+    }
+
+    private int ResolveRuntimeMapIdFromWarpTarget(Guid warpTargetMapId)
+    {
+        if (warpTargetMapId == Guid.Empty)
+        {
+            return _defaultWorldMapId;
+        }
+
+        if (_publishedWorld is not null && _publishedWorld.TryGetRuntimeMapId(warpTargetMapId, out var runtime))
+        {
+            return runtime;
+        }
+
+        Span<byte> bytes = stackalloc byte[16];
+        _ = warpTargetMapId.TryWriteBytes(bytes);
+        var runtimeId = BitConverter.ToInt32(bytes);
+        return runtimeId > 0 ? runtimeId : _defaultWorldMapId;
     }
 
     public bool TryGetWarpDestination(int mapId, int tileX, int tileY, out int targetMapId, out int targetX, out int targetY)
@@ -278,7 +364,7 @@ public sealed class MapService
 
     /// <summary>Blob carte monde par défaut (compat tests / appels historiques).</summary>
     public byte[] GetSerializedMapForSession(Guid sessionId)
-        => GetSerializedMapForSession(sessionId, DefaultWorldMapId);
+        => GetSerializedMapForSession(sessionId, _defaultWorldMapId);
 
     public long GetFingerprintRevision(int mapId)
         => _chunks.TryGetValue(mapId, out var c)
@@ -290,13 +376,13 @@ public sealed class MapService
             ? throw new KeyNotFoundException($"Carte {mapId} non chargee.")
             : chunk.Sha256;
 
-    public ReadOnlySpan<byte> WorldFingerprintSha256 => GetFingerprintSha256(DefaultWorldMapId);
+    public ReadOnlySpan<byte> WorldFingerprintSha256 => GetFingerprintSha256(_defaultWorldMapId);
 
-    public long WorldMapFingerprintRevision => GetFingerprintRevision(DefaultWorldMapId);
+    public long WorldMapFingerprintRevision => GetFingerprintRevision(_defaultWorldMapId);
 
     public (int Width, int Height) GetDefaultMapBounds()
     {
-        if (!TryGetMapBounds(DefaultWorldMapId, out var w, out var h))
+        if (!TryGetMapBounds(_defaultWorldMapId, out var w, out var h))
         {
             throw new InvalidOperationException("Carte monde par defaut non initialisee.");
         }
