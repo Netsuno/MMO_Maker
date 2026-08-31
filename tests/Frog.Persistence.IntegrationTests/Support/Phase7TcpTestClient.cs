@@ -307,10 +307,23 @@ internal sealed class Phase7TcpTestClient : IAsyncDisposable
         var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(20));
         while (DateTime.UtcNow < deadline)
         {
-            var frame = await ReadFrameAsync(deadline - DateTime.UtcNow);
-            if (ids.Any(i => frame[0] == (byte)i))
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
             {
-                return frame;
+                break;
+            }
+
+            try
+            {
+                var frame = await ReadFrameAsync(remaining);
+                if (ids.Any(i => frame[0] == (byte)i))
+                {
+                    return frame;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
         }
 

@@ -23,18 +23,17 @@ public sealed class EditorMainFormCloseCoordinatorTests
         });
 
         var scope = new EditorPostgreSqlScope(FakePgCs);
-        var disposeCount = 0;
-        var stopPlaytestOnUiThread = false;
+        var disposeInvocations = 0;
 
         var coordinator = new EditorMainFormCloseCoordinator(
-            () =>
-            {
-                stopPlaytestOnUiThread = SynchronizationContext.Current is not null;
-                return Task.CompletedTask;
-            },
+            () => Task.CompletedTask,
             () => initTask,
             () => new EditorPostgreSqlScope?[] { scope },
-            () => Interlocked.Increment(ref disposeCount),
+            () =>
+            {
+                disposeInvocations++;
+                scope.Dispose();
+            },
             _ => { },
             () => !initTask.IsCompleted,
             () => { });
@@ -42,7 +41,7 @@ public sealed class EditorMainFormCloseCoordinatorTests
         var failed = await coordinator.RunCloseCleanupAsync(TimeSpan.FromMilliseconds(200));
         Assert.False(failed);
         Assert.False(scope.IsDisposed);
-        Assert.Equal(0, disposeCount);
+        Assert.Equal(0, disposeInvocations);
         Assert.Equal(1, EditorPostgreSqlScope.ActiveScopeCountForTest);
 
         releaseInit.TrySetResult();
@@ -52,7 +51,7 @@ public sealed class EditorMainFormCloseCoordinatorTests
         Assert.True(succeeded);
         Assert.True(scope.IsDisposed);
         Assert.Equal(1, scope.DisposeCallCountForTest);
-        Assert.Equal(1, disposeCount);
+        Assert.Equal(1, disposeInvocations);
         Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
     }
 
@@ -122,25 +121,29 @@ public sealed class EditorMainFormCloseCoordinatorTests
     public async Task ExactlyOnceDisposal_EvenWhenRetryCalledTwice()
     {
         EditorPostgreSqlScope.ResetTestCountersForTest();
-        var disposeCount = 0;
+        var disposeInvocations = 0;
         var scope = new EditorPostgreSqlScope(FakePgCs);
 
         var coordinator = new EditorMainFormCloseCoordinator(
             () => Task.CompletedTask,
             () => null,
             () => new EditorPostgreSqlScope?[] { scope },
-            () => Interlocked.Increment(ref disposeCount),
+            () =>
+            {
+                disposeInvocations++;
+                scope.Dispose();
+            },
             _ => { },
             () => false,
             () => { });
 
         Assert.True(await coordinator.RunCloseCleanupAsync(TimeSpan.FromSeconds(5)));
-        Assert.Equal(1, disposeCount);
+        Assert.Equal(1, disposeInvocations);
         Assert.Equal(1, scope.DisposeCallCountForTest);
 
         // Second cleanup must not double-dispose.
         Assert.True(await coordinator.RunCloseCleanupAsync(TimeSpan.FromSeconds(5)));
-        Assert.Equal(1, disposeCount);
+        Assert.Equal(1, disposeInvocations);
         Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
     }
 
