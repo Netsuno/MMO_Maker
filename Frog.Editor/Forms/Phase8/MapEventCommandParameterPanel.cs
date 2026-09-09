@@ -75,6 +75,16 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
     internal TextBox AdvancedJsonForTest => _advancedJson;
 
+    internal CheckBox ShowAdvancedForTest => _showAdvanced;
+
+    internal MapEventConditionParameterPanel? BranchConditionForTest => _branchCondition;
+
+    internal MapEventCommandListPanel? BranchThenForTest => _branchThen;
+
+    internal MapEventCommandListPanel? BranchElseForTest => _branchElse;
+
+    internal Control? FieldForTest(string key) => FindFieldControl(key);
+
     public void LoadCommand(MapEventCommandDefinition command)
     {
         _binding = true;
@@ -205,8 +215,8 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddLabeled("waitMs", new NumericUpDown { Width = 100, Minimum = 0, Maximum = 600000, Value = 500 });
                 break;
             case MapEventCommandDiscriminators.CallCommonEvent:
-                AddLabeled("commonEventId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
-                AddLabeled("commonEventAliasId", new NumericUpDown { Width = 80, Minimum = 0, Maximum = int.MaxValue, Value = 0 });
+                AddLabeled("commonEventId", new TextBox { Width = 280, Text = string.Empty });
+                AddLabeled("editorAliasId", new NumericUpDown { Width = 80, Minimum = 0, Maximum = int.MaxValue, Value = 0 });
                 break;
             case MapEventCommandDiscriminators.LearnProfession:
                 AddLabeled("professionId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
@@ -443,9 +453,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                         SetText("commonEventId", ceId.GetString() ?? string.Empty);
                     }
 
-                    if (root.TryGetProperty("commonEventAliasId", out var ceAlias))
+                    if (root.TryGetProperty("editorAliasId", out var ceAlias))
                     {
-                        SetInt("commonEventAliasId", ceAlias.GetInt32());
+                        SetInt("editorAliasId", ceAlias.GetInt32());
                     }
 
                     break;
@@ -564,12 +574,7 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }),
                 MapEventCommandDiscriminators.Wait =>
                     JsonSerializer.Serialize(new { waitMs = GetInt("waitMs") }),
-                MapEventCommandDiscriminators.CallCommonEvent =>
-                    JsonSerializer.Serialize(new
-                    {
-                        commonEventId = GetText("commonEventId"),
-                        commonEventAliasId = GetInt("commonEventAliasId"),
-                    }),
+                MapEventCommandDiscriminators.CallCommonEvent => BuildCallCommonEventJson(),
                 MapEventCommandDiscriminators.LearnProfession =>
                     JsonSerializer.Serialize(new { professionId = GetText("professionId") }),
                 _ => GetText("parameterJson"),
@@ -609,6 +614,23 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         }
 
         return JsonSerializer.Serialize(new { amount = GetInt("amount"), onceKey = once });
+    }
+
+    private string BuildCallCommonEventJson()
+    {
+        var idText = GetText("commonEventId");
+        if (Guid.TryParse(idText, out var id) && id != Guid.Empty)
+        {
+            return JsonSerializer.Serialize(new { commonEventId = id.ToString("D") });
+        }
+
+        var alias = GetInt("editorAliasId");
+        if (alias > 0)
+        {
+            return JsonSerializer.Serialize(new { editorAliasId = alias });
+        }
+
+        return JsonSerializer.Serialize(new { commonEventId = idText });
     }
 
     private string BuildBranchJson(out string? error)

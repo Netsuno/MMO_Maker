@@ -72,6 +72,10 @@ internal sealed class MapEventConditionParameterPanel : UserControl
 
     internal TextBox AdvancedJsonForTest => _advancedJson;
 
+    internal CheckBox ShowAdvancedForTest => _showAdvanced;
+
+    internal Control? FieldForTest(string key) => FindFieldControl(key);
+
     public void LoadCondition(MapEventConditionDefinition condition)
     {
         _binding = true;
@@ -179,7 +183,7 @@ internal sealed class MapEventConditionParameterPanel : UserControl
                 break;
             case MapEventConditionKinds.ItemQuantity:
                 AddLabeled("itemId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
-                AddLabeled("minQuantity", new NumericUpDown { Width = 80, Minimum = 1, Maximum = 9999, Value = 1 });
+                AddLabeled("quantity", new NumericUpDown { Width = 80, Minimum = 0, Maximum = 9999, Value = 1 });
                 break;
             case MapEventConditionKinds.CharacterLevel:
                 AddLabeled("minLevel", new NumericUpDown { Width = 80, Minimum = 1, Maximum = 999, Value = 1 });
@@ -337,9 +341,10 @@ internal sealed class MapEventConditionParameterPanel : UserControl
                         SetText("itemId", itemId.GetString() ?? string.Empty);
                     }
 
-                    if (root.TryGetProperty("minQuantity", out var qty))
+                    if (root.TryGetProperty("quantity", out var qty)
+                        || root.TryGetProperty("minQuantity", out qty))
                     {
-                        SetInt("minQuantity", qty.GetInt32());
+                        SetInt("quantity", qty.GetInt32());
                     }
 
                     break;
@@ -401,7 +406,7 @@ internal sealed class MapEventConditionParameterPanel : UserControl
                 MapEventConditionKinds.QuestStatus =>
                     JsonSerializer.Serialize(new { questId = GetText("questId"), status = GetCombo("status") }),
                 MapEventConditionKinds.ItemQuantity =>
-                    JsonSerializer.Serialize(new { itemId = GetText("itemId"), minQuantity = GetInt("minQuantity") }),
+                    JsonSerializer.Serialize(new { itemId = GetText("itemId"), quantity = GetInt("quantity") }),
                 MapEventConditionKinds.CharacterLevel =>
                     JsonSerializer.Serialize(new { minLevel = GetInt("minLevel") }),
                 MapEventConditionKinds.ProfessionLevel =>

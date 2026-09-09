@@ -13,6 +13,7 @@ internal sealed class MapEventCommandListPanel : UserControl
     private readonly List<MapEventCommandDefinition> _models = new();
     private int _selectedIndex = -1;
     private bool _binding;
+    private bool _ignoreListEvents;
 
     public MapEventCommandListPanel()
     {
@@ -38,7 +39,15 @@ internal sealed class MapEventCommandListPanel : UserControl
         layout.Controls.Add(_validationLabel);
         Controls.Add(layout);
 
-        _commands.SelectedIndexChanged += (_, _) => SelectCommand(_commands.SelectedIndex);
+        _commands.SelectedIndexChanged += (_, _) =>
+        {
+            if (_binding || _ignoreListEvents)
+            {
+                return;
+            }
+
+            SelectCommand(_commands.SelectedIndex);
+        };
         _params.ParametersChanged += () =>
         {
             FlushCurrent();
@@ -80,7 +89,15 @@ internal sealed class MapEventCommandListPanel : UserControl
 
     public bool TryBuildCommands(out IReadOnlyList<MapEventCommandDefinition> commands, out string? error)
     {
-        FlushCurrent();
+        if (!FlushCurrent())
+        {
+            commands = Array.Empty<MapEventCommandDefinition>();
+            error = string.IsNullOrWhiteSpace(_validationLabel.Text)
+                ? "Commande invalide."
+                : _validationLabel.Text;
+            return false;
+        }
+
         commands = _models.Select(Clone).ToList();
         foreach (var cmd in commands)
         {
@@ -152,26 +169,36 @@ internal sealed class MapEventCommandListPanel : UserControl
         }
     }
 
-    private void FlushCurrent()
+    private bool FlushCurrent()
     {
         if (_binding || _selectedIndex < 0 || _selectedIndex >= _models.Count)
         {
-            return;
+            return true;
         }
 
         if (!_params.TryBuildCommand(out var cmd, out var err))
         {
             _validationLabel.Text = err ?? "Commande invalide.";
-            return;
+            return false;
         }
 
         _models[_selectedIndex] = cmd;
         _validationLabel.Text = string.Empty;
-        RefreshList();
-        if (_commands.SelectedIndex != _selectedIndex)
+        _ignoreListEvents = true;
+        try
         {
-            _commands.SelectedIndex = _selectedIndex;
+            RefreshList();
+            if (_selectedIndex >= 0 && _selectedIndex < _commands.Items.Count)
+            {
+                _commands.SelectedIndex = _selectedIndex;
+            }
         }
+        finally
+        {
+            _ignoreListEvents = false;
+        }
+
+        return true;
     }
 
     private void RefreshList()
