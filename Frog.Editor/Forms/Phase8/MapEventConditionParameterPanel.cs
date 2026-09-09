@@ -152,34 +152,34 @@ internal sealed class MapEventConditionParameterPanel : UserControl
                 break;
             case MapEventConditionKinds.CharacterVariableCompare:
                 AddLabeled("variableId", new TextBox { Width = 200, Text = "var1" });
-                AddLabeled("op", new ComboBox
+                var opCombo = new ComboBox
                 {
                     DropDownStyle = ComboBoxStyle.DropDownList,
                     Width = 80,
-                });
-                var opCombo = (ComboBox)_dynamicFields[^1];
+                };
                 foreach (var op in new[] { "eq", "ne", "lt", "lte", "gt", "gte" })
                 {
                     opCombo.Items.Add(op);
                 }
 
                 opCombo.SelectedIndex = 0;
+                AddLabeled("op", opCombo);
                 AddLabeled("value", new NumericUpDown { Width = 100, Minimum = int.MinValue, Maximum = int.MaxValue });
                 break;
             case MapEventConditionKinds.QuestStatus:
                 AddLabeled("questId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
-                AddLabeled("status", new ComboBox
+                var statusCombo = new ComboBox
                 {
                     DropDownStyle = ComboBoxStyle.DropDownList,
                     Width = 140,
-                });
-                var statusCombo = (ComboBox)_dynamicFields[^1];
+                };
                 foreach (var s in new[] { "not_started", "active", "ready", "completed" })
                 {
                     statusCombo.Items.Add(s);
                 }
 
                 statusCombo.SelectedIndex = 1;
+                AddLabeled("status", statusCombo);
                 break;
             case MapEventConditionKinds.ItemQuantity:
                 AddLabeled("itemId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
