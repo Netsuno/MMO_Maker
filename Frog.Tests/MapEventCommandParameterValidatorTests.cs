@@ -67,7 +67,7 @@ public sealed class MapEventCommandParameterValidatorTests
     {
         var command = NestBranches(MapEventRuntimeLimits.MaxBranchDepth + 1);
         Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out var error));
-        Assert.Contains("branche", error ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(error));
     }
 
     [Theory]

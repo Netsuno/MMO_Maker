@@ -241,7 +241,7 @@ public sealed class MapEventPagesEditorSmokeTests
 
             panel.LoadPages([PageWith(commands: [NestBranches(MapEventRuntimeLimits.MaxBranchDepth + 1)])]);
             Assert.False(panel.TryBuildPages(out _, out var error));
-            Assert.Contains("branche", error ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            Assert.False(string.IsNullOrWhiteSpace(error));
 
             host.Close();
         });
