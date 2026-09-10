@@ -25,6 +25,7 @@ public sealed class Phase8GameplayHandlers(
     MapEventMovementService eventMovement,
     IMapEventStore mapEventStore,
     ConnectionManager connectionManager,
+    ClientRegistry clientRegistry,
     PacketSender packetSender,
     IOptions<Phase8SmokeBootstrapOptions> smokeOptions)
 {
@@ -102,7 +103,48 @@ public sealed class Phase8GameplayHandlers(
 
         eventMovement.SyncMapPlacements(mapId, placements);
         var playerTiles = BuildOccupiedPlayerTiles(mapId);
-        await eventMovement.TickMapAsync(mapId, playerTiles, cancellationToken).ConfigureAwait(false);
+        var moved = await eventMovement.TickMapAsync(mapId, playerTiles, cancellationToken).ConfigureAwait(false);
+        if (!moved)
+        {
+            return;
+        }
+
+        await BroadcastRuntimeMapEventsAsync(mapId, placements, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task BroadcastRuntimeMapEventsAsync(
+        int mapId,
+        IReadOnlyList<MapEventWireEntry> catalogPlacements,
+        CancellationToken cancellationToken)
+    {
+        var runtime = eventMovement.ApplyRuntimePositions(mapId, catalogPlacements);
+        var json = runtime.Count == 0 ? "[]" : System.Text.Json.JsonSerializer.Serialize(runtime);
+        foreach (var occupant in _connectionManager.GetActiveSessions())
+        {
+            if (occupant.CurrentMapId != mapId || !occupant.HasActiveCharacter())
+            {
+                continue;
+            }
+
+            if (!clientRegistry.TryGet(occupant.Id, out var client) || client is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                await packetSender.SendMapEventsResultAsync(client, mapId, json, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // A disconnected peer must not abort the fan-out to remaining map occupants.
+            }
+        }
     }
 
     private HashSet<(int TileX, int TileY)> BuildOccupiedPlayerTiles(int mapId) =>

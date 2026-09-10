@@ -1,6 +1,7 @@
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 using Frog.Persistence.PostgreSql;
 using Frog.Persistence.PostgreSql.Repositories.Player;
 using Frog.Persistence.IntegrationTests.Support;
@@ -58,6 +59,82 @@ public sealed class Phase8MultiClientE2ETests
             Assert.True(Phase8WireDecoders.TryDecodeDialogueStatePush(
                 unlockedA, out _, out _, out _, out _, out var unlockedText, out _));
             Assert.Contains("Will you help", unlockedText);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task MapEventRoute_Heartbeat_BroadcastsAtoB_DisplayCollisionAndInteraction()
+    {
+        var seed = await SeedAsync();
+        var port = Phase7TcpTestPorts.GetFreePort();
+        using var host = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port).Build();
+        await host.StartAsync();
+        try
+        {
+            await using var ticker = new Phase7TcpTestClient();
+            await using var observer = new Phase7TcpTestClient();
+            _ = await RegisterAsync(ticker, port, seed, "RtA");
+            _ = await RegisterAsync(observer, port, seed, "RtB");
+
+            await ticker.SendFrameAsync(Phase7TcpPacketBuilder.BuildMapEventsRequest());
+            var tickerBefore = await ticker.ReadUntilAsync(PacketId.MapEventsResult);
+            Assert.True(Phase8WireDecoders.TryDecodeMapEventsResult(tickerBefore, out var tickerMapId, out var tickerStart));
+            Assert.Equal(seed.RuntimeMapId, tickerMapId);
+            Assert.Contains(
+                tickerStart,
+                p => p.TileX == seed.RouteEventTileX && p.TileY == seed.RouteEventTileY && p.BlocksCollision);
+
+            await observer.SendFrameAsync(Phase7TcpPacketBuilder.BuildMapEventsRequest());
+            var observerBefore = await observer.ReadUntilAsync(PacketId.MapEventsResult);
+            Assert.True(Phase8WireDecoders.TryDecodeMapEventsResult(observerBefore, out var observerMapId, out var observerStart));
+            Assert.Equal(seed.RuntimeMapId, observerMapId);
+            Assert.Contains(
+                observerStart,
+                p => p.TileX == seed.RouteEventTileX && p.TileY == seed.RouteEventTileY && p.BlocksCollision);
+
+            await Phase8MovementTestHelpers.SendHeartbeatAsync(ticker);
+
+            IReadOnlyList<MapEventWireEntry> tickerMoved;
+            IReadOnlyList<MapEventWireEntry> observerMoved;
+            try
+            {
+                tickerMoved = await Phase8TcpTestHelpers.ReadUnsolicitedMapEventsAsync(ticker, seed.RuntimeMapId);
+                observerMoved = await Phase8TcpTestHelpers.ReadUnsolicitedMapEventsAsync(observer, seed.RuntimeMapId);
+            }
+            catch (TimeoutException ex)
+            {
+                throw new TimeoutException(
+                    "map-event A→B broadcast missing: ticker heartbeat must push MapEventsResult to ALL clients on the map",
+                    ex);
+            }
+
+            Assert.Contains(
+                tickerMoved,
+                p => p.TileX == seed.RouteBlockTileX && p.TileY == seed.RouteBlockTileY && p.BlocksCollision);
+            Assert.Contains(
+                observerMoved,
+                p => p.TileX == seed.RouteBlockTileX && p.TileY == seed.RouteBlockTileY && p.BlocksCollision);
+            Assert.DoesNotContain(
+                observerMoved,
+                p => p.TileX == seed.RouteEventTileX && p.TileY == seed.RouteEventTileY && p.BlocksCollision);
+
+            var blockedMove = await Phase8MovementTestHelpers.TryMoveToTileExpectingErrorAsync(
+                observer, seed.RouteBlockTileX, seed.RouteBlockTileY);
+            Assert.True(Phase8WireDecoders.TryDecodeError(blockedMove, out var blockMsg));
+            Assert.Contains("evenement", blockMsg, StringComparison.OrdinalIgnoreCase);
+
+            await Phase8MovementTestHelpers.TeleportToTileAsync(
+                observer, seed.RouteEventTileX, seed.RouteEventTileY);
+            await observer.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var leftA = await observer.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(leftA, out var interactOk, out var interactMsg));
+            Assert.False(interactOk);
+            Assert.Contains("interagir", interactMsg, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

@@ -225,4 +225,30 @@ internal static class Phase8TcpTestHelpers
 
         return (catalog, mapEvents, environment);
     }
+
+    /// <summary>
+    /// Unsolicited <see cref="PacketId.MapEventsResult"/> after a server-side map-event move.
+    /// The already-connected client must not send <see cref="PacketId.MapEventsRequest"/>.
+    /// </summary>
+    public static async Task<IReadOnlyList<MapEventWireEntry>> ReadUnsolicitedMapEventsAsync(
+        Phase7TcpTestClient client,
+        int expectedMapId,
+        TimeSpan? timeout = null)
+    {
+        byte[] frame;
+        try
+        {
+            frame = await client.ReadUntilAsync(PacketId.MapEventsResult, timeout ?? TimeSpan.FromSeconds(8));
+        }
+        catch (TimeoutException ex)
+        {
+            throw new TimeoutException(
+                $"expected unsolicited MapEventsResult for map {expectedMapId} after map-event movement broadcast",
+                ex);
+        }
+
+        Assert.True(Phase8WireDecoders.TryDecodeMapEventsResult(frame, out var mapId, out var placements));
+        Assert.Equal(expectedMapId, mapId);
+        return placements;
+    }
 }

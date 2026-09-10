@@ -26,6 +26,26 @@ public sealed class MapEventMovementServiceTests
     }
 
     [Fact]
+    public void TickMap_ReturnsTrueOnlyWhenPlacementTileChanges()
+    {
+        var clock = new SteppingClock();
+        var service = new MapEventMovementService(clock);
+        var placement = CreateRoutePlacement(4, 0);
+        service.SyncMapPlacements(1, [placement]);
+        Assert.True(service.TickMap(1));
+        Assert.False(service.TickMap(1));
+        clock.Advance(TimeSpan.FromMilliseconds(250));
+        Assert.True(service.TickMap(1));
+    }
+
+    [Fact]
+    public void TickMap_EmptyMap_ReturnsFalse()
+    {
+        var service = new MapEventMovementService();
+        Assert.False(service.TickMap(1));
+    }
+
+    [Fact]
     public void IsTileBlockedByEvent_ReturnsTrueOnRuntimeTile()
     {
         var service = new MapEventMovementService();

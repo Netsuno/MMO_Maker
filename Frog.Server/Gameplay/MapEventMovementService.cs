@@ -64,18 +64,18 @@ public sealed class MapEventMovementService
         return ApplySnapshotToPlacements(ReadPublished(mapId), placements);
     }
 
-    public void TickMap(int mapId, IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles = null)
+    /// <summary>Advances routes on <paramref name="mapId"/>. Returns true when any placement tile changed.</summary>
+    public bool TickMap(int mapId, IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles = null)
     {
         var gate = GetMapLock(mapId);
         if (!gate.Wait(0))
         {
-            return;
+            return false;
         }
 
         try
         {
-            var now = _clock.GetUtcNow();
-            Publish(mapId, AdvanceAll(GetSnapshot(mapId), mapId, now, occupiedPlayerTiles));
+            return TickMapCore(mapId, occupiedPlayerTiles);
         }
         finally
         {
@@ -83,7 +83,8 @@ public sealed class MapEventMovementService
         }
     }
 
-    public async Task TickMapAsync(
+    /// <summary>Advances routes on <paramref name="mapId"/>. Returns true when any placement tile changed.</summary>
+    public async Task<bool> TickMapAsync(
         int mapId,
         IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles,
         CancellationToken cancellationToken = default)
@@ -92,8 +93,7 @@ public sealed class MapEventMovementService
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var now = _clock.GetUtcNow();
-            Publish(mapId, AdvanceAll(GetSnapshot(mapId), mapId, now, occupiedPlayerTiles));
+            return TickMapCore(mapId, occupiedPlayerTiles);
         }
         finally
         {
@@ -214,6 +214,37 @@ public sealed class MapEventMovementService
         tileY = state.TileY;
         blocksCollision = IsTileBlockedBySnapshot(snapshot, state.TileX, state.TileY, ignorePlacementId: null);
         return true;
+    }
+
+    private bool TickMapCore(int mapId, IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles)
+    {
+        var now = _clock.GetUtcNow();
+        var current = GetSnapshot(mapId);
+        var next = AdvanceAll(current, mapId, now, occupiedPlayerTiles);
+        Publish(mapId, next);
+        return PositionsDiffer(current.Placements, next.Placements);
+    }
+
+    private static bool PositionsDiffer(
+        ImmutableDictionary<long, PlacementSnapshot> before,
+        ImmutableDictionary<long, PlacementSnapshot> after)
+    {
+        if (before.Count != after.Count)
+        {
+            return true;
+        }
+
+        foreach (var (id, state) in after)
+        {
+            if (!before.TryGetValue(id, out var previous)
+                || previous.TileX != state.TileX
+                || previous.TileY != state.TileY)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private MapSnapshot ReadPublished(int mapId) => GetSnapshot(mapId);
