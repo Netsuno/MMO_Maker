@@ -10,6 +10,9 @@ public sealed record MapEventExecutionPlan(
 {
     public bool IsSuccess => Error is null;
 
+    /// <summary>Découpe le plan en unité transactionnelle (wait + intents session inclus).</summary>
+    public MapEventTransactionalUnit AsTransactionalUnit() => MapEventTransactionalUnit.FromPlan(this);
+
     public static MapEventExecutionPlan Ok(
         MapEventExecutionIdentity identity,
         IReadOnlyList<MapEventCommandDefinition> effects) =>

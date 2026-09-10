@@ -4,10 +4,24 @@ namespace Frog.Core.Events;
 
 /// <summary>
 /// Résout branches et appels common-event avant toute mutation persistante (J4-CORE).
-/// Produit une séquence d'effets plate et une identité d'exécution stable pour J4-PG.
+/// Produit une séquence d'effets plate et une identité d'exécution (par activation) pour J4-PG.
+/// Les pages mixtes (dialogue / téléport + mutations) forment une seule unité transactionnelle.
 /// </summary>
 public static class MapEventExecutionPlanner
 {
+    public static bool ContainsUnresolvedControlFlow(IReadOnlyList<MapEventCommandDefinition> effects) =>
+        MapEventEffectClassifier.ContainsUnresolvedControlFlow(effects);
+
+    /// <summary>
+    /// True si les effets plats (dialogue / téléport inclus) tiennent dans une seule TX PG.
+    /// Distinct du filtre serveur historique qui excluait <c>start_dialogue</c> / <c>teleport</c>.
+    /// </summary>
+    public static bool IsUnifiedTransactionalUnit(IReadOnlyList<MapEventCommandDefinition> effects) =>
+        MapEventEffectClassifier.IsUnifiedTransactionalUnit(effects);
+
+    public static MapEventTransactionalUnit ToTransactionalUnit(MapEventExecutionPlan plan) =>
+        MapEventTransactionalUnit.FromPlan(plan);
+
     public static MapEventExecutionPlan Plan(
         IReadOnlyList<MapEventCommandDefinition> commands,
         IMapEventCommonEventSource commonEvents,

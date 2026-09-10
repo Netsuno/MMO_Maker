@@ -405,6 +405,8 @@ public sealed class MapEventExecutionPlannerTests
     {
         var identity = MapEventExecutionIdentity.Create(CharacterId, 9, 3, FixedRequestId);
         Assert.Equal(FixedRequestId, identity.RequestId);
+        Assert.Equal(FixedRequestId, identity.ActivationId);
+        Assert.Equal(0, identity.WaitOrdinal);
         Assert.True(identity.IsValid);
         Assert.Equal((CharacterId, FixedRequestId), identity.LedgerKey);
     }
