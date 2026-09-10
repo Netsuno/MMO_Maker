@@ -133,6 +133,60 @@ public sealed class MapEventExecutionPlannerTests
     }
 
     [Fact]
+    public void Plan_ExpandsNestedCommonEvent()
+    {
+        var parentId = Guid.Parse("cccccccc-cccc-cccc-cccc-ccccccccccd1");
+        var childId = Guid.Parse("cccccccc-cccc-cccc-cccc-ccccccccccd2");
+        var source = new InMemoryCommonEventSource(
+        [
+            new CommonEventDefinition
+            {
+                Id = parentId,
+                Name = "Parent",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        Commands =
+                        [
+                            CallCommon(childId),
+                            ShowText("from-parent"),
+                        ],
+                    },
+                ],
+            },
+            new CommonEventDefinition
+            {
+                Id = childId,
+                Name = "Child",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        Commands = [SetSwitch("nested_flag", true)],
+                    },
+                ],
+            },
+        ]);
+
+        var plan = MapEventExecutionPlanner.Plan(
+            [CallCommon(parentId)],
+            source,
+            _ => true,
+            Identity());
+
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.Equal(2, plan.Effects.Count);
+        Assert.Equal(MapEventCommandDiscriminators.SetSwitch, plan.Effects[0].Discriminator);
+        Assert.Contains("nested_flag", plan.Effects[0].ParameterJson, StringComparison.Ordinal);
+        Assert.Equal(MapEventCommandDiscriminators.ShowText, plan.Effects[1].Discriminator);
+        Assert.Contains("from-parent", plan.Effects[1].ParameterJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            plan.Effects,
+            c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+    }
+
+    [Fact]
     public void Plan_ExpandsCommonEventBranch()
     {
         var commonId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
@@ -302,6 +356,38 @@ public sealed class MapEventExecutionPlannerTests
     }
 
     [Fact]
+    public void Plan_AcceptsCommonEventRecursionAtMaxDepth()
+    {
+        var ids = Enumerable.Range(0, MapEventRuntimeLimits.MaxCommonEventRecursionDepth)
+            .Select(i => Guid.Parse($"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea{i:x}"))
+            .ToArray();
+        var events = new List<CommonEventDefinition>();
+        for (var i = 0; i < ids.Length; i++)
+        {
+            var next = i + 1 < ids.Length ? CallCommon(ids[i + 1]) : SetSwitch("depth_ok", true);
+            events.Add(new CommonEventDefinition
+            {
+                Id = ids[i],
+                Name = $"CE{i}",
+                Pages = [new MapEventPageDefinition { Commands = [next] }],
+            });
+        }
+
+        var plan = MapEventExecutionPlanner.Plan(
+            [CallCommon(ids[0])],
+            new InMemoryCommonEventSource(events),
+            _ => true,
+            Identity());
+
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.Single(plan.Effects);
+        Assert.Equal(MapEventCommandDiscriminators.SetSwitch, plan.Effects[0].Discriminator);
+        Assert.DoesNotContain(
+            plan.Effects,
+            c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+    }
+
+    [Fact]
     public void Plan_RejectsInvalidExecutionIdentity()
     {
         var plan = MapEventExecutionPlanner.Plan(
@@ -432,6 +518,53 @@ public sealed class MapEventExecutionPlannerTests
         Assert.Null(resolved.Error);
         Assert.Single(resolved.Commands);
         Assert.Contains("via-server", resolved.Commands[0].ParameterJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ServerPlanner_PlanAsync_ExpandsNestedCommonEventViaCore()
+    {
+        var parentId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffff01");
+        var childId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffff02");
+        var catalog = new FakePublishedCommonEventCatalog(
+        [
+            new CommonEventDefinition
+            {
+                Id = parentId,
+                Name = "ServerParent",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        Commands = [CallCommon(childId), ShowText("via-parent")],
+                    },
+                ],
+            },
+            new CommonEventDefinition
+            {
+                Id = childId,
+                Name = "ServerChild",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        Commands = [SetSwitch("nested_public", true)],
+                    },
+                ],
+            },
+        ]);
+
+        var plan = await ServerPlanner.PlanAsync(
+            [CallCommon(parentId)],
+            catalog,
+            _ => Task.FromResult(true),
+            Identity());
+
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.Equal(2, plan.Effects.Count);
+        Assert.Equal(MapEventCommandDiscriminators.SetSwitch, plan.Effects[0].Discriminator);
+        Assert.Equal(MapEventCommandDiscriminators.ShowText, plan.Effects[1].Discriminator);
+        Assert.True(ServerPlanner.AreEffectsTransactional(plan.Effects));
+        Assert.False(ServerPlanner.ContainsUnresolvedControlFlow(plan.Effects));
     }
 
     [Fact]

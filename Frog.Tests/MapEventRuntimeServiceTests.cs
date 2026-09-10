@@ -759,6 +759,205 @@ public sealed class MapEventRuntimeServiceTests
         Assert.True(await worldState.GetSwitchAsync(characterId, "phase8_common_fired"));
     }
 
+    [Fact]
+    public async Task ExecuteInteract_PublicPath_NestedCommonEvent_ExpandsChildSetSwitchViaCore()
+    {
+        var characterId = Guid.NewGuid();
+        var parentId = Guid.Parse("dddddddd-0001-4000-8000-000000000001");
+        var childId = Guid.Parse("dddddddd-0002-4000-8000-000000000002");
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "NestedCaller",
+            EditorAliasId = 65,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                            ParameterJson = $"{{\"commonEventId\":\"{parentId:D}\"}}",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository
+        {
+            Handler = plan => new MapEventMutationResult(
+                MapEventMutationStatus.Executed,
+                null,
+                new MapEventExecutionSnapshot
+                {
+                    ShowText = "from-parent",
+                    SwitchesChanged = true,
+                    SwitchChanges =
+                    [
+                        new WorldSwitchWire { SwitchId = "nested_ce_flag", Value = true },
+                    ],
+                }),
+        };
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo,
+            configureContent: content =>
+            {
+                content.RegisterCommonEvent(new CommonEventDefinition
+                {
+                    Id = parentId,
+                    Name = "Parent",
+                    Pages =
+                    [
+                        new MapEventPageDefinition
+                        {
+                            PageOrder = 0,
+                            TriggerKind = Phase8MapEventTriggerKinds.Action,
+                            Commands =
+                            [
+                                new MapEventCommandDefinition
+                                {
+                                    Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                                    ParameterJson = $"{{\"commonEventId\":\"{childId:D}\"}}",
+                                },
+                                new MapEventCommandDefinition
+                                {
+                                    Discriminator = MapEventCommandDiscriminators.ShowText,
+                                    ParameterJson = """{"text":"from-parent"}""",
+                                },
+                            ],
+                        },
+                    ],
+                });
+                content.RegisterCommonEvent(new CommonEventDefinition
+                {
+                    Id = childId,
+                    Name = "Child",
+                    Pages =
+                    [
+                        new MapEventPageDefinition
+                        {
+                            PageOrder = 0,
+                            TriggerKind = Phase8MapEventTriggerKinds.Action,
+                            Commands =
+                            [
+                                new MapEventCommandDefinition
+                                {
+                                    Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                                    ParameterJson = """{"switchId":"nested_ce_flag","value":true}""",
+                                },
+                            ],
+                        },
+                    ],
+                });
+            });
+
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(65));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Equal(0, repo.PageCalls);
+        Assert.Single(repo.Plans);
+        var plan = repo.Plans[0];
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.DoesNotContain(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+        Assert.Equal(MapEventCommandDiscriminators.SetSwitch, plan.Effects[0].Discriminator);
+        Assert.Contains("nested_ce_flag", plan.Effects[0].ParameterJson, StringComparison.Ordinal);
+        Assert.Equal(MapEventCommandDiscriminators.ShowText, plan.Effects[1].Discriminator);
+        Assert.True(result.SwitchesChanged);
+        Assert.Contains(result.SwitchChanges, s => s.SwitchId == "nested_ce_flag" && s.Value);
+        Assert.Equal("from-parent", result.ShowText);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_PublicPath_NestedCommonEventCycle_FailsPlan()
+    {
+        var characterId = Guid.NewGuid();
+        var idA = Guid.Parse("dddddddd-00a1-4000-8000-000000000001");
+        var idB = Guid.Parse("dddddddd-00a2-4000-8000-000000000002");
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "CycleCaller",
+            EditorAliasId = 66,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                            ParameterJson = $"{{\"commonEventId\":\"{idA:D}\"}}",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo,
+            configureContent: content =>
+            {
+                content.RegisterCommonEvent(new CommonEventDefinition
+                {
+                    Id = idA,
+                    Name = "Alpha",
+                    Pages =
+                    [
+                        new MapEventPageDefinition
+                        {
+                            Commands =
+                            [
+                                new MapEventCommandDefinition
+                                {
+                                    Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                                    ParameterJson = $"{{\"commonEventId\":\"{idB:D}\"}}",
+                                },
+                            ],
+                        },
+                    ],
+                });
+                content.RegisterCommonEvent(new CommonEventDefinition
+                {
+                    Id = idB,
+                    Name = "Beta",
+                    Pages =
+                    [
+                        new MapEventPageDefinition
+                        {
+                            Commands =
+                            [
+                                new MapEventCommandDefinition
+                                {
+                                    Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                                    ParameterJson = $"{{\"commonEventId\":\"{idA:D}\"}}",
+                                },
+                            ],
+                        },
+                    ],
+                });
+            });
+
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(66));
+
+        Assert.NotNull(result);
+        Assert.False(result!.Success);
+        Assert.Contains("Cycle common-event", result.Message, StringComparison.Ordinal);
+        Assert.Empty(repo.Plans);
+        Assert.Equal(0, repo.PageCalls);
+    }
+
     private static MapEventRuntimeService CreateService(
         IPublishedMapEventCatalog catalog,
         InMemoryCharacterWorldStateRepository worldState,

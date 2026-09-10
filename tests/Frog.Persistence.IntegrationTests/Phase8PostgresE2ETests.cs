@@ -84,7 +84,8 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(seed.WeatherProfile2Id, env2WeatherId);
             Assert.Equal(seed.ExpectedLightingLevel2, lighting2);
 
-            // Common-event SetSwitch is proven by WorldSwitchSnapshot (not ShowText).
+            // Nested CE A→B: map event calls parent CE; parent calls child CE;
+            // child's SetSwitch is proven by WorldSwitchSnapshot (not ShowText).
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.CommonEventTileX, seed.CommonEventTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var (commonEventResult, commonSwitches) =
@@ -97,7 +98,7 @@ public sealed class Phase8PostgresE2ETests
                     commonSwitches,
                     Phase8PublicSwitchWireGap.CommonEventSwitchId,
                     true),
-                "WorldSwitchSnapshot after CE SetSwitch must list phase8_common_fired.");
+                "WorldSwitchSnapshot after nested CE A→B SetSwitch must list phase8_common_fired.");
 
             // Step 18: autorun already consumed during first bootstrap; re-select must not repeat
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
@@ -469,8 +470,9 @@ public sealed class Phase8PostgresE2ETests
     }
 
     /// <summary>
-    /// Public-path proof for CE/wait SetSwitch via <see cref="PacketId.WorldSwitchSnapshot"/>.
-    /// No mid-scenario SQL / GetSwitchAsync. ShowText is not persistence proof.
+    /// Public-path proof for nested CE A→B / wait SetSwitch via
+    /// <see cref="PacketId.WorldSwitchSnapshot"/>. No mid-scenario SQL / GetSwitchAsync.
+    /// ShowText is not persistence proof.
     /// </summary>
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
@@ -501,10 +503,12 @@ public sealed class Phase8PostgresE2ETests
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var (commonInteract, commonSwitches) =
                 await Phase8TcpTestHelpers.ReadInteractCollectingSwitchSnapshotAsync(client);
-            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(commonInteract, out var commonOk, out _));
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(commonInteract, out var commonOk, out var commonMsg));
             Assert.True(commonOk);
+            Assert.Contains("Common event fired", commonMsg);
             Assert.True(
-                Phase8WireDecoders.ContainsSwitch(commonSwitches, Phase8PublicSwitchWireGap.CommonEventSwitchId, true));
+                Phase8WireDecoders.ContainsSwitch(commonSwitches, Phase8PublicSwitchWireGap.CommonEventSwitchId, true),
+                "WorldSwitchSnapshot after nested child CE SetSwitch must list phase8_common_fired.");
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.WaitEventTileX, seed.WaitEventTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
@@ -557,6 +561,18 @@ public sealed class Phase8PostgresE2ETests
         Assert.NotNull(gateEvent);
         Assert.Equal(2, gateEvent!.Pages.Count);
         Assert.Contains(gateEvent.Pages, p => p.Conditions.Count > 0);
+
+        IPublishedCommonEventCatalog commons = phase8;
+        var parent = await commons.TryGetPublishedByIdAsync(seed.CommonEventId);
+        var child = await commons.TryGetPublishedByIdAsync(Phase8PostgresContentSeed.NestedCommonEventId);
+        Assert.NotNull(parent);
+        Assert.NotNull(child);
+        Assert.Contains(
+            parent!.Pages.SelectMany(p => p.Commands),
+            c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+        Assert.Contains(
+            child!.Pages.SelectMany(p => p.Commands),
+            c => c.Discriminator == MapEventCommandDiscriminators.SetSwitch);
     }
 
     private async Task<Phase8PostgresContentSeedResult> SeedPublishedContentAsync()

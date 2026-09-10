@@ -7,7 +7,10 @@ namespace Frog.Persistence.IntegrationTests.Support;
 /// </summary>
 internal static class Phase8PublicSwitchWireGap
 {
-    /// <summary>CE command <c>SetSwitch</c> target; no page is conditioned on this id.</summary>
+    /// <summary>
+    /// Nested child CE <c>SetSwitch</c> target (parent CE only shows text + calls child).
+    /// No page is conditioned on this id.
+    /// </summary>
     public const string CommonEventSwitchId = Phase8PostgresContentSeed.CommonEventSwitchId;
 
     /// <summary>Wait-resume <c>SetSwitch</c> target; resume emits <see cref="Frog.Core.Enums.PacketId.WorldSwitchSnapshot"/>.</summary>
@@ -25,7 +28,7 @@ internal static class Phase8PublicSwitchWireGap
         "when remaining commands finish.";
 
     public const string CommonEventConditionedContentGap =
-        "phase8_common_fired has no second map-event page gated on CharacterSwitch; " +
-        "ShowText 'Common event fired' runs in the same command list as SetSwitch and " +
-        "does not uniquely prove the switch persisted.";
+        "phase8_common_fired is set only by the nested child CE; parent ShowText " +
+        "'Common event fired' is not persistence proof. WorldSwitchSnapshot after " +
+        "interact is the public-wire proof that CE A→CE B applied SetSwitch.";
 }

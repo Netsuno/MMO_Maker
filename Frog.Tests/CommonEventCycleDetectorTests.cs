@@ -38,6 +38,61 @@ public sealed class CommonEventCycleDetectorTests
     }
 
     [Fact]
+    public void DetectCycles_ReturnsNull_WhenAcyclicNestedCalls()
+    {
+        var parentId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01");
+        var childId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb02");
+        var events = new List<CommonEventDefinition>
+        {
+            new()
+            {
+                Id = parentId,
+                Name = "Parent",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        Commands =
+                        [
+                            new MapEventCommandDefinition
+                            {
+                                Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                                ParameterJson = $$$"""{"commonEventId":"{{{childId}}}"}""",
+                            },
+                            new MapEventCommandDefinition
+                            {
+                                Discriminator = MapEventCommandDiscriminators.ShowText,
+                                ParameterJson = """{"text":"from-parent"}""",
+                            },
+                        ],
+                    },
+                ],
+            },
+            new()
+            {
+                Id = childId,
+                Name = "Child",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        Commands =
+                        [
+                            new MapEventCommandDefinition
+                            {
+                                Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                                ParameterJson = """{"switchId":"nested_flag","value":true}""",
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+
+        Assert.Null(CommonEventCycleDetector.DetectCycles(events));
+    }
+
+    [Fact]
     public void DetectCycles_ReportsCycle_WhenMutualCalls()
     {
         var idA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");

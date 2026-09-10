@@ -94,6 +94,8 @@ public static class Phase8PostgresContentSeed
     public static readonly Guid DefaultRegion2Id = Guid.Parse("bbbbbbbb-0005-4000-8000-000000000002");
     public static readonly Guid DefaultWeatherProfile2Id = Guid.Parse("bbbbbbbb-0006-4000-8000-000000000002");
     public static readonly Guid DefaultCommonEventId = Guid.Parse("bbbbbbbb-0007-4000-8000-000000000001");
+    /// <summary>Child CE called by <see cref="DefaultCommonEventId"/> (J5-FIX-06 nested CE→CE).</summary>
+    public static readonly Guid NestedCommonEventId = Guid.Parse("bbbbbbbb-0007-4000-8000-000000000002");
 
     public const int CommonEventCallerMapEventAliasId = 8110;
     public const int Region2TileX = 7;
@@ -161,7 +163,7 @@ public static class Phase8PostgresContentSeed
         var runtimeMapId = phase7.RuntimeMapId;
         await EnsurePublishedRegionAsync(phase8Repo, runtimeMapId).ConfigureAwait(false);
         await EnsurePublishedRegion2Async(phase8Repo, runtimeMapId).ConfigureAwait(false);
-        await EnsurePublishedCommonEventAsync(phase8Repo).ConfigureAwait(false);
+        await EnsurePublishedCommonEventsAsync(phase8Repo).ConfigureAwait(false);
 
         var mapEvents = new PostgresMapEventRepository(gate);
         var (gateEventId, keyEventId, autorunEventId, contactEventId, parallelEventId, routeEventId, waitEventId, learnProfessionEventId, onceRewardEventId, commonCallerEventId) =
@@ -807,51 +809,83 @@ public static class Phase8PostgresContentSeed
         }).ConfigureAwait(false);
     }
 
-    private static async Task EnsurePublishedCommonEventAsync(PostgresPhase8PublishedCatalogs repo)
+    private static async Task EnsurePublishedCommonEventsAsync(PostgresPhase8PublishedCatalogs repo)
+    {
+        // Child first so publish-time cycle validation sees an acyclic CE A→CE B graph.
+        await PublishCommonEventIfMissingAsync(repo, CreateNestedChildCommonEvent()).ConfigureAwait(false);
+        await PublishCommonEventIfMissingAsync(repo, CreateParentCommonEvent()).ConfigureAwait(false);
+    }
+
+    private static async Task PublishCommonEventIfMissingAsync(
+        PostgresPhase8PublishedCatalogs repo,
+        CommonEventDefinition definition)
     {
         IPublishedCommonEventCatalog catalog = repo;
-        if (await catalog.TryGetPublishedByIdAsync(DefaultCommonEventId).ConfigureAwait(false) is not null)
+        if (await catalog.TryGetPublishedByIdAsync(definition.Id).ConfigureAwait(false) is not null)
         {
             return;
         }
 
-        var common = new CommonEventDefinition
-        {
-            Id = DefaultCommonEventId,
-            Name = "Phase8 Common Helper",
-            Pages =
-            [
-                new MapEventPageDefinition
-                {
-                    PageOrder = 0,
-                    TriggerKind = Phase8MapEventTriggerKinds.Action,
-                    Commands =
-                    [
-                        new MapEventCommandDefinition
-                        {
-                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
-                            ParameterJson = $$"""{"switchId":"{{CommonEventSwitchId}}","value":true}""",
-                        },
-                        new MapEventCommandDefinition
-                        {
-                            Discriminator = MapEventCommandDiscriminators.ShowText,
-                            ParameterJson = """{"text":"Common event fired."}""",
-                        },
-                    ],
-                },
-            ],
-        };
-        var payload = Phase8ContentCodec.SerializeCommonEvent(common);
+        var payload = Phase8ContentCodec.SerializeCommonEvent(definition);
         _ = await repo.SaveAsync(new Phase8SaveContentRequest
         {
-            NewId = DefaultCommonEventId,
+            NewId = definition.Id,
             Kind = Phase8ContentKind.CommonEvent,
-            Name = common.Name,
+            Name = definition.Name,
             PayloadJson = payload,
             ExpectedRevision = 0,
             Intent = SaveContentIntent.Publish,
         }).ConfigureAwait(false);
     }
+
+    private static CommonEventDefinition CreateNestedChildCommonEvent() => new()
+    {
+        Id = NestedCommonEventId,
+        Name = "Phase8 Nested Common Child",
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                        ParameterJson = $$"""{"switchId":"{{CommonEventSwitchId}}","value":true}""",
+                    },
+                ],
+            },
+        ],
+    };
+
+    private static CommonEventDefinition CreateParentCommonEvent() => new()
+    {
+        Id = DefaultCommonEventId,
+        Name = "Phase8 Common Helper",
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                        ParameterJson = $$"""{"commonEventId":"{{NestedCommonEventId:D}}"}""",
+                    },
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = """{"text":"Common event fired."}""",
+                    },
+                ],
+            },
+        ],
+    };
 
     private static async Task<(Guid GateId, Guid KeyId, Guid AutorunId, Guid ContactId, Guid ParallelId, Guid RouteId, Guid WaitId, Guid LearnProfessionId, Guid OnceRewardId, Guid CommonCallerId)> EnsurePublishedMapEventsAsync(
         PostgresMapEventRepository mapEvents)
