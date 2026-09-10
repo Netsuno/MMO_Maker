@@ -220,6 +220,10 @@ internal sealed class Phase8ContentBrowseDialog : Form
 
     internal TextBox NameForTest => _txtName;
 
+    internal TextBox FilterForTest => _txtFilter;
+
+    internal Label ValidationLabelForTest => _lblValidation;
+
     internal ComboBox KindComboForTest => _cbKind;
 
     internal ListView ItemsForTest => _lvItems;

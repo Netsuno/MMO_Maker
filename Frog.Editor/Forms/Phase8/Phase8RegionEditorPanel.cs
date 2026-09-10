@@ -56,6 +56,8 @@ internal sealed class Phase8RegionEditorPanel : Phase8EditorPanelBase
         _weatherProfileId.TextChanged += (_, _) => NotifyChanged();
     }
 
+    internal NumericUpDown MapIdForTest => _mapId;
+
     public override Phase8ContentKind Kind => Phase8ContentKind.Region;
 
     public override void LoadPayload(string payloadJson)

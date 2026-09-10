@@ -212,7 +212,13 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddLabeled("tileY", new NumericUpDown { Width = 80, Minimum = 0, Maximum = 9999 });
                 break;
             case MapEventCommandDiscriminators.Wait:
-                AddLabeled("waitMs", new NumericUpDown { Width = 100, Minimum = 0, Maximum = 600000, Value = 500 });
+                AddLabeled("milliseconds", new NumericUpDown
+                {
+                    Width = 100,
+                    Minimum = 0,
+                    Maximum = MapEventRuntimeLimits.MaxWaitMs,
+                    Value = 500,
+                });
                 break;
             case MapEventCommandDiscriminators.CallCommonEvent:
                 AddLabeled("commonEventId", new TextBox { Width = 280, Text = string.Empty });
@@ -441,9 +447,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
                     break;
                 case MapEventCommandDiscriminators.Wait:
-                    if (root.TryGetProperty("waitMs", out var wait))
+                    if (root.TryGetProperty("milliseconds", out var wait))
                     {
-                        SetInt("waitMs", wait.GetInt32());
+                        SetInt("milliseconds", wait.GetInt32());
                     }
 
                     break;
@@ -573,7 +579,7 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                         tileY = GetInt("tileY"),
                     }),
                 MapEventCommandDiscriminators.Wait =>
-                    JsonSerializer.Serialize(new { waitMs = GetInt("waitMs") }),
+                    JsonSerializer.Serialize(new { milliseconds = GetInt("milliseconds") }),
                 MapEventCommandDiscriminators.CallCommonEvent => BuildCallCommonEventJson(),
                 MapEventCommandDiscriminators.LearnProfession =>
                     JsonSerializer.Serialize(new { professionId = GetText("professionId") }),

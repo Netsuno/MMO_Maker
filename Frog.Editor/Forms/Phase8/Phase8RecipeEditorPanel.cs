@@ -88,6 +88,8 @@ internal sealed class Phase8RecipeEditorPanel : Phase8EditorPanelBase
         };
     }
 
+    internal NumericUpDown RequiredLevelForTest => _requiredLevel;
+
     public override Phase8ContentKind Kind => Phase8ContentKind.Recipe;
 
     public override void LoadPayload(string payloadJson)

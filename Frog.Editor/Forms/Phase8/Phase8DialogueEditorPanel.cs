@@ -38,6 +38,8 @@ internal sealed class Phase8DialogueEditorPanel : Phase8EditorPanelBase
         Controls.Add(split);
     }
 
+    internal DataGridView LinesForTest => _lines;
+
     public override Phase8ContentKind Kind => Phase8ContentKind.Dialogue;
 
     public override void LoadPayload(string payloadJson)

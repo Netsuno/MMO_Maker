@@ -112,6 +112,10 @@ internal sealed class Phase8QuestEditorPanel : Phase8EditorPanelBase
         _rewardItemQty.ValueChanged += (_, _) => NotifyChanged();
     }
 
+    internal CheckBox RepeatableForTest => _repeatable;
+
+    internal NumericUpDown RewardGoldForTest => _rewardGold;
+
     public override Phase8ContentKind Kind => Phase8ContentKind.Quest;
 
     public override void LoadPayload(string payloadJson)

@@ -1,7 +1,10 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Windows.Forms;
 using Frog.Application.Content;
+using Frog.Core.Events;
+using Frog.Core.Models;
 using Frog.Editor;
 using Frog.Editor.Forms.Phase8;
 using Frog.Editor.Services;
@@ -474,20 +477,26 @@ public sealed class Phase8EditorSmokeTests
         {
             EditorSmokeTestAccess.ResetHooks();
             EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
-            EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();
+            var service = new InMemoryPhase8ContentEditorService();
+            EditorTestHooks.OverridePhase8ContentService = service;
 
             Phase8ContentBrowseDialog? dialog = null;
             try
             {
-                dialog = new Phase8ContentBrowseDialog(EditorTestHooks.OverridePhase8ContentService);
+                dialog = new Phase8ContentBrowseDialog(service);
                 dialog.Show();
                 PumpUntil(() => dialog.LifecycleForTest.IsIdle, "init idle");
                 SelectKind(dialog, kind);
                 PumpUntil(() => dialog.LifecycleForTest.IsIdle, "kind switched");
 
+                var token = Guid.NewGuid().ToString("N")[..8];
+                var originalName = $"R22-{kind}-A-{token}";
+                var copyName = $"R22-{kind}-B-{token}";
+
                 dialog.BtnNewForTest.PerformClick();
                 PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "create");
-                dialog.NameForTest.Text = $"Matrix {kind}";
+                dialog.NameForTest.Text = originalName;
+                ApplyStructuredEdit(dialog, kind, "r22-edit");
                 Assert.True(dialog.ActiveEditorForTest!.TryBuildPayload(out _, out var buildErr), buildErr);
 
                 dialog.BtnSaveForTest.PerformClick();
@@ -496,6 +505,17 @@ public sealed class Phase8EditorSmokeTests
                     "draft save");
                 Assert.Equal(ContentPublishStatus.Draft, dialog.CurrentStatusForTest);
                 var savedId = dialog.CurrentIdForTest;
+                var revisionAfterCreate = dialog.CurrentRevisionForTest;
+
+                ApplyStructuredEdit(dialog, kind, "r22-resave");
+                Assert.True(dialog.IsDirtyForTest);
+                dialog.BtnSaveForTest.PerformClick();
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle
+                          && !dialog.IsDirtyForTest
+                          && dialog.CurrentRevisionForTest > revisionAfterCreate,
+                    "edit resave");
+                AssertStructuredEdit(dialog, kind, "r22-resave");
 
                 dialog.BtnPublishForTest.PerformClick();
                 PumpUntil(
@@ -505,29 +525,73 @@ public sealed class Phase8EditorSmokeTests
 
                 dialog.BtnDuplicateForTest.PerformClick();
                 PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "duplicate");
-                dialog.NameForTest.Text = $"Matrix {kind} Copy";
+                dialog.NameForTest.Text = copyName;
                 dialog.BtnSaveForTest.PerformClick();
                 PumpUntil(() => dialog.LifecycleForTest.IsIdle && !dialog.IsDirtyForTest, "duplicate save");
+                var copyId = dialog.CurrentIdForTest;
+                Assert.NotEqual(savedId, copyId);
 
                 dialog.NameForTest.Text = string.Empty;
                 Assert.True(dialog.IsDirtyForTest);
                 dialog.BtnPublishForTest.PerformClick();
                 PumpUntil(() => dialog.LifecycleForTest.IsIdle, "invalid publish attempt");
                 Assert.True(dialog.IsDirtyForTest || dialog.CurrentStatusForTest != ContentPublishStatus.Published);
+                dialog.NameForTest.Text = copyName;
+                dialog.BtnSaveForTest.PerformClick();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle && !dialog.IsDirtyForTest, "restore copy name");
+
+                dialog.FilterForTest.Text = originalName;
+                PumpUntil(
+                    () => dialog.ItemsForTest.Items.Count == 1
+                          && dialog.ItemsForTest.Items[0].Text.Equals(savedId.ToString("D"), StringComparison.OrdinalIgnoreCase),
+                    "filter original");
+                dialog.FilterForTest.Text = string.Empty;
+                PumpUntil(() => dialog.ItemsForTest.Items.Count >= 2, "clear filter");
+
+                SelectListItemById(dialog, copyId);
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == copyId,
+                    "select copy");
+                dialog.NameForTest.Text = copyName + "-dirty";
+                Assert.True(dialog.IsDirtyForTest);
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.No;
+                SelectListItemById(dialog, savedId);
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == copyId && dialog.IsDirtyForTest,
+                    "dirty nav cancel");
+                Assert.Equal(copyId, dialog.CurrentIdForTest);
 
                 EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
-                dialog.BtnNewForTest.PerformClick();
-                PumpUntil(() => dialog.LifecycleForTest.IsIdle && dialog.IsDirtyForTest, "dirty discard");
-
-                dialog.BtnReloadForTest.PerformClick();
-                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "reload");
                 SelectListItemById(dialog, savedId);
                 PumpUntil(
                     () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == savedId,
-                    "reopen saved");
+                    "dirty nav discard to original");
+                AssertStructuredEdit(dialog, kind, "r22-resave");
 
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
+                dialog.Close();
+                PumpUntil(() => dialog.IsDisposed, "close for reopen");
+
+                dialog = new Phase8ContentBrowseDialog(service);
+                dialog.Show();
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "reopen idle");
+                SelectKind(dialog, kind);
+                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "reopen kind");
+                SelectListItemById(dialog, savedId);
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == savedId,
+                    "reopen select original");
+                Assert.Equal(originalName, dialog.NameForTest.Text);
+                AssertStructuredEdit(dialog, kind, "r22-resave");
+
+                EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
                 dialog.BtnDeleteForTest.PerformClick();
-                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "delete published copy");
+                PumpUntil(
+                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == Guid.Empty,
+                    "delete original");
+                Assert.Equal(Guid.Empty, dialog.CurrentIdForTest);
+                Assert.False(ListContainsId(dialog, savedId));
+                Assert.True(ListContainsId(dialog, copyId));
             }
             finally
             {
@@ -548,13 +612,131 @@ public sealed class Phase8EditorSmokeTests
         dialog.KindComboForTest.SelectedIndex = (int)kind - 1;
     }
 
-    private static void SelectListItemById(Phase8ContentBrowseDialog dialog, Guid id)
+    private static bool ListContainsId(Phase8ContentBrowseDialog dialog, Guid id)
     {
         foreach (ListViewItem item in dialog.ItemsForTest.Items)
         {
             if (Guid.TryParse(item.Text, out var g) && g == id)
             {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ApplyStructuredEdit(Phase8ContentBrowseDialog dialog, Phase8ContentKind kind, string marker)
+    {
+        var resave = string.Equals(marker, "r22-resave", StringComparison.Ordinal);
+        switch (kind)
+        {
+            case Phase8ContentKind.Dialogue:
+                var dialogue = Assert.IsType<Phase8DialogueEditorPanel>(dialog.ActiveEditorForTest);
+                Assert.True(dialogue.LinesForTest.Rows.Count > 0);
+                dialogue.LinesForTest.Rows[0].Cells[1].Value = marker;
+                break;
+            case Phase8ContentKind.Quest:
+                var quest = Assert.IsType<Phase8QuestEditorPanel>(dialog.ActiveEditorForTest);
+                quest.RepeatableForTest.Checked = true;
+                quest.RewardGoldForTest.Value = resave ? 25 : 10;
+                break;
+            case Phase8ContentKind.CommonEvent:
+                var common = Assert.IsType<Phase8CommonEventEditorPanel>(dialog.ActiveEditorForTest);
+                var waitMs = resave ? 2500 : 1500;
+                common.PagesPanelForTest.LoadPages(
+                [
+                    new MapEventPageDefinition
+                    {
+                        PageOrder = 0,
+                        TriggerKind = Phase8MapEventTriggerKinds.Action,
+                        Commands =
+                        [
+                            new MapEventCommandDefinition
+                            {
+                                Discriminator = MapEventCommandDiscriminators.Wait,
+                                SchemaVersion = 1,
+                                ParameterJson = $$"""{"milliseconds":{{waitMs}}}""",
+                            },
+                        ],
+                    },
+                ]);
+                var waitField = Assert.IsType<NumericUpDown>(common.PagesPanelForTest.CommandParamsForTest.FieldForTest("milliseconds"));
+                waitField.Value = waitMs;
+                break;
+            case Phase8ContentKind.Profession:
+                var profession = Assert.IsType<Phase8ProfessionEditorPanel>(dialog.ActiveEditorForTest);
+                profession.MaxLevelForTest.Value = resave ? 77 : 55;
+                break;
+            case Phase8ContentKind.Recipe:
+                var recipe = Assert.IsType<Phase8RecipeEditorPanel>(dialog.ActiveEditorForTest);
+                recipe.RequiredLevelForTest.Value = resave ? 12 : 6;
+                break;
+            case Phase8ContentKind.Region:
+                var region = Assert.IsType<Phase8RegionEditorPanel>(dialog.ActiveEditorForTest);
+                region.MapIdForTest.Value = resave ? 42 : 21;
+                break;
+            case Phase8ContentKind.WeatherProfile:
+                var weather = Assert.IsType<Phase8WeatherEditorPanel>(dialog.ActiveEditorForTest);
+                weather.WeatherKindForTest.Text = marker;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown content kind.");
+        }
+    }
+
+    private static void AssertStructuredEdit(Phase8ContentBrowseDialog dialog, Phase8ContentKind kind, string marker)
+    {
+        var resave = string.Equals(marker, "r22-resave", StringComparison.Ordinal);
+        switch (kind)
+        {
+            case Phase8ContentKind.Dialogue:
+                var dialogue = Assert.IsType<Phase8DialogueEditorPanel>(dialog.ActiveEditorForTest);
+                Assert.Equal(marker, Convert.ToString(dialogue.LinesForTest.Rows[0].Cells[1].Value));
+                break;
+            case Phase8ContentKind.Quest:
+                var quest = Assert.IsType<Phase8QuestEditorPanel>(dialog.ActiveEditorForTest);
+                Assert.True(quest.RepeatableForTest.Checked);
+                Assert.Equal(resave ? 25 : 10, quest.RewardGoldForTest.Value);
+                break;
+            case Phase8ContentKind.CommonEvent:
+                var common = Assert.IsType<Phase8CommonEventEditorPanel>(dialog.ActiveEditorForTest);
+                var waitField = Assert.IsType<NumericUpDown>(common.PagesPanelForTest.CommandParamsForTest.FieldForTest("milliseconds"));
+                Assert.Equal(resave ? 2500 : 1500, waitField.Value);
+                break;
+            case Phase8ContentKind.Profession:
+                var profession = Assert.IsType<Phase8ProfessionEditorPanel>(dialog.ActiveEditorForTest);
+                Assert.Equal(resave ? 77 : 55, profession.MaxLevelForTest.Value);
+                break;
+            case Phase8ContentKind.Recipe:
+                var recipe = Assert.IsType<Phase8RecipeEditorPanel>(dialog.ActiveEditorForTest);
+                Assert.Equal(resave ? 12 : 6, recipe.RequiredLevelForTest.Value);
+                break;
+            case Phase8ContentKind.Region:
+                var region = Assert.IsType<Phase8RegionEditorPanel>(dialog.ActiveEditorForTest);
+                Assert.Equal(resave ? 42 : 21, region.MapIdForTest.Value);
+                break;
+            case Phase8ContentKind.WeatherProfile:
+                var weather = Assert.IsType<Phase8WeatherEditorPanel>(dialog.ActiveEditorForTest);
+                Assert.Equal(marker, weather.WeatherKindForTest.Text);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown content kind.");
+        }
+    }
+
+    private static void SelectListItemById(Phase8ContentBrowseDialog dialog, Guid id)
+    {
+        foreach (ListViewItem item in dialog.ItemsForTest.Items)
+        {
+            item.Selected = false;
+        }
+
+        foreach (ListViewItem item in dialog.ItemsForTest.Items)
+        {
+            if (Guid.TryParse(item.Text, out var g) && g == id)
+            {
                 item.Selected = true;
+                item.Focused = true;
                 return;
             }
         }

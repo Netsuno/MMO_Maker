@@ -585,6 +585,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         }).ToList();
 
         var waypoints = new List<MapEventRouteWaypoint>();
+        var waypointNumber = 0;
         foreach (DataGridViewRow row in _waypoints.Rows)
         {
             if (row.IsNewRow)
@@ -592,12 +593,14 @@ internal sealed class MapEventPagesEditorPanel : UserControl
                 continue;
             }
 
-            waypoints.Add(new MapEventRouteWaypoint
+            waypointNumber++;
+            if (!TryParseWaypointRow(row, waypointNumber, out var waypoint, out var waypointError))
             {
-                TileX = int.TryParse(Convert.ToString(row.Cells[0].Value), out var tx) ? tx : 0,
-                TileY = int.TryParse(Convert.ToString(row.Cells[1].Value), out var ty) ? ty : 0,
-                WaitMs = int.TryParse(Convert.ToString(row.Cells[2].Value), out var wait) ? wait : 250,
-            });
+                _validationLabel.Text = waypointError;
+                return false;
+            }
+
+            waypoints.Add(waypoint);
         }
 
         var existing = _pageModels[_selectedPageIndex];
@@ -695,6 +698,62 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TileX", Width = 60 });
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TileY", Width = 60 });
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "WaitMs", Width = 80 });
+        grid.DataError += (_, e) => e.ThrowException = false;
         return grid;
+    }
+
+    private static bool TryParseWaypointRow(
+        DataGridViewRow row,
+        int waypointNumber,
+        out MapEventRouteWaypoint waypoint,
+        out string error)
+    {
+        waypoint = new MapEventRouteWaypoint();
+        if (!TryParseWaypointInt(row.Cells[0].Value, min: 0, max: null, out var tileX, out var xError))
+        {
+            error = $"Waypoint {waypointNumber}: TileX invalide ({xError}).";
+            return false;
+        }
+
+        if (!TryParseWaypointInt(row.Cells[1].Value, min: 0, max: null, out var tileY, out var yError))
+        {
+            error = $"Waypoint {waypointNumber}: TileY invalide ({yError}).";
+            return false;
+        }
+
+        if (!TryParseWaypointInt(
+                row.Cells[2].Value,
+                min: 0,
+                max: MapEventRuntimeLimits.MaxWaitMs,
+                out var waitMs,
+                out var waitError))
+        {
+            error = $"Waypoint {waypointNumber}: WaitMs invalide ({waitError}).";
+            return false;
+        }
+
+        waypoint = new MapEventRouteWaypoint { TileX = tileX, TileY = tileY, WaitMs = waitMs };
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryParseWaypointInt(object? value, int min, int? max, out int parsed, out string error)
+    {
+        parsed = 0;
+        var raw = Convert.ToString(value)?.Trim();
+        if (string.IsNullOrEmpty(raw) || !int.TryParse(raw, out parsed))
+        {
+            error = "entier requis";
+            return false;
+        }
+
+        if (parsed < min || (max is int cap && parsed > cap))
+        {
+            error = max is int bound ? $"hors bornes {min}–{bound}" : $"doit être ≥ {min}";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
     }
 }
