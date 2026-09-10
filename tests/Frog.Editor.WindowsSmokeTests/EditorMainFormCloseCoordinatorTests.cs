@@ -91,6 +91,45 @@ public sealed class EditorMainFormCloseCoordinatorTests
     }
 
     [Fact]
+    public async Task NonCooperativeStop_TimeoutKeepsScopesAlive_ThenRetryDisposesOnce()
+    {
+        EditorPostgreSqlScope.ResetTestCountersForTest();
+        var releaseStop = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var scope = new EditorPostgreSqlScope(FakePgCs);
+        var disposeInvocations = 0;
+
+        var coordinator = new EditorMainFormCloseCoordinator(
+            () => releaseStop.Task,
+            () => null,
+            () => new EditorPostgreSqlScope?[] { scope },
+            () =>
+            {
+                disposeInvocations++;
+                scope.Dispose();
+            },
+            _ => { },
+            () => false,
+            () => { });
+
+        var failed = await coordinator.RunCloseCleanupAsync(TimeSpan.FromMilliseconds(200));
+        Assert.False(failed);
+        Assert.False(scope.IsDisposed);
+        Assert.Equal(0, disposeInvocations);
+        Assert.Equal(1, EditorPostgreSqlScope.ActiveScopeCountForTest);
+        Assert.Equal(0, scope.DisposeCallCountForTest);
+
+        releaseStop.TrySetResult();
+
+        var succeeded = await coordinator.RunCloseCleanupAsync(TimeSpan.FromSeconds(5));
+        Assert.True(succeeded);
+        Assert.True(scope.IsDisposed);
+        Assert.Equal(1, scope.DisposeCallCountForTest);
+        Assert.Equal(1, disposeInvocations);
+        Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
+    }
+
+    [Fact]
     public async Task StopPlaytestAsync_InvokedWithCapturedSyncContext()
     {
         var uiContext = new SingleThreadSynchronizationContext();

@@ -188,7 +188,6 @@ public partial class MainWindow : Window
     private bool _closingAfterConfirm;
     private bool _allowCloseWithoutPrompt;
     private bool _closePromptInFlight;
-    private bool _playtestCloseInFlight;
 
     private void OpenGameData()
     {
@@ -219,19 +218,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        var playtestActive = _editor.IsPlaytestActiveForTest()
-                             || _editor.IsPlaytestBusyForTest()
-                             || _editor.HasOwnedPlaytestProcessesForTest();
-        var dirty = _editor.HasUnsavedChangesForTest();
-        var pendingEditorOps = _editor.HasPendingEditorOperations();
-
-        if (!playtestActive && !dirty && !pendingEditorOps)
-        {
-            return;
-        }
-
+        // Every close — clean, dirty, playtest, or pending — goes through the coordinator
+        // so StopPlaytestAsync shares the same global cleanup deadline.
         e.Cancel = true;
-        if (_closePromptInFlight || _playtestCloseInFlight)
+        if (_closePromptInFlight)
         {
             return;
         }
@@ -241,35 +231,9 @@ public partial class MainWindow : Window
         {
             try
             {
-                if (_editor.IsPlaytestActiveForTest()
-                    || _editor.IsPlaytestBusyForTest()
-                    || _editor.HasOwnedPlaytestProcessesForTest())
+                if (!await _editor.TryCoordinatedShutdownAsync().ConfigureAwait(true))
                 {
-                    _playtestCloseInFlight = true;
-                    try
-                    {
-                        await _editor.StopPlaytestAsync().ConfigureAwait(true);
-                    }
-                    finally
-                    {
-                        _playtestCloseInFlight = false;
-                    }
-                }
-
-                if (_editor.HasUnsavedChangesForTest())
-                {
-                    if (!await _editor.TryRequestCloseAsync().ConfigureAwait(true))
-                    {
-                        return;
-                    }
-                }
-
-                if (playtestActive || _editor.HasPendingEditorOperations())
-                {
-                    if (!await _editor.TryCoordinatedShutdownAsync().ConfigureAwait(true))
-                    {
-                        return;
-                    }
+                    return;
                 }
 
                 _closingAfterConfirm = true;

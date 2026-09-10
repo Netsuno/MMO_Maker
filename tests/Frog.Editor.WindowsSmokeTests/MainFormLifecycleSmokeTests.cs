@@ -84,7 +84,72 @@ public sealed class MainFormLifecycleSmokeTests
         });
     }
 
-    // Non-cooperative workspace-init close: EditorMainFormCloseCoordinatorTests (pure coordinator, no STA pump).
+    // Non-cooperative workspace-init / StopPlaytest close:
+    // EditorMainFormCloseCoordinatorTests (pure coordinator, no STA pump).
+
+    [Fact]
+    public void MainForm_CleanClose_GoesThroughCoordinator_DisposesOnce()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ConfigureInMemoryRepository();
+            EditorSmokeTestAccess.SetPumpUntilForTest(StaTestRunner.PumpUntil);
+            EditorPostgreSqlScope.ResetTestCountersForTest();
+
+            MainWindow? window = null;
+            var closed = false;
+            EditorPostgreSqlScope? mapScope = null;
+            EditorPostgreSqlScope? mapEventScope = null;
+            EditorPostgreSqlScope? phase8Scope = null;
+            MapEventsPostgreSqlService? mapEventService = null;
+            Phase8ContentPostgreSqlService? phase8Service = null;
+            try
+            {
+                window = EditorSmokeTestAccess.CreateAndShowMainWindow();
+                window.Closed += (_, _) => closed = true;
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
+                    EditorSmokeTestAccess.DefaultTimeout);
+
+                (mapScope, mapEventScope, phase8Scope, mapEventService, phase8Service) =
+                    AttachDisposableScopes(window.EditorForm);
+                Assert.False(window.EditorForm.HasUnsavedChangesForTest());
+                Assert.False(window.EditorForm.HasPendingEditorOperations());
+
+                window.Close();
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.CoordinatedShutdownAttemptedForTest
+                          && window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest,
+                    EditorSmokeTestAccess.DefaultTimeout);
+                StaTestRunner.PumpUntil(() => closed, EditorSmokeTestAccess.DefaultTimeout);
+
+                Assert.True(window.EditorForm.CoordinatedShutdownAttemptedForTest);
+                Assert.True(window.EditorForm.CloseCoordinatorForTest!.AllowFinalCloseForTest);
+                Assert.False(window.EditorForm.CloseCoordinatorForTest.CloseCleanupFailedForTest);
+                Assert.Equal(0, EditorPostgreSqlScope.ActiveScopeCountForTest);
+                Assert.Equal(1, mapScope!.DisposeCallCountForTest);
+                Assert.Equal(1, mapEventScope!.DisposeCallCountForTest);
+                Assert.Equal(1, phase8Scope!.DisposeCallCountForTest);
+                Assert.Equal(1, mapEventService!.DisposeCallCountForTest);
+                Assert.Equal(1, phase8Service!.DisposeCallCountForTest);
+            }
+            finally
+            {
+                if (window is not null && !closed)
+                {
+                    EditorSmokeTestAccess.ForceCloseMainWindow(window);
+                }
+
+                mapScope?.Dispose();
+                mapEventScope?.Dispose();
+                phase8Scope?.Dispose();
+                mapEventService?.Dispose();
+                phase8Service?.Dispose();
+                EditorSmokeTestAccess.ResetHooks();
+                EditorPostgreSqlScope.ResetTestCountersForTest();
+            }
+        });
+    }
 
     [Fact]
     public void MainForm_RealClose_WhileSavePending_DrainsThenDisposes()

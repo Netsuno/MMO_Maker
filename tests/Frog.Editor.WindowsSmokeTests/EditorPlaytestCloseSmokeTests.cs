@@ -95,15 +95,21 @@ public sealed class EditorPlaytestCloseSmokeTests
                 session.MarkDirty();
 
                 window.Close();
-                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, static () => { });
-                window.Dispatcher.Invoke(DispatcherPriority.Background, static () => { });
-                Thread.Sleep(200);
-                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, static () => { });
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.CoordinatedShutdownAttemptedForTest && window.IsVisible && !closed,
+                    EditorSmokeTestAccess.DefaultTimeout);
 
                 Assert.False(closed);
                 Assert.True(window.IsVisible);
-                // Playtest stop runs before dirty prompt; dirty cancel keeps window open.
+                Assert.True(window.EditorForm.CoordinatedShutdownAttemptedForTest);
+                // Dirty cancel happens before cleanup, so playtest stays active and stoppable.
+                Assert.True(window.EditorForm.IsPlaytestActiveForTest());
+                Assert.Equal(0, launcher.StopCount);
+
+                var stop = window.EditorForm.StopPlaytestAsync();
+                StaTestRunner.PumpUntil(() => stop.IsCompleted, EditorSmokeTestAccess.DefaultTimeout);
                 Assert.True(launcher.StopCount >= 1);
+                Assert.False(window.EditorForm.IsPlaytestActiveForTest());
 
                 EditorSmokeTestAccess.ForceCloseMainWindow(window);
                 StaTestRunner.PumpUntil(() => closed, TimeSpan.FromSeconds(5));

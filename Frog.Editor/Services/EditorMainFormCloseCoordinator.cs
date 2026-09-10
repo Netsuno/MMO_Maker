@@ -198,11 +198,16 @@ internal sealed class EditorMainFormCloseCoordinator
         try
         {
             // StopPlaytestAsync touches WinForms controls — stay on the UI sync context.
-            await _stopPlaytestAsync().ConfigureAwait(true);
+            // Bound to the same global cleanup deadline as init wait and scope drain.
+            await _stopPlaytestAsync().WaitAsync(Remaining(deadline)).ConfigureAwait(true);
+        }
+        catch (TimeoutException)
+        {
+            return false;
         }
         catch
         {
-            // best-effort
+            // best-effort: a failed stop must not skip remaining drain/dispose
         }
 
         while (_hasPendingOperations() && Remaining(deadline) > TimeSpan.Zero)

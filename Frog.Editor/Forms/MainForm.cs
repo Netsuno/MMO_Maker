@@ -721,8 +721,11 @@ public sealed class MainForm : Form
     internal bool IsWorkspaceInitializationPendingForTest =>
         _workspaceInitTask is { IsCompleted: false };
 
+    internal bool CoordinatedShutdownAttemptedForTest { get; private set; }
+
     internal async Task<bool> TryCoordinatedShutdownAsync()
     {
+        CoordinatedShutdownAttemptedForTest = true;
         if (_closeCoordinator is null || _closeCoordinator.AllowFinalCloseForTest)
         {
             return true;
