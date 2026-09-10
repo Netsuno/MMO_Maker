@@ -234,8 +234,9 @@ public sealed class PostgresMapEventMutationRepositoryTests
         var seed = await Phase8PostgresContentSeed.PublishAsync(gate).ConfigureAwait(false);
         var characterId = await CreateCharacterAsync(gate, seed);
         var identity = MapEventExecutionIdentity.Create(characterId, 202, 1);
+        var unknownItemId = Guid.Parse("ffffffff-ffff-4fff-8fff-ffffffffffff");
         var effects = FullPersistentEffects(seed)
-            .Append(Cmd(MapEventCommandDiscriminators.GiveItem, $"{{\"itemId\":\"{Guid.Empty}\",\"quantity\":1}}"))
+            .Append(Cmd(MapEventCommandDiscriminators.GiveItem, $"{{\"itemId\":\"{unknownItemId}\",\"quantity\":1}}"))
             .ToArray();
         var plan = MapEventExecutionPlan.Ok(identity, effects);
         Assert.Equal((characterId, identity.RequestId), plan.Identity.LedgerKey);
