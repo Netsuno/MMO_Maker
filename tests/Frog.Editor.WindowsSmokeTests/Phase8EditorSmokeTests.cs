@@ -279,7 +279,9 @@ public sealed class Phase8EditorSmokeTests
                 {
                     throw new TimeoutException(
                         $"Phase 8 dialog did not dispose within {disposeTimeout.TotalSeconds:0}s while '{operationName}' was pending. " +
-                        $"PendingCount={dialog.LifecycleForTest.PendingCountForTest}, IsIdle={dialog.LifecycleForTest.IsIdle}, sawCancellation={Volatile.Read(ref sawCancellation)}.");
+                        $"PendingCount={dialog.LifecycleForTest.PendingCountForTest}, IsIdle={dialog.LifecycleForTest.IsIdle}, " +
+                        $"sawCancellation={Volatile.Read(ref sawCancellation)}, AllowFinalClose={dialog.AllowFinalCloseForTest}, " +
+                        $"CloseCleanupFailed={dialog.CloseCleanupFailedForTest}.");
                 }
 
                 Assert.True(Volatile.Read(ref sawCancellation));

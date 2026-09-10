@@ -1,3 +1,4 @@
+using System.Windows.Threading;
 using Frog.Application.Content;
 using Frog.Editor.Forms.GameData;
 using Frog.Editor.Services;
@@ -43,9 +44,11 @@ internal sealed class Phase8ContentBrowseDialog : Form
     private Phase8EditorPanelBase? _activeEditor;
     private Phase8ContentKind _committedKind = Phase8ContentKind.Dialogue;
     private bool _suppressKindChange;
-    private bool _allowCloseAfterCleanup;
-    private bool _cleanupRunning;
-    private bool _closeCleanupFailed;
+    private volatile bool _allowCloseAfterCleanup;
+    private volatile bool _cleanupRunning;
+    private volatile bool _closeCleanupFailed;
+    private int _formClosingDepth;
+    private int _finalClosePosted;
     private Exception? _closeCleanupException;
 
     public Phase8ContentBrowseDialog(Phase8ContentPostgreSqlService service)
@@ -675,26 +678,42 @@ internal sealed class Phase8ContentBrowseDialog : Form
 
     private void Phase8ContentBrowseDialog_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (_allowCloseAfterCleanup)
+        Interlocked.Increment(ref _formClosingDepth);
+        try
         {
-            return;
-        }
+            if (_allowCloseAfterCleanup)
+            {
+                return;
+            }
 
-        if (_dirty && !ConfirmDiscardIfDirty())
-        {
+            if (_dirty && !ConfirmDiscardIfDirty())
+            {
+                e.Cancel = true;
+                return;
+            }
+
             e.Cancel = true;
-            return;
-        }
+            if (_cleanupRunning)
+            {
+                return;
+            }
 
-        e.Cancel = true;
-        if (_cleanupRunning)
+            _cleanupRunning = true;
+            SetClosingUiState(enabled: false);
+            _ = RunAsyncCloseCleanupAndMaybeFinishAsync();
+
+            if (_allowCloseAfterCleanup)
+            {
+                // Pending save/reload often cancel and drain inline on this thread.
+                // A posted Close is swallowed by this cancelled WM_CLOSE, leaving the
+                // dialog idle (PendingCount=0) but never disposed. Let this close finish.
+                e.Cancel = false;
+            }
+        }
+        finally
         {
-            return;
+            Interlocked.Decrement(ref _formClosingDepth);
         }
-
-        _cleanupRunning = true;
-        SetClosingUiState(enabled: false);
-        _ = RunAsyncCloseCleanupAndMaybeFinishAsync();
     }
 
     private async Task RunAsyncCloseCleanupAndMaybeFinishAsync()
@@ -734,16 +753,7 @@ internal sealed class Phase8ContentBrowseDialog : Form
             _closeCleanupFailed = false;
             _allowCloseAfterCleanup = true;
             _cleanupRunning = false;
-            if (!IsDisposed)
-            {
-                BeginInvoke(new Action(() =>
-                {
-                    if (!IsDisposed)
-                    {
-                        Close();
-                    }
-                }));
-            }
+            RequestFinalClose();
         }
         catch (Exception ex)
         {
@@ -783,6 +793,67 @@ internal sealed class Phase8ContentBrowseDialog : Form
         }
 
         return true;
+    }
+
+    private void RequestFinalClose()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        // FormClosing is still on the stack and will uncancel this WM_CLOSE.
+        // Nested Close() here is coalesced with the cancelled close and never disposes.
+        if (Volatile.Read(ref _formClosingDepth) > 0)
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref _finalClosePosted, 1) != 0)
+        {
+            return;
+        }
+
+        void closeIfAlive()
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            Close();
+        }
+
+        var posted = false;
+        try
+        {
+            if (IsHandleCreated)
+            {
+                BeginInvoke(closeIfAlive);
+                posted = true;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        try
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is not null && !dispatcher.HasShutdownStarted && !dispatcher.HasShutdownFinished)
+            {
+                dispatcher.BeginInvoke(closeIfAlive, DispatcherPriority.Background);
+                posted = true;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        if (!posted)
+        {
+            closeIfAlive();
+        }
     }
 
     private void SetClosingUiState(bool enabled)
