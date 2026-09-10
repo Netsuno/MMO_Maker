@@ -1,17 +1,33 @@
+using Frog.Core.Events;
 using Frog.Core.Models;
 
 namespace Frog.Application.Events;
 
-/// <summary>Exécution atomique PostgreSQL des effets persistants d'une page événement (P8-I4).</summary>
+/// <summary>Exécution atomique PostgreSQL des effets persistants d'un plan événement (J4-PG).</summary>
 public interface IMapEventMutationRepository
 {
+    /// <summary>
+    /// Applique <paramref name="plan"/> dans une seule transaction PostgreSQL.
+    /// La clé ledger est <see cref="MapEventExecutionIdentity.LedgerKey"/> (CharacterId + RequestId).
+    /// Les branches et common-events doivent déjà être résolus dans le plan.
+    /// </summary>
+    Task<MapEventMutationResult> TryExecutePlanAsync(
+        MapEventExecutionPlan plan,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Compatibilité serveur (J4-SERVER rebranchera sur <see cref="TryExecutePlanAsync"/>).</summary>
     Task<MapEventMutationResult> TryExecutePageAsync(
         Guid characterId,
         Guid requestId,
         long placementId,
         int catalogAliasId,
         IReadOnlyList<MapEventCommandDefinition> commands,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default) =>
+        TryExecutePlanAsync(
+            MapEventExecutionPlan.Ok(
+                new MapEventExecutionIdentity(requestId, characterId, placementId, catalogAliasId),
+                commands),
+            cancellationToken);
 }
 
 public enum MapEventMutationStatus
@@ -39,6 +55,14 @@ public sealed class MapEventExecutionSnapshot
     public bool InventoryChanged { get; set; }
 
     public bool GoldChanged { get; set; }
+
+    public bool QuestsChanged { get; set; }
+
+    public bool ProfessionsChanged { get; set; }
+
+    public bool RecipesChanged { get; set; }
+
+    public string? QuestSummary { get; set; }
 
     public int? ResultGold { get; set; }
 
