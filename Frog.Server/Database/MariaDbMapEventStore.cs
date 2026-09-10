@@ -62,6 +62,21 @@ public sealed class MariaDbMapEventStore : IMapEventStore
         return true;
     }
 
+    public Task<(bool Ok, IReadOnlyList<MapEventWireEntry> Placements)> GetPlacementsAsync(
+        int mapId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!TryGetPlacements(mapId, out var placements))
+        {
+            return Task.FromResult((false, (IReadOnlyList<MapEventWireEntry>)Array.Empty<MapEventWireEntry>()));
+        }
+
+        return Task.FromResult((true, placements));
+    }
+
+    public void InvalidateAll() => _cache.Clear();
+
     private bool TryEnsureSnapshot(int mapId, out CacheEntry? entry)
     {
         entry = null;

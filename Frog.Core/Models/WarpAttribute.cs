@@ -10,9 +10,9 @@ namespace Frog.Core.Models
         public TileType Type => TileType.Warp;
 
 
-        /// ID de la map cible.
+        /// ID canonique de la map cible.
  
-        public int TargetMapId { get; set; }
+        public Guid TargetMapId { get; set; }
 
 
         /// Position X sur la map cible (en coordonnées de tile).

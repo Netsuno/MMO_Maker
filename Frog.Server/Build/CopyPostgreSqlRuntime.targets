@@ -1,0 +1,32 @@
+<Project>
+    <PropertyGroup>
+        <PostgreSqlProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\Frog.Persistence.PostgreSql\Frog.Persistence.PostgreSql.csproj'))</PostgreSqlProject>
+        <PostgreSqlPublishStaging>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\obj\postgresql-publish-staging\'))</PostgreSqlPublishStaging>
+    </PropertyGroup>
+
+    <Target Name="PublishPostgreSqlForServer" BeforeTargets="CopyPostgreSqlRuntime">
+        <RemoveDir Directories="$(PostgreSqlPublishStaging)" Condition="Exists('$(PostgreSqlPublishStaging)')" />
+        <MakeDir Directories="$(PostgreSqlPublishStaging)" />
+        <MSBuild
+            Projects="$(PostgreSqlProject)"
+            Targets="Publish"
+            Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);AppendRuntimeIdentifierToOutputPath=false;PublishDir=$(PostgreSqlPublishStaging);PublishSingleFile=false;SelfContained=false" />
+    </Target>
+
+    <Target Name="CopyPostgreSqlRuntime" AfterTargets="Build;Publish">
+        <PropertyGroup>
+            <_PgCopyDest Condition="'$(PublishDir)' != '' and '$(PublishDir)' != '$(OutputPath)'">$(PublishDir)</_PgCopyDest>
+            <_PgCopyDest Condition="'$(_PgCopyDest)' == ''">$(OutputPath)</_PgCopyDest>
+        </PropertyGroup>
+        <ItemGroup>
+            <_PgRuntimeFiles
+                Include="$(PostgreSqlPublishStaging)**\*.*"
+                Exclude="$(PostgreSqlPublishStaging)**\Frog.Server.*;$(PostgreSqlPublishStaging)**\*.deps.json;$(PostgreSqlPublishStaging)**\*.runtimeconfig.json;$(PostgreSqlPublishStaging)**\*.pdb" />
+        </ItemGroup>
+        <Copy
+            SourceFiles="@(_PgRuntimeFiles)"
+            DestinationFiles="@(_PgRuntimeFiles->'$(_PgCopyDest)%(RecursiveDir)%(Filename)%(Extension)')"
+            SkipUnchangedFiles="true"
+            Condition="'@(_PgRuntimeFiles)' != ''" />
+    </Target>
+</Project>

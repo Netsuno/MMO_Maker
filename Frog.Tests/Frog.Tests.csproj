@@ -5,7 +5,6 @@
         <IsPackable>false</IsPackable>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <LangVersion>latest</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
@@ -25,7 +24,10 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
+        <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
         <ProjectReference Include="..\Frog.Server\Frog.Server.csproj" />
+        <ProjectReference Include="..\Frog.Legacy\Frog.Legacy.csproj" />
+        <ProjectReference Include="..\tests\Frog.PlaytestHeadlessClient\Frog.PlaytestHeadlessClient.csproj" />
     </ItemGroup>
 
 </Project>

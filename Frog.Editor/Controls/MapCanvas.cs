@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
+using Frog.Application.Maps;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -65,6 +66,11 @@ public sealed class MapCanvas : Control
     public event Action<Point>? TileContextMenuRequested;
     public event Action? MapReplaced;
     public event Action? UndoHistoryChanged;
+    /// <summary>Carte modifiée par une action d’édition (peinture, undo, etc.).</summary>
+    public event Action? MapEdited;
+
+    /// <summary>Carte cible par défaut pour les nouvelles tuiles warp (souvent la carte courante).</summary>
+    public Guid? DefaultWarpTargetMapId { get; set; }
 
     /// <summary>Marqueurs événements ou visibilité overlay ont changé (mini-carte, etc.).</summary>
     public event Action? MapEventOverlayChanged;
@@ -205,8 +211,7 @@ public sealed class MapCanvas : Control
         }
 
         EditorTileClipboard.CopyFromLayer(Map, ActiveLayerIndex, rect);
-        History.PushBeforeChange(Map);
-        UndoHistoryChanged?.Invoke();
+        BeginEditTransaction();
         DeleteTilesInRectangle(rect);
         Invalidate();
         return true;
@@ -220,8 +225,7 @@ public sealed class MapCanvas : Control
         }
 
         EnsureLayerExists();
-        History.PushBeforeChange(Map);
-        UndoHistoryChanged?.Invoke();
+        BeginEditTransaction();
         var n = EditorTileClipboard.PasteToLayer(Map, ActiveLayerIndex, _hoverTile.X, _hoverTile.Y, Map.Width, Map.Height);
         Invalidate();
         RaiseTileClicked(_hoverTile.X, _hoverTile.Y);
@@ -235,8 +239,7 @@ public sealed class MapCanvas : Control
             return false;
         }
 
-        History.PushBeforeChange(Map);
-        UndoHistoryChanged?.Invoke();
+        BeginEditTransaction();
         DeleteTilesInRectangle(rect);
         Invalidate();
         return true;
@@ -276,6 +279,7 @@ public sealed class MapCanvas : Control
         }
 
         Map = restored;
+        MapEdited?.Invoke();
         MapReplaced?.Invoke();
         Invalidate();
     }
@@ -294,6 +298,7 @@ public sealed class MapCanvas : Control
         }
 
         Map = restored;
+        MapEdited?.Invoke();
         MapReplaced?.Invoke();
         Invalidate();
     }
@@ -577,10 +582,11 @@ public sealed class MapCanvas : Control
                 var badgeD = Math.Max(6, ts * 2 / 5);
                 var pad = Math.Max(1, ts / 14);
                 var badge = new Rectangle(rect.Right - badgeD - pad, rect.Y + pad, badgeD, badgeD);
-                var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
-                var page = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
-                var autoTile = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.AutoTile, StringComparison.Ordinal);
-                if (page)
+                var playerContact = MapEventMarkerColors.IsPlayerContactTrigger(m.PrimaryTriggerKind);
+                var legacyPage = MapEventMarkerColors.IsLegacyPageTrigger(m.PrimaryTriggerKind);
+                var autorun = MapEventMarkerColors.IsAutorunTrigger(m.PrimaryTriggerKind);
+                var parallel = MapEventMarkerColors.IsParallelTrigger(m.PrimaryTriggerKind);
+                if (legacyPage)
                 {
                     var rDot = Math.Max(3f, ts * 0.17f);
                     var cx = rect.Left + pad + rDot;
@@ -609,7 +615,7 @@ public sealed class MapCanvas : Control
                         g.DrawString(label, f, tb, countRect, sf);
                     }
                 }
-                else if (autoTile)
+                else if (autorun)
                 {
                     var inset = Math.Max(2, ts / 10);
                     var dashRect = new Rectangle(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
@@ -619,11 +625,24 @@ public sealed class MapCanvas : Control
                     };
                     g.DrawRectangle(dashPen, dashRect);
                 }
+                else if (parallel)
+                {
+                    var inset = Math.Max(2, ts / 10);
+                    var triRect = new Rectangle(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
+                    var pts = new[]
+                    {
+                        new Point(triRect.X + triRect.Width / 2, triRect.Y),
+                        new Point(triRect.Right, triRect.Bottom),
+                        new Point(triRect.X, triRect.Bottom),
+                    };
+                    using var triPen = new Pen(Color.FromArgb(220, fill), Math.Max(1.5f, ts / 20f));
+                    g.DrawPolygon(triPen, pts);
+                }
                 else
                 {
                     using (var brush = new SolidBrush(Color.FromArgb(150, fill)))
                     {
-                        if (stepOn)
+                        if (playerContact)
                         {
                             FillDiamond(g, brush, badge);
                         }
@@ -635,7 +654,7 @@ public sealed class MapCanvas : Control
 
                     using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
                     {
-                        if (stepOn)
+                        if (playerContact)
                         {
                             DrawDiamond(g, edge, badge);
                         }
@@ -876,8 +895,7 @@ public sealed class MapCanvas : Control
                         break;
                     }
 
-                    History.PushBeforeChange(Map);
-                    UndoHistoryChanged?.Invoke();
+                    BeginEditTransaction();
                     FloodFill(tx, ty);
                     Invalidate();
                     RaiseTileClicked(tx, ty);
@@ -912,8 +930,19 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        History.PushBeforeChange(Map);
+        BeginEditTransaction();
         _paintStroke = true;
+    }
+
+    private void BeginEditTransaction()
+    {
+        if (Map is null)
+        {
+            return;
+        }
+
+        History.PushBeforeChange(Map);
+        MapEdited?.Invoke();
         UndoHistoryChanged?.Invoke();
     }
 
@@ -1007,8 +1036,7 @@ public sealed class MapCanvas : Control
                 ey = Math.Clamp(ey, 0, Map.Height - 1);
                 if (IsActiveLayerEditable())
                 {
-                    History.PushBeforeChange(Map);
-                    UndoHistoryChanged?.Invoke();
+                    BeginEditTransaction();
                     ApplyRectangle(ro.X, ro.Y, ex, ey);
                     RaiseTileClicked(ex, ey);
                 }
@@ -1083,7 +1111,6 @@ public sealed class MapCanvas : Control
         }
 
         EnsureLayerExists();
-        var layer = Map.Layers[ActiveLayerIndex];
         var ts = TileSize;
         var sw = Math.Max(1, SelectedStampInTiles.Width);
         var sh = Math.Max(1, SelectedStampInTiles.Height);
@@ -1105,8 +1132,7 @@ public sealed class MapCanvas : Control
                     continue;
                 }
 
-                layer.Tiles.RemoveAll(t => t.X == mx && t.Y == my);
-                layer.Tiles.Add(CreateBrushTile(mx, my, sx, sy));
+                MapEditOperations.PaintTile(Map, ActiveLayerIndex, mx, my, CreateBrushTile(mx, my, sx, sy));
             }
         }
     }
@@ -1124,7 +1150,7 @@ public sealed class MapCanvas : Control
         };
         if (SelectedTileType == TileType.Warp)
         {
-            tile.WarpTargetMapId = 0;
+            tile.WarpTargetMapId = DefaultWarpTargetMapId ?? Guid.Empty;
             tile.WarpTargetX = 0;
             tile.WarpTargetY = 0;
         }
@@ -1139,12 +1165,12 @@ public sealed class MapCanvas : Control
 
     private void EraseAt(int tx, int ty)
     {
-        if (Map is null || ActiveLayerIndex < 0 || ActiveLayerIndex >= Map.Layers.Count || !IsActiveLayerEditable())
+        if (Map is null)
         {
             return;
         }
 
-        Map.Layers[ActiveLayerIndex].Tiles.RemoveAll(t => t.X == tx && t.Y == ty);
+        MapEditOperations.EraseTile(Map, ActiveLayerIndex, tx, ty);
     }
 
     private void EraseStamp(int tx, int ty)
@@ -1183,7 +1209,6 @@ public sealed class MapCanvas : Control
         }
 
         EnsureLayerExists();
-        var layer = Map.Layers[ActiveLayerIndex];
         var minX = Math.Min(x0, x1);
         var maxX = Math.Max(x0, x1);
         var minY = Math.Min(y0, y1);
@@ -1204,8 +1229,7 @@ public sealed class MapCanvas : Control
                     continue;
                 }
 
-                layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
-                layer.Tiles.Add(CreateBrushTile(x, y, sx, sy));
+                MapEditOperations.PaintTile(Map, ActiveLayerIndex, x, y, CreateBrushTile(x, y, sx, sy));
             }
         }
     }
@@ -1218,69 +1242,73 @@ public sealed class MapCanvas : Control
         }
 
         EnsureLayerExists();
-        var layer = Map.Layers[ActiveLayerIndex];
-        var start = layer.Tiles.FirstOrDefault(t => t.X == sx && t.Y == sy);
-        var matchEmpty = start is null;
-
-        var q = new Queue<(int x, int y)>();
-        var seen = new HashSet<(int, int)>();
-        q.Enqueue((sx, sy));
-        var toPaint = new List<(int x, int y)>();
-
-        while (q.Count > 0)
-        {
-            var (x, y) = q.Dequeue();
-            if (!seen.Add((x, y)))
-            {
-                continue;
-            }
-
-            if (x < 0 || y < 0 || x >= Map.Width || y >= Map.Height)
-            {
-                continue;
-            }
-
-            var here = layer.Tiles.FirstOrDefault(t => t.X == x && t.Y == y);
-            if (matchEmpty)
-            {
-                if (here is not null)
-                {
-                    continue;
-                }
-            }
-            else if (start is null || !SameVisualTile(start, here))
-            {
-                continue;
-            }
-
-            toPaint.Add((x, y));
-            q.Enqueue((x - 1, y));
-            q.Enqueue((x + 1, y));
-            q.Enqueue((x, y - 1));
-            q.Enqueue((x, y + 1));
-        }
-
-        foreach (var (x, y) in toPaint)
-        {
-            layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
-            layer.Tiles.Add(CreateBrushTile(x, y, SelectedSrc.X, SelectedSrc.Y));
-        }
+        MapEditOperations.FloodFill(Map, ActiveLayerIndex, sx, sy, CreateBrushTile(sx, sy, SelectedSrc.X, SelectedSrc.Y));
     }
 
-    private static bool SameVisualTile(Tile a, Tile? b)
+    internal bool TryPaintTileForTest(int x, int y)
     {
-        if (b is null)
+        if (Map is null || !IsActiveLayerEditable())
         {
             return false;
         }
 
-        if (a.TilesetId != b.TilesetId || a.SrcX != b.SrcX || a.SrcY != b.SrcY || a.Type != b.Type)
+        if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
         {
             return false;
         }
 
-        return a.Type != TileType.Warp
-            || (a.WarpTargetMapId == b.WarpTargetMapId && a.WarpTargetX == b.WarpTargetX && a.WarpTargetY == b.WarpTargetY);
+        BeginEditTransaction();
+        ApplyBrush(x, y);
+        Invalidate();
+        return Map.Layers[ActiveLayerIndex].Tiles.Any(t => t.X == x && t.Y == y);
+    }
+
+    internal void SetBlockTileForTest(int x, int y)
+    {
+        if (Map is null || !IsActiveLayerEditable())
+        {
+            return;
+        }
+
+        BeginEditTransaction();
+        MapEditOperations.SetBlockTile(Map, ActiveLayerIndex, x, y);
+        Invalidate();
+    }
+
+    internal void SetWarpTileForTest(int x, int y, Guid targetMapId, int targetX, int targetY)
+    {
+        if (Map is null || !IsActiveLayerEditable())
+        {
+            return;
+        }
+
+        BeginEditTransaction();
+        MapEditOperations.SetWarpDestination(Map, ActiveLayerIndex, x, y, targetMapId, targetX, targetY);
+        Invalidate();
+    }
+
+    internal void SetLayerVisibilityForTest(int layerIndex, bool visible)
+    {
+        if (Map is null || layerIndex < 0 || layerIndex >= Map.Layers.Count)
+        {
+            return;
+        }
+
+        BeginEditTransaction();
+        MapEditOperations.SetLayerVisibility(Map, layerIndex, visible);
+        Invalidate();
+    }
+
+    internal void SetMapNameForTest(string name)
+    {
+        if (Map is null)
+        {
+            return;
+        }
+
+        BeginEditTransaction();
+        Map.Name = name;
+        Invalidate();
     }
 
     private void EnsureLayerExists()

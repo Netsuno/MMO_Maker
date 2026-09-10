@@ -19,4 +19,17 @@ public sealed class NullMapEventStore : IMapEventStore
         placements = Array.Empty<MapEventWireEntry>();
         return true;
     }
+
+    public Task<(bool Ok, IReadOnlyList<MapEventWireEntry> Placements)> GetPlacementsAsync(
+        int mapId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = mapId;
+        _ = cancellationToken;
+        return Task.FromResult((true, (IReadOnlyList<MapEventWireEntry>)Array.Empty<MapEventWireEntry>()));
+    }
+
+    public void InvalidateAll()
+    {
+    }
 }

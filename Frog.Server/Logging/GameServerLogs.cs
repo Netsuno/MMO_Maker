@@ -12,4 +12,7 @@ internal static class GameServerLogs
 
     public static void BindAddressInvalid(ILogger logger, string BindAddress)
         => logger.LogError("BindAddress invalide: {BindAddress}", BindAddress);
+
+    public static void ClientHandlerFaulted(ILogger logger, Exception exception)
+        => logger.LogError(exception, "Client handler task faulted unexpectedly.");
 }

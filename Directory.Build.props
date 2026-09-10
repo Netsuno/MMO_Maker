@@ -2,6 +2,9 @@
   <PropertyGroup>
     <Nullable>enable</Nullable>
     <WarningsAsErrors>true</WarningsAsErrors>
-    <LangVersion>latest</LangVersion>
+    <!-- PRD: C# 12 / .NET 8. Pin explicitly so SDK "latest" cannot pull preview ref-in-async. -->
+    <LangVersion>12.0</LangVersion>
+    <!-- Allows restore/build of net8.0-windows projects on Linux agents (CI remains windows-latest). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 </Project>

@@ -6,8 +6,12 @@ namespace Frog.Core.Maps;
 /// <summary>Cartes de référence partagées (serveur, seed DB, tests).</summary>
 public static class MapSamples
 {
+    /// <summary>Guid déterministe pour chemins serveur MariaDB encore indexés par int (héritage).</summary>
+    public static Guid RuntimeMapIdToGuid(int runtimeMapId) =>
+        runtimeMapId <= 0 ? Guid.Empty : new Guid(unchecked((uint)runtimeMapId), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
     /// <summary>Même logique que l’ancienne carte de secours serveur « Starter Meadow ».</summary>
-    public static Map StarterMeadow(int warpTargetMapId)
+    public static Map StarterMeadow(Guid warpTargetMapId)
     {
         var map = new Map
         {

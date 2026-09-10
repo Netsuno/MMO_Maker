@@ -92,7 +92,7 @@
                            FontSize="11"
                            FontWeight="SemiBold"
                            Foreground="#FFEBEEF5"
-                           Text="CARTES — projet" />
+                           Text="MONDE — cartes" />
                 <Border Height="3"
                         VerticalAlignment="Bottom"
                         Background="#FF64BEFF" />

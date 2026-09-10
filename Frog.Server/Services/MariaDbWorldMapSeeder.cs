@@ -42,7 +42,7 @@ public sealed class MariaDbWorldMapSeeder(
         }
 
         var serializer = new MapSerializer();
-        var bytes = serializer.Serialize(MapSamples.StarterMeadow(mapId));
+        var bytes = serializer.Serialize(MapSamples.StarterMeadow(MapSamples.RuntimeMapIdToGuid(mapId)));
         MariaDbMapBlobStore.UpsertMap(_maria.ConnectionString, mapId, "world", "Starter Meadow", bytes);
         _logger.LogInformation("Carte monde id={MapId} inseree dans frog_map (seed automatique).", mapId);
         return Task.CompletedTask;
