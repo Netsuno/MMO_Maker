@@ -9,6 +9,23 @@ public sealed class MapEventExecutionState
 
     public bool SwitchesChanged { get; set; }
 
+    public List<WorldSwitchWire> SwitchChanges { get; } = [];
+
+    public void RecordSwitch(string switchId, bool value)
+    {
+        SwitchesChanged = true;
+        for (var i = 0; i < SwitchChanges.Count; i++)
+        {
+            if (string.Equals(SwitchChanges[i].SwitchId, switchId, StringComparison.Ordinal))
+            {
+                SwitchChanges[i].Value = value;
+                return;
+            }
+        }
+
+        SwitchChanges.Add(new WorldSwitchWire { SwitchId = switchId, Value = value });
+    }
+
     public bool VariablesChanged { get; set; }
 
     public bool InventoryChanged { get; set; }

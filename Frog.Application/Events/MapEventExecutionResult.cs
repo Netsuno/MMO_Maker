@@ -13,6 +13,9 @@ public sealed class MapEventExecutionResult
 
     public bool SwitchesChanged { get; init; }
 
+    /// <summary>Interrupteurs mutés par <c>set_switch</c> (fil public <c>WorldSwitchSnapshot</c>).</summary>
+    public IReadOnlyList<WorldSwitchWire> SwitchChanges { get; init; } = Array.Empty<WorldSwitchWire>();
+
     public bool VariablesChanged { get; init; }
 
     public bool InventoryChanged { get; init; }
@@ -46,13 +49,17 @@ public sealed class MapEventExecutionResult
         DialogueStatePushWire? dialogueState = null,
         bool questsChanged = false,
         bool professionsChanged = false,
-        bool recipesChanged = false) =>
+        bool recipesChanged = false,
+        IReadOnlyList<WorldSwitchWire>? switchChanges = null) =>
         new()
         {
             Success = true,
             Message = message,
             ShowText = showText,
             SwitchesChanged = switchesChanged,
+            SwitchChanges = switchChanges is { Count: > 0 } listed
+                ? listed
+                : Array.Empty<WorldSwitchWire>(),
             VariablesChanged = variablesChanged,
             InventoryChanged = inventoryChanged,
             GoldChanged = goldChanged,
@@ -76,6 +83,7 @@ public sealed class MapEventExecutionResult
             message: snap?.ShowText ?? fallbackMessage,
             showText: snap?.ShowText,
             switchesChanged: snap?.SwitchesChanged ?? false,
+            switchChanges: snap?.SwitchChanges,
             variablesChanged: snap?.VariablesChanged ?? false,
             inventoryChanged: snap?.InventoryChanged ?? false,
             goldChanged: snap?.GoldChanged ?? false,

@@ -81,5 +81,6 @@ public static class PacketIds
     public const byte EnvironmentStatePush = 74;
     public const byte AcquireProfessionRequest = 75;
     public const byte AcquireProfessionResult = 76;
+    public const byte WorldSwitchSnapshot = 77;
     public const byte Error = 255;
 }

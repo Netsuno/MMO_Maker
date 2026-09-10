@@ -534,6 +534,23 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendWorldSwitchSnapshotAsync(
+        ClientSession session,
+        IReadOnlyList<WorldSwitchWire> switches,
+        CancellationToken cancellationToken)
+    {
+        if (switches is null || switches.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var body = Phase8Wire.BuildWorldSwitchSnapshot(switches);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.WorldSwitchSnapshot;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
     private static void WriteGuid(Span<byte> dest, Guid value) => value.TryWriteBytes(dest);
 
     private static Task SendStatusMessageAsync(ClientSession session, PacketId packetId, bool success, string message, CancellationToken cancellationToken)

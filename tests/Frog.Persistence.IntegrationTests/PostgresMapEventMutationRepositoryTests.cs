@@ -299,12 +299,18 @@ public sealed class PostgresMapEventMutationRepositoryTests
         Assert.True(first.Snapshot!.QuestsChanged);
         Assert.True(first.Snapshot.ProfessionsChanged);
         Assert.True(first.Snapshot.RecipesChanged);
+        Assert.Contains(
+            first.Snapshot.SwitchChanges,
+            s => s.SwitchId == Phase8PostgresContentSeed.GateSwitchId && s.Value);
 
         var replay = await repo.TryExecutePlanAsync(plan);
         Assert.Equal(MapEventMutationStatus.IdempotentReplay, replay.Status);
         Assert.Equal(1, repo.TransactionsBegun);
         Assert.True(replay.Snapshot!.QuestsChanged);
         Assert.True(replay.Snapshot.ProfessionsChanged);
+        Assert.Contains(
+            replay.Snapshot.SwitchChanges,
+            s => s.SwitchId == Phase8PostgresContentSeed.GateSwitchId && s.Value);
 
         await AssertFullPersistentEffectsAsync(characterId, seed, identity.LedgerKey, expectedItemQty: 1);
     }

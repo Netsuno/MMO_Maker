@@ -1,22 +1,22 @@
 namespace Frog.Persistence.IntegrationTests.Support;
 
 /// <summary>
-/// C10 STOP for character switches. There is no public packet that exposes switch
-/// id/value after <c>SetSwitch</c>. Do not reintroduce mid-scenario
-/// <c>GetSwitchAsync</c>, and do not treat ShowText as persistence proof.
+/// Character switch ids asserted on the public <c>WorldSwitchSnapshot</c> packet after
+/// <c>SetSwitch</c>. Do not reintroduce mid-scenario <c>GetSwitchAsync</c>, and do not
+/// treat ShowText as persistence proof.
 /// </summary>
 internal static class Phase8PublicSwitchWireGap
 {
     /// <summary>CE command <c>SetSwitch</c> target; no page is conditioned on this id.</summary>
     public const string CommonEventSwitchId = Phase8PostgresContentSeed.CommonEventSwitchId;
 
-    /// <summary>Wait-resume <c>SetSwitch</c> target; resume emits no InteractResult.</summary>
+    /// <summary>Wait-resume <c>SetSwitch</c> target; resume emits <see cref="Frog.Core.Enums.PacketId.WorldSwitchSnapshot"/>.</summary>
     public const string WaitSwitchId = Phase8PostgresContentSeed.WaitSwitchId;
 
     /// <summary>
-    /// Server packet gap: <see cref="Frog.Core.Enums.PacketId"/> ends at
-    /// <c>AcquireProfessionResult = 76</c>. Needed before CE/wait switches can be
-    /// asserted on the public path.
+    /// Public packet: <see cref="Frog.Core.Enums.PacketId.WorldSwitchSnapshot"/> = 77
+    /// listing this character's switch id/value after SetSwitch, including common-event
+    /// execution and wait-resume.
     /// </summary>
     public const string RequiredPacketForServerEngineer =
         "WorldSwitchSnapshot or CharacterFlags push (new PacketId after 76) listing " +

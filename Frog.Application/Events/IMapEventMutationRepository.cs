@@ -1,5 +1,6 @@
 using Frog.Core.Events;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 
 namespace Frog.Application.Events;
 
@@ -53,6 +54,9 @@ public sealed class MapEventExecutionSnapshot
 
     public bool SwitchesChanged { get; set; }
 
+    /// <summary>Interrupteurs mutés par <c>set_switch</c> dans cette exécution (dernier write gagne).</summary>
+    public List<WorldSwitchWire> SwitchChanges { get; set; } = [];
+
     public bool VariablesChanged { get; set; }
 
     public bool InventoryChanged { get; set; }
@@ -74,4 +78,20 @@ public sealed class MapEventExecutionSnapshot
     public DateTimeOffset? WaitUntilUtc { get; set; }
 
     public IReadOnlyList<MapEventCommandDefinition>? PendingCommands { get; set; }
+
+    public void RecordSwitch(string switchId, bool value)
+    {
+        SwitchesChanged = true;
+        SwitchChanges ??= [];
+        for (var i = 0; i < SwitchChanges.Count; i++)
+        {
+            if (string.Equals(SwitchChanges[i].SwitchId, switchId, StringComparison.Ordinal))
+            {
+                SwitchChanges[i].Value = value;
+                return;
+            }
+        }
+
+        SwitchChanges.Add(new WorldSwitchWire { SwitchId = switchId, Value = value });
+    }
 }

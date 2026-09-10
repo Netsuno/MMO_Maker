@@ -61,6 +61,76 @@ internal static class Phase8TcpTestHelpers
     }
 
     /// <summary>
+    /// Interact that may push <see cref="PacketId.WorldSwitchSnapshot"/> before or after
+    /// <see cref="PacketId.InteractResult"/>.
+    /// </summary>
+    public static async Task<(byte[] Interact, IReadOnlyList<WorldSwitchWire> Switches)> ReadInteractCollectingSwitchSnapshotAsync(
+        Phase7TcpTestClient client,
+        TimeSpan? timeout = null)
+    {
+        var switches = (IReadOnlyList<WorldSwitchWire>)Array.Empty<WorldSwitchWire>();
+        byte[]? interact = null;
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(20));
+        while (interact is null)
+        {
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                throw new TimeoutException("expected InteractResult (collecting WorldSwitchSnapshot)");
+            }
+
+            var frame = await client.ReadUntilAnyAsync(
+                [PacketId.InteractResult, PacketId.WorldSwitchSnapshot],
+                remaining);
+            if (frame[0] == (byte)PacketId.WorldSwitchSnapshot)
+            {
+                Assert.True(Phase8WireDecoders.TryDecodeWorldSwitchSnapshot(frame, out var decoded));
+                switches = decoded;
+                continue;
+            }
+
+            interact = frame;
+        }
+
+        return (interact, switches);
+    }
+
+    /// <summary>
+    /// HeartbeatAck is sent before wait-resume snapshot; a later heartbeat's Ack wait
+    /// would otherwise discard the one-shot <see cref="PacketId.WorldSwitchSnapshot"/>.
+    /// </summary>
+    public static async Task<IReadOnlyList<WorldSwitchWire>?> SendHeartbeatCollectingSwitchSnapshotAsync(
+        Phase7TcpTestClient client,
+        IReadOnlyList<WorldSwitchWire>? existing = null)
+    {
+        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildHeartbeat());
+        var captured = existing;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (DateTime.UtcNow < deadline)
+        {
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            var frame = await client.ReadUntilAnyAsync(
+                [PacketId.HeartbeatAck, PacketId.WorldSwitchSnapshot],
+                remaining);
+            if (frame[0] == (byte)PacketId.WorldSwitchSnapshot)
+            {
+                Assert.True(Phase8WireDecoders.TryDecodeWorldSwitchSnapshot(frame, out var decoded));
+                captured = decoded;
+                continue;
+            }
+
+            return captured;
+        }
+
+        throw new TimeoutException("expected HeartbeatAck while collecting WorldSwitchSnapshot");
+    }
+
+    /// <summary>
     /// Public re-select path: CombatState + InventorySnapshot + QuestJournalSnapshot.
     /// Use when a live push is not available (replays, races, inventory after craft).
     /// </summary>

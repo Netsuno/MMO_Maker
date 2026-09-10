@@ -1098,6 +1098,15 @@ public sealed partial class PacketDispatcher(
                 push.Choices,
                 cancellationToken).ConfigureAwait(false);
         }
+
+        if (result.SwitchChanges.Count > 0)
+        {
+            await _packetSender.SendWorldSwitchSnapshotAsync(
+                    clientSession,
+                    result.SwitchChanges,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     private static void ReleasePageTriggerForPreviousMap(Session session, int previousMapId)

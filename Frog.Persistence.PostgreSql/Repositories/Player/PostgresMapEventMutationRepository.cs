@@ -5,6 +5,7 @@ using Frog.Application.Gameplay;
 using Frog.Core.Events;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 using Frog.Persistence.PostgreSql.Entities.Player;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -343,7 +344,7 @@ public sealed class PostgresMapEventMutationRepository(
             row.Value = value;
         }
 
-        snapshot.SwitchesChanged = true;
+        snapshot.RecordSwitch(switchId, value);
         return null;
     }
 
@@ -1001,6 +1002,7 @@ public sealed class PostgresMapEventMutationRepository(
             RecipesChanged = snapshot.RecipesChanged,
             QuestSummary = snapshot.QuestSummary,
             ResultGold = snapshot.ResultGold,
+            SwitchChanges = snapshot.SwitchChanges.Count > 0 ? snapshot.SwitchChanges : null,
             Waiting = waiting,
             WaitUntilUtc = snapshot.WaitUntilUtc,
             PendingCommands = pending.Count > 0 ? pending.ToList() : null,
@@ -1028,6 +1030,7 @@ public sealed class PostgresMapEventMutationRepository(
                 RecipesChanged = stored.RecipesChanged,
                 QuestSummary = stored.QuestSummary,
                 ResultGold = stored.ResultGold,
+                SwitchChanges = stored.SwitchChanges ?? [],
                 Waiting = stored.Waiting,
                 WaitUntilUtc = stored.WaitUntilUtc,
                 PendingCommands = stored.PendingCommands,
@@ -1060,6 +1063,8 @@ public sealed class PostgresMapEventMutationRepository(
         public string? QuestSummary { get; set; }
 
         public int? ResultGold { get; set; }
+
+        public List<WorldSwitchWire>? SwitchChanges { get; set; }
 
         public bool Waiting { get; set; }
 

@@ -132,5 +132,11 @@ public enum PacketId : byte
     /// <summary>Résultat acquisition métier.</summary>
     AcquireProfessionResult = 76,
 
+    /// <summary>
+    /// Interrupteurs perso après <c>SetSwitch</c> (id/valeur). Poussé à l'exécution
+    /// et à la reprise <c>wait</c> quand les commandes restantes se terminent.
+    /// </summary>
+    WorldSwitchSnapshot = 77,
+
     Error = 255
 }

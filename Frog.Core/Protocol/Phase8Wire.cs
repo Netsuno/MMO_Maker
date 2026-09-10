@@ -293,6 +293,48 @@ public static class Phase8Wire
         professionId.TryWriteBytes(payload);
         return payload;
     }
+
+    public static byte[] BuildWorldSwitchSnapshot(IReadOnlyList<WorldSwitchWire> switches)
+    {
+        var json = JsonSerializer.SerializeToUtf8Bytes(switches ?? Array.Empty<WorldSwitchWire>());
+        if (json.Length > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(switches), "WorldSwitchSnapshot trop grand.");
+        }
+
+        var payload = new byte[2 + json.Length];
+        BinaryPrimitives.WriteUInt16LittleEndian(payload, (ushort)json.Length);
+        json.CopyTo(payload.AsSpan(2));
+        return payload;
+    }
+
+    public static bool TryParseWorldSwitchSnapshot(
+        ReadOnlySpan<byte> payload,
+        out IReadOnlyList<WorldSwitchWire> switches)
+    {
+        switches = Array.Empty<WorldSwitchWire>();
+        if (payload.Length < 2)
+        {
+            return false;
+        }
+
+        var len = BinaryPrimitives.ReadUInt16LittleEndian(payload);
+        if (payload.Length < 2 + len)
+        {
+            return false;
+        }
+
+        try
+        {
+            switches = JsonSerializer.Deserialize<List<WorldSwitchWire>>(payload.Slice(2, len))
+                       ?? new List<WorldSwitchWire>();
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 }
 
 public sealed class DialogueChoiceWire
@@ -363,4 +405,12 @@ public sealed class EnvironmentStateWire
     public Guid? WeatherProfileId { get; init; }
 
     public byte LightingLevel { get; init; }
+}
+
+/// <summary>Interrupteur perso poussé après SetSwitch (<see cref="Frog.Core.Enums.PacketId.WorldSwitchSnapshot"/>).</summary>
+public sealed class WorldSwitchWire
+{
+    public string SwitchId { get; set; } = string.Empty;
+
+    public bool Value { get; set; }
 }

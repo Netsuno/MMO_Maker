@@ -87,6 +87,7 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? CraftResultReceived;
     public event Action<bool, string>? AcquireProfessionResultReceived;
     public event Action<EnvironmentStateWire>? EnvironmentStatePushReceived;
+    public event Action<IReadOnlyList<WorldSwitchWire>>? WorldSwitchSnapshotReceived;
     public event Action? ConnectionClosed;
 
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
@@ -687,6 +688,18 @@ public sealed class FrogGameClient : IDisposable
                 else
                 {
                     Post(() => ErrorReceived?.Invoke("EnvironmentStatePush: format invalide."));
+                }
+
+                break;
+
+            case PacketId.WorldSwitchSnapshot:
+                if (Phase8Wire.TryParseWorldSwitchSnapshot(body.Span, out var worldSwitches))
+                {
+                    Post(() => WorldSwitchSnapshotReceived?.Invoke(worldSwitches));
+                }
+                else
+                {
+                    Post(() => ErrorReceived?.Invoke("WorldSwitchSnapshot: format invalide."));
                 }
 
                 break;

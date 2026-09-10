@@ -48,6 +48,25 @@ public static class Phase8WireDecoders
         return Phase8Wire.TryParseQuestJournalSnapshot(payload.Slice(1), out entries);
     }
 
+    public static bool TryDecodeWorldSwitchSnapshot(
+        ReadOnlySpan<byte> payload,
+        out IReadOnlyList<WorldSwitchWire> switches)
+    {
+        switches = Array.Empty<WorldSwitchWire>();
+        if (payload.Length < 2 || payload[0] != (byte)PacketId.WorldSwitchSnapshot)
+        {
+            return false;
+        }
+
+        return Phase8Wire.TryParseWorldSwitchSnapshot(payload.Slice(1), out switches);
+    }
+
+    public static bool ContainsSwitch(
+        IReadOnlyList<WorldSwitchWire> switches,
+        string switchId,
+        bool value) =>
+        switches.Any(s => string.Equals(s.SwitchId, switchId, StringComparison.Ordinal) && s.Value == value);
+
     public static bool TryDecodeEnvironmentState(
         ReadOnlySpan<byte> payload,
         out int mapId,

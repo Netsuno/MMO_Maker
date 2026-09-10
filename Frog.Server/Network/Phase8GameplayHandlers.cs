@@ -513,13 +513,24 @@ public sealed class Phase8GameplayHandlers(
         }
     }
 
-    public Task TryResumeWaitingMapEventsAsync(
+    public async Task TryResumeWaitingMapEventsAsync(
         ClientSession client,
         Session session,
         CancellationToken cancellationToken)
     {
-        _ = client;
-        return mapEventRuntime.TryResumeWaitingAsync(session, cancellationToken);
+        var results = await mapEventRuntime.TryResumeWaitingAsync(session, cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var runtimeResult in results)
+        {
+            if (runtimeResult.SwitchChanges.Count > 0)
+            {
+                await packetSender.SendWorldSwitchSnapshotAsync(
+                        client,
+                        runtimeResult.SwitchChanges,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
     }
 
     private async Task ApplyRuntimeClientEffectsAsync(
@@ -531,6 +542,15 @@ public sealed class Phase8GameplayHandlers(
         if (runtimeResult.QuestsChanged)
         {
             await SendQuestJournalAsync(client, session, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (runtimeResult.SwitchChanges.Count > 0)
+        {
+            await packetSender.SendWorldSwitchSnapshotAsync(
+                    client,
+                    runtimeResult.SwitchChanges,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;

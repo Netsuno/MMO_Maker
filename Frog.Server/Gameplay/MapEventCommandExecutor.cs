@@ -331,10 +331,8 @@ public sealed class MapEventCommandExecutor
         }
 
         await _worldState.SetSwitchAsync(characterId, switchId, switchValue, cancellationToken).ConfigureAwait(false);
-        if (await SyncSwitchToPayloadAsync(session, switchId, switchValue, cancellationToken).ConfigureAwait(false))
-        {
-            state.SwitchesChanged = true;
-        }
+        state.RecordSwitch(switchId, switchValue);
+        _ = await SyncSwitchToPayloadAsync(session, switchId, switchValue, cancellationToken).ConfigureAwait(false);
 
         return null;
     }

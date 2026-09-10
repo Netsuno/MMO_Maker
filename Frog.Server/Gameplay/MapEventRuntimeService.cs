@@ -94,18 +94,27 @@ public sealed class MapEventRuntimeService
     /// <summary>
     /// Reprise <c>wait</c> : les commandes restantes s'exécutent in-memory (le requestId
     /// ledger de la première TX rejouerait le snapshot « stopped at wait », pas la suite).
+    /// Retourne un résultat par attente prête (pour pousser <c>WorldSwitchSnapshot</c>).
     /// </summary>
-    public async Task TryResumeWaitingAsync(Session session, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MapEventExecutionResult>> TryResumeWaitingAsync(
+        Session session,
+        CancellationToken cancellationToken = default)
     {
         if (session.CharacterGuid is not Guid characterId || characterId == Guid.Empty)
         {
-            return;
+            return Array.Empty<MapEventExecutionResult>();
         }
 
         var ready = _executionTracker.TakeReadyWaits(characterId, DateTimeOffset.UtcNow);
+        if (ready.Count == 0)
+        {
+            return Array.Empty<MapEventExecutionResult>();
+        }
+
+        var results = new List<MapEventExecutionResult>(ready.Count);
         foreach (var wait in ready)
         {
-            await _mutations.RunExclusiveAsync(
+            var resume = await _mutations.RunExclusiveAsync(
                 characterId,
                 async ct =>
                 {
@@ -123,14 +132,34 @@ public sealed class MapEventRuntimeService
                             "Reprise wait événement échouée pour {CharacterId}: {Error}",
                             characterId,
                             err);
-                        return false;
+                        return (MapEventExecutionResult?)null;
                     }
 
                     RegisterWaitIfNeeded(characterId, state, wait.PlacementLabel);
-                    return true;
+                    return MapEventExecutionResult.Ok(
+                        message: state.ShowText ?? wait.PlacementLabel ?? string.Empty,
+                        showText: state.ShowText,
+                        switchesChanged: state.SwitchesChanged,
+                        variablesChanged: state.VariablesChanged,
+                        inventoryChanged: state.InventoryChanged,
+                        goldChanged: state.GoldChanged,
+                        teleportApplied: state.TeleportApplied,
+                        dialogueSummary: state.DialogueSummary,
+                        questSummary: state.QuestSummary,
+                        dialogueState: state.DialogueState,
+                        questsChanged: state.QuestsChanged,
+                        professionsChanged: state.ProfessionsChanged,
+                        recipesChanged: state.RecipesChanged,
+                        switchChanges: state.SwitchChanges);
                 },
                 cancellationToken).ConfigureAwait(false);
+            if (resume is not null)
+            {
+                results.Add(resume);
+            }
         }
+
+        return results;
     }
 
     private async Task<MapEventExecutionResult?> ExecuteWithCatalogAsync(
@@ -293,7 +322,8 @@ public sealed class MapEventRuntimeService
             state.DialogueState,
             state.QuestsChanged,
             state.ProfessionsChanged,
-            state.RecipesChanged);
+            state.RecipesChanged,
+            state.SwitchChanges);
     }
 
     private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)

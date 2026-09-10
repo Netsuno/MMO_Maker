@@ -65,6 +65,7 @@ public sealed class MapEventRuntimeServiceTests
         Assert.True(result!.Success);
         Assert.Equal("Porte ouverte", result.ShowText);
         Assert.True(result.SwitchesChanged);
+        Assert.Contains(result.SwitchChanges, s => s.SwitchId == "door_open" && s.Value);
         Assert.True(await worldState.GetSwitchAsync(characterId, "door_open"));
     }
 
@@ -187,9 +188,12 @@ public sealed class MapEventRuntimeServiceTests
         Assert.NotEqual(true, await worldState.GetSwitchAsync(characterId, "wait_done"));
 
         await Task.Delay(150);
-        await service.TryResumeWaitingAsync(session);
+        var resumed = await service.TryResumeWaitingAsync(session);
 
         Assert.True(await worldState.GetSwitchAsync(characterId, "wait_done"));
+        Assert.Contains(
+            resumed,
+            r => r.SwitchChanges.Any(s => s.SwitchId == "wait_done" && s.Value));
     }
 
     [Fact]
@@ -468,6 +472,10 @@ public sealed class MapEventRuntimeServiceTests
                     RecipesChanged = true,
                     QuestSummary = "Quête démarrée: Test",
                     SwitchesChanged = true,
+                    SwitchChanges =
+                    [
+                        new WorldSwitchWire { SwitchId = "ready", Value = true },
+                    ],
                 }),
         };
         var service = CreateService(catalog, worldState, new InMemoryCharacterPayloadReader(), mutationRepository: repo);
@@ -494,6 +502,7 @@ public sealed class MapEventRuntimeServiceTests
         Assert.True(result.RecipesChanged);
         Assert.Equal("Quête démarrée: Test", result.QuestSummary);
         Assert.True(result.SwitchesChanged);
+        Assert.Contains(result.SwitchChanges, s => s.SwitchId == "ready" && s.Value);
         Assert.False(result.TeleportApplied);
         Assert.Null(result.DialogueState);
     }
@@ -689,14 +698,77 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Equal(0, repo.PageCalls);
     }
 
+    [Fact]
+    public async Task ExecuteInteract_CallCommonEvent_SetSwitch_RecordsSwitchChange()
+    {
+        var characterId = Guid.NewGuid();
+        var commonId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Caller",
+            EditorAliasId = 64,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                            ParameterJson = $"{{\"commonEventId\":\"{commonId}\"}}",
+                        },
+                    ],
+                },
+            ],
+        });
+        var worldState = new InMemoryCharacterWorldStateRepository();
+        var service = CreateService(
+            catalog,
+            worldState,
+            new InMemoryCharacterPayloadReader(),
+            configureContent: content => content.RegisterCommonEvent(new CommonEventDefinition
+            {
+                Id = commonId,
+                Name = "Helper",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        PageOrder = 0,
+                        TriggerKind = Phase8MapEventTriggerKinds.Action,
+                        Commands =
+                        [
+                            new MapEventCommandDefinition
+                            {
+                                Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                                ParameterJson = """{"switchId":"phase8_common_fired","value":true}""",
+                            },
+                        ],
+                    },
+                ],
+            }));
+
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(64));
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.True(result.SwitchesChanged);
+        Assert.Contains(result.SwitchChanges, s => s.SwitchId == "phase8_common_fired" && s.Value);
+        Assert.True(await worldState.GetSwitchAsync(characterId, "phase8_common_fired"));
+    }
+
     private static MapEventRuntimeService CreateService(
         IPublishedMapEventCatalog catalog,
         InMemoryCharacterWorldStateRepository worldState,
         InMemoryCharacterPayloadReader payload,
         MapEventExecutionTracker? tracker = null,
-        IMapEventMutationRepository? mutationRepository = null)
+        IMapEventMutationRepository? mutationRepository = null,
+        Action<Phase8InMemoryPublishedContent>? configureContent = null)
     {
         var phase8 = new Phase8InMemoryPublishedContent();
+        configureContent?.Invoke(phase8);
         var characters = new InMemoryCharacterRepository();
         var items = new Phase7PublishedContent();
         var inventoryRepo = new InMemoryInventoryRepository();
