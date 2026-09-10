@@ -84,11 +84,9 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(seed.WeatherProfile2Id, env2WeatherId);
             Assert.Equal(seed.ExpectedLightingLevel2, lighting2);
 
-            // Common-event execution via call_common_event on published map event.
-            // Public proof: InteractResult page text. Switch persistence is not on the wire.
-            // TODO(J5-FIX-10): CommonEventSwitchId (`phase8_common_fired`) has no page condition
-            // and PacketId has no SwitchSnapshot/WorldState. Cannot prove CE switch persistence
-            // without a public switch packet — do not patch Server here.
+            // Common-event *execution* via call_common_event (ShowText only).
+            // C10 STOP on SetSwitch(phase8_common_fired): ShowText does not prove the switch
+            // persisted. No GetSwitchAsync. See Phase8PublicSwitchWireGap.
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.CommonEventTileX, seed.CommonEventTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var commonEventResult = await client.ReadUntilAsync(PacketId.InteractResult);
@@ -259,11 +257,9 @@ public sealed class Phase8PostgresE2ETests
             Assert.True(contactInv.Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity) >= 2);
             await midClient.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
-            // Step 18 (wait/resume): action event waits then sets switch via heartbeat resume.
-            // TODO(J5-FIX-10): WaitSwitchId (`phase8_wait_done`) is set on heartbeat resume after Wait.
-            // Resume executes remaining commands in-memory with no InteractResult/ShowText, and
-            // PacketId has no SwitchSnapshot/WorldState. Cannot prove this switch on the public
-            // wire without a switch packet or InteractResult on wait resume — do not patch Server.
+            // Step 18 (wait/resume): InteractResult proves the wait *started*.
+            // C10 STOP on SetSwitch(phase8_wait_done): resume has no public packet.
+            // Heartbeats still exercise resume. No GetSwitchAsync. See Phase8PublicSwitchWireGap.
             await Phase8MovementTestHelpers.TeleportToTileAsync(midClient, seed.WaitEventTileX, seed.WaitEventTileY);
             await midClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var waitInteract = await midClient.ReadUntilAsync(PacketId.InteractResult);
@@ -448,6 +444,21 @@ public sealed class Phase8PostgresE2ETests
             // Step 23: clean shutdown
             await host2.StopAsync();
         }
+    }
+
+    /// <summary>
+    /// C10 STOP: character SetSwitch is not on the public wire.
+    /// Unskip when Server ships <see cref="Phase8PublicSwitchWireGap.RequiredPacketForServerEngineer"/>
+    /// and FullPhase8Flow can assert <c>phase8_common_fired</c> / <c>phase8_wait_done</c> without SQL.
+    /// </summary>
+    [Fact(Skip = "C10 STOP: PacketId has no WorldSwitchSnapshot/CharacterFlags/SwitchStatePush. CE SetSwitch(phase8_common_fired) and wait-resume SetSwitch(phase8_wait_done) cannot be proven without mid-scenario SQL. ShowText is execution-only.")]
+    public void CharacterSwitches_BlockedOnPublicSwitchPacket()
+    {
+        Assert.Equal("phase8_common_fired", Phase8PublicSwitchWireGap.CommonEventSwitchId);
+        Assert.Equal("phase8_wait_done", Phase8PublicSwitchWireGap.WaitSwitchId);
+        Assert.Contains("WorldSwitchSnapshot", Phase8PublicSwitchWireGap.RequiredPacketForServerEngineer, StringComparison.Ordinal);
+        Assert.Contains("CharacterFlags", Phase8PublicSwitchWireGap.RequiredPacketForServerEngineer, StringComparison.Ordinal);
+        Assert.Contains("phase8_common_fired", Phase8PublicSwitchWireGap.CommonEventConditionedContentGap, StringComparison.Ordinal);
     }
 
     private async Task AssertSeedContentAsync(Phase8PostgresContentSeedResult seed)
