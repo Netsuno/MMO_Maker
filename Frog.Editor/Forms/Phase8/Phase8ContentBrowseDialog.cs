@@ -692,6 +692,9 @@ internal sealed class Phase8ContentBrowseDialog : Form
                 return;
             }
 
+            // Always cancel this WM_CLOSE until cleanup has posted a *later* Close.
+            // Uncancelling here disposes during the caller's Close() — the pending-save
+            // smoke requires cancel+drain to be observable while the dialog is still alive.
             e.Cancel = true;
             if (_cleanupRunning)
             {
@@ -701,18 +704,16 @@ internal sealed class Phase8ContentBrowseDialog : Form
             _cleanupRunning = true;
             SetClosingUiState(enabled: false);
             _ = RunAsyncCloseCleanupAndMaybeFinishAsync();
-
-            if (_allowCloseAfterCleanup)
-            {
-                // Pending save/reload often cancel and drain inline on this thread.
-                // A posted Close is swallowed by this cancelled WM_CLOSE, leaving the
-                // dialog idle (PendingCount=0) but never disposed. Let this close finish.
-                e.Cancel = false;
-            }
         }
         finally
         {
             Interlocked.Decrement(ref _formClosingDepth);
+            if (Volatile.Read(ref _formClosingDepth) == 0
+                && _allowCloseAfterCleanup
+                && !IsDisposed)
+            {
+                RequestFinalClose();
+            }
         }
     }
 
@@ -802,8 +803,9 @@ internal sealed class Phase8ContentBrowseDialog : Form
             return;
         }
 
-        // FormClosing is still on the stack and will uncancel this WM_CLOSE.
-        // Nested Close() here is coalesced with the cancelled close and never disposes.
+        // Still inside FormClosing body: the finally block posts after depth hits 0.
+        // Do not Close() on this stack — it is swallowed by the cancelled WM_CLOSE
+        // or disposes before the caller can observe cancel-without-dispose.
         if (Volatile.Read(ref _formClosingDepth) > 0)
         {
             return;
@@ -816,7 +818,7 @@ internal sealed class Phase8ContentBrowseDialog : Form
 
         void closeIfAlive()
         {
-            if (IsDisposed)
+            if (IsDisposed || !_allowCloseAfterCleanup)
             {
                 return;
             }
@@ -825,11 +827,29 @@ internal sealed class Phase8ContentBrowseDialog : Form
         }
 
         var posted = false;
+
+        // Hop once off this message so Close is a new WM_CLOSE, not nested in the
+        // cancelled one. Hybrid STA pumps WinForms via DoEvents and WPF via Background.
         try
         {
             if (IsHandleCreated)
             {
-                BeginInvoke(closeIfAlive);
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        BeginInvoke(closeIfAlive);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        closeIfAlive();
+                    }
+                }));
                 posted = true;
             }
         }
@@ -842,7 +862,9 @@ internal sealed class Phase8ContentBrowseDialog : Form
             var dispatcher = System.Windows.Application.Current?.Dispatcher;
             if (dispatcher is not null && !dispatcher.HasShutdownStarted && !dispatcher.HasShutdownFinished)
             {
-                dispatcher.BeginInvoke(closeIfAlive, DispatcherPriority.Background);
+                dispatcher.BeginInvoke(
+                    () => dispatcher.BeginInvoke(closeIfAlive, DispatcherPriority.Background),
+                    DispatcherPriority.Background);
                 posted = true;
             }
         }

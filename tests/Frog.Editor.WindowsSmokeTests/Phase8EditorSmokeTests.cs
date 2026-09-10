@@ -267,7 +267,11 @@ public sealed class Phase8EditorSmokeTests
                 StaTestRunner.PumpUntil(
                     () => dialog.IsDisposed || Volatile.Read(ref sawCancellation),
                     TimeSpan.FromSeconds(5));
-                Assert.False(dialog.IsDisposed);
+                Assert.False(
+                    dialog.IsDisposed,
+                    $"Phase 8 dialog disposed before cancel+drain were proven for '{operationName}'. " +
+                    $"sawCancellation={Volatile.Read(ref sawCancellation)}, AllowFinalClose={dialog.AllowFinalCloseForTest}, " +
+                    $"PendingCount={dialog.LifecycleForTest.PendingCountForTest}, IsIdle={dialog.LifecycleForTest.IsIdle}.");
                 Assert.True(Volatile.Read(ref sawCancellation));
 
                 var disposeTimeout = TimeSpan.FromSeconds(60);
