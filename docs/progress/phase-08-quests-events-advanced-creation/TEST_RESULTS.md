@@ -4,19 +4,23 @@ Environment: Windows Server 2022 + Ubuntu (CI), .NET SDK **8.0.424**, PostgreSQL
 
 | Suite | Result | Notes |
 | --- | --- | --- |
-| Frog.Tests | **PASS** (local) | 324 |
-| PostgreSQL integration | pending CI tip | includes P8-I5 mid-progress reconnect + per-kind replay |
-| Phase 8 E2E 23-step | pending CI tip | Talk/Visit/Collect/Kill/Craft + counters + reconnect + replay |
-| Phase 8 multi-client ×9 | pending CI tip | `Phase8MultiClientE2ETests` |
-| Phase 8 Windows smoke ×3 | pending CI tip | MainForm close-during-save + dispose-once |
-| Phase 6/7 regression smokes ×3 | pending CI tip | CI |
+| Frog.Tests | **PASS** | **379** passed, 0 skipped — CI 34436843321 |
+| PostgreSQL integration | **PASS** | **159** passed, 0 skipped — includes P8-I5 mid-progress reconnect + per-kind replay |
+| Phase 8 E2E 23-step | **PASS** | Talk/Visit/Collect/Kill/Craft + counters + reconnect + replay |
+| Phase 8 multi-client ×9 | **PASS** | `Phase8MultiClientE2ETests` |
+| Phase8 smoke ×3 | **PASS** | **24×3** |
+| Editor smoke ×3 | **PASS** | **56×3** |
+| Gameplay smoke ×3 | **PASS** | **6×3** |
+| Phase 6/7 regression smokes ×3 | **PASS** | included in Editor / Gameplay Windows CI repeats |
 
 ## SHAs / CI
 
 | Item | Value |
 | --- | --- |
-| Implementation tip (pre-CI) | see latest commit on `cursor/phase0-baseline-audit-02c7` |
-| Final tip + CI URL | filled only after green CI on exact tip (P8-I6) |
+| Implementation tip | `ebc96921d8e40f1ddf2779dddd50cecd39bb4d45` |
+| Manifest tip | `9ddbd5ee0d015e0d60afce5d9f4c3d214b970ecb` |
+| Narrative tip | this commit on `cursor/phase0-baseline-audit-02c7` (PR #2) |
+| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
 
 ## Commands
 

@@ -35,6 +35,9 @@
 - Draft invisibility Theory for all Phase 8 content kinds
 - `Phase8GameplayClientSmokeTests` + `Phase8EditorSmokeTests` via CI filter `FullyQualifiedName~.Phase8` ×3
 - Screenshot hash post-process: `scripts/update-phase8-screenshot-manifest.ps1`
+- Green CI https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 on implementation tip `ebc96921`: Frog.Tests **379**; PG integration **159**; Phase8 smoke **24×3**; Editor smoke **56×3**; Gameplay smoke **6×3**
+- Residual non-blocking gap: client captures `01`/`02` and `03`/`04` still share SHA-256 (identical smoke frames)
+
 
 ## Preserved foundations (P8-1 … P8-6 initial pass)
 

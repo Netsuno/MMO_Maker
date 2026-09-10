@@ -2,6 +2,8 @@
 
 Headless PostgreSQL-backed network scenario (mandatory gate). Status updated as steps are implemented.
 
+Evidence pin: implementation tip `ebc96921`, CI https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 (green). 23-step + multi-client PASS on that run.
+
 | Step | Description | Test | Status |
 | ---: | --- | --- | --- |
 | 1 | Publish map event (multi-page, conditions) | `Phase8PostgresE2ETests` | PASS |

@@ -17,7 +17,7 @@
 
 ## Screenshot evidence note
 
-Client screenshots `01`/`02` and `03`/`04` historically shared SHA-256 digests (identical pixel buffers from earlier CI tip `7137c17`). Manifest retained for gate archaeology; regenerate unique captures on a green tip when visual evidence is re-audited. Functional gate evidence is the PostgreSQL E2E + Windows smoke ×3, not screenshot uniqueness alone.
+Client screenshots `01`/`02` and `03`/`04` still share SHA-256 (identical smoke frames) on implementation tip `ebc96921` / CI `34436843321`. Non-blocking: do not invent new captures in this narrative sync. Functional gate evidence is the PostgreSQL E2E + Windows smokes (Phase8 24×3, Editor 56×3, Gameplay 6×3), not screenshot uniqueness alone.
 
 ## Smoke coverage note
 
