@@ -104,6 +104,23 @@ public static class Phase8WireDecoders
         Guid questId) =>
         entries.FirstOrDefault(e => e.QuestId == questId);
 
+    /// <summary>
+    /// Current-stage objective from a journal entry. Historical stage counters are not on the wire
+    /// after <see cref="QuestJournalEntryWire.StageIndex"/> advances.
+    /// </summary>
+    public static QuestObjectiveProgressWire? TryGetObjective(QuestJournalEntryWire? entry, int objectiveIndex = 0)
+    {
+        if (entry is null || objectiveIndex < 0 || objectiveIndex >= entry.Objectives.Count)
+        {
+            return null;
+        }
+
+        return entry.Objectives[objectiveIndex];
+    }
+
+    public static int CountItemQuantity(InventorySnapshotWire snapshot, Guid itemId) =>
+        snapshot.Slots.Where(s => s.ItemId == itemId).Sum(s => s.Quantity);
+
     public static bool TryDecodeError(ReadOnlySpan<byte> payload, out string message)
     {
         message = string.Empty;
