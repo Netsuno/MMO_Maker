@@ -408,13 +408,13 @@ public sealed class MapEventRuntimeServiceTests
         Assert.True(step!.Success);
         Assert.Equal("step", step.ShowText);
 
-        runtimePlacement.TriggerKind = MapEventTriggerKinds.Autorun;
+        runtimePlacement.TriggerKind = Phase8MapEventTriggerKinds.Autorun;
         var autorun = await service.TryExecuteAutorunAsync(session, runtimePlacement);
         Assert.NotNull(autorun);
         Assert.True(autorun!.Success);
         Assert.Equal("auto", autorun.ShowText);
 
-        runtimePlacement.TriggerKind = MapEventTriggerKinds.Parallel;
+        runtimePlacement.TriggerKind = Phase8MapEventTriggerKinds.Parallel;
         var parallel = await service.TryExecuteParallelAsync(session, runtimePlacement);
         Assert.NotNull(parallel);
         Assert.True(parallel!.Success);
