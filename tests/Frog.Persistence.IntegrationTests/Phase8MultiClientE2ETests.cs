@@ -49,6 +49,9 @@ public sealed class Phase8MultiClientE2ETests
                 await b.ReadUntilAsync(PacketId.InteractResult), out _, out var lockedMsg));
             Assert.Contains("Gate locked", lockedMsg);
 
+            // Occupancy forbids two characters on the gate tile; move B off before A's unlocked check.
+            await Phase8MovementTestHelpers.TeleportToTileAsync(
+                b, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
             await Phase8MovementTestHelpers.TeleportToTileAsync(a, seed.GateEventTileX, seed.GateEventTileY);
             await a.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var unlockedA = await Phase8TcpTestHelpers.ReadDialogueThenInteractAsync(a);
