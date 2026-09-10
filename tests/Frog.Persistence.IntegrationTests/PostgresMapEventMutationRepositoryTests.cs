@@ -351,6 +351,96 @@ public sealed class PostgresMapEventMutationRepositoryTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
+    public async Task PublicPath_CorePlanThenExecute_MidFailure_RollsBackAllDomains()
+    {
+        using var gate = CreateGate();
+        var seed = await Phase8PostgresContentSeed.PublishAsync(gate).ConfigureAwait(false);
+        var characterId = await CreateCharacterAsync(gate, seed);
+        var identity = MapEventExecutionIdentity.Create(characterId, 301, 1);
+        var unknownItemId = Guid.Parse("ffffffff-ffff-4fff-8fff-ffffffffffff");
+        var pageCommands = new[]
+        {
+            BranchThen(FullPersistentEffects(seed).ToArray()),
+            Cmd(MapEventCommandDiscriminators.GiveItem, $"{{\"itemId\":\"{unknownItemId}\",\"quantity\":1}}"),
+        };
+
+        var plan = await MapEventExecutionPlanner.PlanAsync(
+            pageCommands,
+            InMemoryCommonEventSource.Empty,
+            _ => Task.FromResult(true),
+            identity);
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.DoesNotContain(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.Branch);
+
+        var repo = CreateRepo(gate);
+        var result = await repo.TryExecutePlanAsync(plan);
+        Assert.Equal(MapEventMutationStatus.Failed, result.Status);
+        Assert.Equal(1, repo.TransactionsBegun);
+        await AssertNoPersistentEffectsAsync(characterId, seed, identity.LedgerKey);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task PublicPath_CorePlanThenExecute_ReplayAndConcurrency_Idempotent()
+    {
+        using var seedGate = CreateGate();
+        var seed = await Phase8PostgresContentSeed.PublishAsync(seedGate).ConfigureAwait(false);
+        var characterId = await CreateCharacterAsync(seedGate, seed);
+        var identity = MapEventExecutionIdentity.Create(characterId, 302, 1);
+        var pageCommands = new[]
+        {
+            BranchThen(
+            [
+                Cmd(MapEventCommandDiscriminators.GiveItem,
+                    $"{{\"itemId\":\"{seed.Phase7.ConsumableId}\",\"quantity\":1}}"),
+                Cmd(MapEventCommandDiscriminators.GiveGold, """{"amount":25}"""),
+                Cmd(MapEventCommandDiscriminators.StartQuest, $"{{\"questId\":\"{seed.QuestId}\"}}"),
+                Cmd(MapEventCommandDiscriminators.LearnProfession, $"{{\"professionId\":\"{seed.ProfessionId}\"}}"),
+            ]),
+        };
+
+        var plan = await MapEventExecutionPlanner.PlanAsync(
+            pageCommands,
+            InMemoryCommonEventSource.Empty,
+            _ => Task.FromResult(true),
+            identity);
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.Equal(4, plan.Effects.Count);
+        Assert.DoesNotContain(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.Branch);
+
+        using var gateA = CreateGate();
+        using var gateB = CreateGate();
+        var results = await Task.WhenAll(
+            CreateRepo(gateA).TryExecutePlanAsync(plan),
+            CreateRepo(gateB).TryExecutePlanAsync(plan));
+
+        Assert.Equal(1, results.Count(r => r.Status == MapEventMutationStatus.Executed));
+        Assert.Equal(1, results.Count(r => r.Status == MapEventMutationStatus.IdempotentReplay));
+        Assert.All(results, r => Assert.NotEqual(MapEventMutationStatus.Failed, r.Status));
+
+        using var replayGate = CreateGate();
+        var replay = await CreateRepo(replayGate).TryExecutePlanAsync(plan);
+        Assert.Equal(MapEventMutationStatus.IdempotentReplay, replay.Status);
+        Assert.True(replay.Snapshot!.QuestsChanged);
+        Assert.True(replay.Snapshot.ProfessionsChanged);
+
+        using var verify = CreateGate();
+        var qty = (await new PostgresInventoryRepository(verify).GetAsync(characterId)).Slots
+            .Where(s => s.ItemId == seed.Phase7.ConsumableId)
+            .Sum(s => s.Quantity);
+        Assert.Equal(1, qty);
+        var gold = (await new PostgresCharacterRepository(verify).FindByIdAsync(characterId))!.Gold;
+        Assert.Equal(GameplayLimits.StartingGold + 25, gold);
+        var quest = await new PostgresCharacterQuestRepository(verify).TryGetAsync(characterId, seed.QuestId);
+        Assert.Equal(CharacterQuestStatus.Active, quest!.Status);
+        var profession = await new PostgresCharacterProfessionRepository(verify)
+            .TryGetAsync(characterId, seed.ProfessionId);
+        Assert.Equal(1, profession!.Level);
+        Assert.Equal(1, await CountLedgerRowsAsync(verify, identity.LedgerKey));
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
     public async Task ExecutePlan_TurnInQuest_AtomicRewardsAndReplay()
     {
         using var gate = CreateGate();
@@ -405,6 +495,24 @@ public sealed class PostgresMapEventMutationRepositoryTests
             Discriminator = discriminator,
             SchemaVersion = 1,
             ParameterJson = json,
+        };
+
+    private static MapEventCommandDefinition BranchThen(IReadOnlyList<MapEventCommandDefinition> thenCommands) =>
+        new()
+        {
+            Discriminator = MapEventCommandDiscriminators.Branch,
+            SchemaVersion = 1,
+            ParameterJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                conditionKind = MapEventConditionKinds.CharacterSwitch,
+                conditionParameterJson = """{"switchId":"gate_open","value":true}""",
+                thenCommands = thenCommands.Select(c => new
+                {
+                    discriminator = c.Discriminator,
+                    parameterJson = c.ParameterJson,
+                }).ToArray(),
+                elseCommands = Array.Empty<object>(),
+            }),
         };
 
     private static IEnumerable<MapEventCommandDefinition> FullPersistentEffects(Phase8PostgresContentSeedResult seed)

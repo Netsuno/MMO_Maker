@@ -6,6 +6,11 @@ namespace Frog.Server.Gameplay;
 
 internal static partial class MapEventCommandExecutorExtensions
 {
+    /// <summary>
+    /// Aplatissage local historique. Le chemin public planifie via
+    /// <see cref="Frog.Core.Events.MapEventExecutionPlanner"/> puis
+    /// <c>TryExecutePlanAsync</c> ; cette méthode reste pour tests / reprise wait.
+    /// </summary>
     public static async Task<(IReadOnlyList<MapEventCommandDefinition> Commands, string? Error)> FlattenBranchesAsync(
         this MapEventCommandExecutor executor,
         Session session,

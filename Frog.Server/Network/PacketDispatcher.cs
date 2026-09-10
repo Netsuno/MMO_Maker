@@ -1068,6 +1068,12 @@ public sealed partial class PacketDispatcher(
             await SendCombatStateAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         }
 
+        if (result.QuestsChanged)
+        {
+            await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         if (result.TeleportApplied)
         {
             await _packetSender.SendPositionUpdateAsync(

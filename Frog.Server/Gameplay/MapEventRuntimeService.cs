@@ -91,6 +91,10 @@ public sealed class MapEventRuntimeService
         return ExecuteWithCatalogAsync(session, characterId, placement, triggerKind, cancellationToken);
     }
 
+    /// <summary>
+    /// Reprise <c>wait</c> : les commandes restantes s'exécutent in-memory (le requestId
+    /// ledger de la première TX rejouerait le snapshot « stopped at wait », pas la suite).
+    /// </summary>
     public async Task TryResumeWaitingAsync(Session session, CancellationToken cancellationToken = default)
     {
         if (session.CharacterGuid is not Guid characterId || characterId == Guid.Empty)
@@ -166,71 +170,107 @@ public sealed class MapEventRuntimeService
 
         if (_mutationRepository is not null && MapEventExecutionPlanner.CanExecuteTransactionally(page.Commands))
         {
-            var requestId = session.GetOrCreateMapEventRequestId(placement.PlacementId);
-            var (flattened, flattenErr) = await _commands.FlattenBranchesAsync(
+            var planned = await TryExecutePlannedAsync(
                     session,
                     characterId,
                     page.Commands,
+                    placement,
                     cancellationToken)
                 .ConfigureAwait(false);
-            if (flattenErr is not null)
+            if (planned is not null)
             {
-                return MapEventExecutionResult.Fail(flattenErr);
+                return planned;
             }
-
-            var plannedCommands = await MapEventExecutionPlanner.ResolveCommandsAsync(
-                    _commonEvents,
-                    flattened,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            if (plannedCommands.Error is not null)
-            {
-                return MapEventExecutionResult.Fail(plannedCommands.Error);
-            }
-
-            var mutation = await _mutationRepository.TryExecutePageAsync(
-                    characterId,
-                    requestId,
-                    placement.PlacementId,
-                    placement.CatalogId,
-                    plannedCommands.Commands,
-                    cancellationToken)
-                .ConfigureAwait(false);
-
-            if (mutation.Status == MapEventMutationStatus.Failed)
-            {
-                return MapEventExecutionResult.Fail(mutation.ErrorMessage ?? "Exécution événement échouée.");
-            }
-
-            // Keep requestId after success so public-path replay resolves to committed ledger row.
-            var snap = mutation.Snapshot;
-            if (snap?.ResultGold is int gold)
-            {
-                session.Gold = gold;
-            }
-
-            var label = $"{placement.DisplayName} ({placement.Slug})";
-            if (snap?.Waiting == true && snap.WaitUntilUtc is DateTimeOffset until && snap.PendingCommands is { Count: > 0 } pending)
-            {
-                _executionTracker.RegisterWait(characterId, new PendingWaitResume(until, pending, label));
-            }
-
-            var message = snap?.ShowText ?? label;
-            return MapEventExecutionResult.Ok(
-                message,
-                snap?.ShowText,
-                snap?.SwitchesChanged ?? false,
-                snap?.VariablesChanged ?? false,
-                snap?.InventoryChanged ?? false,
-                snap?.GoldChanged ?? false,
-                false,
-                null,
-                null,
-                null);
         }
 
+        return await ExecuteInMemoryAsync(
+                session,
+                characterId,
+                page.Commands,
+                placement,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Chemin public : planification Core (branches + common-events) puis
+    /// <see cref="IMapEventMutationRepository.TryExecutePlanAsync"/> (une TX PG + ledger).
+    /// Retourne null pour basculer sur l'exécuteur in-memory (ex. <c>teleport</c> /
+    /// <c>start_dialogue</c> révélés après expansion d'un common-event).
+    /// </summary>
+    private async Task<MapEventExecutionResult?> TryExecutePlannedAsync(
+        Session session,
+        Guid characterId,
+        IReadOnlyList<MapEventCommandDefinition> commands,
+        MapEventWireEntry placement,
+        CancellationToken cancellationToken)
+    {
+        var requestId = session.GetOrCreateMapEventRequestId(placement.PlacementId);
+        var identity = new MapEventExecutionIdentity(
+            requestId,
+            characterId,
+            placement.PlacementId,
+            placement.CatalogId);
+
+        var plan = await MapEventExecutionPlanner.PlanAsync(
+                commands,
+                _commonEvents,
+                condition => _commands.EvaluateConditionAsync(session, characterId, condition, cancellationToken),
+                identity,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!plan.IsSuccess)
+        {
+            return MapEventExecutionResult.Fail(plan.Error ?? "Planification événement échouée.");
+        }
+
+        if (MapEventExecutionPlanner.ContainsUnresolvedControlFlow(plan.Effects))
+        {
+            return MapEventExecutionResult.Fail(
+                "Plan incomplet: branche ou common-event non résolu.");
+        }
+
+        if (!MapEventExecutionPlanner.AreEffectsTransactional(plan.Effects))
+        {
+            // Common-event a révélé teleport/start_dialogue : page entière hors TX.
+            return null;
+        }
+
+        var mutation = await _mutationRepository!
+            .TryExecutePlanAsync(plan, cancellationToken)
+            .ConfigureAwait(false);
+        if (mutation.Status == MapEventMutationStatus.Failed)
+        {
+            return MapEventExecutionResult.Fail(mutation.ErrorMessage ?? "Exécution événement échouée.");
+        }
+
+        // Keep requestId after success so public-path replay resolves to committed ledger row.
+        var snap = mutation.Snapshot;
+        if (snap?.ResultGold is int gold)
+        {
+            session.Gold = gold;
+        }
+
+        var label = $"{placement.DisplayName} ({placement.Slug})";
+        if (snap?.Waiting == true
+            && snap.WaitUntilUtc is DateTimeOffset until
+            && snap.PendingCommands is { Count: > 0 } pending)
+        {
+            _executionTracker.RegisterWait(characterId, new PendingWaitResume(until, pending, label));
+        }
+
+        return MapEventExecutionResult.FromMutationSnapshot(label, snap);
+    }
+
+    private async Task<MapEventExecutionResult> ExecuteInMemoryAsync(
+        Session session,
+        Guid characterId,
+        IReadOnlyList<MapEventCommandDefinition> commands,
+        MapEventWireEntry placement,
+        CancellationToken cancellationToken)
+    {
         var state = new MapEventExecutionState();
-        var err = await _commands.ExecuteCommandsAsync(session, characterId, page.Commands, state, cancellationToken)
+        var err = await _commands.ExecuteCommandsAsync(session, characterId, commands, state, cancellationToken)
             .ConfigureAwait(false);
         if (err is not null)
         {
@@ -240,9 +280,8 @@ public sealed class MapEventRuntimeService
         var placementLabel = $"{placement.DisplayName} ({placement.Slug})";
         RegisterWaitIfNeeded(characterId, state, placementLabel);
 
-        var resultMessage = state.ShowText ?? placementLabel;
         return MapEventExecutionResult.Ok(
-            message: resultMessage,
+            message: state.ShowText ?? placementLabel,
             state.ShowText,
             state.SwitchesChanged,
             state.VariablesChanged,
@@ -251,7 +290,10 @@ public sealed class MapEventRuntimeService
             state.TeleportApplied,
             state.DialogueSummary,
             state.QuestSummary,
-            state.DialogueState);
+            state.DialogueState,
+            state.QuestsChanged,
+            state.ProfessionsChanged,
+            state.RecipesChanged);
     }
 
     private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)

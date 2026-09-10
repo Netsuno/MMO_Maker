@@ -350,6 +350,61 @@ public sealed class MapEventExecutionPlannerTests
     }
 
     [Fact]
+    public void ServerPlanner_CanExecuteTransactionally_AllowsQuestAndProfession()
+    {
+        Assert.True(ServerPlanner.CanExecuteTransactionally(
+        [
+            ShowText("ok"),
+            Cmd(MapEventCommandDiscriminators.StartQuest, """{"questId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}"""),
+            Cmd(MapEventCommandDiscriminators.AdvanceQuest, """{"questId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","stageIndex":1}"""),
+            Cmd(MapEventCommandDiscriminators.TurnInQuest, """{"questId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}"""),
+            Cmd(MapEventCommandDiscriminators.LearnProfession, """{"professionId":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}"""),
+        ]));
+    }
+
+    [Fact]
+    public void ServerPlanner_CanExecuteTransactionally_RejectsTeleportAndDialogue()
+    {
+        Assert.False(ServerPlanner.CanExecuteTransactionally(
+        [
+            ShowText("ok"),
+            Cmd(MapEventCommandDiscriminators.Teleport, """{"mapId":1,"tileX":0,"tileY":0}"""),
+        ]));
+        Assert.False(ServerPlanner.CanExecuteTransactionally(
+        [
+            Cmd(MapEventCommandDiscriminators.StartDialogue, """{"dialogueId":"cccccccc-cccc-cccc-cccc-cccccccccccc"}"""),
+        ]));
+    }
+
+    [Fact]
+    public async Task ServerPlanner_PlanAsync_ResolvesBranchViaCore()
+    {
+        var commands = new[]
+        {
+            Branch(
+                MapEventConditionKinds.CharacterSwitch,
+                """{"switchId":"gate_open","value":true}""",
+                thenCommands: [ShowText("then")],
+                elseCommands: [ShowText("else")]),
+            Cmd(MapEventCommandDiscriminators.StartQuest, """{"questId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}"""),
+        };
+
+        var plan = await ServerPlanner.PlanAsync(
+            commands,
+            new FakePublishedCommonEventCatalog([]),
+            _ => Task.FromResult(true),
+            Identity());
+
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.Equal(2, plan.Effects.Count);
+        Assert.DoesNotContain(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.Branch);
+        Assert.True(ServerPlanner.AreEffectsTransactional(plan.Effects));
+        Assert.False(ServerPlanner.ContainsUnresolvedControlFlow(plan.Effects));
+        Assert.Contains("then", plan.Effects[0].ParameterJson, StringComparison.Ordinal);
+        Assert.Equal(MapEventCommandDiscriminators.StartQuest, plan.Effects[1].Discriminator);
+    }
+
+    [Fact]
     public async Task ServerPlanner_ResolveCommandsAsync_ExpandsCommonEventViaCore()
     {
         var commonId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
@@ -394,6 +449,14 @@ public sealed class MapEventExecutionPlannerTests
 
     private static MapEventExecutionIdentity Identity() =>
         MapEventExecutionIdentity.Create(CharacterId, placementId: 101, catalogAliasId: 3, FixedRequestId);
+
+    private static MapEventCommandDefinition Cmd(string discriminator, string json) =>
+        new()
+        {
+            Discriminator = discriminator,
+            SchemaVersion = 1,
+            ParameterJson = json,
+        };
 
     private static MapEventCommandDefinition ShowText(string text) =>
         new()

@@ -580,6 +580,7 @@ public sealed class MapEventCommandExecutor
             return message;
         }
 
+        state.ProfessionsChanged = true;
         state.ShowText ??= message;
         return null;
     }
@@ -683,6 +684,7 @@ public sealed class MapEventCommandExecutor
             return "Quête introuvable ou transition invalide.";
         }
 
+        state.QuestsChanged = true;
         state.QuestSummary = summary;
         state.ShowText ??= summary;
         return null;

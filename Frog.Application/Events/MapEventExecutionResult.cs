@@ -19,6 +19,12 @@ public sealed class MapEventExecutionResult
 
     public bool GoldChanged { get; init; }
 
+    public bool QuestsChanged { get; init; }
+
+    public bool ProfessionsChanged { get; init; }
+
+    public bool RecipesChanged { get; init; }
+
     public bool TeleportApplied { get; init; }
 
     public string? DialogueSummary { get; init; }
@@ -37,7 +43,10 @@ public sealed class MapEventExecutionResult
         bool teleportApplied = false,
         string? dialogueSummary = null,
         string? questSummary = null,
-        DialogueStatePushWire? dialogueState = null) =>
+        DialogueStatePushWire? dialogueState = null,
+        bool questsChanged = false,
+        bool professionsChanged = false,
+        bool recipesChanged = false) =>
         new()
         {
             Success = true,
@@ -47,11 +56,33 @@ public sealed class MapEventExecutionResult
             VariablesChanged = variablesChanged,
             InventoryChanged = inventoryChanged,
             GoldChanged = goldChanged,
+            QuestsChanged = questsChanged,
+            ProfessionsChanged = professionsChanged,
+            RecipesChanged = recipesChanged,
             TeleportApplied = teleportApplied,
             DialogueSummary = dialogueSummary,
             QuestSummary = questSummary,
             DialogueState = dialogueState,
         };
+
+    /// <summary>
+    /// Mappe le snapshot persisté (J4-PG) vers le résultat public. <c>teleport</c> /
+    /// <c>start_dialogue</c> restent hors TX et ne sont donc jamais présents ici.
+    /// </summary>
+    public static MapEventExecutionResult FromMutationSnapshot(
+        string fallbackMessage,
+        MapEventExecutionSnapshot? snap) =>
+        Ok(
+            message: snap?.ShowText ?? fallbackMessage,
+            showText: snap?.ShowText,
+            switchesChanged: snap?.SwitchesChanged ?? false,
+            variablesChanged: snap?.VariablesChanged ?? false,
+            inventoryChanged: snap?.InventoryChanged ?? false,
+            goldChanged: snap?.GoldChanged ?? false,
+            questSummary: snap?.QuestSummary,
+            questsChanged: snap?.QuestsChanged ?? false,
+            professionsChanged: snap?.ProfessionsChanged ?? false,
+            recipesChanged: snap?.RecipesChanged ?? false);
 
     public static MapEventExecutionResult Fail(string message) =>
         new() { Success = false, Message = message };

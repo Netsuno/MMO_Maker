@@ -7,16 +7,64 @@ using CorePlanner = Frog.Core.Events.MapEventExecutionPlanner;
 namespace Frog.Server.Gameplay;
 
 /// <summary>
-/// Filtre transactionnel serveur + délégation de l'expansion common-event vers
-/// <see cref="CorePlanner"/> (J4-CORE). La planification Branch+identité vit dans Core.
+/// Filtre transactionnel serveur + délégation de la planification vers
+/// <see cref="CorePlanner"/> (J4-CORE). Branch et CommonEvent sont résolus dans Core
+/// avant le dépôt ; le repo ne doit pas les re-résoudre.
 /// </summary>
 internal static class MapEventExecutionPlanner
 {
     public sealed record ResolvedCommands(IReadOnlyList<MapEventCommandDefinition> Commands, string? Error);
 
+    /// <summary>
+    /// True si l'arbre de commandes (branches incluses) peut être commis dans une
+    /// seule transaction PG après planification Core.
+    /// <c>start_dialogue</c> et <c>teleport</c> restent hors TX (session / monde) :
+    /// une page qui les contient utilise l'exécuteur in-memory pour la page entière,
+    /// afin de ne jamais présenter une mutation partielle comme atomique.
+    /// </summary>
     public static bool CanExecuteTransactionally(IReadOnlyList<MapEventCommandDefinition> commands) =>
         ValidateCommandTree(commands, 0, out _);
 
+    public static bool AreEffectsTransactional(IReadOnlyList<MapEventCommandDefinition> effects)
+    {
+        ArgumentNullException.ThrowIfNull(effects);
+        foreach (var cmd in effects)
+        {
+            if (IsUnresolvedControlFlow(cmd.Discriminator) || !IsRepositorySupported(cmd.Discriminator))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static bool ContainsUnresolvedControlFlow(IReadOnlyList<MapEventCommandDefinition> effects)
+    {
+        ArgumentNullException.ThrowIfNull(effects);
+        return effects.Any(cmd => IsUnresolvedControlFlow(cmd.Discriminator));
+    }
+
+    public static Task<MapEventExecutionPlan> PlanAsync(
+        IReadOnlyList<MapEventCommandDefinition> commands,
+        IPublishedCommonEventCatalog commonEvents,
+        Func<MapEventConditionDefinition, Task<bool>> evaluateCondition,
+        MapEventExecutionIdentity identity,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(commonEvents);
+        ArgumentNullException.ThrowIfNull(evaluateCondition);
+
+        return CorePlanner.PlanAsync(
+            commands,
+            new PublishedCommonEventSource(commonEvents),
+            evaluateCondition,
+            identity,
+            cancellationToken);
+    }
+
+    /// <summary>Expansion common-event seule (branches conservées) — tests / compat.</summary>
     public static async Task<ResolvedCommands> ResolveCommandsAsync(
         IPublishedCommonEventCatalog commonEvents,
         IReadOnlyList<MapEventCommandDefinition> commands,
@@ -65,8 +113,7 @@ internal static class MapEventExecutionPlanner
                 continue;
             }
 
-            if (cmd.Discriminator == MapEventCommandDiscriminators.CallCommonEvent
-                || cmd.Discriminator == MapEventCommandDiscriminators.Branch)
+            if (cmd.Discriminator == MapEventCommandDiscriminators.CallCommonEvent)
             {
                 continue;
             }
@@ -81,6 +128,10 @@ internal static class MapEventExecutionPlanner
         return true;
     }
 
+    private static bool IsUnresolvedControlFlow(string discriminator) =>
+        discriminator is MapEventCommandDiscriminators.Branch
+            or MapEventCommandDiscriminators.CallCommonEvent;
+
     private static bool IsRepositorySupported(string discriminator) =>
         discriminator switch
         {
@@ -93,7 +144,11 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.TakeItem
                 or MapEventCommandDiscriminators.GiveGold
                 or MapEventCommandDiscriminators.TakeGold
-                or MapEventCommandDiscriminators.Wait => true,
+                or MapEventCommandDiscriminators.Wait
+                or MapEventCommandDiscriminators.StartQuest
+                or MapEventCommandDiscriminators.AdvanceQuest
+                or MapEventCommandDiscriminators.TurnInQuest
+                or MapEventCommandDiscriminators.LearnProfession => true,
             _ => false,
         };
 }

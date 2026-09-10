@@ -281,7 +281,8 @@ public sealed class MapEventRuntimeServiceTests
             new CharacterMutationCoordinator(),
             executor,
             new MapEventExecutionTracker(),
-            NullLogger<MapEventRuntimeService>.Instance);
+            NullLogger<MapEventRuntimeService>.Instance,
+            mutationRepository: null);
         var session = CreateSession(characterId);
 
         var first = await service.TryExecuteInteractAsync(session, CreatePlacement(50));
@@ -421,11 +422,279 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Equal("par", parallel.ShowText);
     }
 
+    [Fact]
+    public async Task ExecuteInteract_PublicPath_PlansViaCoreThenTryExecutePlanAsync()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "BranchGate",
+            EditorAliasId = 11,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.Branch,
+                            ParameterJson =
+                                """{"conditionKind":"character_switch","conditionParameterJson":"{\"switchId\":\"ready\",\"value\":true}","thenCommands":[{"discriminator":"show_text","parameterJson":"{\"text\":\"then-ok\"}"}],"elseCommands":[{"discriminator":"show_text","parameterJson":"{\"text\":\"else-no\"}"}]}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.StartQuest,
+                            ParameterJson = """{"questId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var worldState = new InMemoryCharacterWorldStateRepository();
+        await worldState.SetSwitchAsync(characterId, "ready", true);
+        var repo = new RecordingMutationRepository
+        {
+            Handler = plan => new MapEventMutationResult(
+                MapEventMutationStatus.Executed,
+                null,
+                new MapEventExecutionSnapshot
+                {
+                    ShowText = "tx-show",
+                    QuestsChanged = true,
+                    ProfessionsChanged = true,
+                    RecipesChanged = true,
+                    QuestSummary = "Quête démarrée: Test",
+                    SwitchesChanged = true,
+                }),
+        };
+        var service = CreateService(catalog, worldState, new InMemoryCharacterPayloadReader(), mutationRepository: repo);
+        var session = CreateSession(characterId);
+
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(11));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Equal(0, repo.PageCalls);
+        Assert.Single(repo.Plans);
+        var plan = repo.Plans[0];
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.Equal(characterId, plan.Identity.CharacterId);
+        Assert.Equal(session.GetOrCreateMapEventRequestId(1), plan.Identity.RequestId);
+        Assert.DoesNotContain(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.Branch);
+        Assert.DoesNotContain(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+        Assert.Contains(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.ShowText);
+        Assert.Contains(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.StartQuest);
+        Assert.Contains("then-ok", plan.Effects[0].ParameterJson, StringComparison.Ordinal);
+        Assert.Equal("tx-show", result.ShowText);
+        Assert.True(result.QuestsChanged);
+        Assert.True(result.ProfessionsChanged);
+        Assert.True(result.RecipesChanged);
+        Assert.Equal("Quête démarrée: Test", result.QuestSummary);
+        Assert.True(result.SwitchesChanged);
+        Assert.False(result.TeleportApplied);
+        Assert.Null(result.DialogueState);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_PublicPath_ReplayKeepsRequestId()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Replay",
+            EditorAliasId = 12,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.LearnProfession,
+                            ParameterJson = """{"professionId":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var calls = 0;
+        repo.Handler = _ =>
+        {
+            calls++;
+            return new MapEventMutationResult(
+                calls == 1 ? MapEventMutationStatus.Executed : MapEventMutationStatus.IdempotentReplay,
+                null,
+                new MapEventExecutionSnapshot
+                {
+                    ShowText = "Métier acquis.",
+                    ProfessionsChanged = true,
+                });
+        };
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+        var placement = CreatePlacement(12);
+
+        var first = await service.TryExecuteInteractAsync(session, placement);
+        var second = await service.TryExecuteInteractAsync(session, placement);
+
+        Assert.True(first!.Success);
+        Assert.True(second!.Success);
+        Assert.Equal(2, repo.Plans.Count);
+        Assert.Equal(0, repo.PageCalls);
+        Assert.Equal(repo.Plans[0].Identity.RequestId, repo.Plans[1].Identity.RequestId);
+        Assert.Equal(repo.Plans[0].Identity.LedgerKey, repo.Plans[1].Identity.LedgerKey);
+        Assert.True(second.ProfessionsChanged);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_PublicPath_FailedMutation_IsNotPresentedAsSuccess()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "FailTx",
+            EditorAliasId = 15,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = """{"switchId":"should_not_leak","value":true}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.GiveItem,
+                            ParameterJson = """{"itemId":"dddddddd-dddd-dddd-dddd-dddddddddddd","quantity":1}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository
+        {
+            Handler = _ => new MapEventMutationResult(MapEventMutationStatus.Failed, "injected-fail"),
+        };
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(15));
+
+        Assert.NotNull(result);
+        Assert.False(result!.Success);
+        Assert.Equal("injected-fail", result.Message);
+        Assert.False(result.SwitchesChanged);
+        Assert.False(result.InventoryChanged);
+        Assert.Single(repo.Plans);
+        Assert.Equal(0, repo.PageCalls);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_TeleportPage_DoesNotCallMutationRepository()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Warp",
+            EditorAliasId = 13,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"before-teleport"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.Teleport,
+                            ParameterJson = """{"mapId":1,"tileX":0,"tileY":0}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+
+        await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(13));
+
+        Assert.Empty(repo.Plans);
+        Assert.Equal(0, repo.PageCalls);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_StartDialoguePage_DoesNotCallMutationRepository()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Talk",
+            EditorAliasId = 14,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.StartDialogue,
+                            ParameterJson = """{"dialogueId":"cccccccc-cccc-cccc-cccc-cccccccccccc"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+
+        await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(14));
+
+        Assert.Empty(repo.Plans);
+        Assert.Equal(0, repo.PageCalls);
+    }
+
     private static MapEventRuntimeService CreateService(
         IPublishedMapEventCatalog catalog,
         InMemoryCharacterWorldStateRepository worldState,
         InMemoryCharacterPayloadReader payload,
-        MapEventExecutionTracker? tracker = null)
+        MapEventExecutionTracker? tracker = null,
+        IMapEventMutationRepository? mutationRepository = null)
     {
         var phase8 = new Phase8InMemoryPublishedContent();
         var characters = new InMemoryCharacterRepository();
@@ -464,7 +733,8 @@ public sealed class MapEventRuntimeServiceTests
             new CharacterMutationCoordinator(),
             executor,
             tracker ?? new MapEventExecutionTracker(),
-            NullLogger<MapEventRuntimeService>.Instance);
+            NullLogger<MapEventRuntimeService>.Instance,
+            mutationRepository);
     }
 
     private static Session CreateSession(Guid characterId) =>
@@ -501,5 +771,46 @@ public sealed class MapEventRuntimeServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<MapEventDefinition?>(
                 definition.EditorAliasId == editorAliasId ? definition : null);
+    }
+
+    private sealed class RecordingMutationRepository : IMapEventMutationRepository
+    {
+        public List<MapEventExecutionPlan> Plans { get; } = [];
+
+        public int PageCalls { get; private set; }
+
+        public Func<MapEventExecutionPlan, MapEventMutationResult>? Handler { get; set; }
+
+        public Task<MapEventMutationResult> TryExecutePlanAsync(
+            MapEventExecutionPlan plan,
+            CancellationToken cancellationToken = default)
+        {
+            Plans.Add(plan);
+            if (Handler is not null)
+            {
+                return Task.FromResult(Handler(plan));
+            }
+
+            return Task.FromResult(new MapEventMutationResult(
+                MapEventMutationStatus.Executed,
+                null,
+                new MapEventExecutionSnapshot()));
+        }
+
+        public Task<MapEventMutationResult> TryExecutePageAsync(
+            Guid characterId,
+            Guid requestId,
+            long placementId,
+            int catalogAliasId,
+            IReadOnlyList<MapEventCommandDefinition> commands,
+            CancellationToken cancellationToken = default)
+        {
+            PageCalls++;
+            return TryExecutePlanAsync(
+                MapEventExecutionPlan.Ok(
+                    new MapEventExecutionIdentity(requestId, characterId, placementId, catalogAliasId),
+                    commands),
+                cancellationToken);
+        }
     }
 }

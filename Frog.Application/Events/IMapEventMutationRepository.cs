@@ -15,7 +15,10 @@ public interface IMapEventMutationRepository
         MapEventExecutionPlan plan,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Compatibilité serveur (J4-SERVER rebranchera sur <see cref="TryExecutePlanAsync"/>).</summary>
+    /// <summary>
+    /// Compatibilité tests / anciens appelants. Le chemin public serveur (J4-SERVER)
+    /// planifie via Core puis appelle <see cref="TryExecutePlanAsync"/>.
+    /// </summary>
     Task<MapEventMutationResult> TryExecutePageAsync(
         Guid characterId,
         Guid requestId,

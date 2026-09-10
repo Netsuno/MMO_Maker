@@ -15,6 +15,12 @@ public sealed class MapEventExecutionState
 
     public bool GoldChanged { get; set; }
 
+    public bool QuestsChanged { get; set; }
+
+    public bool ProfessionsChanged { get; set; }
+
+    public bool RecipesChanged { get; set; }
+
     public bool TeleportApplied { get; set; }
 
     public string? DialogueSummary { get; set; }

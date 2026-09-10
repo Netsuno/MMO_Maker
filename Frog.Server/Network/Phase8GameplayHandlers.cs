@@ -460,8 +460,7 @@ public sealed class Phase8GameplayHandlers(
                 continue;
             }
 
-            var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
-            await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
+            await ApplyRuntimeClientEffectsAsync(client, session, runtimeResult, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -504,8 +503,7 @@ public sealed class Phase8GameplayHandlers(
                     continue;
                 }
 
-                var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
-                await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
+                await ApplyRuntimeClientEffectsAsync(client, session, runtimeResult, cancellationToken)
                     .ConfigureAwait(false);
             }
             finally
@@ -522,5 +520,21 @@ public sealed class Phase8GameplayHandlers(
     {
         _ = client;
         return mapEventRuntime.TryResumeWaitingAsync(session, cancellationToken);
+    }
+
+    private async Task ApplyRuntimeClientEffectsAsync(
+        ClientSession client,
+        Session session,
+        MapEventExecutionResult runtimeResult,
+        CancellationToken cancellationToken)
+    {
+        if (runtimeResult.QuestsChanged)
+        {
+            await SendQuestJournalAsync(client, session, cancellationToken).ConfigureAwait(false);
+        }
+
+        var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+        await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
+            .ConfigureAwait(false);
     }
 }
