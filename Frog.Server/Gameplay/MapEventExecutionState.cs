@@ -59,6 +59,9 @@ public sealed class MapEventExecutionState
 
     public int CommonEventDepth { get; set; }
 
+    /// <summary>Pile d'appels CE pour refuser les cycles CE→CE (J5-FIX-08) hors planification.</summary>
+    public HashSet<Guid> CommonEventCallStack { get; } = [];
+
     public int TotalSteps { get; set; }
 
     public int BranchDepth { get; set; }

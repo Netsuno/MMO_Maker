@@ -478,7 +478,7 @@ public sealed class PostgresPhase8PublishedCatalogs
         }
 
         byContent[contentId] = publishing;
-        return CommonEventCycleDetector.DetectCycles(byContent.Values.ToList());
+        return CommonEventCycleDetector.DetectCycles(byContent.Values.ToList(), contentId);
     }
 
     private delegate bool TryDeserialize<T>(string json, out T value, out string? error);

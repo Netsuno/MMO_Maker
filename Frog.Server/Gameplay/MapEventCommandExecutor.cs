@@ -749,18 +749,30 @@ public sealed class MapEventCommandExecutor
                 return "Événement commun introuvable.";
             }
 
-            var page = await MapEventPageSelector.SelectBestPageAsync(
-                    definition.Pages,
-                    placementTrigger: null,
-                    condition => EvaluateConditionAsync(session, characterId, condition, cancellationToken))
-                .ConfigureAwait(false);
-            if (page is null)
+            if (!state.CommonEventCallStack.Add(definition.Id))
             {
-                return "Aucune page active pour cet événement commun.";
+                return "Cycle common-event détecté.";
             }
 
-            return await ExecuteCommandsAsync(session, characterId, page.Commands, state, cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                var page = await MapEventPageSelector.SelectBestPageAsync(
+                        definition.Pages,
+                        placementTrigger: null,
+                        condition => EvaluateConditionAsync(session, characterId, condition, cancellationToken))
+                    .ConfigureAwait(false);
+                if (page is null)
+                {
+                    return "Aucune page active pour cet événement commun.";
+                }
+
+                return await ExecuteCommandsAsync(session, characterId, page.Commands, state, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                state.CommonEventCallStack.Remove(definition.Id);
+            }
         }
         finally
         {

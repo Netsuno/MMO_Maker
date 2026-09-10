@@ -197,19 +197,18 @@ public sealed class MapEventRuntimeService
             return MapEventExecutionResult.Fail("Aucune page active pour cet événement.");
         }
 
-        if (_mutationRepository is not null && MapEventExecutionPlanner.CanExecuteTransactionally(page.Commands))
+        // Always plan first (J5-FIX-07/08): missing CE refs and CE→CE cycles fail
+        // with no effects, including when the mutation repository is absent.
+        var planned = await TryExecutePlannedAsync(
+                session,
+                characterId,
+                page.Commands,
+                placement,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (planned is not null)
         {
-            var planned = await TryExecutePlannedAsync(
-                    session,
-                    characterId,
-                    page.Commands,
-                    placement,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            if (planned is not null)
-            {
-                return planned;
-            }
+            return planned;
         }
 
         return await ExecuteInMemoryAsync(
@@ -259,13 +258,15 @@ public sealed class MapEventRuntimeService
                 "Plan incomplet: branche ou common-event non résolu.");
         }
 
-        if (!MapEventExecutionPlanner.AreEffectsTransactional(plan.Effects))
+        if (!MapEventExecutionPlanner.AreEffectsTransactional(plan.Effects)
+            || _mutationRepository is null)
         {
-            // Common-event a révélé teleport/start_dialogue : page entière hors TX.
+            // Common-event a révélé teleport/start_dialogue, ou pas de repo PG :
+            // page entière hors TX (exécuteur in-memory).
             return null;
         }
 
-        var mutation = await _mutationRepository!
+        var mutation = await _mutationRepository
             .TryExecutePlanAsync(plan, cancellationToken)
             .ConfigureAwait(false);
         if (mutation.Status == MapEventMutationStatus.Failed)

@@ -144,5 +144,8 @@ public sealed class CommonEventCycleDetectorTests
         Assert.Contains("Cycle call_common_event", error, StringComparison.Ordinal);
         Assert.Contains("Alpha", error, StringComparison.Ordinal);
         Assert.Contains("Beta", error, StringComparison.Ordinal);
+        Assert.NotNull(CommonEventCycleDetector.DetectCycles(events, idA));
+        Assert.NotNull(CommonEventCycleDetector.DetectCycles(events, idB));
+        Assert.Null(CommonEventCycleDetector.DetectCycles(events, Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc")));
     }
 }

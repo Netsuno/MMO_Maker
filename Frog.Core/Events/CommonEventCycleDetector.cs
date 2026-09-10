@@ -5,7 +5,14 @@ namespace Frog.Core.Events;
 /// <summary>Détecte les cycles <c>call_common_event</c> entre événements communs publiés.</summary>
 public static class CommonEventCycleDetector
 {
-    public static string? DetectCycles(IReadOnlyList<CommonEventDefinition> events)
+    public static string? DetectCycles(IReadOnlyList<CommonEventDefinition> events) =>
+        DetectCycles(events, mustInvolve: null);
+
+    /// <param name="mustInvolve">
+    /// When set, ignore cycles that do not include this id (a publish should fail only
+    /// if the CE being saved participates in a CE→CE cycle).
+    /// </param>
+    public static string? DetectCycles(IReadOnlyList<CommonEventDefinition> events, Guid? mustInvolve)
     {
         if (events.Count == 0)
         {
@@ -51,7 +58,7 @@ public static class CommonEventCycleDetector
                 continue;
             }
 
-            var cycle = Dfs(id, adjacency, byId, visiting, visited, stack);
+            var cycle = Dfs(id, adjacency, byId, visiting, visited, stack, mustInvolve);
             if (cycle is not null)
             {
                 return cycle;
@@ -111,7 +118,8 @@ public static class CommonEventCycleDetector
         IReadOnlyDictionary<Guid, CommonEventDefinition> byId,
         HashSet<Guid> visiting,
         HashSet<Guid> visited,
-        List<Guid> stack)
+        List<Guid> stack,
+        Guid? mustInvolve)
     {
         visiting.Add(node);
         stack.Add(node);
@@ -123,7 +131,13 @@ public static class CommonEventCycleDetector
                 if (visiting.Contains(next))
                 {
                     var cycleStart = stack.IndexOf(next);
-                    var cycleIds = stack.Skip(cycleStart).Append(next);
+                    var cycleIds = stack.Skip(cycleStart).Append(next).ToList();
+                    if (mustInvolve is Guid required
+                        && cycleIds.TrueForAll(id => id != required))
+                    {
+                        continue;
+                    }
+
                     var names = cycleIds.Select(id =>
                         byId.TryGetValue(id, out var def) && !string.IsNullOrWhiteSpace(def.Name)
                             ? def.Name
@@ -136,7 +150,7 @@ public static class CommonEventCycleDetector
                     continue;
                 }
 
-                var cycle = Dfs(next, adjacency, byId, visiting, visited, stack);
+                var cycle = Dfs(next, adjacency, byId, visiting, visited, stack, mustInvolve);
                 if (cycle is not null)
                 {
                     return cycle;

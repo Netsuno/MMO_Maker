@@ -545,6 +545,45 @@ public sealed class Phase8PostgresE2ETests
         }
     }
 
+    /// <summary>
+    /// J5-FIX-07 / J5-FIX-08: missing CE ref and CE→CE cycle fail on the public TCP
+    /// path (InteractResult) without SetSwitch persistence. Proof is InteractResult
+    /// failure + no WorldSwitchSnapshot + conditioned probe page still unset.
+    /// No mid-scenario SQL.
+    /// </summary>
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task CommonEvent_PublicPath_MissingRefAndCycle_FailWithoutPersistentEffects()
+    {
+        var seed = await SeedPublishedContentAsync();
+        var port = Phase7TcpTestPorts.GetFreePort();
+        using var host = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port).Build();
+        await host.StartAsync();
+        try
+        {
+            await using var client = new Phase7TcpTestClient();
+            await client.ConnectAsync("127.0.0.1", port);
+            Assert.Equal((byte)PacketId.Hello, (await client.ReadFrameAsync())[0]);
+
+            var user = $"p8ce-{Guid.NewGuid():N}"[..16];
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildRegister(user, "password12345"));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.RegisterResult))[1]);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildLogin(user, "password12345"));
+            _ = await client.ReadUntilAsync(PacketId.LoginResult);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterCreate("CeRejectHero", seed.Phase7.ClassId));
+            var characterId = Phase7WireDecoders.DecodeCharacterId(await client.ReadUntilAsync(PacketId.CharacterCreateResult));
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
+            _ = await Phase8TcpTestHelpers.DrainAccountSelectSnapshotsAsync(client);
+
+            await AssertMissingAndCycleCommonEventRejectsAsync(client, seed);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
     private async Task AssertSeedContentAsync(Phase8PostgresContentSeedResult seed)
     {
         using var gate = CreateGate();
@@ -573,6 +612,88 @@ public sealed class Phase8PostgresE2ETests
         Assert.Contains(
             child!.Pages.SelectMany(p => p.Commands),
             c => c.Discriminator == MapEventCommandDiscriminators.SetSwitch);
+
+        Assert.Null(await commons.TryGetPublishedByIdAsync(seed.MissingCommonEventId));
+        var cycleA = await commons.TryGetPublishedByIdAsync(seed.CycleCommonEventIdA);
+        var cycleB = await commons.TryGetPublishedByIdAsync(seed.CycleCommonEventIdB);
+        Assert.NotNull(cycleA);
+        Assert.NotNull(cycleB);
+        Assert.Contains(
+            cycleA!.Pages.SelectMany(p => p.Commands),
+            c => c.Discriminator == MapEventCommandDiscriminators.SetSwitch);
+        Assert.Contains(
+            cycleA.Pages.SelectMany(p => p.Commands),
+            c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+        Assert.Contains(
+            cycleB!.Pages.SelectMany(p => p.Commands),
+            c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+
+        var missingCaller = await mapEvents.TryGetPublishedByAliasAsync(
+            Phase8PostgresContentSeed.MissingCommonEventCallerMapEventAliasId);
+        Assert.NotNull(missingCaller);
+        Assert.Contains(
+            missingCaller!.Pages.SelectMany(p => p.Commands),
+            c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+    }
+
+    private static async Task AssertMissingAndCycleCommonEventRejectsAsync(
+        Phase7TcpTestClient client,
+        Phase8PostgresContentSeedResult seed)
+    {
+        await AssertPlanFailWithoutPersistentSwitchAsync(
+            client,
+            seed.MissingCommonEventTileX,
+            seed.MissingCommonEventTileY,
+            seed.MissingCommonEventProbeTileX,
+            seed.MissingCommonEventProbeTileY,
+            "introuvable",
+            Phase8PostgresContentSeed.MissingCommonEventProbeUnsetText,
+            Phase8PostgresContentSeed.MissingCommonEventProbeSetText,
+            Phase8PublicSwitchWireGap.MissingCommonEventSwitchId);
+
+        await AssertPlanFailWithoutPersistentSwitchAsync(
+            client,
+            seed.CycleCommonEventTileX,
+            seed.CycleCommonEventTileY,
+            seed.CycleCommonEventProbeTileX,
+            seed.CycleCommonEventProbeTileY,
+            "Cycle common-event",
+            Phase8PostgresContentSeed.CycleCommonEventProbeUnsetText,
+            Phase8PostgresContentSeed.CycleCommonEventProbeSetText,
+            Phase8PublicSwitchWireGap.CycleCommonEventSwitchId);
+    }
+
+    private static async Task AssertPlanFailWithoutPersistentSwitchAsync(
+        Phase7TcpTestClient client,
+        int callerTileX,
+        int callerTileY,
+        int probeTileX,
+        int probeTileY,
+        string errorNeedle,
+        string probeUnsetText,
+        string probeSetText,
+        string switchId)
+    {
+        await Phase8MovementTestHelpers.TeleportToTileAsync(client, callerTileX, callerTileY);
+        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+        var (interact, switches) = await Phase8TcpTestHelpers.ReadInteractCollectingSwitchSnapshotAsync(client);
+        Assert.True(Phase8WireDecoders.TryDecodeInteractResult(interact, out var ok, out var message));
+        Assert.False(ok);
+        Assert.Contains(errorNeedle, message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("should not fire", message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(
+            Phase8WireDecoders.ContainsSwitch(switches, switchId, true),
+            "Failed plan must not emit WorldSwitchSnapshot for the probe switch.");
+
+        await Phase8MovementTestHelpers.TeleportToTileAsync(client, probeTileX, probeTileY);
+        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+        var (probeInteract, probeSwitches) =
+            await Phase8TcpTestHelpers.ReadInteractCollectingSwitchSnapshotAsync(client);
+        Assert.True(Phase8WireDecoders.TryDecodeInteractResult(probeInteract, out var probeOk, out var probeMsg));
+        Assert.True(probeOk);
+        Assert.Contains(probeUnsetText, probeMsg, StringComparison.Ordinal);
+        Assert.DoesNotContain(probeSetText, probeMsg, StringComparison.Ordinal);
+        Assert.False(Phase8WireDecoders.ContainsSwitch(probeSwitches, switchId, true));
     }
 
     private async Task<Phase8PostgresContentSeedResult> SeedPublishedContentAsync()

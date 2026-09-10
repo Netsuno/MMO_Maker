@@ -902,9 +902,10 @@ public sealed class MapEventRuntimeServiceTests
             ],
         });
         var repo = new RecordingMutationRepository();
+        var worldState = new InMemoryCharacterWorldStateRepository();
         var service = CreateService(
             catalog,
-            new InMemoryCharacterWorldStateRepository(),
+            worldState,
             new InMemoryCharacterPayloadReader(),
             mutationRepository: repo,
             configureContent: content =>
@@ -919,6 +920,11 @@ public sealed class MapEventRuntimeServiceTests
                         {
                             Commands =
                             [
+                                new MapEventCommandDefinition
+                                {
+                                    Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                                    ParameterJson = """{"switchId":"cycle_ce_probe","value":true}""",
+                                },
                                 new MapEventCommandDefinition
                                 {
                                     Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
@@ -956,6 +962,105 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Contains("Cycle common-event", result.Message, StringComparison.Ordinal);
         Assert.Empty(repo.Plans);
         Assert.Equal(0, repo.PageCalls);
+        Assert.False(result.SwitchesChanged);
+        Assert.Empty(result.SwitchChanges);
+        Assert.Null(await worldState.GetSwitchAsync(characterId, "cycle_ce_probe"));
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_PublicPath_MissingCommonEvent_FailsPlanWithoutSetSwitch()
+    {
+        var characterId = Guid.NewGuid();
+        var missingId = Guid.Parse("dddddddd-00b1-4000-8000-000000000099");
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "MissingCaller",
+            EditorAliasId = 67,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = """{"switchId":"missing_ce_probe","value":true}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                            ParameterJson = $"{{\"commonEventId\":\"{missingId:D}\"}}",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var worldState = new InMemoryCharacterWorldStateRepository();
+        var service = CreateService(
+            catalog,
+            worldState,
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(67));
+
+        Assert.NotNull(result);
+        Assert.False(result!.Success);
+        Assert.Contains("introuvable", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(repo.Plans);
+        Assert.Equal(0, repo.PageCalls);
+        Assert.False(result.SwitchesChanged);
+        Assert.Empty(result.SwitchChanges);
+        Assert.Null(await worldState.GetSwitchAsync(characterId, "missing_ce_probe"));
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_InMemoryPath_MissingCommonEvent_DoesNotApplyPriorSetSwitch()
+    {
+        var characterId = Guid.NewGuid();
+        var missingId = Guid.Parse("dddddddd-00b2-4000-8000-000000000099");
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "MissingCallerInMemory",
+            EditorAliasId = 68,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = """{"switchId":"missing_ce_mem","value":true}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                            ParameterJson = $"{{\"commonEventId\":\"{missingId:D}\"}}",
+                        },
+                    ],
+                },
+            ],
+        });
+        var worldState = new InMemoryCharacterWorldStateRepository();
+        var service = CreateService(
+            catalog,
+            worldState,
+            new InMemoryCharacterPayloadReader());
+
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(68));
+
+        Assert.NotNull(result);
+        Assert.False(result!.Success);
+        Assert.Contains("introuvable", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(await worldState.GetSwitchAsync(characterId, "missing_ce_mem"));
     }
 
     private static MapEventRuntimeService CreateService(
