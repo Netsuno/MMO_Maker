@@ -230,6 +230,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         {
             _binding = false;
         }
+
+        NotifyChanged();
     }
 
     public bool TryBuildPages(out IReadOnlyList<MapEventPageDefinition> pages, out string? error)

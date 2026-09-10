@@ -15,6 +15,8 @@ internal sealed class Phase8ContentBrowseDialog : Form
     {
         View = View.Details,
         FullRowSelect = true,
+        MultiSelect = false,
+        HideSelection = false,
         Dock = DockStyle.Fill,
     };
     private readonly TextBox _txtName = new() { Width = 280 };

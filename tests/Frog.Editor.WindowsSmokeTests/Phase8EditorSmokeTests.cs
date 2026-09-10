@@ -548,10 +548,7 @@ public sealed class Phase8EditorSmokeTests
                 dialog.FilterForTest.Text = string.Empty;
                 PumpUntil(() => dialog.ItemsForTest.Items.Count >= 2, "clear filter");
 
-                SelectListItemById(dialog, copyId);
-                PumpUntil(
-                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == copyId,
-                    "select copy");
+                SelectAndWaitForId(dialog, copyId, "select copy");
                 dialog.NameForTest.Text = copyName + "-dirty";
                 Assert.True(dialog.IsDirtyForTest);
                 EditorTestHooks.OverrideMessageBoxResult = DialogResult.No;
@@ -562,10 +559,7 @@ public sealed class Phase8EditorSmokeTests
                 Assert.Equal(copyId, dialog.CurrentIdForTest);
 
                 EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
-                SelectListItemById(dialog, savedId);
-                PumpUntil(
-                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == savedId,
-                    "dirty nav discard to original");
+                SelectAndWaitForId(dialog, savedId, "dirty nav discard to original");
                 AssertStructuredEdit(dialog, kind, "r22-resave");
 
                 EditorTestHooks.OverrideMessageBoxResult = DialogResult.Yes;
@@ -574,13 +568,11 @@ public sealed class Phase8EditorSmokeTests
 
                 dialog = new Phase8ContentBrowseDialog(service);
                 dialog.Show();
-                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "reopen idle");
                 SelectKind(dialog, kind);
-                PumpUntil(() => dialog.LifecycleForTest.IsIdle, "reopen kind");
-                SelectListItemById(dialog, savedId);
                 PumpUntil(
-                    () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == savedId,
-                    "reopen select original");
+                    () => dialog.LifecycleForTest.IsIdle && ListContainsId(dialog, savedId),
+                    "reopen idle with original in list");
+                SelectAndWaitForId(dialog, savedId, "reopen select original");
                 Assert.Equal(originalName, dialog.NameForTest.Text);
                 AssertStructuredEdit(dialog, kind, "r22-resave");
 
@@ -609,7 +601,16 @@ public sealed class Phase8EditorSmokeTests
 
     private static void SelectKind(Phase8ContentBrowseDialog dialog, Phase8ContentKind kind)
     {
-        dialog.KindComboForTest.SelectedIndex = (int)kind - 1;
+        var index = (int)kind - 1;
+        if (dialog.KindComboForTest.SelectedIndex == index)
+        {
+            // Dialogue is the default kind: SelectedIndexChanged will not fire on reopen.
+            // Reload so the list is populated even if init has not run yet.
+            dialog.BtnReloadForTest.PerformClick();
+            return;
+        }
+
+        dialog.KindComboForTest.SelectedIndex = index;
     }
 
     private static bool ListContainsId(Phase8ContentBrowseDialog dialog, Guid id)
@@ -724,22 +725,56 @@ public sealed class Phase8EditorSmokeTests
         }
     }
 
+    private static void SelectAndWaitForId(Phase8ContentBrowseDialog dialog, Guid id, string step)
+    {
+        PumpUntil(() => ListContainsId(dialog, id), step + " (item visible)");
+        SelectListItemById(dialog, id);
+        try
+        {
+            StaTestRunner.PumpUntil(
+                () => dialog.LifecycleForTest.IsIdle && dialog.CurrentIdForTest == id,
+                EditorSmokeTestAccess.DefaultTimeout);
+        }
+        catch (TimeoutException ex)
+        {
+            throw new TimeoutException(
+                $"Phase 8 editor smoke timed out at '{step}': current={dialog.CurrentIdForTest:D}, " +
+                $"looking={id:D}, items={dialog.ItemsForTest.Items.Count}, idle={dialog.LifecycleForTest.IsIdle}, " +
+                $"selected={dialog.ItemsForTest.SelectedItems.Count}. {ex.Message}",
+                ex);
+        }
+    }
+
     private static void SelectListItemById(Phase8ContentBrowseDialog dialog, Guid id)
     {
-        foreach (ListViewItem item in dialog.ItemsForTest.Items)
-        {
-            item.Selected = false;
-        }
-
+        ListViewItem? match = null;
         foreach (ListViewItem item in dialog.ItemsForTest.Items)
         {
             if (Guid.TryParse(item.Text, out var g) && g == id)
             {
-                item.Selected = true;
-                item.Focused = true;
-                return;
+                match = item;
+                break;
             }
         }
+
+        if (match is null)
+        {
+            return;
+        }
+
+        if (match.Selected && dialog.CurrentIdForTest == id)
+        {
+            return;
+        }
+
+        if (match.Selected)
+        {
+            match.Selected = false;
+        }
+
+        match.Selected = true;
+        match.Focused = true;
+        match.EnsureVisible();
     }
 
     private static void PumpUntil(Func<bool> predicate, string step)
