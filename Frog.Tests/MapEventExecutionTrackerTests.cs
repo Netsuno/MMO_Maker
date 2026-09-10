@@ -103,4 +103,26 @@ public sealed class MapEventExecutionTrackerTests
         Assert.True(tracker.TryFireAutorunOnce(characterId, 2, eventId, mapId: 1));
         Assert.Empty(tracker.TakeReadyWaits(characterId, DateTimeOffset.UtcNow.AddMinutes(2)));
     }
+
+    [Fact]
+    public void ClearForCharacter_DoesNotResetOtherCharacterOnSameMap()
+    {
+        var tracker = new MapEventExecutionTracker();
+        var remaining = Guid.NewGuid();
+        var leaving = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+
+        Assert.True(tracker.TryBeginParallel(remaining, 1, eventId, mapId: 4));
+        Assert.True(tracker.TryFireAutorunOnce(remaining, 2, eventId, mapId: 4));
+        Assert.True(tracker.TryBeginParallel(leaving, 1, eventId, mapId: 4));
+        Assert.True(tracker.TryFireAutorunOnce(leaving, 2, eventId, mapId: 4));
+
+        tracker.ClearForCharacter(leaving);
+        tracker.ClearAutorunForMap(leaving, mapId: 4);
+
+        Assert.False(tracker.TryBeginParallel(remaining, 1, eventId, mapId: 4));
+        Assert.False(tracker.TryFireAutorunOnce(remaining, 2, eventId, mapId: 4));
+        Assert.True(tracker.TryBeginParallel(leaving, 1, eventId, mapId: 4));
+        Assert.True(tracker.TryFireAutorunOnce(leaving, 2, eventId, mapId: 4));
+    }
 }

@@ -736,7 +736,8 @@ public sealed partial class PacketDispatcher(
         string json;
         try
         {
-            json = await _phase8.BuildMapEventsWireJsonAsync(mapId, cancellationToken).ConfigureAwait(false);
+            json = await _phase8.BuildMapEventsWireJsonAsync(mapId, cancellationToken, session.CharacterGuid)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -1109,7 +1110,10 @@ public sealed partial class PacketDispatcher(
     {
         try
         {
-            return await _phase8.GetRuntimePlacementsForMapAsync(session.CurrentMapId, cancellationToken)
+            return await _phase8.GetRuntimePlacementsForMapAsync(
+                    session.CurrentMapId,
+                    cancellationToken,
+                    session.CharacterGuid)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)

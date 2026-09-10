@@ -19,16 +19,19 @@ public sealed class MapEventMovementService
         int WaypointIndex,
         DateTimeOffset NextAdvanceUtc);
 
-    private sealed class MapSnapshot
+    private sealed record MapSnapshot
     {
         public static readonly MapSnapshot Empty = new();
 
         public ImmutableDictionary<long, PlacementSnapshot> Placements { get; init; } =
             ImmutableDictionary<long, PlacementSnapshot>.Empty;
+
+        public ImmutableHashSet<Guid> Occupants { get; init; } = ImmutableHashSet<Guid>.Empty;
     }
 
     private readonly ConcurrentDictionary<int, MapSnapshot> _snapshots = new();
     private readonly ConcurrentDictionary<int, SemaphoreSlim> _mapLocks = new();
+    private readonly ConcurrentDictionary<Guid, int> _occupantMaps = new();
     private readonly TimeProvider _clock;
 
     public MapEventMovementService(TimeProvider? clock = null) =>
@@ -58,8 +61,7 @@ public sealed class MapEventMovementService
             return placements;
         }
 
-        var snapshot = GetSnapshot(mapId);
-        return ApplySnapshotToPlacements(snapshot, placements);
+        return ApplySnapshotToPlacements(ReadPublished(mapId), placements);
     }
 
     public void TickMap(int mapId, IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles = null)
@@ -99,35 +101,122 @@ public sealed class MapEventMovementService
         }
     }
 
-    public bool IsTileBlockedByEvent(int mapId, int tileX, int tileY, long? ignorePlacementId = null)
+    public bool IsTileBlockedByEvent(int mapId, int tileX, int tileY, long? ignorePlacementId = null) =>
+        IsTileBlockedBySnapshot(ReadPublished(mapId), tileX, tileY, ignorePlacementId);
+
+    /// <summary>
+    /// Marks a character as present on the map. Occupancy lives on the same published
+    /// snapshot as execution positions so leave/join cannot fork a second copy.
+    /// </summary>
+    public void RegisterOccupant(int mapId, Guid characterId)
     {
-        foreach (var placement in GetSnapshot(mapId).Placements.Values)
+        if (characterId == Guid.Empty)
         {
-            if (ignorePlacementId is long ignored && placement.PlacementId == ignored)
-            {
-                continue;
-            }
-
-            if (!placement.BlocksCollision)
-            {
-                continue;
-            }
-
-            if (placement.TileX == tileX && placement.TileY == tileY)
-            {
-                return true;
-            }
+            return;
         }
 
-        return false;
+        if (_occupantMaps.TryGetValue(characterId, out var previous) && previous != mapId)
+        {
+            RemoveOccupantFromMap(previous, characterId);
+        }
+
+        var gate = GetMapLock(mapId);
+        gate.Wait();
+        try
+        {
+            var snapshot = GetSnapshot(mapId);
+            if (!snapshot.Occupants.Contains(characterId))
+            {
+                Publish(mapId, snapshot with { Occupants = snapshot.Occupants.Add(characterId) });
+            }
+
+            _occupantMaps[characterId] = mapId;
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
-    public void ClearMap(int mapId) => Publish(mapId, MapSnapshot.Empty);
+    /// <summary>
+    /// Removes a character from map occupancy. Execution positions are never reset here,
+    /// including when another player remains on the map.
+    /// </summary>
+    public void UnregisterOccupant(Guid characterId, int? mapId = null)
+    {
+        if (characterId == Guid.Empty)
+        {
+            return;
+        }
 
-    public void ClearAll() => _snapshots.Clear();
+        int target;
+        if (mapId is int mid)
+        {
+            target = mid;
+        }
+        else if (!_occupantMaps.TryGetValue(characterId, out target))
+        {
+            return;
+        }
+
+        RemoveOccupantFromMap(target, characterId);
+    }
+
+    public void ClearMap(int mapId)
+    {
+        ImmutableHashSet<Guid> occupants = ImmutableHashSet<Guid>.Empty;
+        WithMapWrite(mapId, snapshot =>
+        {
+            occupants = snapshot.Occupants;
+            return MapSnapshot.Empty;
+        });
+        foreach (var occupant in occupants)
+        {
+            if (_occupantMaps.TryGetValue(occupant, out var mapped) && mapped == mapId)
+            {
+                _occupantMaps.TryRemove(occupant, out _);
+            }
+        }
+    }
+
+    public void ClearAll()
+    {
+        _snapshots.Clear();
+        _occupantMaps.Clear();
+    }
 
     internal int ActiveStateCountForTest =>
         _snapshots.Values.Sum(s => s.Placements.Count);
+
+    internal int OccupantCountForTest(int mapId) =>
+        ReadPublished(mapId).Occupants.Count;
+
+    internal bool HasOccupantForTest(int mapId, Guid characterId) =>
+        ReadPublished(mapId).Occupants.Contains(characterId);
+
+    internal bool TryGetPublishedPlacementForTest(
+        int mapId,
+        long placementId,
+        out int tileX,
+        out int tileY,
+        out bool blocksCollision)
+    {
+        var snapshot = ReadPublished(mapId);
+        if (!snapshot.Placements.TryGetValue(placementId, out var state))
+        {
+            tileX = 0;
+            tileY = 0;
+            blocksCollision = false;
+            return false;
+        }
+
+        tileX = state.TileX;
+        tileY = state.TileY;
+        blocksCollision = IsTileBlockedBySnapshot(snapshot, state.TileX, state.TileY, ignorePlacementId: null);
+        return true;
+    }
+
+    private MapSnapshot ReadPublished(int mapId) => GetSnapshot(mapId);
 
     private MapSnapshot GetSnapshot(int mapId) =>
         _snapshots.GetOrAdd(mapId, static _ => MapSnapshot.Empty);
@@ -176,7 +265,7 @@ public sealed class MapEventMovementService
             builder.Remove(id);
         }
 
-        return new MapSnapshot { Placements = builder.ToImmutable() };
+        return snapshot with { Placements = builder.ToImmutable() };
     }
 
     private static MapSnapshot AdvanceAll(
@@ -196,7 +285,30 @@ public sealed class MapEventMovementService
             builder[key] = AdvanceRoute(mapId, builder[key], nowUtc, occupiedPlayerTiles, builder.ToImmutable());
         }
 
-        return new MapSnapshot { Placements = builder.ToImmutable() };
+        return snapshot with { Placements = builder.ToImmutable() };
+    }
+
+    private void RemoveOccupantFromMap(int mapId, Guid characterId)
+    {
+        var gate = GetMapLock(mapId);
+        gate.Wait();
+        try
+        {
+            var snapshot = GetSnapshot(mapId);
+            if (snapshot.Occupants.Contains(characterId))
+            {
+                Publish(mapId, snapshot with { Occupants = snapshot.Occupants.Remove(characterId) });
+            }
+
+            if (_occupantMaps.TryGetValue(characterId, out var mapped) && mapped == mapId)
+            {
+                _occupantMaps.TryRemove(characterId, out _);
+            }
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private static PlacementSnapshot CreateSnapshot(int mapId, MapEventWireEntry placement) =>
@@ -299,6 +411,33 @@ public sealed class MapEventMovementService
         int tileY,
         IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles) =>
         occupiedPlayerTiles?.Contains((tileX, tileY)) == true;
+
+    private static bool IsTileBlockedBySnapshot(
+        MapSnapshot snapshot,
+        int tileX,
+        int tileY,
+        long? ignorePlacementId)
+    {
+        foreach (var placement in snapshot.Placements.Values)
+        {
+            if (ignorePlacementId is long ignored && placement.PlacementId == ignored)
+            {
+                continue;
+            }
+
+            if (!placement.BlocksCollision)
+            {
+                continue;
+            }
+
+            if (placement.TileX == tileX && placement.TileY == tileY)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static IReadOnlyList<MapEventWireEntry> ApplySnapshotToPlacements(
         MapSnapshot snapshot,

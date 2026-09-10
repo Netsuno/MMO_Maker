@@ -35,6 +35,7 @@ public sealed class Phase8GameplayHandlers(
     {
         dialogSessions.CancelForCharacter(characterId);
         executionTracker.ClearForCharacter(characterId);
+        eventMovement.UnregisterOccupant(characterId);
     }
 
     public void ClearMapEventExecutionsForCharacter(Guid characterId, int? mapId = null)
@@ -43,13 +44,24 @@ public sealed class Phase8GameplayHandlers(
         if (mapId is int mid)
         {
             executionTracker.ClearAutorunForMap(characterId, mid);
+            eventMovement.UnregisterOccupant(characterId, mid);
+        }
+        else
+        {
+            eventMovement.UnregisterOccupant(characterId);
         }
     }
 
     public async Task<IReadOnlyList<MapEventWireEntry>> GetRuntimePlacementsForMapAsync(
         int mapId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? occupantId = null)
     {
+        if (occupantId is Guid occupant)
+        {
+            eventMovement.RegisterOccupant(mapId, occupant);
+        }
+
         var (ok, placements) = await mapEventStore.GetPlacementsAsync(mapId, cancellationToken).ConfigureAwait(false);
         if (!ok || placements.Count == 0)
         {
@@ -59,9 +71,13 @@ public sealed class Phase8GameplayHandlers(
         return eventMovement.ResolveRuntimePlacements(mapId, placements);
     }
 
-    public async Task<string> BuildMapEventsWireJsonAsync(int mapId, CancellationToken cancellationToken)
+    public async Task<string> BuildMapEventsWireJsonAsync(
+        int mapId,
+        CancellationToken cancellationToken,
+        Guid? occupantId = null)
     {
-        var runtime = await GetRuntimePlacementsForMapAsync(mapId, cancellationToken).ConfigureAwait(false);
+        var runtime = await GetRuntimePlacementsForMapAsync(mapId, cancellationToken, occupantId)
+            .ConfigureAwait(false);
         if (runtime.Count == 0)
         {
             return "[]";
@@ -73,6 +89,11 @@ public sealed class Phase8GameplayHandlers(
     public async Task TickMapEventMovementAsync(Session session, CancellationToken cancellationToken)
     {
         var mapId = session.CurrentMapId;
+        if (session.CharacterGuid is Guid occupantId)
+        {
+            eventMovement.RegisterOccupant(mapId, occupantId);
+        }
+
         var (ok, placements) = await mapEventStore.GetPlacementsAsync(mapId, cancellationToken).ConfigureAwait(false);
         if (!ok)
         {
@@ -413,9 +434,12 @@ public sealed class Phase8GameplayHandlers(
             return;
         }
 
-        var (ok, placements) = await mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
+        var placements = await GetRuntimePlacementsForMapAsync(
+                session.CurrentMapId,
+                cancellationToken,
+                session.CharacterGuid)
             .ConfigureAwait(false);
-        if (!ok)
+        if (placements.Count == 0)
         {
             return;
         }
@@ -452,9 +476,12 @@ public sealed class Phase8GameplayHandlers(
             return;
         }
 
-        var (ok, placements) = await mapEventStore.GetPlacementsAsync(session.CurrentMapId, cancellationToken)
+        var placements = await GetRuntimePlacementsForMapAsync(
+                session.CurrentMapId,
+                cancellationToken,
+                session.CharacterGuid)
             .ConfigureAwait(false);
-        if (!ok)
+        if (placements.Count == 0)
         {
             return;
         }

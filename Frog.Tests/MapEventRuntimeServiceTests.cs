@@ -339,6 +339,88 @@ public sealed class MapEventRuntimeServiceTests
         Assert.NotEqual(true, await worldState.GetSwitchAsync(characterId, "never"));
     }
 
+    [Fact]
+    public async Task ExecuteStepOnAutorunAndParallel_UsePlacementPassedFromSnapshot()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Pulse",
+            EditorAliasId = 3,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.PlayerContact,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"step"}""",
+                        },
+                    ],
+                },
+                new MapEventPageDefinition
+                {
+                    PageOrder = 1,
+                    TriggerKind = Phase8MapEventTriggerKinds.Autorun,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"auto"}""",
+                        },
+                    ],
+                },
+                new MapEventPageDefinition
+                {
+                    PageOrder = 2,
+                    TriggerKind = Phase8MapEventTriggerKinds.Parallel,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"par"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var service = CreateService(catalog, new InMemoryCharacterWorldStateRepository(), new InMemoryCharacterPayloadReader());
+        var session = CreateSession(characterId);
+        var runtimePlacement = new MapEventWireEntry
+        {
+            CatalogId = 3,
+            PlacementId = 9,
+            Slug = "pulse",
+            DisplayName = "Pulse",
+            TileX = 4,
+            TileY = 1,
+            TriggerKind = MapEventTriggerKinds.StepOn,
+        };
+
+        var step = await service.TryExecuteStepOnAsync(session, runtimePlacement);
+        Assert.NotNull(step);
+        Assert.True(step!.Success);
+        Assert.Equal("step", step.ShowText);
+
+        runtimePlacement.TriggerKind = MapEventTriggerKinds.Autorun;
+        var autorun = await service.TryExecuteAutorunAsync(session, runtimePlacement);
+        Assert.NotNull(autorun);
+        Assert.True(autorun!.Success);
+        Assert.Equal("auto", autorun.ShowText);
+
+        runtimePlacement.TriggerKind = MapEventTriggerKinds.Parallel;
+        var parallel = await service.TryExecuteParallelAsync(session, runtimePlacement);
+        Assert.NotNull(parallel);
+        Assert.True(parallel!.Success);
+        Assert.Equal("par", parallel.ShowText);
+    }
+
     private static MapEventRuntimeService CreateService(
         IPublishedMapEventCatalog catalog,
         InMemoryCharacterWorldStateRepository worldState,
