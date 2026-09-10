@@ -328,9 +328,7 @@ public sealed class PostgresMapEventMutationRepository(
             return err;
         }
 
-        var row = await db.PlayerCharacterWorldSwitches
-            .FirstOrDefaultAsync(s => s.CharacterId == characterId && s.SwitchKey == switchId, ct)
-            .ConfigureAwait(false);
+        var row = await FindSwitchAsync(db, characterId, switchId, ct).ConfigureAwait(false);
         if (row is null)
         {
             db.PlayerCharacterWorldSwitches.Add(new CharacterWorldSwitchEntity
@@ -403,9 +401,7 @@ public sealed class PostgresMapEventMutationRepository(
         string variableId,
         CancellationToken ct)
     {
-        var row = await db.PlayerCharacterWorldVariables
-            .FirstOrDefaultAsync(v => v.CharacterId == characterId && v.VariableKey == variableId, ct)
-            .ConfigureAwait(false);
+        var row = await FindVariableAsync(db, characterId, variableId, ct).ConfigureAwait(false);
         return row?.Value ?? 0;
     }
 
@@ -416,9 +412,7 @@ public sealed class PostgresMapEventMutationRepository(
         int value,
         CancellationToken ct)
     {
-        var row = await db.PlayerCharacterWorldVariables
-            .FirstOrDefaultAsync(v => v.CharacterId == characterId && v.VariableKey == variableId, ct)
-            .ConfigureAwait(false);
+        var row = await FindVariableAsync(db, characterId, variableId, ct).ConfigureAwait(false);
         if (row is null)
         {
             db.PlayerCharacterWorldVariables.Add(new CharacterWorldVariableEntity
@@ -624,9 +618,7 @@ public sealed class PostgresMapEventMutationRepository(
             return "Quête introuvable ou transition invalide.";
         }
 
-        var row = await db.PlayerCharacterQuestProgress
-            .FirstOrDefaultAsync(q => q.CharacterId == characterId && q.QuestId == questId, ct)
-            .ConfigureAwait(false);
+        var row = await FindQuestProgressAsync(db, characterId, questId, ct).ConfigureAwait(false);
         if (row is not null
             && row.Status != CharacterQuestStatus.NotStarted
             && !definition.Repeatable)
@@ -639,9 +631,7 @@ public sealed class PostgresMapEventMutationRepository(
 
         foreach (var prereqId in definition.PrerequisiteQuestIds)
         {
-            var prereq = await db.PlayerCharacterQuestProgress
-                .FirstOrDefaultAsync(q => q.CharacterId == characterId && q.QuestId == prereqId, ct)
-                .ConfigureAwait(false);
+            var prereq = await FindQuestProgressAsync(db, characterId, prereqId, ct).ConfigureAwait(false);
             if (prereq is null || prereq.Status != CharacterQuestStatus.Completed)
             {
                 return "Prérequis de quête non satisfaits.";
@@ -689,9 +679,7 @@ public sealed class PostgresMapEventMutationRepository(
             return "Quête introuvable ou transition invalide.";
         }
 
-        var row = await db.PlayerCharacterQuestProgress
-            .FirstOrDefaultAsync(q => q.CharacterId == characterId && q.QuestId == questId, ct)
-            .ConfigureAwait(false);
+        var row = await FindQuestProgressAsync(db, characterId, questId, ct).ConfigureAwait(false);
         if (row is null || row.Status is CharacterQuestStatus.NotStarted or CharacterQuestStatus.Completed)
         {
             return "Quête introuvable ou transition invalide.";
@@ -730,9 +718,7 @@ public sealed class PostgresMapEventMutationRepository(
             return "Quête introuvable ou transition invalide.";
         }
 
-        var progressRow = await db.PlayerCharacterQuestProgress
-            .FirstOrDefaultAsync(q => q.CharacterId == character.Id && q.QuestId == questId, ct)
-            .ConfigureAwait(false);
+        var progressRow = await FindQuestProgressAsync(db, character.Id, questId, ct).ConfigureAwait(false);
         if (progressRow is null
             || progressRow.Status is not (CharacterQuestStatus.ReadyToTurnIn or CharacterQuestStatus.Active)
             || progressRow.RewardClaimed)
@@ -806,9 +792,7 @@ public sealed class PostgresMapEventMutationRepository(
             return "Métier inconnu.";
         }
 
-        var existing = await db.PlayerCharacterProfessionProgress
-            .FirstOrDefaultAsync(p => p.CharacterId == characterId && p.ProfessionId == professionId, ct)
-            .ConfigureAwait(false);
+        var existing = await FindProfessionAsync(db, characterId, professionId, ct).ConfigureAwait(false);
         if (existing is not null)
         {
             snapshot.ShowText ??= $"Métier {profession.Name} déjà acquis (niv. {existing.Level}).";
@@ -889,9 +873,7 @@ public sealed class PostgresMapEventMutationRepository(
         string switchKey,
         CancellationToken ct)
     {
-        var existing = await db.PlayerCharacterWorldSwitches
-            .FirstOrDefaultAsync(s => s.CharacterId == characterId && s.SwitchKey == switchKey, ct)
-            .ConfigureAwait(false);
+        var existing = await FindSwitchAsync(db, characterId, switchKey, ct).ConfigureAwait(false);
         if (existing is { Value: true })
         {
             return false;
@@ -912,6 +894,78 @@ public sealed class PostgresMapEventMutationRepository(
         }
 
         return true;
+    }
+
+    private static async Task<CharacterWorldSwitchEntity?> FindSwitchAsync(
+        FrogDbContext db,
+        Guid characterId,
+        string switchKey,
+        CancellationToken ct)
+    {
+        var local = db.PlayerCharacterWorldSwitches.Local
+            .FirstOrDefault(s => s.CharacterId == characterId && s.SwitchKey == switchKey);
+        if (local is not null)
+        {
+            return local;
+        }
+
+        return await db.PlayerCharacterWorldSwitches
+            .FirstOrDefaultAsync(s => s.CharacterId == characterId && s.SwitchKey == switchKey, ct)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<CharacterWorldVariableEntity?> FindVariableAsync(
+        FrogDbContext db,
+        Guid characterId,
+        string variableId,
+        CancellationToken ct)
+    {
+        var local = db.PlayerCharacterWorldVariables.Local
+            .FirstOrDefault(v => v.CharacterId == characterId && v.VariableKey == variableId);
+        if (local is not null)
+        {
+            return local;
+        }
+
+        return await db.PlayerCharacterWorldVariables
+            .FirstOrDefaultAsync(v => v.CharacterId == characterId && v.VariableKey == variableId, ct)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<CharacterQuestProgressEntity?> FindQuestProgressAsync(
+        FrogDbContext db,
+        Guid characterId,
+        Guid questId,
+        CancellationToken ct)
+    {
+        var local = db.PlayerCharacterQuestProgress.Local
+            .FirstOrDefault(q => q.CharacterId == characterId && q.QuestId == questId);
+        if (local is not null)
+        {
+            return local;
+        }
+
+        return await db.PlayerCharacterQuestProgress
+            .FirstOrDefaultAsync(q => q.CharacterId == characterId && q.QuestId == questId, ct)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<CharacterProfessionProgressEntity?> FindProfessionAsync(
+        FrogDbContext db,
+        Guid characterId,
+        Guid professionId,
+        CancellationToken ct)
+    {
+        var local = db.PlayerCharacterProfessionProgress.Local
+            .FirstOrDefault(p => p.CharacterId == characterId && p.ProfessionId == professionId);
+        if (local is not null)
+        {
+            return local;
+        }
+
+        return await db.PlayerCharacterProfessionProgress
+            .FirstOrDefaultAsync(p => p.CharacterId == characterId && p.ProfessionId == professionId, ct)
+            .ConfigureAwait(false);
     }
 
     private static async Task<bool> TryLockCharacterAsync(FrogDbContext db, Guid characterId, CancellationToken ct)
