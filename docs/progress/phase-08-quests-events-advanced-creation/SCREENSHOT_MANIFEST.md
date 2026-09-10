@@ -1,27 +1,29 @@
 # Phase 8 — SCREENSHOT_MANIFEST
 
-Windows Phase 8 smoke artifacts from CI run https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 (implementation tip `7137c17`).
+Windows Phase 8 smoke artifacts from CI run https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 (implementation tip `ebc96921`).
 
 ## Client (`artifacts/phase-08-gameplay-client/`)
 
 | Filename | Description | Dimensions | SHA-256 | Implementation SHA | CI URL |
 | --- | --- | --- | --- | --- | --- |
-| `01-phase8-tab.png` | Quêtes tab | 1044×759 | b515437f9a255bf2dee440386e0e5a268be186e35527c40c5bf0133bdd7885a2 | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `02-dialogue-choices.png` | Dialogue choices | 1044×759 | b515437f9a255bf2dee440386e0e5a268be186e35527c40c5bf0133bdd7885a2 | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `03-quest-journal.png` | Quest journal | 1044×759 | 8f3c4dded64d5bef3794cbbdf2b8c0ab39f9eeceecda9ab01a91370d2812a15a | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `04-environment.png` | Region/weather/lighting | 1044×759 | 8f3c4dded64d5bef3794cbbdf2b8c0ab39f9eeceecda9ab01a91370d2812a15a | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `05-craft-panel.png` | Craft panel | 1044×759 | 344f33ab62da40d851333ac1da0db0b37834cb69886fa7db5b68873d4c3ea81a | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `06-reconnect-usable.png` | Reconnect usability | 1044×759 | 0591ed8adeb5c656265a355a33d2ac94a41872fd862f8c7eac8685e863bb9f45 | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
+| `01-phase8-tab.png` | Quêtes tab | 1044×759 | a46b009c5bdaed80bd57c10d1cbcf1efb739fd11cbacc487dde722a96c868236 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `02-dialogue-choices.png` | Dialogue choices | 1044×759 | a46b009c5bdaed80bd57c10d1cbcf1efb739fd11cbacc487dde722a96c868236 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `03-quest-journal.png` | Quest journal | 1044×759 | d7347461a9fe4506ade8b4cd4c8dff5e03e8e99d7878002668ccb8996c501a14 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `04-environment.png` | Region/weather/lighting | 1044×759 | d7347461a9fe4506ade8b4cd4c8dff5e03e8e99d7878002668ccb8996c501a14 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `05-craft-panel.png` | Craft panel | 1044×759 | 9f05041b0ea8875f02c6bcde31c50a64e5f1c69aac900fba96a4f4ff6a9ab4cd | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `06-reconnect-usable.png` | Reconnect usability | 1044×759 | 44524fc471985aed0c3f986124f3d285f3c0d02417414b33b5af7ae41cba5787 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
 
 ## Editor (`artifacts/phase-08-editor/`)
 
 | Filename | Description | Dimensions | SHA-256 | Implementation SHA | CI URL |
 | --- | --- | --- | --- | --- | --- |
-| `01-phase8-content-browse.png` | Contenu Phase 8 browse | 996×679 | 385c618cd77bf1c902149d0a92b99d96c1fcff490f8b85413e954fe9ed56cc28 | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `02-dialogue-structured-edit.png` | Structured dialogue editor | 996×679 | 8d2ac124fd298d0c5e37833ec99ce6a3a77c6ad34a8297e3484ab48babf65589 | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `03-draft-saved.png` | Draft saved | 996×679 | e901badc4462a1f695c46eac360f589ed041099984cd25a210ce5c27a3857c59 | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `04-published.png` | Published | 996×679 | 0c1a8b07e31b626e68072b6f45c156ed109b140848f3fe1e3fe27b57735425de | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `05-dirty-discard.png` | Dirty discard | 996×679 | 57a535f38b38e4e7d36f6fda0035298814cb9df81147da15888777343856e4b6 | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
-| `06-close-during-pending.png` | Close during pending op | 996×679 | d6da5724938b85b352b05751fa70928274e53ec3306ce092a79cb57900a04782 | 7137c17 | https://github.com/Netsuno/MMO_Maker/actions/runs/33317439071 |
+| `01-phase8-content-browse.png` | Contenu Phase 8 browse | 996×679 | 385c618cd77bf1c902149d0a92b99d96c1fcff490f8b85413e954fe9ed56cc28 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `02-dialogue-structured-edit.png` | Structured dialogue editor | 996×679 | dbe594815b580ebee6d8dc0b4948ab50de3e34cd1318980e2dcbb767e591db8e | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `03-draft-saved.png` | Draft saved | 996×679 | b7263421070e834ca1d60fc156e617d66ef7afa54b31f256ac3e99fce4210806 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `04-published.png` | Published | 996×679 | 8e7cac51a9e3fd0feaf07274f20084409fa1f7330adcd452ca4eec277e051478 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `05-dirty-discard.png` | Dirty discard | 996×679 | 88fa60db764cab90a65f0e5eb19fc816a0afe6445f823a1e8203e7f2664b8eb2 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| `06-close-during-pending.png` | Close during pending op | 996×679 | 8deb3bbeb7895f62aff8589d68b3eb425052672f0be5f434052ccc54a26c2109 | ebc9692 | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
 
 Phase 6/7 screenshots are **not** Phase 8 evidence.
+
+Editor `01-phase8-content-browse.png` SHA-256 is unchanged vs the prior manifest; all client files and the other editor files were refreshed on tip CI 34436843321.
