@@ -1,10 +1,15 @@
 using Frog.Application.Content;
+using Frog.Application.Events;
 using Frog.Core.Events;
 using Frog.Core.Models;
+using CorePlanner = Frog.Core.Events.MapEventExecutionPlanner;
 
 namespace Frog.Server.Gameplay;
 
-/// <summary>Résout branches et appels common-event avant exécution transactionnelle (P8-I4 / J4).</summary>
+/// <summary>
+/// Filtre transactionnel serveur + délégation de l'expansion common-event vers
+/// <see cref="CorePlanner"/> (J4-CORE). La planification Branch+identité vit dans Core.
+/// </summary>
 internal static class MapEventExecutionPlanner
 {
     public sealed record ResolvedCommands(IReadOnlyList<MapEventCommandDefinition> Commands, string? Error);
@@ -22,19 +27,10 @@ internal static class MapEventExecutionPlanner
             return new ResolvedCommands(Array.Empty<MapEventCommandDefinition>(), validationError);
         }
 
-        var resolved = new List<MapEventCommandDefinition>();
-        var stack = new HashSet<Guid>();
-        foreach (var command in commands)
-        {
-            var err = await ExpandCommandAsync(commonEvents, command, resolved, stack, 0, cancellationToken)
-                .ConfigureAwait(false);
-            if (err is not null)
-            {
-                return new ResolvedCommands(Array.Empty<MapEventCommandDefinition>(), err);
-            }
-        }
-
-        return new ResolvedCommands(resolved, null);
+        var source = new PublishedCommonEventSource(commonEvents);
+        var resolved = await CorePlanner.ExpandCommonEventsAsync(commands, source, cancellationToken)
+            .ConfigureAwait(false);
+        return new ResolvedCommands(resolved.Effects, resolved.Error);
     }
 
     private static bool ValidateCommandTree(IReadOnlyList<MapEventCommandDefinition> commands, int depth, out string? error)
@@ -100,70 +96,4 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.Wait => true,
             _ => false,
         };
-
-    private static async Task<string?> ExpandCommandAsync(
-        IPublishedCommonEventCatalog commonEvents,
-        MapEventCommandDefinition command,
-        List<MapEventCommandDefinition> output,
-        HashSet<Guid> callStack,
-        int depth,
-        CancellationToken cancellationToken)
-    {
-        if (depth > MapEventRuntimeLimits.MaxBranchDepth)
-        {
-            return "Profondeur common-event excessive.";
-        }
-
-        if (command.Discriminator != MapEventCommandDiscriminators.CallCommonEvent)
-        {
-            output.Add(command);
-            return null;
-        }
-
-        if (!MapEventParameterSchemas.TryParseCallCommonEvent(
-                command.ParameterJson,
-                out var commonEventId,
-                out var aliasId,
-                out var err))
-        {
-            return err;
-        }
-
-        CommonEventDefinition? definition = null;
-        if (commonEventId != Guid.Empty)
-        {
-            definition = await commonEvents.TryGetPublishedByIdAsync(commonEventId, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        else if (aliasId is > 0)
-        {
-            definition = await commonEvents.TryGetPublishedByAliasAsync(aliasId.Value, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        if (definition is null || definition.Pages.Count == 0)
-        {
-            return "Common event introuvable.";
-        }
-
-        if (!callStack.Add(definition.Id))
-        {
-            return "Cycle common-event détecté.";
-        }
-
-        var page = definition.Pages.OrderByDescending(p => p.Priority).First();
-        foreach (var nested in page.Commands)
-        {
-            var nestedErr = await ExpandCommandAsync(commonEvents, nested, output, callStack, depth + 1, cancellationToken)
-                .ConfigureAwait(false);
-            if (nestedErr is not null)
-            {
-                callStack.Remove(definition.Id);
-                return nestedErr;
-            }
-        }
-
-        callStack.Remove(definition.Id);
-        return null;
-    }
 }
