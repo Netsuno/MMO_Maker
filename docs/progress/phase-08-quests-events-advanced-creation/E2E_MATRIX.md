@@ -25,7 +25,7 @@ Headless PostgreSQL-backed network scenario (mandatory gate). Status updated as 
 | 19 | Region boundary — weather/lighting | `Phase8PostgresE2ETests` | PASS |
 | 20 | Server stop/restart | `Phase8PostgresE2ETests` | PASS |
 | 21 | Reconnect — persistence | `Phase8PostgresE2ETests` | PASS |
-| 22 | Republish + refresh workflow | `Phase8PostgresE2ETests` | PASS |
+| 22 | Republish + live refresh of already-connected session (catalog / map events / environment push + new dialogue, no reconnect) | `Phase8PostgresE2ETests` | PASS |
 | 23 | Clean shutdown | `Phase8PostgresE2ETests` | PASS |
 
 ## Multi-client matrix

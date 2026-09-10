@@ -157,4 +157,59 @@ public static class Phase8WireDecoders
         message = System.Text.Encoding.UTF8.GetString(payload.Slice(2, len));
         return true;
     }
+
+    public static bool TryDecodePublishedCatalog(ReadOnlySpan<byte> payload, out PublishedCatalogWire catalog)
+    {
+        catalog = new PublishedCatalogWire();
+        if (payload.Length < 3 || payload[0] != (byte)PacketId.PublishedCatalogResult)
+        {
+            return false;
+        }
+
+        var len = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(1));
+        if (payload.Length != 3 + len)
+        {
+            return false;
+        }
+
+        var json = System.Text.Encoding.UTF8.GetString(payload.Slice(3, len));
+        var parsed = System.Text.Json.JsonSerializer.Deserialize<PublishedCatalogWire>(json);
+        if (parsed is null)
+        {
+            return false;
+        }
+
+        catalog = parsed;
+        return true;
+    }
+
+    public static bool TryDecodeMapEventsResult(
+        ReadOnlySpan<byte> payload,
+        out int mapId,
+        out IReadOnlyList<MapEventWireEntry> placements)
+    {
+        mapId = 0;
+        placements = Array.Empty<MapEventWireEntry>();
+        if (payload.Length < 7 || payload[0] != (byte)PacketId.MapEventsResult)
+        {
+            return false;
+        }
+
+        mapId = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(1));
+        var len = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(5));
+        if (payload.Length != 7 + len)
+        {
+            return false;
+        }
+
+        var json = System.Text.Encoding.UTF8.GetString(payload.Slice(7, len));
+        var parsed = System.Text.Json.JsonSerializer.Deserialize<List<MapEventWireEntry>>(json);
+        if (parsed is null)
+        {
+            return false;
+        }
+
+        placements = parsed;
+        return true;
+    }
 }

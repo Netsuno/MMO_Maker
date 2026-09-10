@@ -153,4 +153,50 @@ internal static class Phase8TcpTestHelpers
         Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(journalFrame, out var journal));
         return new Phase8SelectSnapshots(gold, inventory, journal);
     }
+
+    /// <summary>
+    /// Unsolicited catalog / map-events / environment after editor republish.
+    /// The already-connected client must not send CatalogRequest, MapEventsRequest, or reselect.
+    /// </summary>
+    public static async Task<(byte[] Catalog, byte[] MapEvents, byte[] Environment)> ReadLiveRefreshPacketsAsync(
+        Phase7TcpTestClient client,
+        TimeSpan? timeout = null)
+    {
+        byte[]? catalog = null;
+        byte[]? mapEvents = null;
+        byte[]? environment = null;
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(8));
+        while (catalog is null || mapEvents is null || environment is null)
+        {
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                throw new TimeoutException(
+                    "expected unsolicited PublishedCatalogResult + MapEventsResult + EnvironmentStatePush "
+                    + $"(catalog={catalog is not null}, mapEvents={mapEvents is not null}, env={environment is not null})");
+            }
+
+            var frame = await client.ReadUntilAnyAsync(
+                [
+                    PacketId.PublishedCatalogResult,
+                    PacketId.MapEventsResult,
+                    PacketId.EnvironmentStatePush,
+                ],
+                remaining);
+            switch ((PacketId)frame[0])
+            {
+                case PacketId.PublishedCatalogResult:
+                    catalog = frame;
+                    break;
+                case PacketId.MapEventsResult:
+                    mapEvents = frame;
+                    break;
+                case PacketId.EnvironmentStatePush:
+                    environment = frame;
+                    break;
+            }
+        }
+
+        return (catalog, mapEvents, environment);
+    }
 }

@@ -213,6 +213,28 @@ public sealed class Phase8GameplayHandlers(
         Session session,
         CancellationToken cancellationToken)
     {
+        await SendEnvironmentStatePushOnlyAsync(client, session, cancellationToken).ConfigureAwait(false);
+
+        if (session.CharacterGuid is Guid characterId)
+        {
+            await NotifyVisitProgressAsync(
+                    characterId,
+                    session.CurrentMapId,
+                    session.PositionX,
+                    session.PositionY,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Environment packet only (no visit-objective notify). Used by live refresh after republish.
+    /// </summary>
+    public async Task SendEnvironmentStatePushOnlyAsync(
+        ClientSession client,
+        Session session,
+        CancellationToken cancellationToken)
+    {
         var snapshot = await weather.GetWeatherForSessionAsync(
                 session.CurrentMapId,
                 session.PositionX,
@@ -228,17 +250,6 @@ public sealed class Phase8GameplayHandlers(
                 cancellationToken)
             .ConfigureAwait(false);
         session.LastEnvironmentRegionId = snapshot.RegionId;
-
-        if (session.CharacterGuid is Guid characterId)
-        {
-            await NotifyVisitProgressAsync(
-                    characterId,
-                    session.CurrentMapId,
-                    session.PositionX,
-                    session.PositionY,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
     }
 
     public async Task HandleDialogueChoiceRequestAsync(

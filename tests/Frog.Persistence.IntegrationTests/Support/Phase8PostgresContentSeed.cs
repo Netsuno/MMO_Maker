@@ -551,6 +551,37 @@ public static class Phase8PostgresContentSeed
         }
     }
 
+    public const string RepublishedGateEventName = "Republished Gate";
+
+    /// <summary>
+    /// Editor-path republish of dialogue + gate map-event name (no raw SQL).
+    /// The running game server must pick this up for already-connected sessions.
+    /// </summary>
+    public static async Task RepublishDialogueAndGateEventAsync(
+        FrogDbContextGate gate,
+        Guid gateEventId,
+        string newDialogueText)
+    {
+        await RepublishDialogueAsync(gate, newDialogueText).ConfigureAwait(false);
+        await RepublishGateEventNameAsync(gate, gateEventId, RepublishedGateEventName).ConfigureAwait(false);
+    }
+
+    public static async Task RepublishGateEventNameAsync(FrogDbContextGate gate, Guid gateEventId, string newName)
+    {
+        var events = new PostgresMapEventRepository(gate);
+        var stored = await events.LoadByIdAsync(gateEventId).ConfigureAwait(false)
+                     ?? throw new InvalidOperationException("Gate map event missing for republish.");
+        stored.Definition.Name = newName;
+        var saved = await events.SaveAsync(new SaveMapEventRequest
+        {
+            EventId = stored.EventId,
+            Definition = stored.Definition,
+            ExpectedRevision = stored.Revision,
+            Intent = SaveContentIntent.Publish,
+        }).ConfigureAwait(false);
+        _ = AssertSaveSuccess(saved);
+    }
+
     public static async Task SeedProfessionProgressAsync(FrogDbContextGate gate, Guid characterId, int level = 1)
     {
         var repo = new PostgresCharacterProfessionRepository(gate);

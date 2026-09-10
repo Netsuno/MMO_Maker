@@ -429,35 +429,34 @@ public sealed class Phase8PostgresE2ETests
             _ = await client3.ReadUntilAsync(PacketId.EnvironmentStatePush);
             Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(persistedJournal, out var persistedEntries));
             Assert.Equal((byte)CharacterQuestStatus.Completed, Phase8WireDecoders.FindQuestEntry(persistedEntries, seed.QuestId)!.Status);
-            await client3.DisconnectAsync();
-            await Task.Delay(100);
+            await client3.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
 
-            // Step 22: republish + live refresh (same server process, no restart)
+            // Step 22: republish + live refresh on the already-connected session
+            // (same host2 process, no restart, no reconnect, no reselect).
             const string republishedText = "Republished greeting.";
             using (var gate = CreateGate())
             {
-                await Phase8PostgresContentSeed.RepublishDialogueAsync(gate, republishedText).ConfigureAwait(false);
+                await Phase8PostgresContentSeed.RepublishDialogueAndGateEventAsync(
+                    gate,
+                    seed.GateMapEventId,
+                    republishedText).ConfigureAwait(false);
             }
 
-            var user2 = $"p8b-{Guid.NewGuid():N}"[..16];
-            await using var refreshClient = new Phase7TcpTestClient();
-            var refreshCharacterId = await RegisterLoginSelectReturningIdAsync(
-                refreshClient, port, user2, "password12345", "Refresher", seed.Phase7.ClassId);
-            _ = await refreshClient.ReadUntilAsync(PacketId.QuestJournalSnapshot);
-            _ = await refreshClient.ReadUntilAsync(PacketId.EnvironmentStatePush);
-            await refreshClient.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
+            var (catalogFrame, mapEventsFrame, envFrame) =
+                await Phase8TcpTestHelpers.ReadLiveRefreshPacketsAsync(client3);
+            Assert.True(Phase8WireDecoders.TryDecodePublishedCatalog(catalogFrame, out var liveCatalog));
+            Assert.NotEmpty(liveCatalog.Classes);
+            Assert.True(Phase8WireDecoders.TryDecodeMapEventsResult(mapEventsFrame, out var liveMapId, out var livePlacements));
+            Assert.Equal(seed.RuntimeMapId, liveMapId);
+            Assert.Contains(
+                livePlacements,
+                p => string.Equals(p.DisplayName, Phase8PostgresContentSeed.RepublishedGateEventName, StringComparison.Ordinal));
+            Assert.True(Phase8WireDecoders.TryDecodeEnvironmentState(envFrame, out var liveEnvMapId, out _, out _, out _));
+            Assert.Equal(seed.RuntimeMapId, liveEnvMapId);
 
-            await refreshClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildAcquireProfession(seed.ProfessionId));
-            var acquireResult = await refreshClient.ReadUntilAsync(PacketId.AcquireProfessionResult);
-            Assert.True(Phase8WireDecoders.TryDecodeStatusResult(acquireResult, out var acquireOk, out _));
-            Assert.True(acquireOk);
-
-            await Phase8MovementTestHelpers.TeleportToTileAsync(refreshClient, seed.KeyEventTileX, seed.KeyEventTileY);
-            await refreshClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
-            _ = await refreshClient.ReadUntilAsync(PacketId.InteractResult);
-            await Phase8MovementTestHelpers.TeleportToTileAsync(refreshClient, seed.GateEventTileX, seed.GateEventTileY);
-            await refreshClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
-            var refreshedDialogue = await Phase8TcpTestHelpers.ReadDialogueThenInteractAsync(refreshClient);
+            await Phase8MovementTestHelpers.TeleportToTileAsync(client3, seed.GateEventTileX, seed.GateEventTileY);
+            await client3.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var refreshedDialogue = await Phase8TcpTestHelpers.ReadDialogueThenInteractAsync(client3);
             Assert.True(Phase8WireDecoders.TryDecodeDialogueStatePush(
                 refreshedDialogue, out _, out _, out _, out _, out var refreshedText, out _));
             Assert.Contains("Republished greeting", refreshedText);
@@ -728,32 +727,6 @@ public sealed class Phase8PostgresE2ETests
     {
         var snapshots = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(client, characterId);
         return snapshots.Journal;
-    }
-
-    private static async Task<Guid> RegisterLoginSelectReturningIdAsync(
-        Phase7TcpTestClient tcp,
-        int port,
-        string user,
-        string password,
-        string charName,
-        Guid classId)
-    {
-        await tcp.ConnectAsync("127.0.0.1", port);
-        _ = await tcp.ReadFrameAsync();
-        await tcp.SendFrameAsync(Phase7TcpPacketBuilder.BuildRegister(user, password));
-        _ = await tcp.ReadUntilAsync(PacketId.RegisterResult);
-        await tcp.SendFrameAsync(Phase7TcpPacketBuilder.BuildLogin(user, password));
-        _ = await tcp.ReadUntilAsync(PacketId.LoginResult);
-        await tcp.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterCreate(charName, classId));
-        var create = await tcp.ReadUntilAsync(PacketId.CharacterCreateResult);
-        var id = Phase7WireDecoders.DecodeCharacterId(create);
-        await tcp.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(id));
-        _ = await tcp.ReadUntilAsync(PacketId.CharacterSelectResult);
-        _ = await tcp.ReadUntilAsync(PacketId.CombatState);
-        _ = await tcp.ReadUntilAsync(PacketId.InventorySnapshot);
-        _ = await tcp.ReadUntilAsync(PacketId.BankSnapshot);
-        _ = await tcp.ReadUntilAsync(PacketId.GroundItemsSnapshot);
-        return Guid.Parse(id);
     }
 
     private static async Task AssertSlimeKilledForQuestAsync(Phase7TcpTestClient client, Guid spellId)

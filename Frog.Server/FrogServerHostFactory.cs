@@ -244,6 +244,8 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IPublishedNpcCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                     services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                     services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
+                    services.AddSingleton<IPublishedContentRevisionStamp>(_ =>
+                        NullPublishedContentRevisionStamp.Instance);
                 }
 
                 if (usePostgreSql)
@@ -353,6 +355,8 @@ public static class FrogServerHostFactory
                 services.AddSingleton<MapService>();
                 services.AddSingleton<MovementService>();
                 services.AddSingleton<PacketSender>();
+                services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
+                services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();
                 services.AddSingleton<PacketDispatcher>();
                 if (!playtest.Enabled)
@@ -363,6 +367,7 @@ public static class FrogServerHostFactory
                 services.AddHostedService<GameServerService>();
                 services.AddHostedService<SessionCleanupService>();
                 services.AddHostedService<PlayerPersistenceService>();
+                services.AddHostedService<PublishedContentLiveRefreshHostedService>();
                 // P7-G6: no-op unless FROG_SHUTDOWN_FILE is set (used by process-boundary tests
                 // and supervisors that cannot reliably deliver SIGTERM/Ctrl+C to this process).
                 services.AddHostedService<ShutdownFileWatcherService>();
