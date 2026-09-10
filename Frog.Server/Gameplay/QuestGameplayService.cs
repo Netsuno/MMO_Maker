@@ -133,13 +133,14 @@ public sealed class QuestGameplayService(
         return new QuestTurnInResult(QuestTurnInStatus.Failed, "Turn-in transactionnel indisponible.");
     }
 
-    public async Task NotifyObjectiveProgressAsync(
+    public async Task<bool> NotifyObjectiveProgressAsync(
         Guid characterId,
         QuestObjectiveKind kind,
         QuestObjectiveSignal signal,
         CancellationToken cancellationToken = default)
     {
         var allQuests = await _quests.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
+        var anyChanged = false;
         foreach (var quest in allQuests)
         {
             var prog = await _progress.TryGetAsync(characterId, quest.Id, cancellationToken).ConfigureAwait(false);
@@ -191,7 +192,10 @@ public sealed class QuestGameplayService(
 
             prog.CharacterId = characterId;
             await _progress.UpsertAsync(prog, cancellationToken).ConfigureAwait(false);
+            anyChanged = true;
         }
+
+        return anyChanged;
     }
 
     public async Task<IReadOnlyList<QuestJournalEntryWire>> BuildJournalAsync(

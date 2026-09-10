@@ -131,8 +131,34 @@ internal static class Phase8TcpTestHelpers
     }
 
     /// <summary>
+    /// Unsolicited <see cref="PacketId.QuestJournalSnapshot"/> after objective progress,
+    /// craft, or turn-in. Does not send CharacterSelect.
+    /// </summary>
+    public static async Task<IReadOnlyList<QuestJournalEntryWire>> ReadUnsolicitedQuestJournalAsync(
+        Phase7TcpTestClient client,
+        TimeSpan? timeout = null)
+    {
+        var frame = await client.ReadUntilAsync(PacketId.QuestJournalSnapshot, timeout);
+        Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(frame, out var journal));
+        return journal;
+    }
+
+    /// <summary>
+    /// Replay / no-progress proof: the server must not push a journal snapshot.
+    /// </summary>
+    public static async Task AssertNoUnsolicitedQuestJournalAsync(
+        Phase7TcpTestClient client,
+        TimeSpan? timeout = null)
+    {
+        await Assert.ThrowsAnyAsync<TimeoutException>(async () =>
+            await client.ReadUntilAsync(
+                PacketId.QuestJournalSnapshot,
+                timeout ?? TimeSpan.FromMilliseconds(400)));
+    }
+
+    /// <summary>
     /// Public re-select path: CombatState + InventorySnapshot + QuestJournalSnapshot.
-    /// Use when a live push is not available (replays, races, inventory after craft).
+    /// Use when a live push is not available (inventory after craft replay, races).
     /// </summary>
     public static async Task<Phase8SelectSnapshots> ReselectAndReadSnapshotsAsync(
         Phase7TcpTestClient client,

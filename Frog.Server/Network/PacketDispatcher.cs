@@ -889,16 +889,8 @@ public sealed partial class PacketDispatcher(
 
         if (cellAfter != cellBefore)
         {
-            if (session.CharacterGuid is Guid visitCharacterId)
-            {
-                await _phase8.NotifyVisitProgressAsync(
-                        visitCharacterId,
-                        session.CurrentMapId,
-                        session.PositionX,
-                        session.PositionY,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            await _phase8.NotifyVisitProgressAndPushJournalAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
 
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
         }
@@ -967,16 +959,8 @@ public sealed partial class PacketDispatcher(
 
         if (cellAfter != cellBefore)
         {
-            if (session.CharacterGuid is Guid visitCharacterId)
-            {
-                await _phase8.NotifyVisitProgressAsync(
-                        visitCharacterId,
-                        session.CurrentMapId,
-                        session.PositionX,
-                        session.PositionY,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            await _phase8.NotifyVisitProgressAndPushJournalAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
 
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
 
@@ -1321,9 +1305,9 @@ public sealed partial class PacketDispatcher(
 
             if (monsterResult.MonsterKilled
                 && monsterResult.NpcDefinitionId is Guid npcId
-                && attacker.CharacterGuid is Guid characterId)
+                && attacker.CharacterGuid is Guid characterId
+                && await _phase8.NotifyKillProgressAsync(characterId, npcId, cancellationToken).ConfigureAwait(false))
             {
-                await _phase8.NotifyKillProgressAsync(characterId, npcId, cancellationToken).ConfigureAwait(false);
                 await _phase8.SendQuestJournalAsync(clientSession, attacker, cancellationToken)
                     .ConfigureAwait(false);
             }

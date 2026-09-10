@@ -111,51 +111,70 @@ public sealed class Phase8GameplayHandlers(
             .Select(s => (s.PositionX, s.PositionY))
             .ToHashSet();
 
-    public async Task NotifyTalkProgressAsync(
+    public Task<bool> NotifyTalkProgressAsync(
         Guid characterId,
         Guid dialogueId,
         CancellationToken cancellationToken) =>
-        await quests.NotifyObjectiveProgressAsync(
-                characterId,
-                QuestObjectiveKind.Talk,
-                new QuestObjectiveSignal(DialogueId: dialogueId),
-                cancellationToken)
-            .ConfigureAwait(false);
+        quests.NotifyObjectiveProgressAsync(
+            characterId,
+            QuestObjectiveKind.Talk,
+            new QuestObjectiveSignal(DialogueId: dialogueId),
+            cancellationToken);
 
-    public async Task NotifyKillProgressAsync(
+    public Task<bool> NotifyKillProgressAsync(
         Guid characterId,
         Guid npcDefinitionId,
         CancellationToken cancellationToken) =>
-        await quests.NotifyObjectiveProgressAsync(
-                characterId,
-                QuestObjectiveKind.Kill,
-                new QuestObjectiveSignal(NpcId: npcDefinitionId),
-                cancellationToken)
-            .ConfigureAwait(false);
+        quests.NotifyObjectiveProgressAsync(
+            characterId,
+            QuestObjectiveKind.Kill,
+            new QuestObjectiveSignal(NpcId: npcDefinitionId),
+            cancellationToken);
 
-    public async Task NotifyCollectProgressAsync(
+    public Task<bool> NotifyCollectProgressAsync(
         Guid characterId,
         Guid itemId,
         CancellationToken cancellationToken) =>
-        await quests.NotifyObjectiveProgressAsync(
-                characterId,
-                QuestObjectiveKind.Collect,
-                new QuestObjectiveSignal(ItemId: itemId),
-                cancellationToken)
-            .ConfigureAwait(false);
+        quests.NotifyObjectiveProgressAsync(
+            characterId,
+            QuestObjectiveKind.Collect,
+            new QuestObjectiveSignal(ItemId: itemId),
+            cancellationToken);
 
-    public async Task NotifyVisitProgressAsync(
+    public Task<bool> NotifyVisitProgressAsync(
         Guid characterId,
         int mapId,
         int tileX,
         int tileY,
         CancellationToken cancellationToken) =>
-        await quests.NotifyObjectiveProgressAsync(
+        quests.NotifyObjectiveProgressAsync(
+            characterId,
+            QuestObjectiveKind.Visit,
+            new QuestObjectiveSignal(MapId: mapId, TileX: tileX, TileY: tileY),
+            cancellationToken);
+
+    public async Task NotifyVisitProgressAndPushJournalAsync(
+        ClientSession client,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        if (session.CharacterGuid is not Guid characterId)
+        {
+            return;
+        }
+
+        var changed = await NotifyVisitProgressAsync(
                 characterId,
-                QuestObjectiveKind.Visit,
-                new QuestObjectiveSignal(MapId: mapId, TileX: tileX, TileY: tileY),
+                session.CurrentMapId,
+                session.PositionX,
+                session.PositionY,
                 cancellationToken)
             .ConfigureAwait(false);
+        if (changed)
+        {
+            await SendQuestJournalAsync(client, session, cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     public async Task SendQuestJournalAsync(
         ClientSession client,
@@ -215,16 +234,8 @@ public sealed class Phase8GameplayHandlers(
     {
         await SendEnvironmentStatePushOnlyAsync(client, session, cancellationToken).ConfigureAwait(false);
 
-        if (session.CharacterGuid is Guid characterId)
-        {
-            await NotifyVisitProgressAsync(
-                    characterId,
-                    session.CurrentMapId,
-                    session.PositionX,
-                    session.PositionY,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
+        await NotifyVisitProgressAndPushJournalAsync(client, session, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -377,7 +388,7 @@ public sealed class Phase8GameplayHandlers(
                 session.Gold = gold;
             }
 
-            await quests.NotifyObjectiveProgressAsync(
+            _ = await quests.NotifyObjectiveProgressAsync(
                     characterId,
                     QuestObjectiveKind.Craft,
                     new QuestObjectiveSignal(RecipeId: recipeId),

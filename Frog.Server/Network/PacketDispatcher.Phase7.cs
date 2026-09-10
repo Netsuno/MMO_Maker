@@ -273,10 +273,10 @@ public sealed partial class PacketDispatcher
         {
             if (session.CharacterGuid is Guid characterId
                 && result.ItemId is Guid itemId
-                && itemId != Guid.Empty)
+                && itemId != Guid.Empty
+                && await _phase8.NotifyCollectProgressAsync(characterId, itemId, cancellationToken)
+                    .ConfigureAwait(false))
             {
-                await _phase8.NotifyCollectProgressAsync(characterId, itemId, cancellationToken)
-                    .ConfigureAwait(false);
                 await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -323,9 +323,9 @@ public sealed partial class PacketDispatcher
 
         if (result.MonsterKilled
             && result.NpcDefinitionId is Guid npcId
-            && session.CharacterGuid is Guid characterId)
+            && session.CharacterGuid is Guid characterId
+            && await _phase8.NotifyKillProgressAsync(characterId, npcId, cancellationToken).ConfigureAwait(false))
         {
-            await _phase8.NotifyKillProgressAsync(characterId, npcId, cancellationToken).ConfigureAwait(false);
             await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         }
 
