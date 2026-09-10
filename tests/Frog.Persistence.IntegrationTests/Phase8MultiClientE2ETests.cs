@@ -1,5 +1,3 @@
-using Frog.Application.Content;
-using Frog.Application.Gameplay;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
@@ -30,8 +28,8 @@ public sealed class Phase8MultiClientE2ETests
         {
             await using var a = new Phase7TcpTestClient();
             await using var b = new Phase7TcpTestClient();
-            var idA = await RegisterAsync(a, port, seed, "IsoA");
-            var idB = await RegisterAsync(b, port, seed, "IsoB");
+            _ = await RegisterAsync(a, port, seed, "IsoA");
+            _ = await RegisterAsync(b, port, seed, "IsoB");
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(a, seed.GateEventTileX, seed.GateEventTileY);
             await a.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
@@ -51,10 +49,12 @@ public sealed class Phase8MultiClientE2ETests
                 await b.ReadUntilAsync(PacketId.InteractResult), out _, out var lockedMsg));
             Assert.Contains("Gate locked", lockedMsg);
 
-            using var gate = CreateGate();
-            var world = new PostgresCharacterWorldStateRepository(gate);
-            Assert.True(await world.GetSwitchAsync(idA, seed.GateSwitchId));
-            Assert.False(await world.GetSwitchAsync(idB, seed.GateSwitchId) ?? false);
+            await Phase8MovementTestHelpers.TeleportToTileAsync(a, seed.GateEventTileX, seed.GateEventTileY);
+            await a.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var unlockedA = await Phase8TcpTestHelpers.ReadDialogueThenInteractAsync(a);
+            Assert.True(Phase8WireDecoders.TryDecodeDialogueStatePush(
+                unlockedA, out _, out _, out _, out _, out var unlockedText, out _));
+            Assert.Contains("Will you help", unlockedText);
         }
         finally
         {
@@ -138,10 +138,8 @@ public sealed class Phase8MultiClientE2ETests
 
             _ = await clientB.ReadUntilAsync(PacketId.QuestTurnInResult);
 
-            using var gate = CreateGate();
-            var chars = new PostgresCharacterRepository(gate);
-            var gold = (await chars.FindByIdAsync(characterId))!.Gold;
-            Assert.Equal(GameplayLimits.StartingGold + seed.QuestRewardGold, gold);
+            var afterTurnIn = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(clientB, characterIdStr);
+            Assert.Equal(GameplayLimits.StartingGold + seed.QuestRewardGold, afterTurnIn.Gold);
         }
         finally
         {
@@ -162,18 +160,14 @@ public sealed class Phase8MultiClientE2ETests
             await using var clientA = new Phase7TcpTestClient();
             await using var clientB = new Phase7TcpTestClient();
             var (token, characterIdStr) = await RegisterReturningTokenAndIdAsync(clientA, port, seed, "OnceRace");
-            var characterId = Guid.Parse(characterIdStr);
             _ = await clientA.ReadUntilAsync(PacketId.QuestJournalSnapshot);
             _ = await clientA.ReadUntilAsync(PacketId.EnvironmentStatePush);
             await clientA.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
-            await Phase8MovementTestHelpers.TeleportToTileAsync(clientA, seed.OnceRewardEventTileX, seed.OnceRewardEventTileY);
+            var beforeOnce = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(clientA, characterIdStr);
+            var qtyBefore = Phase8WireDecoders.CountItemQuantity(beforeOnce.Inventory, seed.Phase7.ConsumableId);
 
-            using var gateBefore = CreateGate();
-            var invBefore = new PostgresInventoryRepository(gateBefore);
-            var qtyBefore = (await invBefore.GetAsync(characterId)).Slots
-                .Where(s => s.ItemId == seed.Phase7.ConsumableId)
-                .Sum(s => s.Quantity);
+            await Phase8MovementTestHelpers.TeleportToTileAsync(clientA, seed.OnceRewardEventTileX, seed.OnceRewardEventTileY);
 
             var interactFromA = clientA.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var interactFromB = Task.Run(async () =>
@@ -201,17 +195,18 @@ public sealed class Phase8MultiClientE2ETests
 
             _ = await clientB.ReadUntilAsync(PacketId.InteractResult);
 
-            using var gate = CreateGate();
-            var inv = new PostgresInventoryRepository(gate);
-            var qty = (await inv.GetAsync(characterId)).Slots
-                .Where(s => s.ItemId == seed.Phase7.ConsumableId)
-                .Sum(s => s.Quantity);
-            Assert.Equal(qtyBefore + 1, qty);
+            var afterOnce = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(clientB, characterIdStr);
+            var qtyAfter = Phase8WireDecoders.CountItemQuantity(afterOnce.Inventory, seed.Phase7.ConsumableId);
+            Assert.Equal(qtyBefore + 1, qtyAfter);
 
-            var world = new PostgresCharacterWorldStateRepository(gate);
-            Assert.True(await world.GetSwitchAsync(
-                characterId,
-                Frog.Core.Events.MapEventOnceGrantKeys.SwitchKeyFor(seed.OnceRewardOnceKey)));
+            // Once-key switch is not on the wire; a second interact must not grant another item.
+            await Phase8MovementTestHelpers.TeleportToTileAsync(clientB, seed.OnceRewardEventTileX, seed.OnceRewardEventTileY);
+            await clientB.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            _ = await clientB.ReadUntilAsync(PacketId.InteractResult);
+            var afterOnceReplay = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(clientB, characterIdStr);
+            Assert.Equal(
+                qtyAfter,
+                Phase8WireDecoders.CountItemQuantity(afterOnceReplay.Inventory, seed.Phase7.ConsumableId));
         }
         finally
         {
@@ -250,12 +245,10 @@ public sealed class Phase8MultiClientE2ETests
             Assert.True(okA);
             Assert.True(okB);
 
-            using var gate = CreateGate();
-            var inv = new PostgresInventoryRepository(gate);
-            var qtyA = (await inv.GetAsync(idA)).Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity);
-            var qtyB = (await inv.GetAsync(idB)).Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity);
-            Assert.Equal(1, qtyA);
-            Assert.Equal(1, qtyB);
+            var snapA = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(a, idA.ToString("D"));
+            var snapB = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(b, idB.ToString("D"));
+            Assert.Equal(1, Phase8WireDecoders.CountItemQuantity(snapA.Inventory, seed.Phase7.ConsumableId));
+            Assert.Equal(1, Phase8WireDecoders.CountItemQuantity(snapB.Inventory, seed.Phase7.ConsumableId));
         }
         finally
         {
@@ -290,10 +283,8 @@ public sealed class Phase8MultiClientE2ETests
             Assert.True(ok1);
             Assert.True(ok2);
 
-            using var gate = CreateGate();
-            var inv = new PostgresInventoryRepository(gate);
-            var qty = (await inv.GetAsync(id)).Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity);
-            Assert.Equal(1, qty);
+            var snap = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(client, id.ToString("D"));
+            Assert.Equal(1, Phase8WireDecoders.CountItemQuantity(snap.Inventory, seed.Phase7.ConsumableId));
         }
         finally
         {
@@ -415,7 +406,8 @@ public sealed class Phase8MultiClientE2ETests
 
     private async Task PrepareQuestReadyAsync(Phase7TcpTestClient client, Phase8PostgresContentSeedResult seed, Guid characterId)
     {
-        // Simultaneous turn-in race: prepare readiness via DB (movement prep collides with multi-client occupancy).
+        // Setup-only SQL before the turn-in race (not a mid-scenario gameplay assert).
+        // Movement prep collides with multi-client occupancy.
         _ = client;
         using var gate = CreateGate();
         await new PostgresCharacterQuestRepository(gate).UpsertAsync(new CharacterQuestProgress

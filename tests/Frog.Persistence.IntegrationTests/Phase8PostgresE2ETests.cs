@@ -1,12 +1,10 @@
 using Frog.Application.Content;
-using Frog.Application.Gameplay;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Persistence.PostgreSql;
-using Frog.Persistence.PostgreSql.Repositories.Player;
 using Frog.Persistence.IntegrationTests.Support;
 using Microsoft.Extensions.Hosting;
 using Xunit;
@@ -35,7 +33,6 @@ public sealed class Phase8PostgresE2ETests
 
         string token = string.Empty;
         string characterId = string.Empty;
-        Guid characterGuid = Guid.Empty;
         byte[] dialogueToken = Array.Empty<byte>();
         var craftRequestId = Guid.NewGuid();
         var turnInRequestId = Guid.NewGuid();
@@ -57,7 +54,6 @@ public sealed class Phase8PostgresE2ETests
             token = Phase7WireDecoders.DecodeLoginToken(await client.ReadUntilAsync(PacketId.LoginResult));
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterCreate("Phase8Hero", seed.Phase7.ClassId));
             characterId = Phase7WireDecoders.DecodeCharacterId(await client.ReadUntilAsync(PacketId.CharacterCreateResult));
-            characterGuid = Guid.Parse(characterId);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
             Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
             var autorunMsg = await Phase8TcpTestHelpers.DrainAccountSelectSnapshotsAsync(client);
@@ -88,35 +84,22 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(seed.WeatherProfile2Id, env2WeatherId);
             Assert.Equal(seed.ExpectedLightingLevel2, lighting2);
 
-            // Common-event execution via call_common_event on published map event
+            // Common-event execution via call_common_event on published map event.
+            // Public proof: InteractResult page text. Switch persistence is not on the wire.
+            // TODO(J5-FIX-10): CommonEventSwitchId (`phase8_common_fired`) has no page condition
+            // and PacketId has no SwitchSnapshot/WorldState. Cannot prove CE switch persistence
+            // without a public switch packet — do not patch Server here.
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.CommonEventTileX, seed.CommonEventTileY);
-            using (var gate = CreateGate())
-            {
-                var world = new PostgresCharacterWorldStateRepository(gate);
-                Assert.False(await world.GetSwitchAsync(characterGuid, Phase8PostgresContentSeed.CommonEventSwitchId) ?? false);
-            }
-
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var commonEventResult = await client.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(commonEventResult, out var commonOk, out var commonMsg));
             Assert.True(commonOk);
             Assert.Contains("Common event fired", commonMsg);
-            using (var gate = CreateGate())
-            {
-                var world = new PostgresCharacterWorldStateRepository(gate);
-                Assert.True(await world.GetSwitchAsync(characterGuid, Phase8PostgresContentSeed.CommonEventSwitchId));
-            }
 
             // Step 18: autorun already consumed during first bootstrap; re-select must not repeat
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
 
-            // Step 7 + 11 (page 0): action trigger on gate while switch false
-            using (var gate = CreateGate())
-            {
-                var world = new PostgresCharacterWorldStateRepository(gate);
-                Assert.False(await world.GetSwitchAsync(characterGuid, seed.GateSwitchId) ?? false);
-            }
-
+            // Step 7 + 11 (page 0): gate locked while switch false — proven by InteractResult text
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.GateEventTileX, seed.GateEventTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var locked = await client.ReadUntilAsync(PacketId.InteractResult);
@@ -129,11 +112,6 @@ public sealed class Phase8PostgresE2ETests
             var keyResult = await client.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(keyResult, out var keyOk, out _));
             Assert.True(keyOk);
-            using (var gate = CreateGate())
-            {
-                var world = new PostgresCharacterWorldStateRepository(gate);
-                Assert.True(await world.GetSwitchAsync(characterGuid, seed.GateSwitchId));
-            }
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.GateEventTileX, seed.GateEventTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
@@ -172,28 +150,35 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal((byte)CharacterQuestStatus.Active, activeQuest!.Status);
             Assert.Equal(1, activeQuest.StageIndex);
             Assert.Contains("Visit", activeQuest.StageDescription, StringComparison.OrdinalIgnoreCase);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 0, 0, 1);
+            // Talk (stage 0) completed is proven by StageIndex advancing to Visit; journal
+            // Objectives only expose the current stage (Visit Current=0).
+            AssertCurrentStageObjective(activeQuest, stageIndex: 1, current: 0, required: 1, completed: false);
 
             // Talk replay: spent dialogue token must not re-increment Talk counter
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildDialogueChoice(dialogueToken, "accept"));
             var replayChoice = await client.ReadUntilAsync(PacketId.DialogueChoiceResult);
             Assert.True(Phase8WireDecoders.TryDecodeStatusResult(replayChoice, out var replayOk, out _));
             Assert.False(replayOk);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 0, 0, 1);
+            var talkReplayJournal = await ReselectAndReadQuestJournalAsync(client, characterId);
+            var talkReplayQuest = Phase8WireDecoders.FindQuestEntry(talkReplayJournal, seed.QuestId);
+            AssertCurrentStageObjective(talkReplayQuest, stageIndex: 1, current: 0, required: 1, completed: false);
 
             // Step 12: Visit via public PositionSync
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.Region2TileX, seed.Region2TileY);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 1, 0, 1);
             var visitJournal = await ReselectAndReadQuestJournalAsync(client, characterId);
             var visitQuest = Phase8WireDecoders.FindQuestEntry(visitJournal, seed.QuestId);
             Assert.NotNull(visitQuest);
             Assert.Equal(2, visitQuest!.StageIndex);
             Assert.Contains("Collect", visitQuest.StageDescription, StringComparison.OrdinalIgnoreCase);
+            AssertCurrentStageObjective(visitQuest, stageIndex: 2, current: 0, required: 1, completed: false);
 
             // Visit replay: re-enter visit tile must not double-count
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.Region2TileX, seed.Region2TileY);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 1, 0, 1);
+            var visitReplayJournal = await ReselectAndReadQuestJournalAsync(client, characterId);
+            AssertCurrentStageObjective(
+                Phase8WireDecoders.FindQuestEntry(visitReplayJournal, seed.QuestId),
+                stageIndex: 2, current: 0, required: 1, completed: false);
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.CollectObjectiveTileX, seed.CollectObjectiveTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(seed.CollectGroundItemId));
@@ -204,7 +189,7 @@ public sealed class Phase8PostgresE2ETests
             var collectQuest = Phase8WireDecoders.FindQuestEntry(collectedJournal, seed.QuestId);
             Assert.NotNull(collectQuest);
             Assert.Equal(3, collectQuest!.StageIndex);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 2, 0, 1);
+            AssertCurrentStageObjective(collectQuest, stageIndex: 3, current: 0, required: 1, completed: false);
 
             // Collect replay: second matching pickup (pre-seeded) must not double-count
             await Phase8MovementTestHelpers.TeleportToTileAsync(
@@ -213,11 +198,14 @@ public sealed class Phase8PostgresE2ETests
             var pickupReplay = await client.ReadUntilAsync(PacketId.PickupItemResult);
             Assert.NotEqual(0, pickupReplay[1]);
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(300));
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 2, 0, 1);
             await Assert.ThrowsAnyAsync<TimeoutException>(async () =>
                 await client.ReadUntilAsync(PacketId.QuestJournalSnapshot, TimeSpan.FromMilliseconds(400)));
+            var collectReplayJournal = await ReselectAndReadQuestJournalAsync(client, characterId);
+            AssertCurrentStageObjective(
+                Phase8WireDecoders.FindQuestEntry(collectReplayJournal, seed.QuestId),
+                stageIndex: 3, current: 0, required: 1, completed: false);
 
-            // Mid-progress reconnect: Talk/Visit/Collect counters must persist
+            // Mid-progress reconnect: Talk/Visit/Collect stage completion must persist on the journal
             await client.DisconnectAsync();
             await Task.Delay(150);
             await using var midClient = new Phase7TcpTestClient();
@@ -238,31 +226,31 @@ public sealed class Phase8PostgresE2ETests
             Assert.NotNull(midQuest);
             Assert.Equal((byte)CharacterQuestStatus.Active, midQuest!.Status);
             Assert.Equal(3, midQuest.StageIndex);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 0, 0, 1);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 1, 0, 1);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 2, 0, 1);
+            // Past-stage Talk/Visit/Collect counters are not on the current-stage journal;
+            // StageIndex=3 with Kill Current=0 is the public equivalent of those stages complete.
+            AssertCurrentStageObjective(midQuest, stageIndex: 3, current: 0, required: 1, completed: false);
 
             // Continue on midClient as primary client for remaining steps
             await midClient.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(midClient, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
             await AssertSlimeKilledForQuestAsync(midClient, seed.Phase7.SpellId);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 3, 0, 1);
             var killJournal = await ReselectAndReadQuestJournalAsync(midClient, characterId);
             var killQuest = Phase8WireDecoders.FindQuestEntry(killJournal, seed.QuestId);
             Assert.NotNull(killQuest);
             Assert.Equal(4, killQuest!.StageIndex);
             Assert.Contains("Craft", killQuest.StageDescription, StringComparison.OrdinalIgnoreCase);
+            AssertCurrentStageObjective(killQuest, stageIndex: 4, current: 0, required: 1, completed: false);
 
             // Kill replay: second slime kill must not re-increment completed Kill counter
             await Phase8MovementTestHelpers.TeleportToTileAsync(
                 midClient, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
             await AssertSlimeKilledForQuestAsync(midClient, seed.Phase7.SpellId);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 3, 0, 1);
             var killReplayJournal = await ReselectAndReadQuestJournalAsync(midClient, characterId);
             var killReplayQuest = Phase8WireDecoders.FindQuestEntry(killReplayJournal, seed.QuestId);
             Assert.NotNull(killReplayQuest);
             Assert.Equal(4, killReplayQuest!.StageIndex);
+            AssertCurrentStageObjective(killReplayQuest, stageIndex: 4, current: 0, required: 1, completed: false);
 
             // Step 12 continued: objectives via gameplay — step-on gives ingredients
             var invAfterContact = await Phase8MovementTestHelpers.TeleportOntoContactAndReadInventoryAsync(
@@ -271,36 +259,22 @@ public sealed class Phase8PostgresE2ETests
             Assert.True(contactInv.Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity) >= 2);
             await midClient.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
-            // Step 18 (wait/resume): action event waits then sets switch via heartbeat resume
-            using (var gate = CreateGate())
-            {
-                var world = new PostgresCharacterWorldStateRepository(gate);
-                Assert.False(await world.GetSwitchAsync(characterGuid, seed.WaitSwitchId) ?? false);
-            }
-
+            // Step 18 (wait/resume): action event waits then sets switch via heartbeat resume.
+            // TODO(J5-FIX-10): WaitSwitchId (`phase8_wait_done`) is set on heartbeat resume after Wait.
+            // Resume executes remaining commands in-memory with no InteractResult/ShowText, and
+            // PacketId has no SwitchSnapshot/WorldState. Cannot prove this switch on the public
+            // wire without a switch packet or InteractResult on wait resume — do not patch Server.
             await Phase8MovementTestHelpers.TeleportToTileAsync(midClient, seed.WaitEventTileX, seed.WaitEventTileY);
             await midClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
             var waitInteract = await midClient.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(Phase8WireDecoders.TryDecodeInteractResult(waitInteract, out var waitOk, out _));
             Assert.True(waitOk);
 
-            var switchSet = false;
             for (var i = 0; i < 8; i++)
             {
                 await Phase8MovementTestHelpers.SendHeartbeatAsync(midClient);
                 await Task.Delay(200);
-                using (var gate = CreateGate())
-                {
-                    var world = new PostgresCharacterWorldStateRepository(gate);
-                    if (await world.GetSwitchAsync(characterGuid, seed.WaitSwitchId) == true)
-                    {
-                        switchSet = true;
-                        break;
-                    }
-                }
             }
-
-            Assert.True(switchSet);
 
             // Step 18 (parallel): heartbeat fires parallel map event; repeats on subsequent heartbeats
             await Phase8MovementTestHelpers.SendHeartbeatAsync(midClient);
@@ -340,7 +314,7 @@ public sealed class Phase8PostgresE2ETests
             var readyQuest = Phase8WireDecoders.FindQuestEntry(craftedJournal, seed.QuestId);
             Assert.NotNull(readyQuest);
             Assert.Equal((byte)CharacterQuestStatus.ReadyToTurnIn, readyQuest!.Status);
-            AssertObjectiveCounter(characterGuid, seed.QuestId, 4, 0, 1);
+            AssertCurrentStageObjective(readyQuest, stageIndex: 4, current: 1, required: 1, completed: true);
 
             // Step 15: retry craft — no duplication; quest objective not replayed
             await midClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildCraft(seed.RecipeId, craftRequestId));
@@ -349,18 +323,14 @@ public sealed class Phase8PostgresE2ETests
             Assert.True(craftReplayOk);
             await Assert.ThrowsAnyAsync<Exception>(() =>
                 midClient.ReadUntilAsync(PacketId.QuestJournalSnapshot, TimeSpan.FromMilliseconds(400)));
-            using (var gate = CreateGate())
-            {
-                var inv = new PostgresInventoryRepository(gate);
-                var craftInv = await inv.GetAsync(characterGuid).ConfigureAwait(false);
-                var consumableQty = craftInv.Slots.Where(s => s.ItemId == seed.Phase7.ConsumableId).Sum(s => s.Quantity);
-                Assert.Equal(1, consumableQty);
-                var questRepo = new PostgresCharacterQuestRepository(gate);
-                var progress = await questRepo.TryGetAsync(characterGuid, seed.QuestId).ConfigureAwait(false);
-                Assert.NotNull(progress);
-                Assert.Equal(CharacterQuestStatus.ReadyToTurnIn, progress!.Status);
-                Assert.Equal(1, progress.ObjectiveCounters.GetValueOrDefault(QuestObjectiveKeys.For(4, 0)));
-            }
+            var afterCraftReplay = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(midClient, characterId);
+            Assert.Equal(
+                1,
+                Phase8WireDecoders.CountItemQuantity(afterCraftReplay.Inventory, seed.Phase7.ConsumableId));
+            var replayReadyQuest = Phase8WireDecoders.FindQuestEntry(afterCraftReplay.Journal, seed.QuestId);
+            Assert.NotNull(replayReadyQuest);
+            Assert.Equal((byte)CharacterQuestStatus.ReadyToTurnIn, replayReadyQuest!.Status);
+            AssertCurrentStageObjective(replayReadyQuest, stageIndex: 4, current: 1, required: 1, completed: true);
 
             // Step 16: quest completion — reward once
             await midClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
@@ -507,35 +477,29 @@ public sealed class Phase8PostgresE2ETests
     private FrogDbContextGate CreateGate()
         => new(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
 
-    private void AssertObjectiveCounter(
-        Guid characterId,
-        Guid questId,
+    private static void AssertCurrentStageObjective(
+        QuestJournalEntryWire? entry,
         int stageIndex,
-        int objectiveIndex,
-        int expectedCount)
+        int current,
+        int required,
+        bool completed,
+        int objectiveIndex = 0)
     {
-        using var gate = CreateGate();
-        var questRepo = new PostgresCharacterQuestRepository(gate);
-        var progress = questRepo.TryGetAsync(characterId, questId).GetAwaiter().GetResult();
-        Assert.NotNull(progress);
-        var key = QuestObjectiveKeys.For(stageIndex, objectiveIndex);
-        Assert.Equal(expectedCount, progress!.ObjectiveCounters.GetValueOrDefault(key));
+        Assert.NotNull(entry);
+        Assert.Equal(stageIndex, entry!.StageIndex);
+        var objective = Phase8WireDecoders.TryGetObjective(entry, objectiveIndex);
+        Assert.NotNull(objective);
+        Assert.Equal(current, objective!.Current);
+        Assert.Equal(required, objective.Required);
+        Assert.Equal(completed, objective.Completed);
     }
 
     private static async Task<IReadOnlyList<QuestJournalEntryWire>> ReselectAndReadQuestJournalAsync(
         Phase7TcpTestClient client,
         string characterId)
     {
-        await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
-        _ = await client.ReadUntilAsync(PacketId.CharacterSelectResult);
-        _ = await client.ReadUntilAsync(PacketId.CombatState);
-        _ = await client.ReadUntilAsync(PacketId.InventorySnapshot);
-        _ = await client.ReadUntilAsync(PacketId.BankSnapshot);
-        _ = await client.ReadUntilAsync(PacketId.GroundItemsSnapshot);
-        var journalFrame = await client.ReadUntilAsync(PacketId.QuestJournalSnapshot);
-        _ = await client.ReadUntilAsync(PacketId.EnvironmentStatePush);
-        Assert.True(Phase8WireDecoders.TryDecodeQuestJournalSnapshot(journalFrame, out var journal));
-        return journal;
+        var snapshots = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(client, characterId);
+        return snapshots.Journal;
     }
 
     private static async Task<Guid> RegisterLoginSelectReturningIdAsync(
