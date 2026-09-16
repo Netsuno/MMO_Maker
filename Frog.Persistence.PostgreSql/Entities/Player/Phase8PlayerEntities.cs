@@ -60,6 +60,12 @@ public sealed class MapEventExecutionRequestEntity
 
     public int CatalogAliasId { get; set; }
 
+    /// <summary>Identité d'activation (R2-4) : Restore / ForWaitResume se reconstitue depuis cette colonne.</summary>
+    public Guid ActivationId { get; set; }
+
+    /// <summary>Ordinal de reprise wait (0 = activation initiale).</summary>
+    public int WaitOrdinal { get; set; }
+
     public string ResultJson { get; set; } = "{}";
 
     public DateTimeOffset CompletedAtUtc { get; set; }

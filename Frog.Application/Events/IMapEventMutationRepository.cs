@@ -4,12 +4,16 @@ using Frog.Core.Protocol;
 
 namespace Frog.Application.Events;
 
-/// <summary>Exécution atomique PostgreSQL des effets persistants d'un plan événement (J4-PG).</summary>
+/// <summary>Exécution atomique PostgreSQL d'une unité transactionnelle d'événement (R2-4 / J4-PG).</summary>
 public interface IMapEventMutationRepository
 {
     /// <summary>
-    /// Applique <paramref name="plan"/> dans une seule transaction PostgreSQL.
+    /// Applique <paramref name="plan"/> comme <see cref="MapEventTransactionalUnit.FromPlan"/>
+    /// dans une seule transaction PostgreSQL (mutations persistantes + intents
+    /// <c>start_dialogue</c> / <c>teleport</c> dans le snapshot). Les effets de session
+    /// ne sont pas appliqués ici : le serveur les rejoue après commit.
     /// La clé ledger est <see cref="MapEventExecutionIdentity.LedgerKey"/> (CharacterId + RequestId).
+    /// Une reprise wait utilise <see cref="MapEventExecutionIdentity.ForWaitResume"/> (nouvelle ligne).
     /// Les branches et common-events doivent déjà être résolus dans le plan.
     /// </summary>
     Task<MapEventMutationResult> TryExecutePlanAsync(
@@ -78,6 +82,35 @@ public sealed class MapEventExecutionSnapshot
     public DateTimeOffset? WaitUntilUtc { get; set; }
 
     public IReadOnlyList<MapEventCommandDefinition>? PendingCommands { get; set; }
+
+    /// <summary>Activation persistée pour <see cref="MapEventExecutionIdentity.Restore"/>.</summary>
+    public Guid ActivationId { get; set; }
+
+    public int WaitOrdinal { get; set; }
+
+    /// <summary>Intent <c>start_dialogue</c> enregistré dans la TX (appliqué côté session après commit).</summary>
+    public Guid? DialogueId { get; set; }
+
+    /// <summary>Intent <c>teleport</c> enregistré dans la TX (appliqué côté session après commit).</summary>
+    public int? TeleportMapId { get; set; }
+
+    public int? TeleportTileX { get; set; }
+
+    public int? TeleportTileY { get; set; }
+
+    public (int MapId, int TileX, int TileY)? Teleport =>
+        TeleportMapId is int mapId && TeleportTileX is int tileX && TeleportTileY is int tileY
+            ? (mapId, tileX, tileY)
+            : null;
+
+    public void RecordDialogue(Guid dialogueId) => DialogueId = dialogueId;
+
+    public void RecordTeleport(int mapId, int tileX, int tileY)
+    {
+        TeleportMapId = mapId;
+        TeleportTileX = tileX;
+        TeleportTileY = tileY;
+    }
 
     public void RecordSwitch(string switchId, bool value)
     {
