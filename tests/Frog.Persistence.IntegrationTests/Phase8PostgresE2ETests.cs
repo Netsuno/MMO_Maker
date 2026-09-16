@@ -153,9 +153,9 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal((byte)CharacterQuestStatus.Active, activeQuest!.Status);
             Assert.Equal(1, activeQuest.StageIndex);
             Assert.Contains("Visit", activeQuest.StageDescription, StringComparison.OrdinalIgnoreCase);
-            // Talk (stage 0) completed is proven by StageIndex advancing to Visit; journal
-            // Objectives only expose the current stage (Visit Current=0).
             AssertCurrentStageObjective(activeQuest, stageIndex: 1, current: 0, required: 1, completed: false);
+            AssertKindCounter(activeQuest, QuestObjectiveKind.Talk, stageIndex: 0, current: 1, required: 1, completed: true);
+            AssertKindCounter(activeQuest, QuestObjectiveKind.Visit, stageIndex: 1, current: 0, required: 1, completed: false);
 
             // Talk replay: spent dialogue token must not re-increment Talk counter
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildDialogueChoice(dialogueToken, "accept"));
@@ -163,7 +163,9 @@ public sealed class Phase8PostgresE2ETests
             Assert.True(Phase8WireDecoders.TryDecodeStatusResult(replayChoice, out var replayOk, out _));
             Assert.False(replayOk);
             await Phase8TcpTestHelpers.AssertNoUnsolicitedQuestJournalAsync(client);
-            AssertCurrentStageObjective(activeQuest, stageIndex: 1, current: 0, required: 1, completed: false);
+            var afterTalkReplay = await Phase8TcpTestHelpers.FetchFreshQuestEntryAsync(client, characterId, seed.QuestId);
+            AssertCurrentStageObjective(afterTalkReplay, stageIndex: 1, current: 0, required: 1, completed: false);
+            AssertKindCounter(afterTalkReplay, QuestObjectiveKind.Talk, stageIndex: 0, current: 1, required: 1, completed: true);
 
             // Step 12: Visit via public PositionSync — unsolicited QuestJournalSnapshot
             await Phase8MovementTestHelpers.TeleportToTileAsync(
@@ -175,6 +177,8 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(2, visitQuest!.StageIndex);
             Assert.Contains("Collect", visitQuest.StageDescription, StringComparison.OrdinalIgnoreCase);
             AssertCurrentStageObjective(visitQuest, stageIndex: 2, current: 0, required: 1, completed: false);
+            AssertKindCounter(visitQuest, QuestObjectiveKind.Talk, stageIndex: 0, current: 1, required: 1, completed: true);
+            AssertKindCounter(visitQuest, QuestObjectiveKind.Visit, stageIndex: 1, current: 1, required: 1, completed: true);
 
             // Visit replay: re-enter visit tile must not double-count
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, GameplayLimits.DefaultSpawnTileX, GameplayLimits.DefaultSpawnTileY);
@@ -182,7 +186,9 @@ public sealed class Phase8PostgresE2ETests
                 client, seed.Region2TileX, seed.Region2TileY, drainSideEffects: false);
             await Phase8TcpTestHelpers.AssertNoUnsolicitedQuestJournalAsync(client);
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(150));
-            AssertCurrentStageObjective(visitQuest, stageIndex: 2, current: 0, required: 1, completed: false);
+            var afterVisitReplay = await Phase8TcpTestHelpers.FetchFreshQuestEntryAsync(client, characterId, seed.QuestId);
+            AssertCurrentStageObjective(afterVisitReplay, stageIndex: 2, current: 0, required: 1, completed: false);
+            AssertKindCounter(afterVisitReplay, QuestObjectiveKind.Visit, stageIndex: 1, current: 1, required: 1, completed: true);
 
             await Phase8MovementTestHelpers.TeleportToTileAsync(client, seed.CollectObjectiveTileX, seed.CollectObjectiveTileY);
             await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildPickup(seed.CollectGroundItemId));
@@ -193,6 +199,7 @@ public sealed class Phase8PostgresE2ETests
             Assert.NotNull(collectQuest);
             Assert.Equal(3, collectQuest!.StageIndex);
             AssertCurrentStageObjective(collectQuest, stageIndex: 3, current: 0, required: 1, completed: false);
+            AssertKindCounter(collectQuest, QuestObjectiveKind.Collect, stageIndex: 2, current: 1, required: 1, completed: true);
 
             // Collect replay: second matching pickup (pre-seeded) must not double-count
             await Phase8MovementTestHelpers.TeleportToTileAsync(
@@ -202,7 +209,9 @@ public sealed class Phase8PostgresE2ETests
             Assert.NotEqual(0, pickupReplay[1]);
             await Phase8TcpTestHelpers.AssertNoUnsolicitedQuestJournalAsync(client);
             await client.DrainPendingAsync(TimeSpan.FromMilliseconds(150));
-            AssertCurrentStageObjective(collectQuest, stageIndex: 3, current: 0, required: 1, completed: false);
+            var afterCollectReplay = await Phase8TcpTestHelpers.FetchFreshQuestEntryAsync(client, characterId, seed.QuestId);
+            AssertCurrentStageObjective(afterCollectReplay, stageIndex: 3, current: 0, required: 1, completed: false);
+            AssertKindCounter(afterCollectReplay, QuestObjectiveKind.Collect, stageIndex: 2, current: 1, required: 1, completed: true);
 
             // Mid-progress reconnect: Talk/Visit/Collect stage completion must persist on the journal
             await client.DisconnectAsync();
@@ -225,9 +234,11 @@ public sealed class Phase8PostgresE2ETests
             Assert.NotNull(midQuest);
             Assert.Equal((byte)CharacterQuestStatus.Active, midQuest!.Status);
             Assert.Equal(3, midQuest.StageIndex);
-            // Past-stage Talk/Visit/Collect counters are not on the current-stage journal;
-            // StageIndex=3 with Kill Current=0 is the public equivalent of those stages complete.
             AssertCurrentStageObjective(midQuest, stageIndex: 3, current: 0, required: 1, completed: false);
+            AssertKindCounter(midQuest, QuestObjectiveKind.Talk, stageIndex: 0, current: 1, required: 1, completed: true);
+            AssertKindCounter(midQuest, QuestObjectiveKind.Visit, stageIndex: 1, current: 1, required: 1, completed: true);
+            AssertKindCounter(midQuest, QuestObjectiveKind.Collect, stageIndex: 2, current: 1, required: 1, completed: true);
+            AssertKindCounter(midQuest, QuestObjectiveKind.Kill, stageIndex: 3, current: 0, required: 1, completed: false);
 
             // Continue on midClient as primary client for remaining steps
             await midClient.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
@@ -241,6 +252,7 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(4, killQuest!.StageIndex);
             Assert.Contains("Craft", killQuest.StageDescription, StringComparison.OrdinalIgnoreCase);
             AssertCurrentStageObjective(killQuest, stageIndex: 4, current: 0, required: 1, completed: false);
+            AssertKindCounter(killQuest, QuestObjectiveKind.Kill, stageIndex: 3, current: 1, required: 1, completed: true);
 
             // Kill replay: second slime kill must not re-increment completed Kill counter
             await Phase8MovementTestHelpers.TeleportToTileAsync(
@@ -248,7 +260,9 @@ public sealed class Phase8PostgresE2ETests
             await AssertSlimeKilledForQuestAsync(midClient, seed.Phase7.SpellId);
             await Phase8TcpTestHelpers.AssertNoUnsolicitedQuestJournalAsync(midClient);
             await midClient.DrainPendingAsync(TimeSpan.FromMilliseconds(150));
-            AssertCurrentStageObjective(killQuest, stageIndex: 4, current: 0, required: 1, completed: false);
+            var afterKillReplay = await Phase8TcpTestHelpers.FetchFreshQuestEntryAsync(midClient, characterId, seed.QuestId);
+            AssertCurrentStageObjective(afterKillReplay, stageIndex: 4, current: 0, required: 1, completed: false);
+            AssertKindCounter(afterKillReplay, QuestObjectiveKind.Kill, stageIndex: 3, current: 1, required: 1, completed: true);
 
             // Step 12 continued: objectives via gameplay — step-on gives ingredients
             var invAfterContact = await Phase8MovementTestHelpers.TeleportOntoContactAndReadInventoryAsync(
@@ -327,6 +341,11 @@ public sealed class Phase8PostgresE2ETests
             Assert.NotNull(readyQuest);
             Assert.Equal((byte)CharacterQuestStatus.ReadyToTurnIn, readyQuest!.Status);
             AssertCurrentStageObjective(readyQuest, stageIndex: 4, current: 1, required: 1, completed: true);
+            AssertKindCounter(readyQuest, QuestObjectiveKind.Talk, stageIndex: 0, current: 1, required: 1, completed: true);
+            AssertKindCounter(readyQuest, QuestObjectiveKind.Visit, stageIndex: 1, current: 1, required: 1, completed: true);
+            AssertKindCounter(readyQuest, QuestObjectiveKind.Collect, stageIndex: 2, current: 1, required: 1, completed: true);
+            AssertKindCounter(readyQuest, QuestObjectiveKind.Kill, stageIndex: 3, current: 1, required: 1, completed: true);
+            AssertKindCounter(readyQuest, QuestObjectiveKind.Craft, stageIndex: 4, current: 1, required: 1, completed: true);
 
             // Step 15: retry craft — no duplication; quest objective not replayed
             await midClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildCraft(seed.RecipeId, craftRequestId));
@@ -338,8 +357,10 @@ public sealed class Phase8PostgresE2ETests
             Assert.Equal(
                 1,
                 Phase8WireDecoders.CountItemQuantity(afterCraftReplay.Inventory, seed.Phase7.ConsumableId));
-            Assert.Equal((byte)CharacterQuestStatus.ReadyToTurnIn, readyQuest.Status);
-            AssertCurrentStageObjective(readyQuest, stageIndex: 4, current: 1, required: 1, completed: true);
+            var afterCraftReplayQuest = Phase8WireDecoders.FindQuestEntry(afterCraftReplay.Journal, seed.QuestId);
+            Assert.Equal((byte)CharacterQuestStatus.ReadyToTurnIn, afterCraftReplayQuest!.Status);
+            AssertCurrentStageObjective(afterCraftReplayQuest, stageIndex: 4, current: 1, required: 1, completed: true);
+            AssertKindCounter(afterCraftReplayQuest, QuestObjectiveKind.Craft, stageIndex: 4, current: 1, required: 1, completed: true);
 
             // Step 16: quest completion — reward once
             await midClient.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
@@ -572,6 +593,73 @@ public sealed class Phase8PostgresE2ETests
         }
     }
 
+    /// <summary>
+    /// R2-5: common-event page selection is proven on the public TCP path.
+    /// Page 0 (no condition) until the switch is set, then highest-priority matching page.
+    /// </summary>
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task CommonEvent_PublicPath_ConditionalPageSelection()
+    {
+        var seed = await SeedPublishedContentAsync();
+        var port = Phase7TcpTestPorts.GetFreePort();
+        using var host = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port).Build();
+        await host.StartAsync();
+        try
+        {
+            await using var client = new Phase7TcpTestClient();
+            await client.ConnectAsync("127.0.0.1", port);
+            Assert.Equal((byte)PacketId.Hello, (await client.ReadFrameAsync())[0]);
+
+            var user = $"p8ce-page-{Guid.NewGuid():N}"[..16];
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildRegister(user, "password12345"));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.RegisterResult))[1]);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildLogin(user, "password12345"));
+            _ = await client.ReadUntilAsync(PacketId.LoginResult);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterCreate("CePageHero", seed.Phase7.ClassId));
+            var characterId = Phase7WireDecoders.DecodeCharacterId(await client.ReadUntilAsync(PacketId.CharacterCreateResult));
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildCharacterSelect(characterId));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
+            _ = await Phase8TcpTestHelpers.DrainAccountSelectSnapshotsAsync(client);
+
+            await Phase8MovementTestHelpers.TeleportToTileAsync(
+                client,
+                Phase8PostgresContentSeed.ConditionalCommonEventTileX,
+                Phase8PostgresContentSeed.ConditionalCommonEventTileY);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var locked = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(locked, out var lockedOk, out var lockedMsg));
+            Assert.True(lockedOk);
+            Assert.Contains(Phase8PostgresContentSeed.ConditionalCommonEventUnsetText, lockedMsg, StringComparison.Ordinal);
+            Assert.DoesNotContain(Phase8PostgresContentSeed.ConditionalCommonEventSetText, lockedMsg, StringComparison.Ordinal);
+
+            await Phase8MovementTestHelpers.TeleportToTileAsync(
+                client,
+                Phase8PostgresContentSeed.ConditionalCommonEventKeyTileX,
+                Phase8PostgresContentSeed.ConditionalCommonEventKeyTileY);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var key = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(key, out var keyOk, out var keyMsg));
+            Assert.True(keyOk);
+            Assert.Contains("CE page key turned", keyMsg, StringComparison.Ordinal);
+
+            await Phase8MovementTestHelpers.TeleportToTileAsync(
+                client,
+                Phase8PostgresContentSeed.ConditionalCommonEventTileX,
+                Phase8PostgresContentSeed.ConditionalCommonEventTileY);
+            await client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract());
+            var unlocked = await client.ReadUntilAsync(PacketId.InteractResult);
+            Assert.True(Phase8WireDecoders.TryDecodeInteractResult(unlocked, out var unlockedOk, out var unlockedMsg));
+            Assert.True(unlockedOk);
+            Assert.Contains(Phase8PostgresContentSeed.ConditionalCommonEventSetText, unlockedMsg, StringComparison.Ordinal);
+            Assert.DoesNotContain(Phase8PostgresContentSeed.ConditionalCommonEventUnsetText, unlockedMsg, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
     private async Task AssertSeedContentAsync(Phase8PostgresContentSeedResult seed)
     {
         using var gate = CreateGate();
@@ -614,6 +702,18 @@ public sealed class Phase8PostgresE2ETests
             c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
         Assert.Contains(
             cycleB!.Pages.SelectMany(p => p.Commands),
+            c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+
+        var conditional = await commons.TryGetPublishedByIdAsync(Phase8PostgresContentSeed.ConditionalCommonEventId);
+        Assert.NotNull(conditional);
+        Assert.Equal(2, conditional!.Pages.Count);
+        Assert.Contains(conditional.Pages, p => p.Conditions.Count == 0);
+        Assert.Contains(conditional.Pages, p => p.Conditions.Count > 0);
+        var conditionalCaller = await mapEvents.TryGetPublishedByAliasAsync(
+            Phase8PostgresContentSeed.ConditionalCommonEventCallerMapEventAliasId);
+        Assert.NotNull(conditionalCaller);
+        Assert.Contains(
+            conditionalCaller!.Pages.SelectMany(p => p.Commands),
             c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
 
         var missingCaller = await mapEvents.TryGetPublishedByAliasAsync(
@@ -706,6 +806,24 @@ public sealed class Phase8PostgresE2ETests
         var objective = Phase8WireDecoders.TryGetObjective(entry, objectiveIndex);
         Assert.NotNull(objective);
         Assert.Equal(current, objective!.Current);
+        Assert.Equal(required, objective.Required);
+        Assert.Equal(completed, objective.Completed);
+    }
+
+    private static void AssertKindCounter(
+        QuestJournalEntryWire? entry,
+        QuestObjectiveKind kind,
+        int stageIndex,
+        int current,
+        int required,
+        bool completed)
+    {
+        Assert.NotNull(entry);
+        var objective = Phase8WireDecoders.TryGetObjectiveByKind(entry, kind, stageIndex);
+        Assert.NotNull(objective);
+        Assert.Equal(kind.ToString(), objective!.Kind);
+        Assert.Equal(stageIndex, objective.StageIndex);
+        Assert.Equal(current, objective.Current);
         Assert.Equal(required, objective.Required);
         Assert.Equal(completed, objective.Completed);
     }

@@ -181,6 +181,21 @@ internal static class Phase8TcpTestHelpers
     }
 
     /// <summary>
+    /// Re-select and return a freshly decoded journal entry from persistent state.
+    /// Never reuse a pre-replay decoded object.
+    /// </summary>
+    public static async Task<QuestJournalEntryWire> FetchFreshQuestEntryAsync(
+        Phase7TcpTestClient client,
+        string characterId,
+        Guid questId)
+    {
+        var snapshots = await ReselectAndReadSnapshotsAsync(client, characterId);
+        var entry = Phase8WireDecoders.FindQuestEntry(snapshots.Journal, questId);
+        Assert.NotNull(entry);
+        return entry!;
+    }
+
+    /// <summary>
     /// Unsolicited catalog / map-events / environment after editor republish.
     /// The already-connected client must not send CatalogRequest, MapEventsRequest, or reselect.
     /// </summary>

@@ -1,4 +1,5 @@
 using Frog.Core.Enums;
+using Frog.Core.Models;
 using Frog.Core.Protocol;
 
 namespace Frog.Persistence.IntegrationTests.Support;
@@ -135,6 +136,27 @@ public static class Phase8WireDecoders
         }
 
         return entry.Objectives[objectiveIndex];
+    }
+
+    /// <summary>
+    /// All-stage counter (Talk/Visit/Collect/Kill/Craft), including completed past stages.
+    /// Falls back to current-stage <see cref="QuestJournalEntryWire.Objectives"/> if AllObjectives is empty.
+    /// </summary>
+    public static QuestObjectiveProgressWire? TryGetObjectiveByKind(
+        QuestJournalEntryWire? entry,
+        QuestObjectiveKind kind,
+        int stageIndex)
+    {
+        if (entry is null)
+        {
+            return null;
+        }
+
+        var source = entry.AllObjectives.Count > 0 ? entry.AllObjectives : entry.Objectives;
+        var kindName = kind.ToString();
+        return source.FirstOrDefault(o =>
+            o.StageIndex == stageIndex
+            && string.Equals(o.Kind, kindName, StringComparison.Ordinal));
     }
 
     public static int CountItemQuantity(InventorySnapshotWire snapshot, Guid itemId) =>

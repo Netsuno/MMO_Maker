@@ -215,20 +215,8 @@ public sealed class QuestGameplayService(
 
             var stageIndex = Math.Min(prog.StageIndex, definition.Stages.Count - 1);
             var stage = definition.Stages[stageIndex];
-            var objectives = stage.Objectives
-                .Select((o, i) =>
-                {
-                    var key = QuestObjectiveKeys.For(stageIndex, i);
-                    prog.ObjectiveCounters.TryGetValue(key, out var current);
-                    return new QuestObjectiveProgressWire
-                    {
-                        Description = string.IsNullOrWhiteSpace(o.Description) ? o.Kind.ToString() : o.Description,
-                        Current = current,
-                        Required = o.RequiredCount,
-                        Completed = current >= o.RequiredCount,
-                    };
-                })
-                .ToList();
+            var allObjectives = BuildAllObjectiveWires(definition, prog);
+            var objectives = allObjectives.Where(o => o.StageIndex == stageIndex).ToList();
             entries.Add(new QuestJournalEntryWire
             {
                 QuestId = prog.QuestId,
@@ -237,10 +225,41 @@ public sealed class QuestGameplayService(
                 StageIndex = prog.StageIndex,
                 StageDescription = stage.Description,
                 Objectives = objectives,
+                AllObjectives = allObjectives,
             });
         }
 
         return entries;
+    }
+
+    private static List<QuestObjectiveProgressWire> BuildAllObjectiveWires(
+        QuestDefinition definition,
+        CharacterQuestProgress prog)
+    {
+        var wires = new List<QuestObjectiveProgressWire>();
+        for (var stageIndex = 0; stageIndex < definition.Stages.Count; stageIndex++)
+        {
+            var stage = definition.Stages[stageIndex];
+            for (var i = 0; i < stage.Objectives.Count; i++)
+            {
+                var objective = stage.Objectives[i];
+                var key = QuestObjectiveKeys.For(stageIndex, i);
+                prog.ObjectiveCounters.TryGetValue(key, out var current);
+                wires.Add(new QuestObjectiveProgressWire
+                {
+                    Description = string.IsNullOrWhiteSpace(objective.Description)
+                        ? objective.Kind.ToString()
+                        : objective.Description,
+                    Current = current,
+                    Required = objective.RequiredCount,
+                    Completed = current >= objective.RequiredCount,
+                    StageIndex = stageIndex,
+                    Kind = objective.Kind.ToString(),
+                });
+            }
+        }
+
+        return wires;
     }
 
     private static bool ObjectiveMatchesSignal(QuestObjectiveDefinition objective, QuestObjectiveSignal signal) =>

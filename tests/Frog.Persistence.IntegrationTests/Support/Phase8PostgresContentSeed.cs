@@ -113,12 +113,16 @@ public static class Phase8PostgresContentSeed
     public static readonly Guid CycleCommonEventIdA = Guid.Parse("bbbbbbbb-0007-4000-8000-0000000000c1");
     /// <summary>Poisoned published CE B in A→B→A (J5-FIX-08).</summary>
     public static readonly Guid CycleCommonEventIdB = Guid.Parse("bbbbbbbb-0007-4000-8000-0000000000c2");
+    /// <summary>Two-page common event: page 0 default, page 1 when <see cref="ConditionalCommonEventSwitchId"/> is set.</summary>
+    public static readonly Guid ConditionalCommonEventId = Guid.Parse("bbbbbbbb-0007-4000-8000-0000000000c5");
 
     public const int CommonEventCallerMapEventAliasId = 8110;
     public const int MissingCommonEventCallerMapEventAliasId = 8111;
     public const int MissingCommonEventProbeMapEventAliasId = 8112;
     public const int CycleCommonEventCallerMapEventAliasId = 8113;
     public const int CycleCommonEventProbeMapEventAliasId = 8114;
+    public const int ConditionalCommonEventCallerMapEventAliasId = 8115;
+    public const int ConditionalCommonEventKeyMapEventAliasId = 8116;
     public const int Region2TileX = 7;
     public const int Region2TileY = 0;
     public const int CommonEventTileX = 7;
@@ -131,6 +135,10 @@ public static class Phase8PostgresContentSeed
     public const int CycleCommonEventTileY = 1;
     public const int CycleCommonEventProbeTileX = 9;
     public const int CycleCommonEventProbeTileY = 1;
+    public const int ConditionalCommonEventTileX = 6;
+    public const int ConditionalCommonEventTileY = 2;
+    public const int ConditionalCommonEventKeyTileX = 6;
+    public const int ConditionalCommonEventKeyTileY = 3;
     public const int VisitObjectiveTileX = 8;
     public const int VisitObjectiveTileY = 4;
     public const int CollectObjectiveTileX = 9;
@@ -148,11 +156,14 @@ public static class Phase8PostgresContentSeed
     public const string CommonEventSwitchId = "phase8_common_fired";
     public const string MissingCommonEventSwitchId = "phase8_missing_ce_probe";
     public const string CycleCommonEventSwitchId = "phase8_cycle_ce_probe";
+    public const string ConditionalCommonEventSwitchId = "phase8_ce_page";
     public const string WaitSwitchId = "phase8_wait_done";
     public const string MissingCommonEventProbeUnsetText = "missing-ce probe unset.";
     public const string MissingCommonEventProbeSetText = "missing-ce probe set.";
     public const string CycleCommonEventProbeUnsetText = "cycle-ce probe unset.";
     public const string CycleCommonEventProbeSetText = "cycle-ce probe set.";
+    public const string ConditionalCommonEventUnsetText = "CE page unset.";
+    public const string ConditionalCommonEventSetText = "CE page set.";
     public const string OnceRewardOnceKey = "phase8-once-chest";
     public const int QuestRewardGold = 50;
 
@@ -200,6 +211,7 @@ public static class Phase8PostgresContentSeed
         await EnsurePublishedRegion2Async(phase8Repo, runtimeMapId).ConfigureAwait(false);
         await EnsurePublishedCommonEventsAsync(phase8Repo).ConfigureAwait(false);
         await EnsurePoisonedCyclicCommonEventsAsync(gate).ConfigureAwait(false);
+        await PublishCommonEventIfMissingAsync(phase8Repo, CreateConditionalCommonEvent()).ConfigureAwait(false);
 
         var mapEvents = new PostgresMapEventRepository(gate);
         var (gateEventId, keyEventId, autorunEventId, contactEventId, parallelEventId, routeEventId, waitEventId, learnProfessionEventId, onceRewardEventId, commonCallerEventId) =
@@ -232,6 +244,16 @@ public static class Phase8PostgresContentSeed
                 CycleCommonEventSwitchId,
                 CycleCommonEventProbeUnsetText,
                 CycleCommonEventProbeSetText)).ConfigureAwait(false);
+        var conditionalCallerEventId = await EnsureMapEventAsync(
+            mapEvents,
+            ConditionalCommonEventCallerMapEventAliasId,
+            "Phase8 Conditional CE Caller",
+            CreateConditionalCommonEventCallerMapEventDefinition()).ConfigureAwait(false);
+        var conditionalKeyEventId = await EnsureMapEventAsync(
+            mapEvents,
+            ConditionalCommonEventKeyMapEventAliasId,
+            "Phase8 Conditional CE Key",
+            CreateConditionalCommonEventKeyMapEventDefinition()).ConfigureAwait(false);
 
         await EnsureMapEventPlacementsAsync(
             gate,
@@ -249,7 +271,9 @@ public static class Phase8PostgresContentSeed
             missingCallerEventId,
             missingProbeEventId,
             cycleCallerEventId,
-            cycleProbeEventId).ConfigureAwait(false);
+            cycleProbeEventId,
+            conditionalCallerEventId,
+            conditionalKeyEventId).ConfigureAwait(false);
 
         var collectGroundItemId = await SeedGroundCollectItemAsync(
             gate,
@@ -1116,6 +1140,51 @@ public static class Phase8PostgresContentSeed
         ],
     };
 
+    private static CommonEventDefinition CreateConditionalCommonEvent() => new()
+    {
+        Id = ConditionalCommonEventId,
+        Name = "Phase8 Conditional CE",
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                Priority = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = $$"""{"text":"{{ConditionalCommonEventUnsetText}}"}""",
+                    },
+                ],
+            },
+            new MapEventPageDefinition
+            {
+                PageOrder = 1,
+                Priority = 10,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                Conditions =
+                [
+                    new MapEventConditionDefinition
+                    {
+                        Kind = MapEventConditionKinds.CharacterSwitch,
+                        ParameterJson = $$"""{"switchId":"{{ConditionalCommonEventSwitchId}}","value":true}""",
+                    },
+                ],
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = $$"""{"text":"{{ConditionalCommonEventSetText}}"}""",
+                    },
+                ],
+            },
+        ],
+    };
+
     private static async Task<(Guid GateId, Guid KeyId, Guid AutorunId, Guid ContactId, Guid ParallelId, Guid RouteId, Guid WaitId, Guid LearnProfessionId, Guid OnceRewardId, Guid CommonCallerId)> EnsurePublishedMapEventsAsync(
         PostgresMapEventRepository mapEvents)
     {
@@ -1480,6 +1549,57 @@ public static class Phase8PostgresContentSeed
         ],
     };
 
+    private static MapEventDefinition CreateConditionalCommonEventCallerMapEventDefinition() => new()
+    {
+        Name = "Phase8 Conditional CE Caller",
+        EditorAliasId = ConditionalCommonEventCallerMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                        ParameterJson = $$"""{"commonEventId":"{{ConditionalCommonEventId:D}}"}""",
+                    },
+                ],
+            },
+        ],
+    };
+
+    private static MapEventDefinition CreateConditionalCommonEventKeyMapEventDefinition() => new()
+    {
+        Name = "Phase8 Conditional CE Key",
+        EditorAliasId = ConditionalCommonEventKeyMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                        ParameterJson = $$"""{"switchId":"{{ConditionalCommonEventSwitchId}}","value":true}""",
+                    },
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = """{"text":"CE page key turned."}""",
+                    },
+                ],
+            },
+        ],
+    };
+
     private static MapEventDefinition CreateCycleCommonEventCallerMapEventDefinition() => new()
     {
         Name = "Phase8 Cycle CE Caller",
@@ -1603,7 +1723,9 @@ public static class Phase8PostgresContentSeed
         Guid missingCallerEventId,
         Guid missingProbeEventId,
         Guid cycleCallerEventId,
-        Guid cycleProbeEventId)
+        Guid cycleProbeEventId,
+        Guid conditionalCallerEventId,
+        Guid conditionalKeyEventId)
     {
         await gate.ExecuteAsync(async (db, ct) =>
         {
@@ -1636,6 +1758,8 @@ public static class Phase8PostgresContentSeed
                 CreatePlacement(mapId, missingProbeEventId, MissingCommonEventProbeTileX, MissingCommonEventProbeTileY, Phase8MapEventTriggerKinds.Action),
                 CreatePlacement(mapId, cycleCallerEventId, CycleCommonEventTileX, CycleCommonEventTileY, Phase8MapEventTriggerKinds.Action),
                 CreatePlacement(mapId, cycleProbeEventId, CycleCommonEventProbeTileX, CycleCommonEventProbeTileY, Phase8MapEventTriggerKinds.Action),
+                CreatePlacement(mapId, conditionalCallerEventId, ConditionalCommonEventTileX, ConditionalCommonEventTileY, Phase8MapEventTriggerKinds.Action),
+                CreatePlacement(mapId, conditionalKeyEventId, ConditionalCommonEventKeyTileX, ConditionalCommonEventKeyTileY, Phase8MapEventTriggerKinds.Action),
             };
             var toAdd = wanted.Where(p => !existingSet.Contains(p.EventDefinitionId)).ToList();
             if (toAdd.Count == 0)

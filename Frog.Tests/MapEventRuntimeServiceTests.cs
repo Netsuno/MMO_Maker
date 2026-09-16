@@ -991,6 +991,95 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_CallCommonEvent_SelectsConditionalPage()
+    {
+        var characterId = Guid.NewGuid();
+        var commonId = Guid.Parse("dddddddd-0003-4000-8000-000000000003");
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "PagedCaller",
+            EditorAliasId = 69,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                            ParameterJson = $"{{\"commonEventId\":\"{commonId}\"}}",
+                        },
+                    ],
+                },
+            ],
+        });
+        var worldState = new InMemoryCharacterWorldStateRepository();
+        var service = CreateService(
+            catalog,
+            worldState,
+            new InMemoryCharacterPayloadReader(),
+            configureContent: content => content.RegisterCommonEvent(new CommonEventDefinition
+            {
+                Id = commonId,
+                Name = "Paged helper",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        PageOrder = 0,
+                        Priority = 0,
+                        TriggerKind = Phase8MapEventTriggerKinds.Action,
+                        Commands =
+                        [
+                            new MapEventCommandDefinition
+                            {
+                                Discriminator = MapEventCommandDiscriminators.ShowText,
+                                ParameterJson = """{"text":"CE page unset."}""",
+                            },
+                        ],
+                    },
+                    new MapEventPageDefinition
+                    {
+                        PageOrder = 1,
+                        Priority = 10,
+                        TriggerKind = Phase8MapEventTriggerKinds.Action,
+                        Conditions =
+                        [
+                            new MapEventConditionDefinition
+                            {
+                                Kind = MapEventConditionKinds.CharacterSwitch,
+                                ParameterJson = """{"switchId":"ce_page","value":true}""",
+                            },
+                        ],
+                        Commands =
+                        [
+                            new MapEventCommandDefinition
+                            {
+                                Discriminator = MapEventCommandDiscriminators.ShowText,
+                                ParameterJson = """{"text":"CE page set."}""",
+                            },
+                        ],
+                    },
+                ],
+            }));
+
+        var session = CreateSession(characterId);
+        var locked = await service.TryExecuteInteractAsync(session, CreatePlacement(69));
+        Assert.NotNull(locked);
+        Assert.True(locked!.Success);
+        Assert.Equal("CE page unset.", locked.ShowText);
+
+        await worldState.SetSwitchAsync(characterId, "ce_page", true);
+        var unlocked = await service.TryExecuteInteractAsync(session, CreatePlacement(69));
+        Assert.NotNull(unlocked);
+        Assert.True(unlocked!.Success);
+        Assert.Equal("CE page set.", unlocked.ShowText);
+    }
+
+    [Fact]
     public async Task ExecuteInteract_PublicPath_NestedCommonEvent_ExpandsChildSetSwitchViaCore()
     {
         var characterId = Guid.NewGuid();

@@ -358,6 +358,13 @@ public sealed class QuestJournalEntryWire
 
     public IReadOnlyList<QuestObjectiveProgressWire> Objectives { get; set; } =
         Array.Empty<QuestObjectiveProgressWire>();
+
+    /// <summary>
+    /// All stages' counters (Talk/Visit/Collect/Kill/Craft), including completed past stages.
+    /// Current-stage <see cref="Objectives"/> stay the public panel list.
+    /// </summary>
+    public IReadOnlyList<QuestObjectiveProgressWire> AllObjectives { get; set; } =
+        Array.Empty<QuestObjectiveProgressWire>();
 }
 
 public sealed class QuestObjectiveProgressWire
@@ -369,6 +376,10 @@ public sealed class QuestObjectiveProgressWire
     public int Required { get; set; }
 
     public bool Completed { get; set; }
+
+    public int StageIndex { get; set; }
+
+    public string Kind { get; set; } = string.Empty;
 }
 
 public sealed record DialogueStatePushWire(

@@ -127,8 +127,67 @@ public sealed class MapEventExecutionPlannerTests
         Assert.Equal(2, plan.Effects.Count);
         Assert.Equal(MapEventCommandDiscriminators.ShowText, plan.Effects[0].Discriminator);
         Assert.Equal(MapEventCommandDiscriminators.SetSwitch, plan.Effects[1].Discriminator);
+        Assert.Contains("from-common", plan.Effects[0].ParameterJson, StringComparison.Ordinal);
         Assert.DoesNotContain(
             plan.Effects,
+            c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
+    }
+
+    [Fact]
+    public void Plan_CallCommonEvent_SelectsHighestPriorityMatchingPage()
+    {
+        var commonId = Guid.Parse("cccccccc-cccc-cccc-cccc-ccccccccccce");
+        var source = new InMemoryCommonEventSource(
+        [
+            new CommonEventDefinition
+            {
+                Id = commonId,
+                Name = "Paged",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        PageOrder = 0,
+                        Priority = 0,
+                        Commands = [ShowText("CE page unset.")],
+                    },
+                    new MapEventPageDefinition
+                    {
+                        PageOrder = 1,
+                        Priority = 10,
+                        Conditions =
+                        [
+                            new MapEventConditionDefinition
+                            {
+                                Kind = MapEventConditionKinds.CharacterSwitch,
+                                ParameterJson = """{"switchId":"ce_page","value":true}""",
+                            },
+                        ],
+                        Commands = [ShowText("CE page set.")],
+                    },
+                ],
+            },
+        ]);
+
+        var locked = MapEventExecutionPlanner.Plan(
+            [CallCommon(commonId)],
+            source,
+            _ => false,
+            Identity());
+        Assert.True(locked.IsSuccess, locked.Error);
+        Assert.Single(locked.Effects);
+        Assert.Contains("CE page unset.", locked.Effects[0].ParameterJson, StringComparison.Ordinal);
+
+        var unlocked = MapEventExecutionPlanner.Plan(
+            [CallCommon(commonId)],
+            source,
+            _ => true,
+            Identity());
+        Assert.True(unlocked.IsSuccess, unlocked.Error);
+        Assert.Single(unlocked.Effects);
+        Assert.Contains("CE page set.", unlocked.Effects[0].ParameterJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            unlocked.Effects,
             c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
     }
 
