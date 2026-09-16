@@ -182,7 +182,7 @@ public sealed class PostgresMapEventTransactionalContractsTests
         Assert.Equal(identity.EffectiveActivationId, first.Snapshot.ActivationId);
         Assert.Equal(0, first.Snapshot.WaitOrdinal);
         Assert.Null(first.Snapshot.Teleport);
-        Assert.Equal(1, first.Snapshot.PendingCommands!.Count);
+        Assert.Equal(2, first.Snapshot.PendingCommands!.Count);
 
         using var afterPrefix = CreateGate();
         Assert.Equal(true, await new PostgresCharacterWorldStateRepository(afterPrefix)
@@ -395,8 +395,13 @@ public sealed class PostgresMapEventTransactionalContractsTests
         Assert.Equal(identity.WaitOrdinal, row.WaitOrdinal);
         if (expectIntents)
         {
-            Assert.Contains($"\"dialogueId\":\"{Phase8PostgresContentSeed.DefaultDialogueId:D}\"", row.ResultJson, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains($"\"teleportMapId\":{TeleportMapId}", row.ResultJson, StringComparison.OrdinalIgnoreCase);
+            using var doc = System.Text.Json.JsonDocument.Parse(row.ResultJson);
+            Assert.Equal(
+                Phase8PostgresContentSeed.DefaultDialogueId,
+                doc.RootElement.GetProperty("dialogueId").GetGuid());
+            Assert.Equal(TeleportMapId, doc.RootElement.GetProperty("teleportMapId").GetInt32());
+            Assert.Equal(TeleportTileX, doc.RootElement.GetProperty("teleportTileX").GetInt32());
+            Assert.Equal(TeleportTileY, doc.RootElement.GetProperty("teleportTileY").GetInt32());
         }
     }
 
