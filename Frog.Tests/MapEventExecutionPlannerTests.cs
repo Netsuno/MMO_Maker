@@ -451,16 +451,34 @@ public sealed class MapEventExecutionPlannerTests
     }
 
     [Fact]
-    public void ServerPlanner_CanExecuteTransactionally_RejectsTeleportAndDialogue()
+    public void ServerPlanner_CanExecuteTransactionally_AllowsTeleportAndDialogue()
     {
-        Assert.False(ServerPlanner.CanExecuteTransactionally(
+        Assert.True(ServerPlanner.CanExecuteTransactionally(
         [
             ShowText("ok"),
             Cmd(MapEventCommandDiscriminators.Teleport, """{"mapId":1,"tileX":0,"tileY":0}"""),
         ]));
-        Assert.False(ServerPlanner.CanExecuteTransactionally(
+        Assert.True(ServerPlanner.CanExecuteTransactionally(
         [
             Cmd(MapEventCommandDiscriminators.StartDialogue, """{"dialogueId":"cccccccc-cccc-cccc-cccc-cccccccccccc"}"""),
+        ]));
+    }
+
+    [Fact]
+    public void ServerPlanner_AreEffectsTransactional_IncludesTeleportAndDialogue()
+    {
+        Assert.True(ServerPlanner.AreEffectsTransactional(
+        [
+            ShowText("ok"),
+            Cmd(MapEventCommandDiscriminators.StartDialogue, """{"dialogueId":"cccccccc-cccc-cccc-cccc-cccccccccccc"}"""),
+            Cmd(MapEventCommandDiscriminators.Teleport, """{"mapId":1,"tileX":4,"tileY":1}"""),
+            Cmd(MapEventCommandDiscriminators.Wait, """{"milliseconds":10}"""),
+        ]));
+        Assert.True(MapEventExecutionPlanner.IsUnifiedTransactionalUnit(
+        [
+            Cmd(MapEventCommandDiscriminators.GiveItem, """{"itemId":"12345678-1234-1234-1234-1234567890ab","quantity":1}"""),
+            Cmd(MapEventCommandDiscriminators.StartDialogue, """{"dialogueId":"cccccccc-cccc-cccc-cccc-cccccccccccc"}"""),
+            Cmd(MapEventCommandDiscriminators.Teleport, """{"mapId":1,"tileX":4,"tileY":1}"""),
         ]));
     }
 

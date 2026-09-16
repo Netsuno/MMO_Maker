@@ -17,33 +17,22 @@ internal static class MapEventExecutionPlanner
 
     /// <summary>
     /// True si l'arbre de commandes (branches incluses) peut être commis dans une
-    /// seule transaction PG après planification Core.
-    /// <c>start_dialogue</c> et <c>teleport</c> restent hors TX (session / monde) :
-    /// une page qui les contient utilise l'exécuteur in-memory pour la page entière,
-    /// afin de ne jamais présenter une mutation partielle comme atomique.
+    /// seule transaction PG après planification Core. <c>start_dialogue</c> et
+    /// <c>teleport</c> appartiennent à l'unité unifiée (intents de session dans la
+    /// même TX) ; le serveur les applique après commit.
     /// </summary>
     public static bool CanExecuteTransactionally(IReadOnlyList<MapEventCommandDefinition> commands) =>
         ValidateCommandTree(commands, 0, out _);
 
-    public static bool AreEffectsTransactional(IReadOnlyList<MapEventCommandDefinition> effects)
-    {
-        ArgumentNullException.ThrowIfNull(effects);
-        foreach (var cmd in effects)
-        {
-            if (IsUnresolvedControlFlow(cmd.Discriminator) || !IsRepositorySupported(cmd.Discriminator))
-            {
-                return false;
-            }
-        }
+    /// <summary>
+    /// True si les effets plats (dialogue / téléport inclus) tiennent dans une TX PG
+    /// unifiée. Délègue au classifieur Core R2-4.
+    /// </summary>
+    public static bool AreEffectsTransactional(IReadOnlyList<MapEventCommandDefinition> effects) =>
+        CorePlanner.IsUnifiedTransactionalUnit(effects);
 
-        return true;
-    }
-
-    public static bool ContainsUnresolvedControlFlow(IReadOnlyList<MapEventCommandDefinition> effects)
-    {
-        ArgumentNullException.ThrowIfNull(effects);
-        return effects.Any(cmd => IsUnresolvedControlFlow(cmd.Discriminator));
-    }
+    public static bool ContainsUnresolvedControlFlow(IReadOnlyList<MapEventCommandDefinition> effects) =>
+        CorePlanner.ContainsUnresolvedControlFlow(effects);
 
     public static Task<MapEventExecutionPlan> PlanAsync(
         IReadOnlyList<MapEventCommandDefinition> commands,
@@ -128,10 +117,6 @@ internal static class MapEventExecutionPlanner
         return true;
     }
 
-    private static bool IsUnresolvedControlFlow(string discriminator) =>
-        discriminator is MapEventCommandDiscriminators.Branch
-            or MapEventCommandDiscriminators.CallCommonEvent;
-
     private static bool IsRepositorySupported(string discriminator) =>
         discriminator switch
         {
@@ -148,7 +133,9 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.StartQuest
                 or MapEventCommandDiscriminators.AdvanceQuest
                 or MapEventCommandDiscriminators.TurnInQuest
-                or MapEventCommandDiscriminators.LearnProfession => true,
+                or MapEventCommandDiscriminators.LearnProfession
+                or MapEventCommandDiscriminators.StartDialogue
+                or MapEventCommandDiscriminators.Teleport => true,
             _ => false,
         };
 }

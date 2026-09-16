@@ -586,18 +586,28 @@ public sealed class Phase8GameplayHandlers(
             .ConfigureAwait(false);
         foreach (var runtimeResult in results)
         {
-            if (runtimeResult.SwitchChanges.Count > 0)
-            {
-                await packetSender.SendWorldSwitchSnapshotAsync(
-                        client,
-                        runtimeResult.SwitchChanges,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            // No InteractResult: heartbeat collectors (wait-resume → parallel pulse)
+            // must not see a leftover InteractResult from the wait suffix.
+            await ApplyCommittedSessionClientEffectsAsync(client, session, runtimeResult, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
     private async Task ApplyRuntimeClientEffectsAsync(
+        ClientSession client,
+        Session session,
+        MapEventExecutionResult runtimeResult,
+        CancellationToken cancellationToken)
+    {
+        await ApplyCommittedSessionClientEffectsAsync(client, session, runtimeResult, cancellationToken)
+            .ConfigureAwait(false);
+
+        var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+        await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task ApplyCommittedSessionClientEffectsAsync(
         ClientSession client,
         Session session,
         MapEventExecutionResult runtimeResult,
@@ -608,6 +618,31 @@ public sealed class Phase8GameplayHandlers(
             await SendQuestJournalAsync(client, session, cancellationToken).ConfigureAwait(false);
         }
 
+        if (runtimeResult.TeleportApplied)
+        {
+            await packetSender.SendPositionUpdateAsync(
+                client,
+                session.Username ?? string.Empty,
+                session.CurrentMapId,
+                session.PixelX,
+                session.PixelY,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (runtimeResult.DialogueState is not null)
+        {
+            var push = runtimeResult.DialogueState;
+            await packetSender.SendDialogueStatePushAsync(
+                client,
+                push.DialogueId,
+                push.PublishedRevision,
+                push.SessionToken,
+                push.Speaker,
+                push.Text,
+                push.Choices,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         if (runtimeResult.SwitchChanges.Count > 0)
         {
             await packetSender.SendWorldSwitchSnapshotAsync(
@@ -616,9 +651,5 @@ public sealed class Phase8GameplayHandlers(
                     cancellationToken)
                 .ConfigureAwait(false);
         }
-
-        var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
-        await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
-            .ConfigureAwait(false);
     }
 }

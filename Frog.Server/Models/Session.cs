@@ -73,7 +73,11 @@ public sealed class Session
     /// <summary>Dernier <c>InteractResult</c> auto-tuile par <c>placementId</c> (réinitialisé au changement de case carte).</summary>
     public Dictionary<long, DateTime> MapEventAutoTileLastFiredUtc { get; } = new();
 
-    /// <summary>RequestId stable par placement pour idempotence exécution événement (P8-I4).</summary>
+    /// <summary>
+    /// Ancien RequestId session-long par placement. Le chemin public R2-4 utilise
+    /// <c>MapEventExecutionIdentity.BeginActivation</c> (identité par activation).
+    /// Conservé pour compatibilité tests / reconnect explicite.
+    /// </summary>
     public Dictionary<long, Guid> MapEventPendingRequestIds { get; } = new();
 
     /// <summary>Dernière région environnement poussée au client (P8-I5 boundary).</summary>

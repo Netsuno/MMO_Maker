@@ -74,21 +74,27 @@ public sealed class MapEventExecutionResult
 
     /// <summary>
     /// Mappe le snapshot persisté (J4-PG) vers le résultat public. Les intents
-    /// <c>teleport</c> / <c>start_dialogue</c> sont enregistrés dans la TX mais
-    /// appliqués côté session après commit (prochaine vague serveur).
+    /// <c>teleport</c> / <c>start_dialogue</c> sont enregistrés dans la TX ; le
+    /// serveur les applique sur la session après commit puis passe l'état appliqué.
     /// </summary>
     public static MapEventExecutionResult FromMutationSnapshot(
         string fallbackMessage,
-        MapEventExecutionSnapshot? snap) =>
+        MapEventExecutionSnapshot? snap,
+        bool teleportApplied = false,
+        string? dialogueSummary = null,
+        DialogueStatePushWire? dialogueState = null) =>
         Ok(
-            message: snap?.ShowText ?? fallbackMessage,
-            showText: snap?.ShowText,
+            message: snap?.ShowText ?? dialogueSummary ?? fallbackMessage,
+            showText: snap?.ShowText ?? dialogueSummary,
             switchesChanged: snap?.SwitchesChanged ?? false,
             switchChanges: snap?.SwitchChanges,
             variablesChanged: snap?.VariablesChanged ?? false,
             inventoryChanged: snap?.InventoryChanged ?? false,
             goldChanged: snap?.GoldChanged ?? false,
+            teleportApplied: teleportApplied,
+            dialogueSummary: dialogueSummary,
             questSummary: snap?.QuestSummary,
+            dialogueState: dialogueState,
             questsChanged: snap?.QuestsChanged ?? false,
             professionsChanged: snap?.ProfessionsChanged ?? false,
             recipesChanged: snap?.RecipesChanged ?? false);

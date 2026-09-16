@@ -18,6 +18,7 @@ using Frog.Server.Persistence;
 using Frog.Server.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using ServerPlanner = Frog.Server.Gameplay.MapEventExecutionPlanner;
 
 namespace Frog.Tests;
 
@@ -490,7 +491,10 @@ public sealed class MapEventRuntimeServiceTests
         var plan = repo.Plans[0];
         Assert.True(plan.IsSuccess, plan.Error);
         Assert.Equal(characterId, plan.Identity.CharacterId);
-        Assert.Equal(session.GetOrCreateMapEventRequestId(1), plan.Identity.RequestId);
+        Assert.Equal(plan.Identity.RequestId, plan.Identity.ActivationId);
+        Assert.True(plan.Identity.IsInitialActivation);
+        Assert.NotEqual(Guid.Empty, plan.Identity.ActivationId);
+        Assert.Empty(session.MapEventPendingRequestIds);
         Assert.DoesNotContain(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.Branch);
         Assert.DoesNotContain(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.CallCommonEvent);
         Assert.Contains(plan.Effects, c => c.Discriminator == MapEventCommandDiscriminators.ShowText);
@@ -508,7 +512,7 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
-    public async Task ExecuteInteract_PublicPath_ReplayKeepsRequestId()
+    public async Task ExecuteInteract_PublicPath_BeginActivation_IsDistinctFromReplayRestore()
     {
         var characterId = Guid.NewGuid();
         var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
@@ -533,19 +537,6 @@ public sealed class MapEventRuntimeServiceTests
             ],
         });
         var repo = new RecordingMutationRepository();
-        var calls = 0;
-        repo.Handler = _ =>
-        {
-            calls++;
-            return new MapEventMutationResult(
-                calls == 1 ? MapEventMutationStatus.Executed : MapEventMutationStatus.IdempotentReplay,
-                null,
-                new MapEventExecutionSnapshot
-                {
-                    ShowText = "Métier acquis.",
-                    ProfessionsChanged = true,
-                });
-        };
         var service = CreateService(
             catalog,
             new InMemoryCharacterWorldStateRepository(),
@@ -561,8 +552,22 @@ public sealed class MapEventRuntimeServiceTests
         Assert.True(second!.Success);
         Assert.Equal(2, repo.Plans.Count);
         Assert.Equal(0, repo.PageCalls);
-        Assert.Equal(repo.Plans[0].Identity.RequestId, repo.Plans[1].Identity.RequestId);
-        Assert.Equal(repo.Plans[0].Identity.LedgerKey, repo.Plans[1].Identity.LedgerKey);
+        Assert.NotEqual(repo.Plans[0].Identity.LedgerKey, repo.Plans[1].Identity.LedgerKey);
+        Assert.NotEqual(repo.Plans[0].Identity.ActivationId, repo.Plans[1].Identity.ActivationId);
+        Assert.Equal(repo.Plans[0].Identity.RequestId, repo.Plans[0].Identity.ActivationId);
+        Assert.True(repo.Plans[0].Identity.IsInitialActivation);
+        Assert.Empty(session.MapEventPendingRequestIds);
+
+        var restored = MapEventExecutionIdentity.Restore(
+            characterId,
+            placement.PlacementId,
+            placement.CatalogId,
+            repo.Plans[0].Identity.EffectiveActivationId);
+        Assert.Equal(repo.Plans[0].Identity.LedgerKey, restored.LedgerKey);
+        var replay = await repo.TryExecutePlanAsync(
+            MapEventExecutionPlan.Ok(restored, repo.Plans[0].Effects));
+        Assert.Equal(MapEventMutationStatus.IdempotentReplay, replay.Status);
+        Assert.Equal(3, repo.Plans.Count);
         Assert.True(second.ProfessionsChanged);
     }
 
@@ -618,7 +623,7 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
-    public async Task ExecuteInteract_TeleportPage_DoesNotCallMutationRepository()
+    public async Task ExecuteInteract_TeleportPage_UsesUnifiedTransactionalPath()
     {
         var characterId = Guid.NewGuid();
         var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
@@ -641,7 +646,7 @@ public sealed class MapEventRuntimeServiceTests
                         new MapEventCommandDefinition
                         {
                             Discriminator = MapEventCommandDiscriminators.Teleport,
-                            ParameterJson = """{"mapId":1,"tileX":0,"tileY":0}""",
+                            ParameterJson = """{"mapId":1,"tileX":4,"tileY":1}""",
                         },
                     ],
                 },
@@ -653,17 +658,30 @@ public sealed class MapEventRuntimeServiceTests
             new InMemoryCharacterWorldStateRepository(),
             new InMemoryCharacterPayloadReader(),
             mutationRepository: repo);
+        var session = CreateSession(characterId);
+        session.CurrentMapId = 1;
+        session.PositionX = 0;
+        session.PositionY = 0;
 
-        await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(13));
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(13));
 
-        Assert.Empty(repo.Plans);
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Single(repo.Plans);
         Assert.Equal(0, repo.PageCalls);
+        Assert.Contains(repo.Plans[0].Effects, c => c.Discriminator == MapEventCommandDiscriminators.Teleport);
+        Assert.True(ServerPlanner.AreEffectsTransactional(repo.Plans[0].Effects));
+        Assert.True(result.TeleportApplied);
+        Assert.Equal(4, session.PositionX);
+        Assert.Equal(1, session.PositionY);
+        Assert.Equal("before-teleport", result.ShowText);
     }
 
     [Fact]
-    public async Task ExecuteInteract_StartDialoguePage_DoesNotCallMutationRepository()
+    public async Task ExecuteInteract_StartDialoguePage_UsesUnifiedTransactionalPath()
     {
         var characterId = Guid.NewGuid();
+        var dialogueId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
         var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
         {
             Name = "Talk",
@@ -679,7 +697,7 @@ public sealed class MapEventRuntimeServiceTests
                         new MapEventCommandDefinition
                         {
                             Discriminator = MapEventCommandDiscriminators.StartDialogue,
-                            ParameterJson = """{"dialogueId":"cccccccc-cccc-cccc-cccc-cccccccccccc"}""",
+                            ParameterJson = $"{{\"dialogueId\":\"{dialogueId:D}\"}}",
                         },
                     ],
                 },
@@ -690,12 +708,225 @@ public sealed class MapEventRuntimeServiceTests
             catalog,
             new InMemoryCharacterWorldStateRepository(),
             new InMemoryCharacterPayloadReader(),
-            mutationRepository: repo);
+            mutationRepository: repo,
+            configureContent: content => content.RegisterDialogue(new DialogueDefinition
+            {
+                Id = dialogueId,
+                Name = "Guide",
+                Lines = [new DialogueLineDefinition { Speaker = "Guide", Text = "Hello" }],
+            }));
 
-        await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(14));
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(14));
 
-        Assert.Empty(repo.Plans);
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Single(repo.Plans);
         Assert.Equal(0, repo.PageCalls);
+        Assert.Contains(repo.Plans[0].Effects, c => c.Discriminator == MapEventCommandDiscriminators.StartDialogue);
+        Assert.True(ServerPlanner.AreEffectsTransactional(repo.Plans[0].Effects));
+        Assert.NotNull(result.DialogueState);
+        Assert.Equal(dialogueId, result.DialogueState!.DialogueId);
+        Assert.Equal("Guide", result.DialogueState.Speaker);
+        Assert.Contains("Hello", result.DialogueSummary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_PublicPath_MixedDialogueTeleport_AppliesIntentsAfterCommit()
+    {
+        var characterId = Guid.NewGuid();
+        var dialogueId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "MixedGate",
+            EditorAliasId = 16,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = """{"switchId":"mixed_ok","value":true}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.StartDialogue,
+                            ParameterJson = $"{{\"dialogueId\":\"{dialogueId:D}\"}}",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.Teleport,
+                            ParameterJson = """{"mapId":1,"tileX":4,"tileY":1}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo,
+            configureContent: content => content.RegisterDialogue(new DialogueDefinition
+            {
+                Id = dialogueId,
+                Name = "Guide",
+                Lines = [new DialogueLineDefinition { Speaker = "Guide", Text = "Warp" }],
+            }));
+        var session = CreateSession(characterId);
+        session.CurrentMapId = 1;
+        session.PositionX = 2;
+        session.PositionY = 2;
+
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(16));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Single(repo.Plans);
+        Assert.Equal(0, repo.PageCalls);
+        Assert.True(ServerPlanner.AreEffectsTransactional(repo.Plans[0].Effects));
+        Assert.Equal(3, repo.Plans[0].Effects.Count);
+        Assert.True(result.SwitchesChanged);
+        Assert.Contains(result.SwitchChanges, s => s.SwitchId == "mixed_ok" && s.Value);
+        Assert.True(result.TeleportApplied);
+        Assert.Equal(4, session.PositionX);
+        Assert.Equal(1, session.PositionY);
+        Assert.NotNull(result.DialogueState);
+        Assert.Equal(dialogueId, result.DialogueState!.DialogueId);
+        Assert.Equal(repo.Plans[0].Identity.RequestId, repo.Plans[0].Identity.ActivationId);
+        Assert.Empty(session.MapEventPendingRequestIds);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_PublicPath_FailedMutation_DoesNotApplySessionIntents()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "FailWarp",
+            EditorAliasId = 17,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.Teleport,
+                            ParameterJson = """{"mapId":1,"tileX":4,"tileY":1}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository
+        {
+            Handler = _ => new MapEventMutationResult(MapEventMutationStatus.Failed, "injected-fail"),
+        };
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+        session.PositionX = 2;
+        session.PositionY = 3;
+
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(17));
+
+        Assert.NotNull(result);
+        Assert.False(result!.Success);
+        Assert.Equal("injected-fail", result.Message);
+        Assert.False(result.TeleportApplied);
+        Assert.Equal(2, session.PositionX);
+        Assert.Equal(3, session.PositionY);
+        Assert.Single(repo.Plans);
+    }
+
+    [Fact]
+    public async Task WaitResume_PublicPath_SecondLedgerRequestSameActivation()
+    {
+        var characterId = Guid.NewGuid();
+        var tracker = new MapEventExecutionTracker();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "WaitGate",
+            EditorAliasId = 18,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.Wait,
+                            ParameterJson = """{"milliseconds":80}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = """{"switchId":"wait_done","value":true}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.Teleport,
+                            ParameterJson = """{"mapId":1,"tileX":4,"tileY":1}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            tracker,
+            repo);
+        var session = CreateSession(characterId);
+        session.CurrentMapId = 1;
+        session.PositionX = 0;
+        session.PositionY = 0;
+
+        var first = await service.TryExecuteInteractAsync(session, CreatePlacement(18));
+        Assert.True(first!.Success);
+        Assert.Single(repo.Plans);
+        Assert.Equal(0, repo.Plans[0].Identity.WaitOrdinal);
+        Assert.False(first.TeleportApplied);
+        Assert.Equal(0, session.PositionX);
+        var prefixUnit = repo.Plans[0].AsTransactionalUnit();
+        Assert.NotNull(prefixUnit.ResumePlan);
+        Assert.Equal(1, prefixUnit.ResumePlan!.Identity.WaitOrdinal);
+
+        await Task.Delay(120);
+        var resumed = await service.TryResumeWaitingAsync(session);
+
+        Assert.Equal(2, repo.Plans.Count);
+        Assert.Equal(0, repo.PageCalls);
+        Assert.True(repo.Plans[0].Identity.IsSameActivation(repo.Plans[1].Identity));
+        Assert.NotEqual(repo.Plans[0].Identity.LedgerKey, repo.Plans[1].Identity.LedgerKey);
+        Assert.Equal(1, repo.Plans[1].Identity.WaitOrdinal);
+        Assert.Equal(prefixUnit.ResumePlan.Identity.LedgerKey, repo.Plans[1].Identity.LedgerKey);
+        Assert.Equal(
+            MapEventExecutionIdentity.DeriveLedgerRequestId(repo.Plans[0].Identity.EffectiveActivationId, 1),
+            repo.Plans[1].Identity.RequestId);
+        Assert.Contains(
+            resumed,
+            r => r.SwitchChanges.Any(s => s.SwitchId == "wait_done" && s.Value));
+        Assert.Contains(resumed, r => r.TeleportApplied);
+        Assert.Equal(4, session.PositionX);
+        Assert.Equal(1, session.PositionY);
     }
 
     [Fact]
@@ -1151,6 +1382,8 @@ public sealed class MapEventRuntimeServiceTests
 
     private sealed class RecordingMutationRepository : IMapEventMutationRepository
     {
+        private readonly Dictionary<(Guid CharacterId, Guid RequestId), MapEventExecutionSnapshot> _ledger = new();
+
         public List<MapEventExecutionPlan> Plans { get; } = [];
 
         public int PageCalls { get; private set; }
@@ -1167,10 +1400,21 @@ public sealed class MapEventRuntimeServiceTests
                 return Task.FromResult(Handler(plan));
             }
 
+            var key = plan.Identity.LedgerKey;
+            if (_ledger.TryGetValue(key, out var existing))
+            {
+                return Task.FromResult(new MapEventMutationResult(
+                    MapEventMutationStatus.IdempotentReplay,
+                    null,
+                    existing));
+            }
+
+            var snap = SnapshotFromPlan(plan);
+            _ledger[key] = snap;
             return Task.FromResult(new MapEventMutationResult(
                 MapEventMutationStatus.Executed,
                 null,
-                new MapEventExecutionSnapshot()));
+                snap));
         }
 
         public Task<MapEventMutationResult> TryExecutePageAsync(
@@ -1187,6 +1431,94 @@ public sealed class MapEventRuntimeServiceTests
                     new MapEventExecutionIdentity(requestId, characterId, placementId, catalogAliasId),
                     commands),
                 cancellationToken);
+        }
+
+        private static MapEventExecutionSnapshot SnapshotFromPlan(MapEventExecutionPlan plan)
+        {
+            var unit = plan.AsTransactionalUnit();
+            var snap = new MapEventExecutionSnapshot
+            {
+                ActivationId = plan.Identity.EffectiveActivationId,
+                WaitOrdinal = plan.Identity.WaitOrdinal,
+            };
+            if (!unit.IsSuccess)
+            {
+                return snap;
+            }
+
+            foreach (var cmd in unit.CommitEffects)
+            {
+                switch (cmd.Discriminator)
+                {
+                    case MapEventCommandDiscriminators.ShowText:
+                        if (MapEventParameterSchemas.TryParseShowText(cmd.ParameterJson, out var text, out _))
+                        {
+                            snap.ShowText = text;
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.SetSwitch:
+                        if (MapEventParameterSchemas.TryParseSetSwitch(
+                                cmd.ParameterJson,
+                                out var switchId,
+                                out var value,
+                                out _))
+                        {
+                            snap.RecordSwitch(switchId, value);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.GiveItem:
+                    case MapEventCommandDiscriminators.TakeItem:
+                        snap.InventoryChanged = true;
+                        break;
+                    case MapEventCommandDiscriminators.GiveGold:
+                    case MapEventCommandDiscriminators.TakeGold:
+                        snap.GoldChanged = true;
+                        break;
+                    case MapEventCommandDiscriminators.StartQuest:
+                    case MapEventCommandDiscriminators.AdvanceQuest:
+                    case MapEventCommandDiscriminators.TurnInQuest:
+                        snap.QuestsChanged = true;
+                        break;
+                    case MapEventCommandDiscriminators.LearnProfession:
+                        snap.ProfessionsChanged = true;
+                        break;
+                    case MapEventCommandDiscriminators.StartDialogue:
+                        if (MapEventParameterSchemas.TryParseStartDialogue(
+                                cmd.ParameterJson,
+                                out var dialogueId,
+                                out _))
+                        {
+                            snap.RecordDialogue(dialogueId);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.Teleport:
+                        if (MapEventParameterSchemas.TryParseTeleport(
+                                cmd.ParameterJson,
+                                out var mapId,
+                                out var tileX,
+                                out var tileY,
+                                out _))
+                        {
+                            snap.RecordTeleport(mapId, tileX, tileY);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.Wait:
+                        if (MapEventParameterSchemas.TryParseWait(cmd.ParameterJson, out var waitMs, out _))
+                        {
+                            snap.Waiting = true;
+                            snap.WaitUntilUtc = DateTimeOffset.UtcNow.AddMilliseconds(waitMs);
+                            snap.PendingCommands = unit.Wait?.RemainingEffects;
+                        }
+
+                        break;
+                }
+            }
+
+            return snap;
         }
     }
 }

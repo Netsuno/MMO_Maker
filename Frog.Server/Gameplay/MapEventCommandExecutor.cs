@@ -541,6 +541,56 @@ public sealed class MapEventCommandExecutor
         return null;
     }
 
+    /// <summary>
+    /// Applique les intents <c>teleport</c> / <c>start_dialogue</c> enregistrés dans
+    /// le snapshot PG <em>après</em> commit de la TX.
+    /// </summary>
+    public async Task ApplyCommittedSessionIntentsAsync(
+        Session session,
+        Guid characterId,
+        MapEventExecutionSnapshot snap,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(snap);
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (snap.Teleport is { } teleport)
+        {
+            var teleportErr = TryApplyTeleportIntent(
+                session,
+                teleport.MapId,
+                teleport.TileX,
+                teleport.TileY,
+                state);
+            if (teleportErr is not null)
+            {
+                _logger.LogWarning(
+                    "Intent teleport post-commit échoué pour {CharacterId}: {Error}",
+                    characterId,
+                    teleportErr);
+            }
+        }
+
+        if (snap.DialogueId is Guid dialogueId && dialogueId != Guid.Empty)
+        {
+            var dialogueErr = await TryApplyDialogueIntentAsync(
+                    characterId,
+                    dialogueId,
+                    state,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (dialogueErr is not null)
+            {
+                _logger.LogWarning(
+                    "Intent dialogue post-commit échoué pour {CharacterId}: {Error}",
+                    characterId,
+                    dialogueErr);
+            }
+        }
+    }
+
     private string? ExecuteTeleport(Session session, string parameterJson, MapEventExecutionState state)
     {
         if (!MapEventParameterSchemas.TryParseTeleport(parameterJson, out var mapId, out var tileX, out var tileY, out var err))
@@ -548,6 +598,16 @@ public sealed class MapEventCommandExecutor
             return err;
         }
 
+        return TryApplyTeleportIntent(session, mapId, tileX, tileY, state);
+    }
+
+    internal string? TryApplyTeleportIntent(
+        Session session,
+        int mapId,
+        int tileX,
+        int tileY,
+        MapEventExecutionState state)
+    {
         if (!_movement.TryTeleportToTile(session, mapId, tileX, tileY, out var teleportErr))
         {
             return teleportErr ?? "teleport échoué.";
@@ -594,6 +654,16 @@ public sealed class MapEventCommandExecutor
             return err;
         }
 
+        return await TryApplyDialogueIntentAsync(characterId, dialogueId, state, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal async Task<string?> TryApplyDialogueIntentAsync(
+        Guid characterId,
+        Guid dialogueId,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
         var started = await _dialogues.TryStartDialogueSessionAsync(characterId, dialogueId, cancellationToken)
             .ConfigureAwait(false);
         if (started is null)

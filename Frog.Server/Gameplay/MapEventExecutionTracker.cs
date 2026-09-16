@@ -107,8 +107,12 @@ public sealed class MapEventExecutionTracker
         $"{characterId:N}:{placementId}:{eventDefinitionId:N}:{trigger}";
 }
 
-/// <summary>Reprise différée après commande wait.</summary>
+/// <summary>
+/// Reprise différée après commande wait. <see cref="ResumePlan"/> lie la 2e ligne
+/// ledger (même activation, RequestId dérivé) ; absent = chemin in-memory.
+/// </summary>
 public sealed record PendingWaitResume(
     DateTimeOffset WaitUntilUtc,
     IReadOnlyList<MapEventCommandDefinition> RemainingCommands,
-    string? PlacementLabel = null);
+    string? PlacementLabel = null,
+    MapEventExecutionPlan? ResumePlan = null);
