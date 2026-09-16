@@ -788,12 +788,15 @@ internal sealed class Phase8ContentBrowseDialog : Form
         _lifecycle.BeginClosing();
 
         var drained = await _lifecycle.DrainAsync(timeout).ConfigureAwait(true);
-        if (!drained || !_lifecycle.IsIdle)
+        if (drained && _lifecycle.IsIdle)
         {
-            return false;
+            return true;
         }
 
-        return true;
+        // Cancelled save/reload can finish during the UI hop after DrainAsync.
+        // If the lifecycle is already idle, allow RequestFinalClose instead of
+        // sticking on CloseCleanupFailed with AllowFinalClose=false.
+        return _lifecycle.IsIdle;
     }
 
     private void RequestFinalClose()

@@ -70,9 +70,8 @@ internal sealed class GameDataPanelLifecycle : IDisposable
                 lock (_sync)
                 {
                     _tracked.Remove(t);
+                    Interlocked.Decrement(ref _pending);
                 }
-
-                Interlocked.Decrement(ref _pending);
             },
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
@@ -218,32 +217,63 @@ internal sealed class GameDataPanelLifecycle : IDisposable
             return true;
         }
 
-        Task[] snapshot;
-        lock (_sync)
+        var deadline = DateTime.UtcNow + timeout;
+
+        TimeSpan Remaining()
         {
-            snapshot = _tracked.ToArray();
+            var left = deadline - DateTime.UtcNow;
+            return left > TimeSpan.Zero ? left : TimeSpan.Zero;
         }
 
-        if (snapshot.Length == 0 && IsIdle)
+        while (!IsIdle)
         {
-            return true;
-        }
+            var remaining = Remaining();
+            if (remaining <= TimeSpan.Zero)
+            {
+                return false;
+            }
 
-        try
-        {
-            await Task.WhenAll(snapshot).WaitAsync(timeout).ConfigureAwait(false);
-        }
-        catch (TimeoutException)
-        {
-            return false;
-        }
-        catch (OperationCanceledException)
-        {
-            // cancelled ops still complete their tracked tasks
-        }
-        catch (Exception ex)
-        {
-            _observedException ??= ex;
+            Task[] snapshot;
+            lock (_sync)
+            {
+                snapshot = _tracked.ToArray();
+            }
+
+            if (snapshot.Length > 0)
+            {
+                try
+                {
+                    await Task.WhenAll(snapshot).WaitAsync(remaining).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    return false;
+                }
+                catch (OperationCanceledException)
+                {
+                    // cancelled ops still complete their tracked tasks
+                }
+                catch (Exception ex)
+                {
+                    _observedException ??= ex;
+                }
+            }
+
+            if (IsIdle)
+            {
+                break;
+            }
+
+            remaining = Remaining();
+            if (remaining <= TimeSpan.Zero)
+            {
+                return false;
+            }
+
+            // Pending decrement can lag a completed tracked task by a ContinueWith hop.
+            // Do not treat that window as CloseCleanupFailed.
+            var slice = TimeSpan.FromMilliseconds(Math.Min(15, remaining.TotalMilliseconds));
+            await Task.Delay(slice).ConfigureAwait(false);
         }
 
         if (!IsIdle)
@@ -259,7 +289,7 @@ internal sealed class GameDataPanelLifecycle : IDisposable
         }
         catch (OperationCanceledException)
         {
-            return false;
+            return IsIdle;
         }
 
         return IsIdle;
