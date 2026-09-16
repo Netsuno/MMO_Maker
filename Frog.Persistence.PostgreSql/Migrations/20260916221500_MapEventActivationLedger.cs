@@ -17,10 +17,13 @@ namespace Frog.Persistence.PostgreSql.Migrations
             migrationBuilder.Sql(
                 """
                 ALTER TABLE player.map_event_execution_requests
-                    ADD COLUMN activation_id uuid NOT NULL DEFAULT request_id,
+                    ADD COLUMN activation_id uuid,
                     ADD COLUMN wait_ordinal integer NOT NULL DEFAULT 0;
+                UPDATE player.map_event_execution_requests
+                    SET activation_id = request_id
+                    WHERE activation_id IS NULL;
                 ALTER TABLE player.map_event_execution_requests
-                    ALTER COLUMN activation_id DROP DEFAULT;
+                    ALTER COLUMN activation_id SET NOT NULL;
                 """);
 
             migrationBuilder.CreateIndex(
