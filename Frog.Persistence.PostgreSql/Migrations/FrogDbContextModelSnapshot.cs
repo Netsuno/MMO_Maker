@@ -1898,6 +1898,10 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("request_id");
 
+                    b.Property<Guid>("ActivationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("activation_id");
+
                     b.Property<int>("CatalogAliasId")
                         .HasColumnType("integer")
                         .HasColumnName("catalog_alias_id");
@@ -1915,8 +1919,16 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("result_json");
 
+                    b.Property<int>("WaitOrdinal")
+                        .HasColumnType("integer")
+                        .HasColumnName("wait_ordinal");
+
                     b.HasKey("CharacterId", "RequestId")
                         .HasName("pk_map_event_execution_requests");
+
+                    b.HasIndex("CharacterId", "ActivationId", "WaitOrdinal")
+                        .IsUnique()
+                        .HasDatabaseName("ix_map_event_execution_requests_activation_ordinal");
 
                     b.HasIndex("CharacterId", "PlacementId", "CatalogAliasId")
                         .HasDatabaseName("ix_map_event_execution_requests_character_id_placement_id_cata");

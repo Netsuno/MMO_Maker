@@ -90,6 +90,14 @@ public sealed class PostgresMapEventMutationRepository(
             }
         }
 
+        var unit = MapEventTransactionalUnit.FromPlan(plan);
+        if (!unit.IsSuccess)
+        {
+            return new MapEventMutationResult(
+                MapEventMutationStatus.Failed,
+                unit.Error ?? "Unité transactionnelle invalide.");
+        }
+
         var existing = await db.PlayerMapEventExecutionRequests.AsNoTracking()
             .FirstOrDefaultAsync(r => r.CharacterId == characterId && r.RequestId == requestId, ct)
             .ConfigureAwait(false);
@@ -119,8 +127,12 @@ public sealed class PostgresMapEventMutationRepository(
                 return ReplayOrMismatch(claimed, identity);
             }
 
-            var snapshot = new MapEventExecutionSnapshot();
-            var pendingAfterWait = new List<MapEventCommandDefinition>();
+            var snapshot = new MapEventExecutionSnapshot
+            {
+                ActivationId = identity.EffectiveActivationId,
+                WaitOrdinal = identity.WaitOrdinal,
+            };
+            IReadOnlyList<MapEventCommandDefinition> pendingAfterWait = Array.Empty<MapEventCommandDefinition>();
             var waiting = false;
 
             var character = await db.PlayerCharacters
@@ -139,9 +151,8 @@ public sealed class PostgresMapEventMutationRepository(
                 .ConfigureAwait(false);
             var slots = PostgresEconomyTransactionRepository.InventorySlotsFromRows(invRows);
 
-            for (var i = 0; i < plan.Effects.Count; i++)
+            foreach (var command in unit.CommitEffects)
             {
-                var command = plan.Effects[i];
                 var err = await ApplyCommandAsync(
                         db,
                         character,
@@ -156,19 +167,14 @@ public sealed class PostgresMapEventMutationRepository(
                     db.ChangeTracker.Clear();
                     return new MapEventMutationResult(MapEventMutationStatus.Failed, err);
                 }
+            }
 
-                if (command.Discriminator == MapEventCommandDiscriminators.Wait)
-                {
-                    if (MapEventParameterSchemas.TryParseWait(command.ParameterJson, out var waitMs, out _))
-                    {
-                        snapshot.Waiting = true;
-                        snapshot.WaitUntilUtc = _clock.GetUtcNow().AddMilliseconds(waitMs);
-                        pendingAfterWait = plan.Effects.Skip(i + 1).ToList();
-                        waiting = true;
-                    }
-
-                    break;
-                }
+            if (unit.Wait is { } wait)
+            {
+                snapshot.Waiting = true;
+                snapshot.WaitUntilUtc = _clock.GetUtcNow().AddMilliseconds(wait.WaitMilliseconds);
+                pendingAfterWait = wait.RemainingEffects;
+                waiting = true;
             }
 
             if (snapshot.InventoryChanged)
@@ -186,6 +192,8 @@ public sealed class PostgresMapEventMutationRepository(
                 RequestId = requestId,
                 PlacementId = identity.PlacementId,
                 CatalogAliasId = identity.CatalogAliasId,
+                ActivationId = identity.EffectiveActivationId,
+                WaitOrdinal = identity.WaitOrdinal,
                 ResultJson = SerializeSnapshot(snapshot, pendingAfterWait, waiting),
                 CompletedAtUtc = _clock.GetUtcNow(),
             });
@@ -213,6 +221,14 @@ public sealed class PostgresMapEventMutationRepository(
             snapshot.ResultGold = character.Gold;
             return new MapEventMutationResult(MapEventMutationStatus.Executed, null, snapshot);
         }
+        catch (OperationCanceledException)
+        {
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            db.ChangeTracker.Clear();
+            return new MapEventMutationResult(
+                MapEventMutationStatus.Failed,
+                "Commit annulé avant écriture ledger.");
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
@@ -232,7 +248,30 @@ public sealed class PostgresMapEventMutationRepository(
                 "RequestId réutilisé avec événement différent.");
         }
 
-        var replay = DeserializeSnapshot(existing.ResultJson);
+        if (existing.ActivationId != Guid.Empty
+            && existing.ActivationId != identity.EffectiveActivationId)
+        {
+            return new MapEventMutationResult(
+                MapEventMutationStatus.Failed,
+                "RequestId réutilisé avec événement différent.");
+        }
+
+        if (existing.WaitOrdinal != identity.WaitOrdinal)
+        {
+            return new MapEventMutationResult(
+                MapEventMutationStatus.Failed,
+                "RequestId réutilisé avec événement différent.");
+        }
+
+        var replay = DeserializeSnapshot(existing.ResultJson) ?? new MapEventExecutionSnapshot();
+        if (replay.ActivationId == Guid.Empty)
+        {
+            replay.ActivationId = existing.ActivationId != Guid.Empty
+                ? existing.ActivationId
+                : identity.EffectiveActivationId;
+        }
+
+        replay.WaitOrdinal = existing.WaitOrdinal;
         return new MapEventMutationResult(MapEventMutationStatus.IdempotentReplay, null, replay);
     }
 
@@ -310,6 +349,32 @@ public sealed class PostgresMapEventMutationRepository(
                     .ConfigureAwait(false);
 
             case MapEventCommandDiscriminators.Wait:
+                return null;
+
+            case MapEventCommandDiscriminators.StartDialogue:
+                if (!MapEventParameterSchemas.TryParseStartDialogue(
+                        command.ParameterJson,
+                        out var dialogueId,
+                        out var dialogueErr))
+                {
+                    return dialogueErr;
+                }
+
+                snapshot.RecordDialogue(dialogueId);
+                return null;
+
+            case MapEventCommandDiscriminators.Teleport:
+                if (!MapEventParameterSchemas.TryParseTeleport(
+                        command.ParameterJson,
+                        out var mapId,
+                        out var tileX,
+                        out var tileY,
+                        out var teleportErr))
+                {
+                    return teleportErr;
+                }
+
+                snapshot.RecordTeleport(mapId, tileX, tileY);
                 return null;
 
             default:
@@ -1006,6 +1071,12 @@ public sealed class PostgresMapEventMutationRepository(
             Waiting = waiting,
             WaitUntilUtc = snapshot.WaitUntilUtc,
             PendingCommands = pending.Count > 0 ? pending.ToList() : null,
+            ActivationId = snapshot.ActivationId,
+            WaitOrdinal = snapshot.WaitOrdinal,
+            DialogueId = snapshot.DialogueId,
+            TeleportMapId = snapshot.TeleportMapId,
+            TeleportTileX = snapshot.TeleportTileX,
+            TeleportTileY = snapshot.TeleportTileY,
         }, JsonOptions);
 
     private static MapEventExecutionSnapshot? DeserializeSnapshot(string json)
@@ -1034,6 +1105,12 @@ public sealed class PostgresMapEventMutationRepository(
                 Waiting = stored.Waiting,
                 WaitUntilUtc = stored.WaitUntilUtc,
                 PendingCommands = stored.PendingCommands,
+                ActivationId = stored.ActivationId,
+                WaitOrdinal = stored.WaitOrdinal,
+                DialogueId = stored.DialogueId,
+                TeleportMapId = stored.TeleportMapId,
+                TeleportTileX = stored.TeleportTileX,
+                TeleportTileY = stored.TeleportTileY,
             };
         }
         catch
@@ -1071,5 +1148,17 @@ public sealed class PostgresMapEventMutationRepository(
         public DateTimeOffset? WaitUntilUtc { get; set; }
 
         public List<MapEventCommandDefinition>? PendingCommands { get; set; }
+
+        public Guid ActivationId { get; set; }
+
+        public int WaitOrdinal { get; set; }
+
+        public Guid? DialogueId { get; set; }
+
+        public int? TeleportMapId { get; set; }
+
+        public int? TeleportTileX { get; set; }
+
+        public int? TeleportTileY { get; set; }
     }
 }

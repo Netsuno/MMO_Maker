@@ -872,7 +872,12 @@ public sealed class FrogDbContext : DbContext
             e.ToTable("map_event_execution_requests", "player");
             e.HasKey(x => new { x.CharacterId, x.RequestId });
             e.Property(x => x.ResultJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.ActivationId).IsRequired();
+            e.Property(x => x.WaitOrdinal).IsRequired();
             e.HasIndex(x => new { x.CharacterId, x.PlacementId, x.CatalogAliasId });
+            e.HasIndex(x => new { x.CharacterId, x.ActivationId, x.WaitOrdinal })
+                .IsUnique()
+                .HasDatabaseName("ix_map_event_execution_requests_activation_ordinal");
         });
 
         modelBuilder.Entity<QuestTurnInRequestEntity>(e =>

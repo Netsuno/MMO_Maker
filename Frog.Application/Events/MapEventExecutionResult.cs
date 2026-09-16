@@ -73,8 +73,9 @@ public sealed class MapEventExecutionResult
         };
 
     /// <summary>
-    /// Mappe le snapshot persisté (J4-PG) vers le résultat public. <c>teleport</c> /
-    /// <c>start_dialogue</c> restent hors TX et ne sont donc jamais présents ici.
+    /// Mappe le snapshot persisté (J4-PG) vers le résultat public. Les intents
+    /// <c>teleport</c> / <c>start_dialogue</c> sont enregistrés dans la TX mais
+    /// appliqués côté session après commit (prochaine vague serveur).
     /// </summary>
     public static MapEventExecutionResult FromMutationSnapshot(
         string fallbackMessage,
