@@ -3136,7 +3136,14 @@ public sealed class MainShellForm : Form
 
     internal string LogTextForTest => _txtLog.Text;
 
-    internal void SelectPhase8TabForTest() => _gameplayTabs.SelectedTab = _tabPhase8;
+    internal bool IsPhase8TabSelectedForTest => _gameplayTabs.SelectedTab == _tabPhase8;
+
+    internal void SelectPhase8TabForTest()
+    {
+        _gameplayTabs.SelectedTab = _tabPhase8;
+        _tabPhase8.PerformLayout();
+        Update();
+    }
 
     internal DialoguePanel DialoguePanelForTest => _dialoguePanel;
 

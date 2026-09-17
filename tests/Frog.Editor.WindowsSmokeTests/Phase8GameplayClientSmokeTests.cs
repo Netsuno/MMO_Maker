@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Windows.Forms;
 using Frog.Client;
@@ -36,17 +38,33 @@ public sealed class Phase8GameplayClientSmokeTests
             harness.CreateCharacter("P8Hero");
             harness.EnterPlayingPhase("P8Hero");
             form.SelectPhase8TabForTest();
+            Pump(
+                form,
+                () => form.IsPhase8TabSelectedForTest && form.DialoguePanelForTest.Width > 8,
+                "phase 8 tab selected and laid out");
+            WaitForPaint(form);
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "01-phase8-tab.png");
 
-            Pump(form, () => form.DialoguePanelForTest.ChoiceButtonCountForTest > 0, "dialogue push from server");
-            ClientSmokeTestAccess.SavePhase8Screenshot(form, "02-dialogue-choices.png");
+            Pump(
+                form,
+                () => form.DialoguePanelForTest.ChoiceButtonCountForTest > 0
+                      && !string.Equals(form.DialoguePanelForTest.SpeakerTextForTest, "—", StringComparison.Ordinal),
+                "dialogue push from server");
+            WaitForPaint(form.DialoguePanelForTest);
+            ClientSmokeTestAccess.SavePhase8Screenshot(form.DialoguePanelForTest, "02-dialogue-choices.png");
             form.DialoguePanelForTest.ClickFirstChoiceForTest();
             Pump(form, () => form.LogContainsForTest("Journal quêtes:"), "quest journal after choice");
             Pump(form, () => form.QuestJournalPanelForTest.EntryCountForTest > 0, "quest journal entries");
-            ClientSmokeTestAccess.SavePhase8Screenshot(form, "03-quest-journal.png");
+            form.QuestJournalPanelForTest.SelectFirstForTest();
+            WaitForPaint(form.QuestJournalPanelForTest);
+            ClientSmokeTestAccess.SavePhase8Screenshot(form.QuestJournalPanelForTest, "03-quest-journal.png");
 
-            Pump(form, () => form.EnvironmentPanelForTest.MapLabelTextForTest.Contains("Carte: 1"), "environment push");
-            ClientSmokeTestAccess.SavePhase8Screenshot(form, "04-environment.png");
+            Pump(
+                form,
+                () => form.EnvironmentPanelForTest.MapLabelTextForTest.Contains("Carte: 1", StringComparison.Ordinal),
+                "environment push");
+            WaitForPaint(form.EnvironmentPanelForTest);
+            ClientSmokeTestAccess.SavePhase8Screenshot(form.EnvironmentPanelForTest, "04-environment.png");
 
             form.SelectGameplayTabForTest();
             Pump(form, () => form.ShopBuyButtonForTest.Enabled, "shop buy enabled on gameplay tab");
@@ -55,6 +73,7 @@ public sealed class Phase8GameplayClientSmokeTests
             form.AcquireProfessionForTest(opts.ProfessionId);
             Pump(form, () => form.LogContainsForTest("Métier:") && form.LogContainsForTest("acquis"), "profession acquired");
             form.SelectPhase8TabForTest();
+            Pump(form, () => form.IsPhase8TabSelectedForTest, "phase 8 tab after shop");
             form.CraftPanelForTest.RecipeIdTextBoxForTest.Text = opts.RecipeId.ToString();
             Pump(form, () => form.CraftPanelForTest.CraftButtonForTest.Enabled, "craft button enabled in playing phase");
             form.CraftPanelForTest.ClickCraftForTest();
@@ -62,7 +81,8 @@ public sealed class Phase8GameplayClientSmokeTests
                 form,
                 () => form.LogContainsForTest("Craft:") || form.CraftPanelForTest.StatusTextForTest.Contains("Craft"),
                 "craft result");
-            ClientSmokeTestAccess.SavePhase8Screenshot(form, "05-craft-panel.png");
+            WaitForPaint(form.CraftPanelForTest);
+            ClientSmokeTestAccess.SavePhase8Screenshot(form.CraftPanelForTest, "05-craft-panel.png");
 
             form.DisconnectForTest();
             Pump(form, () => form.ConnectButtonForTest.Enabled && form.ConnectButtonForTest.Visible, "disconnect complete");
@@ -77,8 +97,12 @@ public sealed class Phase8GameplayClientSmokeTests
             form.CharactersComboForTest.SelectedItem = pick;
             form.EnterGameButtonForTest.PerformClick();
             Pump(form, () => form.IsPlayingPhaseForTest, "reconnect playing");
+            form.SelectPhase8TabForTest();
             Pump(form, () => form.DialoguePanelForTest.ChoiceButtonCountForTest > 0, "dialogue after reconnect");
+            WaitForPaint(form);
             ClientSmokeTestAccess.SavePhase8Screenshot(form, "06-reconnect-usable.png");
+
+            AssertDistinctPhase8Screenshots();
         });
     }
 
@@ -92,6 +116,50 @@ public sealed class Phase8GameplayClientSmokeTests
         {
             throw new TimeoutException($"Phase 8 smoke timed out at '{step}': {ex.Message}", ex);
         }
+    }
+
+    private static void WaitForPaint(Control control)
+    {
+        control.PerformLayout();
+        control.Refresh();
+        for (var i = 0; i < 8; i++)
+        {
+            Application.DoEvents();
+            Thread.Sleep(15);
+        }
+    }
+
+    private static void AssertDistinctPhase8Screenshots()
+    {
+        var names = new[]
+        {
+            "01-phase8-tab.png",
+            "02-dialogue-choices.png",
+            "03-quest-journal.png",
+            "04-environment.png",
+            "05-craft-panel.png",
+            "06-reconnect-usable.png",
+        };
+        var dir = ClientSmokeTestAccess.Phase8ScreenshotDirectory;
+        var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in names)
+        {
+            var path = Path.Combine(dir, name);
+            Assert.True(File.Exists(path), $"Missing Phase 8 screenshot {path}");
+            hashes[name] = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+        }
+
+        Assert.NotEqual(hashes["01-phase8-tab.png"], hashes["02-dialogue-choices.png"]);
+        Assert.NotEqual(hashes["03-quest-journal.png"], hashes["04-environment.png"]);
+        var duplicates = hashes
+            .GroupBy(kv => kv.Value, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => $"{g.Key} ← {string.Join(", ", g.Select(kv => kv.Key))}")
+            .ToArray();
+        Assert.True(
+            duplicates.Length == 0,
+            "Phase 8 client screenshots must be hash-distinct for claimed-different states: "
+            + string.Join("; ", duplicates));
     }
 
     private sealed class Phase8SmokeHarness : IDisposable

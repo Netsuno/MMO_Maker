@@ -76,13 +76,30 @@ internal static class ClientSmokeTestAccess
     public static string Phase8ScreenshotDirectory =>
         Path.Combine(FindRepositoryRoot(), "artifacts", "phase-08-gameplay-client");
 
-    public static void SavePhase8Screenshot(Form form, string fileName)
+    public static void SavePhase8Screenshot(Control control, string fileName)
     {
+        ArgumentNullException.ThrowIfNull(control);
+        if (control.IsDisposed)
+        {
+            throw new InvalidOperationException($"Cannot screenshot disposed control for {fileName}.");
+        }
+
+        control.PerformLayout();
+        control.Refresh();
+
+        var width = Math.Max(control.Width, control.ClientSize.Width);
+        var height = Math.Max(control.Height, control.ClientSize.Height);
+        if (width < 8 || height < 8)
+        {
+            throw new InvalidOperationException(
+                $"Screenshot target for {fileName} is not laid out ({width}×{height}).");
+        }
+
         var directory = Path.GetFullPath(Phase8ScreenshotDirectory);
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, fileName);
-        using var bitmap = new Bitmap(Math.Max(1, form.Width), Math.Max(1, form.Height));
-        form.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+        using var bitmap = new Bitmap(width, height);
+        control.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
         bitmap.Save(path, ImageFormat.Png);
         if (new FileInfo(path).Length == 0)
         {

@@ -115,8 +115,8 @@ jobs:
             }
           }
           ./scripts/ci-guard-lifecycle-logs.ps1 -LogPaths $logs
-          ./scripts/update-phase8-screenshot-manifest.ps1
-          Write-Host "=== Phase 8 smoke 3/3 consecutive passes OK ==="
+          ./scripts/verify-phase8-screenshot-manifest.ps1 -CopyManifestToArtifacts
+          Write-Host "=== Phase 8 smoke 3/3 consecutive passes OK (manifest SHA-256 verified) ==="
 
       - name: Upload hang dumps and CI logs
         if: always()

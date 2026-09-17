@@ -17,7 +17,7 @@
 
 ## Screenshot evidence note
 
-Client screenshots `01`/`02` and `03`/`04` still share SHA-256 (identical smoke frames) on implementation tip `ebc96921` / CI `34436843321`. Non-blocking: do not invent new captures in this narrative sync. Functional gate evidence is the PostgreSQL E2E + Windows smokes (Phase8 24×3, Editor 56×3, Gameplay 6×3), not screenshot uniqueness alone.
+R2-6: CI verifies SHA-256 of Phase 8 smoke PNGs against this committed `SCREENSHOT_MANIFEST.md` (`scripts/verify-phase8-screenshot-manifest.ps1`) and fails on file/hash mismatch. Client captures wait for the claimed UI state; `02`–`05` are panel surfaces so `01`≠`02` and `03`≠`04` even when enter-game already applied dialogue/environment before the Quêtes tab is selected. Do not skip or weaken the ×3 Phase 8 smokes.
 
 ## Smoke coverage note
 
