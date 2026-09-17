@@ -38,14 +38,21 @@
 - Prior green pin (historical): CI 34436843321 on `ebc96921` — Frog.Tests **379**; PG integration **159**; Phase8 smoke **24×3**; Editor smoke **56×3**; Gameplay smoke **6×3**
 - R2-6: client `01`≠`02` and `03`≠`04` via wait-for-state + panel captures; all committed rows **exact-sha** (TabControl `01`/`06`; deterministic editor GUIDs). Capture tip `fa8c44f` remains the SCREENSHOT_MANIFEST pin (not the implementation tip).
 
-## R2 remediations + P1 (current head vs prior `ebc96921`)
+## R2 remediations + P1 + C1–C3 (current head)
+
+Historical prior pins (not current):
+- Prior P1 Interact (historical): tip `09e68dfcb86d0b479515d70b13f1bf607afa7926`, CI 35274081277, Editor smoke **85×3**
+- P8-G: tip `ebc96921`, CI 34436843321, Frog.Tests **379** / PG **159** / Editor **56×3**
+
+## R2 remediations + P1 (background)
 
 - R2-4: one map-event activation = one PostgreSQL TX with ledger identity; `BeginActivation` wait-resume
 - R2-5: quest counters on the public path; common-event page selection proof
 - R2-6: screenshot exact-sha gate; capture tip `fa8c44f` kept separate from implementation tip
 - Editor: all MainForm closes through coordinator; non-cooperative init proof on `EditorMainFormCloseCoordinatorTests.NonCooperativeInit_*` plus `MainForm_NonCooperativeSave_*`
-- **P1** implementation tip `09e68dfcb86d0b479515d70b13f1bf607afa7926`, CI https://github.com/Netsuno/MMO_Maker/actions/runs/35274081277: `InteractRequest` carries `activationId` Guid on public TCP (`FrogWireProtocol.Version = 10`); idempotency via `Phase8InteractIdentityTcpTests` ×6
-- Current green counts: Frog.Tests **412**; PG integration **174**; Phase8 smoke **24×3**; Editor smoke **85×3**; Gameplay smoke **6×3**
+- **P1** (historical pin): tip `09e68dfcb86d0b479515d70b13f1bf607afa7926`, CI https://github.com/Netsuno/MMO_Maker/actions/runs/35274081277: `InteractRequest` carries `activationId` Guid on public TCP (`FrogWireProtocol.Version = 10`); idempotency via `Phase8InteractIdentityTcpTests` ×6
+- **C1–C3** implementation tip `3c36417f320858e950d65e7de120b9f749e74769`, CI https://github.com/Netsuno/MMO_Maker/actions/runs/35280403579: deterministic CommitUnreadReconnect (PG ledger+reward before close); atomic Interact pending-id lock + `FrogGameClient` tests; `git diff --check origin/main...HEAD` PASS
+- Current green counts: Frog.Tests **412** (0 skipped); PG integration **174** (0 skipped); Phase8 smoke **24×3**; Editor smoke **87×3**; Gameplay smoke **6×3**; C1–C3 **DONE**
 
 ## Preserved foundations (P8-1 … P8-6 initial pass)
 

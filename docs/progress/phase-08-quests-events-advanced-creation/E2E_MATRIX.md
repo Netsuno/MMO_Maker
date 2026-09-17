@@ -2,7 +2,7 @@
 
 Headless PostgreSQL-backed network scenario (mandatory gate). Status updated as steps are implemented.
 
-Evidence pin: implementation tip `09e68dfcb86d0b479515d70b13f1bf607afa7926`, CI https://github.com/Netsuno/MMO_Maker/actions/runs/35274081277 (green). Prior pin `ebc96921` / CI 34436843321. 23-step + multi-client PASS on the current run. P1 public TCP Interact identity: `FrogWireProtocol.Version = 10`, `Phase8InteractIdentityTcpTests` ×6. Capture/manifest tip remains `fa8c44f` (separate from the implementation tip).
+Evidence pin: implementation tip `3c36417f320858e950d65e7de120b9f749e74769`, CI https://github.com/Netsuno/MMO_Maker/actions/runs/35280403579 (green). Historical prior pins: `09e68df` / CI 35274081277; `ebc96921` / CI 34436843321. 23-step + multi-client PASS on the current run. P1 public TCP Interact identity: `FrogWireProtocol.Version = 10`, `Phase8InteractIdentityTcpTests` ×6. C1–C3 **DONE** (`git diff --check origin/main...HEAD` PASS). Current counts: Frog.Tests **412** / PG **174** / Phase8 smoke **24×3** / Editor smoke **87×3** / Gameplay smoke **6×3**. Capture/manifest tip remains `fa8c44f` (separate from the implementation tip).
 
 | Step | Description | Test | Status |
 | ---: | --- | --- | --- |

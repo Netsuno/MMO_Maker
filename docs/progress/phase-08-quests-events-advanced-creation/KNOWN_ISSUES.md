@@ -17,7 +17,7 @@
 
 ## Screenshot evidence note
 
-R2-6: CI verifies SHA-256 of Phase 8 smoke PNGs against committed `SCREENSHOT_MANIFEST.md` and fails on file/hash mismatch. All 12 committed rows use **exact-sha**. Client `01`/`06` screenshot the gameplay TabControl (no log clock). Editor screenshot tests use deterministic content GUIDs and focus Save before capture. Client `02`–`05` are panel surfaces so `01`≠`02` and `03`≠`04`. Capture tip `fa8c44f` is the screenshot pin; implementation tip `09e68dfcb86d0b479515d70b13f1bf607afa7926` is separate. Do not skip or weaken the ×3 Phase 8 smokes.
+R2-6: CI verifies SHA-256 of Phase 8 smoke PNGs against committed `SCREENSHOT_MANIFEST.md` and fails on file/hash mismatch. All 12 committed rows use **exact-sha**. Client `01`/`06` screenshot the gameplay TabControl (no log clock). Editor screenshot tests use deterministic content GUIDs and focus Save before capture. Client `02`–`05` are panel surfaces so `01`≠`02` and `03`≠`04`. Capture tip `fa8c44f` is the screenshot pin; implementation tip `3c36417f320858e950d65e7de120b9f749e74769` is separate (prior Interact pin `09e68df` is historical only). Do not skip or weaken the ×3 Phase 8 smokes.
 
 ## Non-cooperative close proof
 
