@@ -1,12 +1,17 @@
 using Frog.Core.Constants;
+using Frog.Server.Gameplay;
 using Frog.Server.Models;
 
 namespace Frog.Server.Services;
 
-public sealed class MovementService(MapService mapService, ConnectionManager connectionManager)
+public sealed class MovementService(
+    MapService mapService,
+    ConnectionManager connectionManager,
+    MapEventMovementService? eventMovement = null)
 {
     private readonly MapService _mapService = mapService;
     private readonly ConnectionManager _connectionManager = connectionManager;
+    private readonly MapEventMovementService? _eventMovement = eventMovement;
 
     public bool TryApplyMove(Session session, sbyte deltaX, sbyte deltaY, out string errorMessage)
     {
@@ -132,6 +137,14 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
             return false;
         }
 
+        var tileX = newPx / ts;
+        var tileY = newPy / ts;
+        if (_eventMovement?.IsTileBlockedByEvent(mapId, tileX, tileY) == true)
+        {
+            errorMessage = "Mouvement bloque par un evenement.";
+            return false;
+        }
+
         if (!_mapService.AllowsPlayerOverlapOnMap(mapId))
         {
             var minSq = WorldMetrics.PlayerMinCenterSeparationPixels * WorldMetrics.PlayerMinCenterSeparationPixels;
@@ -207,6 +220,49 @@ public sealed class MovementService(MapService mapService, ConnectionManager con
         session.CurrentMapId = targetMapId;
         session.PositionX = tx;
         session.PositionY = ty;
+        SessionPixelSync.SyncFromTileGrid(session);
+        session.LastPositionSyncUtc = DateTime.UtcNow;
+        return true;
+    }
+
+    /// <summary>Téléportation événement (Phase 8) vers une tuile d'une carte chargée.</summary>
+    public bool TryTeleportToTile(Session session, int targetMapId, int tileX, int tileY, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+        if (!_mapService.TryEnsureMapLoaded(targetMapId))
+        {
+            errorMessage = "Carte destination indisponible.";
+            return false;
+        }
+
+        if (!_mapService.TryGetMapBounds(targetMapId, out var dw, out var dh))
+        {
+            errorMessage = "Carte destination invalide.";
+            return false;
+        }
+
+        if (tileX < 0 || tileY < 0 || tileX >= dw || tileY >= dh)
+        {
+            errorMessage = "Tuile destination hors limites.";
+            return false;
+        }
+
+        if (_mapService.IsBlocked(targetMapId, tileX, tileY))
+        {
+            errorMessage = "Tuile destination bloquée.";
+            return false;
+        }
+
+        if (!_mapService.AllowsPlayerOverlapOnMap(targetMapId) &&
+            IsCellOccupiedByOther(session, targetMapId, tileX, tileY))
+        {
+            errorMessage = "Tuile destination occupée.";
+            return false;
+        }
+
+        session.CurrentMapId = targetMapId;
+        session.PositionX = tileX;
+        session.PositionY = tileY;
         SessionPixelSync.SyncFromTileGrid(session);
         session.LastPositionSyncUtc = DateTime.UtcNow;
         return true;

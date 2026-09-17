@@ -20,6 +20,16 @@ public static class MapEventTriggerNormalization
             return MapEventTriggerKinds.AutoTile;
         }
 
+        if (v == Frog.Core.Events.Phase8MapEventTriggerKinds.Autorun)
+        {
+            return Frog.Core.Events.Phase8MapEventTriggerKinds.Autorun;
+        }
+
+        if (v == Frog.Core.Events.Phase8MapEventTriggerKinds.Parallel)
+        {
+            return Frog.Core.Events.Phase8MapEventTriggerKinds.Parallel;
+        }
+
         return MapEventTriggerKinds.Interact;
     }
 }

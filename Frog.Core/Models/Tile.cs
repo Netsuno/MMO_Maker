@@ -27,8 +27,8 @@ public sealed class Tile
     public TileType Type { get; set; }
 
     [Category("Warp")]
-    [Description("Identifiant de la carte de destination (moteur / config serveur). ≥ 0.")]
-    public int WarpTargetMapId { get; set; }
+    [Description("Identifiant canonique de la carte de destination.")]
+    public Guid WarpTargetMapId { get; set; }
 
     [Category("Warp")]
     [Description("Tuile X sur la carte de destination.")]

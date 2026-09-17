@@ -1,0 +1,20 @@
+# PostgreSQL 16 — développement local uniquement (identifiants non secrets de prod).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: frog
+      POSTGRES_PASSWORD: frog_dev_only
+      POSTGRES_DB: frog
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frog -d frog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - frog_pg_data:/var/lib/postgresql/data
+
+volumes:
+  frog_pg_data:

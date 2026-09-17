@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Frog.Core.Models;
 
 namespace Frog.Core.Protocol;
 
@@ -31,4 +32,15 @@ public sealed class MapEventWireEntry
     [JsonPropertyName("scriptKey")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ScriptKey { get; set; }
+
+    [JsonPropertyName("movementKind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MovementKind { get; set; }
+
+    [JsonPropertyName("routeWaypoints")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<MapEventRouteWaypoint>? RouteWaypoints { get; set; }
+
+    [JsonPropertyName("blocksCollision")]
+    public bool BlocksCollision { get; set; } = true;
 }

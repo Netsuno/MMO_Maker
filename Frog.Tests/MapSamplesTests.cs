@@ -1,3 +1,4 @@
+using System;
 using Frog.Core.IO;
 using Frog.Core.Maps;
 using Xunit;
@@ -10,7 +11,8 @@ public sealed class MapSamplesTests
     public void StarterMeadow_serializes_and_deserializes()
     {
         var serializer = new MapSerializer();
-        var map = MapSamples.StarterMeadow(warpTargetMapId: 1);
+        var target = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var map = MapSamples.StarterMeadow(target);
         var bytes = serializer.Serialize(map);
         var roundtrip = serializer.Deserialize(bytes);
         Assert.Equal("Starter Meadow", roundtrip.Name);

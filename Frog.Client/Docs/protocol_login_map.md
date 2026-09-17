@@ -169,7 +169,7 @@ Immédiatement après un `LoginResult` **réussi**, le serveur peut envoyer **`C
 
 Additive **après wire v6** : **`MapEventsRequest`** (**29**) corps **vide** après l’opcode (session authentifiée). Le serveur répond **`MapEventsResult`** (**30**) avec **`CurrentMapId`**, puis longueur **UInt16 LE** puis JSON UTF‑8 : tableau d’objets `MapEventWireEntry` (`placementId`, `catalogId`, `slug`, `displayName`, `tileX`, `tileY`, **`triggerKind`**). **`triggerKind`** vaut `interact` (défaut si absent du JSON), `step_on` (à l’**arrivée** sur la tuile), **`page`** (une fois par **entrée sur la carte** sur la tuile d’arrivée, voir ci‑dessous) ou **`auto_tile`** (heartbeat, voir **v9**). Si MariaDB est désactivée ou sans lignes, la réponse est un tableau vide. Le client peut renvoyer cette requête après **`MapData`** / **`MapAlreadySynced`** ou un changement de carte.
 
-**`InteractRequest`** (**31**), corps vide : interaction sur la **tuile courante** du joueur (`PositionX` / `PositionY` grille). Réponse **`InteractResult`** (**32**), même forme que **`LoginResult`**. Seuls les placements dont **`triggerKind`** est **`interact`** sont pris en compte : s’il en existe au moins un sur cette tuile, **succès** avec message `"{displayName} ({slug})"` pour l’entrée **la plus petite** (`catalogId`, puis `placementId`) ; sinon échec « Rien a interagir ici. ».
+**`InteractRequest`** (**31**), à partir de **`FrogWireProtocol.Version` ≥ 10** : **16 octets** `activationId` (Guid) après l’opcode. Interaction sur la **tuile courante** du joueur (`PositionX` / `PositionY` grille) — le client ne fournit **pas** de coordonnées de placement ; le serveur choisit l’événement sur la tuile. Réponse **`InteractResult`** (**32**) : même préfixe que **`LoginResult`**, plus le **même Guid** en fin de paquet pour corréler la tentative. Le client **conserve** cet id jusqu’à un résultat définitif (timeout / reconnect / retry **réutilisent** le même id ; une nouvelle interaction volontaire en génère un autre). Seuls les placements dont **`triggerKind`** est **`interact`** sont pris en compte : s’il en existe au moins un sur cette tuile, le serveur exécute l’entrée **la plus petite** (`catalogId`, puis `placementId`) avec l’`activationId` client comme identité ledger ; sinon échec « Rien a interagir ici. » (le Guid est tout de même renvoyé). Réutiliser un id pour un **autre événement** ou un **autre personnage** est rejeté.
 
 Placements **`step_on`** : après un **`MoveRequest`** ou **`PositionSyncRequest`** réussi **et** si le couple **(carte, tuile)** du joueur a **changé** par rapport à l’état avant la requête (mouvement ou warp inclus), le serveur peut envoyer au client concerné un **`InteractResult`** réussi avec le message préfixé **`[Marche]`** (même tri `catalogId`, puis `placementId` sur les `step_on` de la tuile d’arrivée). Ainsi pas de spam si le client renvoie la même position sans changer de case.
 
@@ -178,6 +178,8 @@ Placements **`page`** : quand **`CurrentMapId`** change (connexion, sélection d
 À partir de **`FrogWireProtocol.Version` ≥ 9**, placements **`auto_tile`** : après un **`HeartbeatAck`** réussi, si le joueur est sur une tuile avec au moins un `auto_tile`, le serveur peut envoyer **au plus un** **`InteractResult`** réussi par battement, message préfixé **`[Auto-tuile]`**, pour le premier placement dû (tri `catalogId`, puis `placementId`) dont le **cooldown par `placementId`** (~25 s) est écoulé. Les compteurs cooldown sont **réinitialisés** lorsque le triplet **(carte, tuile X, tuile Y)** change (même logique que pour `step_on` / `page` sur changement de case).
 
 À partir de **`FrogWireProtocol.Version` ≥ 9**, **`WorldFlagsPatchRequest`** (**34**) / **`WorldFlagsPatchResult`** (**35**) : fusion JSON contrôlée du bloc **`worldFlags`** (persisté MariaDB dans **`character_world_flag`** ; le client manipule toujours un objet JSON dans le patch).
+
+À partir de **`FrogWireProtocol.Version` ≥ 10**, **`InteractRequest`** / **`InteractResult`** portent un Guid `activationId` (voir ci‑dessus). Les **`InteractResult`** déclenchés par le serveur (`step_on`, `page`, `auto_tile`, autorun, parallel) utilisent **`Guid.Empty`**.
 
 **Exploitation / observabilité** : à chaque envoi réussi des chemins carte ci‑dessus, le serveur journalise aussi en **Information** des entrées structurées `MapEventInteractFired`, `MapEventStepOnFired`, `MapEventPageFired`, `MapEventAutoTileFired` (`ServerNetworkLogs`, ids **5021–5024**) avec `username`, `mapId`, tuile, `slug`, `placementId`.
 
@@ -423,21 +425,22 @@ En cas de succès, le serveur peut renvoyer un **`CharacterPayload`** à jour.
 
 ### InteractRequest (Client -> Serveur)
 
-Session authentifiée.
+`FrogWireProtocol.Version` **≥ 10**. Session authentifiée.
 
 Payload :
 
 - `PacketId` (Byte) = `31`
-- **aucun octet** suivant.
+- **`ActivationId`** (Guid, 16 octets) — identifiant d’activation client, non nul. Conservé jusqu’à un **`InteractResult`** définitif pour cette tentative (retry / reconnect **réutilisent** le même id). Une nouvelle interaction volontaire utilise un nouvel id. Le serveur sélectionne l’événement sur la **tuile courante** (autorité serveur) et passe cet id à `MapEventExecutionIdentity.BeginActivation`.
 
 ### InteractResult (Serveur -> Client)
 
-Même forme que **`LoginResult`** :
+`FrogWireProtocol.Version` **≥ 10**. Forme **`LoginResult`** + Guid de corrélation :
 
 - `PacketId` (Byte) = `32`
 - `Success` (Byte)
 - `MessageLength` (Byte)
 - `MessageUtf8`
+- **`ActivationId`** (Guid, 16 octets) — echo de la requête pour une interaction volontaire ; **`Guid.Empty`** pour les déclenchements serveur (`step_on`, `page`, `auto_tile`, autorun, parallel).
 
 ### PlayerLeave (Serveur -> Clients authentifies)
 

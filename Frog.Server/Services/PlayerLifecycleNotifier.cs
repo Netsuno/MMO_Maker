@@ -11,6 +11,11 @@ public sealed class PlayerLifecycleNotifier(PacketSender packetSender, ClientReg
     {
         foreach (var client in _clientRegistry.GetAllAuthenticatedClients())
         {
+            if (client.IsClosed)
+            {
+                continue;
+            }
+
             await _packetSender.SendPlayerLeaveAsync(client, username, cancellationToken);
         }
     }

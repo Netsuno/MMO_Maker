@@ -184,13 +184,14 @@ public sealed class MapMinimapControl : Control
                     }
 
                     var tint = MapEventMarkerColors.TintFromSlug(m.PrimarySlug);
-                    var stepOn = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.StepOn, StringComparison.Ordinal);
-                    var page = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
-                    var autoTile = string.Equals(m.PrimaryTriggerKind, MapEventTriggerKinds.AutoTile, StringComparison.Ordinal);
+                    var playerContact = MapEventMarkerColors.IsPlayerContactTrigger(m.PrimaryTriggerKind);
+                    var legacyPage = MapEventMarkerColors.IsLegacyPageTrigger(m.PrimaryTriggerKind);
+                    var autorun = MapEventMarkerColors.IsAutorunTrigger(m.PrimaryTriggerKind);
+                    var parallel = MapEventMarkerColors.IsParallelTrigger(m.PrimaryTriggerKind);
                     var tileL = ox + m.TileX * ts * scale;
                     var tileT = oy + m.TileY * ts * scale;
                     var twm = ts * scale;
-                    if (page)
+                    if (legacyPage)
                     {
                         var rDot = Math.Max(1.1f, 1.7f * scale);
                         var cpx = tileL + rDot + 0.5f;
@@ -205,7 +206,7 @@ public sealed class MapMinimapControl : Control
                             g.DrawEllipse(edge, cpx - rDot, cpy - rDot, rDot * 2f, rDot * 2f);
                         }
                     }
-                    else if (autoTile)
+                    else if (autorun)
                     {
                         var pad = Math.Max(0.5f, 1.2f * scale);
                         var rr = new RectangleF(tileL + pad, tileT + pad, twm - pad * 2f, twm - pad * 2f);
@@ -214,6 +215,19 @@ public sealed class MapMinimapControl : Control
                             DashStyle = DashStyle.Dash,
                         };
                         g.DrawRectangle(p, rr.X, rr.Y, rr.Width, rr.Height);
+                    }
+                    else if (parallel)
+                    {
+                        var pad = Math.Max(0.5f, 1.2f * scale);
+                        var rr = new RectangleF(tileL + pad, tileT + pad, twm - pad * 2f, twm - pad * 2f);
+                        var pts = new[]
+                        {
+                            new PointF(rr.X + rr.Width / 2f, rr.Y),
+                            new PointF(rr.Right, rr.Bottom),
+                            new PointF(rr.X, rr.Bottom),
+                        };
+                        using var p = new Pen(Color.FromArgb(235, tint), Math.Max(0.8f, 1.1f * scale));
+                        g.DrawPolygon(p, pts);
                     }
                     else
                     {
@@ -228,7 +242,7 @@ public sealed class MapMinimapControl : Control
                         var rect = new RectangleF(cx - r, cy - r, r * 2f, r * 2f);
                         using (var b = new SolidBrush(Color.FromArgb(228, tint)))
                         {
-                            if (stepOn)
+                            if (playerContact)
                             {
                                 FillMinimapDiamond(g, b, rect);
                             }
@@ -240,7 +254,7 @@ public sealed class MapMinimapControl : Control
 
                         using (var edge = new Pen(Color.FromArgb(200, Color.White), 1f))
                         {
-                            if (stepOn)
+                            if (playerContact)
                             {
                                 DrawMinimapDiamond(g, edge, rect);
                             }

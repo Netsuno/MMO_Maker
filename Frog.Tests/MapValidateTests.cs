@@ -66,9 +66,28 @@ public sealed class MapValidateTests
             Y = 0,
             Type = TileType.Warp,
             TilesetId = 0,
-            WarpTargetMapId = 1,
+            WarpTargetMapId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001"),
             WarpTargetX = -1,
             WarpTargetY = 0,
+        });
+        Assert.False(map.Validate(out var err));
+        Assert.Contains("Warp", err ?? "", StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Warp_empty_target_fails()
+    {
+        var map = new Map { Width = 3, Height = 3, Name = "x" };
+        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        map.Layers[0].Tiles.Add(new Tile
+        {
+            X = 0,
+            Y = 0,
+            Type = TileType.Warp,
+            TilesetId = 1,
+            WarpTargetMapId = Guid.Empty,
+            WarpTargetX = 2,
+            WarpTargetY = 2,
         });
         Assert.False(map.Validate(out var err));
         Assert.Contains("Warp", err ?? "", StringComparison.OrdinalIgnoreCase);
@@ -85,7 +104,7 @@ public sealed class MapValidateTests
             Y = 0,
             Type = TileType.Warp,
             TilesetId = 1,
-            WarpTargetMapId = 0,
+            WarpTargetMapId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002"),
             WarpTargetX = 2,
             WarpTargetY = 2,
         });

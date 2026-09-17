@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Frog.Editor.WindowsSmokeTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Assets\" />
     <Folder Include="Config\" />
     <Folder Include="Controls\" />
@@ -22,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
+    <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
   </ItemGroup>
 
 </Project>
