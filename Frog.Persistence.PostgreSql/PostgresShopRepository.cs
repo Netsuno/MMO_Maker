@@ -69,7 +69,7 @@ public sealed class PostgresShopRepository :
         {
             _saveGate.Release();
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -212,7 +212,7 @@ public sealed class PostgresShopRepository :
             .FirstOrDefaultAsync(shop => shop.Id == shopId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -246,7 +246,7 @@ public sealed class PostgresShopRepository :
             Status = ContentPublishStatus.Published,
             PublishedRevision = snapshot.Revision,
         };
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -285,7 +285,7 @@ public sealed class PostgresShopRepository :
             Status = shop.Status,
             PublishedRevision = shop.PublishedRevision,
         }).ToList();
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -320,7 +320,7 @@ public sealed class PostgresShopRepository :
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteShopResult.PersistenceFailed(Sanitize(ex.Message));
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -345,7 +345,7 @@ public sealed class PostgresShopRepository :
             .ToListAsync(ct)
             .ConfigureAwait(false);
         return snapshots.Select(FromSnapshot).ToList();
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -366,7 +366,7 @@ public sealed class PostgresShopRepository :
                     snapshot => EF.Functions.JsonContains(snapshot.ListingsJson, itemReference),
                     ct)
                 .ConfigureAwait(false);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 

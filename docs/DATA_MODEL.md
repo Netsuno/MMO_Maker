@@ -1,6 +1,6 @@
 # Modèle de données PostgreSQL (jalon carte)
 
-Source de vérité : **PostgreSQL** (ADR-0002). Migrations EF Core dans `Frog.Persistence.PostgreSql/Migrations`.  
+Source de vérité : **PostgreSQL** (ADR-0002). Migrations EF Core dans `Frog.Persistence.PostgreSql/Migrations`.
 MariaDB reste un héritage temporaire (serveur/éditeur existants), plus de nouvelles tables.
 
 Dates : `timestamptz` UTC.

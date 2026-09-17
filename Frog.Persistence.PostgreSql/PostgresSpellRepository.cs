@@ -48,7 +48,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
         {
             _saveGate.Release();
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -200,7 +200,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             .FirstOrDefaultAsync(s => s.Id == spellId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -234,7 +234,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             Status = ContentPublishStatus.Published,
             PublishedRevision = snapshot.Revision,
         };
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -277,7 +277,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             })
             .ToListAsync(ct)
             .ConfigureAwait(false);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -323,7 +323,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteSpellResult.PersistenceFailed(Sanitize(ex.Message));
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -348,7 +348,7 @@ public sealed class PostgresSpellRepository : ISpellRepository, IPublishedSpellC
             .ToListAsync(ct)
             .ConfigureAwait(false);
         return snapshots.Select(FromSnapshot).ToList();
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 

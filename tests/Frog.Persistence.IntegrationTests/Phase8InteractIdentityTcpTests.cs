@@ -1,3 +1,4 @@
+using System.Linq;
 using Frog.Core.Enums;
 using Frog.Core.Protocol;
 using Frog.Persistence.PostgreSql;
@@ -48,9 +49,17 @@ public sealed class Phase8InteractIdentityTcpTests
         await Phase8MovementTestHelpers.TeleportToTileAsync(
             ctx.Client, ctx.Seed.OnceRewardEventTileX, ctx.Seed.OnceRewardEventTileY);
 
+        // Send first interact without reading InteractResult — but wait for PG commit proof.
         await ctx.Client.SendFrameAsync(Phase7TcpPacketBuilder.BuildInteract(activationId));
+        await WaitUntilCommittedAsync(
+            ctx.CharacterGuid,
+            activationId,
+            ctx.Seed.Phase7.ConsumableId,
+            expectedQuantity: 1,
+            timeout: TimeSpan.FromSeconds(15));
+
+        // Only now drop the unread response path.
         await ctx.Client.DisconnectAsync();
-        await Task.Delay(250);
 
         await using var client2 = new Phase7TcpTestClient();
         await ReconnectSelectAsync(client2, ctx.Port, ctx.Token, ctx.CharacterId);
@@ -59,6 +68,7 @@ public sealed class Phase8InteractIdentityTcpTests
 
         var replay = await InteractAsync(client2, activationId);
         Assert.True(replay.Ok);
+        Assert.Contains("Once chest opened", replay.Message, StringComparison.OrdinalIgnoreCase);
 
         var snap = await Phase8TcpTestHelpers.ReselectAndReadSnapshotsAsync(client2, ctx.CharacterId);
         Assert.Equal(1, Phase8WireDecoders.CountItemQuantity(snap.Inventory, ctx.Seed.Phase7.ConsumableId));
@@ -295,6 +305,43 @@ public sealed class Phase8InteractIdentityTcpTests
 
     private FrogDbContextGate CreateGate()
         => new(new FrogDbContext(FrogDbContextOptions.Create(_fixture.ConnectionString)));
+
+
+    private async Task WaitUntilCommittedAsync(
+        Guid characterId,
+        Guid activationId,
+        Guid itemId,
+        int expectedQuantity,
+        TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var ledger = await CountLedgerByActivationAsync(characterId, activationId).ConfigureAwait(false);
+            var qty = await CountInventoryQuantityAsync(characterId, itemId).ConfigureAwait(false);
+            if (ledger >= 1 && qty >= expectedQuantity)
+            {
+                return;
+            }
+
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+
+        var finalLedger = await CountLedgerByActivationAsync(characterId, activationId).ConfigureAwait(false);
+        var finalQty = await CountInventoryQuantityAsync(characterId, itemId).ConfigureAwait(false);
+        throw new TimeoutException(
+            $"Commit proof not observed within {timeout.TotalSeconds:0}s (ledger={finalLedger}, qty={finalQty}).");
+    }
+
+    private async Task<int> CountInventoryQuantityAsync(Guid characterId, Guid itemId)
+    {
+        using var gate = CreateGate();
+        return await gate.ExecuteAsync(
+            async (db, ct) => await db.PlayerInventorySlots.AsNoTracking()
+                .Where(s => s.CharacterId == characterId && s.ItemId == itemId)
+                .SumAsync(s => s.Quantity, ct),
+            CancellationToken.None).ConfigureAwait(false);
+    }
 
     private async Task<int> CountLedgerByActivationAsync(Guid characterId, Guid activationId)
     {

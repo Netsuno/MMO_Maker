@@ -71,7 +71,7 @@ public sealed class PostgresResourceRepository :
         {
             _saveGate.Release();
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -238,7 +238,7 @@ public sealed class PostgresResourceRepository :
             .FirstOrDefaultAsync(resource => resource.Id == resourceId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -271,7 +271,7 @@ public sealed class PostgresResourceRepository :
                 Status = ContentPublishStatus.Published,
                 PublishedRevision = snapshot.Revision,
             };
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -312,7 +312,7 @@ public sealed class PostgresResourceRepository :
             })
             .ToListAsync(ct)
             .ConfigureAwait(false);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -359,7 +359,7 @@ public sealed class PostgresResourceRepository :
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteResourceResult.PersistenceFailed(Sanitize(ex.Message));
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -384,7 +384,7 @@ public sealed class PostgresResourceRepository :
             .ToListAsync(ct)
             .ConfigureAwait(false);
         return snapshots.Select(FromSnapshot).ToList();
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 

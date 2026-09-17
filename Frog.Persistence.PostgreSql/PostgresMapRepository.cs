@@ -51,7 +51,7 @@ public sealed class PostgresMapRepository : IMapRepository
         {
             _saveGate.Release();
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -384,7 +384,7 @@ public sealed class PostgresMapRepository : IMapRepository
         }
 
         return ToStored(entity);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -413,7 +413,7 @@ public sealed class PostgresMapRepository : IMapRepository
             .ConfigureAwait(false);
 
         return snapshot is null ? null : MapPersistenceMapper.ToStoredFromSnapshot(snapshot, draft.PublishedRevision);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -437,7 +437,7 @@ public sealed class PostgresMapRepository : IMapRepository
             .ConfigureAwait(false);
 
         return snapshot is null ? null : MapPersistenceMapper.ToStoredFromSnapshot(snapshot, publishedRevision);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -461,7 +461,7 @@ public sealed class PostgresMapRepository : IMapRepository
             })
             .ToListAsync(ct)
             .ConfigureAwait(false);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -483,7 +483,7 @@ public sealed class PostgresMapRepository : IMapRepository
             })
             .ToListAsync(ct)
             .ConfigureAwait(false);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 

@@ -48,7 +48,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
         {
             _saveGate.Release();
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -225,7 +225,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             .FirstOrDefaultAsync(t => t.Id == tilesetId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -259,7 +259,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             Status = ContentPublishStatus.Published,
             PublishedRevision = snap.Revision,
         };
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -297,7 +297,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             })
             .ToListAsync(ct)
             .ConfigureAwait(false);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -339,7 +339,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             await tx.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteTilesetResult.PersistenceFailed(Sanitize(ex.Message));
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -376,7 +376,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
         cmd.Parameters.Add(pB);
         var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
         return result is bool flag && flag;
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -403,7 +403,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             .ConfigureAwait(false);
 
         return snaps.Select(FromSnapshot).ToList();
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 

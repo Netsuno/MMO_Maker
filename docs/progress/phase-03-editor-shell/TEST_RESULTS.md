@@ -24,8 +24,8 @@ dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.Integration
 
 ## Smoke Windows (CI)
 
-Projet : `tests/Frog.Editor.WindowsSmokeTests`  
-Job : `.github/workflows/ci.yml` → `build-and-test` (windows-latest)  
+Projet : `tests/Frog.Editor.WindowsSmokeTests`
+Job : `.github/workflows/ci.yml` → `build-and-test` (windows-latest)
 Env : `FROG_EDITOR_FORCE_IN_MEMORY=1`
 
 ```powershell

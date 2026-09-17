@@ -1,12 +1,12 @@
 # LEGACY_FORMATS.md — référence historique seulement
 
-> **ADR-0003 :** ce document décrit une expérimentation FRoG `.fcc`.  
+> **ADR-0003 :** ce document décrit une expérimentation FRoG `.fcc`.
 > Il **n’est pas** une exigence de livraison du MMO Maker. Aucun importeur ni parité binaire n’est requis.
 
 ---
 
 
-Spécifications **vérifiées depuis le code source** `Alexoune001/FRoG-Creator-OSE-V0.6.3` et **contrôlées sur fixtures** `.fcc` du même dépôt.  
+Spécifications **vérifiées depuis le code source** `Alexoune001/FRoG-Creator-OSE-V0.6.3` et **contrôlées sur fixtures** `.fcc` du même dépôt.
 Les points encore non prouvés au niveau octet sont marqués **INCONNU / À PROUVER**.
 
 ---
@@ -22,7 +22,7 @@ Les points encore non prouvés au niveau octet sont marqués **INCONNU / À PROU
 | I/O serveur | `Serveur/Modules Sources/modDatabase.bas` | `SaveMap`, `LoadMap`, `LoadMaps` |
 | Dimensions | `Serveur/Modules Sources/modGeneral.bas`, `Editeur/.../modGameLogic.bas` | `MAX_MAPX` / `MAX_MAPY` ; `ReDim Map(i).Tile(0 To MAX_MAPX, 0 To MAX_MAPY)` |
 
-Chemin : `{App.Path}\maps\map{MapNum}.fcc` (casse `maps` / `Maps` selon composant).  
+Chemin : `{App.Path}\maps\map{MapNum}.fcc` (casse `maps` / `Maps` selon composant).
 **Pas** d’extension `.map` dans ce code OSE 0.6.3.
 
 Persistance : `Open … For Binary` puis **`Put #f, , Map(MapNum)`** / **`Get #f, , Map(MapNum)`** sur l’UDT entier (pas d’écriture champ-à-champ).
@@ -165,7 +165,7 @@ Warp observé (type=2 à l’octet 52 du record 88 o) : `Data1=map`, `Data2=x`, 
 
 ### 1.7 Relation avec le format C# actuel `.fmap`
 
-Le dépôt MMO_Maker utilise un format **moderne** `FMAP` v3/v4 (`Frog.Core.IO.MapSerializer`) — **incompatible** octet-à-octet avec `.fcc`.  
+Le dépôt MMO_Maker utilise un format **moderne** `FMAP` v3/v4 (`Frog.Core.IO.MapSerializer`) — **incompatible** octet-à-octet avec `.fcc`.
 L’importeur legacy (`Frog.Legacy`, à créer) doit produire le modèle domaine, pas un simple renommage de fichier.
 
 ---

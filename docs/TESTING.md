@@ -30,7 +30,7 @@ dotnet test Frog.Tests/Frog.Tests.csproj -c Release --filter Category=MariaDb
 
 ## Legacy `.fcc` (expérimental)
 
-Les tests `LegacyFcc*` restent dans `Frog.Tests` pour non-régression du code différé.  
+Les tests `LegacyFcc*` restent dans `Frog.Tests` pour non-régression du code différé.
 **Ils ne valident pas** une exigence produit (ADR-0003).
 
 ## UI / E2E

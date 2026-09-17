@@ -49,7 +49,7 @@ public sealed class PostgresNpcRepository : INpcRepository, IPublishedNpcCatalog
         {
             _saveGate.Release();
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -212,7 +212,7 @@ public sealed class PostgresNpcRepository : INpcRepository, IPublishedNpcCatalog
             .FirstOrDefaultAsync(n => n.Id == npcId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -246,7 +246,7 @@ public sealed class PostgresNpcRepository : INpcRepository, IPublishedNpcCatalog
             Status = ContentPublishStatus.Published,
             PublishedRevision = snapshot.Revision,
         };
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -287,7 +287,7 @@ public sealed class PostgresNpcRepository : INpcRepository, IPublishedNpcCatalog
             })
             .ToListAsync(ct)
             .ConfigureAwait(false);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -330,7 +330,7 @@ public sealed class PostgresNpcRepository : INpcRepository, IPublishedNpcCatalog
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteNpcResult.PersistenceFailed(Sanitize(ex.Message));
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -366,7 +366,7 @@ public sealed class PostgresNpcRepository : INpcRepository, IPublishedNpcCatalog
             .ToListAsync(ct)
             .ConfigureAwait(false);
         return snapshots.Select(FromSnapshot).ToList();
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 

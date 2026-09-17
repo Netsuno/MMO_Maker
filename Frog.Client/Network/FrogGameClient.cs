@@ -29,6 +29,7 @@ public sealed class FrogGameClient : IDisposable
     private volatile bool _intentionalDisconnect;
     private readonly MapSerializer _mapSerializer = new();
     private readonly Dictionary<string, Guid> _lastEconomyRequestIds = new(StringComparer.Ordinal);
+    private readonly object _interactActivationGate = new();
     private Guid _pendingInteractActivationId;
 
     public FrogGameClient(SynchronizationContext uiContext)
@@ -418,11 +419,7 @@ public sealed class FrogGameClient : IDisposable
             case PacketId.InteractResult:
                 if (Phase8Wire.TryParseInteractResult(body.Span, out var intOk, out var intMsg, out var intActivationId))
                 {
-                    if (intActivationId != Guid.Empty && intActivationId == _pendingInteractActivationId)
-                    {
-                        _pendingInteractActivationId = Guid.Empty;
-                    }
-
+                    ApplyInteractResultIdentity(intActivationId);
                     Post(() => InteractResultReceived?.Invoke(intOk, intMsg, intActivationId));
                 }
 
@@ -915,10 +912,16 @@ public sealed class FrogGameClient : IDisposable
 
     public Task SendInteractRequestAsync(CancellationToken cancellationToken = default)
     {
-        var activationId = _pendingInteractActivationId != Guid.Empty
-            ? _pendingInteractActivationId
-            : Guid.NewGuid();
-        return SendInteractRequestAsync(activationId, cancellationToken);
+        Guid activationId;
+        lock (_interactActivationGate)
+        {
+            activationId = _pendingInteractActivationId != Guid.Empty
+                ? _pendingInteractActivationId
+                : Guid.NewGuid();
+            _pendingInteractActivationId = activationId;
+        }
+
+        return SendInteractRequestPayloadAsync(activationId, cancellationToken);
     }
 
     public Task SendInteractRequestAsync(Guid activationId, CancellationToken cancellationToken = default)
@@ -928,7 +931,23 @@ public sealed class FrogGameClient : IDisposable
             throw new ArgumentException("activationId Guid requis.", nameof(activationId));
         }
 
-        _pendingInteractActivationId = activationId;
+        lock (_interactActivationGate)
+        {
+            if (_pendingInteractActivationId != Guid.Empty
+                && _pendingInteractActivationId != activationId)
+            {
+                throw new InvalidOperationException(
+                    "Une interaction est déjà en cours avec une autre identité.");
+            }
+
+            _pendingInteractActivationId = activationId;
+        }
+
+        return SendInteractRequestPayloadAsync(activationId, cancellationToken);
+    }
+
+    private Task SendInteractRequestPayloadAsync(Guid activationId, CancellationToken cancellationToken)
+    {
         var body = Phase8Wire.BuildInteractRequest(activationId);
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.InteractRequest;
@@ -938,11 +957,35 @@ public sealed class FrogGameClient : IDisposable
 
     public bool PeekInteractActivationId(out Guid activationId)
     {
-        activationId = _pendingInteractActivationId;
-        return activationId != Guid.Empty;
+        lock (_interactActivationGate)
+        {
+            activationId = _pendingInteractActivationId;
+            return activationId != Guid.Empty;
+        }
     }
 
-    public void ClearInteractActivationId() => _pendingInteractActivationId = Guid.Empty;
+    public void ClearInteractActivationId()
+    {
+        lock (_interactActivationGate)
+        {
+            _pendingInteractActivationId = Guid.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Applique la corrélation identité d'un <see cref="PacketId.InteractResult"/>
+    /// (efface seulement si l'activationId correspond à l'attente courante).
+    /// </summary>
+    internal void ApplyInteractResultIdentity(Guid activationId)
+    {
+        lock (_interactActivationGate)
+        {
+            if (activationId != Guid.Empty && activationId == _pendingInteractActivationId)
+            {
+                _pendingInteractActivationId = Guid.Empty;
+            }
+        }
+    }
 
     /// <summary>Objet JSON UTF-8 (ex. <c>{"story_intro":true}</c>) fusionné dans <c>payload.worldFlags</c>.</summary>
     public Task SendWorldFlagsPatchAsync(string patchJsonObject, CancellationToken cancellationToken = default)

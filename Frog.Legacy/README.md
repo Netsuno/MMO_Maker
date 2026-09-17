@@ -2,7 +2,7 @@
 
 **Statut :** `experimental/deferred` (ADR-0003).
 
-Ce projet contient un lecteur expérimental de cartes FRoG `.fcc`.  
+Ce projet contient un lecteur expérimental de cartes FRoG `.fcc`.
 Il **ne fait pas** partie du chemin critique du MMO Maker.
 
 ## Règles

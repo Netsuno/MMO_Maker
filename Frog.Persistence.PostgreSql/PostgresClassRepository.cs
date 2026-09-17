@@ -61,7 +61,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
         {
             _saveGate.Release();
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -217,7 +217,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             .FirstOrDefaultAsync(c => c.Id == classId, ct)
             .ConfigureAwait(false);
         return entity is null ? null : ToStored(entity);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -251,7 +251,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             Status = ContentPublishStatus.Published,
             PublishedRevision = snapshot.Revision,
         };
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -291,7 +291,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             })
             .ToListAsync(ct)
             .ConfigureAwait(false);
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -326,7 +326,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return new DeleteClassResult.PersistenceFailed(Sanitize(ex.Message));
         }
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -351,7 +351,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             .ToListAsync(ct)
             .ConfigureAwait(false);
         return snapshots.Select(FromSnapshot).ToList();
-    
+
         }, cancellationToken).ConfigureAwait(false);
     }
 

@@ -1,6 +1,6 @@
 # MariaDB — état par domaine (héritage)
 
-Source de vérité opérationnelle du **nouveau produit** : **PostgreSQL** (ADR-0002).  
+Source de vérité opérationnelle du **nouveau produit** : **PostgreSQL** (ADR-0002).
 MariaDB = runtime historique encore branché ; **aucune nouvelle fonctionnalité MariaDB**.
 
 | Domaine | Projet | Composants | Statut | Plan |
