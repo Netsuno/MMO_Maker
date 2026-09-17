@@ -806,6 +806,17 @@ public sealed class Phase8EditorSmokeTests
         }
     }
 
+    private static void WaitForPaint(Control control)
+    {
+        control.PerformLayout();
+        control.Refresh();
+        for (var i = 0; i < 8; i++)
+        {
+            System.Windows.Forms.Application.DoEvents();
+            Thread.Sleep(15);
+        }
+    }
+
     private static void SaveScreenshot(Form form, string fileName)
     {
         if (form is Phase8ContentBrowseDialog dialog)
@@ -813,12 +824,19 @@ public sealed class Phase8EditorSmokeTests
             dialog.BtnSaveForTest.Focus();
         }
 
-        form.Refresh();
+        WaitForPaint(form);
         var root = EditorSmokeTestAccess.FindRepositoryRootForTest();
         var directory = Path.Combine(root, "artifacts", "phase-08-editor");
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, fileName);
-        using var bitmap = new Bitmap(Math.Max(1, form.Width), Math.Max(1, form.Height));
+        var width = Math.Max(1, form.Width);
+        var height = Math.Max(1, form.Height);
+        if (width < 8 || height < 8)
+        {
+            throw new InvalidOperationException($"Screenshot target for {fileName} is not laid out ({width}×{height}).");
+        }
+
+        using var bitmap = new Bitmap(width, height);
         form.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
         bitmap.Save(path, ImageFormat.Png);
         if (new FileInfo(path).Length == 0)

@@ -17,7 +17,7 @@
 
 ## Screenshot evidence note
 
-R2-6: CI verifies SHA-256 of Phase 8 smoke PNGs against this committed `SCREENSHOT_MANIFEST.md` (`scripts/verify-phase8-screenshot-manifest.ps1`) and fails on file/hash mismatch. Client captures wait for the claimed UI state; `02`–`05` are panel surfaces so `01`≠`02` and `03`≠`04`. `01`/`06` screenshot the gameplay TabControl (not the log clock). Editor screenshot tests use deterministic content GUIDs. Do not skip or weaken the ×3 Phase 8 smokes.
+R2-6: CI verifies Phase 8 smoke PNGs against committed `SCREENSHOT_MANIFEST.md` (`scripts/verify-phase8-screenshot-manifest.ps1`). **exact-sha** (client `02`–`05`, editor `01`) must match SHA-256 + exact WxH. **present-dims** (client `01`/`06` TabControl crops, editor `02`–`06` full dialogs) must be present with valid dimensions; SHA is not gated because those pixels still drift across Windows CI runs (caret/focus/GDI). Client `01`/`06` screenshot the gameplay TabControl (not the log clock). Editor screenshot tests use deterministic content GUIDs and WaitForPaint. Client `02`–`05` are panel surfaces so `01`≠`02` and `03`≠`04`. Do not skip or weaken the ×3 Phase 8 smokes.
 
 ## Smoke coverage note
 

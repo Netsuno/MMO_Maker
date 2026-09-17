@@ -42,14 +42,19 @@ public sealed class Phase8GameplayClientSmokeTests
                 form,
                 () => form.IsPhase8TabSelectedForTest && form.DialoguePanelForTest.Width > 8,
                 "phase 8 tab selected and laid out");
-            WaitForPaint(form.GameplayTabsForTest);
-            ClientSmokeTestAccess.SavePhase8Screenshot(form.GameplayTabsForTest, "01-phase8-tab.png");
-
             Pump(
                 form,
                 () => form.DialoguePanelForTest.ChoiceButtonCountForTest > 0
                       && !string.Equals(form.DialoguePanelForTest.SpeakerTextForTest, "—", StringComparison.Ordinal),
                 "dialogue push from server");
+            Pump(
+                form,
+                () => form.EnvironmentPanelForTest.MapLabelTextForTest.Contains("Carte: 1", StringComparison.Ordinal),
+                "environment push");
+            AssertPhase8TabSurfaceLaidOut(form);
+            WaitForPaint(form.GameplayTabsForTest);
+            ClientSmokeTestAccess.SavePhase8Screenshot(form.GameplayTabsForTest, "01-phase8-tab.png");
+
             WaitForPaint(form.DialoguePanelForTest);
             ClientSmokeTestAccess.SavePhase8Screenshot(form.DialoguePanelForTest, "02-dialogue-choices.png");
             form.DialoguePanelForTest.ClickFirstChoiceForTest();
@@ -99,6 +104,7 @@ public sealed class Phase8GameplayClientSmokeTests
             Pump(form, () => form.IsPlayingPhaseForTest, "reconnect playing");
             form.SelectPhase8TabForTest();
             Pump(form, () => form.DialoguePanelForTest.ChoiceButtonCountForTest > 0, "dialogue after reconnect");
+            AssertPhase8TabSurfaceLaidOut(form);
             WaitForPaint(form.GameplayTabsForTest);
             ClientSmokeTestAccess.SavePhase8Screenshot(form.GameplayTabsForTest, "06-reconnect-usable.png");
 
@@ -116,6 +122,14 @@ public sealed class Phase8GameplayClientSmokeTests
         {
             throw new TimeoutException($"Phase 8 smoke timed out at '{step}': {ex.Message}", ex);
         }
+    }
+
+    private static void AssertPhase8TabSurfaceLaidOut(MainShellForm form)
+    {
+        var tabs = form.GameplayTabsForTest;
+        Assert.True(
+            tabs.Width >= 300 && tabs.Width <= 400 && tabs.Height >= 250 && tabs.Height <= 700,
+            $"Gameplay TabControl screenshot surface not laid out as a tab crop ({tabs.Width}×{tabs.Height}); expected 300–400×250–700.");
     }
 
     private static void WaitForPaint(Control control)

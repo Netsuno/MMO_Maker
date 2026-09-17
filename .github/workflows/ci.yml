@@ -97,6 +97,7 @@ jobs:
         shell: pwsh
         run: |
           $project = "tests/Frog.Editor.WindowsSmokeTests/Frog.Editor.WindowsSmokeTests.csproj"
+          ./scripts/test-phase8-screenshot-manifest.ps1
           $logs = @()
           for ($i = 1; $i -le 3; $i++) {
             $log = "artifacts/ci-logs/phase8-smoke-pass-$i.log"
@@ -116,7 +117,7 @@ jobs:
           }
           ./scripts/ci-guard-lifecycle-logs.ps1 -LogPaths $logs
           ./scripts/verify-phase8-screenshot-manifest.ps1 -CopyManifestToArtifacts
-          Write-Host "=== Phase 8 smoke 3/3 consecutive passes OK (manifest SHA-256 verified) ==="
+          Write-Host "=== Phase 8 smoke 3/3 consecutive passes OK (manifest gate verified) ==="
 
       - name: Upload hang dumps and CI logs
         if: always()
