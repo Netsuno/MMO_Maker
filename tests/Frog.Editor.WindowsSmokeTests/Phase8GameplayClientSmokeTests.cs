@@ -124,7 +124,7 @@ public sealed class Phase8GameplayClientSmokeTests
         control.Refresh();
         for (var i = 0; i < 8; i++)
         {
-            Application.DoEvents();
+            System.Windows.Forms.Application.DoEvents();
             Thread.Sleep(15);
         }
     }
