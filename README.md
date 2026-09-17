@@ -1,21 +1,71 @@
-# MMO Maker (C# / .NET 8)
+# MMO Maker
 
-Environnement de création de MMO 2D : **éditeur**, **client** et **serveur** autoritaire, avec **PostgreSQL** comme source de vérité.
+Environnement de création d’un MMO **2D** (vue Zelda SNES / Graal) : **éditeur**, **client** Windows et **serveur TCP autoritaire**.
 
-- Inspiration **fonctionnelle** : [FRoG Creator OSE 0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3) (idées de gameplay / éditeur, **sans compatibilité** — ADR-0003).
-- Inspiration **ergonomique** : principes RPG Maker (workspace, arbre de cartes, palette, outils) — identité et code originaux.
-- Dépôt : [Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
-- PRD d’exécution : `PRD_MMO_Maker_CSharp.md` ; état factuel : [`docs/STATUS.md`](docs/STATUS.md)
+Inspiration **fonctionnelle** : [FRoG Creator OSE 0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3) — idées de gameplay et d’éditeur, **sans compatibilité** (ADR-0003). Ergonomie proche d’RPG Maker, code et identité originaux.
+
+[![CI](https://github.com/Netsuno/MMO_Maker/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Netsuno/MMO_Maker/actions/workflows/ci.yml)
+[![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![C# 12](https://img.shields.io/badge/C%23-12-239120?logo=csharp&logoColor=white)](#stack)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-source%20de%20vérité-4169E1?logo=postgresql&logoColor=white)](docs/decisions/ADR-0002-postgresql-source-of-truth.md)
+[![Protocol v10](https://img.shields.io/badge/protocol-v10-0ea5e9)](#stack)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](#licence)
+
+Dépôt : [Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
+
+---
+
+## Statut
+
+Phase 8 est **acceptée** et consolidée sur `main`. La Phase 9 n’est **pas commencée**.
+
+| Phase | Statut | Preuve |
+| --- | --- | --- |
+| **7** — Gameplay essentiel | ✅ **ACCEPTED** | [`docs/progress/phase-07-essential-gameplay/`](docs/progress/phase-07-essential-gameplay/) |
+| **8** — Quêtes, événements, création avancée | ✅ **ACCEPTED** | Merge [`1cd57ba`](https://github.com/Netsuno/MMO_Maker/commit/1cd57bad694f530fa5699639f9e63008522507e0) · [CI SUCCESS](https://github.com/Netsuno/MMO_Maker/actions/runs/35285230766) |
+| **9** — Distribution et confiance | ⏳ **Not started** | Packaging, admin, durcissement prod — hors périmètre actuel |
+
+**Persistance produit :** **PostgreSQL** (EF Core / Npgsql). MariaDB = héritage optionnel uniquement — [ADR-0002](docs/decisions/ADR-0002-postgresql-source-of-truth.md), [matrice MariaDB](docs/MARIADB_DOMAIN_MATRIX.md).
+
+**Protocole :** `FrogWireProtocol.Version = 10` — `InteractRequest` porte un Guid `activationId` (idempotence TCP publique).
+
+**Preuves d’acceptation Phase 8** (CI verte, pas un dump) : Frog.Tests **412** · PG integration **174** · Phase 8 smoke **24×3** · Editor smoke **87×3** · Gameplay smoke **6×3**.
+
+Journal interne : [`docs/STATUS.md`](docs/STATUS.md) · tests : [`docs/TESTING.md`](docs/TESTING.md) · backlog : [`docs/BACKLOG.md`](docs/BACKLOG.md)
+
+---
 
 ## Stack
 
 | Couche | Choix |
 | --- | --- |
-| Langage | C# 12 / .NET 8 |
-| Éditeur / client | Windows, WinForms (+ coque WPF temporaire, ADR-0004) |
-| Serveur | .NET 8 console / Generic Host |
-| Persistance produit | **PostgreSQL** (EF Core) |
-| MariaDB | Héritage optionnel uniquement — voir [`docs/MARIADB_DOMAIN_MATRIX.md`](docs/MARIADB_DOMAIN_MATRIX.md) |
+| Langage | **C# 12 / .NET 8** |
+| Client | WinForms (Windows) |
+| Éditeur | WinForms + **coque WPF temporaire** ([ADR-0004](docs/decisions/ADR-0004-editor-wpf-shell-temporary.md)) |
+| Serveur | Console / Generic Host, **TCP autoritaire** |
+| Persistance produit | **PostgreSQL 16**, EF Core |
+| MariaDB | Héritage optionnel seulement — **pas** la source de vérité |
+| Cartes | `.fmap` versionné (cache / export) + catalogues publiés PostgreSQL |
+
+---
+
+## Phase 8 — ce qui est livré
+
+Moteur **data-driven typé** (pas de Lua / C# / PowerShell arbitraire côté serveur). Contenu édité, publié dans PostgreSQL, interprété par le serveur autoritaire.
+
+| Capacité | Détail |
+| --- | --- |
+| **Événements carte** | Pages, conditions, commandes typées, déclencheurs ; exécution serveur |
+| **Quêtes & dialogues** | Journal client, progression et turn-in atomiques PostgreSQL |
+| **Common events** | Appels réutilisables, sélection de page, profondeur bornée |
+| **Régions** | Régions / météo / éclairage (catalogues publiés) |
+| **TCP public** | `InteractRequest` + `activationId` Guid — idempotence (`Phase8InteractIdentityTcpTests`) |
+| **Éditeur** | Formulaires contenu Phase 8 (dialogue, quête, recette, région, métier, météo, common event) |
+| **Preuves** | Smokes Windows ×3 + tests d’intégration PostgreSQL |
+
+Dossier d’acceptation : [`docs/progress/phase-08-quests-events-advanced-creation/`](docs/progress/phase-08-quests-events-advanced-creation/)
+
+---
 
 ## Démarrage rapide
 
@@ -24,308 +74,160 @@ dotnet restore Frog.Creator.sln
 dotnet build Frog.Creator.sln -c Release
 dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
 
-docker compose up -d postgres   # optionnel pour intégration
+docker compose up -d postgres   # optionnel — intégration PostgreSQL
 export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only'
 dotnet test tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj -c Release
 ```
 
-Voir [`docs/TESTING.md`](docs/TESTING.md) et [`docs/BACKLOG.md`](docs/BACKLOG.md).
-
----
-
-## Décisions produit (référence équipe)
-
-Alignement (**vision MMO Maker** pour un MMO **2D Graal / Zelda SNES-like**).
-
-| Sujet | Choix |
-|--------|--------|
-| **Hébergement & éditeur public** | **Un seul monde hébergé par vous** au début ; équipe comme auteurs. Plus tard : joueurs peuvent créer du contenu depuis l’éditeur, **toujours rattaché à votre monde / votre serveur** ; monétisation = **fonctionnalités**, pas court terme. |
-| **Licence / compte** | **Liée au compte** (serveur uniquement vous). |
-| **Plateformes** | **Windows seulement** pour l’instant. |
-| **Rendu** | Vue **Zelda SNES / Graal Online**. Tuiles **32×32 px** pour l’instant (évolutif). |
-| **Mouvement** | **Pixels** (autoritaire **serveur**). |
-| **Combat mêlée** | **8 directions** ; **PvE only** au début ; timing **simple pour l’instant** (à affiner ensuite). Knockback **+ courte invulnérabilité** (style Zelda). **Joueurs :** pas traverser les uns les autres sauf maps avec **flag éditeur** (collision joueur désactivée / traversée). |
-| **NPC ennemis** | **Statiques ou patrouille simple** ; comportement et événements carte via **moteur de commandes typées** data-driven (Phase 8) — pas d’exécution Lua/C# arbitraire côté serveur. |
-| **Cartes** | Objectif **plusieurs maps vite** (+ warps) ; pas d’**instances** pour l’instant ; plus tard : instances normales **+ procédurales**. |
-| **Téléchargement carte** | **HEAD révision / hash puis blob** tant que ça reste fiable ; cache client acceptable. |
-| **Événements (RPG Maker)** | **À faire bientôt** : événements sur cases, **liste en DB réutilisable** entre maps/cases, association sauvegardée avec la carte ou la tuile. |
-| **Personnages** | **Plusieurs slots** prévus ; **stats tôt** : **STR, AGI, DEX, INT, VIT, LUCK**. |
-| **Objets / inventaire** | **Priorité importante** : au début chaque « type » d’objet prend **1 place**. Persistance relationnelle côté produit via PostgreSQL (MariaDB historique encore présente côté serveur). |
-| **Mode offline jeu** | **Pas tranché** pour l’instant. |
-| **Réseau** | **Contrôle autoritaire serveur**. **TCP** pour flux fiables ; UDP possible plus tard. |
-| **Chat** | Actuel : global / map / whisper. Guilde/groupe plus tard. |
-| **Archi dépôt** | Client / Serveur / Éditeur / Core / Application / Persistence séparés. |
-| **Publier en DB depuis l’éditeur** | **Oui** (PostgreSQL via ports applicatifs). |
-| **Héritage FRoG** | Inspiration fonctionnelle **uniquement** — **pas** d’import `.fcc` ni de compatibilité VB6 (ADR-0003). |
-
-### Jalons technique proposés (ordre pour travailler en autonomie)
-
-1. [x] **Multi-maps** stables + **flag carte** collisions joueurs + sync **révision / hash** carte côté client (warps, empreintes par `mapId`, rechargement UI après warp).
-2. [x] **Stats persistées + multi‑slots perso** (position **`character_world_state`**, stats JSON **Hero**, **`CharacterListRequest` / `CharacterSelectRequest`** + UI client liste / activer / écran carte).
-3. **Événements carte + catalogue DB** (déclencheurs, liaison tuile/map), éditeur minimal pour placer/traiter — **priorité P1** (voir section **Priorités courantes**).
-4. **PvE** : monstre piloté serveur + dégâts + knockback / i‑frames + mort / respawn NPC.
-5. **Items** : définition DB (effets) + façade client locale + inventaire grille simple.
-6. **Publication éditeur → PostgreSQL** (cartes puis événements / définitions progressives ; MariaDB = héritage seulement).
-7. **Phase 8** — événements carte, dialogues, quêtes, métiers, régions/météo, common events (moteur typé, PostgreSQL, serveur autoritaire).
-8. **Phase 9** — packaging, administration, durcissement prod, certification charge.
-9. Observabilité + **charges** : mesurer broadcasts par carte puis décisions **UDP / AOI**.
-
-### Succès utilisateur minimal (vous l’avez défini)
-
-**Deux joueurs à distance**, **chat fonctionnel**, **dialogue NPC**, **combattre un monstre**.
-
----
-
-<details>
-<summary><strong>Références historiques précédentes (table courte d’origine)</strong></summary>
-
-| Élément | Détail conservé comme rappel |
-|--------|-----------------------------|
-| **Persistance joueur** | Sauvegarde **périodique** (défaut 45 s) + déco / logout / session expirée ; pas une save à chaque paquet. |
-| **Version protocole** | `FrogWireProtocol.Version` dans **Hello** ; incrémenter si rupture binaire incompatible. |
-
-</details>
-
----
-
-## 🧱 Structure du projet
-
-| Projet | Description |
-|--------|--------------|
-| **Frog.Core** | Domaine partagé, modèles, sérialiseur `.fmap`, protocole (à extraire plus tard). |
-| **Frog.Application** | Cas d’usage et ports (cartes, santé DB, imports ops). |
-| **Frog.Persistence.PostgreSql** | EF Core / Npgsql, migrations, repositories. |
-| **Frog.Client** | Client WinForms joueur. |
-| **Frog.Editor** | Éditeur (coque WPF temporaire + WinForms). |
-| **Frog.Server** | Serveur TCP autoritaire (MariaDB optionnelle héritée). |
-| **Frog.Legacy** | Expérimental / différé (lecteur `.fcc` — ADR-0003). |
-| **Frog.Tests** / **IntegrationTests** | Unitaires + PostgreSQL isolé. |
-
----
-
-## Technologies principales
-
-- **.NET 8.0 / C# 12**
-- **WinForms** (+ coque WPF temporaire pour l’éditeur)
-- **PostgreSQL** (source de vérité produit)
-- **MariaDB / MySqlConnector** : héritage optionnel seulement
-- **TCP** ; sérialisation `.fmap` pour cache/export
-
----
-
-## 📊 État des modules (réaliste)
-
-| Module | Statut | Détail court |
-|--------|--------|----------------|
-| **Frog.Core** | 🟢 Actif | `MapSerializer`, `TileType`, attributs, `PacketId`, `ChatChannel`. |
-| **Frog.Server** | 🟢 En évolution | TCP, login/register, map(s), mouvement, collisions, **warps**, chat 3 canaux, heartbeat, logout, `PlayerLeave`, sauvegarde joueur (mémoire ou MariaDB), nettoyage sessions. |
-| **Frog.Client** | 🟢 En évolution | WinForms : `FrogGameClient` + `MainShellForm` (écrans **Connexion → Perso → Carte**, map **PNG multi-couches**, déplacements, chat 3 canaux, heartbeat, mêlée). |
-| **Frog.Editor** | 🟢 En évolution | UI type **RPG Maker** (sombre, menu Fichier / Édition / …, texte menu clair, **outils & type de tuile en listes déroulantes** pour colonnes étroites, tuiles A–D, arbre cartes, `.fmap` + manifeste). |
-| **Tests** | 🟢 Partiel | Couverture sur Core + helpers serveur ; à étendre (intégration TCP, PG). |
-
----
-
-## ✅ Feuille de route créateur (ordre logique)
-
-Objectifs pour qu’une **personne seule** puisse assembler un mini‑MMO (éditeur + serveur + client) jusqu’aux **éditeurs d’objets/armes** et aux **scripts intégrés**. Les phases se suivent de façon raisonnable : contrat réseau et fidélité de la carte en premier, puis serveur/client jouables, enfin données jeu, scripting et distribution.
-
-<details>
-<summary><strong>Phase 1 — Fondations et contrat produit</strong> (fait)</summary>
-
-- [x] Numéro de **version protocole** dans **Hello** (`FrogWireProtocol.Version` + lecture côté client, déconnexion si mismatch).
-- [x] **`Frog.Client/Docs/protocol_login_map.md`** aligné avec Hello versionné et **`.fmap` / `MapSerializer.MapFileFormatVersion`**.
-- [x] Guide **« premier monde en une session »** : [`Docs/premier-monde.md`](Docs/premier-monde.md).
-
-</details>
-
-<details>
-<summary><strong>Phase 2 — Même monde partout (fidélité carte / tiles)</strong> (fait)</summary>
-
-- [x] **Taille de tuile 32 px** partagée : `WorldMetrics.DefaultTileSizePixels`, rendu client, découpe `SrcX`/`SrcY` (mêlée : `MeleeRangePixels` = 56).
-- [x] **Rendu client** : PNG par `TilesetId` si présents, **ordre des couches** = ordre `Map.Layers` ; couche **Attributes** en surcouche semi-transparente ; secours couleur si image absente.
-- [x] **Manifeste** : à l’enregistrement carte, `{nom}.tilesets.json` à côté du `.fmap` ; client lit `Maps/{nomCarte}.tilesets.json`, `Tilesets/manifest.json`, ou `Tilesets/{id}.png`.
-
-</details>
-
-<details>
-<summary><strong>Phase 3 — Éditeur de cartes (outil métier créateur)</strong> (partiel — **P1** dans « Priorités courantes »)</summary>
-
-- [x] **Mini‑carte** (coin carte) : rectangle de vue, clic pour centrer ; pan / zoom Ctrl+molette notifient la mini-carte.
-- [x] **Chrome RPG Maker** (approx.) : workspace sombre, **une seule barre de menus** (actions + raccourcis), tuiles + onglets A–D à droite, arbre « Cartes », bandeau titre carte.
-- [x] **`Map.Validate()`** : au moins une couche, bornes tuiles, pas de doublon (x,y) par couche, warps (MapId ≥ 0, destination ≥ 0).
-- [x] **`PropertyGrid`** : catégories / descriptions sur les propriétés **Tuile** ; validation via menu **Carte**.
-- [x] **Événements carte (socle)** : tables **`frog_event_catalog`** / **`frog_map_event`**, sync **`MapEventsRequest`/`Result`**, surbrillance client (rectangle / losange / cercle selon `triggerKind`), **`InteractRequest`** + triggers **`interact`** / **`step_on`** / **`page`** (logs serveur structurés `MapEvent*`).
-- [x] **Éditeur** : dialogue MariaDB (**CRUD catalogue** + placements + `trigger_kind`), raccourci **Ctrl+clic droit** sur le canevas → menu « événements sur cette tuile » ; **marqueurs** canevas + mini-carte (lecture MariaDB, `editor-workstate`).
-- [x] **Suite P1 (socle)** : déclencheur **`auto_tile`** (heartbeat serveur) ; métadonnée catalogue **`script_key`** (wire JSON `scriptKey`, MariaDB, éditeur — exécution réservée **Phase 7**) ; **filtres** dans le dialogue événements (catalogue + placements).
-- [ ] **Suite P1 (exécution)** : runtime scripts sandbox + API ; autres raffinements UX événements au besoin.
-
-</details>
-
-<details>
-<summary><strong>Phase 4 — Serveur : monde vivant</strong> (**P1** persistance / logs)</summary>
-
-- [x] **Changement de carte / multi‑maps** : warps inter-cartes, `CurrentMapId` session, `PositionUpdate` avec `MapId`, `MapRequest` + empreintes par carte ; client WinForms recharge la carte affichée après warp.
-- [x] **Persistance MVP au‑delà de la position** : **`worldFlags`** → **`character_world_flag`** ; **stats** → **`character_stat`** ; **extras** → **`character_payload_kv`** (LONGTEXT, **v9–v10**) ; **inventaire** (**V7**) ; **aucun** type JSON SQL sur `frog_character` (**v10**) ; quêtes **à venir**.
-- [x] **Collisions / règles** : même blob carte serveur et client ; **`MapCollision.IndexBlockedTiles`** + **`IsBlockedForPlayerCircle`** côté prédiction client et **`MapService`** côté serveur.
-- [x] **Anti‑abus minimal** : plafond **50** paquets **`MoveRequest` + `PositionSyncRequest`** / seconde glissante par session (`MovementPacketRateGate`).
-- [x] **Logs hébergement** : `ServerNetworkLogs.MapEvent*` (5021–5024), **`WorldFlagsPatched`** (5025), **`MovementRateLimited`** (5026, Debug).
-
-</details>
-
-<details>
-<summary><strong>Phase 5 — Client joueur présentable</strong> (**P2** HUD / options)</summary>
-
-- [ ] **HUD / UX** : connexion, chat lisible, retours combat basiques.
-- [ ] Combat **action** étendu (vision Zelda‑like : directions, hitbox, i‑frames, armes animées si souhaité).
-- [ ] **Options joueur** (plein écran, volume, résolution minimale).
-
-</details>
-
-<details>
-<summary><strong>Phase 6 — Données de jeu (objets, armes, autres)</strong> (**P2**)</summary>
-
-- [ ] Modèles **`Frog.Core`** + chargement **serveur** pour items ; persistance inventaire **relationnelle** (`character_inventory_slot` ↔ `frog_item_definition`) ; façade client locale + boucle **loot / équipement / utilisation** côté serveur.
-- [ ] Premier **éditeur de données** (objets, armes ou table unifiée) avec IDs référençables par la carte.
-- [ ] Boucle **loot / équipement / utilisation d’objet** résolue côté **serveur** (effets jeu MVP).
-
-</details>
-
-<details>
-<summary><strong>Phase 7 — Gameplay essentiel</strong> (**ACCEPTED**)</summary>
-
-- [x] Client gameplay : register/login, personnage, inventaire, équipement, banque, shop, combat mêlée/sort, respawn, reconnexion.
-- [x] Serveur autoritaire PostgreSQL ; smoke Windows ×3 ; garde-fous lifecycle.
-- Voir [`docs/progress/phase-07-essential-gameplay/`](docs/progress/phase-07-essential-gameplay/).
-
-</details>
-
-<details>
-<summary><strong>Phase 8 — Quêtes, événements et création avancée</strong> (**IN PROGRESS**)</summary>
-
-Roadmap autoritaire : `PRD_MMO_Maker_CSharp.md`. Moteur **data-driven typé** (pas Lua/C#/PowerShell arbitraire).
-
-- [ ] **P8-1** — Modèle PostgreSQL événements carte + éditeur Events (pages, conditions, commandes, triggers).
-- [ ] **P8-2** — Interpréteur d’événements serveur autoritaire + catalogue de commandes.
-- [ ] **P8-3** — Dialogues et quêtes (progression serveur, journal client).
-- [ ] **P8-4** — Métiers et recettes (craft instantané atomique).
-- [ ] **P8-5** — Régions, météo et éclairage.
-- [ ] **P8-6** — Common events et outils créateur avancés.
-- Voir [`docs/progress/phase-08-quests-events-advanced-creation/`](docs/progress/phase-08-quests-events-advanced-creation/).
-
-</details>
-
-<details>
-<summary><strong>Phase 9 — Distribution et confiance</strong> (**P3** — hors Phase 8)</summary>
-
-- [ ] **Packaging** (ZIP ou installateur léger) + **exemple jouable**.
-- [ ] **Admin minimal** : mute, kick ou ban (modération chat).
-- [ ] Hygiène **sécurité** prod ; certification charge / backup-restore.
-- [x] **CI** : [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — build Release + tests PostgreSQL + smoke Windows.
-
-</details>
-
-_La liste technique **par composant** (Core / Server / Client / Editor / Tests) est dans **Roadmap** juste après cette section._
-
----
-
-## 🎯 Priorités courantes (découpage des phases)
-
-Ordre de travail **court** : ce qui débloque le **socle MMO** en premier (événements → persistance → joueur présentable → données → scripts → distribution).
-
-| Rang | Phases / chantiers | Pourquoi en premier |
-|------|---------------------|---------------------|
-| **P1** | **Phase 3** — marqueurs / **événements carte** + **liste en DB** réutilisable (tuile / map). | Bloque **dialogue NPC**, quêtes simples, interactions case ; aligné décision produit « événements bientôt ». |
-| **P1** | **Phase 4** — persistance **au-delà de la position** (flags / inventaire léger MVP si besoin) + **collisions / règles** alignées carte servie + **exploitation des logs**. | Monde **sauvegardé** et serveur **exploitable** pour une bêta. |
-| **P2** | **Phase 5** — **HUD / UX** en jeu (chat lisible, retours combat) ; **options** (volume, fenêtre). L’écran **Connexion → Perso → Carte** est déjà posé (`MainShellForm`). | Objectif **deux joueurs + chat + dialogue + combat** avec une UI lisible. |
-| **P2** | **Phase 6** — **objets / armes** dans `Frog.Core` + chargement serveur + **éditeur de données** + boucle **loot / équipement / utilisation** côté serveur. | Décision produit : **objets** importants tôt. |
-| **P2** | **Phase 7** — **gameplay essentiel** (client, combat, économie, reconnexion). | **ACCEPTED** — voir `docs/progress/phase-07-essential-gameplay/`. |
-| **P1** | **Phase 8** — **événements, dialogues, quêtes, métiers, régions/météo** (moteur typé PG). | En cours — bloque la boucle création → gameplay data-driven. |
-| **P3** | **Phase 9** — **packaging** ZIP bêta, **admin** chat, **sécurité** prod, certification charge. | Après Phase 8 gate ; CI de base déjà en place. |
-
-**Jalons techniques** (section plus haut) : **multi-maps** est coché ; enchaîner **événements + DB** puis **PvE** / **items** reste cohérent avec ce tableau.
-
----
-
-## 🧠 Roadmap
-
-### 🧩 Frog.Core
-- [ ] MapSerializerV2 (Block / Warp / Resource) si évolution format
-- [ ] Enrichir `Map.Validate()` (bornes tuiles, warps, cohérence couches)
-- [ ] Attributs additionnels (Door, NpcSpawn, zones…)
-- [x] **`FrogWireProtocol.Version`** dans **Hello** (`Frog.Core/Protocol/WireHello.cs`) + carte documentée (**`MapSerializer.MapFileFormatVersion`**)
-
-### 🖥️ Frog.Server
-- [x] Protocole TCP de base (frames, login, map, move, erreurs)
-- [x] Sessions + idle timeout + heartbeat
-- [x] Chat **global / map / whisper**
-- [x] Persistance position **périodique** + restauration au login (`Persistence:saveIntervalSeconds`)
-- [x] Tables MariaDB comptes + **`character_world_state`** (position par `frog_character`) + héritage `player_world_state` (si MariaDb activé)
-- [ ] **UDP** : canal snapshots (positions / combat) + reprise perte
-- [ ] **Instances** (donjons / zones isolées) — hors périmètre actuel (monde partagé multi-cartes uniquement)
-- [x] Warps après `MoveRequest` : téléport **inter-cartes** si le blob cible est disponible ; **empreinte SHA** par `mapId` (`TryMatchMapFingerprint` / `MapRequest` corps 40 octets vs carte **courante** session)
-- [x] Chargement carte monde depuis **fichier `.fmap`** (`Maps:worldMapPath`, relatif au dossier de l’exe ou chemin absolu)
-- [x] **Mêlée** : `MeleeAttackRequest` / `MeleeAttackResult`, portée en **pixels** (`Frog.Core/Constants/WorldMetrics.cs`)
-- [x] Logs réseau structurés : **JSON console** (`Logging:Console:FormatterName`), scopes `ConnectionId` / `RemoteEndPoint` / `Username`, `ServerNetworkLogs` + `PacketDispatcher` / `PacketSender`
-
-### 🎮 Frog.Client
-- [x] Client réseau selon `protocol_login_map.md` (`FrogGameClient` : Hello, login/register, map, move, positions, chat, heartbeat, mêlée, erreurs)
-- [x] Rendu map : **tilesets PNG** (dossiers `Maps/` + `Tilesets/`, manifeste `.tilesets.json`) + secours couleurs ; **tuiles 32 px** (`WorldMetrics`)
-- [x] Bouton **Logout** (`LogoutRequest` / `LogoutAck`, fermeture TCP côté serveur)
-- [x] **Warp inter-cartes** : `PositionUpdate` local toujours appliqué ; `MapRequest` auto debouncé + empreintes par `mapId` dans `FrogGameClient`
-- [x] **Multi-slots (MVP)** : `FrogWireProtocol` v4–v5, liste persos, **création** perso (`CharacterCreate*`), changement de perso actif (`MainShellForm` + `FrogGameClient`)
-- [ ] Polish HUD
-- [ ] **(Plus tard)** Combat action complet (animations, i-frames, armes) — **mêlée pixel** déjà côté serveur (`MeleeAttackRequest`)
-
-### 🗺️ Frog.Editor
-- [x] Outils **rectangle** + **pot de peinture** (flood fill 4-connexions sur la couche active)
-- [x] **Undo / redo** (snapshots `MapSerializer`, profondeur limitée) + menu **Édition** + **Ctrl+Z** / **Ctrl+Y**
-- [x] **Pinceau en traînée** (clic maintenu) ; `MainForm` réorganisé (dock correct, plus de doublons de palettes)
-- [x] Dialogue renommer couche sans `Microsoft.VisualBasic` ; radio **Script** branchée dans la palette types
-- [ ] Palette / overlay attributs complet (métier)
-- [ ] Copier/coller sélection, multi‑sélection tuiles
-- [ ] Propriétés de carte avancées, multi‑tilesets
-
-### 🧪 Tests
-- [x] Tests `MapSerializer`, **Hello / `FrogWireProtocol.Version`** (`WireHelloTests`), mouvement, warps, empreintes par carte (`TryMatchMapFingerprint`), chat parse, store mémoire
-- [ ] Tests intégration client ↔ serveur (TCP) ; CI GitHub : voir `.github/workflows/ci.yml`
-- [x] Seed `frog_map` + perso `Hero` + `character_uuid` sur sauvegardes (MariaDb activé)
-- [ ] Tests MariaDB (conteneur / `MARIADB_TEST_CONNECTION_STRING`)
-
-### ⚔️ Combat (vision)
-- [x] Mêlée **portée pixel** + paquets `MeleeAttackRequest` / `MeleeAttackResult` (résolution serveur)
-- [ ] Hitboxes / directions d’attaque, i-frames, armes
-- [ ] Magie, niveaux, stats, éléments (extensions)
-
----
-
-## 🚀 Exécution rapide
+Lancer les binaires :
 
 ```bash
-dotnet build Frog.Creator.sln
 dotnet run --project Frog.Server/Frog.Server.csproj
 dotnet run --project Frog.Client/Frog.Client.csproj
 dotnet run --project Frog.Editor/Frog.Editor.csproj
-dotnet test Frog.Tests/Frog.Tests.csproj
 ```
 
-Test MariaDB réel (schéma + idempotence) : définir `MARIADB_TEST_CONNECTION_STRING` puis
-`dotnet test Frog.Tests/Frog.Tests.csproj --filter "FullyQualifiedName~MariaDbSchemaIntegration"` (voir `Frog.Server/Docs/mariadb-persistence-plan.md`).
+PostgreSQL local : `docker compose up -d postgres` (identifiants de **dev** dans `docker-compose.yml`). Activer `PostgreSql` dans `Frog.Server/appsettings.json` (ou un `appsettings.Local.json` non commité) pour le runtime produit.
 
-Configurer `Frog.Server/appsettings.json` : `Server`, `MariaDb`, `Sessions`, `Persistence`, **`Maps`** (`worldMapPath` vers un `.fmap` exporté par l’éditeur ; voir `Frog.Server/Maps/README.txt`).
+MariaDB n’est **pas** requis. Les tests héritage (`Category=MariaDb`, `MARIADB_TEST_CONNECTION_STRING`) restent optionnels — voir [`docs/TESTING.md`](docs/TESTING.md).
 
-**Premier monde (guide pas à pas)** : [`Docs/premier-monde.md`](Docs/premier-monde.md). Protocole détaillé : [`Frog.Client/Docs/protocol_login_map.md`](Frog.Client/Docs/protocol_login_map.md).
-
----
-
-## 💬 Crédits & Origine
-
-Basé sur le projet open-source **FRoG Creator OSE v0.6.3** :
-👉 [https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3)
-
-Modernisé et réorganisé par **Netsun**, pour la planification, l’analyse et la migration technique.
+Guide pas à pas historique : [`Docs/premier-monde.md`](Docs/premier-monde.md). Protocole login / carte : [`Frog.Client/Docs/protocol_login_map.md`](Frog.Client/Docs/protocol_login_map.md).
 
 ---
 
-## 📜 Licence
+## Structure du projet
 
-Projet sous licence **MIT**, libre d’utilisation et de modification.
+| Projet | Rôle |
+| --- | --- |
+| **Frog.Core** | Domaine partagé, `.fmap`, protocole (`FrogWireProtocol` v10, wire Phase 7/8) |
+| **Frog.Application** | Cas d’usage et ports (cartes, catalogues, contenu) |
+| **Frog.Persistence.PostgreSql** | EF Core / Npgsql, migrations, repositories produit |
+| **Frog.Client** | Client WinForms joueur (connexion → perso → carte, gameplay, panneaux Phase 8) |
+| **Frog.Editor** | Éditeur cartes + formulaires de contenu (coque WPF temporaire) |
+| **Frog.Server** | Serveur TCP autoritaire ; PostgreSQL produit, MariaDB héritage optionnel |
+| **Frog.Legacy** | Expérimental / différé (lecteur `.fcc` — ADR-0003) |
+| **Frog.Tests** | Unitaires (412 à l’acceptation Phase 8) |
+| **Frog.Persistence.IntegrationTests** | Intégration PostgreSQL isolée (174 à l’acceptation) |
+
+Architecture : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · workspace éditeur : [`docs/EDITOR_WORKSPACE.md`](docs/EDITOR_WORKSPACE.md) · modèle de données : [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)
+
+---
+
+## Décisions produit
+
+Vision : un **seul monde hébergé**, équipe comme auteurs ; plus tard, les joueurs peuvent créer du contenu **toujours rattaché à ce monde**. Windows seulement pour l’instant. Tuiles **32×32**. Mouvement **pixel**, autorité **serveur**.
+
+| Sujet | Choix actuel |
+| --- | --- |
+| **Persistance** | **PostgreSQL** (EF Core). MariaDB = runtime historique, gelé — pas de nouvelles tables. |
+| **Événements** | **Livré (Phase 8)** : cas, pages, catalogue DB réutilisable, commandes typées, association carte / tuile. |
+| **Scripts auteur** | Pas d’exécution Lua/C# arbitraire. Interpréteur de **commandes typées** côté serveur. |
+| **Réseau** | TCP fiable, contrôle serveur. UDP / AOI plus tard (Phase 9+ / observabilité). |
+| **Combat** | Mêlée 8 directions, PvE d’abord ; knockback + i-frames à affiner. |
+| **Cartes** | Multi-maps + warps ; pas d’instances pour l’instant. |
+| **Objets** | Une place par type au début ; définitions et inventaire **relationnels PostgreSQL**. |
+| **Chat** | Global / map / whisper. Guilde / groupe plus tard. |
+| **Héritage FRoG** | Inspiration uniquement — **pas** d’import `.fcc` ni parité VB6 ([ADR-0003](docs/decisions/ADR-0003-frog-inspiration-no-compatibility.md)). |
+| **Publication éditeur** | Oui, vers PostgreSQL via les ports applicatifs. |
+
+Succès utilisateur visé : **deux joueurs à distance**, **chat**, **dialogue NPC**, **combattre un monstre**.
+
+---
+
+## Feuille de route
+
+| Phase | Intitulé | Statut |
+| --- | --- | --- |
+| 2 | Clarification (ADR, PostgreSQL, pas de compat FRoG) | ✅ |
+| 3 | Shell éditeur | ✅ |
+| 4 | Map editor MVP | ✅ |
+| 5 | Playtest éditeur → client / serveur | ✅ |
+| 6 | Éditeurs de contenu essentiels (tilesets, NPC, items, sorts, classes, shops, ressources) | ✅ |
+| 7 | Gameplay essentiel | ✅ **ACCEPTED** |
+| 8 | Quêtes, événements, création avancée | ✅ **ACCEPTED** sur `main` |
+| 9 | Packaging, admin (mute/kick/ban), sécurité prod, certification charge | ⏳ **Not started** |
+
+Dossiers d’avancement : [`docs/progress/`](docs/progress/).
+
+**Prochain chantier :** Phase 9 — **pas commencée**. CI Release (Windows smokes + PostgreSQL) déjà en place : [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+<details>
+<summary><strong>Historique — checklist créateur (phases 1–6 d’origine)</strong></summary>
+
+Conservé comme mémoire des fondations pré-PRD. Les événements carte **PostgreSQL** et le gameplay **Phase 7/8** remplacent les mentions MariaDB / « à faire » ci-dessous.
+
+**Phase 1 — Fondations** (fait) : `FrogWireProtocol.Version` dans Hello ; [`Docs/premier-monde.md`](Docs/premier-monde.md) ; protocole documenté.
+
+**Phase 2 — Fidélité carte / tiles** (fait) : tuiles 32 px (`WorldMetrics`), rendu PNG multi-couches, manifeste `.tilesets.json`.
+
+**Phase 3 — Éditeur de cartes** (fait, puis étendu Phase 4–8) : chrome RPG Maker, `Map.Validate()`, mini-carte, outils brush/fill/rectangle, undo/redo. Les dialogues événements **MariaDB** (`frog_event_catalog`) sont **héritage** — le chemin produit est PostgreSQL + formulaires Phase 8.
+
+**Phase 4 — Serveur monde vivant** (fait) : multi-maps / warps, collisions alignées, rate-limit mouvements, persistance au-delà de la position. Quêtes = **Phase 8** (plus « à venir »).
+
+**Phase 5 — Client présentable** : écran Connexion → Perso → Carte posé ; polish HUD / options / combat action étendu restent ouverts (hors gate Phase 8).
+
+**Phase 6 — Données de jeu** : éditeurs essentiels **livrés** (tilesets, NPC, items, sorts, classes, shops, ressources) — voir [`phase-06-essential-content-editors`](docs/progress/phase-06-essential-content-editors/).
+
+</details>
+
+<details>
+<summary><strong>Roadmap technique par composant (dette / plus tard)</strong></summary>
+
+### Frog.Core
+- [x] `FrogWireProtocol.Version` dans Hello (aujourd’hui **v10**)
+- [ ] MapSerializerV2 si évolution format
+- [ ] Attributs additionnels (Door, NpcSpawn, zones…)
+
+### Frog.Server
+- [x] TCP : frames, login, map, move, chat, heartbeat, logout
+- [x] Warps inter-cartes + empreintes SHA par `mapId`
+- [x] Mêlée pixel (`MeleeAttackRequest` / `MeleeAttackResult`)
+- [x] Gameplay Phase 7 + interpréteur d’événements Phase 8 (PostgreSQL)
+- [ ] UDP snapshots / AOI
+- [ ] Instances (hors périmètre — monde partagé multi-cartes)
+
+### Frog.Client
+- [x] Réseau Hello versionné, login, map PNG 32 px, warps, chat, mêlée
+- [x] Multi-slots perso ; gameplay Phase 7 ; panneaux dialogue / quêtes / craft / environnement
+- [ ] Polish HUD, options (plein écran, volume)
+- [ ] Combat action complet (animations, i-frames, armes)
+
+### Frog.Editor
+- [x] Outils carte, undo/redo, playtest, éditeurs de contenu Phases 6 et 8 (PostgreSQL)
+- [ ] Palette attributs métier complète, copier/coller multi-sélection
+
+### Tests
+- [x] Unitaires Core / protocole / Phase 7–8
+- [x] Intégration PostgreSQL (dont TCP `InteractRequest` / `activationId`)
+- [x] Smokes Windows éditeur, Phase 8, gameplay (×3 en CI)
+- [ ] MariaDB : suite héritage optionnelle seulement (`Category=MariaDb`)
+
+</details>
+
+---
+
+## Documentation
+
+| Doc | Contenu |
+| --- | --- |
+| [`docs/STATUS.md`](docs/STATUS.md) | Journal de statut du dépôt |
+| [`docs/TESTING.md`](docs/TESTING.md) | Unitaires, PG, smokes Windows, MariaDB héritage |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Frontières de projets et ADRs |
+| [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | Schéma PostgreSQL |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Backlog actif |
+| [`docs/progress/`](docs/progress/) | Rapports de phase (2 → 8) |
+| [`docs/decisions/`](docs/decisions/) | ADR-0001 … ADR-0004 |
+
+---
+
+## Crédits
+
+Inspiré de **FRoG Creator OSE v0.6.3** : [Alexoune001/FRoG-Creator-OSE-V0.6.3](https://github.com/Alexoune001/FRoG-Creator-OSE-V0.6.3).
+
+Modernisé et réorganisé par **Netsun**.
+
+---
+
+## Licence
+
+**MIT** — libre d’utilisation et de modification.
