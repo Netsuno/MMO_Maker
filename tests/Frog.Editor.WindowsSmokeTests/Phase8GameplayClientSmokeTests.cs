@@ -42,8 +42,8 @@ public sealed class Phase8GameplayClientSmokeTests
                 form,
                 () => form.IsPhase8TabSelectedForTest && form.DialoguePanelForTest.Width > 8,
                 "phase 8 tab selected and laid out");
-            WaitForPaint(form);
-            ClientSmokeTestAccess.SavePhase8Screenshot(form, "01-phase8-tab.png");
+            WaitForPaint(form.GameplayTabsForTest);
+            ClientSmokeTestAccess.SavePhase8Screenshot(form.GameplayTabsForTest, "01-phase8-tab.png");
 
             Pump(
                 form,
@@ -99,8 +99,8 @@ public sealed class Phase8GameplayClientSmokeTests
             Pump(form, () => form.IsPlayingPhaseForTest, "reconnect playing");
             form.SelectPhase8TabForTest();
             Pump(form, () => form.DialoguePanelForTest.ChoiceButtonCountForTest > 0, "dialogue after reconnect");
-            WaitForPaint(form);
-            ClientSmokeTestAccess.SavePhase8Screenshot(form, "06-reconnect-usable.png");
+            WaitForPaint(form.GameplayTabsForTest);
+            ClientSmokeTestAccess.SavePhase8Screenshot(form.GameplayTabsForTest, "06-reconnect-usable.png");
 
             AssertDistinctPhase8Screenshots();
         });

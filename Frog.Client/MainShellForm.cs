@@ -3136,6 +3136,8 @@ public sealed class MainShellForm : Form
 
     internal string LogTextForTest => _txtLog.Text;
 
+    internal TabControl GameplayTabsForTest => _gameplayTabs;
+
     internal bool IsPhase8TabSelectedForTest => _gameplayTabs.SelectedTab == _tabPhase8;
 
     internal void SelectPhase8TabForTest()

@@ -64,6 +64,9 @@ internal static class EditorTestHooks
     /// <summary>Smoke : initialisation synchrone (évite les continuations async sur le dispatcher).</summary>
     public static bool UseSynchronousGameDataInitForTest { get; set; }
 
+    /// <summary>Smoke : usine d’identifiants pour Nouveau/Dupliquer (évite des SHA screenshot non déterministes).</summary>
+    public static Func<Guid>? OverrideNewContentIdFactory { get; set; }
+
     /// <summary>Smoke / tests : délai max pour le drain de fermeture Données de jeu.</summary>
     public static TimeSpan? GameDataCloseCleanupTimeoutForTest { get; set; }
 

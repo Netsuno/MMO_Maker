@@ -39,6 +39,9 @@ public sealed class Phase8EditorSmokeTests
         RunLocked(() =>
         {
             EditorSmokeTestAccess.ResetHooks();
+            UseDeterministicNewContentIds(
+                "aaaaaaaa-1111-4111-8111-000000000001",
+                "aaaaaaaa-1111-4111-8111-000000000002");
             EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
             EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();
 
@@ -182,6 +185,7 @@ public sealed class Phase8EditorSmokeTests
 
             EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
             EditorTestHooks.OverridePhase8ContentService = new InMemoryPhase8ContentEditorService();
+            UseDeterministicNewContentIds("aaaaaaaa-1111-4111-8111-000000000006");
 
             Phase8ContentBrowseDialog? dialog = null;
             try
@@ -783,6 +787,13 @@ public sealed class Phase8EditorSmokeTests
         match.EnsureVisible();
     }
 
+    private static void UseDeterministicNewContentIds(params string[] ids)
+    {
+        var parsed = ids.Select(Guid.Parse).ToArray();
+        var index = 0;
+        EditorTestHooks.OverrideNewContentIdFactory = () => parsed[Math.Min(index++, parsed.Length - 1)];
+    }
+
     private static void PumpUntil(Func<bool> predicate, string step)
     {
         try
@@ -797,6 +808,12 @@ public sealed class Phase8EditorSmokeTests
 
     private static void SaveScreenshot(Form form, string fileName)
     {
+        if (form is Phase8ContentBrowseDialog dialog)
+        {
+            dialog.BtnSaveForTest.Focus();
+        }
+
+        form.Refresh();
         var root = EditorSmokeTestAccess.FindRepositoryRootForTest();
         var directory = Path.Combine(root, "artifacts", "phase-08-editor");
         Directory.CreateDirectory(directory);

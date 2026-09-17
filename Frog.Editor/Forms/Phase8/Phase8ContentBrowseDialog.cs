@@ -410,7 +410,7 @@ internal sealed class Phase8ContentBrowseDialog : Form
             return;
         }
 
-        var newId = Guid.NewGuid();
+        var newId = EditorTestHooks.OverrideNewContentIdFactory?.Invoke() ?? Guid.NewGuid();
         _currentId = newId;
         _currentRevision = 0;
         _currentStatus = ContentPublishStatus.Draft;
@@ -450,7 +450,7 @@ internal sealed class Phase8ContentBrowseDialog : Form
             return;
         }
 
-        var newId = Guid.NewGuid();
+        var newId = EditorTestHooks.OverrideNewContentIdFactory?.Invoke() ?? Guid.NewGuid();
         var copyName = "Copie de " + (_txtName.Text.Trim().Length > 0 ? _txtName.Text.Trim() : DefaultNameForKind(SelectedKind));
         if (!Phase8ContentPostgreSqlService.TryRewritePayloadIdentity(
                 SelectedKind,

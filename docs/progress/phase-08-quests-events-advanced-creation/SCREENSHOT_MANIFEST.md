@@ -6,12 +6,12 @@ Windows Phase 8 smoke artifacts from CI run https://github.com/Netsuno/MMO_Maker
 
 | Filename | Description | Dimensions | SHA-256 | Implementation SHA | CI URL |
 | --- | --- | --- | --- | --- | --- |
-| `01-phase8-tab.png` | Quêtes tab (full shell after tab select + layout) | 1044×759 | 0575cab5aae991ec90b77e9cd17cdd90a8f67d4bd821ce08f9cccb8a870b2d83 | 798743f | https://github.com/Netsuno/MMO_Maker/actions/runs/35165209463 |
+| `01-phase8-tab.png` | Quêtes tab (gameplay TabControl after select + layout; no log clock) | 1044×759 | 0575cab5aae991ec90b77e9cd17cdd90a8f67d4bd821ce08f9cccb8a870b2d83 | 798743f | https://github.com/Netsuno/MMO_Maker/actions/runs/35165209463 |
 | `02-dialogue-choices.png` | Dialogue choices (panel after speaker + choice buttons) | 324×150 | 67c60718bd331adf2299f24a435ae9ea612424a373cbeae9547ca09b3a005403 | 798743f | https://github.com/Netsuno/MMO_Maker/actions/runs/35165209463 |
 | `03-quest-journal.png` | Quest journal (panel after entries) | 324×80 | 2bf306d5dd744daadcb5c030ee88a1c92fe07b5ca82f89094fa9f76f9d3e614a | 798743f | https://github.com/Netsuno/MMO_Maker/actions/runs/35165209463 |
 | `04-environment.png` | Region/weather/lighting (panel after Carte: 1) | 324×150 | c0c716391ace82129563dbaac9824d52d26d9fe3b26b247b241ce9393950e67a | 798743f | https://github.com/Netsuno/MMO_Maker/actions/runs/35165209463 |
 | `05-craft-panel.png` | Craft panel (panel after craft result) | 324×150 | e4fdc42c76ea38cebaff227ce9e9e96d0fde399af0d3b92285b67297414474dc | 798743f | https://github.com/Netsuno/MMO_Maker/actions/runs/35165209463 |
-| `06-reconnect-usable.png` | Reconnect usability | 1044×759 | 135d6ade6cbaf2fee4ccbd76ee923ab30c627d9cafbda4d3f40ff508a449da83 | 798743f | https://github.com/Netsuno/MMO_Maker/actions/runs/35165209463 |
+| `06-reconnect-usable.png` | Reconnect usability (gameplay TabControl after dialogue restored) | 1044×759 | 135d6ade6cbaf2fee4ccbd76ee923ab30c627d9cafbda4d3f40ff508a449da83 | 798743f | https://github.com/Netsuno/MMO_Maker/actions/runs/35165209463 |
 
 ## Editor (`artifacts/phase-08-editor/`)
 
