@@ -40,4 +40,4 @@ J6 evidence pins are coherent on the implementation tip below. Do not merge. Pha
 - Unit: `MapEventMovementServiceTests`, `MapEventExecutionTrackerTests`, `MapEventRuntimeServiceTests`, `MapEventPageSelectorTests`, `MapEventCommandParameterValidatorTests`, `DialogSessionServiceTests`
 - Integration: Phase 8 E2E 23-step, multi-client ×9 (incl. `MapEventOnceRewardRace_SameCharacter_ExactlyOneItem`), craft/quest PG repos
 - Windows: `Phase8GameplayClientSmokeTests` (functional network), `Phase8EditorSmokeTests` (close during blocked save), `MainFormLifecycleSmokeTests` (init cancel + close-during-save + dispose-once + ActiveScopeCount→0) ×3
-- R2-6: CI verifies Phase 8 screenshots against committed `SCREENSHOT_MANIFEST.md` (exact-sha for stable panels; present-dims + distinct frames for drifting tab/full-window shots).
+- R2-6: CI verifies Phase 8 screenshot SHA-256 against committed `SCREENSHOT_MANIFEST.md` (exact-sha, all 12 files); client `01`≠`02` and `03`≠`04` via wait-for-state + panel captures.

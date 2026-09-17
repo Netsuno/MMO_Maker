@@ -34,9 +34,9 @@
 - PostgreSQL integration tests including full E2E matrix and multi-client scenarios
 - Draft invisibility Theory for all Phase 8 content kinds
 - `Phase8GameplayClientSmokeTests` + `Phase8EditorSmokeTests` via CI filter `FullyQualifiedName~.Phase8` ×3
-- Screenshot gate: `scripts/update-phase8-screenshot-manifest.ps1` (local exact-sha refresh); CI `scripts/verify-phase8-screenshot-manifest.ps1` (exact-sha for stable panels; present-dims for drifting full-window/tab frames; no silent rewrite)
+- Screenshot gate: `scripts/verify-phase8-screenshot-manifest.ps1` (exact SHA-256 + file list for all 12 rows, no silent rewrite); local refresh `scripts/update-phase8-screenshot-manifest.ps1`
 - Green CI https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 on implementation tip `ebc96921`: Frog.Tests **379**; PG integration **159**; Phase8 smoke **24×3**; Editor smoke **56×3**; Gameplay smoke **6×3**
-- R2-6: client `01`≠`02` and `03`≠`04` via wait-for-state + panel captures; exact SHA-256 for proven-stable frames (client `02`–`05`, editor `01`); present-dims for drifting tab/full-window shots
+- R2-6: client `01`≠`02` and `03`≠`04` via wait-for-state + panel captures; all committed rows **exact-sha** (TabControl `01`/`06`; deterministic editor GUIDs)
 
 
 ## Preserved foundations (P8-1 … P8-6 initial pass)
