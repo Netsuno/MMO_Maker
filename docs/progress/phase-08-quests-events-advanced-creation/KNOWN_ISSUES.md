@@ -17,11 +17,17 @@
 
 ## Screenshot evidence note
 
-R2-6: CI verifies SHA-256 of Phase 8 smoke PNGs against committed `SCREENSHOT_MANIFEST.md` and fails on file/hash mismatch. All 12 committed rows use **exact-sha**. Client `01`/`06` screenshot the gameplay TabControl (no log clock). Editor screenshot tests use deterministic content GUIDs and focus Save before capture. Client `02`–`05` are panel surfaces so `01`≠`02` and `03`≠`04`. Do not skip or weaken the ×3 Phase 8 smokes.
+R2-6: CI verifies SHA-256 of Phase 8 smoke PNGs against committed `SCREENSHOT_MANIFEST.md` and fails on file/hash mismatch. All 12 committed rows use **exact-sha**. Client `01`/`06` screenshot the gameplay TabControl (no log clock). Editor screenshot tests use deterministic content GUIDs and focus Save before capture. Client `02`–`05` are panel surfaces so `01`≠`02` and `03`≠`04`. Capture tip `fa8c44f` is the screenshot pin; implementation tip `09e68dfcb86d0b479515d70b13f1bf607afa7926` is separate. Do not skip or weaken the ×3 Phase 8 smokes.
 
-## Smoke coverage note
+## Non-cooperative close proof
 
-`MainForm_NonCooperativeInit` UI smoke was removed: blocking workspace init across `WaitAsync` + shared STA `PumpUntil` deadlocked the editor smoke host (CI hang 2m / blame-hang abort). P8-I1 remains covered by cooperative init-cancel theory tests, `MainForm_RealClose_WhileSavePending_*`, and `MainForm_NonCooperativeSave_*`.
+The old `MainForm_NonCooperativeInit` **UI smoke** (blocking workspace init across `WaitAsync` + shared STA `PumpUntil`) was removed after it deadlocked the editor smoke host (CI hang 2m / blame-hang abort). That hang is historical only.
+
+Non-cooperative initialization proof is **not** gone: `EditorMainFormCloseCoordinatorTests.NonCooperativeInit_*` cover timeout, scope retention, retry, and no-deadlock window-alive semantics on the pure coordinator (no STA pump). UI coverage includes `MainForm_NonCooperativeSave_*`, cooperative `MainForm_RealClose_WhileInitializationPending_*` / `MainForm_RealClose_WhileSavePending_*`, and dispose-once / ActiveScopeCount→0.
+
+## Historical stubs (not Phase 8 gate)
+
+Phase 8 work does not claim the whole repository is placeholder-free. Pre-existing stubs/debt remain out of this gate (e.g. unused `Frog.Client/Models/*` and some `Frog.Client/Services/*` `// TODO` placeholders documented under Phase 7; MariaDB map-event legacy files listed above).
 
 ## Phase 9
 

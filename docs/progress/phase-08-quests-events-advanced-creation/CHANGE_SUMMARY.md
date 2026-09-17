@@ -35,9 +35,17 @@
 - Draft invisibility Theory for all Phase 8 content kinds
 - `Phase8GameplayClientSmokeTests` + `Phase8EditorSmokeTests` via CI filter `FullyQualifiedName~.Phase8` ×3
 - Screenshot gate: `scripts/verify-phase8-screenshot-manifest.ps1` (exact SHA-256 + file list for all 12 rows, no silent rewrite); local refresh `scripts/update-phase8-screenshot-manifest.ps1`
-- Green CI https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 on implementation tip `ebc96921`: Frog.Tests **379**; PG integration **159**; Phase8 smoke **24×3**; Editor smoke **56×3**; Gameplay smoke **6×3**
-- R2-6: client `01`≠`02` and `03`≠`04` via wait-for-state + panel captures; all committed rows **exact-sha** (TabControl `01`/`06`; deterministic editor GUIDs)
+- Prior green pin (historical): CI 34436843321 on `ebc96921` — Frog.Tests **379**; PG integration **159**; Phase8 smoke **24×3**; Editor smoke **56×3**; Gameplay smoke **6×3**
+- R2-6: client `01`≠`02` and `03`≠`04` via wait-for-state + panel captures; all committed rows **exact-sha** (TabControl `01`/`06`; deterministic editor GUIDs). Capture tip `fa8c44f` remains the SCREENSHOT_MANIFEST pin (not the implementation tip).
 
+## R2 remediations + P1 (current head vs prior `ebc96921`)
+
+- R2-4: one map-event activation = one PostgreSQL TX with ledger identity; `BeginActivation` wait-resume
+- R2-5: quest counters on the public path; common-event page selection proof
+- R2-6: screenshot exact-sha gate; capture tip `fa8c44f` kept separate from implementation tip
+- Editor: all MainForm closes through coordinator; non-cooperative init proof on `EditorMainFormCloseCoordinatorTests.NonCooperativeInit_*` plus `MainForm_NonCooperativeSave_*`
+- **P1** implementation tip `09e68dfcb86d0b479515d70b13f1bf607afa7926`, CI https://github.com/Netsuno/MMO_Maker/actions/runs/35274081277: `InteractRequest` carries `activationId` Guid on public TCP (`FrogWireProtocol.Version = 10`); idempotency via `Phase8InteractIdentityTcpTests` ×6
+- Current green counts: Frog.Tests **412**; PG integration **174**; Phase8 smoke **24×3**; Editor smoke **85×3**; Gameplay smoke **6×3**
 
 ## Preserved foundations (P8-1 … P8-6 initial pass)
 

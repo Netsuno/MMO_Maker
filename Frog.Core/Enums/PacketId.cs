@@ -47,7 +47,7 @@ public enum PacketId : byte
     MapEventsRequest = 29,
     /// <summary>Réponse JSON tableau <see cref="Frog.Core.Protocol.MapEventWireEntry"/> + <c>mapId</c> dans l’en-tête corps.</summary>
     MapEventsResult = 30,
-    /// <summary>Interaction sur la tuile courante du joueur (corps vide).</summary>
+    /// <summary>Interaction sur la tuile courante du joueur ; corps = Guid <c>activationId</c> (protocole v10).</summary>
     InteractRequest = 31,
     /// <summary>Résultat interaction (même forme que <see cref="LoginResult"/>).</summary>
     InteractResult = 32,

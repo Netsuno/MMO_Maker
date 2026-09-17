@@ -4,7 +4,7 @@
 
 READY FOR RE-REVIEW pending external — evidence synced, awaiting external re-review.
 
-J6 evidence pins are coherent on the implementation tip below. Do not merge. Phase 9 not started.
+J6 / R2 / P1 evidence pins are coherent on the implementation tip below. Capture/manifest tip stays `fa8c44f` (not overwritten). Do not merge. Phase 9 not started.
 
 ## Identity
 
@@ -14,10 +14,11 @@ J6 evidence pins are coherent on the implementation tip below. Do not merge. Pha
 | PR | https://github.com/Netsuno/MMO_Maker/pull/2 |
 | Accepted Phase 7 baseline | `3be393b756f32337972432a0571ffabd06a306bb` |
 | Prior rejected head | `a9bd0898c1e9a2bfd266c5d8741592a3f8bae4c4` |
-| Implementation tip | `ebc96921d8e40f1ddf2779dddd50cecd39bb4d45` |
-| Manifest tip | `9ddbd5ee0d015e0d60afce5d9f4c3d214b970ecb` |
-| Narrative tip | this commit (J6-EVIDENCE-01 / J6-DOCS-01) |
-| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/34436843321 |
+| Prior P8-G evidence pin | `ebc96921d8e40f1ddf2779dddd50cecd39bb4d45` / CI 34436843321 (379 / 159 / Editor 56×3) |
+| Implementation tip | `09e68dfcb86d0b479515d70b13f1bf607afa7926` (P1 Interact identity; R2 remediations + P1 vs prior `ebc96921`) |
+| Capture/manifest tip | `fa8c44f937e729e6004481c651a7bf957585d50e` (SCREENSHOT_MANIFEST; keep separate) |
+| CI (green) | https://github.com/Netsuno/MMO_Maker/actions/runs/35274081277 |
+| Protocol | `FrogWireProtocol.Version = 10` (`InteractRequest` Guid `activationId`) |
 | Phase 9 | **Not started** |
 
 ## Remediation checklist (P8-G1 … P8-G5)
@@ -28,16 +29,19 @@ J6 evidence pins are coherent on the implementation tip below. Do not merge. Pha
 | P8-G2 | Dialogue revision + craft replay + profession acquisition | **DONE** |
 | P8-G3 | Editor close state machine + structured map event editor | **DONE** |
 | P8-G4 | E2E matrix + functional client smoke (network) | **DONE** |
-| P8-G5 | Evidence hygiene (379 Frog.Tests, 159 PG integration, manifest) | **DONE** |
+| P8-G5 | Evidence hygiene (412 Frog.Tests, 174 PG integration, manifest) | **DONE** |
+| R2-4…R2-6 | Unified activation TX, quest counters / CE pages, screenshot exact-sha | **DONE** |
+| P1 | Interact identity on public TCP (`activationId` Guid, v10) | **DONE** (current head) |
 
 ## Evidence
 
-- Frog.Tests: **379** passed, **0** skipped
-- PostgreSQL integration: **159** passed, **0** skipped
+- Frog.Tests: **412** passed, **0** skipped
+- PostgreSQL integration: **174** passed, **0** skipped (includes `Phase8InteractIdentityTcpTests` ×6)
 - Phase8 smoke: **24×3** PASS
-- Editor smoke: **56×3** PASS
+- Editor smoke: **85×3** PASS (was 56×3)
 - Gameplay smoke: **6×3** PASS
+- Protocol: `FrogWireProtocol.Version = 10` — `InteractRequest` carries `activationId` Guid; public TCP idempotency via `Phase8InteractIdentityTcpTests`
 - Unit: `MapEventMovementServiceTests`, `MapEventExecutionTrackerTests`, `MapEventRuntimeServiceTests`, `MapEventPageSelectorTests`, `MapEventCommandParameterValidatorTests`, `DialogSessionServiceTests`
-- Integration: Phase 8 E2E 23-step, multi-client ×9 (incl. `MapEventOnceRewardRace_SameCharacter_ExactlyOneItem`), craft/quest PG repos
-- Windows: `Phase8GameplayClientSmokeTests` (functional network), `Phase8EditorSmokeTests` (close during blocked save), `MainFormLifecycleSmokeTests` (init cancel + close-during-save + dispose-once + ActiveScopeCount→0) ×3
-- R2-6: CI verifies Phase 8 screenshot SHA-256 against committed `SCREENSHOT_MANIFEST.md` (exact-sha, all 12 files); client `01`≠`02` and `03`≠`04` via wait-for-state + panel captures.
+- Integration: Phase 8 E2E 23-step, multi-client ×9 (incl. `MapEventOnceRewardRace_SameCharacter_ExactlyOneItem`), craft/quest PG repos, `Phase8InteractIdentityTcpTests`
+- Windows: `Phase8GameplayClientSmokeTests` (functional network), `Phase8EditorSmokeTests` (close during blocked save), `MainFormLifecycleSmokeTests` (init cancel + close-during-save + `MainForm_NonCooperativeSave_*` + dispose-once + ActiveScopeCount→0) ×3; non-cooperative init on pure coordinator `EditorMainFormCloseCoordinatorTests.NonCooperativeInit_*`
+- R2-6: CI verifies Phase 8 screenshot SHA-256 against committed `SCREENSHOT_MANIFEST.md` (exact-sha, all 12 files); client `01`≠`02` and `03`≠`04` via wait-for-state + panel captures. Capture tip `fa8c44f` is not the implementation tip.
