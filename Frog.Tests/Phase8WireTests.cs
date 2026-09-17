@@ -100,4 +100,38 @@ public sealed class Phase8WireTests
         Assert.Equal(0, visit.Current);
         Assert.False(visit.Completed);
     }
+
+    [Fact]
+    public void InteractRequest_RoundtripRejectsEmptyAndTruncated()
+    {
+        var id = Guid.Parse("aaaaaaaa-1111-4111-8111-000000000031");
+        var payload = Phase8Wire.BuildInteractRequest(id);
+        Assert.Equal(16, payload.Length);
+        Assert.True(Phase8Wire.TryParseInteractRequest(payload, out var parsed));
+        Assert.Equal(id, parsed);
+
+        Assert.False(Phase8Wire.TryParseInteractRequest([], out _));
+        Assert.False(Phase8Wire.TryParseInteractRequest(payload.AsSpan(0, 15).ToArray(), out _));
+        Assert.False(Phase8Wire.TryParseInteractRequest(new byte[16], out _));
+        Assert.Throws<ArgumentException>(() => Phase8Wire.BuildInteractRequest(Guid.Empty));
+    }
+
+    [Fact]
+    public void InteractResult_RoundtripIncludesActivationId()
+    {
+        var id = Guid.Parse("bbbbbbbb-2222-4222-8222-000000000032");
+        var payload = Phase8Wire.BuildInteractResult(true, "Once chest opened.", id);
+        Assert.True(Phase8Wire.TryParseInteractResult(payload, out var ok, out var message, out var parsed));
+        Assert.True(ok);
+        Assert.Equal("Once chest opened.", message);
+        Assert.Equal(id, parsed);
+
+        var empty = Phase8Wire.BuildInteractResult(false, "Rien a interagir ici.", Guid.Empty);
+        Assert.True(Phase8Wire.TryParseInteractResult(empty, out var emptyOk, out var emptyMsg, out var emptyId));
+        Assert.False(emptyOk);
+        Assert.Equal("Rien a interagir ici.", emptyMsg);
+        Assert.Equal(Guid.Empty, emptyId);
+
+        Assert.False(Phase8Wire.TryParseInteractResult(payload.AsSpan(0, payload.Length - 1).ToArray(), out _, out _, out _));
+    }
 }

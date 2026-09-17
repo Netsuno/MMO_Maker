@@ -187,7 +187,16 @@ internal static class Phase7TcpPacketBuilder
         return payload;
     }
 
-    public static byte[] BuildInteract() => [(byte)PacketId.InteractRequest];
+    public static byte[] BuildInteract() => BuildInteract(Guid.NewGuid());
+
+    public static byte[] BuildInteract(Guid activationId)
+    {
+        var body = Phase8Wire.BuildInteractRequest(activationId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.InteractRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
 
     public static byte[] BuildMapEventsRequest() => [(byte)PacketId.MapEventsRequest];
 

@@ -40,6 +40,8 @@ public sealed record Phase8PostgresContentSeedResult(
     int LearnProfessionMapEventAliasId,
     Guid OnceRewardMapEventId,
     int OnceRewardMapEventAliasId,
+    Guid TakeItemMapEventId,
+    int TakeItemMapEventAliasId,
     Guid MapId,
     int RuntimeMapId,
     int GateEventTileX,
@@ -60,6 +62,8 @@ public sealed record Phase8PostgresContentSeedResult(
     int LearnProfessionTileY,
     int OnceRewardEventTileX,
     int OnceRewardEventTileY,
+    int TakeItemEventTileX,
+    int TakeItemEventTileY,
     string OnceRewardOnceKey,
     int QuestRewardGold,
     string GateSwitchId,
@@ -152,6 +156,7 @@ public static class Phase8PostgresContentSeed
     public const int WaitMapEventAliasId = 8107;
     public const int LearnProfessionMapEventAliasId = 8108;
     public const int OnceRewardMapEventAliasId = 8109;
+    public const int TakeItemMapEventAliasId = 8117;
     public const string GateSwitchId = "phase8_gate";
     public const string CommonEventSwitchId = "phase8_common_fired";
     public const string MissingCommonEventSwitchId = "phase8_missing_ce_probe";
@@ -187,6 +192,8 @@ public static class Phase8PostgresContentSeed
     public const int LearnProfessionTileY = 3;
     public const int OnceRewardEventTileX = 3;
     public const int OnceRewardEventTileY = 0;
+    public const int TakeItemEventTileX = 1;
+    public const int TakeItemEventTileY = 1;
 
     public static async Task<Phase8PostgresContentSeedResult> PublishAsync(FrogDbContextGate gate)
     {
@@ -254,6 +261,11 @@ public static class Phase8PostgresContentSeed
             ConditionalCommonEventKeyMapEventAliasId,
             "Phase8 Conditional CE Key",
             CreateConditionalCommonEventKeyMapEventDefinition()).ConfigureAwait(false);
+        var takeItemEventId = await EnsureMapEventAsync(
+            mapEvents,
+            TakeItemMapEventAliasId,
+            "Phase8 Take Item",
+            CreateTakeItemMapEventDefinition()).ConfigureAwait(false);
 
         await EnsureMapEventPlacementsAsync(
             gate,
@@ -273,7 +285,8 @@ public static class Phase8PostgresContentSeed
             cycleCallerEventId,
             cycleProbeEventId,
             conditionalCallerEventId,
-            conditionalKeyEventId).ConfigureAwait(false);
+            conditionalKeyEventId,
+            takeItemEventId).ConfigureAwait(false);
 
         var collectGroundItemId = await SeedGroundCollectItemAsync(
             gate,
@@ -319,6 +332,8 @@ public static class Phase8PostgresContentSeed
             LearnProfessionMapEventAliasId,
             onceRewardEventId,
             OnceRewardMapEventAliasId,
+            takeItemEventId,
+            TakeItemMapEventAliasId,
             phase7.MapId,
             runtimeMapId,
             GateEventTileX,
@@ -339,6 +354,8 @@ public static class Phase8PostgresContentSeed
             LearnProfessionTileY,
             OnceRewardEventTileX,
             OnceRewardEventTileY,
+            TakeItemEventTileX,
+            TakeItemEventTileY,
             OnceRewardOnceKey,
             QuestRewardGold,
             GateSwitchId,
@@ -1493,6 +1510,34 @@ public static class Phase8PostgresContentSeed
         ],
     };
 
+    private static MapEventDefinition CreateTakeItemMapEventDefinition() => new()
+    {
+        Name = "Phase8 Take Item",
+        EditorAliasId = TakeItemMapEventAliasId,
+        Pages =
+        [
+            new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                BlocksCollision = false,
+                Commands =
+                [
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.TakeItem,
+                        ParameterJson = $$"""{"itemId":"{{Phase7ContentSeed.DefaultItemId:D}}","quantity":1}""",
+                    },
+                    new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.ShowText,
+                        ParameterJson = """{"text":"Item taken."}""",
+                    },
+                ],
+            },
+        ],
+    };
+
     private static MapEventDefinition CreateCommonCallerMapEventDefinition() => new()
     {
         Name = "Phase8 Common Caller",
@@ -1725,7 +1770,8 @@ public static class Phase8PostgresContentSeed
         Guid cycleCallerEventId,
         Guid cycleProbeEventId,
         Guid conditionalCallerEventId,
-        Guid conditionalKeyEventId)
+        Guid conditionalKeyEventId,
+        Guid takeItemEventId)
     {
         await gate.ExecuteAsync(async (db, ct) =>
         {
@@ -1760,6 +1806,7 @@ public static class Phase8PostgresContentSeed
                 CreatePlacement(mapId, cycleProbeEventId, CycleCommonEventProbeTileX, CycleCommonEventProbeTileY, Phase8MapEventTriggerKinds.Action),
                 CreatePlacement(mapId, conditionalCallerEventId, ConditionalCommonEventTileX, ConditionalCommonEventTileY, Phase8MapEventTriggerKinds.Action),
                 CreatePlacement(mapId, conditionalKeyEventId, ConditionalCommonEventKeyTileX, ConditionalCommonEventKeyTileY, Phase8MapEventTriggerKinds.Action),
+                CreatePlacement(mapId, takeItemEventId, TakeItemEventTileX, TakeItemEventTileY, Phase8MapEventTriggerKinds.Action),
             };
             var toAdd = wanted.Where(p => !existingSet.Contains(p.EventDefinitionId)).ToList();
             if (toAdd.Count == 0)

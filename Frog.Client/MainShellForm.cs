@@ -2219,8 +2219,9 @@ public sealed class MainShellForm : Form
         }
     }
 
-    private void OnInteractResult(bool ok, string message)
+    private void OnInteractResult(bool ok, string message, Guid activationId)
     {
+        _ = activationId;
         AppendLog(ok ? "Interaction: " + message : "Interaction refusée: " + message);
     }
 

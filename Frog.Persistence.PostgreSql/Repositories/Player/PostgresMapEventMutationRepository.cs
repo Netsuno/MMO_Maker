@@ -99,11 +99,11 @@ public sealed class PostgresMapEventMutationRepository(
         }
 
         var existing = await db.PlayerMapEventExecutionRequests.AsNoTracking()
-            .FirstOrDefaultAsync(r => r.CharacterId == characterId && r.RequestId == requestId, ct)
+            .FirstOrDefaultAsync(r => r.RequestId == requestId, ct)
             .ConfigureAwait(false);
         if (existing is not null)
         {
-            return ReplayOrMismatch(existing, identity);
+            return ReplayOrReject(existing, identity);
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
@@ -118,13 +118,13 @@ public sealed class PostgresMapEventMutationRepository(
             }
 
             var claimed = await db.PlayerMapEventExecutionRequests
-                .FirstOrDefaultAsync(r => r.CharacterId == characterId && r.RequestId == requestId, ct)
+                .FirstOrDefaultAsync(r => r.RequestId == requestId, ct)
                 .ConfigureAwait(false);
             if (claimed is not null)
             {
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
-                return ReplayOrMismatch(claimed, identity);
+                return ReplayOrReject(claimed, identity);
             }
 
             var snapshot = new MapEventExecutionSnapshot
@@ -237,6 +237,20 @@ public sealed class PostgresMapEventMutationRepository(
         }
     }
 
+    private static MapEventMutationResult ReplayOrReject(
+        MapEventExecutionRequestEntity existing,
+        MapEventExecutionIdentity identity)
+    {
+        if (existing.CharacterId != identity.CharacterId)
+        {
+            return new MapEventMutationResult(
+                MapEventMutationStatus.Failed,
+                "RequestId réutilisé avec personnage différent.");
+        }
+
+        return ReplayOrMismatch(existing, identity);
+    }
+
     private static MapEventMutationResult ReplayOrMismatch(
         MapEventExecutionRequestEntity existing,
         MapEventExecutionIdentity identity)
@@ -281,9 +295,7 @@ public sealed class PostgresMapEventMutationRepository(
         CancellationToken ct)
     {
         var existing = await db.PlayerMapEventExecutionRequests.AsNoTracking()
-            .FirstOrDefaultAsync(
-                r => r.CharacterId == identity.CharacterId && r.RequestId == identity.RequestId,
-                ct)
+            .FirstOrDefaultAsync(r => r.RequestId == identity.RequestId, ct)
             .ConfigureAwait(false);
         if (existing is null)
         {
@@ -292,7 +304,7 @@ public sealed class PostgresMapEventMutationRepository(
                 "Conflit ledger sans ligne commise.");
         }
 
-        return ReplayOrMismatch(existing, identity);
+        return ReplayOrReject(existing, identity);
     }
 
     private async Task<string?> ApplyCommandAsync(

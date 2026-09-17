@@ -29,6 +29,7 @@ public sealed class FrogGameClient : IDisposable
     private volatile bool _intentionalDisconnect;
     private readonly MapSerializer _mapSerializer = new();
     private readonly Dictionary<string, Guid> _lastEconomyRequestIds = new(StringComparer.Ordinal);
+    private Guid _pendingInteractActivationId;
 
     public FrogGameClient(SynchronizationContext uiContext)
     {
@@ -59,7 +60,7 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? CharacterStatsUpdateResultReceived;
     /// <summary>JSON tableau <see cref="Frog.Core.Protocol.MapEventWireEntry"/> pour une carte.</summary>
     public event Action<int, string>? MapEventsResultReceived;
-    public event Action<bool, string>? InteractResultReceived;
+    public event Action<bool, string, Guid>? InteractResultReceived;
     /// <summary>Réponse <see cref="PacketId.WorldFlagsPatchRequest"/> (même forme que stats).</summary>
     public event Action<bool, string>? WorldFlagsPatchResultReceived;
     public event Action<bool, string>? ReconnectResultReceived;
@@ -415,9 +416,14 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.InteractResult:
-                if (TryReadStatusMessage(body.Span, out var intOk, out var intMsg))
+                if (Phase8Wire.TryParseInteractResult(body.Span, out var intOk, out var intMsg, out var intActivationId))
                 {
-                    Post(() => InteractResultReceived?.Invoke(intOk, intMsg));
+                    if (intActivationId != Guid.Empty && intActivationId == _pendingInteractActivationId)
+                    {
+                        _pendingInteractActivationId = Guid.Empty;
+                    }
+
+                    Post(() => InteractResultReceived?.Invoke(intOk, intMsg, intActivationId));
                 }
 
                 break;
@@ -908,7 +914,35 @@ public sealed class FrogGameClient : IDisposable
         => SendRawAsync([(byte)PacketId.MapEventsRequest], cancellationToken);
 
     public Task SendInteractRequestAsync(CancellationToken cancellationToken = default)
-        => SendRawAsync([(byte)PacketId.InteractRequest], cancellationToken);
+    {
+        var activationId = _pendingInteractActivationId != Guid.Empty
+            ? _pendingInteractActivationId
+            : Guid.NewGuid();
+        return SendInteractRequestAsync(activationId, cancellationToken);
+    }
+
+    public Task SendInteractRequestAsync(Guid activationId, CancellationToken cancellationToken = default)
+    {
+        if (activationId == Guid.Empty)
+        {
+            throw new ArgumentException("activationId Guid requis.", nameof(activationId));
+        }
+
+        _pendingInteractActivationId = activationId;
+        var body = Phase8Wire.BuildInteractRequest(activationId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.InteractRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public bool PeekInteractActivationId(out Guid activationId)
+    {
+        activationId = _pendingInteractActivationId;
+        return activationId != Guid.Empty;
+    }
+
+    public void ClearInteractActivationId() => _pendingInteractActivationId = Guid.Empty;
 
     /// <summary>Objet JSON UTF-8 (ex. <c>{"story_intro":true}</c>) fusionné dans <c>payload.worldFlags</c>.</summary>
     public Task SendWorldFlagsPatchAsync(string patchJsonObject, CancellationToken cancellationToken = default)

@@ -41,11 +41,19 @@ public sealed class MapEventRuntimeService
         Session session,
         MapEventWireEntry placement,
         CancellationToken cancellationToken = default) =>
+        TryExecuteInteractAsync(session, placement, activationId: null, cancellationToken);
+
+    public Task<MapEventExecutionResult?> TryExecuteInteractAsync(
+        Session session,
+        MapEventWireEntry placement,
+        Guid? activationId,
+        CancellationToken cancellationToken = default) =>
         TryExecuteForTriggerAsync(
             session,
             placement,
             Phase8MapEventTriggerKinds.Action,
-            cancellationToken);
+            cancellationToken,
+            activationId);
 
     public Task<MapEventExecutionResult?> TryExecuteStepOnAsync(
         Session session,
@@ -81,14 +89,21 @@ public sealed class MapEventRuntimeService
         Session session,
         MapEventWireEntry placement,
         string triggerKind,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? clientActivationId = null)
     {
         if (session.CharacterGuid is not Guid characterId || characterId == Guid.Empty)
         {
             return Task.FromResult<MapEventExecutionResult?>(MapEventExecutionResult.Fail("Personnage requis."));
         }
 
-        return ExecuteWithCatalogAsync(session, characterId, placement, triggerKind, cancellationToken);
+        return ExecuteWithCatalogAsync(
+            session,
+            characterId,
+            placement,
+            triggerKind,
+            cancellationToken,
+            clientActivationId);
     }
 
     /// <summary>
@@ -132,7 +147,8 @@ public sealed class MapEventRuntimeService
         Guid characterId,
         MapEventWireEntry placement,
         string triggerKind,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? clientActivationId)
     {
         var definition = await _catalog.TryGetPublishedByAliasAsync(placement.CatalogId, cancellationToken)
             .ConfigureAwait(false);
@@ -143,7 +159,14 @@ public sealed class MapEventRuntimeService
 
         return await _mutations.RunExclusiveAsync(
             characterId,
-            ct => ExecuteDefinitionAsync(session, characterId, definition, placement, triggerKind, ct),
+            ct => ExecuteDefinitionAsync(
+                session,
+                characterId,
+                definition,
+                placement,
+                triggerKind,
+                ct,
+                clientActivationId),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -153,7 +176,8 @@ public sealed class MapEventRuntimeService
         MapEventDefinition definition,
         MapEventWireEntry placement,
         string placementTrigger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? clientActivationId)
     {
         var page = await SelectPageAsync(session, characterId, definition, placementTrigger, cancellationToken)
             .ConfigureAwait(false);
@@ -169,7 +193,8 @@ public sealed class MapEventRuntimeService
                 characterId,
                 page.Commands,
                 placement,
-                cancellationToken)
+                cancellationToken,
+                clientActivationId)
             .ConfigureAwait(false);
         if (planned is not null)
         {
@@ -188,8 +213,9 @@ public sealed class MapEventRuntimeService
     /// <summary>
     /// Chemin public : planification Core (branches + common-events) puis
     /// <see cref="IMapEventMutationRepository.TryExecutePlanAsync"/> (une TX PG + ledger).
-    /// Identité = <see cref="MapEventExecutionIdentity.BeginActivation"/> (pas un
-    /// RequestId session-long par placement). <c>teleport</c> / <c>start_dialogue</c>
+    /// Identité = <see cref="MapEventExecutionIdentity.BeginActivation"/> avec l'id
+    /// client s'il est fourni (InteractRequest), sinon un nouvel id serveur
+    /// (step_on / autorun / parallel). <c>teleport</c> / <c>start_dialogue</c>
     /// restent dans l'unité unifiée ; intents appliqués après commit.
     /// Retourne null seulement si le repo PG est absent ou si un effet inconnu
     /// force le repli in-memory.
@@ -199,12 +225,14 @@ public sealed class MapEventRuntimeService
         Guid characterId,
         IReadOnlyList<MapEventCommandDefinition> commands,
         MapEventWireEntry placement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? clientActivationId)
     {
         var identity = MapEventExecutionIdentity.BeginActivation(
             characterId,
             placement.PlacementId,
-            placement.CatalogId);
+            placement.CatalogId,
+            clientActivationId);
 
         var plan = await MapEventExecutionPlanner.PlanAsync(
                 commands,

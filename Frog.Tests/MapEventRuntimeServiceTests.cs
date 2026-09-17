@@ -572,6 +572,52 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_PublicPath_ClientActivationId_IsReusedForReplay()
+    {
+        var characterId = Guid.NewGuid();
+        var activationId = Guid.Parse("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "ClientId",
+            EditorAliasId = 12,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.LearnProfession,
+                            ParameterJson = """{"professionId":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+        var placement = CreatePlacement(12);
+
+        var first = await service.TryExecuteInteractAsync(session, placement, activationId);
+        var second = await service.TryExecuteInteractAsync(session, placement, activationId);
+
+        Assert.True(first!.Success);
+        Assert.True(second!.Success);
+        Assert.Equal(2, repo.Plans.Count);
+        Assert.Equal(activationId, repo.Plans[0].Identity.EffectiveActivationId);
+        Assert.Equal(activationId, repo.Plans[1].Identity.EffectiveActivationId);
+        Assert.Equal(repo.Plans[0].Identity.LedgerKey, repo.Plans[1].Identity.LedgerKey);
+    }
+
+    [Fact]
     public async Task ExecuteInteract_PublicPath_FailedMutation_IsNotPresentedAsSuccess()
     {
         var characterId = Guid.NewGuid();

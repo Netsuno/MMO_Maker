@@ -108,15 +108,23 @@ public static class Phase8WireDecoders
     }
 
     public static bool TryDecodeInteractResult(ReadOnlySpan<byte> payload, out bool success, out string message)
+        => TryDecodeInteractResult(payload, out success, out message, out _);
+
+    public static bool TryDecodeInteractResult(
+        ReadOnlySpan<byte> payload,
+        out bool success,
+        out string message,
+        out Guid activationId)
     {
+        success = false;
+        message = string.Empty;
+        activationId = Guid.Empty;
         if (payload.Length < 2 || payload[0] != (byte)PacketId.InteractResult)
         {
-            success = false;
-            message = string.Empty;
             return false;
         }
 
-        return TryDecodeStatusResult(payload, out success, out message);
+        return Phase8Wire.TryParseInteractResult(payload.Slice(1), out success, out message, out activationId);
     }
 
     public static QuestJournalEntryWire? FindQuestEntry(

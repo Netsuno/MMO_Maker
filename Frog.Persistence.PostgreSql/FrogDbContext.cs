@@ -878,6 +878,9 @@ public sealed class FrogDbContext : DbContext
             e.HasIndex(x => new { x.CharacterId, x.ActivationId, x.WaitOrdinal })
                 .IsUnique()
                 .HasDatabaseName("ix_map_event_execution_requests_activation_ordinal");
+            e.HasIndex(x => x.RequestId)
+                .IsUnique()
+                .HasDatabaseName("ix_map_event_execution_requests_request_id");
         });
 
         modelBuilder.Entity<QuestTurnInRequestEntity>(e =>

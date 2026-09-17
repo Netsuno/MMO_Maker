@@ -143,6 +143,74 @@ public static class Phase8Wire
         return payload;
     }
 
+    public const int InteractActivationIdBytes = 16;
+
+    public static bool TryParseInteractRequest(ReadOnlySpan<byte> payload, out Guid activationId)
+    {
+        activationId = Guid.Empty;
+        if (payload.Length != InteractActivationIdBytes)
+        {
+            return false;
+        }
+
+        activationId = new Guid(payload);
+        return activationId != Guid.Empty;
+    }
+
+    public static byte[] BuildInteractRequest(Guid activationId)
+    {
+        if (activationId == Guid.Empty)
+        {
+            throw new ArgumentException("activationId Guid requis.", nameof(activationId));
+        }
+
+        var payload = new byte[InteractActivationIdBytes];
+        activationId.TryWriteBytes(payload);
+        return payload;
+    }
+
+    public static bool TryParseInteractResult(
+        ReadOnlySpan<byte> payload,
+        out bool success,
+        out string message,
+        out Guid activationId)
+    {
+        success = false;
+        message = string.Empty;
+        activationId = Guid.Empty;
+        if (payload.Length < 2 + InteractActivationIdBytes)
+        {
+            return false;
+        }
+
+        success = payload[0] != 0;
+        var len = payload[1];
+        if (payload.Length != 2 + len + InteractActivationIdBytes)
+        {
+            return false;
+        }
+
+        message = Encoding.UTF8.GetString(payload.Slice(2, len));
+        activationId = new Guid(payload.Slice(2 + len, InteractActivationIdBytes));
+        return true;
+    }
+
+    public static byte[] BuildInteractResult(bool success, string message, Guid activationId)
+    {
+        var messageBytes = Encoding.UTF8.GetBytes(message ?? string.Empty);
+        if (messageBytes.Length > byte.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(message), "Le message est trop long.");
+        }
+
+        var payload = new byte[2 + messageBytes.Length + InteractActivationIdBytes];
+        payload[0] = success ? (byte)1 : (byte)0;
+        payload[1] = (byte)messageBytes.Length;
+        messageBytes.CopyTo(payload, 2);
+        activationId.TryWriteBytes(payload.AsSpan(2 + messageBytes.Length));
+        return payload;
+    }
+
     public static bool TryParseDialogueStatePush(
         ReadOnlySpan<byte> payload,
         out Guid dialogueId,

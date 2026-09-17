@@ -753,9 +753,12 @@ public sealed partial class PacketDispatcher(
         ReadOnlyMemory<byte> payload,
         CancellationToken cancellationToken)
     {
-        if (!payload.IsEmpty)
+        if (!Phase8Wire.TryParseInteractRequest(payload.Span, out var activationId))
         {
-            await _packetSender.SendErrorAsync(clientSession, "InteractRequest: corps vide attendu.", cancellationToken);
+            await _packetSender.SendErrorAsync(
+                clientSession,
+                "InteractRequest: activationId Guid requis.",
+                cancellationToken);
             return;
         }
 
@@ -775,12 +778,18 @@ public sealed partial class PacketDispatcher(
             .ToList();
         if (here.Count == 0)
         {
-            await _packetSender.SendInteractResultAsync(clientSession, false, "Rien a interagir ici.", cancellationToken);
+            await _packetSender.SendInteractResultAsync(
+                clientSession,
+                false,
+                "Rien a interagir ici.",
+                activationId,
+                cancellationToken);
             return;
         }
 
         var ev = here.OrderBy(p => p.CatalogId).ThenBy(p => p.PlacementId).First();
-        var runtimeResult = await _mapEventRuntime.TryExecuteInteractAsync(session, ev, cancellationToken)
+        var runtimeResult = await _mapEventRuntime
+            .TryExecuteInteractAsync(session, ev, activationId, cancellationToken)
             .ConfigureAwait(false);
         if (runtimeResult is not null)
         {
@@ -806,6 +815,7 @@ public sealed partial class PacketDispatcher(
                 clientSession,
                 runtimeResult.Success,
                 clientMessage,
+                activationId,
                 cancellationToken);
             return;
         }
@@ -822,6 +832,7 @@ public sealed partial class PacketDispatcher(
             clientSession,
             true,
             $"{ev.DisplayName} ({ev.Slug})",
+            activationId,
             cancellationToken);
     }
 

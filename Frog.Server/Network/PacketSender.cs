@@ -27,7 +27,21 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         => SendStatusMessageAsync(session, PacketId.CharacterStatsUpdateResult, success, message, cancellationToken);
 
     public Task SendInteractResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
-        => SendStatusMessageAsync(session, PacketId.InteractResult, success, message, cancellationToken);
+        => SendInteractResultAsync(session, success, message, Guid.Empty, cancellationToken);
+
+    public Task SendInteractResultAsync(
+        ClientSession session,
+        bool success,
+        string message,
+        Guid activationId,
+        CancellationToken cancellationToken)
+    {
+        var body = Phase8Wire.BuildInteractResult(success, message, activationId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.InteractResult;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
 
     public Task SendWorldFlagsPatchResultAsync(ClientSession session, bool success, string message, CancellationToken cancellationToken)
         => SendStatusMessageAsync(session, PacketId.WorldFlagsPatchResult, success, message, cancellationToken);

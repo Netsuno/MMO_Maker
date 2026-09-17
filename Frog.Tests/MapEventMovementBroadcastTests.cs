@@ -84,7 +84,7 @@ public sealed class MapEventMovementBroadcastTests
             AssertPlacementAt(observerStart, InteractPlacementId, InteractStartX, InteractStartY);
 
             await TeleportToTileAsync(ticker, InteractStartX, InteractStartY);
-            await ticker.SendFrameAsync([(byte)PacketId.InteractRequest]);
+            await ticker.SendFrameAsync(BuildInteract());
             var interactAtA = await ticker.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(TryDecodeStatus(interactAtA, PacketId.InteractResult, out var interactAOk, out var interactAMsg));
             Assert.True(interactAOk);
@@ -123,14 +123,14 @@ public sealed class MapEventMovementBroadcastTests
             await TeleportToTileAsync(observer, BlockStartX, BlockStartY);
 
             await TeleportToTileAsync(ticker, InteractEndX, InteractEndY);
-            await ticker.SendFrameAsync([(byte)PacketId.InteractRequest]);
+            await ticker.SendFrameAsync(BuildInteract());
             var interactAtB = await ticker.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(TryDecodeStatus(interactAtB, PacketId.InteractResult, out var interactBOk, out var interactBMsg));
             Assert.True(interactBOk, "interaction must follow the event to B");
             Assert.Contains(InteractDisplayName, interactBMsg, StringComparison.Ordinal);
 
             await TeleportToTileAsync(ticker, InteractStartX, InteractStartY);
-            await ticker.SendFrameAsync([(byte)PacketId.InteractRequest]);
+            await ticker.SendFrameAsync(BuildInteract());
             var interactLeftA = await ticker.ReadUntilAsync(PacketId.InteractResult);
             Assert.True(TryDecodeStatus(interactLeftA, PacketId.InteractResult, out var leftAOk, out var leftAMsg));
             Assert.False(leftAOk);
@@ -278,6 +278,16 @@ public sealed class MapEventMovementBroadcastTests
         throw new TimeoutException($"failed to reach tile ({targetX},{targetY}) via PositionSync");
     }
 
+    private static byte[] BuildInteract(Guid? activationId = null)
+    {
+        var id = activationId is { } guid && guid != Guid.Empty ? guid : Guid.NewGuid();
+        var body = Phase8Wire.BuildInteractRequest(id);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.InteractRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
+
     private static async Task<byte[]> TryMoveToTileExpectingErrorAsync(
         Phase7InMemorySmokeE2ETests.Phase7TcpClient client,
         int targetX,
@@ -378,7 +388,10 @@ public sealed class MapEventMovementBroadcastTests
 
         success = payload[1] != 0;
         var len = payload[2];
-        if (payload.Length != 3 + len)
+        var expectedLength = expected == PacketId.InteractResult
+            ? 3 + len + Phase8Wire.InteractActivationIdBytes
+            : 3 + len;
+        if (payload.Length != expectedLength)
         {
             return false;
         }

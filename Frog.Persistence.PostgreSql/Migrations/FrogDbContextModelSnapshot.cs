@@ -1933,6 +1933,10 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.HasIndex("CharacterId", "PlacementId", "CatalogAliasId")
                         .HasDatabaseName("ix_map_event_execution_requests_character_id_placement_id_cata");
 
+                    b.HasIndex("RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_map_event_execution_requests_request_id");
+
                     b.ToTable("map_event_execution_requests", "player");
                 });
 
