@@ -1,4 +1,7 @@
-# PostgreSQL 16 — développement local uniquement (identifiants non secrets de prod).
+# PostgreSQL 16 — démo locale uniquement (identifiants non secrets de prod).
+# POSTGRES_USER=frog est superutilisateur d'instance (bootstrap Docker).
+# Ce n'est PAS le profil hébergé : le runtime doit se connecter en frog_runtime
+# (NOSUPERUSER, DML sans DDL). Voir docs/progress/phase-10-beta-release/POSTGRES_ROLES.md
 services:
   postgres:
     image: postgres:16-alpine

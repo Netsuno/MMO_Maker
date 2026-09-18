@@ -2,7 +2,7 @@
   "PostgreSql": {
     "enabled": true,
     "allowInMemoryFallback": false,
-    "connectionString": "Host=VOTRE_HOTE;Port=5432;Database=VOTRE_BASE;Username=VOTRE_UTILISATEUR;Password=VOTRE_MOT_DE_PASSE"
+    "connectionString": "Host=VOTRE_HOTE;Port=5432;Database=VOTRE_BASE;Username=frog_runtime;Password=VOTRE_MOT_DE_PASSE"
   },
   "MariaDb": {
     "enabled": false,

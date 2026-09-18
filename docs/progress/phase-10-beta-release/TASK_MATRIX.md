@@ -118,7 +118,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Client jamais PG direct | `Frog.Client` ↛ persistence | architecture | **présent** |
 | Pas de fallback mémoire si PG down (profil hébergé) | `allowInMemoryFallback=false` défaut ; factory refuse sans PG | `Phase9SecurityGateTests` | **présent** |
 | Port PG non exposé aux joueurs | compose expose 5432 en **dev** | doc prod | **incomplet** |
-| Pas de superutilisateur runtime | `docker-compose` `POSTGRES_USER=frog` (superuser instance) ; appsettings Username=frog | | **incomplet** |
+| Pas de superutilisateur runtime | `frog_runtime` NOSUPERUSER DML-only ; compose `frog` = démo ≠ hébergé | `PostgresLeastPrivilegeTests` CREATE/DROP/CREATE ROLE ; [POSTGRES_ROLES.md](POSTGRES_ROLES.md) | **lot D livré** |
 | Rate-limit IP normalisée + compte | `AuthRateLimitKey` + `AuthRateLimiter` 8/60s IP+user, 30/60s IP ; login+register+reconnect | `Phase10AuthRateLimitTests` ports distincts ; [AUTH_RATE_LIMIT.md](AUTH_RATE_LIMIT.md) | **lot B livré** |
 | Inscriptions invitation / provisionnées | `Registration:Mode` ; bêta `ProvisionedOnly` ; TCP Register refusé | `Phase10ClosedBetaTests` ; [CLOSED_BETA.md](CLOSED_BETA.md) | **lot C livré** (InviteOnly = jalon, pas de jetons) |
 | Invitation ≠ rôle GM | create OpsCli n’écrit pas `auth.operators` | `Phase10ClosedBetaTests` + `Phase9SecurityGateTests` | **lot C livré** |
@@ -209,6 +209,7 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 | Social (groupes/guildes/amis/blocage) | **P10-1 livré** (stubs `Guild.cs` non composés) |
 | Trade P2P | **absent** |
 | TLS | **lot A livré** (SslStream in-process ; proxy/LoadHarness TLS absents) |
+| PG runtime least-privilege | **lot D livré** (`frog_runtime` DML-only ; compose démo ≠ hébergé) |
 | Éditeur publish | **incomplet** (from-source oui ; paquet / playtest livré non) |
 | Paquets | **incomplet** (serveur Linux oui ; client/éditeur autonomes non) |
 | Restore | **incomplet** (schéma + login ; sanctions/social/trade non) |

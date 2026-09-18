@@ -86,6 +86,10 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 - Scripts `postgres-backup` / `restore` / `verify` + runbook Phase 9 : **présent**, campagne lignes métier incomplète.
 - `tools/Frog.LoadHarness` : Hello/chat/move/mixed in-memory ; ne décode pas l’économie, le social, le TLS, ni 60 minutes.
 
+### PostgreSQL rôles
+
+- Compose `POSTGRES_USER=frog` = superuser **démo locale** seulement. Hébergé : `frog_runtime` (P10-5 D, [`POSTGRES_ROLES.md`](POSTGRES_ROLES.md)).
+
 ### Client « démo technique »
 
 `MainShellForm` expose encore des commandes de workshop (hôte/port, « Demander map », GUID boutique en secours `Visible=false`, jeton reconnect en mémoire processus). Acceptable en interne ; **insuffisant** pour un testeur externe (P10-3).
