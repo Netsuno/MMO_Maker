@@ -218,6 +218,7 @@ public static class FrogServerHostFactory
                         sp.GetRequiredService<InMemoryAuthSessionRepository>());
                     services.AddSingleton<IOperatorDirectory>(sp =>
                         new InMemoryOperatorDirectory(sp.GetRequiredService<IAccountRepository>()));
+                    services.AddSingleton<IAccountSanctionStore, InMemoryAccountSanctionStore>();
                     services.AddSingleton<ICharacterRepository, InMemoryCharacterRepository>();
                     services.AddSingleton<IInventoryRepository, InMemoryInventoryRepository>();
                     services.AddSingleton<IEquipmentRepository, InMemoryEquipmentRepository>();
@@ -371,6 +372,7 @@ public static class FrogServerHostFactory
                     return NullMapEventStore.Instance;
                 });
                 services.AddSingleton<AuthService>();
+                services.AddSingleton<ModerationService>();
                 services.AddSingleton<ConnectionManager>();
                 services.AddSingleton<ClientRegistry>();
                 services.AddSingleton<MapService>();

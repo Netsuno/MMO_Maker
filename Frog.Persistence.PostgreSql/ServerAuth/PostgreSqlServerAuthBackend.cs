@@ -4,6 +4,7 @@ using Frog.Application.Gameplay;
 using Frog.Application.Identity;
 using Frog.Application.Maps;
 using Frog.Persistence.PostgreSql.Repositories.Auth;
+using Frog.Persistence.PostgreSql.Repositories.Ops;
 using Frog.Persistence.PostgreSql.Repositories.Player;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +26,8 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
             new PostgresAuthSessionRepository(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<IOperatorDirectory>(sp =>
             new PostgresOperatorDirectory(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<IAccountSanctionStore>(sp =>
+            new PostgresAccountSanctionStore(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<ICharacterRepository>(sp =>
             new PostgresCharacterRepository(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<IInventoryRepository>(sp =>

@@ -1,6 +1,6 @@
 # Phase 9 — CHANGE_SUMMARY
 
-**Status:** P9-0 + P9-2 + P9-3 landed on `cursor/phase9-distribution-admin-hardening`. P9-1 / P9-4…P9-6 still TBD.
+**Status:** P9-0 + P9-1 + P9-2 + P9-3 landed on `cursor/phase9-distribution-admin-hardening`. P9-4…P9-6 still TBD.
 
 ## P9-0 (bootstrap)
 
@@ -10,7 +10,12 @@
 
 ## P9-1 Admin / moderation
 
-TBD — no mute/kick/ban product code. Design is in `SECURITY_MODEL.md` §5.
+- Schema `ops.account_sanctions` + `ops.moderation_events` (EF migration `20260918001424_OpsAccountSanctions`). Mute/ban state is operational, not an `auth.accounts` flag.
+- Server path: `ModerationService` + `IAccountSanctionStore`. **Always** `IOperatorDirectory.IsOperatorAsync(session.AccountId)` before mute/kick/ban. Grant stays SQL / `GrantAsync` out of band — no grant/revoke PacketId.
+- Wire: `PacketId.ModerateRequest` (78) / `ModerateResult` (79). Client slash commands (`/mute` `/kick` `/ban` `/unmute` `/unban`) in the existing chat box; no new layout (Phase 8 screenshot gates untouched).
+- Enforcement: mute rejects `ChatSend` only; kick drops the live TCP session (event log, not a lasting ban); ban persists, `RevokeAllForAccountAsync`, drops the session, login + reconnect rejected.
+- Folklore stubs (`AdminCommandService`, `Role`, `Permission`, `AccessRightEnum`) remain unused (ADR-0003).
+- Tests: `Frog.Tests/Phase9ModerationTests.cs` (unit + in-memory TCP) and `tests/Frog.Persistence.IntegrationTests/Phase9ModerationTests.cs` (PG persist + host restart).
 
 ## P9-2 Security / permissions
 
@@ -26,7 +31,7 @@ TBD — no mute/kick/ban product code. Design is in `SECURITY_MODEL.md` §5.
 - Scripts: `scripts/postgres-backup.sh`, `postgres-restore.sh`, `postgres-verify.sh`, `postgres-backup-restore-smoke.sh`, `postgres-common.sh`, plus Windows `.ps1` mirrors for backup/restore/verify.
 - Runbook: [`BACKUP_RESTORE_RUNBOOK.md`](BACKUP_RESTORE_RUNBOOK.md) — dump custom format (`-Fc`) of schemas `auth`, `content`, `ops`, `player`, `world`, plus `public.__EFMigrationsHistory`. Restore onto an empty database; do not migrate first.
 - Proof: `tests/Frog.Persistence.IntegrationTests/PostgresBackupRestoreTests.cs` (CI job `postgres-integration` after `postgresql-client` install). Command: `./scripts/postgres-backup-restore-smoke.sh`.
-- No MariaDB path. P9-3 adds no EF migrations; dumps include P9-2 `auth.operators` via schema `auth`. Re-prove restore after P9-1 schema changes.
+- No MariaDB path. P9-3 adds no EF migrations; dumps include P9-2 `auth.operators` via schema `auth`. **Re-prove restore after P9-1 schema** (`ops.account_sanctions` / `ops.moderation_events`, migration `20260918001424_OpsAccountSanctions`).
 
 ## P9-4 Packaging
 

@@ -81,15 +81,13 @@ public sealed class Phase9SecurityGateTests
     }
 
     [Fact]
-    public void PacketId_HasNoMuteKickBanOrAdminOpcodes()
+    public void PacketId_HasModerationOpcodes_ButNoGrantRevoke()
     {
         var names = Enum.GetNames<PacketId>();
-        Assert.DoesNotContain("MuteRequest", names);
-        Assert.DoesNotContain("MuteResult", names);
-        Assert.DoesNotContain("KickRequest", names);
-        Assert.DoesNotContain("KickResult", names);
-        Assert.DoesNotContain("BanRequest", names);
-        Assert.DoesNotContain("BanResult", names);
+        Assert.Contains("ModerateRequest", names);
+        Assert.Contains("ModerateResult", names);
+        Assert.DoesNotContain("GrantOperator", names);
+        Assert.DoesNotContain("RevokeOperator", names);
         Assert.DoesNotContain("AdminCommand", names);
         Assert.Contains("WorldFlagsPatchRequest", names);
     }

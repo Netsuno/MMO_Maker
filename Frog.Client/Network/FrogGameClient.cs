@@ -90,6 +90,7 @@ public sealed class FrogGameClient : IDisposable
     public event Action<bool, string>? AcquireProfessionResultReceived;
     public event Action<EnvironmentStateWire>? EnvironmentStatePushReceived;
     public event Action<IReadOnlyList<WorldSwitchWire>>? WorldSwitchSnapshotReceived;
+    public event Action<bool, string>? ModerateResultReceived;
     public event Action? ConnectionClosed;
 
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
@@ -707,6 +708,14 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.ModerateResult:
+                if (TryReadStatusMessage(body.Span, out var modOk, out var modMsg))
+                {
+                    Post(() => ModerateResultReceived?.Invoke(modOk, modMsg));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -1044,6 +1053,19 @@ public sealed class FrogGameClient : IDisposable
         o += sizeof(ushort);
         msgBytes.CopyTo(payload.AsSpan(o));
         await SendRawAsync(payload, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task SendModerateAsync(
+        ModerationAction action,
+        string targetUsername,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        var body = ModerateWire.BuildRequest(action, targetUsername, reason ?? string.Empty);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.ModerateRequest;
+        body.CopyTo(payload, 1);
+        return SendRawAsync(payload, cancellationToken);
     }
 
     public async Task SendMeleeAttackAsync(string targetUsername, CancellationToken cancellationToken = default)

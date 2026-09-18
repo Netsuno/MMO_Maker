@@ -24,12 +24,23 @@ FROM auth.accounts
 WHERE username = 'your-gm-username';
 ```
 
-## TBD (P9-4 / P9-1)
+## Mute / kick / ban (P9-1)
+
+Operator commands are `PacketId.ModerateRequest` (78). The server calls `IOperatorDirectory.IsOperatorAsync(session.AccountId)` — a client “I am GM” flag is ignored/absent. From the WinForms client, type in chat:
+
+- `/mute <username> <reason>`
+- `/unmute <username> <reason>`
+- `/kick <username> <reason>`
+- `/ban <username> <reason>`
+- `/unban <username> <reason>`
+
+Mute persists in `ops.account_sanctions` (`kind=mute`) and rejects `ChatSend` only. Kick closes the live TCP session and writes `ops.moderation_events` (not a lasting ban). Ban persists (`kind=ban`), revokes reconnect tokens, drops the live session, and rejects login/reconnect.
+
+## TBD (P9-4)
 
 - How to apply migrations (today: automatic `Database.Migrate()` on server/editor start)
 - How to drain players before stop
 - Where logs go besides console
-- How an operator mute/kick/ban after P9-1
 - What to do when `PostgresDatabaseHealth` reports pending migrations
 
 ## Do not

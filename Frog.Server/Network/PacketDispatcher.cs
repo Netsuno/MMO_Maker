@@ -53,6 +53,8 @@ public sealed partial class PacketDispatcher(
     IOptions<PostgreSqlOptions> postgreSqlOptions,
     PlaytestAuthTokenGate playtestAuthTokenGate,
     Phase8GameplayHandlers phase8Handlers,
+    IAccountSanctionStore accountSanctions,
+    ModerationService moderationService,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -80,6 +82,8 @@ public sealed partial class PacketDispatcher(
     private readonly PostgreSqlOptions _postgreSql = postgreSqlOptions.Value;
     private readonly PlaytestAuthTokenGate _playtestAuthTokenGate = playtestAuthTokenGate;
     private readonly Phase8GameplayHandlers _phase8 = phase8Handlers;
+    private readonly IAccountSanctionStore _accountSanctions = accountSanctions;
+    private readonly ModerationService _moderation = moderationService;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
@@ -156,6 +160,10 @@ public sealed partial class PacketDispatcher(
 
             case PacketId.ChatSend:
                 await HandleChatSendAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.ModerateRequest:
+                await HandleModerateRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             case PacketId.MeleeAttackRequest:
@@ -276,6 +284,17 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
+        if (await _accountSanctions.HasActiveBanAsync(authResult.Account.Id, cancellationToken).ConfigureAwait(false))
+        {
+            ServerNetworkLogs.LoginFailed(_logger, "account_banned");
+            await _packetSender.SendLoginResultAsync(
+                clientSession,
+                false,
+                ModerationMessages.Banned,
+                cancellationToken);
+            return;
+        }
+
         if (!_connectionManager.TryCreateSession(username, out var session) || session is null)
         {
             ServerNetworkLogs.LoginFailed(_logger, "already_connected");
@@ -367,6 +386,18 @@ public sealed partial class PacketDispatcher(
                 clientSession,
                 false,
                 "Session invalide.",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (await _accountSanctions.HasActiveBanAsync(account.Id, cancellationToken).ConfigureAwait(false))
+        {
+            _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+            ServerNetworkLogs.LoginFailed(_logger, "account_banned");
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                ModerationMessages.Banned,
                 cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -1431,6 +1462,12 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
+        if (await _accountSanctions.HasActiveMuteAsync(session.AccountId, cancellationToken).ConfigureAwait(false))
+        {
+            await _packetSender.SendErrorAsync(clientSession, ModerationMessages.Muted, cancellationToken);
+            return;
+        }
+
         if (!TryParseChatSendPayload(payload.Span, out var channel, out var whisperTarget, out var message))
         {
             await _packetSender.SendErrorAsync(clientSession, "Payload chat invalide.", cancellationToken);
@@ -1514,6 +1551,40 @@ public sealed partial class PacketDispatcher(
         }
 
         ServerNetworkLogs.ChatBroadcast(_logger, channel.ToString(), from, delivered);
+    }
+
+    private async Task HandleModerateRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, ModerationMessages.AuthRequired, cancellationToken);
+            return;
+        }
+
+        if (!ModerateWire.TryParseRequest(payload.Span, out var action, out var targetUsername, out var reason))
+        {
+            await _packetSender.SendModerateResultAsync(
+                clientSession,
+                false,
+                ModerationMessages.InvalidInput,
+                cancellationToken);
+            return;
+        }
+
+        var result = await _moderation.ExecuteAsync(
+            session.AccountId,
+            action,
+            targetUsername,
+            reason,
+            cancellationToken).ConfigureAwait(false);
+        await _packetSender.SendModerateResultAsync(
+            clientSession,
+            result.Success,
+            result.Message,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public static bool TryParseChatSendPayload(ReadOnlySpan<byte> payload, out ChatChannel channel, out string whisperTarget, out string message)

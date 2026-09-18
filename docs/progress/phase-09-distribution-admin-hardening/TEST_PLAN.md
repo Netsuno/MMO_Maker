@@ -1,6 +1,6 @@
 # Phase 9 — TEST_PLAN
 
-**Status:** P9-2 tests and P9-3 backup/restore integration test added. P9-1 / P9-4…P9-6 still TBD. Do not weaken Phase 8 suites.
+**Status:** P9-1 tests added (unit + PG persist + TCP). P9-2 / P9-3 tests remain. P9-4…P9-6 still TBD. Do not weaken Phase 8 suites.
 
 ## Baseline suites (already on main — do not weaken)
 
@@ -18,7 +18,7 @@ Baseline main CI: https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 
 
 | Task | Planned coverage | Status |
 | --- | --- | --- |
-| P9-1 | Mute / kick / ban unit + PG persist + TCP enforcement | TBD |
+| P9-1 | Mute / kick / ban unit + PG persist + TCP enforcement | **DONE** — `Frog.Tests/Phase9ModerationTests.cs`; `tests/Frog.Persistence.IntegrationTests/Phase9ModerationTests.cs`. Filter `FullyQualifiedName~.Phase9ModerationTests` |
 | P9-2 | Unprivileged deny (`IOperatorDirectory`); WorldFlagsPatch rejected in PG prod + production composition; committed secrets are placeholders; Local.json gitignored | **DONE** (unit + PG) |
 | P9-3 | Migrate empty → seed → `pg_dump` → `pg_restore` → `PostgresDatabaseHealth` OK → Phase 7 TCP login | **DONE** — `PostgresBackupRestoreTests`; see `BACKUP_RESTORE_RUNBOOK.md` |
 | P9-4 | Published layout starts; client/editor still smoke on Windows | TBD |

@@ -249,6 +249,15 @@ internal static class Phase7TcpPacketBuilder
         utf8.CopyTo(payload.AsSpan(1 + sizeof(ushort)));
         return payload;
     }
+
+    public static byte[] BuildModerate(ModerationAction action, string targetUsername, string reason)
+    {
+        var body = ModerateWire.BuildRequest(action, targetUsername, reason);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.ModerateRequest;
+        body.CopyTo(payload, 1);
+        return payload;
+    }
 }
 
 internal sealed class Phase7TcpTestClient : IAsyncDisposable

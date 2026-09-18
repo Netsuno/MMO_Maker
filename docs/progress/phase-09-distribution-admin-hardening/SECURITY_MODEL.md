@@ -1,8 +1,6 @@
 # Phase 9 — SECURITY_MODEL
 
-**Status:** P9-2 (source of truth for operator privilege and Phase 9 security gates).  
-**Audited / implemented against:** branch `cursor/phase9-distribution-admin-hardening`.  
-**Does not ship mute / kick / ban product commands** — those are P9-1, implemented against this document.
+**Status:** P9-2 (source of truth for operator privilege and Phase 9 security gates) plus P9-1 sanction commands implemented against this document.
 
 ---
 
@@ -12,7 +10,7 @@
 | --- | --- | --- | --- |
 | Anonymous TCP peer | Any host that can reach `Server:BindAddress:Port` (`Frog.Server/Network/ServerSocket.cs`) | Open a connection, send `Hello` / `LoginRequest` / `RegisterRequest` / `ReconnectRequest` (`Frog.Core/Enums/PacketId.cs`) | Authenticate without credentials; brute-force without the login window (`Frog.Server/Security/LoginRateLimiter.cs`) |
 | Authenticated player | Account in `auth.accounts` (`Frog.Persistence.PostgreSql/Entities/Auth/AccountEntity.cs`) after `AuthService.TryAuthenticateAsync` | Phase 7/8 gameplay + chat Global/Map/Whisper | Moderate others; patch `worldFlags` in production; forge stats (`CharacterStatsUpdateRequest` already rejected outside playtest / in-memory fallback) |
-| Operator (GM) | Row in `auth.operators` (`IOperatorDirectory`) | **Nothing extra on the wire yet.** P9-1 will mute/kick/ban only after this lookup returns true | Exist merely because they registered first; grant themselves via a client packet |
+| Operator (GM) | Row in `auth.operators` (`IOperatorDirectory`) | `ModerateRequest` mute/unmute/kick/ban/unban **after** `IsOperatorAsync(session.AccountId)` | Exist merely because they registered first; grant themselves via a client packet |
 | Editor author | Machine holding the PostgreSQL connection string (editor `appsettings.Local.json`, gitignored) | Publish maps and Phase 8 content to the same database the server reads | Be treated as a distinct DB role today — possession of the string **is** world-admin |
 | Process host | OS user that can kill / restart `Frog.Server` | The only “ban” that exists before P9-1 | Substitute for an ACL |
 
@@ -30,7 +28,7 @@ Historical stubs (`Frog.Server/Models/Role.cs`, `Permission.cs`, `Frog.Core/Enum
 | Published world + catalogs | schemas `world`, `content` | Editor publish writes here |
 | Player inventory / economy / quests | schema `player` | Server-authoritative |
 | Operator grants | schema `auth.operators` (this phase) | Out-of-band grant only |
-| Sanctions | **not created yet** — P9-1, schema `ops` (sketch below) | |
+| Sanctions | `ops.account_sanctions` + `ops.moderation_events` (P9-1, migration `20260918001424_OpsAccountSanctions`) | |
 | Process memory | Login/chat rate-limit windows | Lost on restart |
 
 ---
@@ -118,7 +116,7 @@ Do **not** auto-promote the first registered account.
 
 P9-1 **must** call `IOperatorDirectory.IsOperatorAsync(session.AccountId)` before any mute/kick/ban. A client-supplied “I am GM” flag is forbidden. Unprivileged accounts (no row) cannot moderate — this is already true (no admin opcodes) and is the negative gate P9-1 must keep.
 
-### P9-1 sanction schema (sketch only — do not implement here)
+### P9-1 sanction schema (implemented)
 
 Mute / ban **state** is operational, not identity. Put it in `ops`, not on `auth.accounts`.
 
@@ -183,14 +181,15 @@ Do not commit `appsettings.Local.json`. Do not reuse Compose passwords on a host
 
 ## 8. Leftover / dangerous packets
 
-Opcode list: `Frog.Core/Enums/PacketId.cs` (1–77 + `Error=255`). No mute/kick/ban/admin opcodes on this tip.
+Opcode list: `Frog.Core/Enums/PacketId.cs` (1–79 + `Error=255`). P9-1 added `ModerateRequest` (78) / `ModerateResult` (79).
 
 | Packet | Risk | Phase 9 stance |
 | --- | --- | --- |
 | `WorldFlagsPatchRequest` (34) | Client-authored JSON merge into character `worldFlags` (legacy MariaDB `character_world_flag`) | **Rejected** when PostgreSQL is enabled **or** when the host is a production composition (not playtest, not `AllowInMemoryFallback`). Policy: `WorldFlagsPatchPolicy`. Message: `WorldFlagsPatch desactive en production PostgreSQL (Phase 8).` Opcode kept for wire compatibility. |
 | `CharacterStatsUpdateRequest` (27) | Client-forged STR…LUCK | Already rejected outside playtest / in-memory fallback (P7-G1). Keep. |
 | `ReconnectRequest` (36) | Stolen bearer token = session | Hashed at rest; 12 h; P9-1 must revoke on ban |
-| `ChatSend` (15) | Spam / harassment | `ChatRateLimiter` 8 / 10 s / session (`GameplayLimits`). No mute yet (P9-1) |
+| `ChatSend` (15) | Spam / harassment | `ChatRateLimiter` 8 / 10 s / session (`GameplayLimits`). Active mute (`ops.account_sanctions` kind=`mute`) rejects the send. |
+| `ModerateRequest` (78) | Unprivileged impersonation of a GM | Server calls `IOperatorDirectory.IsOperatorAsync(session.AccountId)`. Unprivileged → `ModerateResult` false. No grant/revoke opcode. |
 | `RegisterRequest` (6) | Account spam | Same login rate limiter keying (endpoint). Residual: NAT shares a window |
 | Event commands (`COMMAND_CATALOG.md`) | Not SQL; session- or character-scoped | Not operator commands. Do not overload them for mute/kick/ban |
 | Unknown opcode | Logged + `Error` | Keep |
@@ -221,7 +220,7 @@ No cap change in P9-2: existing values match `BASELINE_AUDIT` §8. Residual: in-
 - Login rate limiter is process-local.
 - Reconnect token is a bearer secret for 12 h.
 - MariaDB can still be enabled (`MariaDb:enabled`) — frozen, not deleted.
-- No mute/kick/ban until P9-1.
+- Mute/kick/ban shipped in P9-1; unprivileged accounts still cannot moderate. Grant remains out-of-band.
 - In-memory `demo`/`demo` bootstrap account exists for tests/playtest only; production requires PostgreSQL (`FrogServerHostFactory` throws without PG or `AllowInMemoryFallback`).
 - CI on this branch runs only when a PR targets `main` — do not invent run URLs.
 

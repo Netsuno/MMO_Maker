@@ -1,6 +1,7 @@
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
 using Frog.Persistence.PostgreSql.Entities.Auth;
+using Frog.Persistence.PostgreSql.Entities.Ops;
 using Frog.Persistence.PostgreSql.Entities.Player;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,6 +65,10 @@ public sealed class FrogDbContext : DbContext
     public DbSet<AuthSessionEntity> AuthSessions => Set<AuthSessionEntity>();
 
     public DbSet<OperatorEntity> AuthOperators => Set<OperatorEntity>();
+
+    public DbSet<AccountSanctionEntity> OpsAccountSanctions => Set<AccountSanctionEntity>();
+
+    public DbSet<ModerationEventEntity> OpsModerationEvents => Set<ModerationEventEntity>();
 
     public DbSet<CharacterEntity> PlayerCharacters => Set<CharacterEntity>();
 
@@ -729,6 +734,57 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.Note).HasMaxLength(256);
             e.Property(x => x.GrantedAtUtc).IsRequired();
             e.HasIndex(x => x.RevokedAtUtc);
+        });
+
+        modelBuilder.Entity<AccountSanctionEntity>(e =>
+        {
+            e.ToTable("account_sanctions", "ops", t =>
+            {
+                t.HasCheckConstraint("ck_account_sanctions_kind", "kind IN ('mute', 'ban')");
+            });
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Kind).HasMaxLength(8).IsRequired();
+            e.Property(x => x.Reason).IsRequired();
+            e.Property(x => x.CreatedAtUtc).IsRequired();
+            e.HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ActorAccount)
+                .WithMany()
+                .HasForeignKey(x => x.ActorAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.AccountId, x.Kind })
+                .IsUnique()
+                .HasFilter("revoked_at_utc IS NULL")
+                .HasDatabaseName("ux_account_sanctions_active_kind");
+            e.HasIndex(x => x.AccountId);
+            e.HasIndex(x => x.ActorAccountId);
+        });
+
+        modelBuilder.Entity<ModerationEventEntity>(e =>
+        {
+            e.ToTable("moderation_events", "ops", t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_moderation_events_action",
+                    "action IN ('mute', 'unmute', 'kick', 'ban', 'unban')");
+            });
+            e.HasKey(x => x.Id);
+            e.Property(x => x.AtUtc).IsRequired();
+            e.Property(x => x.Action).HasMaxLength(8).IsRequired();
+            e.Property(x => x.Reason).IsRequired();
+            e.Property(x => x.DetailsJson).HasColumnType("jsonb");
+            e.HasOne(x => x.ActorAccount)
+                .WithMany()
+                .HasForeignKey(x => x.ActorAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.TargetAccount)
+                .WithMany()
+                .HasForeignKey(x => x.TargetAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.TargetAccountId, x.AtUtc });
+            e.HasIndex(x => x.ActorAccountId);
         });
 
         modelBuilder.Entity<CharacterEntity>(e =>

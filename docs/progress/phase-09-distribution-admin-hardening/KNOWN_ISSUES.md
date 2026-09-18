@@ -5,10 +5,10 @@
 - `PRD_MMO_Maker_CSharp.md` v2.1 is cited but **not in the repo**. P9-S used README / BACKLOG / ADRs instead.
 - `docs/DATA_MODEL.md` is incomplete vs `FrogDbContext`.
 - `docs/BACKLOG.md` checkboxes stop at Phase 6.
-- ~106 historical `// TODO: Implémenter` stubs remain (including `Guild*` / `AdminCommandService`). Not a Phase 9 clear-out.
+- ~106 historical `// TODO: Implémenter` stubs remain (including `Guild*`). `AdminCommandService` / `Role` / `Permission` / `AccessRightEnum` are unused folklore (P9-1 uses `ModerationService`). Not a Phase 9 clear-out.
 - CI workflow does not run on this branch until a PR targets `main`.
-- No TLS, no backup, no packaging — expected; those are P9-3…P9-4.
-- Operator **ACL table exists** (`auth.operators`) but no mute/kick/ban commands yet (P9-1).
+- No TLS, packaging still TBD (P9-4). Backup/restore scripts exist (P9-3); **re-run restore proofs after the P9-1 ops sanction migration**.
+- Operator mute/kick/ban is implemented (P9-1). Grant remains out-of-band SQL (`auth.operators`).
 - Clear-text TCP if `AllowNonLoopbackBind=true` without an external terminator (`SECURITY_MODEL.md` §10).
 
 ## Phase 8 leftovers (not Phase 9 gates)

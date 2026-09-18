@@ -1,11 +1,11 @@
 # Phase 9 — PostgreSQL backup / restore runbook (P9-3)
 
 **Status:** implemented on `cursor/phase9-distribution-admin-hardening`.  
-**Schema tip:** 26 EF Up migrations, latest `20260917223000_AuthOperators` under `Frog.Persistence.PostgreSql/Migrations/` (P9-2 `auth.operators`; previous product tip `20260917204500_MapEventExecutionRequestIdGlobalUnique`).  
+**Schema tip:** 27 EF Up migrations, latest `20260918001424_OpsAccountSanctions` under `Frog.Persistence.PostgreSql/Migrations/` (P9-1 `ops.account_sanctions` / `ops.moderation_events`; P9-2 `auth.operators` is `20260917223000_AuthOperators`).  
 **Product schemas (`FrogDbContext`):** `auth`, `content`, `ops`, `player`, `world`.  
 **Engine:** PostgreSQL 16 (Compose `postgres:16-alpine`, CI `postgres:16`).
 
-This runbook is the operator path. The automated proof is `PostgresBackupRestoreTests` (see §Proof). Re-run after any new EF migration (notably P9-1 mute/kick/ban tables, when they land).
+This runbook is the operator path. The automated proof is `PostgresBackupRestoreTests` (see §Proof). **Re-run after the P9-1 EF migration** (`20260918001424_OpsAccountSanctions` — `ops.account_sanctions` / `ops.moderation_events`). Dumps taken before that migration restore, then `Database.Migrate()` (or a server/editor start that migrates) applies leftover Ups; prefer a fresh dump after migrate.
 
 ## Prerequisites
 
@@ -137,7 +137,7 @@ Operator roundtrip of a live DB into a disposable copy (does not replace the hea
 | Symptom | Likely cause | What to do |
 | --- | --- | --- |
 | `pg_restore: error: … already exists` / restore says target already has Frog schemas | Migrated the target before restore, or restoring twice | Drop/recreate empty DB (`--recreate` on a disposable name) or pick a new database. Never migrate then restore. |
-| `PostgresDatabaseHealth` pending after restore | Dump taken before a new EF migration (e.g. future P9-1 ban tables) | Restore then start the new server so `Database.Migrate()` applies leftover Ups. Take a fresh dump after migrate. Re-prove this runbook. |
+| `PostgresDatabaseHealth` pending after restore | Dump taken before a new EF migration (e.g. P9-1 `ops.account_sanctions`) | Restore then start the new server so `Database.Migrate()` applies leftover Ups. Take a fresh dump after migrate. Re-prove this runbook. |
 | Health pending on a dump that should match | Dump missed `public.__EFMigrationsHistory` (schema filter too narrow) | Use the scripts in this folder, not a hand-rolled `pg_dump` of a subset of tables. |
 | `schema "public" already exists` | Restored into a `createdb` database without dropping empty `public` | Scripts do this automatically. Do not skip that step in a hand-rolled restore. |
 | `extension "plpgsql" already exists` with `--exit-on-error` | Whole-database dump including extensions | Scripts dump only the five product schemas. |
@@ -149,7 +149,7 @@ Operator roundtrip of a live DB into a disposable copy (does not replace the hea
 
 ## Residual risks
 
-- **P9-1 migrations:** mute/kick/ban tables are not in the current 26-migration tip (P9-2 added `auth.operators` only). A dump taken now restores cleanly today; after P9-1, either migrate-after-restore or take a new dump. Re-run `PostgresBackupRestoreTests`.
+- **P9-1 migrations:** mute/kick/ban tables landed as `20260918001424_OpsAccountSanctions` (`ops.account_sanctions`, `ops.moderation_events`). A dump taken **before** that migration restores, then leftover Ups must be applied (`Database.Migrate()` / server start). Take a new dump after migrate. **Re-run `PostgresBackupRestoreTests`** (this work does not rewrite P9-3 scripts).
 - **Older dumps:** a backup taken before `20260917223000_AuthOperators` restores, then `Database.Migrate()` applies the operators table. Prefer a fresh dump after each accepted migration.
 - **P9-2 secret handling:** Compose passwords in examples are dev-only. Production connection strings stay in gitignored `appsettings.Local.json`.
 - No PITR / replication slot / off-box scheduler is provided. Operators still need a copy of the `.dump` file somewhere else.
@@ -160,5 +160,5 @@ Operator roundtrip of a live DB into a disposable copy (does not replace the hea
 
 - MariaDB dump / `scripts/apply-frog-mariadb-schema.ps1`
 - Point-in-time replication
-- Guild / mute / kick / ban schema (P9-1 / P9-S)
+- Guild / group / trade schema (P9-S)
 - Phase 10
