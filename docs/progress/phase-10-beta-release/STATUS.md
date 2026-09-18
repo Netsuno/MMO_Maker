@@ -1,6 +1,6 @@
 # Phase 10 — STATUS
 
-**Lot courant :** P10-5 E (LoadHarness TLS Required). **Pas READY.**
+**Lot courant :** P10-3a (settings / aide / rebind) après P10-5 A–E. **Pas READY.**
 
 | Item | Valeur |
 | --- | --- |
@@ -19,13 +19,23 @@
 | P10-0 Audit + plan | **FAIT** |
 | P10-1 Groupes / guildes / relations | **LIVRÉ (code + tests)** — pas une gate |
 | P10-2 Échanges directs | **ABSENT** |
-| P10-3 Client / éditeur externes | **INCOMPLET** |
+| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a (aide, rebind, settings, version, craft noms) **livré** |
 | P10-4 Monde démo + recette | **ABSENT** |
 | P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** — lots A–E **LIVRÉS** ( palier 25×60 = P10-8 ) |
 | P10-6 Paquets autonomes | **INCOMPLET** |
 | P10-7 Exploitation / restore | **INCOMPLET** (guildes/amis/blocs désormais dans le schéma ; restore de ces lignes **non** recertifié backup) |
 | P10-8 Charge 25 joueurs | **INCOMPLET** |
 | P10-9 Validation / candidate | **ABSENT** |
+
+## P10-3a — ce qui est livré
+
+- Aide FR scrollable (`HelpForm`) : F1 + bouton Aide.
+- Clavier AZERTY ZQSD+E / QWERTY WASD+E + flèches ; rebind persisté.
+- `OptionsForm` : fenêtre, volume, disposition ; JSON atomique `%LocalAppData%\Frog\client-settings.json` (`FROG_CLIENT_SETTINGS_PATH` pour tests).
+- Badge version **10.3.0** + « Copier diagnostics » expurgé (jamais jeton / mot de passe).
+- Status joueur + dual-write `[ui]` vers le log tests.
+- Craft : ComboBox **noms** de recettes (`PublishedCatalogWire.recipes` additif, pas de bump de version fil) ; bouton Fabriquer ; Guid hors UI normale.
+- Tests : `Phase10ClientSettingsSmokeTests`, `Phase10PublishedCatalogRecipesTests` ; smoke Phase 8 craft adapté.
 
 ## P10-5 E — ce qui est livré
 
@@ -76,4 +86,4 @@ Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. P10-2 tr
 
 ## Verdict
 
-**P10-1 + P10-5 A–E.** La bêta n’est **pas** prête.
+**P10-1 + P10-5 A–E + P10-3a.** La bêta n’est **pas** prête.

@@ -26,7 +26,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 
 - `PRD_MMO_Maker_CSharp.md` v2.1 cité, **absent** du dépôt.
 - `docs/DATA_MODEL.md` périmé (cartes/tilesets) vs `FrogDbContext` (`auth`, `content`, `ops`, `player`, `world`).
-- ~100 fichiers `// TODO: Implémenter` folklore (client `Models/*`, `Services/*`, `Guild.cs`, `MaintenanceService.cs`, `OptionsForm.cs`, `UserSettings.cs`, …). Le gameplay réel passe par `MainShellForm` + `FrogGameClient`.
+- ~100 fichiers `// TODO: Implémenter` folklore (client `Models/*`, `Services/AuthService.cs` / `ChatService.cs`, `Guild.cs`, `MaintenanceService.cs`, …). P10-3a a remplacé `OptionsForm` / `UserSettings` / `InputService` / `SoundService`. Le gameplay réel passe par `MainShellForm` + `FrogGameClient`.
 - CI `concurrency.cancel-in-progress: true` (annulations ≠ preuves vertes).
 - Annotation Node 20 / actions v4 (dépréciation, pas un échec de test).
 
@@ -43,8 +43,8 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Client TLS + validation certificat | `FrogGameClient.ConnectAsync` + `TlsClientAuthenticator` (Mode=Required) ; défaut Off | P10-5 A **livré** |
 | Invitations / comptes provisionnés | `Registration:Mode=ProvisionedOnly` + OpsCli create ; **InviteOnly sans jetons** (jalon) | P10-5 C **livré** (jalon invites) |
 | Outil reset mot de passe / revoke session / grant GM | `tools/Frog.OpsCli` | P10-5 C **livré** |
-| Aide intégrée, rebind AZERTY/QWERTY, settings persistés | `UserSettings.cs` / `OptionsForm.cs` / `InputService.cs` = stubs ; pas de « Help » dans `MainShellForm` | P10-3 |
-| Numéro de version visible + copie diagnostics | Token redacté dans le log interne ; pas de commande dédiée ni version UI | P10-3 |
+| Aide intégrée, rebind AZERTY/QWERTY, settings persistés | `HelpForm` + `OptionsForm` + `ClientSettingsStore` (`%LocalAppData%\Frog\client-settings.json`) | P10-3a **livré** |
+| Numéro de version visible + copie diagnostics | Badge `v10.3.0` + « Copier diagnostics » expurgé | P10-3a **livré** |
 | Monde démo 3 cartes 30–60 min + licences | `fixtures/` = legacy ; seeds de tests seulement | P10-4 |
 | Recette 12 étapes / 2 machines | Non exécutée | P10-4 |
 | Self-contained + manifeste SHA-256 d’archives | Layout scripts seulement ; `artifacts/` gitignoré | P10-6 |
@@ -92,7 +92,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 
 ### Client « démo technique »
 
-`MainShellForm` expose encore des commandes de workshop (hôte/port, « Demander map », GUID boutique en secours `Visible=false`, jeton reconnect en mémoire processus). Acceptable en interne ; **insuffisant** pour un testeur externe (P10-3).
+`MainShellForm` expose encore des commandes de workshop (hôte/port, « Demander map », GUID boutique en secours `Visible=false`, jeton reconnect en mémoire processus). Craft : ComboBox de noms (Guid caché). Aide / options / version / diagnostics expurgés : **P10-3a livré**. Reste insuffisant pour un testeur externe sur l’éditeur publié et les résolutions 1366×768 (reste P10-3).
 
 ---
 

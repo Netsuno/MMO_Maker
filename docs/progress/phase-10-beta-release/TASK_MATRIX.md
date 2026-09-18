@@ -71,16 +71,16 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | --- | --- | --- | --- |
 | Parcours login → perso → monde | `MainShellForm` phases Login/Character/Playing | gameplay smoke ×3 | **présent** (from-source) |
 | Adresse serveur réglable | `_txtHost` / `_numPort` (défaut 127.0.0.1:6000) | UI | **incomplet** (pas préconfig bêta, pas TLS) |
-| Messages indispo / version / auth / sanction / cert | Hello version OK ; cert **absent** ; sanction login Phase 9 | | **incomplet** |
+| Messages indispo / version / auth / sanction / cert | Hello version OK ; cert TLS A ; status joueur FR + `[ui]` | `Phase10ClientSettingsSmokeTests` | **incomplet** (pas tous les libellés certifiés en recette externe) |
 | HUD vie, inventaire, banque, chat, quêtes, craft | panneaux Phase 7–8 | smokes + SHA Phase 8 | **présent** (interne) |
-| Pas GUID/JSON/dump comme UI normale | GUID boutique `Visible=false` encore là ; log technique en bas | | **incomplet** |
+| Pas GUID/JSON/dump comme UI normale | GUID boutique `Visible=false` ; craft ComboBox **noms** (Guid caché) ; log technique en bas + diagnostics expurgés | `Phase10ClientSettingsSmokeTests` + Phase8 craft | **incomplet** (log technique encore visible) |
 | Interaction NPC/objets/joueurs | `InteractRequest`, mêlée, chat | | **présent** |
 | Mort / respawn / reco / perte réseau | `DeathNotify`, `RespawnRequest`, jeton mémoire | | **incomplet** (jeton non OS-protégé ; UI gel ? non certifié externe) |
-| Aide intégrée | — | | **absent** |
-| AZERTY/QWERTY ou rebind persisté | `UserSettings.cs` / `InputService.cs` stubs ; flèches/WASD implicites | | **absent** |
-| Settings persistés (fenêtre, volume, touches) | `OptionsForm.cs` stub | | **absent** |
+| Aide intégrée | `HelpForm` FR scrollable, F1 + bouton Aide | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
+| AZERTY/QWERTY ou rebind persisté | `InputService` ZQSD / WASD + flèches ; rebind JSON | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
+| Settings persistés (fenêtre, volume, touches) | `ClientSettingsStore` `%LocalAppData%\Frog\client-settings.json` atomique ; `OptionsForm` | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
 | 1366×768 et 1920×1080, DPI 100/150, accents | smokes actuels non dimensionnés ainsi | | **absent** |
-| Version visible + copie diagnostics expurgés | redact token dans log ; pas de bouton | | **absent** |
+| Version visible + copie diagnostics expurgés | badge `v10.3.0` + « Copier diagnostics » (jamais jeton/mdp) | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
 | Éditeur : ouvrir/créer monde depuis paquet | playtest résout `bin/Debug\|Release` du repo | | **incomplet** |
 | Import graphismes chemins transportables | tilesets PG + fichiers ; risque chemins dev | | **incomplet** |
 | Créer carte, collisions, warps, NPC, objets, dialogue, quête, recette, événement | formulaires Phase 4–8 | editor smoke **87×3** | **présent** (from-source) |

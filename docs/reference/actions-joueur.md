@@ -57,4 +57,4 @@ Fiches pour les opérations gameplay déjà sur le fil (Phases 7–8) ou à veni
 
 - Groupes / guildes / amis / blocage — P10-1
 - Trade P2P — P10-2
-- Aide / rebind / version UI — P10-3
+- Aide / rebind / version UI — P10-3a livré (`HelpForm`, `OptionsForm`, badge 10.3.0)
