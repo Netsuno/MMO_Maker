@@ -5,7 +5,12 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Frog.Tests.Support;
 
-/// <summary>Certificats RSA 2048 / SHA-256 éphémères (jamais versionnés). CA + feuille SAN DNS.</summary>
+/// <summary>
+/// Certificats RSA 2048 / SHA-256 de test (jamais versionnés). CA + feuille SAN DNS.
+/// Les clés sont écrites en PKCS#8 / PKCS#12 sur disque temp puis réimportées avec
+/// <see cref="X509KeyStorageFlags.UserKeySet"/> (Schannel Windows refuse les clés
+/// éphémères). Pas d'AcceptAll.
+/// </summary>
 internal sealed class EphemeralTlsCertificates : IDisposable
 {
     public string DirectoryPath { get; }
@@ -29,14 +34,17 @@ internal sealed class EphemeralTlsCertificates : IDisposable
         LeafPfxPath = Path.Combine(directoryPath, "leaf.pfx");
 
         File.WriteAllText(LeafCertPemPath, leaf.ExportCertificatePem());
-        var rsa = leaf.GetRSAPrivateKey()
-            ?? throw new InvalidOperationException("Leaf certificate has no RSA private key.");
-        File.WriteAllText(LeafKeyPemPath, rsa.ExportPkcs8PrivateKeyPem());
+        using (var rsa = leaf.GetRSAPrivateKey()
+            ?? throw new InvalidOperationException("Leaf certificate has no RSA private key."))
+        {
+            File.WriteAllText(LeafKeyPemPath, rsa.ExportPkcs8PrivateKeyPem());
+        }
+
         File.WriteAllText(CaPemPath, ca.ExportCertificatePem());
         File.WriteAllBytes(LeafPfxPath, leaf.Export(X509ContentType.Pfx));
 
         Ca = new X509Certificate2(ca.RawData);
-        Leaf = new X509Certificate2(File.ReadAllBytes(LeafPfxPath));
+        Leaf = LoadPersistedPfx(LeafPfxPath);
         TrustRoots = new X509Certificate2Collection { new X509Certificate2(ca.RawData) };
     }
 
@@ -45,7 +53,7 @@ internal sealed class EphemeralTlsCertificates : IDisposable
         var dir = Path.Combine(Path.GetTempPath(), "frog-p10-5-tls-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
 
-        using var caRsa = RSA.Create(2048);
+        using var caRsa = CreatePersistedRsa(Path.Combine(dir, "ca.key.pem"));
         var caReq = new CertificateRequest(
             "CN=Frog P10-5 Test CA",
             caRsa,
@@ -59,7 +67,7 @@ internal sealed class EphemeralTlsCertificates : IDisposable
             DateTimeOffset.UtcNow.AddDays(-90),
             DateTimeOffset.UtcNow.AddDays(14));
 
-        using var leafRsa = RSA.Create(2048);
+        using var leafRsa = CreatePersistedRsa(Path.Combine(dir, "leaf.key.work.pem"));
         var leafReq = new CertificateRequest(
             "CN=" + dnsName,
             leafRsa,
@@ -96,6 +104,29 @@ internal sealed class EphemeralTlsCertificates : IDisposable
         using var leaf = leafPublic.CopyWithPrivateKey(leafRsa);
 
         return new EphemeralTlsCertificates(dir, ca, leaf);
+    }
+
+    /// <summary>
+    /// PKCS#12 on disk + UserKeySet (Schannel-compatible persisted RSA; not an in-memory CSP key).
+    /// </summary>
+    internal static X509Certificate2 LoadPersistedPfx(string pfxPath)
+    {
+        return new X509Certificate2(
+            pfxPath,
+            (string?)null,
+            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet);
+    }
+
+    private static RSA CreatePersistedRsa(string pkcs8Path)
+    {
+        using (var ephemeral = RSA.Create(2048))
+        {
+            File.WriteAllText(pkcs8Path, ephemeral.ExportPkcs8PrivateKeyPem());
+        }
+
+        var rsa = RSA.Create();
+        rsa.ImportFromPem(File.ReadAllText(pkcs8Path));
+        return rsa;
     }
 
     public void Dispose()

@@ -76,18 +76,19 @@ internal static class TlsServerTransport
         }
     }
 
+    /// <summary>
+    /// Schannel (Windows SslStream) rejects ephemeral private keys
+    /// ("platform does not support ephemeral keys"). Round-trip PKCS#12 via a
+    /// temp file with a persisted user-key-set RSA key — never AcceptAll.
+    /// Do not use X509KeyStorageFlags of the ephemeral kind: Windows SslStream fails closed.
+    /// </summary>
     private static X509Certificate2 CreateSslCertificate(byte[] pfx, string password)
     {
-        try
-        {
-            return new X509Certificate2(
-                pfx,
-                password,
-                X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
-        }
-        catch (System.Security.Cryptography.CryptographicException)
-        {
-            return new X509Certificate2(pfx, password, X509KeyStorageFlags.Exportable);
-        }
+        var path = Path.Combine(Path.GetTempPath(), "frog-tls-" + Guid.NewGuid().ToString("N") + ".pfx");
+        File.WriteAllBytes(path, pfx);
+        return new X509Certificate2(
+            path,
+            password,
+            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet);
     }
 }

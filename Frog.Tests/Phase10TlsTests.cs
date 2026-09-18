@@ -400,6 +400,11 @@ public sealed class Phase10TlsTests
         var validator = File.ReadAllText(Path.Combine(root, "Frog.Core", "Security", "TlsCertificateValidator.cs"));
         Assert.DoesNotContain("return true;", validator.Replace("return verifyChain.Build(cert2);", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
 
+        var transport = File.ReadAllText(Path.Combine(root, "Frog.Server", "Network", "TlsServerTransport.cs"));
+        Assert.DoesNotContain("EphemeralKeySet", transport, StringComparison.Ordinal);
+        Assert.Contains("UserKeySet", transport, StringComparison.Ordinal);
+        Assert.Contains("X509ContentType.Pfx", transport, StringComparison.Ordinal);
+
         var client = File.ReadAllText(Path.Combine(root, "Frog.Client", "Network", "FrogGameClient.cs"));
         Assert.Contains("TlsClientAuthenticator", client, StringComparison.Ordinal);
         Assert.Contains("WrapAfterConnectAsync", client, StringComparison.Ordinal);
@@ -409,6 +414,24 @@ public sealed class Phase10TlsTests
         var helloIndex = server.IndexOf("SendHelloAsync", StringComparison.Ordinal);
         var wrapIndex = server.IndexOf("WrapAfterAcceptAsync", StringComparison.Ordinal);
         Assert.True(wrapIndex >= 0 && helloIndex > wrapIndex);
+    }
+
+    [Fact]
+    public void TestFixture_WritesPkcs12AndLoadsUserKeySet_NoEphemeralKeySet()
+    {
+        var root = RepoRoot();
+        var fixture = File.ReadAllText(Path.Combine(root, "Frog.Tests", "Support", "EphemeralTlsCertificates.cs"));
+        Assert.Contains("UserKeySet", fixture, StringComparison.Ordinal);
+        Assert.Contains("ExportPkcs8PrivateKeyPem", fixture, StringComparison.Ordinal);
+        Assert.DoesNotContain("EphemeralKeySet", fixture, StringComparison.Ordinal);
+        Assert.DoesNotContain("AcceptAllCertificate", fixture, StringComparison.Ordinal);
+
+        using var certs = EphemeralTlsCertificates.Create("localhost");
+        Assert.True(File.Exists(certs.LeafPfxPath));
+        Assert.True(File.Exists(certs.LeafKeyPemPath));
+        Assert.True(certs.Leaf.HasPrivateKey);
+        using var rsa = certs.Leaf.GetRSAPrivateKey();
+        Assert.NotNull(rsa);
     }
 
     [Fact]
