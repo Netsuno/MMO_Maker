@@ -1,6 +1,6 @@
 # Phase 9 — CHANGE_SUMMARY
 
-**Status:** P9-0 + P9-2 landed on `cursor/phase9-distribution-admin-hardening`. Later tasks still TBD.
+**Status:** P9-0 + P9-2 + P9-3 landed on `cursor/phase9-distribution-admin-hardening`. P9-1 / P9-4…P9-6 still TBD.
 
 ## P9-0 (bootstrap)
 
@@ -23,7 +23,10 @@ TBD — no mute/kick/ban product code. Design is in `SECURITY_MODEL.md` §5.
 
 ## P9-3 PostgreSQL backup / restore
 
-TBD.
+- Scripts: `scripts/postgres-backup.sh`, `postgres-restore.sh`, `postgres-verify.sh`, `postgres-backup-restore-smoke.sh`, `postgres-common.sh`, plus Windows `.ps1` mirrors for backup/restore/verify.
+- Runbook: [`BACKUP_RESTORE_RUNBOOK.md`](BACKUP_RESTORE_RUNBOOK.md) — dump custom format (`-Fc`) of schemas `auth`, `content`, `ops`, `player`, `world` (includes `ops.legacy_imports` and `world.__EFMigrationsHistory`). Restore onto an empty database; do not migrate first.
+- Proof: `tests/Frog.Persistence.IntegrationTests/PostgresBackupRestoreTests.cs` (CI job `postgres-integration` after `postgresql-client` install). Command: `./scripts/postgres-backup-restore-smoke.sh`.
+- No MariaDB path. P9-3 adds no EF migrations; dumps include P9-2 `auth.operators` via schema `auth`. Re-prove restore after P9-1 schema changes.
 
 ## P9-4 Packaging
 
