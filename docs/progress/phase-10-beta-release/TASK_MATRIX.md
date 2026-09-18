@@ -109,7 +109,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Code actuel / attendu | Test / preuve | Statut |
 | --- | --- | --- | --- |
-| Client TLS + validation cert/chaîne/nom | `SslStream.AuthenticateAsClient` + `TlsCertificateValidator` (pas AcceptAll) | `Phase10TlsTests` expiré / nom / CA inconnue | **lot A livré** |
+| Client TLS + validation cert/chaîne/nom | `SslStream.AuthenticateAsClient` + `TlsCertificateValidator` (pas AcceptAll) | `Phase10TlsTests` expiré / nom / CA inconnue | **lot A landed `ea116afa`** (CI pending) |
 | Pas de callback tout-accepter, pas de repli clair | Mode Off\|Required ; pas de fallback silencieux | `Phase10TlsTests` + scan sources | **lot A livré** |
 | Terminaison TLS externe OK si client parle TLS | in-process SslStream ; harness P10-8 parle TLS Required | `Phase10LoadHarnessTlsTests` ; proxy externe **absent** | **lot E livré** (proxy hors périmètre) |
 | Certs dev confinés | tests éphémères temp ; aucun `.pfx`/`.pem` prod dans Git | `Phase10TlsTests.CommittedAppsettings_DefaultTlsModeIsOff_NoProductionCerts` | **lot A livré** |

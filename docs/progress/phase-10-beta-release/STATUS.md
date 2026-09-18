@@ -1,6 +1,8 @@
 # Phase 10 — STATUS
 
-**Lot courant :** P10-2 échanges (opcodes 84–86) après P10-1 `dca2185`. **Pas READY.**
+**Lot A TLS landed :** [`ea116afa`](https://github.com/Netsuno/MMO_Maker/commit/ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b). CI **pending**. **Pas READY.**
+
+File ensuite **déjà sur cette branche** (ne pas rejouer) : docs référence DA → P10-2 → P10-3a → B → C → D → E. Tip courant `ebf3437`.
 
 | Item | Valeur |
 | --- | --- |
@@ -10,7 +12,8 @@
 | CI `main` post-fusion | https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS** |
 | Mandat | [`MANDATE.md`](MANDATE.md) (texte complet, 2026-09-18) |
 | Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–86 |
-| P10-1 tip produit | [`dca2185`](https://github.com/Netsuno/MMO_Maker/commit/dca2185dbb80b0414af8f95696a4e0e858e6ff90) — **DONE** (code + tests). CI de la PR **en cours**, pas une preuve verte. |
+| P10-5 A | **landed** [`ea116afa`](https://github.com/Netsuno/MMO_Maker/commit/ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b) — CI **pending**, pas une preuve verte |
+| P10-1 tip produit | [`dca2185`](https://github.com/Netsuno/MMO_Maker/commit/dca2185dbb80b0414af8f95696a4e0e858e6ff90) — **DONE** |
 | Gate Phase 10 | **pas atteinte** — P10-4, P10-6…P10-9 absents ; P10-3 hors 3a incomplet |
 
 ## Lots
@@ -22,11 +25,24 @@
 | P10-2 Échanges directs | **LIVRÉ (code + tests)** — opcodes 84–86, TX PG, replay |
 | P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a (aide, rebind, settings, version, craft noms) **livré** |
 | P10-4 Monde démo + recette | **ABSENT** |
-| P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** — lots A–E **LIVRÉS** ( palier 25×60 = P10-8 ) |
+| P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** — A **landed** `ea116afa` (CI pending) ; B–E **LIVRÉS** (palier 25×60 = P10-8) |
 | P10-6 Paquets autonomes | **INCOMPLET** |
 | P10-7 Exploitation / restore | **INCOMPLET** (guildes/amis/blocs désormais dans le schéma ; restore de ces lignes **non** recertifié backup) |
 | P10-8 Charge 25 joueurs | **INCOMPLET** |
 | P10-9 Validation / candidate | **ABSENT** |
+
+## File (déjà landed, ne pas rejouer)
+
+| Lot | Tip | Statut |
+| --- | --- | --- |
+| P10-5 A TLS SslStream | `ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b` | **landed** — CI pending |
+| Docs référence DA | `ebf3437f642ba73b0e3bfa7b4977c25828520601` | **tip** (format DA, pas CATALOGUE.md) |
+| P10-2 Échanges 84–86 | `bd8462dba2c00e560ccde61ef30e411d0fd8ee94` | **livré** |
+| P10-3a Settings / aide / rebind | `4ea44de675642180fc5a39989bd22b9f78eb40f6` | **livré** (fix CI `ab1bec5`) |
+| P10-5 B Rate-limit | `6e73e22141447461c52878e0580dcc72b9841bb5` | **livré** |
+| P10-5 C ClosedBeta + OpsCli | `726e037b4e5cd4943c1e076f732385f4d76cc76b` | **livré** |
+| P10-5 D PG least-privilege | `8f06cde0cec35fefb3c27817b1e7090562633649` | **livré** |
+| P10-5 E LoadHarness TLS | `b58a02a03d269ac1e89cc812638e90badb7b9634` | **livré** |
 
 ## P10-3a — ce qui est livré
 
@@ -65,6 +81,8 @@
 
 ## P10-5 A — ce qui est livré
 
+- **Tip lot A :** [`ea116afa`](https://github.com/Netsuno/MMO_Maker/commit/ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b). CI **pending**. Pas READY.
+
 - Serveur : `SslStream.AuthenticateAsServer` après accept TCP, **avant** Hello / framing (`GameServerService` + `ClientSession(Stream)`).
 - Client : `SslStream.AuthenticateAsClient` après `Connect`, validation stricte (chaîne, nom/SNI, expiration, CA). **Aucun** AcceptAll.
 - Flags : `Server:Tls:Mode=Off|Required` (défaut Off), PEM ou PFX + `FROG_TLS_PFX_PASSWORD`, `AllowCleartextLoopback` (loopback explicite seulement). Client : `ClientTlsOptions` / `FROG_CLIENT_TLS_MODE` + `TargetHost`.
@@ -98,4 +116,4 @@ Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. PacketDi
 
 ## Verdict
 
-**P10-1 DONE `dca2185` (CI PR en cours) + P10-2 + P10-5 A–E + P10-3a.** La bêta n’est **pas** prête.
+**P10-5 A landed `ea116afa` (CI pending) + file B–E + P10-2 + P10-3a + docs DA.** La bêta n’est **pas** prête.
