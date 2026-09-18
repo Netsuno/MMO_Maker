@@ -43,6 +43,9 @@ internal static class EditorTestHooks
 
     public static bool SkipMariaDbOnStartup { get; set; }
 
+    /// <summary>P10-6 : <c>Frog.Editor.exe --smoke-launch</c> — fenêtre réelle puis sortie 0, sans workspace PG.</summary>
+    public static bool PackagedSmokeLaunch { get; set; }
+
     /// <summary>Smoke / unit : autorise playtest sur dépôt mémoire test.</summary>
     public static bool AllowNonDurablePlaytest { get; set; }
 

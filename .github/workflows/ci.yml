@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
 
@@ -119,6 +119,12 @@ jobs:
           ./scripts/verify-phase8-screenshot-manifest.ps1 -CopyManifestToArtifacts
           Write-Host "=== Phase 8 smoke 3/3 consecutive passes OK (manifest gate verified) ==="
 
+      - name: Packaged WinForms EXE smoke (zip hors dépôt + --smoke-launch)
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          ./scripts/packaged-winforms-smoke.ps1
+
       - name: Upload hang dumps and CI logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -171,7 +177,7 @@ jobs:
 
   postgres-integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16
@@ -224,6 +230,11 @@ jobs:
       - name: Publish layout smoke (server linux-x64)
         shell: bash
         run: ./scripts/packaged-server-smoke.sh --layout-only
+
+      - name: Packaged WinForms layout proof (client+editor zip hors dépôt)
+        timeout-minutes: 10
+        shell: bash
+        run: ./scripts/packaged-winforms-layout-proof.sh --skip-wine
 
       - name: Guard PostgreSQL logs for lifecycle crash markers
         if: always()

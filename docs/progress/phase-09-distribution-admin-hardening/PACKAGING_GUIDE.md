@@ -84,7 +84,7 @@ Leftover, not required: `Database/schema_frog_mariadb_v1.sql` may appear because
 
 ### Editor (`editor-win-x64`)
 
-`Frog.Editor.exe` + `Frog.Persistence.PostgreSql.dll` + `appsettings.Local.json.example`. Overlay uses **PascalCase** `PostgreSql:ConnectionString` (`Frog.Editor/appsettings.Local.json.example`) — different shape than the server file. Asset root defaults to `<exe>/Assets` or `FROG_PROJECT_ASSET_ROOT` (`ProjectAssetRoot`). Playtest looks for `Frog.Server` / `Frog.Client` under the repo `bin/` tree or a remembered path (`EditorFrogServerLauncher`, `EditorFrogClientLauncher`); a packaged editor on a machine without the repo must be pointed at the packaged server/client EXEs.
+`Frog.Editor.exe` + `Frog.Persistence.PostgreSql.dll` + `appsettings.Local.json.example`. Overlay uses **PascalCase** `PostgreSql:ConnectionString` (`Frog.Editor/appsettings.Local.json.example`) — different shape than the server file. Asset root defaults to `<exe>/Assets` or `FROG_PROJECT_ASSET_ROOT` (`ProjectAssetRoot`). Playtest resolves `Frog.Server` / `Frog.Client` in this order: remembered path, **same directory as the editor**, sibling layouts `../client-win-x64` and `../server-win-x64` (or `../server-linux-x64`), then repo `bin/Debug|Release`. Ship the three zips as siblings for a tester without the git tree.
 
 ## Config overlay (packaged server + PostgreSQL)
 
@@ -125,16 +125,33 @@ Do not set `PostgreSql:allowInMemoryFallback=true` on a hosted world. Do not ena
 | Layout files + PG DLL next to host | `./scripts/publish-frog.sh` / `packaged-server-smoke.sh --layout-only` | Any SDK host; CI step on `postgres-integration` |
 | Packaged process starts with PG, login + shop persist, graceful stop | `PackagedServerPostgreSqlProcessTests` | Ubuntu `postgres-integration` (needs `FROG_POSTGRES_TEST_CONNECTION_STRING`) |
 | From-source WinForms editor / client smokes | Existing `windows-latest` editor / gameplay / Phase 8 smokes ×3 | `dotnet test` of `tests/Frog.Editor.WindowsSmokeTests` — **not** `artifacts/publish/client-win-x64` / `editor-win-x64` |
-| Packaged `Frog.Client.exe` / `Frog.Editor.exe` from `publish-frog.ps1` actually launched | **Not proven.** Linux agents cannot run WinForms. No CI step starts the publish-layout EXEs. | Honest residual: layout publish only |
+| Packaged WinForms **layout** (EXE + `hostfxr.dll` + SHA-256) copied **outside** the git tree | `./scripts/packaged-winforms-layout-proof.sh` | Ubuntu `postgres-integration`. **Launch of those EXEs is not proven on Linux agents.** |
+| Packaged `Frog.Client.exe` / `Frog.Editor.exe` **process start** from a zip extracted outside the repo | `./scripts/packaged-winforms-smoke.ps1` (`--smoke-launch`, SDK stripped from PATH) | `windows-latest` job in `ci.yml` |
 
 ```bash
 ./scripts/packaged-server-smoke.sh --layout-only
+./scripts/packaged-winforms-layout-proof.sh
 # with a disposable PG:
 export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only'
 ./scripts/packaged-server-smoke.sh
 ```
 
-This guide does **not** claim that `publish-frog.ps1` client/editor packages have been launched. Server packaging has Linux proofs (`PackagedServerPostgreSqlProcessTests` + layout-only smoke). Windows CI smokes prove from-source test hosts, not the published RID trees. P10-6 ships self-contained layouts + SHA-256 archives; extracting `Frog.Client.exe` outside the repo on Windows remains a named residual.
+Windows (PowerShell), from a machine that can actually show WinForms/WPF:
+
+```powershell
+# Copies zips to $env:TEMP\frog-p10-6-outside-* (outside the repo), extracts,
+# removes dotnet.exe from PATH, launches --smoke-launch, requires exit 0.
+./scripts/packaged-winforms-smoke.ps1
+```
+
+Exact extracted paths after the script (stamp varies):
+
+- `$env:TEMP\frog-p10-6-outside-<stamp>\client-win-x64\client-win-x64\Frog.Client.exe --smoke-launch`
+- `$env:TEMP\frog-p10-6-outside-<stamp>\editor-win-x64\editor-win-x64\Frog.Editor.exe --smoke-launch`
+
+Linux wine, if present, is attempted by `packaged-winforms-layout-proof.sh` and **must not** be treated as a WinForms pass. Unsigned binaries: Windows SmartScreen may warn testers; there is no Authenticode signature.
+
+Server packaging has Linux proofs (`PackagedServerPostgreSqlProcessTests` + layout-only smoke). From-source Windows smokes remain the Phase 6–8 SHA gates; they do **not** replace `packaged-winforms-smoke.ps1`.
 
 ## Out of scope
 

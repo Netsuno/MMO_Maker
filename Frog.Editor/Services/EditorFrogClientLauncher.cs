@@ -10,21 +10,27 @@ public static class EditorFrogClientLauncher
 {
     private const string ClientExeFileName = "Frog.Client.exe";
 
-    /// <summary>Tente de résoudre l’exécutable client (mémorisé puis chemins relatifs au dépôt).</summary>
+    /// <summary>Tente de résoudre l’exécutable client (mémorisé, paquet livré, puis chemins dépôt).</summary>
     public static bool TryResolveExecutable(out string exePath)
+        => TryResolveExecutable(AppContext.BaseDirectory, out exePath);
+
+    /// <summary>
+    /// P10-3 / P10-6 : même dossier que l’éditeur, layout frère <c>../client-win-x64</c>,
+    /// puis <c>bin/Debug|Release</c> du dépôt. Le mémo local n’est lu que pour
+    /// <see cref="AppContext.BaseDirectory"/>.
+    /// </summary>
+    public static bool TryResolveExecutable(string searchBaseDirectory, out string exePath)
     {
         exePath = string.Empty;
-        if (EditorLocalWorkstate.TryReadClientExePath(out var saved))
+        if (IsSameDirectory(searchBaseDirectory, AppContext.BaseDirectory)
+            && EditorLocalWorkstate.TryReadClientExePath(out var saved))
         {
             exePath = saved;
             return true;
         }
 
-        var baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        foreach (var cfg in new[] { "Debug", "Release" })
+        foreach (var candidate in EnumerateClientCandidates(searchBaseDirectory))
         {
-            var candidate = Path.GetFullPath(
-                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Client", "bin", cfg, "net8.0-windows", ClientExeFileName));
             if (File.Exists(candidate))
             {
                 exePath = candidate;
@@ -34,6 +40,24 @@ public static class EditorFrogClientLauncher
 
         return false;
     }
+
+    public static IEnumerable<string> EnumerateClientCandidates(string searchBaseDirectory)
+    {
+        var baseDir = searchBaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        yield return Path.Combine(baseDir, ClientExeFileName);
+        yield return Path.GetFullPath(Path.Combine(baseDir, "..", "client-win-x64", ClientExeFileName));
+        foreach (var cfg in new[] { "Debug", "Release" })
+        {
+            yield return Path.GetFullPath(
+                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Client", "bin", cfg, "net8.0-windows", ClientExeFileName));
+        }
+    }
+
+    private static bool IsSameDirectory(string a, string b)
+        => string.Equals(
+            Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Ouvre une boîte de dialogue si besoin, mémorise le chemin, puis démarre le processus.</summary>
     public static void Launch(IWin32Window owner)

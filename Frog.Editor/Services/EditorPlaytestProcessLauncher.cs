@@ -13,39 +13,60 @@ public static class EditorFrogServerLauncher
     private const string ServerDllFileName = "Frog.Server.dll";
 
     public static bool TryResolveExecutable(out string exePath, out bool useDotnetDll)
+        => TryResolveExecutable(AppContext.BaseDirectory, out exePath, out useDotnetDll);
+
+    /// <summary>
+    /// P10-3 / P10-6 : même dossier, layouts frères <c>../server-win-x64</c> /
+    /// <c>../server-linux-x64</c>, puis <c>bin/Debug|Release</c> du dépôt.
+    /// </summary>
+    public static bool TryResolveExecutable(string searchBaseDirectory, out string exePath, out bool useDotnetDll)
     {
         exePath = string.Empty;
         useDotnetDll = false;
-        if (EditorLocalWorkstate.TryReadServerExePath(out var saved) && File.Exists(saved))
+        if (IsSameDirectory(searchBaseDirectory, AppContext.BaseDirectory)
+            && EditorLocalWorkstate.TryReadServerExePath(out var saved)
+            && File.Exists(saved))
         {
             exePath = saved;
             useDotnetDll = saved.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
             return true;
         }
 
-        var baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        foreach (var cfg in new[] { "Debug", "Release" })
+        foreach (var (path, useDll) in EnumerateServerCandidates(searchBaseDirectory))
         {
-            var exe = Path.GetFullPath(
-                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Server", "bin", cfg, "net8.0", ServerExeFileName));
-            if (File.Exists(exe))
+            if (File.Exists(path))
             {
-                exePath = exe;
-                return true;
-            }
-
-            var dll = Path.GetFullPath(
-                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Server", "bin", cfg, "net8.0", ServerDllFileName));
-            if (File.Exists(dll))
-            {
-                exePath = dll;
-                useDotnetDll = true;
+                exePath = path;
+                useDotnetDll = useDll;
                 return true;
             }
         }
 
         return false;
     }
+
+    public static IEnumerable<(string Path, bool UseDotnetDll)> EnumerateServerCandidates(string searchBaseDirectory)
+    {
+        var baseDir = searchBaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        yield return (Path.Combine(baseDir, ServerExeFileName), false);
+        yield return (Path.Combine(baseDir, ServerDllFileName), true);
+        yield return (Path.Combine(baseDir, "Frog.Server"), false);
+        yield return (Path.GetFullPath(Path.Combine(baseDir, "..", "server-win-x64", ServerExeFileName)), false);
+        yield return (Path.GetFullPath(Path.Combine(baseDir, "..", "server-linux-x64", "Frog.Server")), false);
+        foreach (var cfg in new[] { "Debug", "Release" })
+        {
+            yield return (Path.GetFullPath(
+                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Server", "bin", cfg, "net8.0", ServerExeFileName)), false);
+            yield return (Path.GetFullPath(
+                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Server", "bin", cfg, "net8.0", ServerDllFileName)), true);
+        }
+    }
+
+    private static bool IsSameDirectory(string a, string b)
+        => string.Equals(
+            Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
 
     public static int FindFreeTcpPort()
     {

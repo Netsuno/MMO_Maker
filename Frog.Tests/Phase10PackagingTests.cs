@@ -25,11 +25,43 @@ public sealed class Phase10PackagingTests
         Assert.Contains("hostfxr.dll", ps1, StringComparison.Ordinal);
         Assert.Contains("SHA256SUMS", ps1, StringComparison.Ordinal);
 
+        var layoutProof = File.ReadAllText(Path.Combine(root, "scripts", "packaged-winforms-layout-proof.sh"));
+        Assert.Contains("client-win-x64", layoutProof, StringComparison.Ordinal);
+        Assert.Contains("editor-win-x64", layoutProof, StringComparison.Ordinal);
+        Assert.Contains("outside the git tree", layoutProof, StringComparison.Ordinal);
+        Assert.Contains("hostfxr.dll", layoutProof, StringComparison.Ordinal);
+        Assert.Contains("sha256sum", layoutProof, StringComparison.Ordinal);
+        Assert.Contains("Linux cannot launch WinForms", layoutProof, StringComparison.Ordinal);
+
+        var winSmoke = File.ReadAllText(Path.Combine(root, "scripts", "packaged-winforms-smoke.ps1"));
+        Assert.Contains("--smoke-launch", winSmoke, StringComparison.Ordinal);
+        Assert.Contains("Get-PathWithoutDotnet", winSmoke, StringComparison.Ordinal);
+        Assert.Contains("Frog.Client.exe", winSmoke, StringComparison.Ordinal);
+        Assert.Contains("Frog.Editor.exe", winSmoke, StringComparison.Ordinal);
+
+        var clientProgram = File.ReadAllText(Path.Combine(root, "Frog.Client", "Program.cs"));
+        Assert.Contains("--smoke-launch", clientProgram, StringComparison.Ordinal);
+
+        var editorApp = File.ReadAllText(Path.Combine(root, "Frog.Editor", "App.xaml.cs"));
+        Assert.Contains("--smoke-launch", editorApp, StringComparison.Ordinal);
+
+        var clientLauncher = File.ReadAllText(Path.Combine(
+            root, "Frog.Editor", "Services", "EditorFrogClientLauncher.cs"));
+        Assert.Contains("client-win-x64", clientLauncher, StringComparison.Ordinal);
+        var serverLauncher = File.ReadAllText(Path.Combine(
+            root, "Frog.Editor", "Services", "EditorPlaytestProcessLauncher.cs"));
+        Assert.Contains("server-win-x64", serverLauncher, StringComparison.Ordinal);
+
+        var ci = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        Assert.Contains("packaged-winforms-smoke.ps1", ci, StringComparison.Ordinal);
+        Assert.Contains("packaged-winforms-layout-proof.sh", ci, StringComparison.Ordinal);
+
         var guide = File.ReadAllText(Path.Combine(
             root, "docs", "progress", "phase-09-distribution-admin-hardening", "PACKAGING_GUIDE.md"));
         Assert.Contains("--self-contained true", guide, StringComparison.Ordinal);
         Assert.Contains("SHA256SUMS", guide, StringComparison.Ordinal);
         Assert.Contains("not proven on Linux agents", guide, StringComparison.Ordinal);
+        Assert.Contains("packaged-winforms-smoke.ps1", guide, StringComparison.Ordinal);
         Assert.Contains("FrogWireProtocol.Version = 11", guide, StringComparison.Ordinal);
     }
 

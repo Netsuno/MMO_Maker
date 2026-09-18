@@ -260,6 +260,19 @@ public partial class MainWindow : Window
         RestoreShellColumnWidths();
         CommandManager.InvalidateRequerySuggested();
         _editor.NotifyWpfShellLayout();
+        if (EditorTestHooks.PackagedSmokeLaunch)
+        {
+            AllowCloseWithoutPromptForTest();
+            _ = Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    Close();
+                    System.Windows.Application.Current?.Shutdown(0);
+                }),
+                DispatcherPriority.ApplicationIdle);
+            return;
+        }
+
         try
         {
             await _editor.InitializeWorkspaceAsync();
