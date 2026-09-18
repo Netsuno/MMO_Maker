@@ -13,8 +13,8 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | Sujet | État réel | Lot |
 | --- | --- | --- |
 | **TLS** | Lots A+E : `SslStream` in-process + LoadHarness `Mode=Required` (pas AcceptAll). Proxy externe, mTLS, DPAPI : absents. | P10-5 A+E **livrés** |
-| **Packaging client/éditeur** | Scripts `publish-frog.ps1/.sh` produisent des layouts **framework-dependent** (`--self-contained false`). Lancement de `Frog.Client.exe` / `Frog.Editor.exe` depuis l’arbre publié **non prouvé**. Smokes Windows = `dotnet test` from-source. Serveur Linux **prouvé** (`PackagedServerPostgreSqlProcessTests`). | P10-6 |
-| **Paquet autonome sans SDK** | Le mandat bêta exige un runtime fourni ou déclaré. Aujourd’hui il faut le runtime .NET 8 sur la machine. | P10-6 |
+| **Packaging client/éditeur** | Scripts `publish-frog.ps1/.sh` : **self-contained** + archives SHA-256. Lancement de `Frog.Client.exe` / `Frog.Editor.exe` depuis un zip hors dépôt **non prouvé**. Smokes Windows = `dotnet test` from-source. Serveur Linux **prouvé** (`PackagedServerPostgreSqlProcessTests`). | P10-6 |
+| **Paquet autonome sans SDK** | Runtime bundlé dans le layout. Lancement Windows hors dépôt encore à certifier. | P10-6 |
 | **LOAD** | Harness TLS Required livré (P10-5 E). Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, monde publié. | P10-8 |
 | **Restore avec sanctions** | `PostgresBackupRestoreTests` : migrate + seed Phase 7 + compte + dump/restore + login. **Pas** de campagne dont le dump contient des lignes mute/ban. Guildes/amis/échanges sont dans le schéma ; restore de ces lignes **non** recertifié. | P10-7 |
 | **Rate-limit login** | IP normalisée + username (8/60s) et IP (30/60s). Plus de clé IP:port. Voir [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
@@ -45,9 +45,9 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Outil reset mot de passe / revoke session / grant GM | `tools/Frog.OpsCli` | P10-5 C **livré** |
 | Aide intégrée, rebind AZERTY/QWERTY, settings persistés | `HelpForm` + `OptionsForm` + `ClientSettingsStore` (`%LocalAppData%\Frog\client-settings.json`) | P10-3a **livré** |
 | Numéro de version visible + copie diagnostics | Badge `v10.3.0` + « Copier diagnostics » expurgé | P10-3a **livré** |
-| Monde démo 3 cartes 30–60 min + licences | `fixtures/` = legacy ; seeds de tests seulement | P10-4 |
+| Monde démo 3 cartes 30–60 min + licences | Catalogue + publisher PG + `LICENSES.md` | P10-4 **fixture livrée** ; durée humaine **non mesurée** |
 | Recette 12 étapes / 2 machines | Non exécutée | P10-4 |
-| Self-contained + manifeste SHA-256 d’archives | Layout scripts seulement ; `artifacts/` gitignoré | P10-6 |
+| Self-contained + manifeste SHA-256 d’archives | `publish-frog` + `SHA256SUMS` | P10-6 **layout livré** ; EXE hors dépôt **non** lancé |
 | Mode maintenance / drain connexions | `MaintenanceService.cs` stub | P10-7 |
 | Rotation/rétention des logs | Console uniquement (`appsettings.json`) | P10-7 |
 | Job CI 60 min charge | Absent de `.github/workflows/ci.yml` | P10-8 |
@@ -77,7 +77,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 
 ### Packaging
 
-- `scripts/publish-frog.sh` / `.ps1` : RID `server-linux-x64`, `server-win-x64`, `client-win-x64`, `editor-win-x64`.
+- `scripts/publish-frog.sh` / `.ps1` : RID self-contained, archives zip + SHA-256.
 - Preuve serveur : `packaged-server-smoke.sh` + test processus PG.
 - Client/éditeur : layout possible depuis Linux (`EnableWindowsTargeting`), **exécution Windows non certifiée**.
 

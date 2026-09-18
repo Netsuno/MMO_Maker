@@ -69,9 +69,9 @@ Mandat : [`progress/phase-10-beta-release/MANDATE.md`](progress/phase-10-beta-re
 - [x] P10-1 groupes / guildes / amis / blocage (code + tests ; **pas** gate bêta)
 - [x] P10-2 échanges directs (opcodes 84–86, TX PG, replay ; **pas** gate bêta)
 - [ ] P10-3 client / éditeur utilisables hors dépôt
-- [ ] P10-4 monde démo + recette 12 étapes
-- [ ] P10-5 TLS, invitations, rate-limit IP+compte, outil opérateur
-- [ ] P10-6 paquets self-contained + SHA-256
+- [x] P10-4 monde démo (recette 12 étapes / 2 machines **non** exécutée)
+- [x] P10-5 TLS / invitations / rate-limit / OpsCli / rôles PG / LoadHarness TLS (25×60 = P10-8)
+- [x] P10-6 paquets self-contained + SHA-256 (lancement EXE hors dépôt **non** prouvé)
 - [ ] P10-7 restore lignes métier + drain
 - [ ] P10-8 25 joueurs × 60 min
 - [ ] P10-9 candidate / gate (GO Marc)

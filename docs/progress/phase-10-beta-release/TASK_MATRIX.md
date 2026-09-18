@@ -96,11 +96,11 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Code / fixture | Test / preuve | Statut |
 | --- | --- | --- | --- |
-| 3 cartes, 2 régions, 3 NPC, 2 monstres, 8 objets, 1 métier, 2 recettes, 2 quêtes 5 types | monde démo versionné | recette humaine 30–60 min **mesurée** | **absent** |
-| Licences / crédits assets | dossier licences | revue FRoG | **absent** |
-| Réinstall base vierge | publication + restore | | **absent** |
+| 3 cartes, 2 régions, 3 NPC, 2 monstres, 8 objets, 1 métier, 2 recettes, 2 quêtes 5 types | `Phase10DemoWorldCatalog` + publisher PG | `Phase10DemoWorldCatalogTests`, `Phase10DemoWorldPostgresTests` | **présent** (fixture) |
+| Licences / crédits assets | `demo-world/LICENSES.md` | tuiles procédurales, pas FRoG | **présent** |
+| Réinstall base vierge | `Migrate` + `Frog.DemoWorld publish` | PG isolated empty | **présent** |
 | Contenu distinct créé pendant recette | éditeur publié | étape 11 | **absent** |
-| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` (à écrire P10-9) | pas une boucle locale seule | **absent** |
+| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` / `DEMO_WORLD.md` | pas une boucle locale seule | **absent** (lacune nommée) |
 | Seeds `Phase7PostgresContentSeed` / smokes | tests seulement | CI | **présent** (≠ monde démo) |
 
 ---
@@ -109,7 +109,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Code actuel / attendu | Test / preuve | Statut |
 | --- | --- | --- | --- |
-| Client TLS + validation cert/chaîne/nom | `SslStream.AuthenticateAsClient` + `TlsCertificateValidator` (pas AcceptAll) | `Phase10TlsTests` expiré / nom / CA inconnue | **lot A landed `ea116afa`** (CI pending) |
+| Client TLS + validation cert/chaîne/nom | `SslStream.AuthenticateAsClient` + `TlsCertificateValidator` (pas AcceptAll) | `Phase10TlsTests` expiré / nom / CA inconnue | **lot A PASS** TLS Windows unitaires verts |
 | Pas de callback tout-accepter, pas de repli clair | Mode Off\|Required ; pas de fallback silencieux | `Phase10TlsTests` + scan sources | **lot A livré** |
 | Terminaison TLS externe OK si client parle TLS | in-process SslStream ; harness P10-8 parle TLS Required | `Phase10LoadHarnessTlsTests` ; proxy externe **absent** | **lot E livré** (proxy hors périmètre) |
 | Certs dev confinés | tests éphémères temp ; aucun `.pfx`/`.pem` prod dans Git | `Phase10TlsTests.CommittedAppsettings_DefaultTlsModeIsOff_NoProductionCerts` | **lot A livré** |
@@ -132,13 +132,13 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Actuel | Preuve | Statut |
 | --- | --- | --- | --- |
-| Client Win x64 autonome | layout `client-win-x64`, **framework-dependent** | lancement EXE hors dépôt | **incomplet** |
+| Client Win x64 autonome | layout `client-win-x64` **self-contained** | scripts + `hostfxr.dll` ; lancement EXE hors dépôt | **incomplet** (layout oui ; EXE **non** lancé) |
 | Éditeur Win x64 autonome | idem `editor-win-x64` | idem | **incomplet** |
-| Serveur Linux x64 + profil | `server-linux-x64` + smoke processus | `PackagedServerPostgreSqlProcessTests` | **présent** (runtime .NET 8 **hôte** encore requis) |
-| Monde démo + ressources dans le paquet | — | | **absent** |
-| Manifeste commit / protocole / SHA-256 archives | `packaging-manifest.json` par layout (SHA git, pas archives) | | **incomplet** |
+| Serveur Linux x64 + profil | `server-linux-x64` self-contained + `libhostfxr.so` | `PackagedServerPostgreSqlProcessTests` + layout smoke | **présent** |
+| Monde démo + ressources dans le paquet | `DEMO_WORLD.md` + `demo-world/LICENSES.md` copiés | | **présent** (fixture docs ; pas un zip de cartes binaires) |
+| Manifeste commit / protocole / SHA-256 archives | `packaging-manifest.json` + `archives/SHA256SUMS` | `Phase10PackagingTests` | **présent** (archives locales gitignorées) |
 | Serveur Windows | layout produit, lancement **non** revendiqué | | **incomplet** / secondaire |
-| Testeur ne compile pas, n’installe pas PG | faux aujourd’hui (SDK/runtime + from-source smokes) | | **absent** |
+| Testeur ne compile pas, n’installe pas PG | self-contained client/éditeur : runtime bundlé ; PG serveur toujours requis | | **incomplet** (EXE hors dépôt non lancé) |
 | Guide install / version / update / uninstall | `PACKAGING_GUIDE.md` Phase 9 ops | | **incomplet** |
 | Alerte binaire non signé honnête | non documentée pour testeurs | | **absent** |
 | MAJ candidate → candidate + rollback | — | | **absent** |
@@ -207,10 +207,10 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 | Domaine | Statut |
 | --- | --- |
 | Social (groupes/guildes/amis/blocage) | **P10-1 DONE `dca2185`** (stubs `Guild.cs` non composés ; CI PR en cours) |
-| Trade P2P | **P10-2 livré** (84–86, TX PG, replay, holds) |
-| TLS | **lots A+E livrés** (SslStream in-process + LoadHarness Required ; proxy externe absent) |
+| Trade P2P | **P10-2 livré** (84–86, TX PG, replay, holds, block invites) |
+| TLS | **lots A+E PASS** (SslStream in-process + LoadHarness Required ; proxy externe absent) |
 | PG runtime least-privilege | **lot D livré** (`frog_runtime` DML-only ; compose démo ≠ hébergé) |
 | Éditeur publish | **incomplet** (from-source oui ; paquet / playtest livré non) |
-| Paquets | **incomplet** (serveur Linux oui ; client/éditeur autonomes non) |
+| Paquets | **incomplet** (self-contained + SHA-256 oui ; client/éditeur EXE hors dépôt non) |
 | Restore | **incomplet** (schéma + login ; sanctions/social/trade non) |
 | Load 25×60 | **absent** (mesures courtes in-memory seulement) |
