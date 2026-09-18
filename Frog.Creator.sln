@@ -48,6 +48,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Frog.LoadHarness", "tools\F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Frog.OpsCli", "tools\Frog.OpsCli\Frog.OpsCli.csproj", "{A1B2C3D4-E5F6-4789-AB01-23456789CDEF}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{7FB500F5-9CE3-42A8-BF9E-C678B64E0F2F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Frog.DemoWorld", "tools\Frog.DemoWorld\Frog.DemoWorld.csproj", "{5585ACF3-DCBE-492B-BB74-AC64B591D634}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -106,6 +110,10 @@ Global
 		{A1B2C3D4-E5F6-4789-AB01-23456789CDEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1B2C3D4-E5F6-4789-AB01-23456789CDEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1B2C3D4-E5F6-4789-AB01-23456789CDEF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5585ACF3-DCBE-492B-BB74-AC64B591D634}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5585ACF3-DCBE-492B-BB74-AC64B591D634}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5585ACF3-DCBE-492B-BB74-AC64B591D634}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5585ACF3-DCBE-492B-BB74-AC64B591D634}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -121,6 +129,7 @@ Global
 		{E23946DB-EB04-41FA-9A53-7769B1AF6502} = {0B3D1CBC-6644-4F72-AAAF-94B624295840}
 		{B4E8C1A2-9F70-4D3B-8A16-7C5E2F0D9411} = {0B3D1CBC-6644-4F72-AAAF-94B624295840}
 		{A1B2C3D4-E5F6-4789-AB01-23456789CDEF} = {0B3D1CBC-6644-4F72-AAAF-94B624295840}
+		{5585ACF3-DCBE-492B-BB74-AC64B591D634} = {7FB500F5-9CE3-42A8-BF9E-C678B64E0F2F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E3951C16-EB70-480A-96DD-4DB8D80F3151}
