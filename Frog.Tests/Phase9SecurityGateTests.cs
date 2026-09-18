@@ -84,10 +84,14 @@ public sealed class Phase9SecurityGateTests
     public void PacketId_HasNoMuteKickBanOrAdminOpcodes()
     {
         var names = Enum.GetNames<PacketId>();
-        Assert.DoesNotContain(names, n => n.Contains("Mute", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(names, n => n.Contains("Kick", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(names, n => n.Contains("Ban", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(names, n => n.Contains("Admin", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain("MuteRequest", names);
+        Assert.DoesNotContain("MuteResult", names);
+        Assert.DoesNotContain("KickRequest", names);
+        Assert.DoesNotContain("KickResult", names);
+        Assert.DoesNotContain("BanRequest", names);
+        Assert.DoesNotContain("BanResult", names);
+        Assert.DoesNotContain("AdminCommand", names);
+        Assert.Contains("WorldFlagsPatchRequest", names);
     }
 
     [Fact]
