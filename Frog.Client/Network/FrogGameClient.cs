@@ -10,6 +10,7 @@ using Frog.Core.Gameplay;
 using Frog.Core.IO;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Security;
 
 namespace Frog.Client.Network;
 
@@ -18,7 +19,7 @@ public sealed class FrogGameClient : IDisposable
 {
     private readonly SynchronizationContext _ui;
     private TcpClient? _tcp;
-    private NetworkStream? _stream;
+    private Stream? _stream;
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveTask;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -100,12 +101,32 @@ public sealed class FrogGameClient : IDisposable
     public PublishedCatalogWire? LatestPublishedCatalog { get; private set; }
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
+        => await ConnectAsync(host, port, ClientTlsOptions.Off, cancellationToken).ConfigureAwait(false);
+
+    public async Task ConnectAsync(
+        string host,
+        int port,
+        ClientTlsOptions tls,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(tls);
         await DisconnectAsync().ConfigureAwait(false);
         var tcp = new TcpClient();
-        await tcp.ConnectAsync(host, port, cancellationToken).ConfigureAwait(false);
-        _tcp = tcp;
-        _stream = tcp.GetStream();
+        try
+        {
+            await tcp.ConnectAsync(host, port, cancellationToken).ConfigureAwait(false);
+            var stream = await TlsClientAuthenticator
+                .WrapAfterConnectAsync(tcp.GetStream(), tls, host, cancellationToken)
+                .ConfigureAwait(false);
+            _tcp = tcp;
+            _stream = stream;
+        }
+        catch
+        {
+            tcp.Dispose();
+            throw;
+        }
+
         _receiveCts = new CancellationTokenSource();
         var loopCt = _receiveCts.Token;
         _receiveTask = Task.Run(() => ReceiveLoopAsync(loopCt), CancellationToken.None);
@@ -140,7 +161,19 @@ public sealed class FrogGameClient : IDisposable
             _receiveTask = null;
             _receiveCts?.Dispose();
             _receiveCts = null;
-            _stream = null;
+            if (_stream is not null)
+            {
+                try
+                {
+                    _stream.Dispose();
+                }
+                catch
+                {
+                    // ignore
+                }
+
+                _stream = null;
+            }
             if (_tcp is not null)
             {
                 try

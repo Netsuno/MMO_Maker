@@ -1,11 +1,10 @@
 using System.Buffers.Binary;
-using System.Net.Sockets;
 
 namespace Frog.Client.Network;
 
 internal static class TcpFrameCodec
 {
-    public static async Task<byte[]?> ReadFramePayloadAsync(NetworkStream stream, CancellationToken cancellationToken)
+    public static async Task<byte[]?> ReadFramePayloadAsync(Stream stream, CancellationToken cancellationToken)
     {
         var lenBuf = new byte[sizeof(int)];
         if (!await ReadExactAsync(stream, lenBuf, cancellationToken))
@@ -28,7 +27,7 @@ internal static class TcpFrameCodec
         return payload;
     }
 
-    public static async Task WriteFrameAsync(NetworkStream stream, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
+    public static async Task WriteFrameAsync(Stream stream, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
     {
         var frame = new byte[sizeof(int) + payload.Length];
         BinaryPrimitives.WriteInt32LittleEndian(frame, payload.Length);
@@ -36,7 +35,7 @@ internal static class TcpFrameCodec
         await stream.WriteAsync(frame, cancellationToken);
     }
 
-    private static async Task<bool> ReadExactAsync(NetworkStream stream, byte[] buffer, CancellationToken cancellationToken)
+    private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
     {
         var readTotal = 0;
         while (readTotal < buffer.Length)

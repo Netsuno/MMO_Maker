@@ -105,6 +105,9 @@ public static class FrogServerHostFactory
                     .Validate(
                         o => o.IsLoopbackBind || o.AllowNonLoopbackBind,
                         "Non-loopback bind requires Server:AllowNonLoopbackBind=true (clear-text TCP; see SECURITY_MODEL.md)")
+                    .Validate(
+                        o => o.IsTlsStartable,
+                        "Server:Tls:Mode=Required requires a certificate (CertificatePath+PrivateKeyPath or PfxPath). Non-loopback bind has no silent cleartext fallback. Loopback cleartext requires Server:Tls:AllowCleartextLoopback=true.")
                     .ValidateOnStart();
                 services
                     .AddOptions<PostgreSqlOptions>()

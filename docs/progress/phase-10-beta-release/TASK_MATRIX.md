@@ -109,10 +109,10 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Code actuel / attendu | Test / preuve | Statut |
 | --- | --- | --- | --- |
-| Client TLS + validation cert/chaîne/nom | aujourd’hui `TcpClient` clair | cert expiré / nom / CA inconnue | **absent** |
-| Pas de callback tout-accepter, pas de repli clair | — | | **absent** |
-| Terminaison TLS externe OK si client parle TLS | — | | **absent** (aucun des deux) |
-| Certs dev confinés | — | | **absent** |
+| Client TLS + validation cert/chaîne/nom | `SslStream.AuthenticateAsClient` + `TlsCertificateValidator` (pas AcceptAll) | `Phase10TlsTests` expiré / nom / CA inconnue | **lot A livré** |
+| Pas de callback tout-accepter, pas de repli clair | Mode Off\|Required ; pas de fallback silencieux | `Phase10TlsTests` + scan sources | **lot A livré** |
+| Terminaison TLS externe OK si client parle TLS | in-process SslStream seulement | | **absent** (lots B–E / proxy hors lot A) |
+| Certs dev confinés | tests éphémères temp ; aucun `.pfx`/`.pem` prod dans Git | `Phase10TlsTests.CommittedAppsettings_DefaultTlsModeIsOff_NoProductionCerts` | **lot A livré** |
 | Pas de secret Git / paquets / captures / logs | placeholders `NOT_A_PRODUCTION_SECRET` ; Local gitignoré | scan P10-9 | **incomplet** (jeton client en RAM) |
 | Jetons mémorisés protégés OS | `_storedAuthToken` champ UI | | **absent** |
 | Client jamais PG direct | `Frog.Client` ↛ persistence | architecture | **présent** |
@@ -206,9 +206,9 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 
 | Domaine | Statut |
 | --- | --- |
-| Social (groupes/guildes/amis/blocage) | **absent** (stubs) |
+| Social (groupes/guildes/amis/blocage) | **P10-1 livré** (stubs `Guild.cs` non composés) |
 | Trade P2P | **absent** |
-| TLS | **absent** |
+| TLS | **lot A livré** (SslStream in-process ; proxy/LoadHarness TLS absents) |
 | Éditeur publish | **incomplet** (from-source oui ; paquet / playtest livré non) |
 | Paquets | **incomplet** (serveur Linux oui ; client/éditeur autonomes non) |
 | Restore | **incomplet** (schéma + login ; sanctions/social/trade non) |

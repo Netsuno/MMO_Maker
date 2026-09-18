@@ -1,6 +1,6 @@
 # Phase 10 — STATUS
 
-**Lot courant :** P10-1 (groupes / guildes / amis / blocage). **Pas READY.**
+**Lot courant :** P10-5 A (TLS SslStream in-process). **Pas READY.**
 
 | Item | Valeur |
 | --- | --- |
@@ -10,7 +10,7 @@
 | CI `main` post-fusion | https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS** |
 | Mandat | [`MANDATE.md`](MANDATE.md) (texte complet, 2026-09-18) |
 | Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–83 |
-| Gate Phase 10 | **pas atteinte** — P10-2…P10-9 absents |
+| Gate Phase 10 | **pas atteinte** — P10-2…P10-4, P10-5 B–E, P10-6…P10-9 absents |
 
 ## Lots
 
@@ -21,11 +21,20 @@
 | P10-2 Échanges directs | **ABSENT** |
 | P10-3 Client / éditeur externes | **INCOMPLET** |
 | P10-4 Monde démo + recette | **ABSENT** |
-| P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** |
+| P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** — lot A TLS **LIVRÉ** ; B–E (proxy, rate-limit, ClosedBeta, PG roles, LoadHarness) non commencés |
 | P10-6 Paquets autonomes | **INCOMPLET** |
 | P10-7 Exploitation / restore | **INCOMPLET** (guildes/amis/blocs désormais dans le schéma ; restore de ces lignes **non** recertifié backup) |
 | P10-8 Charge 25 joueurs | **INCOMPLET** |
 | P10-9 Validation / candidate | **ABSENT** |
+
+## P10-5 A — ce qui est livré
+
+- Serveur : `SslStream.AuthenticateAsServer` après accept TCP, **avant** Hello / framing (`GameServerService` + `ClientSession(Stream)`).
+- Client : `SslStream.AuthenticateAsClient` après `Connect`, validation stricte (chaîne, nom/SNI, expiration, CA). **Aucun** AcceptAll.
+- Flags : `Server:Tls:Mode=Off|Required` (défaut Off), PEM ou PFX + `FROG_TLS_PFX_PASSWORD`, `AllowCleartextLoopback` (loopback explicite seulement). Client : `ClientTlsOptions` / `FROG_CLIENT_TLS_MODE` + `TargetHost`.
+- Fail-fast si `Mode=Required` + bind non-loopback sans certificat. Pas de repli clair silencieux.
+- Tests : `Phase10TlsTests` (expiré, mauvais nom, CA inconnue, pas de fallback, fail-fast host). `Phase9SecurityGateTests` inchangé.
+- Certificats de test éphémères uniquement — aucun cert prod dans Git.
 
 ## P10-1 — ce qui est livré
 
@@ -38,8 +47,8 @@
 
 ## Interdits (toujours)
 
-Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. P10-2 trade non commencé (opcodes 84–86 réservés).
+Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. P10-2 trade non commencé (opcodes 84–86 réservés). PacketDispatcher social **non modifié** par P10-5 A.
 
 ## Verdict
 
-**P10-1 seulement.** La bêta n’est **pas** prête.
+**P10-1 + P10-5 A.** La bêta n’est **pas** prête.

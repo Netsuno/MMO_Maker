@@ -18,6 +18,7 @@ using Frog.Core.Gameplay;
 using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Security;
 
 namespace Frog.Client;
 
@@ -1858,8 +1859,12 @@ public sealed class MainShellForm : Form
             _btnConnect.Enabled = false;
             var host = _txtHost.Text.Trim();
             var port = (int)_numPort.Value;
-            await _client.ConnectAsync(host, port).ConfigureAwait(true);
-            AppendLog($"TCP connecté {host}:{port}");
+            var tls = ClientTlsOptions.FromEnvironment(host);
+            await _client.ConnectAsync(host, port, tls).ConfigureAwait(true);
+            AppendLog(
+                tls.Mode == TlsTransportMode.Required
+                    ? $"TLS connecté {host}:{port} SNI={tls.TargetHost}"
+                    : $"TCP connecté {host}:{port}");
             _btnDisconnect.Enabled = true;
             _btnLogin.Enabled = true;
             _btnRegister.Enabled = true;

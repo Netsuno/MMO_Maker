@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using Frog.Server.Config;
@@ -45,10 +47,22 @@ public sealed class GameServerService(
                 throw new ArgumentException("BindAddress invalide.");
             }
 
+            X509Certificate2? tlsCertificate = null;
+            if (TlsServerTransport.ShouldWrap(_options))
+            {
+                tlsCertificate = TlsServerTransport.LoadCertificate(_options.Tls);
+            }
+
             _serverSocket = new ServerSocket(ip, _options.Port);
             _serverSocket.Start();
 
             GameServerLogs.ServerStarted(_log, _options.BindAddress, _options.Port);
+            if (tlsCertificate is not null)
+            {
+                GameServerLogs.TlsRequired(
+                    _log,
+                    _options.Tls.PfxPath ?? _options.Tls.CertificatePath ?? "<configured>");
+            }
 
             using var stopAcceptingRegistration = stoppingToken.Register(() =>
                 Interlocked.Exchange(ref _acceptingClients, 0));
@@ -64,7 +78,30 @@ public sealed class GameServerService(
                         continue;
                     }
 
-                    var handlerTask = HandleClientAsync(new ClientSession(client), stoppingToken);
+                    Stream? transport = null;
+                    try
+                    {
+                        transport = await TlsServerTransport
+                            .WrapAfterAcceptAsync(client, _options, tlsCertificate, stoppingToken)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (
+                        ClientNetworkExceptions.IsExpectedTermination(ex) || ex is AuthenticationException)
+                    {
+                        GameServerLogs.TlsHandshakeFailed(
+                            _log,
+                            client.Client?.RemoteEndPoint?.ToString() ?? "<unknown>",
+                            ex);
+                        if (transport is not null)
+                        {
+                            await transport.DisposeAsync().ConfigureAwait(false);
+                        }
+
+                        client.Dispose();
+                        continue;
+                    }
+
+                    var handlerTask = HandleClientAsync(new ClientSession(client, transport), stoppingToken);
                     _opsMetrics.RecordConnectionAccepted();
                     lock (_clientTasksLock)
                     {
@@ -120,6 +157,7 @@ public sealed class GameServerService(
                 await Task.WhenAll(pending.Select(AwaitHandlerObservingExceptions)).ConfigureAwait(false);
 
                 GameServerLogs.ServerStopped(_log);
+                tlsCertificate?.Dispose();
             }
         }
 

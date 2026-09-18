@@ -12,7 +12,7 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 
 | Sujet | État réel | Lot |
 | --- | --- | --- |
-| **TLS** | Aucun `SslStream` / `X509` dans le dépôt. `TcpListener` + `TcpClient` en clair. `AllowNonLoopbackBind=true` = TCP public clair (`SECURITY_MODEL.md` §10). | P10-5 |
+| **TLS** | Lot A : `SslStream` in-process (`Server:Tls:Mode=Off\|Required`, défaut Off). Bind public sans cert + Required = fail-fast. Proxy externe, mTLS, DPAPI : absents. | P10-5 A **livré** ; B–E ouverts |
 | **Packaging client/éditeur** | Scripts `publish-frog.ps1/.sh` produisent des layouts **framework-dependent** (`--self-contained false`). Lancement de `Frog.Client.exe` / `Frog.Editor.exe` depuis l’arbre publié **non prouvé**. Smokes Windows = `dotnet test` from-source. Serveur Linux **prouvé** (`PackagedServerPostgreSqlProcessTests`). | P10-6 |
 | **Paquet autonome sans SDK** | Le mandat bêta exige un runtime fourni ou déclaré. Aujourd’hui il faut le runtime .NET 8 sur la machine. | P10-6 |
 | **LOAD** | Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, TLS, monde publié. Pas de HTTP `/metrics`. | P10-8 |
@@ -40,7 +40,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Guildes persistées | `player.guilds*` ; stubs `Guild.cs` / `GuildService.cs` toujours TODO | P10-1 **livré** (stubs non composés) |
 | Amis / blocage | `player.friendships`, `player.character_blocks` | P10-1 **livré** |
 | Échanges P2P | Boutique/banque Phase 7 **≠** trade joueur ; pas d’opcode 84–86 | P10-2 |
-| Client TLS + validation certificat | `FrogGameClient.ConnectAsync` = `new TcpClient()` | P10-5 |
+| Client TLS + validation certificat | `FrogGameClient.ConnectAsync` + `TlsClientAuthenticator` (Mode=Required) ; défaut Off | P10-5 A **livré** |
 | Invitations / comptes provisionnés | `HandleRegisterRequestAsync` ouvert | P10-5 |
 | Outil reset mot de passe / revoke session / grant GM | Pas de projet `tools/` opérateur (hors LoadHarness) | P10-5 |
 | Aide intégrée, rebind AZERTY/QWERTY, settings persistés | `UserSettings.cs` / `OptionsForm.cs` / `InputService.cs` = stubs ; pas de « Help » dans `MainShellForm` | P10-3 |
@@ -64,8 +64,8 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 
 ### TLS / réseau
 
-- `Frog.Server/Network/ServerSocket.cs` : `TcpListener`.
-- `Frog.Client/Network/FrogGameClient.cs` : `NetworkStream` brut.
+- `Frog.Server/Network/ServerSocket.cs` : `TcpListener` (accept TCP). TLS = `SslStream` post-accept dans `GameServerService` (`TlsServerTransport`).
+- `Frog.Client/Network/FrogGameClient.cs` : `Stream` + `TlsClientAuthenticator` si `ClientTlsOptions.Mode=Required`.
 - Stubs morts : `NetworkService.cs`, `PacketReader.cs`, `PacketWriter.cs` (TODO).
 
 ### Éditeur / publish
