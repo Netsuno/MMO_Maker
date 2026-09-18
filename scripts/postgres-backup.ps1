@@ -82,6 +82,7 @@ $dumpArgs = @(
     "--schema=ops",
     "--schema=player",
     "--schema=world",
+    "--schema=public",
     "--host=$($parsed.Host)",
     "--port=$($parsed.Port)",
     "--username=$($parsed.User)",

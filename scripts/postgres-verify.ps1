@@ -69,7 +69,7 @@ SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE c.relname = '__EFMigrationsHistory'
-ORDER BY CASE n.nspname WHEN 'world' THEN 0 WHEN 'public' THEN 1 ELSE 2 END
+ORDER BY CASE n.nspname WHEN 'public' THEN 0 WHEN 'world' THEN 1 ELSE 2 END
 LIMIT 1;
 "@
 if ([string]::IsNullOrWhiteSpace($hist)) {

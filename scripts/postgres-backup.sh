@@ -89,6 +89,6 @@ if [[ "$VERBOSE" -eq 1 ]]; then
   DUMP_ARGS+=(--verbose)
 fi
 
-echo "dumping ${FROG_PG_DATABASE}@${FROG_PG_HOST}:${FROG_PG_PORT} (schemas: ${FROG_PG_SCHEMAS[*]}) -> ${OUTPUT}"
+echo "dumping ${FROG_PG_DATABASE}@${FROG_PG_HOST}:${FROG_PG_PORT} (schemas: ${FROG_PG_DUMP_SCHEMAS[*]}) -> ${OUTPUT}"
 pg_dump "${DUMP_ARGS[@]}" "$FROG_PG_DATABASE"
 echo "backup ok: $OUTPUT ($(wc -c < "$OUTPUT") bytes)"

@@ -111,6 +111,16 @@ if ($schemaCount -ne "0") {
     throw "target $target already has $schemaCount Frog schema(s). Restore onto an empty database, or pass -Recreate."
 }
 
+$publicTables = Invoke-FrogPsql $parsed $target @"
+SELECT COUNT(*) FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relkind = 'r';
+"@
+if ($publicTables -ne "0") {
+    throw "target $target public schema already has $publicTables table(s). Restore onto an empty database, or pass -Recreate."
+}
+Invoke-FrogPsql $parsed $target "DROP SCHEMA IF EXISTS public CASCADE;" | Out-Null
+
 $env:PGPASSWORD = $parsed.Password
 $restoreArgs = @(
     "--no-owner",

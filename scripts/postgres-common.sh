@@ -3,7 +3,10 @@
 # Product schemas (FrogDbContext): auth, content, ops, player, world.
 # shellcheck disable=SC2034
 
+# Product schemas in FrogDbContext. public is dumped only for __EFMigrationsHistory
+# (EF Core keeps the history table there even though HasDefaultSchema is world).
 FROG_PG_SCHEMAS=(auth content ops player world)
+FROG_PG_DUMP_SCHEMAS=(auth content ops player world public)
 
 frog_pg_die() {
   echo "error: $*" >&2
@@ -15,7 +18,10 @@ frog_pg_require_cmd() {
 }
 
 frog_pg_trim() {
-  local s="$1"
+  local s="${1-}"
+  if [[ $# -eq 0 ]]; then
+    IFS= read -r s || true
+  fi
   s="${s#"${s%%[![:space:]]*}"}"
   s="${s%"${s##*[![:space:]]}"}"
   printf '%s' "$s"
@@ -84,7 +90,7 @@ frog_pg_psql_db() {
 
 frog_pg_schema_dump_args() {
   local s
-  for s in "${FROG_PG_SCHEMAS[@]}"; do
+  for s in "${FROG_PG_DUMP_SCHEMAS[@]}"; do
     printf -- '--schema=%s\n' "$s"
   done
 }
@@ -102,7 +108,7 @@ frog_pg_history_relation() {
      FROM pg_class c
      JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relname = '__EFMigrationsHistory'
-     ORDER BY CASE n.nspname WHEN 'world' THEN 0 WHEN 'public' THEN 1 ELSE 2 END
+     ORDER BY CASE n.nspname WHEN 'public' THEN 0 WHEN 'world' THEN 1 ELSE 2 END
      LIMIT 1;"
 }
 

@@ -79,9 +79,8 @@ MAINT_Q="$(frog_pg_quoted_ident "$MAINT")"
 
 db_exists() {
   local name="$1"
-  local found
-  found="$(frog_pg_psql_db "$MAINT" -tAc "SELECT 1 FROM pg_database WHERE datname = '${name}'" | frog_pg_trim)"
-  [[ "$found" == "1" ]]
+  frog_pg_export_libpq "$name"
+  psql --no-psqlrc -d "$name" -tAc "SELECT 1" >/dev/null 2>&1
 }
 
 if [[ "$RECREATE" -eq 1 ]]; then
@@ -107,6 +106,17 @@ existing="$(frog_pg_schema_count "$TARGET" | frog_pg_trim)"
 if [[ "$existing" != "0" ]]; then
   frog_pg_die "target ${TARGET} already has ${existing} Frog schema(s). Restore onto an empty database, or pass --recreate."
 fi
+
+public_tables="$(frog_pg_psql_db "$TARGET" -tAc \
+  "SELECT COUNT(*) FROM pg_class c
+   JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public' AND c.relkind = 'r';" | frog_pg_trim)"
+if [[ "$public_tables" != "0" ]]; then
+  frog_pg_die "target ${TARGET} public schema already has ${public_tables} table(s). Restore onto an empty database, or pass --recreate."
+fi
+# createdb leaves an empty public schema; the dump also CREATE SCHEMA public
+# for __EFMigrationsHistory. Drop the empty placeholder first.
+frog_pg_psql_db "$TARGET" -c "DROP SCHEMA IF EXISTS public CASCADE;" >/dev/null
 
 frog_pg_export_libpq "$TARGET"
 RESTORE_ARGS=(

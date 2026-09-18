@@ -1,7 +1,7 @@
 # Phase 9 — PostgreSQL backup / restore runbook (P9-3)
 
 **Status:** implemented on `cursor/phase9-distribution-admin-hardening`.  
-**Schema tip:** 25 EF Up migrations, latest `20260917223000_AuthOperators` under `Frog.Persistence.PostgreSql/Migrations/` (P9-2 `auth.operators`; previous tip `20260917204500_MapEventExecutionRequestIdGlobalUnique`).  
+**Schema tip:** 26 EF Up migrations, latest `20260917223000_AuthOperators` under `Frog.Persistence.PostgreSql/Migrations/` (P9-2 `auth.operators`; previous product tip `20260917204500_MapEventExecutionRequestIdGlobalUnique`).  
 **Product schemas (`FrogDbContext`):** `auth`, `content`, `ops`, `player`, `world`.  
 **Engine:** PostgreSQL 16 (Compose `postgres:16-alpine`, CI `postgres:16`).
 
@@ -29,9 +29,10 @@ CI postgres-integration installs `postgresql-client` so `pg_dump` / `pg_restore`
 - `content` — published catalogs, including Phase 8 definitions
 - `ops` — includes `ops.legacy_imports` (usually empty on a new world; dumped anyway because it is in `FrogDbContext`)
 - `player` — characters, inventory, bank, economy ledgers, quest/event request ids
-- `world` — maps, published snapshots, runtime bindings, **and** `world.__EFMigrationsHistory`
+- `world` — maps, published snapshots, runtime bindings
+- `public` — **only** `public.__EFMigrationsHistory` (EF Core stores history here even though `FrogDbContext` `HasDefaultSchema("world")`)
 
-The dump is one file (custom format). It is not a cluster dump: other databases on the same instance are untouched. Extensions such as `plpgsql` are not dumped (avoids “already exists” on restore).
+The dump is one file (custom format). It is not a cluster dump: other databases on the same instance are untouched. Extensions such as `plpgsql` are not dumped (avoids “already exists” on restore). Restore drops the empty placeholder `public` schema on the target so `CREATE SCHEMA public` from the dump can succeed.
 
 **Do not** dump with MariaDB tools. `scripts/apply-frog-mariadb-schema.ps1` is legacy-only.
 
@@ -80,7 +81,7 @@ Target must be an **empty** database (no Frog schemas). Order:
 
 Windows: `./scripts/postgres-restore.ps1 -InputPath … -CreateDatabase`.
 
-After restore, start `Frog.Server` with `PostgreSql:Enabled=true` pointing at the restored database. Startup `Database.Migrate()` is a no-op when the dump includes the same history rows as the running assembly (25 Ups on this tip).
+After restore, start `Frog.Server` with `PostgreSql:Enabled=true` pointing at the restored database. Startup `Database.Migrate()` is a no-op when the dump includes the same history rows as the running assembly (26 Ups on this tip).
 
 ## Verify
 
@@ -137,7 +138,8 @@ Operator roundtrip of a live DB into a disposable copy (does not replace the hea
 | --- | --- | --- |
 | `pg_restore: error: … already exists` / restore says target already has Frog schemas | Migrated the target before restore, or restoring twice | Drop/recreate empty DB (`--recreate` on a disposable name) or pick a new database. Never migrate then restore. |
 | `PostgresDatabaseHealth` pending after restore | Dump taken before a new EF migration (e.g. future P9-1 ban tables) | Restore then start the new server so `Database.Migrate()` applies leftover Ups. Take a fresh dump after migrate. Re-prove this runbook. |
-| Health pending on a dump that should match | Dump missed `world.__EFMigrationsHistory` (schema filter too narrow) | Use the scripts in this folder, not a hand-rolled `pg_dump` of a subset of tables. |
+| Health pending on a dump that should match | Dump missed `public.__EFMigrationsHistory` (schema filter too narrow) | Use the scripts in this folder, not a hand-rolled `pg_dump` of a subset of tables. |
+| `schema "public" already exists` | Restored into a `createdb` database without dropping empty `public` | Scripts do this automatically. Do not skip that step in a hand-rolled restore. |
 | `extension "plpgsql" already exists` with `--exit-on-error` | Whole-database dump including extensions | Scripts dump only the five product schemas. |
 | Permission denied / not owner | Restoring role cannot create schemas | Use a role with `CREATEDB` + create rights, or restore as the database owner. `--no-owner` avoids replay of the original role name. |
 | Version mismatch | pg_dump 16 vs server 15 (or the reverse) | Use PostgreSQL 16 clients against PostgreSQL 16 servers. |
@@ -147,7 +149,7 @@ Operator roundtrip of a live DB into a disposable copy (does not replace the hea
 
 ## Residual risks
 
-- **P9-1 migrations:** mute/kick/ban tables are not in the current 25-migration tip (P9-2 added `auth.operators` only). A dump taken now restores cleanly today; after P9-1, either migrate-after-restore or take a new dump. Re-run `PostgresBackupRestoreTests`.
+- **P9-1 migrations:** mute/kick/ban tables are not in the current 26-migration tip (P9-2 added `auth.operators` only). A dump taken now restores cleanly today; after P9-1, either migrate-after-restore or take a new dump. Re-run `PostgresBackupRestoreTests`.
 - **Older dumps:** a backup taken before `20260917223000_AuthOperators` restores, then `Database.Migrate()` applies the operators table. Prefer a fresh dump after each accepted migration.
 - **P9-2 secret handling:** Compose passwords in examples are dev-only. Production connection strings stay in gitignored `appsettings.Local.json`.
 - No PITR / replication slot / off-box scheduler is provided. Operators still need a copy of the `.dump` file somewhere else.
