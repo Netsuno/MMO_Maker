@@ -37,7 +37,9 @@ public static class PlaceholderSecretPolicy
     public static bool MustRejectPublicBind(
         bool playtestEnabled,
         bool bindIsLoopback,
+        bool postgreSqlEnabled,
         string? postgreSqlConnectionString,
+        bool mariaDbEnabled,
         string? mariaDbConnectionString)
     {
         if (playtestEnabled || bindIsLoopback)
@@ -45,7 +47,7 @@ public static class PlaceholderSecretPolicy
             return false;
         }
 
-        return ContainsKnownPlaceholder(postgreSqlConnectionString)
-               || ContainsKnownPlaceholder(mariaDbConnectionString);
+        return (postgreSqlEnabled && ContainsKnownPlaceholder(postgreSqlConnectionString))
+               || (mariaDbEnabled && ContainsKnownPlaceholder(mariaDbConnectionString));
     }
 }

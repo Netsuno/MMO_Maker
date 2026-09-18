@@ -57,14 +57,22 @@ public sealed class ConnectionManager
         return TryCreateSession(username, out session);
     }
 
-    public void RemoveSession(Guid sessionId)
+    public void RemoveSession(Guid sessionId) => TryRemoveSession(sessionId, out _);
+
+    /// <summary>
+    /// Atomically drops the session. Returns <c>true</c> only for the first remover —
+    /// used as the idempotency gate for <see cref="SessionTeardown"/>.
+    /// </summary>
+    public bool TryRemoveSession(Guid sessionId, out Session? session)
     {
-        if (!_sessionsById.TryRemove(sessionId, out var session))
+        if (!_sessionsById.TryRemove(sessionId, out session))
         {
-            return;
+            session = null;
+            return false;
         }
 
         _sessionIdByUsername.TryRemove(session.Username, out _);
+        return true;
     }
 
     public bool TryTouchSession(Guid sessionId)

@@ -18,6 +18,7 @@ public sealed class ModerationService(
     ConnectionManager connections,
     ClientRegistry clients,
     PacketSender packetSender,
+    SessionTeardown sessionTeardown,
     ILogger<ModerationService> logger)
 {
     private readonly IOperatorDirectory _operators = operators;
@@ -27,6 +28,7 @@ public sealed class ModerationService(
     private readonly ConnectionManager _connections = connections;
     private readonly ClientRegistry _clients = clients;
     private readonly PacketSender _packetSender = packetSender;
+    private readonly SessionTeardown _sessionTeardown = sessionTeardown;
     private readonly ILogger<ModerationService> _logger = logger;
 
     public async Task<ModerationCommandResult> ExecuteAsync(
@@ -141,13 +143,10 @@ public sealed class ModerationService(
             {
                 _logger.LogDebug(ex, "Could not notify {Username} before drop.", username);
             }
-
-            _clients.Unregister(session.Id);
-            client.AuthenticatedSession = null;
-            client.Disconnect();
         }
 
-        _connections.RemoveSession(session.Id);
+        await _sessionTeardown.TearDownAsync(session.Id, SessionTeardownOptions.KickBan, cancellationToken)
+            .ConfigureAwait(false);
     }
 }
 

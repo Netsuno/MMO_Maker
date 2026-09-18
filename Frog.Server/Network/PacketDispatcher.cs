@@ -37,7 +37,6 @@ public sealed partial class PacketDispatcher(
     MapService mapService,
     MovementService movementService,
     PacketSender packetSender,
-    PlayerLifecycleNotifier playerLifecycleNotifier,
     ICharacterBootstrap characterBootstrap,
     ICharacterPayloadReader characterPayloadReader,
     ICharacterPayloadWriter characterPayloadWriter,
@@ -56,6 +55,7 @@ public sealed partial class PacketDispatcher(
     Phase8GameplayHandlers phase8Handlers,
     IAccountSanctionStore accountSanctions,
     ModerationService moderationService,
+    SessionTeardown sessionTeardown,
     ServerOpsMetrics opsMetrics,
     ILogger<PacketDispatcher> logger)
 {
@@ -67,7 +67,6 @@ public sealed partial class PacketDispatcher(
     private readonly MapService _mapService = mapService;
     private readonly MovementService _movementService = movementService;
     private readonly PacketSender _packetSender = packetSender;
-    private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
     private readonly ICharacterBootstrap _characterBootstrap = characterBootstrap;
     private readonly ICharacterPayloadReader _characterPayloadReader = characterPayloadReader;
     private readonly ICharacterPayloadWriter _characterPayloadWriter = characterPayloadWriter;
@@ -86,6 +85,7 @@ public sealed partial class PacketDispatcher(
     private readonly Phase8GameplayHandlers _phase8 = phase8Handlers;
     private readonly IAccountSanctionStore _accountSanctions = accountSanctions;
     private readonly ModerationService _moderation = moderationService;
+    private readonly SessionTeardown _sessionTeardown = sessionTeardown;
     private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
@@ -405,19 +405,14 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
-        // Drop any still-registered TCP for this account before creating the new session.
-        // Must Unregister: nulling AuthenticatedSession alone makes the old HandleClientAsync
-        // skip cleanup, leaving a zombie in ClientRegistry. Later broadcasts then throw on the
-        // disposed stream and tear down the *new* connection (gameplay smoke reconnect failure).
+        // Shared teardown: save, cancel executions, unregister, close old TCP.
+        // NotifyPeers is false so a reconnect does not broadcast PlayerLeave.
         if (_connectionManager.TryGetSessionByUsername(account.Username, out var existing)
             && existing is not null)
         {
-            if (_clientRegistry.TryGet(existing.Id, out var oldClient) && oldClient is not null)
-            {
-                _clientRegistry.Unregister(existing.Id);
-                oldClient.AuthenticatedSession = null;
-                oldClient.Disconnect();
-            }
+            await _sessionTeardown
+                .TearDownAsync(existing.Id, SessionTeardownOptions.ReconnectDisplace, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (!_connectionManager.TryDisplaceAndCreateSession(account.Username, out var session, out _)
@@ -500,7 +495,9 @@ public sealed partial class PacketDispatcher(
             }
 
             _clientRegistry.Unregister(session.Id);
-            _connectionManager.RemoveSession(session.Id);
+            await _sessionTeardown
+                .TearDownAsync(session.Id, SessionTeardownOptions.FailedLogin, cancellationToken)
+                .ConfigureAwait(false);
             clientSession.AuthenticatedSession = null;
             throw;
         }
@@ -1277,30 +1274,14 @@ public sealed partial class PacketDispatcher(
         }
 
         var sessionId = session.Id;
-        var username = session.Username;
-        if (session.CharacterGuid is Guid logoutCharacterId)
-        {
-            _phase8.CancelForCharacter(logoutCharacterId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(session.CharacterId))
-        {
-            _playerStateStore.UpsertForCharacter(
-                session.CharacterId,
-                session.CurrentMapId,
-                session.PixelX,
-                session.PixelY);
-        }
-
         if (session.AuthSessionId is Guid authSessionId)
         {
             await _authSessions.RevokeAsync(authSessionId, cancellationToken).ConfigureAwait(false);
         }
 
-        _clientRegistry.Unregister(sessionId);
-        await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, cancellationToken);
-        _connectionManager.RemoveSession(sessionId);
-        clientSession.AuthenticatedSession = null;
+        await _sessionTeardown
+            .TearDownAsync(sessionId, SessionTeardownOptions.Logout, cancellationToken)
+            .ConfigureAwait(false);
         await _packetSender.SendLogoutAckAsync(clientSession, cancellationToken);
         clientSession.Disconnect();
     }

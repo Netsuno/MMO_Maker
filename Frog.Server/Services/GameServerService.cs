@@ -1,14 +1,10 @@
-using System.Collections.Concurrent;
-using System.IO;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Frog.Server.Config;
 using Frog.Server.Logging;
 using Frog.Server.Network;
 using Frog.Server.Observability;
-using Frog.Server.Persistence;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -24,11 +20,7 @@ public sealed class GameServerService(
     IOptions<ServerOptions> options,
     PacketSender packetSender,
     PacketDispatcher packetDispatcher,
-    ConnectionManager connectionManager,
-    ClientRegistry clientRegistry,
-    PlayerLifecycleNotifier playerLifecycleNotifier,
-    IPlayerStateStore playerStateStore,
-    Phase8GameplayHandlers phase8Handlers,
+    SessionTeardown sessionTeardown,
     ServerOpsMetrics opsMetrics)
         : BackgroundService
     {
@@ -36,11 +28,7 @@ public sealed class GameServerService(
         private readonly ServerOptions _options = options.Value;
         private readonly PacketSender _packetSender = packetSender;
         private readonly PacketDispatcher _packetDispatcher = packetDispatcher;
-        private readonly ConnectionManager _connectionManager = connectionManager;
-        private readonly ClientRegistry _clientRegistry = clientRegistry;
-        private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
-        private readonly IPlayerStateStore _playerStateStore = playerStateStore;
-        private readonly Phase8GameplayHandlers _phase8Handlers = phase8Handlers;
+        private readonly SessionTeardown _sessionTeardown = sessionTeardown;
         private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
         private readonly object _clientTasksLock = new();
         private readonly List<Task> _clientTasks = new();
@@ -230,38 +218,14 @@ public sealed class GameServerService(
                     clientSession.RemoteEndPoint,
                     clientSession.Username ?? string.Empty);
 
-                // Prefer the live session snapshot; if reconnect already nulled AuthenticatedSession
-                // and Unregister'd, these are no-ops. If only AuthenticatedSession was cleared by a
-                // buggy path, we still avoid leaving zombies when we can resolve the session id.
                 if (clientSession.AuthenticatedSession is not null)
                 {
-                    var sessionId = clientSession.AuthenticatedSession.Id;
-                    var s = clientSession.AuthenticatedSession;
-                    var username = s.Username;
-                    if (s.CharacterGuid is Guid disconnectCharacterId)
-                    {
-                        _phase8Handlers.CancelForCharacter(disconnectCharacterId);
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(s.CharacterId))
-                    {
-                        _playerStateStore.UpsertForCharacter(
-                            s.CharacterId,
-                            s.CurrentMapId,
-                            s.PixelX,
-                            s.PixelY);
-                    }
-
-                    _clientRegistry.Unregister(sessionId);
-                    if (!ct.IsCancellationRequested)
-                    {
-                        // During a host-wide graceful shutdown every other client is being torn
-                        // down concurrently; skip the fan-out (it would call SendFrameAsync with
-                        // an already-cancelled token) but still finish local bookkeeping below.
-                        await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, ct);
-                    }
-
-                    _connectionManager.RemoveSession(sessionId);
+                    var options = ct.IsCancellationRequested
+                        ? SessionTeardownOptions.HostShutdown
+                        : SessionTeardownOptions.PeerDisconnect;
+                    await _sessionTeardown
+                        .TearDownAsync(clientSession.AuthenticatedSession.Id, options, CancellationToken.None)
+                        .ConfigureAwait(false);
                 }
             }
         }

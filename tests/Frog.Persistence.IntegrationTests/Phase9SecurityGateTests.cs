@@ -1,9 +1,11 @@
+using System.Collections.Generic;
 using Frog.Application.Identity;
 using Frog.Core.Enums;
 using Frog.Persistence.IntegrationTests.Support;
 using Frog.Persistence.PostgreSql;
 using Frog.Persistence.PostgreSql.Repositories.Auth;
 using Frog.Server.Security;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -83,5 +85,33 @@ public sealed class Phase9SecurityGateTests
             await host.StopAsync();
             logs.AssertNoUnexpectedErrors();
         }
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public void HostComposition_PostgresEnabledMariaDbDisabledPlaceholder_PublicBindBuilds()
+    {
+        var port = Phase7TcpTestPorts.GetFreePort();
+        var builder = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port)
+            .ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Server:BindAddress"] = "0.0.0.0",
+                    ["Server:AllowNonLoopbackBind"] = "true",
+                    ["MariaDb:Enabled"] = "false",
+                    ["MariaDb:ConnectionString"] =
+                        "Server=127.0.0.1;Port=3306;Database=frog;User Id=root;Password=NOT_A_PRODUCTION_SECRET",
+                    ["PostgreSql:Enabled"] = "true",
+                    ["PostgreSql:ConnectionString"] =
+                        "Host=db.example;Port=5432;Database=frog;Username=frog;Password=unique-hosted-secret-value",
+                });
+            });
+
+        using var host = builder.Build();
+        var server = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Frog.Server.Config.ServerOptions>>().Value;
+        Assert.Equal("0.0.0.0", server.BindAddress);
+        Assert.False(server.IsLoopbackBind);
+        Assert.NotNull(host);
     }
 }

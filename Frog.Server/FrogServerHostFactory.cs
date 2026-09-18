@@ -153,7 +153,9 @@ public static class FrogServerHostFactory
                 if (PlaceholderSecretPolicy.MustRejectPublicBind(
                         playtest.Enabled,
                         serverBind.IsLoopbackBind,
+                        pg.Enabled,
                         pg.ConnectionString,
+                        maria.Enabled,
                         maria.ConnectionString))
                 {
                     throw new InvalidOperationException(
@@ -296,6 +298,8 @@ public static class FrogServerHostFactory
                 services.AddSingleton<WeatherGameplayService>();
                 services.AddSingleton<MapEventRuntimeService>();
                 services.AddSingleton<Phase8GameplayHandlers>();
+                services.AddSingleton<ICharacterRuntimeCleanup>(sp =>
+                    sp.GetRequiredService<Phase8GameplayHandlers>());
 
                 services.AddSingleton<InMemoryPlayerStateStore>();
                 services.AddSingleton<IPlayerStateStore>(sp =>
@@ -383,6 +387,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
                 services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();
+                services.AddSingleton<SessionTeardown>();
                 services.AddSingleton<PacketDispatcher>();
                 if (!playtest.Enabled)
                 {

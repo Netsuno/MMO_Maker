@@ -1,15 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Frog.Application.Identity;
 using Frog.Core.Enums;
 using Frog.Core.Security;
+using Frog.Server;
 using Frog.Server.Config;
 using Frog.Server.Database;
 using Frog.Server.Security;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace Frog.Tests;
@@ -136,18 +141,160 @@ public sealed class Phase9SecurityGateTests
         Assert.True(PlaceholderSecretPolicy.MustRejectPublicBind(
             playtestEnabled: false,
             bindIsLoopback: false,
+            postgreSqlEnabled: true,
             postgreSqlConnectionString: "Password=frog_dev_only",
+            mariaDbEnabled: false,
             mariaDbConnectionString: null));
         Assert.False(PlaceholderSecretPolicy.MustRejectPublicBind(
             playtestEnabled: false,
             bindIsLoopback: true,
+            postgreSqlEnabled: true,
             postgreSqlConnectionString: "Password=frog_dev_only",
+            mariaDbEnabled: false,
             mariaDbConnectionString: null));
         Assert.False(PlaceholderSecretPolicy.MustRejectPublicBind(
             playtestEnabled: true,
             bindIsLoopback: false,
+            postgreSqlEnabled: true,
             postgreSqlConnectionString: "Password=changeme",
+            mariaDbEnabled: false,
             mariaDbConnectionString: null));
+    }
+
+    [Fact]
+    public void PlaceholderSecretPolicy_IgnoresDisabledBackendPlaceholders()
+    {
+        const string pgReal = "Host=db.example;Password=unique-hosted-secret-value";
+        const string mariaPlaceholder = "Server=127.0.0.1;Password=NOT_A_PRODUCTION_SECRET";
+        const string pgPlaceholder = "Host=127.0.0.1;Password=frog_dev_only";
+
+        Assert.False(PlaceholderSecretPolicy.MustRejectPublicBind(
+            playtestEnabled: false,
+            bindIsLoopback: false,
+            postgreSqlEnabled: true,
+            postgreSqlConnectionString: pgReal,
+            mariaDbEnabled: false,
+            mariaDbConnectionString: mariaPlaceholder));
+        Assert.False(PlaceholderSecretPolicy.MustRejectPublicBind(
+            playtestEnabled: false,
+            bindIsLoopback: false,
+            postgreSqlEnabled: false,
+            postgreSqlConnectionString: pgPlaceholder,
+            mariaDbEnabled: false,
+            mariaDbConnectionString: mariaPlaceholder));
+        Assert.True(PlaceholderSecretPolicy.MustRejectPublicBind(
+            playtestEnabled: false,
+            bindIsLoopback: false,
+            postgreSqlEnabled: true,
+            postgreSqlConnectionString: pgPlaceholder,
+            mariaDbEnabled: false,
+            mariaDbConnectionString: mariaPlaceholder));
+        Assert.True(PlaceholderSecretPolicy.MustRejectPublicBind(
+            playtestEnabled: false,
+            bindIsLoopback: false,
+            postgreSqlEnabled: false,
+            postgreSqlConnectionString: pgReal,
+            mariaDbEnabled: true,
+            mariaDbConnectionString: mariaPlaceholder));
+    }
+
+    [Fact]
+    public void HostComposition_PostgresEnabledMariaDbDisabledPlaceholder_DoesNotBlockPublicBind()
+    {
+        var port = GetFreePort();
+        var builder = FrogServerHostFactory
+            .CreateHostBuilder()
+            .ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Server:Port"] = port.ToString(),
+                    ["Server:BindAddress"] = "0.0.0.0",
+                    ["Server:AllowNonLoopbackBind"] = "true",
+                    ["MariaDb:Enabled"] = "false",
+                    ["MariaDb:ConnectionString"] =
+                        "Server=127.0.0.1;Port=3306;Database=frog;User Id=root;Password=NOT_A_PRODUCTION_SECRET",
+                    ["PostgreSql:Enabled"] = "true",
+                    ["PostgreSql:AllowInMemoryFallback"] = "false",
+                    ["PostgreSql:ConnectionString"] =
+                        "Host=db.example;Port=5432;Database=frog;Username=frog;Password=unique-hosted-secret-value",
+                });
+            });
+
+        var ex = Record.Exception(() =>
+        {
+            using var host = builder.Build();
+        });
+
+        Assert.NotNull(ex);
+        Assert.IsType<InvalidOperationException>(ex);
+        Assert.DoesNotContain("placeholder", ex!.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("backend is not loaded", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HostComposition_PostgresPlaceholderOnEnabledBackend_StillBlocksPublicBind()
+    {
+        var port = GetFreePort();
+        var builder = FrogServerHostFactory
+            .CreateHostBuilder()
+            .ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Server:Port"] = port.ToString(),
+                    ["Server:BindAddress"] = "0.0.0.0",
+                    ["Server:AllowNonLoopbackBind"] = "true",
+                    ["MariaDb:Enabled"] = "false",
+                    ["MariaDb:ConnectionString"] =
+                        "Server=127.0.0.1;Password=NOT_A_PRODUCTION_SECRET",
+                    ["PostgreSql:Enabled"] = "true",
+                    ["PostgreSql:ConnectionString"] =
+                        "Host=127.0.0.1;Password=NOT_A_PRODUCTION_SECRET",
+                    ["PostgreSql:AllowInMemoryFallback"] = "false",
+                });
+            });
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+        {
+            using var host = builder.Build();
+        });
+        Assert.Contains("placeholder", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task HostComposition_InMemoryFallbackPublicBind_DisabledMariaDbPlaceholderDoesNotBlockStart()
+    {
+        var port = GetFreePort();
+        using var host = FrogServerHostFactory
+            .CreateHostBuilder()
+            .ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Server:Port"] = port.ToString(),
+                    ["Server:BindAddress"] = "0.0.0.0",
+                    ["Server:AllowNonLoopbackBind"] = "true",
+                    ["MariaDb:Enabled"] = "false",
+                    ["MariaDb:ConnectionString"] =
+                        "Server=127.0.0.1;Port=3306;Database=frog;User Id=root;Password=NOT_A_PRODUCTION_SECRET",
+                    ["PostgreSql:Enabled"] = "false",
+                    ["PostgreSql:AllowInMemoryFallback"] = "true",
+                    ["PostgreSql:ConnectionString"] =
+                        "Host=127.0.0.1;Password=NOT_A_PRODUCTION_SECRET",
+                });
+            })
+            .Build();
+
+        await host.StartAsync();
+        try
+        {
+            Assert.NotNull(host.Services);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
     }
 
     [Fact]
@@ -190,5 +337,14 @@ public sealed class Phase9SecurityGateTests
         }
 
         throw new InvalidOperationException("Frog.Creator.sln not found from " + AppContext.BaseDirectory);
+    }
+
+    private static int GetFreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
     }
 }

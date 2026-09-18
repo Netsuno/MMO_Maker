@@ -11,10 +11,13 @@ using System.Threading.Tasks;
 using Frog.Application.Identity;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Server;
 using Frog.Server.Database;
+using Frog.Server.Gameplay;
 using Frog.Server.Network;
+using Frog.Server.Persistence;
 using Frog.Server.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,6 +102,12 @@ public sealed class Phase9ModerationTests
         var connections = new ConnectionManager();
         var clients = new ClientRegistry();
         var sender = new PacketSender(NullLogger<PacketSender>.Instance);
+        var teardown = new SessionTeardown(
+            connections,
+            clients,
+            new PlayerLifecycleNotifier(sender, clients),
+            new InMemoryPlayerStateStore(),
+            new NoopRuntimeCleanup());
         var svc = new ModerationService(
             operators,
             accounts,
@@ -107,6 +116,7 @@ public sealed class Phase9ModerationTests
             connections,
             clients,
             sender,
+            teardown,
             NullLogger<ModerationService>.Instance);
 
         var player = await accounts.TryCreateAsync("p9player", "password123");
@@ -261,6 +271,97 @@ public sealed class Phase9ModerationTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
+    public async Task Tcp_KickNotifiesPeersSavesStateCancelsExecutionsAndIsIdempotent()
+    {
+        var port = GetFreePort();
+        using var host = CreateInMemoryHost(port);
+        await host.StartAsync();
+        try
+        {
+            var gm = UniqueUser("gm");
+            var player = UniqueUser("pl");
+            var other = UniqueUser("ot");
+            const string password = "password123";
+
+            await using var gmClient = new TcpProbe();
+            await using var playerClient = new TcpProbe();
+            await using var otherClient = new TcpProbe();
+
+            await RegisterLoginSelectAsync(gmClient, port, gm, password, "GmHero");
+            await RegisterLoginSelectAsync(playerClient, port, player, password, "PlHero");
+            await RegisterLoginSelectAsync(otherClient, port, other, password, "OtHero");
+
+            var accounts = host.Services.GetRequiredService<IAccountRepository>();
+            var operators = host.Services.GetRequiredService<IOperatorDirectory>();
+            var gmAccount = await accounts.FindByUsernameAsync(gm);
+            Assert.NotNull(gmAccount);
+            Assert.Equal(
+                OperatorGrantStatus.Granted,
+                (await operators.GrantAsync(gmAccount!.Id, "sql", "p9-1 kick cleanup")).Status);
+
+            var connections = host.Services.GetRequiredService<ConnectionManager>();
+            Assert.True(connections.TryGetSessionByUsername(player, out var live) && live is not null);
+            Assert.False(string.IsNullOrWhiteSpace(live!.CharacterId));
+            Assert.True(live.CharacterGuid.HasValue);
+            var characterId = live.CharacterId!;
+            var characterGuid = live.CharacterGuid!.Value;
+            var mapId = live.CurrentMapId;
+            var pixelX = live.PixelX;
+            var pixelY = live.PixelY;
+
+            var tracker = host.Services.GetRequiredService<MapEventExecutionTracker>();
+            var eventId = Guid.NewGuid();
+            Assert.True(tracker.TryBeginParallel(characterGuid, 1, eventId, mapId));
+            tracker.RegisterWait(
+                characterGuid,
+                new PendingWaitResume(
+                    DateTimeOffset.UtcNow.AddMinutes(5),
+                    Array.Empty<MapEventCommandDefinition>()));
+            var movement = host.Services.GetRequiredService<MapEventMovementService>();
+            movement.RegisterOccupant(mapId, characterGuid);
+            Assert.True(movement.HasOccupantForTest(mapId, characterGuid));
+
+            await gmClient.SendFrameAsync(BuildModerate(ModerationAction.Kick, player, "afk"));
+            var kickResult = await gmClient.ReadUntilAsync(PacketId.ModerateResult);
+            Assert.True(TryDecodeStatus(kickResult, out var kickOk, out _));
+            Assert.True(kickOk);
+
+            var leave = await otherClient.ReadUntilAsync(PacketId.PlayerLeave);
+            Assert.Equal((byte)PacketId.PlayerLeave, leave[0]);
+            Assert.Equal(player, Encoding.UTF8.GetString(leave, 2, leave[1]));
+
+            await ExpectSessionClosedAsync(playerClient);
+            Assert.False(connections.TryGetSessionByUsername(player, out _));
+
+            var store = host.Services.GetRequiredService<IPlayerStateStore>();
+            Assert.True(store.TryGetForCharacter(characterId, out var saved));
+            Assert.Equal(mapId, saved.MapId);
+            Assert.Equal(pixelX, saved.X);
+            Assert.Equal(pixelY, saved.Y);
+
+            Assert.True(tracker.TryBeginParallel(characterGuid, 1, eventId, mapId));
+            Assert.Empty(tracker.TakeReadyWaits(characterGuid, DateTimeOffset.UtcNow.AddHours(1)));
+            Assert.False(movement.HasOccupantForTest(mapId, characterGuid));
+
+            await gmClient.SendFrameAsync(BuildModerate(ModerationAction.Kick, player, "again"));
+            var kickAgain = await gmClient.ReadUntilAsync(PacketId.ModerateResult);
+            Assert.True(TryDecodeStatus(kickAgain, out var kickAgainOk, out _));
+            Assert.True(kickAgainOk);
+
+            await gmClient.SendFrameAsync(BuildModerate(ModerationAction.Ban, player, "cheat"));
+            var banResult = await gmClient.ReadUntilAsync(PacketId.ModerateResult);
+            Assert.True(TryDecodeStatus(banResult, out var banOk, out _));
+            Assert.True(banOk);
+            Assert.False(connections.TryGetSessionByUsername(player, out _));
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
     private static IHost CreateInMemoryHost(int port)
         => FrogServerHostFactory
             .CreateHostBuilder(
@@ -298,6 +399,24 @@ public sealed class Phase9ModerationTests
         Assert.True(loginOk);
         await client.DrainPendingAsync();
         return (token, login);
+    }
+
+    private static async Task RegisterLoginSelectAsync(
+        TcpProbe client,
+        int port,
+        string user,
+        string password,
+        string characterName)
+    {
+        await RegisterAndLoginAsync(client, port, user, password);
+        await client.SendFrameAsync(BuildCharacterCreate(characterName, Phase7ContentSeed.DefaultClassId));
+        var create = await client.ReadUntilAsync(PacketId.CharacterCreateResult);
+        Assert.True(create.Length > 3 && create[1] != 0);
+        var characterId = Encoding.UTF8.GetString(create, 3, create[2]);
+        await client.SendFrameAsync(BuildCharacterSelect(characterId));
+        var select = await client.ReadUntilAsync(PacketId.CharacterSelectResult);
+        Assert.True(select.Length > 1 && select[1] != 0);
+        await client.DrainPendingAsync();
     }
 
     private static async Task ExpectSessionClosedAsync(TcpProbe client)
@@ -349,6 +468,27 @@ public sealed class Phase9ModerationTests
         payload[0] = (byte)PacketId.ReconnectRequest;
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1), (ushort)t.Length);
         t.CopyTo(payload, 3);
+        return payload;
+    }
+
+    private static byte[] BuildCharacterCreate(string name, Guid classId)
+    {
+        var n = Encoding.UTF8.GetBytes(name);
+        var payload = new byte[1 + 1 + n.Length + 16];
+        payload[0] = (byte)PacketId.CharacterCreateRequest;
+        payload[1] = (byte)n.Length;
+        n.CopyTo(payload, 2);
+        classId.TryWriteBytes(payload.AsSpan(2 + n.Length));
+        return payload;
+    }
+
+    private static byte[] BuildCharacterSelect(string id)
+    {
+        var b = Encoding.UTF8.GetBytes(id);
+        var payload = new byte[1 + 1 + b.Length];
+        payload[0] = (byte)PacketId.CharacterSelectRequest;
+        payload[1] = (byte)b.Length;
+        b.CopyTo(payload, 2);
         return payload;
     }
 
@@ -537,6 +677,13 @@ public sealed class Phase9ModerationTests
             _stream?.Dispose();
             _tcp?.Dispose();
             await Task.CompletedTask;
+        }
+    }
+
+    private sealed class NoopRuntimeCleanup : ICharacterRuntimeCleanup
+    {
+        public void CancelForCharacter(Guid characterId)
+        {
         }
     }
 }
