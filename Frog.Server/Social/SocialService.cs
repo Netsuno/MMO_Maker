@@ -21,9 +21,8 @@ public sealed class SocialService : ISocialPresenceSink
     private readonly SocialOptions _options;
     private readonly TimeProvider _clock;
     private readonly PartyRoster _parties = new();
+    private readonly CrossInviteCounters _inviteCounters;
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, SocialResultWire>> _replays = new();
-    private readonly ConcurrentDictionary<Guid, Queue<DateTimeOffset>> _inviteRate = new();
-    private readonly ConcurrentDictionary<string, DateTimeOffset> _reinviteCooldown = new();
     private readonly object _partyGate = new();
 
     public SocialService(
@@ -32,6 +31,7 @@ public sealed class SocialService : ISocialPresenceSink
         ConnectionManager connections,
         ClientRegistry clients,
         IOptions<SocialOptions> options,
+        CrossInviteCounters inviteCounters,
         TimeProvider? clock = null)
     {
         _store = store;
@@ -39,7 +39,12 @@ public sealed class SocialService : ISocialPresenceSink
         _connections = connections;
         _clients = clients;
         _options = options.Value;
+        _inviteCounters = inviteCounters;
         _clock = clock ?? TimeProvider.System;
+        _inviteCounters.Register(
+            "party",
+            id => _parties.CountPendingOutgoing(id),
+            id => _parties.CountPendingIncoming(id));
     }
 
     public async Task<SocialResultWire> ExecuteAsync(
@@ -220,8 +225,8 @@ public sealed class SocialService : ISocialPresenceSink
                 return PartyInviteResult.Fail(err);
             }
 
-            var pendingOut = _parties.CountPendingOutgoing(actorId) + pendingOutStore;
-            var pendingIn = _parties.CountPendingIncoming(targetId) + pendingInStore;
+            var pendingOut = _inviteCounters.MemoryOutgoing(actorId) + pendingOutStore;
+            var pendingIn = _inviteCounters.MemoryIncoming(targetId) + pendingInStore;
             if (pendingOut >= _options.MaxPendingOutgoing)
             {
                 return PartyInviteResult.Fail("Trop d'invitations sortantes.");
@@ -927,46 +932,23 @@ public sealed class SocialService : ISocialPresenceSink
         => TryAllowInviteLocked(from, to, kind, now, out error);
 
     private bool TryAllowInviteLocked(Guid from, Guid to, SocialKind kind, DateTimeOffset now, out string error)
-    {
-        error = string.Empty;
-        var key = from.ToString("N") + ":" + to.ToString("N") + ":" + (byte)kind;
-        if (_reinviteCooldown.TryGetValue(key, out var until) && until > now)
-        {
-            error = "Patientez avant de renvoyer une invitation.";
-            return false;
-        }
-
-        var q = _inviteRate.GetOrAdd(from, _ => new Queue<DateTimeOffset>());
-        lock (q)
-        {
-            while (q.Count > 0 && now - q.Peek() > TimeSpan.FromMinutes(1))
-            {
-                q.Dequeue();
-            }
-
-            if (q.Count >= _options.InviteRatePerMinute)
-            {
-                error = "Trop d'invitations.";
-                return false;
-            }
-
-            q.Enqueue(now);
-        }
-
-        return true;
-    }
+        => _inviteCounters.TryAllowInvite(
+            from,
+            to,
+            "s" + (byte)kind,
+            now,
+            _options.InviteRatePerMinute,
+            _options.ReinviteCooldownSeconds,
+            out error);
 
     private void MarkCooldown(Guid from, Guid to, SocialKind kind, DateTimeOffset now)
-    {
-        var key = from.ToString("N") + ":" + to.ToString("N") + ":" + (byte)kind;
-        _reinviteCooldown[key] = now.AddSeconds(_options.ReinviteCooldownSeconds);
-    }
+        => _inviteCounters.MarkCooldown(from, to, "s" + (byte)kind, now, _options.ReinviteCooldownSeconds);
 
     private async Task<bool> CheckPendingCapsAsync(Guid from, Guid to, CancellationToken cancellationToken)
     {
-        var outgoing = _parties.CountPendingOutgoing(from)
+        var outgoing = _inviteCounters.MemoryOutgoing(from)
                        + await _store.CountPendingOutgoingAsync(from, cancellationToken).ConfigureAwait(false);
-        var incoming = _parties.CountPendingIncoming(to)
+        var incoming = _inviteCounters.MemoryIncoming(to)
                        + await _store.CountPendingIncomingAsync(to, cancellationToken).ConfigureAwait(false);
         return outgoing < _options.MaxPendingOutgoing && incoming < _options.MaxPendingIncoming;
     }

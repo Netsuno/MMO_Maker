@@ -18,4 +18,7 @@ public static class SocialProtocolLimits
     public const int FriendRequestDaysDefault = 7;
     public const int ReinviteCooldownSeconds = 30;
     public const int InviteRatePerMinute = 10;
+    public const int TradeMaxStacksPerSide = 8;
+    public const int TradeInviteSecondsDefault = 60;
+    public const int TradeIdleSecondsDefault = 120;
 }

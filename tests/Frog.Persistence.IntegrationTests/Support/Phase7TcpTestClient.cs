@@ -268,6 +268,21 @@ internal static class Phase7TcpPacketBuilder
     public static byte[] BuildSocialConfirm(SocialKind kind, byte action, Guid requestId, bool confirm)
         => BuildSocial(kind, action, requestId, SocialWire.BuildConfirmPayload(confirm));
 
+    public static byte[] BuildTrade(byte action, Guid tradeId, Guid requestId, ReadOnlySpan<byte> extra = default)
+    {
+        var body = TradeWire.BuildRequest(action, tradeId, requestId, extra);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.TradeRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
+
+    public static byte[] BuildTradeInvite(Guid requestId, Guid target)
+        => BuildTrade((byte)TradeAction.Invite, Guid.Empty, requestId, TradeWire.BuildGuidPayload(target));
+
+    public static byte[] BuildTradeAction(byte action, Guid tradeId, Guid requestId, ReadOnlySpan<byte> extra = default)
+        => BuildTrade(action, tradeId, requestId, extra);
+
     public static byte[] BuildModerate(ModerationAction action, string targetUsername, string reason)
     {
         var body = ModerateWire.BuildRequest(action, targetUsername, reason);

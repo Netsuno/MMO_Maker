@@ -64,6 +64,15 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendTradeResultAsync(ClientSession session, TradeResultWire result, CancellationToken cancellationToken)
+    {
+        var body = TradeWire.BuildResult(result);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.TradeResult;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
     public Task SendMapDataAsync(
         ClientSession session,
         int mapId,

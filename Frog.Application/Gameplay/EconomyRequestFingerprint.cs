@@ -76,6 +76,41 @@ public static class EconomyRequestFingerprint
     public static byte[] BankWithdrawGold(Guid characterId, int amount)
         => Hash(WriteOperation("bank_withdraw_gold"), WriteGuid(characterId), WriteInt32(amount));
 
+    public static byte[] TradeCommit(
+        Guid tradeId,
+        Guid initiatorId,
+        Guid partnerId,
+        int initiatorGold,
+        int partnerGold,
+        IReadOnlyList<(Guid ItemId, int Quantity)> initiatorItems,
+        IReadOnlyList<(Guid ItemId, int Quantity)> partnerItems)
+    {
+        var segments = new List<byte[]>
+        {
+            WriteOperation("trade.commit"),
+            WriteGuid(tradeId),
+            WriteGuid(initiatorId),
+            WriteGuid(partnerId),
+            WriteInt32(initiatorGold),
+            WriteInt32(partnerGold),
+            WriteInt32(initiatorItems.Count)
+        };
+        foreach (var stack in initiatorItems.OrderBy(s => s.ItemId).ThenBy(s => s.Quantity))
+        {
+            segments.Add(WriteGuid(stack.ItemId));
+            segments.Add(WriteInt32(stack.Quantity));
+        }
+
+        segments.Add(WriteInt32(partnerItems.Count));
+        foreach (var stack in partnerItems.OrderBy(s => s.ItemId).ThenBy(s => s.Quantity))
+        {
+            segments.Add(WriteGuid(stack.ItemId));
+            segments.Add(WriteInt32(stack.Quantity));
+        }
+
+        return Hash(segments.ToArray());
+    }
+
     public static bool Matches(ReadOnlySpan<byte> stored, ReadOnlySpan<byte> computed)
         => stored.Length == computed.Length && stored.SequenceEqual(computed);
 

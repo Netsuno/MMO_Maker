@@ -27,6 +27,11 @@ public sealed class HelpForm : Form
         • Mêlée et sorts : choisissez une cible par son nom.
         • En cas de mort, le bouton Respawn apparaît.
 
+        Échange entre joueurs
+        • À portée (3 tuiles) : /trade invite <identifiant personnage>, puis accepter.
+        • La fenêtre d'échange affiche les noms, objets, quantités, or et la révision.
+        • Confirmer uniquement la révision affichée ; modifier l'offre annule les confirmations.
+
         Fabrication
         • Onglet Quêtes : choisissez une recette par son nom, puis « Fabriquer ».
         • Un métier peut être requis selon la recette.

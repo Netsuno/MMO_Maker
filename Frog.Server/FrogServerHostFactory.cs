@@ -283,6 +283,11 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IPublishedContentRevisionStamp>(_ =>
                         NullPublishedContentRevisionStamp.Instance);
                     services.AddSingleton<Frog.Application.Social.ISocialStore, Frog.Server.Social.InMemorySocialStore>();
+                    services.AddSingleton<Frog.Application.Gameplay.ITradeCommitRepository>(sp =>
+                        new Frog.Server.Trade.InMemoryTradeCommitRepository(
+                            sp.GetRequiredService<ICharacterRepository>(),
+                            sp.GetRequiredService<IInventoryRepository>(),
+                            sp.GetRequiredService<IPublishedItemCatalog>()));
                 }
 
                 if (usePostgreSql)
@@ -395,9 +400,16 @@ public static class FrogServerHostFactory
                 services.AddSingleton<MapService>();
                 services.AddSingleton<MovementService>();
                 services.AddSingleton<PacketSender>();
+                services.AddSingleton<Frog.Server.Social.CrossInviteCounters>();
+                services.AddSingleton<Frog.Server.Trade.TradeHoldRegistry>();
+                services.AddSingleton<Frog.Application.Gameplay.ITradeHoldQuery>(sp =>
+                    sp.GetRequiredService<Frog.Server.Trade.TradeHoldRegistry>());
                 services.AddSingleton<Frog.Server.Social.SocialService>();
                 services.AddSingleton<Frog.Server.Social.ISocialPresenceSink>(sp =>
                     sp.GetRequiredService<Frog.Server.Social.SocialService>());
+                services.AddSingleton<Frog.Server.Trade.TradeService>();
+                services.AddSingleton<Frog.Server.Trade.ITradePresenceSink>(sp =>
+                    sp.GetRequiredService<Frog.Server.Trade.TradeService>());
                 services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
                 services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();

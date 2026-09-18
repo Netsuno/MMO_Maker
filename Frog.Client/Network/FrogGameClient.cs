@@ -95,6 +95,8 @@ public sealed class FrogGameClient : IDisposable
     public event Action<SocialResultWire>? SocialResultReceived;
     public event Action<SocialSnapshotWire>? SocialSnapshotReceived;
     public event Action<SocialEventWire>? SocialEventReceived;
+    public event Action<TradeResultWire>? TradeResultReceived;
+    public event Action<TradeSnapshotWire>? TradeSnapshotReceived;
     public event Action? ConnectionClosed;
 
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
@@ -776,6 +778,22 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.TradeResult:
+                if (TradeWire.TryParseResult(body.Span, out var tradeResult))
+                {
+                    Post(() => TradeResultReceived?.Invoke(tradeResult));
+                }
+
+                break;
+
+            case PacketId.TradeSnapshot:
+                if (TradeWire.TryParseSnapshot(body.Span, out var tradeSnap))
+                {
+                    Post(() => TradeSnapshotReceived?.Invoke(tradeSnap));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -1125,6 +1143,20 @@ public sealed class FrogGameClient : IDisposable
         var body = SocialWire.BuildRequest(kind, action, requestId, extra);
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.SocialRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendTradeAsync(
+        byte action,
+        Guid tradeId,
+        Guid requestId,
+        ReadOnlySpan<byte> extra,
+        CancellationToken cancellationToken = default)
+    {
+        var body = TradeWire.BuildRequest(action, tradeId, requestId, extra);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.TradeRequest;
         body.CopyTo(payload.AsSpan(1));
         return SendRawAsync(payload, cancellationToken);
     }

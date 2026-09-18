@@ -159,5 +159,14 @@ public enum PacketId : byte
     /// <summary>Poussée : invitation, départ, présence, dissolution.</summary>
     SocialEvent = 83,
 
+    /// <summary>Enveloppe d'échange P2P. Corps : <see cref="Frog.Core.Protocol.TradeWire"/>.</summary>
+    TradeRequest = 84,
+
+    /// <summary>Résultat d'une <see cref="TradeRequest"/>.</summary>
+    TradeResult = 85,
+
+    /// <summary>Offre complète + révision + drapeaux de confirmation.</summary>
+    TradeSnapshot = 86,
+
     Error = 255
 }

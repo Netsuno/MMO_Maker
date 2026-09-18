@@ -174,6 +174,7 @@ public sealed class MainShellForm : Form
     private readonly DialoguePanel _dialoguePanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 96) };
     private readonly QuestJournalPanel _questJournalPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
     private readonly CraftPanel _craftPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 56) };
+    private readonly TradeForm _tradeForm = new();
     private readonly EnvironmentPanel _environmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
     private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.Fill, MinimumSize = new Size(300, 0) };
     private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
@@ -1144,6 +1145,10 @@ public sealed class MainShellForm : Form
         _inventoryPanel.EquipRequested += slot => _ = EquipSlotAsync(slot);
         _inventoryPanel.DropRequested += (slot, qty) => _ = DropItemAsync(slot, qty);
         _inventoryPanel.SelectionChanged += UpdateInventoryActionButtons;
+        _tradeForm.ConfirmRequested += (id, rev) => _ = SendTradeActionAsync(
+            (byte)TradeAction.Confirm, id, TradeWire.BuildRevisionPayload(rev));
+        _tradeForm.UnconfirmRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Unconfirm, id, []);
+        _tradeForm.CancelRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Cancel, id, []);
         _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
         _dialoguePanel.ChoiceRequested += (token, choiceId) => _ = SendDialogueChoiceAsync(token, choiceId);
         _questJournalPanel.TurnInRequested += questId => _ = QuestTurnInAsync(questId);
@@ -1203,6 +1208,9 @@ public sealed class MainShellForm : Form
             AppendLog($"{label}: {snap.Members.Count} entrée(s)"
                       + (string.IsNullOrEmpty(snap.Motd) ? string.Empty : " — " + snap.Motd));
         };
+        _client.TradeResultReceived += r =>
+            AppendLog(r.Success ? "Échange: " + r.Message : "Échange refusé: " + r.Message);
+        _client.TradeSnapshotReceived += OnTradeSnapshot;
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
             AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "rate")} — {msg}");
         _client.CharacterListReceived += OnCharacterListJson;
@@ -1491,6 +1499,42 @@ public sealed class MainShellForm : Form
         _equipmentPanel.ApplySnapshot(snapshot);
         UpdateInventoryActionButtons();
         AppendLog($"Inventaire: {snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0)} slot(s) rempli(s).");
+    }
+
+    private void OnTradeSnapshot(TradeSnapshotWire snapshot)
+    {
+        _tradeForm.ApplySnapshot(snapshot, ResolveItemName);
+        AppendLog(
+            $"Échange rév {snapshot.Revision}: {snapshot.InitiatorName} ({snapshot.InitiatorOffer.Gold} or) ↔ {snapshot.PartnerName} ({snapshot.PartnerOffer.Gold} or)");
+        if (snapshot.Status is TradeStatus.Inviting or TradeStatus.Open)
+        {
+            if (!_tradeForm.Visible)
+            {
+                _tradeForm.Show(this);
+            }
+        }
+        else if (snapshot.Status is TradeStatus.Committed or TradeStatus.Cancelled)
+        {
+            ShowPlayerStatus(
+                snapshot.Status == TradeStatus.Committed ? "Échange validé." : "Échange annulé.");
+        }
+    }
+
+    private async Task SendTradeActionAsync(byte action, Guid tradeId, byte[] extra)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendTradeAsync(action, tradeId, Guid.NewGuid(), extra).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Échange: " + ex.Message);
+        }
     }
 
     /// <summary>Nom publié (catalogue) pour un ItemId ; secours GUID court si catalogue absent/objet inconnu.</summary>
@@ -2719,6 +2763,27 @@ public sealed class MainShellForm : Form
             catch (Exception ex)
             {
                 AppendLog("Modération: " + ex.Message);
+            }
+
+            return;
+        }
+
+        if (TradeWire.TryParseSlashCommand(text, out var tradeAction, out var tradeId, out var tradeExtra))
+        {
+            try
+            {
+                if (tradeAction == (byte)TradeAction.Confirm && _tradeForm.DisplayedRevision != 0)
+                {
+                    tradeExtra = TradeWire.BuildRevisionPayload(_tradeForm.DisplayedRevision);
+                }
+
+                await _client.SendTradeAsync(tradeAction, tradeId, Guid.NewGuid(), tradeExtra)
+                    .ConfigureAwait(true);
+                _txtChat.Clear();
+            }
+            catch (Exception ex)
+            {
+                AppendLog("Échange: " + ex.Message);
             }
 
             return;

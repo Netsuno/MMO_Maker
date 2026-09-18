@@ -11,6 +11,9 @@ public static class WorldMetrics
     /// <summary>Portée mêlée maximale en pixels (distance euclidienne centre → centre). Échelle ~1,75 tuile avec tuiles 32 px.</summary>
     public const int MeleeRangePixels = 56;
 
+    /// <summary>Portée d'échange P2P (3 tuiles × 32 px), distance euclidienne centre → centre.</summary>
+    public const int TradeRangePixels = 96;
+
     /// <summary>Déplacement demandé par <c>MoveRequest</c> (une frame logique), en pixels après normalisation diagonale.</summary>
     public const int PlayerMovePixelsPerRequest = 8;
 

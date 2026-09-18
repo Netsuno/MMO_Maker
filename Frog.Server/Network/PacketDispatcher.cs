@@ -24,6 +24,7 @@ using Frog.Server.Services;
 using Frog.Server.Config;
 using Frog.Server.Observability;
 using Frog.Server.Social;
+using Frog.Server.Trade;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -59,6 +60,7 @@ public sealed partial class PacketDispatcher(
     SessionTeardown sessionTeardown,
     ServerOpsMetrics opsMetrics,
     SocialService socialService,
+    TradeService tradeService,
     IOptions<RegistrationOptions> registrationOptions,
     ILogger<PacketDispatcher> logger)
 {
@@ -91,6 +93,7 @@ public sealed partial class PacketDispatcher(
     private readonly SessionTeardown _sessionTeardown = sessionTeardown;
     private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
     private readonly SocialService _social = socialService;
+    private readonly TradeService _trade = tradeService;
     private readonly RegistrationOptions _registration = registrationOptions.Value;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
@@ -185,6 +188,10 @@ public sealed partial class PacketDispatcher(
 
             case PacketId.SocialRequest:
                 await HandleSocialRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.TradeRequest:
+                await HandleTradeRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             case PacketId.ModerateRequest:
@@ -1031,6 +1038,10 @@ public sealed partial class PacketDispatcher(
 
         _movementService.TryApplyWarpAfterMove(session);
         _connectionManager.TryTouchSession(session.Id);
+        if (session.CharacterGuid is Guid movedCharacterId)
+        {
+            await _trade.NotifyMovementAsync(movedCharacterId, cancellationToken).ConfigureAwait(false);
+        }
         ServerNetworkLogs.MoveApplied(_logger, session.Username, session.PixelX, session.PixelY);
         var clients = _clientRegistry.GetAllAuthenticatedClients();
         foreach (var targetClient in clients)
@@ -1053,10 +1064,15 @@ public sealed partial class PacketDispatcher(
         if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
         {
             _combatGameplay.CancelForMapChange(session);
-            if (session.CharacterGuid is Guid mapChangeCharacterId)
-            {
-                _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId, cellBefore.CurrentMapId);
-            }
+                if (session.CharacterGuid is Guid mapChangeCharacterId)
+                {
+                    _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId, cellBefore.CurrentMapId);
+                    await _trade.NotifyCharacterUnfitAsync(
+                            mapChangeCharacterId,
+                            "Changement de carte.",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
@@ -1103,6 +1119,10 @@ public sealed partial class PacketDispatcher(
 
         _movementService.TryApplyWarpAfterMove(session);
         _connectionManager.TryTouchSession(session.Id);
+        if (session.CharacterGuid is Guid movedCharacterId)
+        {
+            await _trade.NotifyMovementAsync(movedCharacterId, cancellationToken).ConfigureAwait(false);
+        }
         ServerNetworkLogs.MoveApplied(_logger, session.Username, session.PixelX, session.PixelY);
         foreach (var targetClient in _clientRegistry.GetAllAuthenticatedClients())
         {
@@ -1124,10 +1144,15 @@ public sealed partial class PacketDispatcher(
         if (cellBefore.CurrentMapId != cellAfter.CurrentMapId)
         {
             _combatGameplay.CancelForMapChange(session);
-            if (session.CharacterGuid is Guid mapChangeCharacterId)
-            {
-                _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId, cellBefore.CurrentMapId);
-            }
+                if (session.CharacterGuid is Guid mapChangeCharacterId)
+                {
+                    _phase8.ClearMapEventExecutionsForCharacter(mapChangeCharacterId, cellBefore.CurrentMapId);
+                    await _trade.NotifyCharacterUnfitAsync(
+                            mapChangeCharacterId,
+                            "Changement de carte.",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);

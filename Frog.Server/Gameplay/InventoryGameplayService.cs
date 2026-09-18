@@ -10,13 +10,15 @@ public sealed class InventoryGameplayService(
     IInventoryTransferRepository transfers,
     IGroundItemRepository groundItems,
     IPublishedItemCatalog items,
-    IEquipmentRepository equipment)
+    IEquipmentRepository equipment,
+    ITradeHoldQuery? tradeHolds = null)
 {
     private readonly IInventoryRepository _inventory = inventory;
     private readonly IInventoryTransferRepository _transfers = transfers;
     private readonly IGroundItemRepository _groundItems = groundItems;
     private readonly IPublishedItemCatalog _items = items;
     private readonly IEquipmentRepository _equipment = equipment;
+    private readonly ITradeHoldQuery _tradeHolds = tradeHolds ?? NullTradeHoldQuery.Instance;
 
     public async Task SyncEquippedItemsToSessionAsync(Session session, CancellationToken ct = default)
     {
@@ -48,12 +50,24 @@ public sealed class InventoryGameplayService(
         return await _inventory.TryAddAsync(characterId, itemId, quantity, item.MaxStack, ct).ConfigureAwait(false);
     }
 
-    public Task<InventoryMutationResult> TryRemoveFromSlotAsync(
+    public async Task<InventoryMutationResult> TryRemoveFromSlotAsync(
         Guid characterId,
         int slotIndex,
         int quantity,
         CancellationToken ct = default)
-        => _inventory.TryRemoveAsync(characterId, slotIndex, quantity, ct);
+    {
+        var inv = await _inventory.GetAsync(characterId, ct).ConfigureAwait(false);
+        var slot = inv.Slots.FirstOrDefault(s => s.SlotIndex == slotIndex);
+        if (slot is not null
+            && !_tradeHolds.CanRemoveFromSlot(characterId, slotIndex, quantity, slot.Quantity))
+        {
+            return new InventoryMutationResult(
+                InventoryMutationStatus.InvalidQuantity,
+                ErrorMessage: "Objets reserves pour un echange.");
+        }
+
+        return await _inventory.TryRemoveAsync(characterId, slotIndex, quantity, ct).ConfigureAwait(false);
+    }
 
     public async Task<EquipResult> TryEquipAsync(Session session, int inventorySlotIndex, CancellationToken ct = default)
     {
@@ -73,6 +87,14 @@ public sealed class InventoryGameplayService(
         }
 
         var characterId = session.RequireCharacterGuid();
+        var inv = await _inventory.GetAsync(characterId, ct).ConfigureAwait(false);
+        var slot = inv.Slots.FirstOrDefault(s => s.SlotIndex == inventorySlotIndex);
+        if (slot is not null
+            && !_tradeHolds.CanRemoveFromSlot(characterId, inventorySlotIndex, 1, slot.Quantity))
+        {
+            return EquipResult.Fail("Objets reserves pour un echange.");
+        }
+
         var result = await _transfers.TryEquipAsync(characterId, inventorySlotIndex, ct).ConfigureAwait(false);
         if (!result.Success || result.Inventory is null || result.Equipment is null)
         {
@@ -121,6 +143,14 @@ public sealed class InventoryGameplayService(
         }
 
         var characterId = session.RequireCharacterGuid();
+        var inv = await _inventory.GetAsync(characterId, ct).ConfigureAwait(false);
+        var slot = inv.Slots.FirstOrDefault(s => s.SlotIndex == slotIndex);
+        if (slot is not null
+            && !_tradeHolds.CanRemoveFromSlot(characterId, slotIndex, quantity, slot.Quantity))
+        {
+            return DropResult.Fail("Objets reserves pour un echange.");
+        }
+
         var result = await _transfers.TryDropAsync(
             characterId,
             slotIndex,

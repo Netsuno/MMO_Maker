@@ -110,6 +110,8 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<CharacterBlockEntity> PlayerCharacterBlocks => Set<CharacterBlockEntity>();
 
+    public DbSet<TradeExecutionEntity> PlayerTradeExecutions => Set<TradeExecutionEntity>();
+
     public DbSet<Phase8ContentDefinitionEntity> Phase8ContentDefinitions => Set<Phase8ContentDefinitionEntity>();
 
     public DbSet<Phase8ContentPublishedSnapshotEntity> Phase8ContentPublishedSnapshots =>
@@ -1087,6 +1089,23 @@ public sealed class FrogDbContext : DbContext
             e.HasOne<CharacterEntity>()
                 .WithMany()
                 .HasForeignKey(x => x.BlockedCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TradeExecutionEntity>(e =>
+        {
+            e.ToTable("trade_executions", "player");
+            e.HasKey(x => x.TradeId);
+            e.Property(x => x.ContentsJson).HasColumnType("jsonb").IsRequired();
+            e.HasIndex(x => x.CommittedAtUtc);
+            e.HasIndex(x => x.CommitRequestId);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.InitiatorCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.PartnerCharacterId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

@@ -9,12 +9,16 @@ public sealed class CraftGameplayService(
     IPublishedRecipeCatalog recipes,
     IPublishedProfessionCatalog professions,
     ICharacterProfessionRepository professionProgress,
-    IEventCraftRepository craftRepo)
+    IEventCraftRepository craftRepo,
+    IInventoryRepository? inventory = null,
+    ITradeHoldQuery? tradeHolds = null)
 {
     private readonly IPublishedRecipeCatalog _recipes = recipes;
     private readonly IPublishedProfessionCatalog _professions = professions;
     private readonly ICharacterProfessionRepository _professionProgress = professionProgress;
     private readonly IEventCraftRepository _craftRepo = craftRepo;
+    private readonly IInventoryRepository? _inventory = inventory;
+    private readonly ITradeHoldQuery _tradeHolds = tradeHolds ?? NullTradeHoldQuery.Instance;
 
     public async Task<EventCraftResult> TryCraftAsync(
         Guid characterId,
@@ -43,6 +47,20 @@ public sealed class CraftGameplayService(
             return new EventCraftResult(
                 EventCraftStatus.InsufficientLevel,
                 $"Niveau {profession.Name} insuffisant ({level}/{recipe.RequiredProfessionLevel}).");
+        }
+
+        if (_inventory is not null)
+        {
+            var inv = await _inventory.GetAsync(characterId, cancellationToken).ConfigureAwait(false);
+            foreach (var ing in recipe.Ingredients)
+            {
+                if (!_tradeHolds.CanSpendItem(characterId, ing.ItemId, ing.Quantity, inv))
+                {
+                    return new EventCraftResult(
+                        EventCraftStatus.InsufficientIngredients,
+                        "Objets reserves pour un echange.");
+                }
+            }
         }
 
         return await _craftRepo.TryCraftAsync(characterId, recipeId, requestId, cancellationToken).ConfigureAwait(false);
