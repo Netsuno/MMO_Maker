@@ -26,6 +26,13 @@ public sealed class CraftGameplayService(
         Guid requestId,
         CancellationToken cancellationToken = default)
     {
+        var replay = await _craftRepo.TryGetReplayAsync(characterId, recipeId, requestId, cancellationToken)
+            .ConfigureAwait(false);
+        if (replay is not null)
+        {
+            return replay;
+        }
+
         var recipe = await _recipes.TryGetPublishedByIdAsync(recipeId, cancellationToken).ConfigureAwait(false);
         if (recipe is null)
         {
@@ -54,12 +61,21 @@ public sealed class CraftGameplayService(
             var inv = await _inventory.GetAsync(characterId, cancellationToken).ConfigureAwait(false);
             foreach (var ing in recipe.Ingredients)
             {
-                if (!_tradeHolds.CanSpendItem(characterId, ing.ItemId, ing.Quantity, inv))
+                if (_tradeHolds.CanSpendItem(characterId, ing.ItemId, ing.Quantity, inv))
                 {
-                    return new EventCraftResult(
-                        EventCraftStatus.InsufficientIngredients,
-                        "Objets reserves pour un echange.");
+                    continue;
                 }
+
+                replay = await _craftRepo.TryGetReplayAsync(characterId, recipeId, requestId, cancellationToken)
+                    .ConfigureAwait(false);
+                if (replay is not null)
+                {
+                    return replay;
+                }
+
+                return new EventCraftResult(
+                    EventCraftStatus.InsufficientIngredients,
+                    "Objets reserves pour un echange.");
             }
         }
 

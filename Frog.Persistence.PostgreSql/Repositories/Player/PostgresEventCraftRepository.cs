@@ -22,6 +22,15 @@ public sealed class PostgresEventCraftRepository(
 
     internal Func<CancellationToken, Task>? TestBeforeCommitAsync { get; set; }
 
+    public Task<EventCraftResult?> TryGetReplayAsync(
+        Guid characterId,
+        Guid recipeId,
+        Guid requestId,
+        CancellationToken cancellationToken = default) =>
+        _gate.ExecuteAsync(
+            (db, ct) => TryReadReplayAsync(db, characterId, recipeId, requestId, ct),
+            cancellationToken);
+
     public Task<EventCraftResult> TryCraftAsync(
         Guid characterId,
         Guid recipeId,
@@ -34,32 +43,11 @@ public sealed class PostgresEventCraftRepository(
                 return new EventCraftResult(EventCraftStatus.Failed, "Paramètres invalides.");
             }
 
-            var existing = await db.PlayerEventCraftRequests.AsNoTracking()
-                .FirstOrDefaultAsync(r => r.CharacterId == characterId && r.RequestId == requestId, ct)
+            var replay = await TryReadReplayAsync(db, characterId, recipeId, requestId, ct)
                 .ConfigureAwait(false);
-            if (existing is not null)
+            if (replay is not null)
             {
-                if (existing.RecipeId != recipeId)
-                {
-                    return new EventCraftResult(EventCraftStatus.Failed, "RequestId réutilisé avec recette différente.");
-                }
-
-                var replayInv = await db.PlayerInventorySlots.AsNoTracking()
-                    .Where(s => s.CharacterId == characterId)
-                    .OrderBy(s => s.SlotIndex)
-                    .Select(s => new InventorySlotRecord(s.SlotIndex, s.ItemId, s.Quantity))
-                    .ToListAsync(ct)
-                    .ConfigureAwait(false);
-                var replayGold = await db.PlayerCharacters.AsNoTracking()
-                    .Where(c => c.Id == characterId)
-                    .Select(c => (int?)c.Gold)
-                    .FirstOrDefaultAsync(ct)
-                    .ConfigureAwait(false);
-                return new EventCraftResult(
-                    EventCraftStatus.IdempotentReplay,
-                    "Craft déjà effectué.",
-                    new InventorySnapshot(characterId, replayInv),
-                    RemainingGold: replayGold);
+                return replay;
             }
 
             var recipe = await _recipes.TryGetPublishedByIdAsync(recipeId, ct).ConfigureAwait(false);
@@ -210,4 +198,47 @@ public sealed class PostgresEventCraftRepository(
                 return new EventCraftResult(EventCraftStatus.Failed, ex.Message);
             }
         }, cancellationToken);
+
+    private static async Task<EventCraftResult?> TryReadReplayAsync(
+        FrogDbContext db,
+        Guid characterId,
+        Guid recipeId,
+        Guid requestId,
+        CancellationToken ct)
+    {
+        if (characterId == Guid.Empty || requestId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var existing = await db.PlayerEventCraftRequests.AsNoTracking()
+            .FirstOrDefaultAsync(r => r.CharacterId == characterId && r.RequestId == requestId, ct)
+            .ConfigureAwait(false);
+        if (existing is null)
+        {
+            return null;
+        }
+
+        if (recipeId != Guid.Empty && existing.RecipeId != recipeId)
+        {
+            return new EventCraftResult(EventCraftStatus.Failed, "RequestId réutilisé avec recette différente.");
+        }
+
+        var replayInv = await db.PlayerInventorySlots.AsNoTracking()
+            .Where(s => s.CharacterId == characterId)
+            .OrderBy(s => s.SlotIndex)
+            .Select(s => new InventorySlotRecord(s.SlotIndex, s.ItemId, s.Quantity))
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+        var replayGold = await db.PlayerCharacters.AsNoTracking()
+            .Where(c => c.Id == characterId)
+            .Select(c => (int?)c.Gold)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+        return new EventCraftResult(
+            EventCraftStatus.IdempotentReplay,
+            "Craft déjà effectué.",
+            new InventorySnapshot(characterId, replayInv),
+            RemainingGold: replayGold);
+    }
 }

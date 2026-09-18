@@ -19,7 +19,7 @@ Journal **actif** du dépôt. Les rapports de phase dans `docs/progress/phase-0N
 - CI `main` post-merge : https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS**
 - CI produit Phase 9 : https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869 **SUCCESS** (Frog.Tests **454** / PG **181** / editor **87×3** / gameplay **6×3** / Phase 8 **24×3** + 12 exact-sha)
 
-P10-5 A–E : **PASS sécu** (TLS Windows unitaires verts, lots A–E déjà sur la branche). P10-2 échanges **déjà livré** (`bd8462d`, block sur invites). P10-4 monde démo **livré** (3 cartes / catalogues ; recette 12 étapes / 2 machines **non** exécutée). P10-6 paquets **self-contained + SHA-256** (lancement `Frog.Client.exe` hors dépôt **non** prouvé). P10-1 DONE `dca2185`. P10-3 hors 3a / P10-7…P10-9 incomplets. Pas de merge.
+P10-5 A–E : **PASS sécu** (TLS Windows unitaires verts, lots A–E déjà sur la branche). P10-2 échanges **déjà livré** (`bd8462d`, block sur invites ; replay craft avant holds). P10-4 monde démo **livré** (3 cartes / catalogues ; recette 12 étapes / 2 machines **non** exécutée). P10-6 paquets **self-contained + SHA-256** (lancement `Frog.Client.exe` hors dépôt **non** prouvé). P10-1 DONE `dca2185`. P10-3 hors 3a / P10-7…P10-9 incomplets. Pas de merge.
 
 Protocole runtime (cette branche) : **v11**. Ne pas fusionner. Ne pas diffuser. Pas de Phase 11. **Pas READY.**
 

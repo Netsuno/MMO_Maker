@@ -111,12 +111,7 @@ public sealed class OptionsForm : Form
         _btnInteract.Click += (_, _) => BeginCapture("Interact");
 
         KeyDown += OptionsForm_KeyDown;
-        save.Click += (_, _) =>
-        {
-            _draft.Normalize();
-            Settings = _draft.Clone();
-            DialogResult = DialogResult.OK;
-        };
+        save.Click += (_, _) => CommitSave();
     }
 
     public UserSettings Settings { get; private set; } = new();
@@ -128,6 +123,13 @@ public sealed class OptionsForm : Form
     internal Button SaveButtonForTest => AcceptButton as Button ?? throw new InvalidOperationException("Save");
 
     internal Button MoveUpButtonForTest => _btnUp;
+
+    internal void CommitSave()
+    {
+        _draft.Normalize();
+        Settings = _draft.Clone();
+        DialogResult = DialogResult.OK;
+    }
 
     private void RefreshVolumeLabel() => _lblVolume.Text = $"Volume : {_draft.VolumePercent} %";
 

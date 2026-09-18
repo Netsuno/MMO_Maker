@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Frog.Application.Gameplay;
 using Frog.Core.Gameplay;
+using Frog.Core.Models;
 using Frog.Server.Gameplay;
 using Frog.Server.Models;
 using Frog.Server.Trade;
@@ -115,5 +116,69 @@ public sealed class Phase10TradeLogicTests
         Assert.Contains("reserve", sell.Message, StringComparison.OrdinalIgnoreCase);
         var still = await inv.GetAsync(created.Character.Id);
         Assert.Equal(3, still.Slots.First(s => s.SlotIndex == 0).Quantity);
+    }
+
+    [Fact]
+    public async Task CraftReplay_SameRequestId_SucceedsAfterIngredientsConsumed()
+    {
+        var (svc, characterId, recipeId, _) = await CreateCraftHarnessAsync(ingredientQty: 2);
+        var requestId = Guid.NewGuid();
+        var first = await svc.TryCraftAsync(characterId, recipeId, requestId);
+        Assert.Equal(EventCraftStatus.Crafted, first.Status);
+
+        var replay = await svc.TryCraftAsync(characterId, recipeId, requestId);
+        Assert.Equal(EventCraftStatus.IdempotentReplay, replay.Status);
+    }
+
+    [Fact]
+    public async Task Craft_BlocksNewRequest_WhenIngredientsHeldForTrade()
+    {
+        var (svc, characterId, recipeId, holds) = await CreateCraftHarnessAsync(ingredientQty: 2);
+        holds.Replace(characterId, Guid.NewGuid(), gold: 0, new Dictionary<int, int> { [0] = 2 });
+        var blocked = await svc.TryCraftAsync(characterId, recipeId, Guid.NewGuid());
+        Assert.Equal(EventCraftStatus.InsufficientIngredients, blocked.Status);
+        Assert.Contains("reserve", blocked.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<(CraftGameplayService Svc, Guid CharacterId, Guid RecipeId, TradeHoldRegistry Holds)>
+        CreateCraftHarnessAsync(int ingredientQty)
+    {
+        var items = new Phase7PublishedContent();
+        var catalogs = new Phase8InMemoryPublishedContent();
+        var professionId = Guid.NewGuid();
+        var recipeId = Guid.NewGuid();
+        catalogs.RegisterProfession(new ProfessionDefinition { Id = professionId, Name = "Herboriste", MaxLevel = 10 });
+        catalogs.RegisterRecipe(new RecipeDefinition
+        {
+            Id = recipeId,
+            Name = "Tisane",
+            ProfessionId = professionId,
+            RequiredProfessionLevel = 1,
+            OutputItemId = Phase7ContentSeed.DefaultWeaponId,
+            OutputQuantity = 1,
+            Ingredients = [new RecipeIngredientDefinition { ItemId = Phase7ContentSeed.DefaultItemId, Quantity = ingredientQty }],
+        });
+
+        var professions = new InMemoryCharacterProfessionRepository();
+        var inv = new InMemoryInventoryRepository();
+        var characterId = Guid.NewGuid();
+        await professions.UpsertAsync(new CharacterProfessionProgress
+        {
+            CharacterId = characterId,
+            ProfessionId = professionId,
+            Level = 1,
+            Experience = 0,
+        });
+        await inv.TryAddAsync(characterId, Phase7ContentSeed.DefaultItemId, ingredientQty, 20);
+
+        var craftRepo = new InMemoryEventCraftRepository(
+            catalogs,
+            inv,
+            items,
+            professions: professions,
+            professionCatalog: catalogs);
+        var holds = new TradeHoldRegistry();
+        var svc = new CraftGameplayService(catalogs, catalogs, professions, craftRepo, inv, holds);
+        return (svc, characterId, recipeId, holds);
     }
 }

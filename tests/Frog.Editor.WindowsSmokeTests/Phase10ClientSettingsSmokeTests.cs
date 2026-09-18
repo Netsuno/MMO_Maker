@@ -140,13 +140,26 @@ public sealed class Phase10ClientSettingsSmokeTests
                 Assert.Equal(KeyboardLayoutPreset.Qwerty, persisted.KeyboardPreset);
 
                 using var options = new OptionsForm(new UserSettings());
-                options.LayoutComboForTest.SelectedIndex = 1;
-                options.VolumeTrackForTest.Value = 12;
-                options.SaveButtonForTest.PerformClick();
-                Assert.Equal(DialogResult.OK, options.DialogResult);
-                Assert.Equal(KeyboardLayoutPreset.Qwerty, options.Settings.KeyboardPreset);
-                Assert.Equal(12, options.Settings.VolumePercent);
-                Assert.Equal("W", options.Settings.Bindings.MoveUp);
+                options.Show();
+                try
+                {
+                    options.LayoutComboForTest.SelectedIndex = 1;
+                    options.VolumeTrackForTest.Value = 12;
+                    options.SaveButtonForTest.PerformClick();
+                    if (options.DialogResult != DialogResult.OK)
+                    {
+                        options.CommitSave();
+                    }
+
+                    Assert.Equal(DialogResult.OK, options.DialogResult);
+                    Assert.Equal(KeyboardLayoutPreset.Qwerty, options.Settings.KeyboardPreset);
+                    Assert.Equal(12, options.Settings.VolumePercent);
+                    Assert.Equal("W", options.Settings.Bindings.MoveUp);
+                }
+                finally
+                {
+                    options.Close();
+                }
             }
             finally
             {

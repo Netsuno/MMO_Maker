@@ -54,7 +54,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Invite consentie, distance 3 tuiles, vivants, même carte | `TradeWire` + `WorldMetrics.TradeRangePixels=96` | TCP + PG | **présent** (ce lot) |
 | Offre / révision / confirm invalidé | `TradeSnapshot.revision` | changement d’offre | **présent** (ce lot) |
 | Vérifs serveur au commit | propriété, qty, or, cap inventaire | cas négatifs | **présent** (ce lot) |
-| Pas de double dépense vs shop/banque/sol/équip/craft | `TradeHoldRegistry` à `SetOffer` | concurrence TCP sell réservé | **présent** (ce lot) |
+| Pas de double dépense vs shop/banque/sol/équip/craft | `TradeHoldRegistry` à `SetOffer` ; craft replay `requestId` avant le gate holds | concurrence TCP sell réservé + `Phase10TradeLogicTests` craft replay | **présent** (ce lot) |
 | Une transaction PG + ledger | `player.trade_executions` + `EconomyRequestId` `trade.commit` | crash injecté, rollback | **présent** (ce lot) |
 | Replay `request_id` après commit | même table économie | reconnect / même `request_id` | **présent** (ce lot) |
 | Annulation/déco/ban/carte/expire sans effet | `SessionTeardown` + `ITradePresenceSink` | TCP disconnect | **présent** (ce lot) |

@@ -35,7 +35,7 @@
 | --- | --- | --- |
 | P10-5 A TLS SslStream | `ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b` | **PASS** TLS Windows unitaires verts |
 | P10-2 Échanges 84–86 | `bd8462dba2c00e560ccde61ef30e411d0fd8ee94` | **livré** (block invites inclus) |
-| P10-3a Settings / aide / rebind | `4ea44de675642180fc5a39989bd22b9f78eb40f6` | **livré** (fix CI `ab1bec5`) |
+| P10-3a Settings / aide / rebind | `4ea44de675642180fc5a39989bd22b9f78eb40f6` | **livré** (fix CI `ab1bec5` ; DialogResult save hors ShowDialog) |
 | P10-5 B Rate-limit | `6e73e22141447461c52878e0580dcc72b9841bb5` | **livré** |
 | P10-5 C ClosedBeta + OpsCli | `726e037b4e5cd4943c1e076f732385f4d76cc76b` | **livré** |
 | P10-5 D PG least-privilege | `8f06cde0cec35fefb3c27817b1e7090562633649` | **livré** |
@@ -45,7 +45,7 @@
 
 - Aide FR scrollable (`HelpForm`) : F1 + bouton Aide.
 - Clavier AZERTY ZQSD+E / QWERTY WASD+E + flèches ; rebind persisté.
-- `OptionsForm` : fenêtre, volume, disposition ; JSON atomique `%LocalAppData%\Frog\client-settings.json` (`FROG_CLIENT_SETTINGS_PATH` pour tests).
+- `OptionsForm` : fenêtre, volume, disposition ; JSON atomique `%LocalAppData%\Frog\client-settings.json` (`FROG_CLIENT_SETTINGS_PATH` pour tests). `CommitSave` pose `DialogResult.OK` (PerformClick sans ShowDialog ne sélectionne pas le bouton).
 - Badge version **10.3.0** + « Copier diagnostics » expurgé (jamais jeton / mot de passe).
 - Status joueur + dual-write `[ui]` vers le log tests.
 - Craft : ComboBox **noms** de recettes (`PublishedCatalogWire.recipes` additif, pas de bump de version fil) ; bouton Fabriquer ; Guid hors UI normale.
@@ -105,7 +105,7 @@
 
 - Opcodes **84–86** (`TradeRequest` / `TradeResult` / `TradeSnapshot`) ; `WorldMetrics.TradeRangePixels = 96` (3 tuiles).
 - `TradeService` : invite consentie 60 s, idle 120 s, max 8 piles + or / côté, révision qui invalide les confirms.
-- Réservation à `SetOffer` (`TradeHoldRegistry`) vs boutique / banque / sol / équipement / craft.
+- Réservation à `SetOffer` (`TradeHoldRegistry`) vs boutique / banque / sol / équipement / craft. Replay craft `requestId` **avant** ce gate (retry après consommation).
 - Commit : **une** transaction PostgreSQL (`player.trade_executions` + `economy_request_ids` opération `trade.commit`) ; verrou des deux personnages `FOR UPDATE` (ordre Guid).
 - Replay `request_id` du commit sans re-transfert. Annulation / déco / ban / carte / expire avant commit = aucun effet économique.
 - Crash injecté (`TestBeforeCommitAsync`) → rollback, biens inchangés, retry possible.
@@ -128,4 +128,4 @@ Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. PacketDi
 
 ## Verdict
 
-**P10-5 A–E PASS sécu (TLS Windows unitaires verts) + P10-2 déjà livré + P10-4/P10-6 sur la branche.** La bêta n’est **pas** prête.
+**P10-5 A–E PASS sécu (TLS Windows unitaires verts) + P10-2 déjà livré + P10-4/P10-6 sur la branche.** Correctif CI : replay craft avant holds + `OptionsForm` DialogResult. La bêta n’est **pas** prête.
