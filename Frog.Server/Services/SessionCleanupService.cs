@@ -2,23 +2,17 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Frog.Server.Config;
-using Frog.Server.Network;
-using Frog.Server.Persistence;
 
 namespace Frog.Server.Services;
 
 public sealed class SessionCleanupService(
     ConnectionManager connectionManager,
-    ClientRegistry clientRegistry,
-    PlayerLifecycleNotifier playerLifecycleNotifier,
-    IPlayerStateStore playerStateStore,
+    SessionTeardown sessionTeardown,
     IOptions<SessionOptions> options,
     ILogger<SessionCleanupService> logger) : BackgroundService
 {
     private readonly ConnectionManager _connectionManager = connectionManager;
-    private readonly ClientRegistry _clientRegistry = clientRegistry;
-    private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
-    private readonly IPlayerStateStore _playerStateStore = playerStateStore;
+    private readonly SessionTeardown _sessionTeardown = sessionTeardown;
     private readonly SessionOptions _options = options.Value;
     private readonly ILogger<SessionCleanupService> _logger = logger;
 
@@ -34,38 +28,25 @@ public sealed class SessionCleanupService(
             try
             {
                 await Task.Delay(cleanupInterval, stoppingToken);
-                var expiredSessions = _connectionManager.RemoveExpiredSessions(idleTimeout);
-                if (expiredSessions.Count == 0)
+                var now = DateTime.UtcNow;
+                var expired = 0;
+                foreach (var session in _connectionManager.GetActiveSessions())
                 {
-                    continue;
+                    if (now - session.LastActivityUtc <= idleTimeout)
+                    {
+                        continue;
+                    }
+
+                    await _sessionTeardown
+                        .TearDownAsync(session.Id, SessionTeardownOptions.IdleExpire, stoppingToken)
+                        .ConfigureAwait(false);
+                    expired++;
                 }
 
-                foreach (var session in expiredSessions)
+                if (expired > 0)
                 {
-                    if (!string.IsNullOrWhiteSpace(session.CharacterId))
-                    {
-                        _playerStateStore.UpsertForCharacter(
-                            session.CharacterId,
-                            session.CurrentMapId,
-                            session.PixelX,
-                            session.PixelY);
-                    }
-                    ClientSession? client = null;
-                    if (_clientRegistry.TryGet(session.Id, out client))
-                    {
-                        _clientRegistry.Unregister(session.Id);
-                    }
-
-                    await _playerLifecycleNotifier.NotifyPlayerLeftAsync(session.Username, stoppingToken);
-
-                    if (client is not null)
-                    {
-                        client.AuthenticatedSession = null;
-                        client.Disconnect();
-                    }
+                    _logger.LogInformation("{Count} session(s) inactives expirees.", expired);
                 }
-
-                _logger.LogInformation("{Count} session(s) inactives expirees.", expiredSessions.Count);
             }
             catch (OperationCanceledException)
             {

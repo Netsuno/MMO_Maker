@@ -28,6 +28,7 @@ public sealed class Phase8GameplayHandlers(
     ClientRegistry clientRegistry,
     PacketSender packetSender,
     IOptions<Phase8SmokeBootstrapOptions> smokeOptions)
+    : ICharacterRuntimeCleanup
 {
     private readonly Phase8SmokeBootstrapOptions _smoke = smokeOptions.Value;
     private readonly ConnectionManager _connectionManager = connectionManager;

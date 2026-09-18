@@ -1110,6 +1110,8 @@ public sealed class MainShellForm : Form
         _client.HeartbeatAckReceived += () => { };
         _client.LogoutAckReceived += OnLogoutAck;
         _client.ChatMessageReceived += OnChatMessage;
+        _client.ModerateResultReceived += (ok, msg) =>
+            AppendLog(ok ? "Modération: " + msg : "Modération refusée: " + msg);
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
             AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "rate")} — {msg}");
         _client.CharacterListReceived += OnCharacterListJson;
@@ -2578,6 +2580,21 @@ public sealed class MainShellForm : Form
         var text = _txtChat.Text.Trim();
         if (string.IsNullOrEmpty(text))
         {
+            return;
+        }
+
+        if (ModerateWire.TryParseSlashCommand(text, out var modAction, out var modTarget, out var modReason))
+        {
+            try
+            {
+                await _client.SendModerateAsync(modAction, modTarget, modReason).ConfigureAwait(true);
+                _txtChat.Clear();
+            }
+            catch (Exception ex)
+            {
+                AppendLog("Modération: " + ex.Message);
+            }
+
             return;
         }
 

@@ -9,6 +9,7 @@ using Frog.Server.Database;
 using Frog.Server.Gameplay;
 using Frog.Server.Network;
 using Frog.Server.Playtest;
+using Frog.Server.Observability;
 using Frog.Server.Persistence;
 using Frog.Server.Security;
 using Frog.Server.Services;
@@ -100,6 +101,10 @@ public static class FrogServerHostFactory
                     .AddOptions<ServerOptions>()
                     .Bind(ctx.Configuration.GetSection("Server"))
                     .Validate(o => o.Port is > 0 and <= 65535, "Port invalide")
+                    .Validate(o => System.Net.IPAddress.TryParse(o.BindAddress, out _), "BindAddress invalide")
+                    .Validate(
+                        o => o.IsLoopbackBind || o.AllowNonLoopbackBind,
+                        "Non-loopback bind requires Server:AllowNonLoopbackBind=true (clear-text TCP; see SECURITY_MODEL.md)")
                     .ValidateOnStart();
                 services
                     .AddOptions<PostgreSqlOptions>()
@@ -143,6 +148,23 @@ public static class FrogServerHostFactory
 
                 var usePostgreSql = !playtest.Enabled && pg.Enabled && !string.IsNullOrWhiteSpace(pg.ConnectionString);
 
+                var serverBind = ctx.Configuration.GetSection("Server").Get<ServerOptions>() ?? new ServerOptions();
+                var maria = ctx.Configuration.GetSection("MariaDb").Get<MariaDbOptions>() ?? new MariaDbOptions();
+                if (PlaceholderSecretPolicy.MustRejectPublicBind(
+                        playtest.Enabled,
+                        serverBind.IsLoopbackBind,
+                        pg.Enabled,
+                        pg.ConnectionString,
+                        maria.Enabled,
+                        maria.ConnectionString))
+                {
+                    throw new InvalidOperationException(
+                        "Refusing to start with a non-loopback bind and a known placeholder password "
+                        + "(committed appsettings / Compose / example values). "
+                        + "Copy appsettings.Local.json.example to the gitignored appsettings.Local.json "
+                        + "and set a real secret. See SECURITY_MODEL.md.");
+                }
+
                 services
                     .AddOptions<Phase7ContentOptions>()
                     .Bind(ctx.Configuration.GetSection("Phase7Content"))
@@ -171,6 +193,7 @@ public static class FrogServerHostFactory
 
                 services.AddSingleton<LoginRateLimiter>();
                 services.AddSingleton<ChatRateLimiter>();
+                services.AddSingleton<ServerOpsMetrics>();
 
                 if (!playtest.Enabled && !usePostgreSql && !pg.AllowInMemoryFallback)
                 {
@@ -197,6 +220,9 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IAccountRepository>(sp => sp.GetRequiredService<InMemoryAccountRepository>());
                     services.AddSingleton<IAuthSessionRepository>(sp =>
                         sp.GetRequiredService<InMemoryAuthSessionRepository>());
+                    services.AddSingleton<IOperatorDirectory>(sp =>
+                        new InMemoryOperatorDirectory(sp.GetRequiredService<IAccountRepository>()));
+                    services.AddSingleton<IAccountSanctionStore, InMemoryAccountSanctionStore>();
                     services.AddSingleton<ICharacterRepository, InMemoryCharacterRepository>();
                     services.AddSingleton<IInventoryRepository, InMemoryInventoryRepository>();
                     services.AddSingleton<IEquipmentRepository, InMemoryEquipmentRepository>();
@@ -272,6 +298,8 @@ public static class FrogServerHostFactory
                 services.AddSingleton<WeatherGameplayService>();
                 services.AddSingleton<MapEventRuntimeService>();
                 services.AddSingleton<Phase8GameplayHandlers>();
+                services.AddSingleton<ICharacterRuntimeCleanup>(sp =>
+                    sp.GetRequiredService<Phase8GameplayHandlers>());
 
                 services.AddSingleton<InMemoryPlayerStateStore>();
                 services.AddSingleton<IPlayerStateStore>(sp =>
@@ -350,6 +378,7 @@ public static class FrogServerHostFactory
                     return NullMapEventStore.Instance;
                 });
                 services.AddSingleton<AuthService>();
+                services.AddSingleton<ModerationService>();
                 services.AddSingleton<ConnectionManager>();
                 services.AddSingleton<ClientRegistry>();
                 services.AddSingleton<MapService>();
@@ -358,6 +387,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
                 services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();
+                services.AddSingleton<SessionTeardown>();
                 services.AddSingleton<PacketDispatcher>();
                 if (!playtest.Enabled)
                 {
@@ -365,6 +395,7 @@ public static class FrogServerHostFactory
                 }
 
                 services.AddHostedService<GameServerService>();
+                services.AddHostedService<OpsMetricsSnapshotHostedService>();
                 services.AddHostedService<SessionCleanupService>();
                 services.AddHostedService<PlayerPersistenceService>();
                 services.AddHostedService<PublishedContentLiveRefreshHostedService>();

@@ -195,6 +195,7 @@ public sealed class PostgresPlayerRepositoryTests
 
         Assert.Contains("auth.accounts", tables);
         Assert.Contains("auth.auth_sessions", tables);
+        Assert.Contains("auth.operators", tables);
         Assert.Contains("player.characters", tables);
         Assert.Contains("player.inventory_slots", tables);
         Assert.Contains("player.bank_slots", tables);

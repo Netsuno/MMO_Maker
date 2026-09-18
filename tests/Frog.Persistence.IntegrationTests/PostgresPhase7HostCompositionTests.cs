@@ -77,6 +77,8 @@ public sealed class PostgresPhase7HostCompositionTests
             Assert.IsType<PublishedWorldMapBlobStore>(services.GetRequiredService<PublishedWorldMapBlobStore>());
             Assert.Null(services.GetService<Phase7PublishedContent>());
             Assert.Null(services.GetService<InMemoryCharacterRepository>());
+            Assert.IsType<Frog.Persistence.PostgreSql.Repositories.Auth.PostgresOperatorDirectory>(
+                services.GetRequiredService<IOperatorDirectory>());
 
             var content = services.GetRequiredService<IOptions<Phase7ContentOptions>>().Value;
             Assert.True(content.RequirePublishedWorld);

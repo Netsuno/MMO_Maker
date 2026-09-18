@@ -8,6 +8,11 @@
     "enabled": false,
     "connectionString": "Server=VOTRE_HOTE;Port=3306;Database=VOTRE_BASE;User Id=VOTRE_UTILISATEUR;Password=VOTRE_MOT_DE_PASSE"
   },
+  "Server": {
+    "bindAddress": "127.0.0.1",
+    "port": 6000,
+    "allowNonLoopbackBind": false
+  },
   "Maps": {
     "worldMapPath": "",
     "databaseFallbackMapId": 1

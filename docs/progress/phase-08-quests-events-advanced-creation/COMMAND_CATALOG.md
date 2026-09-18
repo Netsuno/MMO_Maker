@@ -21,4 +21,8 @@ Each command defines: schema version, typed parameters, validation, cancellation
 
 ## Phase 9
 
-Not started.
+Event commands stay **session- or character-scoped**. They are not operator admin. P9-1 must not overload `set_switch` / `teleport` / etc. for mute/kick/ban.
+
+Leftover gameplay packet (not an event command): `WorldFlagsPatchRequest` (opcode 34) is **rejected** in PostgreSQL production and in any production composition (not playtest, not `AllowInMemoryFallback`). See [`../phase-09-distribution-admin-hardening/SECURITY_MODEL.md`](../phase-09-distribution-admin-hardening/SECURITY_MODEL.md) §8 and `Frog.Server/Security/WorldFlagsPatchPolicy.cs`.
+
+Operator privilege is `auth.operators` via `IOperatorDirectory` — not this catalog. Mute/kick/ban tables and opcodes are P9-1.

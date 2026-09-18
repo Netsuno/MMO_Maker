@@ -1,17 +1,20 @@
 using Frog.Application.Identity;
 using Frog.Core.Security;
+using Frog.Server.Observability;
 using Frog.Server.Security;
 
 namespace Frog.Server.Services;
 
 public sealed class AuthService(
     IAccountRepository accountRepository,
-    LoginRateLimiter rateLimiter)
+    LoginRateLimiter rateLimiter,
+    ServerOpsMetrics? opsMetrics = null)
 {
     private readonly IAccountRepository _accountRepository = accountRepository;
     private readonly LoginRateLimiter _rateLimiter = rateLimiter;
+    private readonly ServerOpsMetrics? _opsMetrics = opsMetrics;
 
-    public async Task<(bool Success, AccountRecord? Account)> TryAuthenticateAsync(
+    public async Task<(bool Success, AccountRecord? Account, bool RateLimited)> TryAuthenticateAsync(
         string username,
         string password,
         string rateLimitKey,
@@ -19,13 +22,14 @@ public sealed class AuthService(
     {
         if (!_rateLimiter.TryAllow(rateLimitKey))
         {
-            return (false, null);
+            _opsMetrics?.RecordRateLimitHit("login");
+            return (false, null, true);
         }
 
         if (!AccountInputRules.IsValidUsername(username) || !AccountInputRules.IsValidLoginPassword(password))
         {
             PasswordHasher.VerifyOrTimingSafeReject(password, null, null);
-            return (false, null);
+            return (false, null, false);
         }
 
         var account = await _accountRepository.FindByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
@@ -33,11 +37,11 @@ public sealed class AuthService(
         if (!ok)
         {
             _rateLimiter.RegisterFailure(rateLimitKey);
-            return (false, null);
+            return (false, null, false);
         }
 
         _rateLimiter.RegisterSuccess(rateLimitKey);
-        return (true, account);
+        return (true, account, false);
     }
 
     public Task<AccountCreateResult> RegisterAccountAsync(
@@ -53,7 +57,16 @@ public sealed class AuthService(
         return _accountRepository.TryCreateAsync(username, password, cancellationToken);
     }
 
-    public bool TryAllowReconnect(string rateLimitKey) => _rateLimiter.TryAllow("reconnect:" + rateLimitKey);
+    public bool TryAllowReconnect(string rateLimitKey)
+    {
+        var allowed = _rateLimiter.TryAllow("reconnect:" + rateLimitKey);
+        if (!allowed)
+        {
+            _opsMetrics?.RecordRateLimitHit("reconnect");
+        }
+
+        return allowed;
+    }
 
     public void RegisterReconnectFailure(string rateLimitKey) => _rateLimiter.RegisterFailure("reconnect:" + rateLimitKey);
 

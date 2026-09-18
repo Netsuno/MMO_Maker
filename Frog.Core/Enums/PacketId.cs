@@ -138,5 +138,14 @@ public enum PacketId : byte
     /// </summary>
     WorldSwitchSnapshot = 77,
 
+    /// <summary>
+    /// Commande opérateur mute/unmute/kick/ban/unban. Corps : <see cref="Frog.Core.Protocol.ModerateWire"/>.
+    /// Le serveur refuse si <c>IOperatorDirectory.IsOperatorAsync(session.AccountId)</c> est faux.
+    /// </summary>
+    ModerateRequest = 78,
+
+    /// <summary>Résultat courte forme (succès + message), comme <see cref="LoginResult"/>.</summary>
+    ModerateResult = 79,
+
     Error = 255
 }

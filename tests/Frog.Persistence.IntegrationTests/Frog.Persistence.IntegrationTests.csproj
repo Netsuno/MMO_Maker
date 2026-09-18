@@ -29,6 +29,7 @@
     <ProjectReference Include="..\..\Frog.Application\Frog.Application.csproj" />
     <ProjectReference Include="..\..\Frog.Core\Frog.Core.csproj" />
     <ProjectReference Include="..\..\Frog.Server\Frog.Server.csproj" />
+    <ProjectReference Include="..\..\tools\Frog.LoadHarness\Frog.LoadHarness.csproj" />
   </ItemGroup>
 
 </Project>

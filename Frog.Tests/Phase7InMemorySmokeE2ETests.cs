@@ -394,6 +394,66 @@ public sealed class Phase7InMemorySmokeE2ETests
         }
     }
 
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
+    public async Task WorldFlagsPatchRequest_RejectedInProductionComposition()
+    {
+        var port = GetFreePort();
+        using var host = FrogServerHostFactory
+            .CreateHostBuilder(
+                configureServices: services =>
+                {
+                    services.PostConfigure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(5));
+                    services.PostConfigure<PostgreSqlOptions>(o => o.AllowInMemoryFallback = false);
+                })
+            .ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Server:Port"] = port.ToString(),
+                    ["Server:BindAddress"] = "127.0.0.1",
+                    ["MariaDb:Enabled"] = "false",
+                    ["PostgreSql:AllowInMemoryFallback"] = "true",
+                });
+            })
+            .Build();
+        await host.StartAsync();
+        try
+        {
+            var user = $"p9wf-{Guid.NewGuid():N}"[..20];
+            const string password = "password123";
+            await using var client = new Phase7TcpClient();
+            await client.ConnectAsync("127.0.0.1", port);
+            Assert.Equal((byte)PacketId.Hello, (await client.ReadFrameAsync())[0]);
+
+            await client.SendFrameAsync(BuildRegister(user, password));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.RegisterResult))[1]);
+
+            await client.SendFrameAsync(BuildLogin(user, password));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.LoginResult))[1]);
+            await client.DrainPendingAsync();
+
+            await client.SendFrameAsync(BuildCharacterCreate("FlagsForge", Phase7ContentSeed.DefaultClassId));
+            var create = await client.ReadUntilAsync(PacketId.CharacterCreateResult);
+            Assert.NotEqual(0, create[1]);
+            var characterId = Encoding.UTF8.GetString(create, 3, create[2]);
+
+            await client.SendFrameAsync(BuildCharacterSelect(characterId));
+            Assert.NotEqual(0, (await client.ReadUntilAsync(PacketId.CharacterSelectResult))[1]);
+            await client.DrainPendingAsync();
+
+            await client.SendFrameAsync(BuildWorldFlagsPatch("""{"story_intro":true}"""));
+            var result = await client.ReadUntilAsync(PacketId.WorldFlagsPatchResult);
+            Assert.Equal(0, result[1]);
+            var message = Encoding.UTF8.GetString(result, 3, result[2]);
+            Assert.Contains("desactive en production", message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
     private static async Task<string> RegisterLoginCreateSelect(
         IHost host,
         int port,
@@ -502,6 +562,16 @@ public sealed class Phase7InMemorySmokeE2ETests
         var payload = new byte[1 + packedStats.Length];
         payload[0] = (byte)PacketId.CharacterStatsUpdateRequest;
         packedStats.CopyTo(payload, 1);
+        return payload;
+    }
+
+    private static byte[] BuildWorldFlagsPatch(string patchJsonObject)
+    {
+        var utf8 = Encoding.UTF8.GetBytes(patchJsonObject);
+        var payload = new byte[1 + sizeof(ushort) + utf8.Length];
+        payload[0] = (byte)PacketId.WorldFlagsPatchRequest;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1), (ushort)utf8.Length);
+        utf8.CopyTo(payload.AsSpan(1 + sizeof(ushort)));
         return payload;
     }
 

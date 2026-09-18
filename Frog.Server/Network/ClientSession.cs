@@ -31,8 +31,15 @@ public sealed class ClientSession : IAsyncDisposable
 
     public bool IsClosed => Volatile.Read(ref _closed) != 0;
 
+    /// <summary>
+    /// Set when the last <see cref="TryReadFrameAsync"/> dropped the connection because the
+    /// length prefix was invalid (≤ 0 or &gt; 1 MiB). Null on a clean peer close.
+    /// </summary>
+    public string? LastFrameRejectReason { get; private set; }
+
     public async Task<bool> TryReadFrameAsync(CancellationToken cancellationToken, Func<byte[], Task> onFrame)
     {
+        LastFrameRejectReason = null;
         var lengthBuffer = new byte[sizeof(int)];
         int lengthRead;
         try
@@ -65,6 +72,9 @@ public sealed class ClientSession : IAsyncDisposable
         var length = BitConverter.ToInt32(lengthBuffer, 0);
         if (length <= 0 || length > 1024 * 1024)
         {
+            LastFrameRejectReason = length > 1024 * 1024
+                ? "oversize_frame"
+                : "invalid_frame_length";
             return false;
         }
 

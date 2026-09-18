@@ -87,6 +87,32 @@ internal static partial class ServerNetworkLogs
     [LoggerMessage(EventId = 5025, Level = LogLevel.Information, Message = "World flags patched username={Username} characterId={CharacterId}")]
     public static partial void WorldFlagsPatched(ILogger logger, string username, string characterId);
 
-    [LoggerMessage(EventId = 5026, Level = LogLevel.Debug, Message = "Movement rate limited username={Username}")]
+    [LoggerMessage(EventId = 5026, Level = LogLevel.Warning, Message = "Movement rate limited username={Username}")]
     public static partial void MovementRateLimited(ILogger logger, string username);
+
+    [LoggerMessage(EventId = 5027, Level = LogLevel.Warning, Message = "Chat rate limited username={Username}")]
+    public static partial void ChatRateLimited(ILogger logger, string username);
+
+    [LoggerMessage(EventId = 5028, Level = LogLevel.Warning, Message = "TCP frame rejected {ConnectionId} {RemoteEndPoint} reason={Reason}")]
+    public static partial void ConnectionRejected(ILogger logger, Guid connectionId, string remoteEndPoint, string reason);
+
+    [LoggerMessage(EventId = 5029, Level = LogLevel.Error, Message = "PostgreSQL error connection={ConnectionId} remote={RemoteEndPoint}")]
+    public static partial void PostgresError(ILogger logger, Exception exception, Guid connectionId, string remoteEndPoint);
+
+    [LoggerMessage(
+        EventId = 5030,
+        Level = LogLevel.Information,
+        Message = "ops_metrics trigger={Trigger} connections_accepted={ConnectionsAccepted} connections_rejected={ConnectionsRejected} rate_limit_hits={RateLimitHits} rate_limit_login={RateLimitLogin} rate_limit_reconnect={RateLimitReconnect} rate_limit_chat={RateLimitChat} rate_limit_movement={RateLimitMovement} postgres_errors={PostgresErrors} active_sessions={ActiveSessions}")]
+    public static partial void OpsMetricsSnapshot(
+        ILogger logger,
+        string trigger,
+        long connectionsAccepted,
+        long connectionsRejected,
+        long rateLimitHits,
+        long rateLimitLogin,
+        long rateLimitReconnect,
+        long rateLimitChat,
+        long rateLimitMovement,
+        long postgresErrors,
+        int activeSessions);
 }

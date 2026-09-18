@@ -105,6 +105,40 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.ToTable("auth_sessions", "auth");
                 });
 
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Auth.OperatorEntity", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<DateTimeOffset>("GrantedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("granted_at_utc");
+
+                    b.Property<string>("GrantedBy")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("granted_by");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.HasKey("AccountId")
+                        .HasName("pk_operators");
+
+                    b.HasIndex("RevokedAtUtc")
+                        .HasDatabaseName("ix_operators_revoked_at_utc");
+
+                    b.ToTable("operators", "auth");
+                });
+
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.ClassEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1338,6 +1372,113 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Ops.AccountSanctionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<Guid>("ActorAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_account_id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTimeOffset?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.HasKey("Id")
+                        .HasName("pk_account_sanctions");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("ix_account_sanctions_account_id");
+
+                    b.HasIndex("ActorAccountId")
+                        .HasDatabaseName("ix_account_sanctions_actor_account_id");
+
+                    b.HasIndex("AccountId", "Kind")
+                        .IsUnique()
+                        .HasDatabaseName("ux_account_sanctions_active_kind")
+                        .HasFilter("revoked_at_utc IS NULL");
+
+                    b.ToTable("account_sanctions", "ops", t =>
+                        {
+                            t.HasCheckConstraint("ck_account_sanctions_kind", "kind IN ('mute', 'ban')");
+                        });
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Ops.ModerationEventEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("ActorAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_account_id");
+
+                    b.Property<DateTimeOffset>("AtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at_utc");
+
+                    b.Property<string>("DetailsJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("details_json");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("TargetAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_account_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_moderation_events");
+
+                    b.HasIndex("ActorAccountId")
+                        .HasDatabaseName("ix_moderation_events_actor_account_id");
+
+                    b.HasIndex("TargetAccountId", "AtUtc")
+                        .HasDatabaseName("ix_moderation_events_target_account_id_at_utc");
+
+                    b.ToTable("moderation_events", "ops", t =>
+                        {
+                            t.HasCheckConstraint("ck_moderation_events_action", "action IN ('mute', 'unmute', 'kick', 'ban', 'unban')");
+                        });
+                });
+
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Phase8ContentDefinitionEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1926,16 +2067,16 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.HasKey("CharacterId", "RequestId")
                         .HasName("pk_map_event_execution_requests");
 
+                    b.HasIndex("RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_map_event_execution_requests_request_id");
+
                     b.HasIndex("CharacterId", "ActivationId", "WaitOrdinal")
                         .IsUnique()
                         .HasDatabaseName("ix_map_event_execution_requests_activation_ordinal");
 
                     b.HasIndex("CharacterId", "PlacementId", "CatalogAliasId")
                         .HasDatabaseName("ix_map_event_execution_requests_character_id_placement_id_cata");
-
-                    b.HasIndex("RequestId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_map_event_execution_requests_request_id");
 
                     b.ToTable("map_event_execution_requests", "player");
                 });
@@ -2934,6 +3075,18 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.Navigation("Account");
                 });
 
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Auth.OperatorEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Auth.AccountEntity", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_operators_accounts_account_id");
+
+                    b.Navigation("Account");
+                });
+
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.ClassEntity", b =>
                 {
                     b.HasOne("Frog.Persistence.PostgreSql.Entities.SpellEntity", null)
@@ -3171,6 +3324,48 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasConstraintName("fk_npc_published_snapshots_npcs_npc_id");
 
                     b.Navigation("Npc");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Ops.AccountSanctionEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Auth.AccountEntity", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_account_sanctions_accounts_account_id");
+
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Auth.AccountEntity", "ActorAccount")
+                        .WithMany()
+                        .HasForeignKey("ActorAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_account_sanctions_accounts_actor_account_id");
+
+                    b.Navigation("Account");
+
+                    b.Navigation("ActorAccount");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Ops.ModerationEventEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Auth.AccountEntity", "ActorAccount")
+                        .WithMany()
+                        .HasForeignKey("ActorAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_moderation_events_accounts_actor_account_id");
+
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Auth.AccountEntity", "TargetAccount")
+                        .WithMany()
+                        .HasForeignKey("TargetAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_moderation_events_accounts_target_account_id");
+
+                    b.Navigation("ActorAccount");
+
+                    b.Navigation("TargetAccount");
                 });
 
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Phase8ContentPublicationHistoryEntity", b =>

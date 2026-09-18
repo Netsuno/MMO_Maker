@@ -82,5 +82,7 @@ public static class PacketIds
     public const byte AcquireProfessionRequest = 75;
     public const byte AcquireProfessionResult = 76;
     public const byte WorldSwitchSnapshot = 77;
+    public const byte ModerateRequest = 78;
+    public const byte ModerateResult = 79;
     public const byte Error = 255;
 }

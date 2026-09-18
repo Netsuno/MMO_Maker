@@ -22,6 +22,7 @@ using Frog.Server.Persistence;
 using Frog.Server.Security;
 using Frog.Server.Services;
 using Frog.Server.Config;
+using Frog.Server.Observability;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -36,7 +37,6 @@ public sealed partial class PacketDispatcher(
     MapService mapService,
     MovementService movementService,
     PacketSender packetSender,
-    PlayerLifecycleNotifier playerLifecycleNotifier,
     ICharacterBootstrap characterBootstrap,
     ICharacterPayloadReader characterPayloadReader,
     ICharacterPayloadWriter characterPayloadWriter,
@@ -53,6 +53,10 @@ public sealed partial class PacketDispatcher(
     IOptions<PostgreSqlOptions> postgreSqlOptions,
     PlaytestAuthTokenGate playtestAuthTokenGate,
     Phase8GameplayHandlers phase8Handlers,
+    IAccountSanctionStore accountSanctions,
+    ModerationService moderationService,
+    SessionTeardown sessionTeardown,
+    ServerOpsMetrics opsMetrics,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -63,7 +67,6 @@ public sealed partial class PacketDispatcher(
     private readonly MapService _mapService = mapService;
     private readonly MovementService _movementService = movementService;
     private readonly PacketSender _packetSender = packetSender;
-    private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
     private readonly ICharacterBootstrap _characterBootstrap = characterBootstrap;
     private readonly ICharacterPayloadReader _characterPayloadReader = characterPayloadReader;
     private readonly ICharacterPayloadWriter _characterPayloadWriter = characterPayloadWriter;
@@ -80,7 +83,24 @@ public sealed partial class PacketDispatcher(
     private readonly PostgreSqlOptions _postgreSql = postgreSqlOptions.Value;
     private readonly PlaytestAuthTokenGate _playtestAuthTokenGate = playtestAuthTokenGate;
     private readonly Phase8GameplayHandlers _phase8 = phase8Handlers;
+    private readonly IAccountSanctionStore _accountSanctions = accountSanctions;
+    private readonly ModerationService _moderation = moderationService;
+    private readonly SessionTeardown _sessionTeardown = sessionTeardown;
+    private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
     private readonly ILogger<PacketDispatcher> _logger = logger;
+
+    /// <summary>Test barrier: runs at the start of <see cref="TryGetActiveSession"/>.</summary>
+    internal Action<ClientSession>? BeforeTryGetActiveSession { get; set; }
+
+    /// <summary>Test barrier: runs after <see cref="TryGetActiveSession"/> decides liveness.</summary>
+    internal Action<ClientSession, bool>? AfterTryGetActiveSession { get; set; }
+
+    /// <summary>
+    /// Test barrier: runs after login/reconnect pre-lock validation and before
+    /// the per-username exclusive section, so a public-protocol ban can finish
+    /// first. Simultaneous reconnects still rendezvous here, then serialize.
+    /// </summary>
+    internal Action? BeforeSameAccountSessionReplace { get; set; }
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
     {
@@ -156,6 +176,10 @@ public sealed partial class PacketDispatcher(
 
             case PacketId.ChatSend:
                 await HandleChatSendAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.ModerateRequest:
+                await HandleModerateRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             case PacketId.MeleeAttackRequest:
@@ -271,40 +295,74 @@ public sealed partial class PacketDispatcher(
             cancellationToken).ConfigureAwait(false);
         if (!authResult.Success || authResult.Account is null)
         {
-            ServerNetworkLogs.LoginFailed(_logger, "invalid_credentials");
+            ServerNetworkLogs.LoginFailed(_logger, authResult.RateLimited ? "rate_limited" : "invalid_credentials");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
             return;
         }
 
-        if (!_connectionManager.TryCreateSession(username, out var session) || session is null)
+        if (await _accountSanctions.HasActiveBanAsync(authResult.Account.Id, cancellationToken).ConfigureAwait(false))
         {
-            ServerNetworkLogs.LoginFailed(_logger, "already_connected");
-            await _packetSender.SendLoginResultAsync(clientSession, false, "Compte deja connecte.", cancellationToken);
+            ServerNetworkLogs.LoginFailed(_logger, "account_banned");
+            await _packetSender.SendLoginResultAsync(
+                clientSession,
+                false,
+                ModerationMessages.Banned,
+                cancellationToken);
             return;
         }
 
-        session.AccountId = authResult.Account.Id;
-        var issued = await _authSessions.IssueAsync(
-            authResult.Account.Id,
-            TimeSpan.FromHours(12),
-            cancellationToken).ConfigureAwait(false);
-        if (issued.Status != AuthSessionIssueStatus.Issued || issued.Session is null)
+        BeforeSameAccountSessionReplace?.Invoke();
+        await _connectionManager.RunExclusiveForUsernameAsync(username, async ct =>
         {
-            _connectionManager.RemoveSession(session.Id);
-            ServerNetworkLogs.LoginFailed(_logger, "session_issue_failed");
-            await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
-            return;
-        }
+            if (await _accountSanctions.HasActiveBanAsync(authResult.Account.Id, ct).ConfigureAwait(false))
+            {
+                ServerNetworkLogs.LoginFailed(_logger, "account_banned");
+                await _packetSender.SendLoginResultAsync(
+                    clientSession,
+                    false,
+                    ModerationMessages.Banned,
+                    ct);
+                return;
+            }
 
-        session.AuthSessionId = issued.Session.Id;
+            if (!_connectionManager.TryCreateSession(username, out var session) || session is null)
+            {
+                ServerNetworkLogs.LoginFailed(_logger, "already_connected");
+                await _packetSender.SendLoginResultAsync(
+                    clientSession,
+                    false,
+                    "Compte deja connecte.",
+                    ct);
+                return;
+            }
 
-        await CompleteLoginAsync(
-            clientSession,
-            username,
-            playtestSpawn: false,
-            successMessage: issued.Token ?? string.Empty,
-            sendReconnectResult: false,
-            cancellationToken).ConfigureAwait(false);
+            session.AccountId = authResult.Account.Id;
+            var issued = await _authSessions.IssueAsync(
+                authResult.Account.Id,
+                TimeSpan.FromHours(12),
+                ct).ConfigureAwait(false);
+            if (issued.Status != AuthSessionIssueStatus.Issued || issued.Session is null)
+            {
+                _connectionManager.RemoveSession(session.Id);
+                ServerNetworkLogs.LoginFailed(_logger, "session_issue_failed");
+                await _packetSender.SendLoginResultAsync(
+                    clientSession,
+                    false,
+                    "Identifiants invalides.",
+                    ct);
+                return;
+            }
+
+            session.AuthSessionId = issued.Session.Id;
+
+            await CompleteLoginAsync(
+                clientSession,
+                session,
+                playtestSpawn: false,
+                successMessage: issued.Token ?? string.Empty,
+                sendReconnectResult: false,
+                ct).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task HandleReconnectRequestAsync(
@@ -371,45 +429,80 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
-        // Drop any still-registered TCP for this account before creating the new session.
-        // Must Unregister: nulling AuthenticatedSession alone makes the old HandleClientAsync
-        // skip cleanup, leaving a zombie in ClientRegistry. Later broadcasts then throw on the
-        // disposed stream and tear down the *new* connection (gameplay smoke reconnect failure).
-        if (_connectionManager.TryGetSessionByUsername(account.Username, out var existing)
-            && existing is not null)
+        if (await _accountSanctions.HasActiveBanAsync(account.Id, cancellationToken).ConfigureAwait(false))
         {
-            if (_clientRegistry.TryGet(existing.Id, out var oldClient) && oldClient is not null)
-            {
-                _clientRegistry.Unregister(existing.Id);
-                oldClient.AuthenticatedSession = null;
-                oldClient.Disconnect();
-            }
-        }
-
-        if (!_connectionManager.TryDisplaceAndCreateSession(account.Username, out var session, out _)
-            || session is null)
-        {
-            ServerNetworkLogs.LoginFailed(_logger, "already_connected");
+            _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+            ServerNetworkLogs.LoginFailed(_logger, "account_banned");
             await _packetSender.SendReconnectResultAsync(
                 clientSession,
                 false,
-                "Compte deja connecte.",
+                ModerationMessages.Banned,
                 cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        session.AccountId = account.Id;
-        session.AuthSessionId = validation.Session.Id;
-        await _authSessions.TouchAsync(validation.Session.Id, cancellationToken).ConfigureAwait(false);
-        _authService.RegisterReconnectSuccess(clientSession.RemoteEndPoint);
+        // Barrier is outside the per-account lock so simultaneous reconnects can
+        // rendezvous, then serialize replacement instead of deleting a peer session.
+        BeforeSameAccountSessionReplace?.Invoke();
+        await _connectionManager.RunExclusiveForUsernameAsync(account.Username, async ct =>
+        {
+            if (await _accountSanctions.HasActiveBanAsync(account.Id, ct).ConfigureAwait(false))
+            {
+                _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+                ServerNetworkLogs.LoginFailed(_logger, "account_banned");
+                await _packetSender.SendReconnectResultAsync(
+                    clientSession,
+                    false,
+                    ModerationMessages.Banned,
+                    ct).ConfigureAwait(false);
+                return;
+            }
 
-        await CompleteLoginAsync(
-            clientSession,
-            account.Username,
-            playtestSpawn: false,
-            successMessage: token,
-            sendReconnectResult: true,
-            cancellationToken).ConfigureAwait(false);
+            var lockedValidation = await _authSessions.ValidateTokenAsync(token, ct).ConfigureAwait(false);
+            if (lockedValidation.Status != AuthSessionValidationStatus.Valid || lockedValidation.Session is null)
+            {
+                _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+                ServerNetworkLogs.LoginFailed(_logger, "invalid_reconnect_token");
+                await _packetSender.SendReconnectResultAsync(
+                    clientSession,
+                    false,
+                    "Session invalide.",
+                    ct).ConfigureAwait(false);
+                return;
+            }
+
+            if (_connectionManager.TryGetSessionByUsername(account.Username, out var existing)
+                && existing is not null)
+            {
+                await _sessionTeardown
+                    .TearDownAsync(existing.Id, SessionTeardownOptions.ReconnectDisplace, ct)
+                    .ConfigureAwait(false);
+            }
+
+            if (!_connectionManager.TryCreateSession(account.Username, out var session) || session is null)
+            {
+                ServerNetworkLogs.LoginFailed(_logger, "already_connected");
+                await _packetSender.SendReconnectResultAsync(
+                    clientSession,
+                    false,
+                    "Compte deja connecte.",
+                    ct).ConfigureAwait(false);
+                return;
+            }
+
+            session.AccountId = account.Id;
+            session.AuthSessionId = lockedValidation.Session.Id;
+            await _authSessions.TouchAsync(lockedValidation.Session.Id, ct).ConfigureAwait(false);
+            _authService.RegisterReconnectSuccess(clientSession.RemoteEndPoint);
+
+            await CompleteLoginAsync(
+                clientSession,
+                session,
+                playtestSpawn: false,
+                successMessage: token,
+                sendReconnectResult: true,
+                ct).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task HandlePlaytestLoginAsync(
@@ -447,7 +540,7 @@ public sealed partial class PacketDispatcher(
         {
             await CompleteLoginAsync(
                     clientSession,
-                    PlaytestAuthToken.Username,
+                    session,
                     playtestSpawn: true,
                     beforeSuccessfulLoginResult: () =>
                     {
@@ -466,7 +559,9 @@ public sealed partial class PacketDispatcher(
             }
 
             _clientRegistry.Unregister(session.Id);
-            _connectionManager.RemoveSession(session.Id);
+            await _sessionTeardown
+                .TearDownAsync(session.Id, SessionTeardownOptions.FailedLogin, cancellationToken)
+                .ConfigureAwait(false);
             clientSession.AuthenticatedSession = null;
             throw;
         }
@@ -474,12 +569,12 @@ public sealed partial class PacketDispatcher(
 
     private Task CompleteLoginAsync(
         ClientSession clientSession,
-        string sessionName,
+        Frog.Server.Models.Session session,
         bool playtestSpawn,
         CancellationToken cancellationToken)
         => CompleteLoginAsync(
             clientSession,
-            sessionName,
+            session,
             playtestSpawn,
             successMessage: "Connexion reussie.",
             sendReconnectResult: false,
@@ -488,14 +583,14 @@ public sealed partial class PacketDispatcher(
 
     private async Task CompleteLoginAsync(
         ClientSession clientSession,
-        string sessionName,
+        Frog.Server.Models.Session session,
         bool playtestSpawn,
         string successMessage,
         bool sendReconnectResult,
         CancellationToken cancellationToken)
         => await CompleteLoginAsync(
             clientSession,
-            sessionName,
+            session,
             playtestSpawn,
             successMessage,
             sendReconnectResult,
@@ -504,13 +599,13 @@ public sealed partial class PacketDispatcher(
 
     private async Task CompleteLoginAsync(
         ClientSession clientSession,
-        string sessionName,
+        Frog.Server.Models.Session session,
         bool playtestSpawn,
         Action? beforeSuccessfulLoginResult,
         CancellationToken cancellationToken)
         => await CompleteLoginAsync(
             clientSession,
-            sessionName,
+            session,
             playtestSpawn,
             successMessage: "Connexion reussie.",
             sendReconnectResult: false,
@@ -519,18 +614,19 @@ public sealed partial class PacketDispatcher(
 
     private async Task CompleteLoginAsync(
         ClientSession clientSession,
-        string sessionName,
+        Frog.Server.Models.Session session,
         bool playtestSpawn,
         string successMessage,
         bool sendReconnectResult,
         Action? beforeSuccessfulLoginResult,
         CancellationToken cancellationToken)
     {
-        if (!_connectionManager.TryGetSessionByUsername(sessionName, out var session) || session is null)
+        if (!_connectionManager.IsSessionActive(session.Id))
         {
             throw new InvalidOperationException("Session playtest/login introuvable après création.");
         }
 
+        var sessionName = session.Username;
         clientSession.AuthenticatedSession = session;
         var isPlaytestAccount = playtestSpawn
             || (_playtest.Enabled && PlaytestAuthToken.IsReservedUsername(sessionName));
@@ -594,6 +690,12 @@ public sealed partial class PacketDispatcher(
         }
 
         ClampSessionPixelsAndSyncTiles(session);
+
+        if (!_connectionManager.IsSessionActive(session.Id))
+        {
+            clientSession.AuthenticatedSession = null;
+            throw new InvalidOperationException("Session playtest/login introuvable après création.");
+        }
 
         _clientRegistry.Register(session.Id, clientSession);
         _connectionManager.TryTouchSession(session.Id);
@@ -846,6 +948,7 @@ public sealed partial class PacketDispatcher(
 
         if (!session.MovementPacketRateGate.TryConsume(DateTime.UtcNow))
         {
+            _opsMetrics.RecordRateLimitHit("movement");
             ServerNetworkLogs.MovementRateLimited(_logger, session.Username);
             await _packetSender.SendErrorAsync(clientSession, "Trop de mouvements.", cancellationToken);
             return;
@@ -917,6 +1020,7 @@ public sealed partial class PacketDispatcher(
 
         if (!session.MovementPacketRateGate.TryConsume(DateTime.UtcNow))
         {
+            _opsMetrics.RecordRateLimitHit("movement");
             ServerNetworkLogs.MovementRateLimited(_logger, session.Username);
             await _packetSender.SendErrorAsync(clientSession, "Trop de mouvements.", cancellationToken);
             return;
@@ -1241,30 +1345,14 @@ public sealed partial class PacketDispatcher(
         }
 
         var sessionId = session.Id;
-        var username = session.Username;
-        if (session.CharacterGuid is Guid logoutCharacterId)
-        {
-            _phase8.CancelForCharacter(logoutCharacterId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(session.CharacterId))
-        {
-            _playerStateStore.UpsertForCharacter(
-                session.CharacterId,
-                session.CurrentMapId,
-                session.PixelX,
-                session.PixelY);
-        }
-
         if (session.AuthSessionId is Guid authSessionId)
         {
             await _authSessions.RevokeAsync(authSessionId, cancellationToken).ConfigureAwait(false);
         }
 
-        _clientRegistry.Unregister(sessionId);
-        await _playerLifecycleNotifier.NotifyPlayerLeftAsync(username, cancellationToken);
-        _connectionManager.RemoveSession(sessionId);
-        clientSession.AuthenticatedSession = null;
+        await _sessionTeardown
+            .TearDownAsync(sessionId, SessionTeardownOptions.Logout, cancellationToken)
+            .ConfigureAwait(false);
         await _packetSender.SendLogoutAckAsync(clientSession, cancellationToken);
         clientSession.Disconnect();
     }
@@ -1431,6 +1519,12 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
+        if (await _accountSanctions.HasActiveMuteAsync(session.AccountId, cancellationToken).ConfigureAwait(false))
+        {
+            await _packetSender.SendErrorAsync(clientSession, ModerationMessages.Muted, cancellationToken);
+            return;
+        }
+
         if (!TryParseChatSendPayload(payload.Span, out var channel, out var whisperTarget, out var message))
         {
             await _packetSender.SendErrorAsync(clientSession, "Payload chat invalide.", cancellationToken);
@@ -1445,6 +1539,8 @@ public sealed partial class PacketDispatcher(
 
         if (!_chatRateLimiter.TryAllow(session.Id))
         {
+            _opsMetrics.RecordRateLimitHit("chat");
+            ServerNetworkLogs.ChatRateLimited(_logger, session.Username);
             await _packetSender.SendErrorAsync(clientSession, "Trop de messages.", cancellationToken);
             return;
         }
@@ -1514,6 +1610,40 @@ public sealed partial class PacketDispatcher(
         }
 
         ServerNetworkLogs.ChatBroadcast(_logger, channel.ToString(), from, delivered);
+    }
+
+    private async Task HandleModerateRequestAsync(
+        ClientSession clientSession,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActiveSession(clientSession, out var session))
+        {
+            await _packetSender.SendErrorAsync(clientSession, ModerationMessages.AuthRequired, cancellationToken);
+            return;
+        }
+
+        if (!ModerateWire.TryParseRequest(payload.Span, out var action, out var targetUsername, out var reason))
+        {
+            await _packetSender.SendModerateResultAsync(
+                clientSession,
+                false,
+                ModerationMessages.InvalidInput,
+                cancellationToken);
+            return;
+        }
+
+        var result = await _moderation.ExecuteAsync(
+            session.AccountId,
+            action,
+            targetUsername,
+            reason,
+            cancellationToken).ConfigureAwait(false);
+        await _packetSender.SendModerateResultAsync(
+            clientSession,
+            result.Success,
+            result.Message,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public static bool TryParseChatSendPayload(ReadOnlySpan<byte> payload, out ChatChannel channel, out string whisperTarget, out string message)
@@ -1665,22 +1795,26 @@ public sealed partial class PacketDispatcher(
 
     private bool TryGetActiveSession(ClientSession clientSession, out Frog.Server.Models.Session session)
     {
+        BeforeTryGetActiveSession?.Invoke(clientSession);
         session = null!;
-        if (clientSession.AuthenticatedSession is null)
+        var active = false;
+        if (clientSession.AuthenticatedSession is not null)
         {
-            return false;
+            var sessionId = clientSession.AuthenticatedSession.Id;
+            if (_connectionManager.IsSessionActive(sessionId))
+            {
+                session = clientSession.AuthenticatedSession;
+                active = true;
+            }
+            else
+            {
+                _clientRegistry.Unregister(sessionId);
+                clientSession.AuthenticatedSession = null;
+            }
         }
 
-        var sessionId = clientSession.AuthenticatedSession.Id;
-        if (!_connectionManager.IsSessionActive(sessionId))
-        {
-            _clientRegistry.Unregister(sessionId);
-            clientSession.AuthenticatedSession = null;
-            return false;
-        }
-
-        session = clientSession.AuthenticatedSession;
-        return true;
+        AfterTryGetActiveSession?.Invoke(clientSession, active);
+        return active;
     }
 
     private async Task TrySendCharacterPayloadAsync(
@@ -2180,12 +2314,15 @@ public sealed partial class PacketDispatcher(
         ReadOnlyMemory<byte> payload,
         CancellationToken cancellationToken)
     {
-        if (_postgreSql.Enabled)
+        if (WorldFlagsPatchPolicy.IsRejected(
+                _postgreSql.Enabled,
+                _playtest.Enabled,
+                _postgreSql.AllowInMemoryFallback))
         {
             await _packetSender.SendWorldFlagsPatchResultAsync(
                 clientSession,
                 false,
-                "WorldFlagsPatch desactive en production PostgreSQL (Phase 8).",
+                WorldFlagsPatchPolicy.RejectedMessage,
                 cancellationToken);
             return;
         }

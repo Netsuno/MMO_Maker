@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Frog.LoadHarness</RootNamespace>
+    <AssemblyName>Frog.LoadHarness</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Frog.Server\Frog.Server.csproj" />
+    <ProjectReference Include="..\..\Frog.Core\Frog.Core.csproj" />
+    <ProjectReference Include="..\..\Frog.Application\Frog.Application.csproj" />
+  </ItemGroup>
+</Project>
