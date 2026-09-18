@@ -19,6 +19,19 @@ public sealed class PublishedCatalogWire
 
     [JsonPropertyName("npcs")]
     public IReadOnlyList<PublishedNpcWireEntry> Npcs { get; init; } = Array.Empty<PublishedNpcWireEntry>();
+
+    /// <summary>Recettes publiées (JSON additif, pas de bump de version fil).</summary>
+    [JsonPropertyName("recipes")]
+    public IReadOnlyList<PublishedRecipeWireEntry> Recipes { get; init; } = Array.Empty<PublishedRecipeWireEntry>();
+}
+
+public sealed class PublishedRecipeWireEntry
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
 }
 
 public sealed class PublishedClassWireEntry

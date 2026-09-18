@@ -7,8 +7,11 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Frog.Client.Assets;
+using Frog.Client.Config;
 using Frog.Client.Controls;
+using Frog.Client.Forms;
 using Frog.Client.Network;
+using Frog.Client.Services;
 using Frog.Client.UI;
 using Frog.Application.Playtest;
 using Frog.Core.Character;
@@ -40,6 +43,29 @@ public sealed class MainShellForm : Form
     private readonly Panel _panelGame = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly Button _btnSwitchCharacter = new() { Text = "Changer de personnage", AutoSize = true };
     private readonly Button _btnBackDisconnect = new() { Text = "Retour à la connexion (fermer la session)", AutoSize = true, Enabled = false };
+    private readonly Button _btnHelp = new() { Text = "Aide", AutoSize = true };
+    private readonly Button _btnOptions = new() { Text = "Options", AutoSize = true };
+    private readonly Button _btnCopyDiagnostics = new() { Text = "Copier diagnostics", AutoSize = true };
+    private readonly Label _lblVersion = new() { AutoSize = true, Text = "v—", Margin = new Padding(8, 10, 4, 4) };
+    private readonly Label _lblPlayerStatus = new()
+    {
+        AutoSize = false,
+        Height = 24,
+        Text = "Prêt.",
+        TextAlign = ContentAlignment.MiddleLeft,
+        Padding = new Padding(8, 0, 8, 0),
+        Dock = DockStyle.Top,
+    };
+    private readonly FlowLayoutPanel _topChrome = new()
+    {
+        AutoSize = true,
+        Dock = DockStyle.Top,
+        FlowDirection = FlowDirection.LeftToRight,
+        WrapContents = true,
+        Padding = new Padding(6, 4, 6, 2),
+    };
+    private readonly Label _lblMoveHint = new() { AutoSize = true, Margin = new Padding(8, 14, 4, 4) };
+    private HelpForm? _helpForm;
 
     private FrogGameClient? _client;
     private Map? _map;
@@ -83,6 +109,12 @@ public sealed class MainShellForm : Form
     private DateTime _lastMoveSendUtc = DateTime.MinValue;
     private bool _pendingIdlePositionSync;
     private DateTime _lastInteractUtc = DateTime.MinValue;
+
+    private readonly ClientSettingsStore _settingsStore = new();
+    private UserSettings _settings;
+    private readonly InputService _input = new();
+    private readonly SoundService _sound = new();
+    private readonly HashSet<Keys> _keysDown = new();
 
     /// <summary>Touches direction maintenues (prédiction client + boucle réseau).</summary>
     private bool _holdLeft;
@@ -190,6 +222,9 @@ public sealed class MainShellForm : Form
     internal MainShellForm(ClientPlaytestOptions? playtestOptions)
     {
         _playtestOptions = playtestOptions;
+        _settings = _settingsStore.Load();
+        _input.Apply(_settings);
+        _sound.Apply(_settings);
         AutoScaleMode = AutoScaleMode.Font;
         Text = "FRoG — Frog Isle";
         ClientSize = new Size(1040, 720);
@@ -197,7 +232,18 @@ public sealed class MainShellForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         KeyPreview = true;
         DoubleBuffered = true;
+        ApplyWindowSettings(_settings.Window);
         BuildLayout();
+        ApplyVersionChrome();
+        ApplyPlayerStatusLayout();
+        RefreshMoveHint();
+        UpdateVersionBadge();
+        ShowPlayerStatus("Prêt.");
+        _btnHelp.Click += (_, _) => OpenHelp();
+        _btnOptions.Click += (_, _) => OpenOptions();
+        _btnCopyDiagnostics.Click += (_, _) => CopyDiagnosticsToClipboard();
+        ApplyOptionsHelpChrome();
+        ApplyCatalogRecipesToCraft(_publishedCatalog);
         _inventoryPanel.ItemNameLookup = ResolveItemName;
         _equipmentPanel.ItemNameLookup = ResolveItemName;
         if (_playtestOptions is { IsPlaytest: true })
@@ -423,6 +469,7 @@ public sealed class MainShellForm : Form
 
     private async Task MainShell_FormClosingAsync()
     {
+        PersistWindowSettings();
         _smoothTimer.Stop();
         _heartbeatTimer.Stop();
         if (_client is not null)
@@ -465,6 +512,7 @@ public sealed class MainShellForm : Form
 
     private void ReleaseAllMoveKeys()
     {
+        _keysDown.Clear();
         _holdLeft = _holdRight = _holdUp = _holdDown = false;
     }
 
@@ -795,6 +843,9 @@ public sealed class MainShellForm : Form
         StyleToolbarButton(_btnStatsApply);
         StyleToolbarButton(_btnBackDisconnect);
         StyleToolbarButton(_btnSwitchCharacter);
+        StyleToolbarButton(_btnHelp);
+        StyleToolbarButton(_btnOptions);
+        StyleToolbarButton(_btnCopyDiagnostics);
         BackColor = SystemColors.Control;
         _panelLogin.BackColor = Color.FromArgb(245, 248, 252);
         _panelCharacter.BackColor = Color.FromArgb(245, 248, 252);
@@ -1016,7 +1067,8 @@ public sealed class MainShellForm : Form
         gameTop.Controls.Add(_cmbSpell);
         gameTop.Controls.Add(_btnSpell);
         gameTop.Controls.Add(_btnRespawn);
-        gameTop.Controls.Add(Lbl("Flèches = déplacement · E = interagir", topPad: 14));
+        _lblMoveHint.Margin = new Padding(8, 14, 4, 4);
+        gameTop.Controls.Add(_lblMoveHint);
 
         var gameLayout = new TableLayoutPanel
         {
@@ -1044,8 +1096,15 @@ public sealed class MainShellForm : Form
 
         ClientSize = new Size(Math.Max(ClientSize.Width, 1040), Math.Max(ClientSize.Height, 720));
 
+        _topChrome.Controls.Add(_btnHelp);
+        _topChrome.Controls.Add(_btnOptions);
+        _topChrome.Controls.Add(_lblVersion);
+        _topChrome.Controls.Add(_btnCopyDiagnostics);
+
         Controls.Add(_hostPages);
         Controls.Add(_txtLog);
+        Controls.Add(_lblPlayerStatus);
+        Controls.Add(_topChrome);
     }
 
     private void WireClient()
@@ -1094,7 +1153,20 @@ public sealed class MainShellForm : Form
 
         _client.HelloReceived += msg => AppendLog("Hello: " + msg);
         _client.LoginResultReceived += OnLoginResult;
-        _client.RegisterResultReceived += (ok, msg) => AppendLog(ok ? "Inscription OK: " + msg : "Inscription: " + msg);
+        _client.RegisterResultReceived += (ok, msg) =>
+        {
+            if (ok)
+            {
+                AppendLog("Inscription OK: " + msg);
+                ShowPlayerStatus("Compte créé. Vous pouvez vous connecter.");
+            }
+            else
+            {
+                var human = PlayerFacingMessages.FromServerOrNetwork(msg);
+                AppendLog("Inscription: " + human);
+                ShowPlayerStatus(human);
+            }
+        };
         _client.MapDataReceived += OnMapData;
         _client.MapAlreadySyncedReceived += OnMapAlreadySynced;
         _client.CharacterPayloadReceived += OnCharacterPayload;
@@ -1102,10 +1174,12 @@ public sealed class MainShellForm : Form
         _client.PlayerLeaveReceived += OnPlayerLeave;
         _client.ErrorReceived += err =>
         {
-            AppendLog("Erreur: " + err);
+            var human = PlayerFacingMessages.FromServerOrNetwork(err);
+            AppendLog("Erreur: " + human);
+            ShowPlayerStatus(human);
             if (_playtestOptions is { IsPlaytest: true } && !_playtestReady.ReadyEmitted)
             {
-                EmitPlaytestFailure(err);
+                EmitPlaytestFailure(human);
             }
         };
         _client.HeartbeatAckReceived += () => { };
@@ -1169,8 +1243,12 @@ public sealed class MainShellForm : Form
         _client.QuestTurnInResultReceived += (ok, msg) => AppendLog(ok ? "Quête rendue: " + msg : "Turn-in refusé: " + msg);
         _client.CraftResultReceived += (ok, msg) =>
         {
+            var human = ok
+                ? (string.IsNullOrWhiteSpace(msg) ? "Fabrication réussie." : "Fabrication : " + PlayerFacingMessages.Redact(msg))
+                : "Fabrication impossible : " + PlayerFacingMessages.FromServerOrNetwork(msg);
             AppendLog(ok ? "Craft: " + msg : "Craft refusé: " + msg);
-            _craftPanel.SetStatus(msg);
+            _craftPanel.SetStatus(human);
+            ShowPlayerStatus(human);
         };
         _client.AcquireProfessionResultReceived += (ok, msg) =>
             AppendLog(ok ? "Métier: " + msg : "Métier refusé: " + msg);
@@ -1194,8 +1272,9 @@ public sealed class MainShellForm : Form
     {
         _publishedCatalog = catalog;
         ApplyCatalogToUi(catalog);
+        ApplyCatalogRecipesToCraft(catalog);
         AppendLog(
-            $"Catalogue: {catalog.Classes.Count} classe(s), {catalog.Items.Count} objet(s), {catalog.Spells.Count} sort(s), {catalog.Shops.Count} boutique(s).");
+            $"Catalogue: {catalog.Classes.Count} classe(s), {catalog.Items.Count} objet(s), {catalog.Spells.Count} sort(s), {catalog.Shops.Count} boutique(s), {catalog.Recipes.Count} recette(s).");
     }
 
     private void ApplyCatalogToUi(PublishedCatalogWire catalog)
@@ -1281,6 +1360,20 @@ public sealed class MainShellForm : Form
             _cmbShopItem.Enabled = _cmbShopItem.Items.Count > 0;
             _cmbSpell.Enabled = _cmbSpell.Items.Count > 0;
         }
+
+        ApplyCatalogRecipesToCraft(catalog);
+    }
+
+    private void ApplyCatalogRecipesToCraft(PublishedCatalogWire? catalog)
+    {
+        if (catalog is null)
+        {
+            _craftPanel.ClearRecipes();
+            return;
+        }
+
+        _craftPanel.BindRecipes(catalog.Recipes);
+        _craftPanel.SetCraftEnabled(_phase == ClientUiPhase.Playing);
     }
 
     private void RefreshShopItemCombo()
@@ -1516,8 +1609,9 @@ public sealed class MainShellForm : Form
         }
         catch (Exception ex)
         {
-            AppendLog("Craft: " + ex.Message);
-            _craftPanel.SetStatus(ex.Message);
+            AppendLog("Craft: " + PlayerFacingMessages.FromException(ex));
+            _craftPanel.SetStatus(PlayerFacingMessages.FromException(ex));
+            ShowPlayerStatus("Fabrication impossible.");
         }
     }
 
@@ -1567,12 +1661,14 @@ public sealed class MainShellForm : Form
             // Échec : message serveur générique ("Session invalide.") — jamais de jeton, mais
             // on sanitize quand même par défense en profondeur.
             AppendLog("Reconnect refusé: " + SanitizeSecrets(message));
+            ShowPlayerStatus(PlayerFacingMessages.FromServerOrNetwork(message));
             return;
         }
 
         // Succès : `message` est le jeton de session lui-même (echo du ReconnectRequest) —
         // ne jamais l'écrire dans le log (fenêtre UI ou stdout playtest).
         AppendLog("Reconnect OK");
+        ShowPlayerStatus("Session reprise.");
         _username = _txtUser.Text.Trim();
         _btnMap.Enabled = true;
         _btnLogout.Enabled = true;
@@ -1861,10 +1957,11 @@ public sealed class MainShellForm : Form
             var port = (int)_numPort.Value;
             var tls = ClientTlsOptions.FromEnvironment(host);
             await _client.ConnectAsync(host, port, tls).ConfigureAwait(true);
-            AppendLog(
-                tls.Mode == TlsTransportMode.Required
-                    ? $"TLS connecté {host}:{port} SNI={tls.TargetHost}"
-                    : $"TCP connecté {host}:{port}");
+            var connected = tls.Mode == TlsTransportMode.Required
+                ? $"TLS connecté {host}:{port} SNI={tls.TargetHost}"
+                : $"TCP connecté {host}:{port}";
+            AppendLog(connected);
+            ShowPlayerStatus(PlayerFacingMessages.Connected);
             _btnDisconnect.Enabled = true;
             _btnLogin.Enabled = true;
             _btnRegister.Enabled = true;
@@ -1872,7 +1969,9 @@ public sealed class MainShellForm : Form
         }
         catch (Exception ex)
         {
-            AppendLog("Connexion: " + ex.Message);
+            var human = PlayerFacingMessages.FromException(ex);
+            AppendLog("Connexion: " + human);
+            ShowPlayerStatus(human);
             _btnConnect.Enabled = true;
         }
     }
@@ -1924,6 +2023,7 @@ public sealed class MainShellForm : Form
         _cmbMeleeTarget.Items.Clear();
         _lstBank.Items.Clear();
         _lstGround.Items.Clear();
+        _craftPanel.ClearRecipes();
         // Keep ItemNameLookup wired to ResolveItemName (handles null catalog).
     }
 
@@ -1936,6 +2036,7 @@ public sealed class MainShellForm : Form
         }
 
         AppendLog("Connexion fermée.");
+        ShowPlayerStatus(PlayerFacingMessages.ConnectionLost);
         ResetUiAfterDisconnect();
     }
 
@@ -1963,6 +2064,7 @@ public sealed class MainShellForm : Form
             // Échec : message serveur générique ("Identifiants invalides.") — jamais de jeton,
             // mais on sanitize quand même par défense en profondeur.
             AppendLog("Login refusé: " + SanitizeSecrets(message));
+            ShowPlayerStatus(PlayerFacingMessages.FromServerOrNetwork(message));
             if (_playtestOptions is { IsPlaytest: true })
             {
                 EmitPlaytestFailure("login refusé: " + message);
@@ -1980,6 +2082,7 @@ public sealed class MainShellForm : Form
         }
 
         AppendLog("Login OK");
+        ShowPlayerStatus(PlayerFacingMessages.LoggedIn);
 
         UpdateAuthTokenUi();
         _username = _playtestOptions is { IsPlaytest: true }
@@ -2700,6 +2803,14 @@ public sealed class MainShellForm : Form
 
     private void MainShell_KeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.KeyCode == Keys.F1)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            OpenHelp();
+            return;
+        }
+
         if (_phase != ClientUiPhase.Playing)
         {
             return;
@@ -2710,7 +2821,12 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        if (e.KeyCode == Keys.E)
+        if (InputService.IsTextInputFocus(ActiveControl))
+        {
+            return;
+        }
+
+        if (_input.IsInteract(e.KeyCode))
         {
             if (_map is null)
             {
@@ -2729,44 +2845,16 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        switch (e.KeyCode)
+        if (!_input.IsMoveLeft(e.KeyCode)
+            && !_input.IsMoveRight(e.KeyCode)
+            && !_input.IsMoveUp(e.KeyCode)
+            && !_input.IsMoveDown(e.KeyCode))
         {
-            case Keys.Left:
-                if (!_holdLeft)
-                {
-                    PrimeMoveNetworkPulse();
-                }
-
-                _holdLeft = true;
-                break;
-            case Keys.Right:
-                if (!_holdRight)
-                {
-                    PrimeMoveNetworkPulse();
-                }
-
-                _holdRight = true;
-                break;
-            case Keys.Up:
-                if (!_holdUp)
-                {
-                    PrimeMoveNetworkPulse();
-                }
-
-                _holdUp = true;
-                break;
-            case Keys.Down:
-                if (!_holdDown)
-                {
-                    PrimeMoveNetworkPulse();
-                }
-
-                _holdDown = true;
-                break;
-            default:
-                return;
+            return;
         }
 
+        _keysDown.Add(e.KeyCode);
+        RecomputeHeldMoveKeys();
         e.Handled = true;
     }
 
@@ -2780,31 +2868,51 @@ public sealed class MainShellForm : Form
     {
         if (_phase != ClientUiPhase.Playing)
         {
+            _keysDown.Remove(e.KeyCode);
             return;
         }
 
-        switch (e.KeyCode)
+        if (!_keysDown.Remove(e.KeyCode)
+            && !_input.IsMoveLeft(e.KeyCode)
+            && !_input.IsMoveRight(e.KeyCode)
+            && !_input.IsMoveUp(e.KeyCode)
+            && !_input.IsMoveDown(e.KeyCode))
         {
-            case Keys.Left:
-                _holdLeft = false;
-                ScheduleIdlePositionSyncIfAllReleased();
-                e.Handled = true;
-                break;
-            case Keys.Right:
-                _holdRight = false;
-                ScheduleIdlePositionSyncIfAllReleased();
-                e.Handled = true;
-                break;
-            case Keys.Up:
-                _holdUp = false;
-                ScheduleIdlePositionSyncIfAllReleased();
-                e.Handled = true;
-                break;
-            case Keys.Down:
-                _holdDown = false;
-                ScheduleIdlePositionSyncIfAllReleased();
-                e.Handled = true;
-                break;
+            return;
+        }
+
+        RecomputeHeldMoveKeys();
+        e.Handled = true;
+    }
+
+    private void RecomputeHeldMoveKeys()
+    {
+        var left = false;
+        var right = false;
+        var up = false;
+        var down = false;
+        foreach (var key in _keysDown)
+        {
+            left |= _input.IsMoveLeft(key);
+            right |= _input.IsMoveRight(key);
+            up |= _input.IsMoveUp(key);
+            down |= _input.IsMoveDown(key);
+        }
+
+        var becameHeld = (left && !_holdLeft) || (right && !_holdRight) || (up && !_holdUp) || (down && !_holdDown);
+        var wasHolding = _holdLeft || _holdRight || _holdUp || _holdDown;
+        _holdLeft = left;
+        _holdRight = right;
+        _holdUp = up;
+        _holdDown = down;
+        if (becameHeld)
+        {
+            PrimeMoveNetworkPulse();
+        }
+
+        if (wasHolding && !left && !right && !up && !down)
+        {
+            ScheduleIdlePositionSyncIfAllReleased();
         }
     }
 
@@ -2905,6 +3013,165 @@ public sealed class MainShellForm : Form
                 // ignore
             }
         }
+    }
+
+    private void ShowPlayerStatus(string message)
+    {
+        var safe = SanitizeSecrets(PlayerFacingMessages.Redact(message));
+        if (!string.IsNullOrEmpty(_playtestOptions?.PlaytestToken))
+        {
+            safe = safe.Replace(_playtestOptions.PlaytestToken, "***", StringComparison.Ordinal);
+        }
+
+        if (!string.IsNullOrEmpty(_storedAuthToken))
+        {
+            safe = safe.Replace(_storedAuthToken, "***", StringComparison.Ordinal);
+        }
+
+        void Apply()
+        {
+            _lblPlayerStatus.Text = safe;
+            AppendLog("[ui] " + safe);
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(Apply);
+            return;
+        }
+
+        Apply();
+    }
+
+    private void ApplyWindowSettings(WindowSettings window)
+    {
+        window.Normalize();
+        if (window.FullScreen)
+        {
+            FormBorderStyle = FormBorderStyle.None;
+            WindowState = FormWindowState.Maximized;
+            return;
+        }
+
+        FormBorderStyle = FormBorderStyle.Sizable;
+        Width = window.Width;
+        Height = window.Height;
+        WindowState = window.Maximized ? FormWindowState.Maximized : FormWindowState.Normal;
+    }
+
+    private void PersistWindowSettings()
+    {
+        try
+        {
+            if (WindowState == FormWindowState.Normal)
+            {
+                _settings.Window.Width = Width;
+                _settings.Window.Height = Height;
+            }
+
+            _settings.Window.Maximized = WindowState == FormWindowState.Maximized
+                && FormBorderStyle != FormBorderStyle.None;
+            _settings.Window.FullScreen = FormBorderStyle == FormBorderStyle.None;
+            _settings.VolumePercent = _sound.VolumePercent;
+            _settingsStore.Save(_settings);
+        }
+        catch
+        {
+            // persistance optionnelle
+        }
+    }
+
+    private void ApplySettingsFromStore(UserSettings settings)
+    {
+        _settings = settings.Clone();
+        _input.Apply(_settings);
+        _sound.Apply(_settings);
+        ApplyWindowSettings(_settings.Window);
+        RefreshMoveHint();
+        _settingsStore.Save(_settings);
+    }
+
+    private void RefreshMoveHint()
+    {
+        var layout = _input.Preset == KeyboardLayoutPreset.Qwerty ? "WASD" : "ZQSD";
+        _lblMoveHint.Text = $"{layout} + flèches = déplacement · {InputService.KeyDisplayName(_input.Interact)} = interagir · F1 = aide";
+    }
+
+    private void UpdateVersionBadge()
+    {
+        _lblVersion.Text = "v" + ClientVersion.Display;
+    }
+
+    private void ApplyVersionChrome() => UpdateVersionBadge();
+
+    private void ApplyPlayerStatusLayout()
+    {
+        _lblPlayerStatus.BackColor = Color.FromArgb(235, 240, 246);
+    }
+
+    private void ApplyOptionsHelpChrome()
+    {
+        // Boutons déjà dans _topChrome (BuildLayout).
+    }
+
+    private void OpenHelp()
+    {
+        if (_helpForm is { IsDisposed: false })
+        {
+            _helpForm.BringToFront();
+            _helpForm.Focus();
+            return;
+        }
+
+        _helpForm = new HelpForm();
+        _helpForm.FormClosed += (_, _) => _helpForm = null;
+        _helpForm.Show(this);
+    }
+
+    private void OpenOptions()
+    {
+        ReleaseAllMoveKeys();
+        using var dlg = new OptionsForm(_settings);
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        ApplySettingsFromStore(dlg.Settings);
+        ShowPlayerStatus("Options enregistrées.");
+    }
+
+    private void CopyDiagnosticsToClipboard()
+    {
+        var report = BuildDiagnosticsText();
+        try
+        {
+            Clipboard.SetText(report);
+            ShowPlayerStatus(PlayerFacingMessages.DiagnosticsCopied);
+        }
+        catch
+        {
+            ShowPlayerStatus("Diagnostics prêts (presse-papiers indisponible).");
+        }
+    }
+
+    internal string BuildDiagnosticsText()
+    {
+        var tls = ClientTlsOptions.FromEnvironment(_txtHost.Text.Trim());
+        var raw = ClientDiagnostics.Build(
+            ClientVersion.Display,
+            _txtHost.Text.Trim(),
+            (int)_numPort.Value,
+            tls.Mode.ToString(),
+            tls.TargetHost,
+            _phase.ToString(),
+            _client is { IsConnected: true },
+            string.IsNullOrWhiteSpace(_username) ? _txtUser.Text.Trim() : _username);
+        return ClientDiagnostics.RedactSecrets(
+            raw,
+            _storedAuthToken,
+            _playtestOptions?.PlaytestToken,
+            _txtPass.Text);
     }
 
     private sealed class CharacterPickRow(string id, string displayName)
@@ -3216,4 +3483,58 @@ public sealed class MainShellForm : Form
     internal EnvironmentPanel EnvironmentPanelForTest => _environmentPanel;
 
     internal void AcquireProfessionForTest(Guid professionId) => _ = AcquireProfessionAsync(professionId);
+
+    internal Button HelpButtonForTest => _btnHelp;
+
+    internal Button OptionsButtonForTest => _btnOptions;
+
+    internal Button CopyDiagnosticsButtonForTest => _btnCopyDiagnostics;
+
+    internal string VersionBadgeTextForTest => _lblVersion.Text;
+
+    internal string PlayerStatusTextForTest => _lblPlayerStatus.Text;
+
+    internal string MoveHintTextForTest => _lblMoveHint.Text;
+
+    internal UserSettings SettingsForTest => _settings.Clone();
+
+    internal InputService InputServiceForTest => _input;
+
+    internal SoundService SoundServiceForTest => _sound;
+
+    internal void OpenHelpForTest() => OpenHelp();
+
+    internal void OpenOptionsForTest() => OpenOptions();
+
+    internal string CopyDiagnosticsForTest()
+    {
+        var report = BuildDiagnosticsText();
+        try
+        {
+            Clipboard.SetText(report);
+        }
+        catch
+        {
+            // CI / headless : le texte suffit.
+        }
+
+        return report;
+    }
+
+    internal HelpForm? HelpFormForTest => _helpForm is { IsDisposed: false } ? _helpForm : null;
+
+    internal void ShowPlayerStatusForTest(string message) => ShowPlayerStatus(message);
+
+    internal void ApplyKeyboardPresetForTest(KeyboardLayoutPreset preset)
+    {
+        _settings.ApplyPreset(preset);
+        _input.Apply(_settings);
+        _settingsStore.Save(_settings);
+        RefreshMoveHint();
+    }
+
+    internal void ProcessF1ForTest()
+    {
+        MainShell_KeyDown(this, new KeyEventArgs(Keys.F1));
+    }
 }
