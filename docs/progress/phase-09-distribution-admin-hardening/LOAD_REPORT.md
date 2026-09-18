@@ -1,7 +1,7 @@
 # Phase 9 — LOAD_REPORT
 
 **Status:** P9-5 **DONE** (measured on this agent, not guessed).  
-**Harness code SHA:** `0452504ee89627686dc6bf534c7103f0e606bd83` (`0452504`). The tip after this report commit will be newer; do not invent a CI URL.  
+**Harness code SHA:** `0452504ee89627686dc6bf534c7103f0e606bd83` (`0452504`). Parent merge with P9-1/P9-4: `3138e7d4daa4e1dee61d6363a153a3f4325f4cfc`. Report-docs SHA is this file’s commit on `cursor/phase9-distribution-admin-hardening`. Do not invent a CI URL.  
 **No CI URL** is claimed for this run (`ci.yml` still only fires on `main` / PRs to `main`). Draft PR #7 exists; this file does not invent a GitHub Actions URL.
 
 UDP / AOI was **not** built. Phase 8 E2E / screenshot SHA gates were **not** touched.
@@ -76,8 +76,9 @@ Working set at 100 mixed: ~164 MiB (harness + in-memory host in one process).
 | Signal | Result |
 | --- | --- |
 | `PostgresLoadObservabilityTests` (4 authed mixed **attached** to a PG-backed `FrogServerHostFactory`) | Hello/register/login/select 4/4; chat rate-limit ≥ 4; oversize drop; **`postgresErrors = 0`** |
-| Full `Frog.Persistence.IntegrationTests` this run | **180 PASS / 0 fail / 0 skip** (~3 min), includes `PackagedServerPostgreSqlProcessTests` (P9-4 packaged process + PG login/shop) and P9-1 moderation PG tests |
+| Full `Frog.Persistence.IntegrationTests` this run | **180 PASS / 0 fail / 0 skip** (~3 min), includes `PackagedServerPostgreSqlProcessTests` (P9-4 packaged process + PG login/shop), P9-1 moderation PG tests, and **`PostgresBackupRestoreTests`** |
 | 100-session mixed against PG | **Not run.** PBKDF2-SHA256 600k per register/login dominates wall time; this agent spent the PG budget on the full 180-test suite instead of a 100-client PG storm. |
+| P9-3 restore after `20260918001424_OpsAccountSanctions` | **Incidental re-run only.** The 180 included `PostgresBackupRestoreTests` on a DB that already has that migration. Not a dedicated P9-3 campaign (no extra dump whose payload is mute/ban rows). Residual for P9-6 / operators: take a fresh dump after sanction tables exist (`BACKUP_RESTORE_RUNBOOK.md`). |
 
 ## BASELINE_AUDIT §10 — certified vs revised
 
@@ -122,6 +123,7 @@ There is still **no HTTP `/metrics`**. Console + optional file is the operator s
 - Chat Global fan-out is O(sessions²) under this harness; 100 mixed was fine here, not an AOI substitute.
 - Authenticated ramp is CPU-bound on PBKDF2 600k — that, not TCP accept, is the cost of “100 logins”.
 - Packaged-server attach was not a separate 100-session storm; P9-4 `PackagedServerPostgreSqlProcessTests` still passed in the 180 PG tests (process + PG login/shop).
+- P9-3 residual after P9-1: migration `20260918001424_OpsAccountSanctions` (`ops.account_sanctions` / `ops.moderation_events`). This run’s 180 PG tests included `PostgresBackupRestoreTests` (incidental). A dedicated restore campaign whose dump contains sanction rows is still an operator / P9-6 item — P9-5 did not rewrite backup scripts.
 - No TLS, no metrics HTTP, no player-drain on stop (existing).
 - P9-6 still owns Phase 8 Windows smokes ×3 and a real CI URL once a run exists.
 
