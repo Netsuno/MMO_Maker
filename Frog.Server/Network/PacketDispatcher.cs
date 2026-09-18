@@ -436,9 +436,20 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
+        if (!_authService.TryAllowReconnect(clientSession.RemoteEndPoint, account.Username))
+        {
+            ServerNetworkLogs.LoginFailed(_logger, "reconnect_rate_limited");
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                "Session invalide.",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         if (await _accountSanctions.HasActiveBanAsync(account.Id, cancellationToken).ConfigureAwait(false))
         {
-            _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+            _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint, account.Username);
             ServerNetworkLogs.LoginFailed(_logger, "account_banned");
             await _packetSender.SendReconnectResultAsync(
                 clientSession,
@@ -455,7 +466,7 @@ public sealed partial class PacketDispatcher(
         {
             if (await _accountSanctions.HasActiveBanAsync(account.Id, ct).ConfigureAwait(false))
             {
-                _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+                _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint, account.Username);
                 ServerNetworkLogs.LoginFailed(_logger, "account_banned");
                 await _packetSender.SendReconnectResultAsync(
                     clientSession,
@@ -468,7 +479,7 @@ public sealed partial class PacketDispatcher(
             var lockedValidation = await _authSessions.ValidateTokenAsync(token, ct).ConfigureAwait(false);
             if (lockedValidation.Status != AuthSessionValidationStatus.Valid || lockedValidation.Session is null)
             {
-                _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+                _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint, account.Username);
                 ServerNetworkLogs.LoginFailed(_logger, "invalid_reconnect_token");
                 await _packetSender.SendReconnectResultAsync(
                     clientSession,
@@ -500,7 +511,7 @@ public sealed partial class PacketDispatcher(
             session.AccountId = account.Id;
             session.AuthSessionId = lockedValidation.Session.Id;
             await _authSessions.TouchAsync(lockedValidation.Session.Id, ct).ConfigureAwait(false);
-            _authService.RegisterReconnectSuccess(clientSession.RemoteEndPoint);
+            _authService.RegisterReconnectSuccess(clientSession.RemoteEndPoint, account.Username);
 
             await CompleteLoginAsync(
                 clientSession,
@@ -747,8 +758,20 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
+        if (!_authService.TryAllowAuth(clientSession.RemoteEndPoint, username, "login"))
+        {
+            ServerNetworkLogs.RegisterFailed(_logger, "rate_limited");
+            await _packetSender.SendRegisterResultAsync(
+                clientSession,
+                false,
+                "Compte deja existant ou invalide.",
+                cancellationToken);
+            return;
+        }
+
         if (PlaytestAuthToken.IsReservedUsername(username))
         {
+            _authService.RegisterAuthFailure(clientSession.RemoteEndPoint, username);
             ServerNetworkLogs.RegisterFailed(_logger, "reserved_username");
             await _packetSender.SendRegisterResultAsync(
                 clientSession,
@@ -758,7 +781,22 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
-        var created = await _authService.RegisterAccountAsync(username, password, cancellationToken).ConfigureAwait(false);
+        var created = await _authService.RegisterAccountAsync(
+            username,
+            password,
+            clientSession.RemoteEndPoint,
+            cancellationToken).ConfigureAwait(false);
+        if (created.Status == AccountCreateStatus.RateLimited)
+        {
+            ServerNetworkLogs.RegisterFailed(_logger, "rate_limited");
+            await _packetSender.SendRegisterResultAsync(
+                clientSession,
+                false,
+                "Compte deja existant ou invalide.",
+                cancellationToken);
+            return;
+        }
+
         if (created.Status != AccountCreateStatus.Created)
         {
             ServerNetworkLogs.RegisterFailed(_logger, "duplicate_or_invalid");

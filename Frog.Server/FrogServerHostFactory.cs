@@ -198,6 +198,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton(new PlaytestAuthTokenGate(playtest.AuthToken));
 
                 services.AddSingleton<LoginRateLimiter>();
+                services.AddSingleton<AuthRateLimiter>();
                 services.AddSingleton<ChatRateLimiter>();
                 services.AddSingleton<ServerOpsMetrics>();
 

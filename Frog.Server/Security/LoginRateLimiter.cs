@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace Frog.Server.Security;
 
-/// <summary>Limite les tentatives login/register par clé (IP ou IP+username).</summary>
+/// <summary>Compteur d'échecs borné (fenêtre glissante). Primitive de <see cref="AuthRateLimiter"/>.</summary>
 public sealed class LoginRateLimiter
 {
     private readonly int _maxFailures;

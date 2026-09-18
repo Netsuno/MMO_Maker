@@ -17,7 +17,7 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | **Paquet autonome sans SDK** | Le mandat bêta exige un runtime fourni ou déclaré. Aujourd’hui il faut le runtime .NET 8 sur la machine. | P10-6 |
 | **LOAD** | Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, TLS, monde publié. Pas de HTTP `/metrics`. | P10-8 |
 | **Restore avec sanctions** | `PostgresBackupRestoreTests` : migrate + seed Phase 7 + compte + dump/restore + login. **Pas** de campagne dont le dump contient des lignes mute/ban. Guildes/amis/échanges n’existent pas encore. | P10-7 |
-| **Rate-limit login** | Clé = `ClientSession.RemoteEndPoint` (IP:port). Changer de port source réinitialise la fenêtre. | P10-5 |
+| **Rate-limit login** | IP normalisée + username (8/60s) et IP (30/60s). Plus de clé IP:port. Voir [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
 | **Grant opérateur** | Hors bande SQL / `IOperatorDirectory.GrantAsync` — **pas** d’outil opérateur documenté pour reset mot de passe, invitations, revoke GM. | P10-5 |
 | **Inscriptions ouvertes** | `RegisterRequest` crée un compte sans invitation. Le premier inscrit n’est pas GM (OK) mais la bêta fermée n’existe pas. | P10-5 |
 | **P9-S social** | Groupes/guildes/amis/blocage **P10-1 livré** (v11, 80–83). Trade P2P **absent** (P10-2). Stubs `Guild.cs` / `GuildService.cs` toujours morts. | P10-1 fait ; P10-2 |

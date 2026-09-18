@@ -1,6 +1,6 @@
 # Phase 10 — STATUS
 
-**Lot courant :** P10-5 A (TLS SslStream in-process). **Pas READY.**
+**Lot courant :** P10-5 B (rate-limit auth IP+user). **Pas READY.**
 
 | Item | Valeur |
 | --- | --- |
@@ -10,7 +10,7 @@
 | CI `main` post-fusion | https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS** |
 | Mandat | [`MANDATE.md`](MANDATE.md) (texte complet, 2026-09-18) |
 | Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–83 |
-| Gate Phase 10 | **pas atteinte** — P10-2…P10-4, P10-5 B–E, P10-6…P10-9 absents |
+| Gate Phase 10 | **pas atteinte** — P10-2…P10-4, P10-5 C–E, P10-6…P10-9 absents |
 
 ## Lots
 
@@ -21,11 +21,17 @@
 | P10-2 Échanges directs | **ABSENT** |
 | P10-3 Client / éditeur externes | **INCOMPLET** |
 | P10-4 Monde démo + recette | **ABSENT** |
-| P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** — lot A TLS **LIVRÉ** ; B–E (proxy, rate-limit, ClosedBeta, PG roles, LoadHarness) non commencés |
+| P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** — lots A TLS + B rate-limit **LIVRÉS** ; C–E (ClosedBeta/OpsCli, PG roles, LoadHarness TLS) non commencés |
 | P10-6 Paquets autonomes | **INCOMPLET** |
 | P10-7 Exploitation / restore | **INCOMPLET** (guildes/amis/blocs désormais dans le schéma ; restore de ces lignes **non** recertifié backup) |
 | P10-8 Charge 25 joueurs | **INCOMPLET** |
 | P10-9 Validation / candidate | **ABSENT** |
+
+## P10-5 B — ce qui est livré
+
+- Clé `AuthRateLimitKey` : IP normalisée (strip port, unmap v4) + username. Plus de clé IP:port.
+- Seuils **8/60s** IP+user, **30/60s** IP. Login, register et reconnect partagent les seaux.
+- Doc NAT : [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). Tests `Phase10AuthRateLimitTests` (ports distincts).
 
 ## P10-5 A — ce qui est livré
 
@@ -47,8 +53,8 @@
 
 ## Interdits (toujours)
 
-Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. P10-2 trade non commencé (opcodes 84–86 réservés). PacketDispatcher social **non modifié** par P10-5 A.
+Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. P10-2 trade non commencé (opcodes 84–86 réservés). PacketDispatcher social **non modifié** par P10-5 A/B (B : call sites login/register/reconnect seulement).
 
 ## Verdict
 
-**P10-1 + P10-5 A.** La bêta n’est **pas** prête.
+**P10-1 + P10-5 A + P10-5 B.** La bêta n’est **pas** prête.

@@ -119,7 +119,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Pas de fallback mémoire si PG down (profil hébergé) | `allowInMemoryFallback=false` défaut ; factory refuse sans PG | `Phase9SecurityGateTests` | **présent** |
 | Port PG non exposé aux joueurs | compose expose 5432 en **dev** | doc prod | **incomplet** |
 | Pas de superutilisateur runtime | `docker-compose` `POSTGRES_USER=frog` (superuser instance) ; appsettings Username=frog | | **incomplet** |
-| Rate-limit IP normalisée + compte | clé `RemoteEndPoint` | brute-force ports distincts | **absent** (comportement actuel contraire) |
+| Rate-limit IP normalisée + compte | `AuthRateLimitKey` + `AuthRateLimiter` 8/60s IP+user, 30/60s IP ; login+register+reconnect | `Phase10AuthRateLimitTests` ports distincts ; [AUTH_RATE_LIMIT.md](AUTH_RATE_LIMIT.md) | **lot B livré** |
 | Inscriptions invitation / provisionnées | `RegisterRequest` ouvert | | **absent** |
 | Invitation ≠ rôle GM | register n’écrit pas `auth.operators` | `Phase9SecurityGateTests` | **présent** (mais inscriptions ouvertes) |
 | Outil opérateur comptes / reset / revoke / GM / sanctions | SQL grant seulement | | **absent** |
