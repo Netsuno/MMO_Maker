@@ -3,7 +3,7 @@
 ## Gate (P9-6)
 
 - Phase 9 is **NOT READY**. Prior READY / gate on tip `5db5f6b` was **withdrawn** (Marc refused despite green CI on evidence pack `8bf6f08` / https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956).
-- C1–C6 corrections are on this branch. Do not invent a CI URL for the correction tip until Actions has run on that SHA.
+- C1–C6 corrections are on product tip `422993b`. CI https://github.com/Netsuno/MMO_Maker/actions/runs/35369587406 **SUCCESS** (`build-and-test` SUCCESS, `postgres-integration` SUCCESS; Frog.Tests **445** / PG **181** / editor **87×3** / gameplay **6×3** / Phase 8 **24×3** + 12 exact-sha). C-fixes **awaiting re-review**. Predecessor FAILURE: 35368492352 on `2cb842d`.
 - P9-S remains **DEFERRED**.
 - CI annotation (not a test failure, historical): Node.js 20 deprecation on `actions/checkout@v4` / `setup-dotnet@v4` / `upload-artifact@v4`.
 

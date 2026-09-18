@@ -15,7 +15,7 @@ Phase 8 matrix remains the product gameplay gate: [`../phase-08-quests-events-ad
 | 7 | Packaged **server** starts with `PostgreSql:Enabled=true` | `PackagedServerPostgreSqlProcessTests` + `packaged-server-smoke.sh --layout-only` | **DONE** (P9-4 Linux). Packaged client/editor launch **not proven**. |
 | 8 | Load run at the measured session count | `scripts/run-load-harness.sh` + `Phase9OpsMetricsTests` / `PostgresLoadObservabilityTests` | **Measured** — 100 authed mixed in-memory, 200 TCP Hello; PG concurrent authed floor 4. Unexecuted BASELINE rows **not certified**. See `LOAD_REPORT.md`. |
 | — | Guild / group / trade | — | **DEFERRED (P9-S)** |
-| — | Phase 8 23-step + multi-client + Interact identity | `Phase8PostgresE2ETests`, `Phase8MultiClientE2ETests`, `Phase8InteractIdentityTcpTests` | Historical PASS on refused-gate CI PG **180**. Windows Phase 8 smoke **24×3** + 12-file exact-sha OK on that CI. Re-confirm on correction-tip CI. |
+| — | Phase 8 23-step + multi-client + Interact identity | `Phase8PostgresE2ETests`, `Phase8MultiClientE2ETests`, `Phase8InteractIdentityTcpTests` | PASS on 35369587406: PG **181**; Windows Phase 8 smoke **24×3** + 12-file exact-sha OK. |
 
 ## Multi-client
 
@@ -29,4 +29,4 @@ Phase 8 matrix remains the product gameplay gate: [`../phase-08-quests-events-ad
 ## CI pin
 
 - Historical (refused gate): `8bf6f08` / https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 SUCCESS — Frog.Tests **436**, PG **180**, editor **87×3**, gameplay **6×3**, Phase 8 **24×3**
-- Correction tip: **not pinned yet**
+- Correction product tip: `422993b` / https://github.com/Netsuno/MMO_Maker/actions/runs/35369587406 SUCCESS — `build-and-test` SUCCESS, `postgres-integration` SUCCESS; Frog.Tests **445**, PG **181**, editor **87×3**, gameplay **6×3**, Phase 8 **24×3** + 12 exact-sha; `layout-only smoke OK`. C-fixes **awaiting re-review**.
