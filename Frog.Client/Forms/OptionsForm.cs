@@ -115,6 +115,7 @@ public sealed class OptionsForm : Form
         {
             _draft.Normalize();
             Settings = _draft.Clone();
+            DialogResult = DialogResult.OK;
         };
     }
 
