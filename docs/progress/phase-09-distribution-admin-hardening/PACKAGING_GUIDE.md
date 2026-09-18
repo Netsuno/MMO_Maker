@@ -55,7 +55,7 @@ Then copy `appsettings.Local.json` **after** publish (see Config overlay). Zip i
 Rules:
 
 - **Framework-dependent.** Not `--self-contained`. Install the .NET 8 runtime (or the SDK) on the host.
-- **Not single-file.** `Frog.Server/Program.cs` `TryLoadPostgreSqlAuthBackend` does `Assembly.LoadFrom(AppContext.BaseDirectory + "Frog.Persistence.PostgreSql.dll")`. A single-file publish would hide that DLL. `Frog.Server/Build/CopyPostgreSqlRuntime.targets` already publishes the persistence project next to the host (`PublishSingleFile=false`).
+- **Not single-file.** `Frog.Server/Program.cs` `TryLoadPostgreSqlAuthBackend` does `Assembly.LoadFrom(AppContext.BaseDirectory + "Frog.Persistence.PostgreSql.dll")`. A single-file publish would hide that DLL. `Frog.Server/Build/CopyPostgreSqlRuntime.targets` publishes the persistence project as **portable `net8.0`** (it strips the host RID via `RemoveProperties`) and copies those DLLs next to the RID-specific host. Forwarding `linux-x64` / `win-x64` into that class library fails restore (`NETSDK1047`).
 - **x64 only** (`PlatformTarget=x64` on the three executables).
 - Linux agents can **produce** the Windows layouts (`Directory.Build.props` `EnableWindowsTargeting=true`) but cannot **launch** WinForms/WPF. Client/editor launch remains the existing `windows-latest` smokes in `ci.yml` (editor / gameplay / Phase 8 ×3, including `scripts/verify-phase8-screenshot-manifest.ps1`).
 

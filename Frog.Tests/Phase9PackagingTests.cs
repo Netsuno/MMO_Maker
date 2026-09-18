@@ -43,6 +43,15 @@ public sealed class Phase9PackagingTests
         Assert.Contains("CopyToPublishDirectory>Never", csproj, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CopyPostgreSqlRuntime_DoesNotForwardHostRid()
+    {
+        var targets = File.ReadAllText(Path.Combine(
+            RepoRoot(), "Frog.Server", "Build", "CopyPostgreSqlRuntime.targets"));
+        Assert.Contains("RemoveProperties=\"RuntimeIdentifier;RuntimeIdentifiers\"", targets, StringComparison.Ordinal);
+        Assert.Contains("PublishSingleFile=false", targets, StringComparison.Ordinal);
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
