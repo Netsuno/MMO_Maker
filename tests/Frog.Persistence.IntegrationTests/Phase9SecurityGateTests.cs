@@ -89,29 +89,38 @@ public sealed class Phase9SecurityGateTests
 
     [PostgresFact]
     [Trait("Category", "PostgreSql")]
-    public void HostComposition_PostgresEnabledMariaDbDisabledPlaceholder_PublicBindBuilds()
+    public void HostComposition_PostgresEnabledMariaDbDisabledPlaceholder_Builds()
     {
+        // Public bind is covered by Frog.Tests Phase9SecurityGateTests: the CI DSN contains
+        // frog_test_local_only, which is a known placeholder on the *enabled* PostgreSQL path
+        // and must still refuse 0.0.0.0. This test proves a real PG backend starts when
+        // MariaDB is disabled and still carries a committed placeholder DSN.
         var port = Phase7TcpTestPorts.GetFreePort();
         var builder = Phase7PostgresE2EHost.CreateBuilder(_fixture.ConnectionString, port)
             .ConfigureAppConfiguration((_, config) =>
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["Server:BindAddress"] = "0.0.0.0",
-                    ["Server:AllowNonLoopbackBind"] = "true",
                     ["MariaDb:Enabled"] = "false",
                     ["MariaDb:ConnectionString"] =
                         "Server=127.0.0.1;Port=3306;Database=frog;User Id=root;Password=NOT_A_PRODUCTION_SECRET",
-                    ["PostgreSql:Enabled"] = "true",
-                    ["PostgreSql:ConnectionString"] =
-                        "Host=db.example;Port=5432;Database=frog;Username=frog;Password=unique-hosted-secret-value",
                 });
             });
 
         using var host = builder.Build();
         var server = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Frog.Server.Config.ServerOptions>>().Value;
-        Assert.Equal("0.0.0.0", server.BindAddress);
-        Assert.False(server.IsLoopbackBind);
-        Assert.NotNull(host);
+        var maria = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Frog.Server.Config.MariaDbOptions>>().Value;
+        var pg = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Frog.Server.Config.PostgreSqlOptions>>().Value;
+        Assert.True(server.IsLoopbackBind);
+        Assert.True(pg.Enabled);
+        Assert.False(maria.Enabled);
+        Assert.True(PlaceholderSecretPolicy.ContainsKnownPlaceholder(maria.ConnectionString));
+        Assert.False(PlaceholderSecretPolicy.MustRejectPublicBind(
+            playtestEnabled: false,
+            bindIsLoopback: server.IsLoopbackBind,
+            postgreSqlEnabled: pg.Enabled,
+            postgreSqlConnectionString: pg.ConnectionString,
+            mariaDbEnabled: maria.Enabled,
+            mariaDbConnectionString: maria.ConnectionString));
     }
 }
