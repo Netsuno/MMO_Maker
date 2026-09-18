@@ -3,17 +3,17 @@
 Fonctions documentées : `nom(args)` · entrées/sorties typées.
 Classement **par sous-projet**, puis **A–Z**.
 
-> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `6fe5bd97`.
+> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `ea116afa`.
 
 ## Sous-projets (assemblies)
 
 | Sous-projet | Page | Contenu (1 ligne) |
 | --- | --- | --- |
 | Client | [Client](client/README.md) | `FrogGameClient` Send*/Connect* |
-| Server | [Server](server/README.md) | Auth, move, map, modération (1 fichier / fonction) |
-| Editor | [Editor](editor/README.md) | Publish, outils auteur *(à venir)* |
+| Server | [Server](server/README.md) | Auth, map, move, reconnect, moderation |
+| Editor | [Editor](editor/README.md) | Save/Publish carte (UI MainForm) |
 | Core | [Core](core/README.md) | Formules, limites, codecs partagés |
-| PostgreSQL | [PostgreSQL](postgresql/README.md) | Repos / SQL *(à venir)* |
+| PostgreSQL | [PostgreSQL](postgresql/README.md) | Account, Character, Inventory, Map, Quest |
 
 ## Comment lire
 
