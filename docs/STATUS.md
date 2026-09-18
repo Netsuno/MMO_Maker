@@ -4,7 +4,7 @@
 | --- | --- |
 | Phase 7 | ACCEPTED on main |
 | **Phase 8** | **ACCEPTED on main** (merge `1cd57ba`) |
-| **Phase 9** | **IN PROGRESS** (P9-0 DONE, P9-2 DONE, P9-3 DONE; P9-1/P9-4…P9-6 not started; P9-S DEFERRED) |
+| **Phase 9** | **IN PROGRESS** (P9-0 DONE, P9-2 DONE, P9-3 DONE, P9-4 DONE; P9-1/P9-5/P9-6 not started; P9-S DEFERRED) |
 
 Branch: `cursor/phase9-distribution-admin-hardening` (from `main` tip `5af47b9cf6ba18a82dba5eee933fc1d0e6afa3eb`)
 Phase 8 acceptance: merge [`1cd57ba`](https://github.com/Netsuno/MMO_Maker/commit/1cd57bad694f530fa5699639f9e63008522507e0) (PR #2). README alignment: PR #6.

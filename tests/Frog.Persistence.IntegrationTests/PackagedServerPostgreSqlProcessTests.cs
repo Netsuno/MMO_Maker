@@ -208,6 +208,16 @@ public sealed class PackagedServerPostgreSqlProcessTests
             "Npgsql.EntityFrameworkCore.PostgreSQL",
             doc.RootElement.GetRawText(),
             StringComparison.OrdinalIgnoreCase);
+
+        Assert.True(
+            File.Exists(Path.Combine(publishDir, "appsettings.json")),
+            "committed appsettings.json must ship in the publish layout");
+        Assert.True(
+            File.Exists(Path.Combine(publishDir, "appsettings.Local.json.example")),
+            "overlay template must ship so operators can copy it after publish");
+        Assert.False(
+            File.Exists(Path.Combine(publishDir, "appsettings.Local.json")),
+            "gitignored appsettings.Local.json must not be copied into a publish tree");
     }
 
     private static void WritePackagedServerConfig(string publishDir, string connectionString, int port)

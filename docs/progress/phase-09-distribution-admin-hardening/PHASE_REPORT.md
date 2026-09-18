@@ -1,14 +1,14 @@
 # Phase 9 — PHASE_REPORT
 
-**Status:** P9-0 bootstrap only. Phase 9 is **IN PROGRESS**, not READY.
+**Status:** Phase 9 is **IN PROGRESS**, not READY. P9-0/P9-2/P9-3/P9-4 have landed; P9-1/P9-5/P9-6 have not.
 
 | Tranche | Status |
 | --- | --- |
 | P9-0 Audit + plan | **IN PROGRESS** (this folder) |
 | P9-1 Admin / moderation | NOT STARTED |
-| P9-2 Security / permissions | NOT STARTED |
-| P9-3 PostgreSQL backup / restore | NOT STARTED |
-| P9-4 Packaging | NOT STARTED |
+| P9-2 Security / permissions | DONE (see CHANGE_SUMMARY) |
+| P9-3 PostgreSQL backup / restore | DONE (see CHANGE_SUMMARY) |
+| P9-4 Packaging | DONE (see CHANGE_SUMMARY; client/editor launch still Windows-CI-only) |
 | P9-5 Load / observability | NOT STARTED |
 | P9-6 Tests + review | NOT STARTED |
 | P9-S Guilds / groups / trades | **DEFERRED** |

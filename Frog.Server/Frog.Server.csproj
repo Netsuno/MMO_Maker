@@ -29,6 +29,7 @@
         </None>
         <None Include="appsettings.Local.json" Condition="Exists('appsettings.Local.json')">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>Never</CopyToPublishDirectory>
         </None>
     </ItemGroup>
 
