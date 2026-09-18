@@ -7,10 +7,14 @@
     <Target Name="PublishPostgreSqlForServer" BeforeTargets="CopyPostgreSqlRuntime">
         <RemoveDir Directories="$(PostgreSqlPublishStaging)" Condition="Exists('$(PostgreSqlPublishStaging)')" />
         <MakeDir Directories="$(PostgreSqlPublishStaging)" />
+        <!-- Portable net8.0 publish. The host RID is a global property (`dotnet publish -r`)
+             and would otherwise flow into this inner build, which has no
+             net8.0/linux-x64 (or win-x64) restore target. -->
         <MSBuild
             Projects="$(PostgreSqlProject)"
             Targets="Publish"
-            Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);AppendRuntimeIdentifierToOutputPath=false;PublishDir=$(PostgreSqlPublishStaging);PublishSingleFile=false;SelfContained=false" />
+            RemoveProperties="RuntimeIdentifier;RuntimeIdentifiers"
+            Properties="Configuration=$(Configuration);AppendRuntimeIdentifierToOutputPath=false;PublishDir=$(PostgreSqlPublishStaging);PublishSingleFile=false;SelfContained=false" />
     </Target>
 
     <Target Name="CopyPostgreSqlRuntime" AfterTargets="Build;Publish">

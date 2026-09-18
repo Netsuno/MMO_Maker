@@ -7,7 +7,7 @@
 - `docs/BACKLOG.md` checkboxes stop at Phase 6.
 - ~106 historical `// TODO: Implémenter` stubs remain (including `Guild*`). `AdminCommandService` / `Role` / `Permission` / `AccessRightEnum` are unused folklore (P9-1 uses `ModerationService`). Not a Phase 9 clear-out.
 - CI workflow does not run on this branch until a PR targets `main`.
-- No TLS, packaging still TBD (P9-4). Backup/restore scripts exist (P9-3); **re-run restore proofs after the P9-1 ops sanction migration**.
+- No TLS — residual (`SECURITY_MODEL.md` §10). Backup scripts exist (P9-3). Packaging layouts exist (P9-4); still no installer / TLS terminator. **Re-run restore proofs after the P9-1 ops sanction migration.**
 - Operator mute/kick/ban is implemented (P9-1). Grant remains out-of-band SQL (`auth.operators`).
 - Clear-text TCP if `AllowNonLoopbackBind=true` without an external terminator (`SECURITY_MODEL.md` §10).
 

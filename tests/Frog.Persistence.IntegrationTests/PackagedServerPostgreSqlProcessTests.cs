@@ -172,26 +172,49 @@ public sealed class PackagedServerPostgreSqlProcessTests
 
     private static async Task<string> PublishReleaseServerAsync()
     {
-        var publishDir = Path.Combine(
-            Path.GetTempPath(),
-            "frog-packaged-server-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(publishDir);
-
         var repoRoot = FindRepoRoot();
-        var startInfo = new ProcessStartInfo
+        var script = Path.Combine(repoRoot, "scripts", "publish-frog.sh");
+        ProcessStartInfo startInfo;
+        string outputDir;
+        if (!OperatingSystem.IsWindows() && File.Exists(script))
         {
-            FileName = "dotnet",
-            Arguments = $"publish \"{Path.Combine(repoRoot, "Frog.Server", "Frog.Server.csproj")}\" -c Release -o \"{publishDir}\"",
-            WorkingDirectory = repoRoot,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        using var publish = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start dotnet publish.");
-        await publish.WaitForExitAsync();
-        Assert.True(publish.ExitCode == 0, $"dotnet publish failed with exit code {publish.ExitCode}");
+            // P9-4 operator path: RID layout + portable PG sidecar (CopyPostgreSqlRuntime.targets).
+            var outputRoot = Path.Combine(Path.GetTempPath(), "frog-packaged-root-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(outputRoot);
+            startInfo = new ProcessStartInfo
+            {
+                FileName = script,
+                Arguments = $"--target server-linux-x64 --output-root \"{outputRoot}\" --force",
+                WorkingDirectory = repoRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            outputDir = Path.Combine(outputRoot, "server-linux-x64");
+        }
+        else
+        {
+            var publishDir = Path.Combine(
+                Path.GetTempPath(),
+                "frog-packaged-server-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(publishDir);
+            startInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                Arguments = $"publish \"{Path.Combine(repoRoot, "Frog.Server", "Frog.Server.csproj")}\" -c Release -r win-x64 --self-contained false -o \"{publishDir}\" -p:PublishSingleFile=false",
+                WorkingDirectory = repoRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            outputDir = publishDir;
+        }
 
-        return publishDir;
+        using var publish = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start publish.");
+        await publish.WaitForExitAsync();
+        Assert.True(publish.ExitCode == 0, $"publish failed with exit code {publish.ExitCode}");
+        Assert.True(Directory.Exists(outputDir), "publish layout directory missing: " + outputDir);
+
+        return outputDir;
     }
 
     private static void AssertPackagedRuntimeAssemblies(string publishDir)
@@ -208,6 +231,19 @@ public sealed class PackagedServerPostgreSqlProcessTests
             "Npgsql.EntityFrameworkCore.PostgreSQL",
             doc.RootElement.GetRawText(),
             StringComparison.OrdinalIgnoreCase);
+
+        Assert.True(
+            File.Exists(Path.Combine(publishDir, "appsettings.json")),
+            "committed appsettings.json must ship in the publish layout");
+        Assert.True(
+            File.Exists(Path.Combine(publishDir, "appsettings.Local.json.example")),
+            "overlay template must ship so operators can copy it after publish");
+        Assert.False(
+            File.Exists(Path.Combine(publishDir, "appsettings.Local.json")),
+            "gitignored appsettings.Local.json must not be copied into a publish tree");
+
+        var apphost = Path.Combine(publishDir, OperatingSystem.IsWindows() ? "Frog.Server.exe" : "Frog.Server");
+        Assert.True(File.Exists(apphost), "RID apphost missing from packaged output: " + apphost);
     }
 
     private static void WritePackagedServerConfig(string publishDir, string connectionString, int port)
@@ -230,19 +266,36 @@ public sealed class PackagedServerPostgreSqlProcessTests
 
     private static Process StartPackagedServer(string publishDir, string shutdownFilePath)
     {
+        var apphost = Path.Combine(publishDir, OperatingSystem.IsWindows() ? "Frog.Server.exe" : "Frog.Server");
         var dll = Path.Combine(publishDir, "Frog.Server.dll");
-        Assert.True(File.Exists(dll), $"missing packaged server: {dll}");
-
-        var startInfo = new ProcessStartInfo
+        ProcessStartInfo startInfo;
+        if (File.Exists(apphost))
         {
-            FileName = "dotnet",
-            Arguments = $"\"{dll}\"",
-            WorkingDirectory = publishDir,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
+            startInfo = new ProcessStartInfo
+            {
+                FileName = apphost,
+                Arguments = $"--contentRoot \"{publishDir}\"",
+                WorkingDirectory = publishDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+        }
+        else
+        {
+            Assert.True(File.Exists(dll), $"missing packaged server: {dll}");
+            startInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                Arguments = $"\"{dll}\" --contentRoot \"{publishDir}\"",
+                WorkingDirectory = publishDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+        }
         // P7-G6: cross-platform graceful-stop path (Frog.Server watches for this file and calls
         // IHostApplicationLifetime.StopApplication() when it appears). See RequestGracefulShutdown.
         startInfo.Environment[ShutdownFileWatcherService.ShutdownFileEnvironmentVariable] = shutdownFilePath;

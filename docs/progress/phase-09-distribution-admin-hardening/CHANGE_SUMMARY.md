@@ -1,6 +1,6 @@
 # Phase 9 — CHANGE_SUMMARY
 
-**Status:** P9-0 + P9-1 + P9-2 + P9-3 landed on `cursor/phase9-distribution-admin-hardening`. P9-4…P9-6 still TBD.
+**Status:** P9-0 + P9-1 + P9-2 + P9-3 + P9-4 landed on `cursor/phase9-distribution-admin-hardening`. P9-5 / P9-6 still TBD.
 
 ## P9-0 (bootstrap)
 
@@ -35,7 +35,11 @@
 
 ## P9-4 Packaging
 
-TBD.
+- Scripts: `scripts/publish-frog.sh` / `.ps1` (RID layouts `server-linux-x64`, `server-win-x64`, `client-win-x64`, `editor-win-x64`), `scripts/run-packaged-server.sh` / `.ps1`, `scripts/packaged-server-smoke.sh`.
+- Framework-dependent, not single-file (runtime load of `Frog.Persistence.PostgreSql.dll`). `CopyPostgreSqlRuntime.targets` publishes the PG sidecar as portable `net8.0` (`RemoveProperties` so a host RID does not break restore). `appsettings.Local.json` is never published (`CopyToPublishDirectory=Never`).
+- Docs: concrete `PACKAGING_GUIDE.md` (commands, artifact paths, overlay, protocol v10) and `OPERATIONS_RUNBOOK.md` (start/stop, content root, migrate-then-need-a-published-map).
+- Proof: existing `PackagedServerPostgreSqlProcessTests` plus layout assertions (example overlay present; Local overlay absent). Client/editor launch remains Windows CI smokes — no Linux GUI claim.
+- Tiny CI tweak on the existing `postgres-integration` job: `./scripts/packaged-server-smoke.sh --layout-only`. No new job. No invented CI URL.
 
 ## P9-5 Load / observability
 

@@ -221,6 +221,10 @@ jobs:
             --results-directory TestResults/postgres \
             2>&1 | tee artifacts/ci-logs/postgres-integration.log
 
+      - name: Publish layout smoke (server linux-x64)
+        shell: bash
+        run: ./scripts/packaged-server-smoke.sh --layout-only
+
       - name: Guard PostgreSQL logs for lifecycle crash markers
         if: always()
         shell: pwsh
