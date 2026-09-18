@@ -1,11 +1,11 @@
 # Phase 9 — CHANGE_SUMMARY
 
-**Status:** P9-0 + P9-1 + P9-2 + P9-3 + P9-4 + P9-5 landed on `cursor/phase9-distribution-admin-hardening`. P9-6 still TBD.
+**Status:** P9-0…P9-6 landed on `cursor/phase9-distribution-admin-hardening`. Product tip `66fa070` CI https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS**. Phase 9 **READY**. P9-S **DEFERRED**.
 
 ## P9-0 (bootstrap)
 
 - Added `docs/progress/phase-09-distribution-admin-hardening/` planning pack.
-- Updated `docs/STATUS.md`: Phase 8 ACCEPTED on main; Phase 9 IN PROGRESS.
+- Updated `docs/STATUS.md`: Phase 8 ACCEPTED on main; Phase 9 IN PROGRESS (later READY).
 - P9-S (guilds / groups / trades): **DEFERRED**. See PHASE_PLAN.
 
 ## P9-1 Admin / moderation
@@ -30,28 +30,29 @@
 
 - Scripts: `scripts/postgres-backup.sh`, `postgres-restore.sh`, `postgres-verify.sh`, `postgres-backup-restore-smoke.sh`, `postgres-common.sh`, plus Windows `.ps1` mirrors for backup/restore/verify.
 - Runbook: [`BACKUP_RESTORE_RUNBOOK.md`](BACKUP_RESTORE_RUNBOOK.md) — dump custom format (`-Fc`) of schemas `auth`, `content`, `ops`, `player`, `world`, plus `public.__EFMigrationsHistory`. Restore onto an empty database; do not migrate first.
-- Proof: `tests/Frog.Persistence.IntegrationTests/PostgresBackupRestoreTests.cs` (CI job `postgres-integration` after `postgresql-client` install). Command: `./scripts/postgres-backup-restore-smoke.sh`.
-- No MariaDB path. P9-3 adds no EF migrations; dumps include P9-2 `auth.operators` via schema `auth`. **Re-prove restore after P9-1 schema** (`ops.account_sanctions` / `ops.moderation_events`, migration `20260918001424_OpsAccountSanctions`).
+- Proof: `tests/Frog.Persistence.IntegrationTests/PostgresBackupRestoreTests.cs` (in CI PG **180** on `66fa070`). Command: `./scripts/postgres-backup-restore-smoke.sh`.
+- No MariaDB path. After P9-1, CI included `PostgresBackupRestoreTests` on schema `OpsAccountSanctions`. Dedicated dump with mute/ban **rows** remains optional.
 
 ## P9-4 Packaging
 
 - Scripts: `scripts/publish-frog.sh` / `.ps1` (RID layouts `server-linux-x64`, `server-win-x64`, `client-win-x64`, `editor-win-x64`), `scripts/run-packaged-server.sh` / `.ps1`, `scripts/packaged-server-smoke.sh`.
-- Framework-dependent, not single-file (runtime load of `Frog.Persistence.PostgreSql.dll`). `CopyPostgreSqlRuntime.targets` publishes the PG sidecar as portable `net8.0` (`RemoveProperties` so a host RID does not break restore). `appsettings.Local.json` is never published (`CopyToPublishDirectory=Never`).
-- Docs: concrete `PACKAGING_GUIDE.md` (commands, artifact paths, overlay, protocol v10) and `OPERATIONS_RUNBOOK.md` (start/stop, content root, migrate-then-need-a-published-map).
-- Proof: existing `PackagedServerPostgreSqlProcessTests` plus layout assertions (example overlay present; Local overlay absent). Client/editor launch remains Windows CI smokes — no Linux GUI claim.
-- Tiny CI tweak on the existing `postgres-integration` job: `./scripts/packaged-server-smoke.sh --layout-only`. No new job. No invented CI URL.
+- Framework-dependent, not single-file (runtime load of `Frog.Persistence.PostgreSql.dll`). `CopyPostgreSqlRuntime.targets` publishes the PG sidecar as portable `net8.0`. `appsettings.Local.json` is never published (`CopyToPublishDirectory=Never`).
+- Docs: concrete `PACKAGING_GUIDE.md` and `OPERATIONS_RUNBOOK.md`.
+- Proof: `PackagedServerPostgreSqlProcessTests` plus CI `layout-only smoke OK`. Client/editor launch: Windows CI smokes on this run (**87×3** / **6×3** / Phase 8 **24×3**).
 
 ## P9-5 Load / observability
 
-- Harness: `tools/Frog.LoadHarness` + `scripts/run-load-harness.sh` (in-memory self-host or `--host/--port` attach).
-- Ops: `ServerOpsMetrics` counters + structured `ops_metrics` (EventId 5030), connection reject / chat-rate / movement-rate / login-rate / PG-error logs. Optional `FROG_OPS_METRICS_PATH` JSON snapshot. No HTTP `/metrics`.
-- Measured on this agent (4 cores, 15 GiB, SDK 8.0.424): **200 TCP Hello**, **100 authed mixed** in-memory; chat 8/10s and move 50/s caps visible; 1 MiB+1 frame dropped; PG `postgresErrors=0`. See [`LOAD_REPORT.md`](LOAD_REPORT.md).
-- Sanity this run: `Frog.Tests` **436 PASS**; PG integration **180 PASS**. Phase 8 SHA gates not touched.
-- Tests: `Frog.Tests/Phase9OpsMetricsTests.cs`, `tests/Frog.Persistence.IntegrationTests/PostgresLoadObservabilityTests.cs`.
+- Harness: `tools/Frog.LoadHarness` + `scripts/run-load-harness.sh`.
+- Ops: `ServerOpsMetrics` counters + structured `ops_metrics` (EventId 5030). Optional `FROG_OPS_METRICS_PATH` JSON snapshot. No HTTP `/metrics`.
+- Measured on the P9-5 agent: **200 TCP Hello**, **100 authed mixed** in-memory. See [`LOAD_REPORT.md`](LOAD_REPORT.md).
+- Tests: `Frog.Tests/Phase9OpsMetricsTests.cs`, `tests/Frog.Persistence.IntegrationTests/PostgresLoadObservabilityTests.cs` (included in CI **436** / **180**).
 
 ## P9-6 Evidence
 
-TBD — do not invent CI for later tips until a run exists.
+- Filled `TEST_PLAN.md`, `E2E_MATRIX.md`, `PHASE_REPORT.md`, `REVIEW_REQUEST.md`, `KNOWN_ISSUES.md`, this file, `TASK_MATRIX.md`, and `docs/STATUS.md`.
+- Pinned real SHA `66fa070` and real CI URL https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS**. Counts from logs: 436 / 180 / 87×3 / 6×3 / 24×3.
+- Verdict: **READY**. Suggested PR #7 body lives in `REVIEW_REQUEST.md` for Orchestrator.
+- Phase 8 screenshot scripts / `SCREENSHOT_MANIFEST.md` unchanged. **No Phase 8 regression found.**
 
 ## Out of scope (must stay empty)
 
