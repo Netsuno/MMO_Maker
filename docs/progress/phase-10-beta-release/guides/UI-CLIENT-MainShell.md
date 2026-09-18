@@ -1,6 +1,6 @@
 # Frog.Client — UI (`MainShellForm`) inventaire
 
-← [Référence](../README.md) · [Client](./README.md)
+← [Guides](README.md) · [Référence Client](../../../reference/client/README.md)
 
 Tip : `6fe5bd97`. Inventaire des **contrôles** pour les guides UI (chaque bouton/panneau). Enrichir avec captures + DA.
 

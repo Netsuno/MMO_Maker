@@ -1,5 +1,11 @@
-# Frog.Editor — index A–Z
+# Référence — Editor
 
 ← [Référence](../README.md)
 
-*(À venir — publish / commandes éditeur.)*
+Fonctions Editor, A–Z. *(À venir.)*
+
+## Index
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| — | — | — |

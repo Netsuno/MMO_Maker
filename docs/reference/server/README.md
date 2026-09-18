@@ -1,5 +1,11 @@
-# Frog.Server — index A–Z
+# Référence — Server
 
 ← [Référence](../README.md)
 
-*(À venir — handlers / services.)*
+Fonctions Server, A–Z. *(Inventaire handlers à venir.)*
+
+## Index
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| — | — | — |

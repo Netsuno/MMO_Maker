@@ -1,85 +1,156 @@
-# Gabarit — fiche fonction (style code)
+# template-reference-api.md — fiche + index (style Marc)
 
-Décision Marc (2026-09-18) : la zone **Référence** documente des **fonctions** comme du code lisible, pas seulement des gestes UI ou des opcodes.
+Remplace le style « narratif protocole / tableaux 2 colonnes » pour la zone **Référence**.
+Fiches courtes, scannables, **pas de mur**.
 
-## Signature
+---
 
-```text
-nomFonction(param1, param2, …)
-```
+## 1. Une fiche fonction
 
-- `nomFonction` : **camelCase** (ou le nom réel du symbole dans le sous-projet si déjà fixé).
-- Paramètres dans l’ordre d’appel ; types explicites dans le tableau Entrées.
-- Une fiche = **une** fonction (pas un paquet d’opcodes entier).
-
-## Emplacement
-
-Classement **A–Z par sous-projet**, puis A–Z du nom de fonction :
-
-| Sous-projet | Dossier / page wiki suggérée |
-| --- | --- |
-| Client | `docs/reference/client/` · wiki `Référence-Client` |
-| Server | `docs/reference/server/` · wiki `Référence-Server` |
-| Editor | `docs/reference/editor/` · wiki `Référence-Editor` |
-| Core | `docs/reference/core/` · wiki `Référence-Core` |
-| PostgreSQL | `docs/reference/postgresql/` · wiki `Référence-PostgreSQL` |
-
-Index racine : `docs/reference/README.md` + wiki `Référence` — listes A–Z par sous-projet (voir `template-reference-index-az.md`).
-
-## Structure Markdown (copier-coller)
+Ancre / titre de section = nom de la fonction (minuscules si c’est le symbole documenté, sinon nom réel du code).
 
 ```markdown
-# nomFonction(param1, param2)
+### getitem
 
-← [Référence](../README.md) · [Sous-projet](./README.md)
+Recevoir un item.
 
-`Sous-projet` · Statut : Disponible | En cours P10-x | Non livré
+**Signature :** `getitem(id, nombre)`
 
-Une phrase : ce que la fonction fait (effet observable).
+**Entrées :**
+- `id` (`Guid` | `int`) — identifiant catalogue de l’objet
+- `nombre` (`int`) — quantité demandée (&gt; 0)
 
-## Signature
-
-```text
-nomFonction(param1, param2) → ResultType
+**Sorties :**
+- `ok` (`bool`) — `true` si l’ajout a réussi (ou partiel selon règles)
+- `ajoute` (`int`) — quantité réellement placée dans l’inventaire
+- `raison` (`string`, si échec) — motif court (plein, id inconnu…)
 ```
 
-## Entrées
+### Règles densité fiche
 
-| Nom | Type | Description |
-| --- | --- | --- |
-| param1 | `Type` | À quoi ça sert, contraintes (min/max, non null…) |
-| param2 | `Type` | … |
-
-## Sorties
-
-| Nom | Type | Description |
-| --- | --- | --- |
-| (retour) | `ResultType` | Ce que l’appelant reçoit |
-| effet latéral | — | Ex. inventaire mis à jour, paquet envoyé |
-
-## Erreurs / refus
-
-| Condition | Comportement |
+| Règle | Détail |
 | --- | --- |
-| … | … |
+| Description | **1 phrase** sous le `###` (ce que ça fait) |
+| Signature | Une ligne `nom(args)` en backticks |
+| Entrées / Sorties | Listes à puces `nom` (`type`) — description ≤ ~12 mots |
+| Pas de tableau | Sauf index ; la fiche elle-même = listes |
+| Pas d’essai | Pas de paragraphe « contexte Phase… » dans la fiche |
+| Erreurs | Optionnel : 2–4 puces max sous **Refus :** si utile |
+| Secrets | Aucun exemple de mot de passe / DSN |
+| Statut | Si pas « sur main » : une ligne `*Statut : non livré (P10-x)*` sous la description |
 
-## Voir aussi
+### Variante avec refus
 
-- Fonctions voisines
-- Guide UI / bouton qui déclenche cet appel (si applicable)
+```markdown
+### getitem
+
+Recevoir un item.
+
+*Statut : aligner sur le build réel*
+
+**Signature :** `getitem(id, nombre)`
+
+**Entrées :**
+- `id` (`Guid` | `int`) — identifiant catalogue de l’objet
+- `nombre` (`int`) — quantité demandée (&gt; 0)
+
+**Sorties :**
+- `ok` (`bool`) — succès
+- `ajoute` (`int`) — quantité placée
+- `raison` (`string`) — motif si `ok` = false
+
+**Refus :**
+- `nombre &lt;= 0`
+- `id` inconnu au catalogue
+- inventaire plein (comportement exact = code)
 ```
 
-## Règles DA
+---
 
-1. **Chaque variable** (entrée et sortie) a une description courte (≤ ~15 mots).
-2. Types en `` `backticks` `` (`int`, `string`, `Guid`, `ItemId`, noms de DTO du projet).
-3. Pas de secret / DSN / mot de passe en exemple.
-4. Statut honnête — pas de READY inventé.
-5. Si la fonction est déclenchée par un **bouton UI**, lien vers la ligne du guide « chaque bouton » (voir `template-guides-chaque-bouton.md`).
-6. Anciennes fiches « opcode / action joueur » : migrer vers ce format **ou** laisser une ligne d’index qui pointe vers la nouvelle fiche ; ne pas dupliquer deux styles sur la même fonction.
+## 2. Page sous-projet (assembly)
 
-## Anti-patterns
+Un fichier / page wiki par sous-projet. Fonctions **A–Z** (ordre du nom).
 
-- Titre uniquement humain sans signature (`## Banque`) → non ; utiliser `bankDeposit(slot, quantity)`.
-- Entrées en prose sans tableau de variables → non.
-- Une page « Inventaire 38–59 » fourre-tout → découper en fonctions.
+Sous-projets : **Client** · **Server** · **Editor** · **Core** · **PostgreSQL**.
+
+```markdown
+# Référence — Core
+
+← [Référence](../README.md)
+
+Fonctions Core, A–Z. Style `nom(args)`.
+
+## Index
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [getitem](#getitem) | `getitem(id, nombre)` | Recevoir un item |
+| [hasitem](#hasitem) | `hasitem(id)` | Tester la présence |
+
+---
+
+### getitem
+…
+```
+
+### Densité page sous-projet
+
+- **Index en tête** (tableau) puis fiches en dessous — ou fiches dans des fichiers séparés liés depuis l’index si &gt; ~15 fonctions.
+- Seuil soft : **≤ ~15 fiches** dans un même fichier scrollable ; au-delà → un fichier par fonction + index seul.
+- Pas de TOC opcodes legacy sur cette page.
+- Fil d’Ariane `← Référence` obligatoire.
+
+---
+
+## 3. Index racine (tous les sous-projets)
+
+```markdown
+# Référence
+
+Fonctions documentées : `nom(args)` · entrées/sorties typées.
+Classement **par sous-projet**, puis **A–Z**.
+
+> Au fil de l’eau. Absent / prévu ≠ livré.
+
+## Sous-projets (assemblies)
+
+| Sous-projet | Page | Contenu (1 ligne) |
+| --- | --- | --- |
+| Client | [Client](client/README.md) | UI, appels locaux client |
+| Server | [Server](server/README.md) | Handlers, services |
+| Editor | [Editor](editor/README.md) | Publish, outils auteur |
+| Core | [Core](core/README.md) | Règles / helpers partagés |
+| PostgreSQL | [PostgreSQL](postgresql/README.md) | Repos, accès données |
+
+## Comment lire
+
+1. Ouvrir le sous-projet
+2. Lire la **Signature**
+3. Parcourir **Entrées** / **Sorties** (chaque variable est décrite)
+
+Exemple : [getitem](core/README.md#getitem) · modèle DA : ce fichier
+```
+
+Wiki : mêmes libellés (`Référence-Core`, etc.). Home : lien **Référence (dev / ops)**.
+
+---
+
+## 4. Ce qui ne va plus dans Référence API
+
+| Mettre ailleurs | Pourquoi |
+| --- | --- |
+| Récits opcode 1, 2, 3… en prose | → migrer en fiches `nom(args)` ou doc wire séparée |
+| Scripts shell (`publish-frog.sh`) | → Guides Ops (pas une fonction code) |
+| « Chaque bouton » UI | → Guides (voir `template-guides-chaque-bouton.md`) ; lien optionnel vers la fiche API |
+
+---
+
+## 5. Checklist revue DA (avant tip)
+
+- [ ] Index racine = 5 lignes sous-projets, pas de liste plate de 50 fonctions
+- [ ] Chaque sous-projet : tableau index A–Z puis fiches
+- [ ] Chaque fiche : 1 phrase + signature + listes Entrées/Sorties
+- [ ] Chaque variable a type + description courte
+- [ ] Aucun mur (&gt; ~8 lignes de prose d’affilée)
+- [ ] Fil d’Ariane présent
+- [ ] Statuts honnêtes
