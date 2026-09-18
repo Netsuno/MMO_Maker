@@ -2,7 +2,7 @@
 
 **Statut :** figé en P10-0. Toute implémentation P10-1 / P10-2 doit respecter ce fichier. Un écart = mise à jour **explicite** de ce gel + justification, pas un opcode improvisé.
 
-**Protocole actuel sur `main` :** `FrogWireProtocol.Version = 10` (`Frog.Core/Constants/FrogWireProtocol.cs`). Dernier opcode produit : `ModerateRequest` 78 / `ModerateResult` 79. `ChatChannel` = Global 0 / Map 1 / Whisper 2 seulement. `PacketDispatcher.TryParseChatSendPayload` **rejette** tout autre canal.
+**Protocole actuel sur `main` :** `FrogWireProtocol.Version = 10`. **Cette branche P10-1 :** `Version = 11`, opcodes 80–83 + canaux Party/Guild implémentés. Trade 84–86 toujours réservé P10-2.
 
 **Décision incompatible :** passer à **`FrogWireProtocol.Version = 11`** dès le premier commit produit qui ajoute un canal Party/Guild ou un opcode 80–86.
 

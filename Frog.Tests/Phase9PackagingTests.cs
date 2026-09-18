@@ -24,7 +24,7 @@ public sealed class Phase9PackagingTests
         Assert.Contains("client-win-x64", guide, StringComparison.Ordinal);
         Assert.Contains("editor-win-x64", guide, StringComparison.Ordinal);
         Assert.Contains("appsettings.Local.json", guide, StringComparison.Ordinal);
-        Assert.Contains("FrogWireProtocol.Version = 10", guide, StringComparison.Ordinal);
+        Assert.Contains("FrogWireProtocol.Version = 11", guide, StringComparison.Ordinal);
         Assert.DoesNotContain("actions/runs/999", guide, StringComparison.Ordinal);
 
         var runbook = File.ReadAllText(Path.Combine(

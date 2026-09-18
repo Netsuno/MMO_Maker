@@ -212,7 +212,7 @@ public sealed class MainShellForm : Form
         EnableDoubleBuffer(_picMap);
         _smoothTimer.Tick += SmoothTimer_OnTick;
         _smoothTimer.Start();
-        _cmbChannel.Items.AddRange(new object[] { "Global", "Map", "Whisper" });
+        _cmbChannel.Items.AddRange(new object[] { "Global", "Map", "Whisper", "Party", "Guild" });
         _cmbChannel.SelectedIndex = 1;
         _cmbShop.SelectedIndexChanged += (_, _) => RefreshShopItemCombo();
         _cmbShopItem.SelectedIndexChanged += (_, _) => SyncShopGuidTextBoxes();
@@ -1112,6 +1112,22 @@ public sealed class MainShellForm : Form
         _client.ChatMessageReceived += OnChatMessage;
         _client.ModerateResultReceived += (ok, msg) =>
             AppendLog(ok ? "Modération: " + msg : "Modération refusée: " + msg);
+        _client.SocialResultReceived += r =>
+            AppendLog(r.Success ? "Social: " + r.Message : "Social refusé: " + r.Message);
+        _client.SocialEventReceived += ev => AppendLog("Social: " + ev.Message);
+        _client.SocialSnapshotReceived += snap =>
+        {
+            var label = snap.Kind switch
+            {
+                SocialKind.Party => "Groupe",
+                SocialKind.Guild => "Guilde",
+                SocialKind.Friend => "Amis",
+                SocialKind.Block => "Blocage",
+                _ => "Social"
+            };
+            AppendLog($"{label}: {snap.Members.Count} entrée(s)"
+                      + (string.IsNullOrEmpty(snap.Motd) ? string.Empty : " — " + snap.Motd));
+        };
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
             AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "rate")} — {msg}");
         _client.CharacterListReceived += OnCharacterListJson;
@@ -2564,6 +2580,8 @@ public sealed class MainShellForm : Form
             ChatChannel.Global => "[G]",
             ChatChannel.Map => "[M]",
             ChatChannel.Whisper => "[W]",
+            ChatChannel.Party => "[P]",
+            ChatChannel.Guild => "[H]",
             _ => "[?]"
         };
         var target = string.IsNullOrEmpty(to) ? string.Empty : $"→{to} ";
@@ -2598,10 +2616,29 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (SocialWire.TryParseSlashCommand(text, out var socialKind, out var socialAction, out var socialExtra))
+        {
+            try
+            {
+                await _client.SendSocialAsync(socialKind, socialAction, Guid.NewGuid(), socialExtra)
+                    .ConfigureAwait(true);
+                _txtChat.Clear();
+            }
+            catch (Exception ex)
+            {
+                AppendLog("Social: " + ex.Message);
+            }
+
+            return;
+        }
+
         var ch = _cmbChannel.SelectedIndex switch
         {
             0 => ChatChannel.Global,
             1 => ChatChannel.Map,
+            2 => ChatChannel.Whisper,
+            3 => ChatChannel.Party,
+            4 => ChatChannel.Guild,
             _ => ChatChannel.Whisper
         };
 

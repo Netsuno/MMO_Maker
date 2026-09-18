@@ -5,5 +5,7 @@ public enum ChatChannel : byte
 {
     Global = 0,
     Map = 1,
-    Whisper = 2
+    Whisper = 2,
+    Party = 3,
+    Guild = 4
 }

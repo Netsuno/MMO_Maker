@@ -79,6 +79,8 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
                 sp.GetRequiredService<IPublishedQuestCatalog>(),
                 sp.GetRequiredService<IPublishedProfessionCatalog>(),
                 sp.GetRequiredService<IPublishedRecipeCatalog>()));
+        services.AddSingleton<Frog.Application.Social.ISocialStore>(sp =>
+            new PostgresSocialStore(sp.GetRequiredService<FrogDbContextGate>()));
 
         RegisterPublishedCatalogs(services);
     }

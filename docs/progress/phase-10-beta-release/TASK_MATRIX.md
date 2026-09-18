@@ -1,6 +1,6 @@
-# Phase 10 — Matrice des exigences (P10-0)
+# Phase 10 — Matrice des exigences (P10-1)
 
-Statuts : **présent** (livré et prouvé au tip `f74b34c`) · **incomplet** (code ou preuve partielle) · **absent** · **hors périmètre**.
+Statuts : **présent** (livré et prouvé sur `cursor/phase10-beta-release`) · **incomplet** (code ou preuve partielle) · **absent** · **hors périmètre**.
 
 Les chemins « code attendu » pour l’absent sont des **cibles**, pas des fichiers déjà créés. Preuve = test ou artefact nommé, pas un rapport « en attente ».
 
@@ -26,24 +26,24 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Code attendu | Test / preuve | Statut |
 | --- | --- | --- | --- |
-| Invitation groupe accept/refus/annul/expire 60 s | `SocialWire` + `PacketDispatcher.Social` + UI | TCP concurrent, expire | **absent** |
-| 5 max, un groupe, un chef | service Party in-memory | capacité, double accept | **absent** |
-| Liste membres, présence, chef, canal privé | `ChatChannel.Party=3`, snapshot | isolation canal | **absent** |
-| Quitter / expulser / transfert / dissolve+confirm | actions Party 5–8 | permissions | **absent** |
-| Reconnexion retrouve le groupe (processus vivant) | registre session | reconnect TCP | **absent** |
-| Restart serveur dissout les groupes + message | boot hook | restart test | **absent** |
+| Invitation groupe accept/refus/annul/expire 60 s | `SocialWire` + `PacketDispatcher.Social` + UI slash | `Phase10SocialTcpTests`, expire `Phase10SocialLogicTests` | **présent** (ce lot) |
+| 5 max, un groupe, un chef | `PartyRoster` | capacité, double accept | **présent** (ce lot) |
+| Liste membres, présence, chef, canal privé | `ChatChannel.Party=3`, snapshot | isolation canal TCP | **présent** (ce lot) |
+| Quitter / expulser / transfert / dissolve+confirm | actions Party 5–8 | `Phase10SocialLogicTests` | **présent** (ce lot) |
+| Reconnexion retrouve le groupe (processus vivant) | registre session + select | reconnect TCP | **présent** (ce lot) |
+| Restart serveur dissout les groupes + message | mémoire processus ; snapshot vide + event disband | restart TCP in-memory + PG | **présent** (ce lot) |
 | Pas de partage auto butin/XP | doc + absence de code | revue | **hors périmètre** (non annoncé) |
-| Guilde : create, nom unique normalisé, invite… | tables `player.guilds*` EF | PG persist + restart | **absent** |
-| Une guilde / perso, cap 50 configurable | options serveur | deux guildes, cap | **absent** |
-| Rôles chef/officier/membre, matrice serveur | enum + checks | permissions périmées | **absent** |
-| MOTD + canal guilde | `ChatChannel.Guild=4` | isolation + mute | **absent** |
-| Chef transfère avant départ ; jamais 0/2 chefs | transaction PG | transfert simultané | **absent** |
-| Rôle guilde ≠ opérateur | pas d’écriture `auth.operators` | test négatif | **absent** |
-| Amis consentis, présence, persist | `player.friendships` | restart | **absent** |
-| Blocage : whisper + invites sociales/trade | `player.blocks` | négatif whisper/invite | **absent** |
-| Anti-spam invites | compteurs + cooldown gel | flood | **absent** |
-| Mute serveur sur nouveaux canaux | étendre `HandleChatSend` | `Phase9ModerationTests` étendu | **absent** |
-| Squelettes `Guild.cs` / `GuildService.cs` | laisser morts (ADR-0003) | ne pas les composer | **présent** (stubs non livrés) |
+| Guilde : create, nom unique normalisé, invite… | tables `player.guilds*` EF | PG persist + restart | **présent** (ce lot) |
+| Une guilde / perso, cap 50 configurable | `Social:GuildMaxMembers` | deux guildes, cap store | **présent** (ce lot) |
+| Rôles chef/officier/membre, matrice serveur | `GuildRole` + store | permissions périmées | **présent** (ce lot) |
+| MOTD + canal guilde | `ChatChannel.Guild=4` | isolation + mute | **présent** (ce lot) |
+| Chef transfère avant départ ; jamais 0/2 chefs | transaction / verrou store | transfert simultané | **présent** (ce lot) |
+| Rôle guilde ≠ opérateur | pas d’écriture `auth.operators` | test négatif TCP | **présent** (ce lot) |
+| Amis consentis, présence, persist | `player.friendships` | restart PG | **présent** (ce lot) |
+| Blocage : whisper + invites sociales/trade | `player.character_blocks` | négatif whisper/invite | **présent** (ce lot ; trade P10-2) |
+| Anti-spam invites | compteurs + cooldown gel | flood store / rate `SocialService` | **présent** (ce lot) |
+| Mute serveur sur nouveaux canaux | étendre `HandleChatSend` | mute Party TCP | **présent** (ce lot) |
+| Squelettes `Guild.cs` / `GuildService.cs` | laisser morts (ADR-0003) | `Phase10SocialWireTests` | **présent** (stubs non livrés) |
 
 ---
 

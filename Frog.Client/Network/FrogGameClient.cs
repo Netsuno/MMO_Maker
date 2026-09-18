@@ -91,6 +91,9 @@ public sealed class FrogGameClient : IDisposable
     public event Action<EnvironmentStateWire>? EnvironmentStatePushReceived;
     public event Action<IReadOnlyList<WorldSwitchWire>>? WorldSwitchSnapshotReceived;
     public event Action<bool, string>? ModerateResultReceived;
+    public event Action<SocialResultWire>? SocialResultReceived;
+    public event Action<SocialSnapshotWire>? SocialSnapshotReceived;
+    public event Action<SocialEventWire>? SocialEventReceived;
     public event Action? ConnectionClosed;
 
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
@@ -716,6 +719,30 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.SocialResult:
+                if (SocialWire.TryParseResult(body.Span, out var socialResult))
+                {
+                    Post(() => SocialResultReceived?.Invoke(socialResult));
+                }
+
+                break;
+
+            case PacketId.SocialSnapshot:
+                if (SocialWire.TryParseSnapshot(body.Span, out var socialSnap))
+                {
+                    Post(() => SocialSnapshotReceived?.Invoke(socialSnap));
+                }
+
+                break;
+
+            case PacketId.SocialEvent:
+                if (SocialWire.TryParseEvent(body.Span, out var socialEv))
+                {
+                    Post(() => SocialEventReceived?.Invoke(socialEv));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -1053,6 +1080,20 @@ public sealed class FrogGameClient : IDisposable
         o += sizeof(ushort);
         msgBytes.CopyTo(payload.AsSpan(o));
         await SendRawAsync(payload, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task SendSocialAsync(
+        SocialKind kind,
+        byte action,
+        Guid requestId,
+        ReadOnlySpan<byte> extra,
+        CancellationToken cancellationToken = default)
+    {
+        var body = SocialWire.BuildRequest(kind, action, requestId, extra);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.SocialRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
     }
 
     public Task SendModerateAsync(

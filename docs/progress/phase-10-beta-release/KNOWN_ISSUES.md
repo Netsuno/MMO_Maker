@@ -20,7 +20,7 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | **Rate-limit login** | Clé = `ClientSession.RemoteEndPoint` (IP:port). Changer de port source réinitialise la fenêtre. | P10-5 |
 | **Grant opérateur** | Hors bande SQL / `IOperatorDirectory.GrantAsync` — **pas** d’outil opérateur documenté pour reset mot de passe, invitations, revoke GM. | P10-5 |
 | **Inscriptions ouvertes** | `RegisterRequest` crée un compte sans invitation. Le premier inscrit n’est pas GM (OK) mais la bêta fermée n’existe pas. | P10-5 |
-| **P9-S social** | **Différé** en Phase 9 ; toujours absent (squelettes seulement). | P10-1, P10-2 |
+| **P9-S social** | Groupes/guildes/amis/blocage **P10-1 livré** (v11, 80–83). Trade P2P **absent** (P10-2). Stubs `Guild.cs` / `GuildService.cs` toujours morts. | P10-1 fait ; P10-2 |
 
 Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vrais) :
 
@@ -36,9 +36,9 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 
 | Item | Preuve d’absence | Lot |
 | --- | --- | --- |
-| Groupes | Aucun opcode, aucun canal, aucune UI, aucune table | P10-1 |
-| Guildes persistées | `Guild.cs` / `GuildService.cs` = une ligne TODO, jamais composés | P10-1 |
-| Amis / blocage | Zéro occurrence produit (hors collisions de tuiles « Block ») | P10-1 |
+| Groupes | `PartyRoster` + opcodes 80–83 + canal Party | P10-1 **livré** |
+| Guildes persistées | `player.guilds*` ; stubs `Guild.cs` / `GuildService.cs` toujours TODO | P10-1 **livré** (stubs non composés) |
+| Amis / blocage | `player.friendships`, `player.character_blocks` | P10-1 **livré** |
 | Échanges P2P | Boutique/banque Phase 7 **≠** trade joueur ; pas d’opcode 84–86 | P10-2 |
 | Client TLS + validation certificat | `FrogGameClient.ConnectAsync` = `new TcpClient()` | P10-5 |
 | Invitations / comptes provisionnés | `HandleRegisterRequestAsync` ouvert | P10-5 |
@@ -60,8 +60,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 ### Social / trade
 
 - `Frog.Server/Models/Guild.cs`, `Frog.Server/Services/GuildService.cs` — stubs. **Ne pas les « remplir »** : nouvelles entités PG + services composés.
-- Client : aucun panneau Ami / Groupe / Guilde / Échange. Onglets = Chat, Gameplay, Quêtes.
-- `ChatChannel` sans Party/Guild. Slash `/mute` `/kick` `/ban` = modération Phase 9, **pas** du social.
+- Client : slash `/party` `/guild` `/friend` `/block` + canaux Party/Guild dans le combo chat. Pas de panneau Ami/Groupe/Guilde dédié (P10-3). Pas d’échange.
 
 ### TLS / réseau
 

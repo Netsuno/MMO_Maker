@@ -23,6 +23,7 @@ using Frog.Server.Security;
 using Frog.Server.Services;
 using Frog.Server.Config;
 using Frog.Server.Observability;
+using Frog.Server.Social;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -57,6 +58,7 @@ public sealed partial class PacketDispatcher(
     ModerationService moderationService,
     SessionTeardown sessionTeardown,
     ServerOpsMetrics opsMetrics,
+    SocialService socialService,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -87,6 +89,7 @@ public sealed partial class PacketDispatcher(
     private readonly ModerationService _moderation = moderationService;
     private readonly SessionTeardown _sessionTeardown = sessionTeardown;
     private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
+    private readonly SocialService _social = socialService;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     /// <summary>Test barrier: runs at the start of <see cref="TryGetActiveSession"/>.</summary>
@@ -176,6 +179,10 @@ public sealed partial class PacketDispatcher(
 
             case PacketId.ChatSend:
                 await HandleChatSendAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.SocialRequest:
+                await HandleSocialRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             case PacketId.ModerateRequest:
@@ -1599,9 +1606,34 @@ public sealed partial class PacketDispatcher(
                     return;
                 }
 
+                if (session.CharacterGuid is Guid whisperFrom
+                    && targetSession.CharacterGuid is Guid whisperTo
+                    && await _social.IsBlockedFromContactingAsync(whisperFrom, whisperTo, cancellationToken)
+                        .ConfigureAwait(false))
+                {
+                    await _packetSender.SendErrorAsync(clientSession, "Vous etes bloque.", cancellationToken);
+                    return;
+                }
+
                 await _packetSender.SendChatMessageAsync(clientSession, channel, from, whisperTarget, message, cancellationToken);
                 await _packetSender.SendChatMessageAsync(targetClient, channel, from, whisperTarget, message, cancellationToken);
                 delivered = 2;
+                break;
+
+            case ChatChannel.Party:
+            case ChatChannel.Guild:
+                delivered = await DeliverSocialChannelChatAsync(
+                    clientSession,
+                    session,
+                    channel,
+                    from,
+                    message,
+                    cancellationToken).ConfigureAwait(false);
+                if (delivered < 0)
+                {
+                    return;
+                }
+
                 break;
 
             default:
@@ -1657,7 +1689,7 @@ public sealed partial class PacketDispatcher(
         }
 
         channel = (ChatChannel)payload[0];
-        if (channel is not (ChatChannel.Global or ChatChannel.Map or ChatChannel.Whisper))
+        if (channel is not (ChatChannel.Global or ChatChannel.Map or ChatChannel.Whisper or ChatChannel.Party or ChatChannel.Guild))
         {
             return false;
         }

@@ -250,6 +250,24 @@ internal static class Phase7TcpPacketBuilder
         return payload;
     }
 
+    public static byte[] BuildSocial(SocialKind kind, byte action, Guid requestId, ReadOnlySpan<byte> extra)
+    {
+        var body = SocialWire.BuildRequest(kind, action, requestId, extra);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.SocialRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
+
+    public static byte[] BuildSocialGuid(SocialKind kind, byte action, Guid requestId, Guid target)
+        => BuildSocial(kind, action, requestId, SocialWire.BuildGuidPayload(target));
+
+    public static byte[] BuildSocialUtf8(SocialKind kind, byte action, Guid requestId, string text, int maxBytes = 64)
+        => BuildSocial(kind, action, requestId, SocialWire.BuildUtf8Payload(text, maxBytes));
+
+    public static byte[] BuildSocialConfirm(SocialKind kind, byte action, Guid requestId, bool confirm)
+        => BuildSocial(kind, action, requestId, SocialWire.BuildConfirmPayload(confirm));
+
     public static byte[] BuildModerate(ModerationAction action, string targetUsername, string reason)
     {
         var body = ModerateWire.BuildRequest(action, targetUsername, reason);

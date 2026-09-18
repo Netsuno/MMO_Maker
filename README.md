@@ -8,7 +8,7 @@ Inspiration **fonctionnelle** : [FRoG Creator OSE 0.6.3](https://github.com/Alex
 [![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![C# 12](https://img.shields.io/badge/C%23-12-239120?logo=csharp&logoColor=white)](#stack)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-source%20de%20vérité-4169E1?logo=postgresql&logoColor=white)](docs/decisions/ADR-0002-postgresql-source-of-truth.md)
-[![Protocol v10](https://img.shields.io/badge/protocol-v10-0ea5e9)](#stack)
+[![Protocol v11](https://img.shields.io/badge/protocol-v11-0ea5e9)](#stack)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](#licence)
 
 Dépôt : [Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
@@ -17,18 +17,18 @@ Dépôt : [Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
 
 ## Statut
 
-Phase 9 est **acceptée** et fusionnée sur `main`. La Phase 10 (bêta fermée externe) est **ouverte** : lot **P10-0** (audit + plan) seulement — **pas READY**.
+Phase 9 est **acceptée** et fusionnée sur `main`. La Phase 10 (bêta fermée externe) est **ouverte** : **P10-0** (audit) + **P10-1** (social) sur `cursor/phase10-beta-release` — **pas READY**.
 
 | Phase | Statut | Preuve |
 | --- | --- | --- |
 | **7** — Gameplay essentiel | ✅ **ACCEPTED** | [`docs/progress/phase-07-essential-gameplay/`](docs/progress/phase-07-essential-gameplay/) |
 | **8** — Quêtes, événements, création avancée | ✅ **ACCEPTED** | Merge [`1cd57ba`](https://github.com/Netsuno/MMO_Maker/commit/1cd57bad694f530fa5699639f9e63008522507e0) · [CI SUCCESS](https://github.com/Netsuno/MMO_Maker/actions/runs/35285230766) |
 | **9** — Distribution, admin, durcissement | ✅ **ACCEPTED** | Merge [`f74b34c`](https://github.com/Netsuno/MMO_Maker/commit/f74b34cca09dda819fe26747d48ee16d27007dfd) (PR [#7](https://github.com/Netsuno/MMO_Maker/pull/7)) · tip produit [`cab57b9`](https://github.com/Netsuno/MMO_Maker/commit/cab57b94c20f86af2cc61738bdf3307ed9626ef4) · [CI produit](https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869) · [CI post-merge](https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613) SUCCESS |
-| **10** — Bêta fermée externe | 📝 **P10-0** | [`docs/progress/phase-10-beta-release/`](docs/progress/phase-10-beta-release/) — plan/audit ; social, TLS, paquets autonomes et charge 25×60 **non livrés** |
+| **10** — Bêta fermée externe | 📝 **P10-1 (social)** | [`docs/progress/phase-10-beta-release/`](docs/progress/phase-10-beta-release/) — groupes/guildes/amis/blocage livrés ; trade/TLS/paquets autonomes/charge 25×60 **non livrés**. **Pas READY.** |
 
 **Persistance produit :** **PostgreSQL** (EF Core / Npgsql). MariaDB = héritage optionnel uniquement — [ADR-0002](docs/decisions/ADR-0002-postgresql-source-of-truth.md), [matrice MariaDB](docs/MARIADB_DOMAIN_MATRIX.md).
 
-**Protocole :** `FrogWireProtocol.Version = 10` sur `main` (Hello, `InteractRequest.activationId`). La Phase 10 **fige v11** pour le social/échanges — pas encore implémenté ([`SOCIAL_PROTOCOL_FREEZE.md`](docs/progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md)).
+**Protocole :** `FrogWireProtocol.Version = 11` sur cette branche (Hello, canaux Party/Guild, opcodes 80–83). `main` reste v10 jusqu’à fusion. Gel : [`SOCIAL_PROTOCOL_FREEZE.md`](docs/progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md). Trade 84–86 = P10-2.
 
 **Preuves d’acceptation Phase 9** (CI verte, pas un dump) : Frog.Tests **454** · PG integration **181** · Phase 8 smoke **24×3** · Editor smoke **87×3** · Gameplay smoke **6×3** · manifeste 12 captures SHA-256. Les comptes Phase 8 (**412** / **174**) restent l’historique d’acceptation de cette phase.
 
@@ -192,7 +192,7 @@ Conservé comme mémoire des fondations pré-PRD. Les événements carte **Postg
 <summary><strong>Roadmap technique par composant (dette / plus tard)</strong></summary>
 
 ### Frog.Core
-- [x] `FrogWireProtocol.Version` dans Hello (aujourd’hui **v10**)
+- [x] `FrogWireProtocol.Version` dans Hello (aujourd’hui **v11** sur la branche Phase 10)
 - [ ] MapSerializerV2 si évolution format
 - [ ] Attributs additionnels (Door, NpcSpawn, zones…)
 

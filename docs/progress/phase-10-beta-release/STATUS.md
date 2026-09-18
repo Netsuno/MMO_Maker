@@ -1,6 +1,6 @@
 # Phase 10 — STATUS
 
-**Lot courant :** P10-0 (audit + plan). **Pas READY.**
+**Lot courant :** P10-1 (groupes / guildes / amis / blocage). **Pas READY.**
 
 | Item | Valeur |
 | --- | --- |
@@ -8,38 +8,38 @@
 | Base / tip `main` | `f74b34cca09dda819fe26747d48ee16d27007dfd` (merge PR #7 Phase 9) |
 | Produit Phase 9 accepté | `cab57b94c20f86af2cc61738bdf3307ed9626ef4` |
 | CI `main` post-fusion | https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS** |
-| CI produit Phase 9 | https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869 **SUCCESS** |
 | Mandat | [`MANDATE.md`](MANDATE.md) (texte complet, 2026-09-18) |
-| Protocole actuel (héritage Phase 9) | `FrogWireProtocol.Version = 10` |
-| Protocole figé pour Phase 10 | **v11** — voir [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) (pas encore implémenté) |
-| Gate Phase 10 | **pas atteinte** — aucun lot P10-1…P10-9 livré |
-
-## Décision de départ (vérifiée le 2026-09-18)
-
-- PR #7 fusionnée ; aucune branche `cursor/phase10-beta-release` n’existait avant ce lot.
-- Aucun dossier `docs/progress/phase-10-beta-release/` sur `main`.
-- Aucun mandat Phase 10 plus récent dans le dépôt, les issues GitHub ou les PR.
-- CI post-merge **SUCCESS** (plus « en cours » comme lors de la rédaction initiale du mandat).
+| Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–83 |
+| Gate Phase 10 | **pas atteinte** — P10-2…P10-9 absents |
 
 ## Lots
 
 | Lot | Statut |
 | --- | --- |
-| P10-0 Audit + plan | **EN COURS** (ce dossier) |
-| P10-1 Groupes / guildes / relations | **ABSENT** — pas commencé |
-| P10-2 Échanges directs | **ABSENT** — pas commencé |
-| P10-3 Client / éditeur externes | **INCOMPLET** (socle Phases 7–9 ; UX bêta absente) |
-| P10-4 Monde démo + recette | **ABSENT** (seeds de tests ≠ monde démo) |
-| P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** (modération Phase 9 ; TLS clair) |
-| P10-6 Paquets autonomes | **INCOMPLET** (layouts scripts ; lancement client/éditeur non prouvé ; pas self-contained) |
-| P10-7 Exploitation / restore | **INCOMPLET** (schéma restauré ; sanctions/guildes/échanges non certifiés) |
-| P10-8 Charge 25 joueurs | **INCOMPLET** (mesures in-memory Phase 9 ; palier 25×60 min absent) |
+| P10-0 Audit + plan | **FAIT** |
+| P10-1 Groupes / guildes / relations | **LIVRÉ (code + tests)** — pas une gate |
+| P10-2 Échanges directs | **ABSENT** |
+| P10-3 Client / éditeur externes | **INCOMPLET** |
+| P10-4 Monde démo + recette | **ABSENT** |
+| P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** |
+| P10-6 Paquets autonomes | **INCOMPLET** |
+| P10-7 Exploitation / restore | **INCOMPLET** (guildes/amis/blocs désormais dans le schéma ; restore de ces lignes **non** recertifié backup) |
+| P10-8 Charge 25 joueurs | **INCOMPLET** |
 | P10-9 Validation / candidate | **ABSENT** |
 
-## Interdits (P10-0)
+## P10-1 — ce qui est livré
 
-Pas d’implémentation produit P10-1…P10-9. Pas de merge. Pas de distribution. Pas de Phase 11. Pas de MariaDB nouvelle. Pas d’import `.fcc`. PostgreSQL reste la source de vérité.
+- Groupes temporaires (invite 60 s, max 5, chef, chat Party, quit/kick/transfer/dissolve, dissolution au redémarrage processus).
+- Guildes persistées PostgreSQL (`player.guilds` / `guild_members` / `guild_invites`) : création, rôles chef/officier/membre, capacité 50, MOTD, chat Guild, transfert avant départ.
+- Amis + blocage persistants (`player.friendships`, `player.character_blocks`) ; le blocage coupe whisper et invites sociales.
+- `PacketDispatcher.Social.cs` unique rédacteur social ; mute serveur appliqué aux canaux Party/Guild via `HandleChatSend`.
+- Stubs `Guild.cs` / `GuildService.cs` **non** remplis.
+- Tests : `Phase10SocialWireTests`, `Phase10SocialLogicTests`, `Phase10SocialTcpTests`, `Phase10SocialPostgresTests`.
+
+## Interdits (toujours)
+
+Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. P10-2 trade non commencé (opcodes 84–86 réservés).
 
 ## Verdict
 
-**P10-0 seulement.** La bêta n’est **pas** prête. Les squelettes `Guild*.cs` et les boutons UI existants ne sont pas des fonctionnalités livrées.
+**P10-1 seulement.** La bêta n’est **pas** prête.

@@ -2,7 +2,7 @@
 
 **Status:** P9-4 (operator publish layouts). No installer, no store listing, no code-signing.
 **SDK pin:** `global.json` → **8.0.424** (`rollForward: latestFeature`).
-**Protocol:** `FrogWireProtocol.Version = 10` — packaged client and server **must** be the same generation.
+**Protocol:** `FrogWireProtocol.Version = 11` (Phase 10 social 80–83). Packaged client and server **must** be the same generation. Phase 9 trees on `main` were v10.
 **Proof of start:** `PackagedServerPostgreSqlProcessTests` (job `postgres-integration` in [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)). This file does **not** invent a CI run URL.
 
 ## What an operator runs

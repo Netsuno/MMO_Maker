@@ -66,7 +66,7 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 Mandat : [`progress/phase-10-beta-release/MANDATE.md`](progress/phase-10-beta-release/MANDATE.md).
 
 - [x] P10-0 audit + plan + gel protocole
-- [ ] P10-1 groupes / guildes / amis / blocage
+- [x] P10-1 groupes / guildes / amis / blocage (code + tests ; **pas** gate bêta)
 - [ ] P10-2 échanges directs
 - [ ] P10-3 client / éditeur utilisables hors dépôt
 - [ ] P10-4 monde démo + recette 12 étapes

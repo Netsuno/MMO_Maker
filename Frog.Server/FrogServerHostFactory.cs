@@ -139,6 +139,9 @@ public static class FrogServerHostFactory
                 services
                     .AddOptions<Phase8SmokeBootstrapOptions>()
                     .Bind(ctx.Configuration.GetSection(Phase8SmokeBootstrapOptions.SectionName));
+                services
+                    .AddOptions<SocialOptions>()
+                    .Bind(ctx.Configuration.GetSection("Social"));
 
                 var pg = ctx.Configuration.GetSection("PostgreSql").Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
                 if (string.IsNullOrWhiteSpace(pg.ConnectionString))
@@ -272,6 +275,7 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
                     services.AddSingleton<IPublishedContentRevisionStamp>(_ =>
                         NullPublishedContentRevisionStamp.Instance);
+                    services.AddSingleton<Frog.Application.Social.ISocialStore, Frog.Server.Social.InMemorySocialStore>();
                 }
 
                 if (usePostgreSql)
@@ -384,6 +388,9 @@ public static class FrogServerHostFactory
                 services.AddSingleton<MapService>();
                 services.AddSingleton<MovementService>();
                 services.AddSingleton<PacketSender>();
+                services.AddSingleton<Frog.Server.Social.SocialService>();
+                services.AddSingleton<Frog.Server.Social.ISocialPresenceSink>(sp =>
+                    sp.GetRequiredService<Frog.Server.Social.SocialService>());
                 services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
                 services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();
