@@ -46,9 +46,8 @@ public sealed class Phase10TradePostgresTests
             var repo = (PostgresTradeCommitRepository)host.Services.GetRequiredService<ITradeCommitRepository>();
             repo.TestBeforeCommitAsync = _ => throw new InvalidOperationException("injected");
 
-            var tradeId = await OpenAndOfferAsync(a, b, aId, bId, initiatorGold: 10, partnerGold: 5);
+            var (tradeId, snap) = await OpenAndOfferAsync(a, b, aId, bId, initiatorGold: 10, partnerGold: 5);
             var commitReq = Guid.NewGuid();
-            var snap = await ReadTradeSnapshotAsync(a);
             await a.SendFrameAsync(Phase7TcpPacketBuilder.BuildTrade(
                 (byte)TradeAction.Confirm,
                 tradeId,
@@ -76,7 +75,11 @@ public sealed class Phase10TradePostgresTests
                 tradeId,
                 Guid.NewGuid(),
                 TradeWire.BuildRevisionPayload(snap.Revision)));
-            _ = await a.ReadUntilAsync(PacketId.TradeResult);
+            var aRetry = DecodeTrade(await a.ReadUntilAsync(PacketId.TradeResult));
+            Assert.True(aRetry.Success);
+            Assert.Equal("Confirmation enregistree.", aRetry.Message);
+            await a.DrainPendingAsync(TimeSpan.FromMilliseconds(80));
+            await b.DrainPendingAsync(TimeSpan.FromMilliseconds(80));
             await b.SendFrameAsync(Phase7TcpPacketBuilder.BuildTrade(
                 (byte)TradeAction.Confirm,
                 tradeId,
@@ -113,7 +116,7 @@ public sealed class Phase10TradePostgresTests
         }
     }
 
-    private static async Task<Guid> OpenAndOfferAsync(
+    private static async Task<(Guid TradeId, TradeSnapshotWire Snap)> OpenAndOfferAsync(
         Phase7TcpTestClient a,
         Phase7TcpTestClient b,
         Guid aId,
@@ -144,12 +147,16 @@ public sealed class Phase10TradePostgresTests
             (byte)TradeAction.SetOffer, invite.TradeId, Guid.NewGuid(), extraA));
         Assert.True(DecodeTrade(await a.ReadUntilAsync(PacketId.TradeResult)).Success);
         var afterA = DecodeSnap(await b.ReadUntilAsync(PacketId.TradeSnapshot));
-        var extraB = TradeWire.BuildSetOfferPayload(afterA.Revision, partnerGold, []);
+        var extraB = TradeWire.BuildSetOfferPayload(
+            afterA.Revision,
+            partnerGold,
+            [new TradeStackWire(Phase7ContentSeed.DefaultWeaponId, 1, "")]);
         await b.SendFrameAsync(Phase7TcpPacketBuilder.BuildTrade(
             (byte)TradeAction.SetOffer, invite.TradeId, Guid.NewGuid(), extraB));
         Assert.True(DecodeTrade(await b.ReadUntilAsync(PacketId.TradeResult)).Success);
-        _ = await a.ReadUntilAsync(PacketId.TradeSnapshot);
-        return invite.TradeId;
+        var afterB = DecodeSnap(await a.ReadUntilAsync(PacketId.TradeSnapshot));
+        await b.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
+        return (invite.TradeId, afterB);
     }
 
     private static async Task<TradeSnapshotWire> LatestOpenSnapshotAsync(
@@ -162,7 +169,14 @@ public sealed class Phase10TradePostgresTests
         await a.SendFrameAsync(Phase7TcpPacketBuilder.BuildTrade(
             (byte)TradeAction.Unconfirm, tradeId, Guid.NewGuid()));
         _ = await a.ReadUntilAsync(PacketId.TradeResult);
-        return DecodeSnap(await b.ReadUntilAsync(PacketId.TradeSnapshot));
+        await b.DrainPendingAsync(TimeSpan.FromMilliseconds(80));
+        await b.SendFrameAsync(Phase7TcpPacketBuilder.BuildTrade(
+            (byte)TradeAction.Unconfirm, tradeId, Guid.NewGuid()));
+        _ = await b.ReadUntilAsync(PacketId.TradeResult);
+        var snap = DecodeSnap(await a.ReadUntilAsync(PacketId.TradeSnapshot));
+        await a.DrainPendingAsync(TimeSpan.FromMilliseconds(80));
+        await b.DrainPendingAsync(TimeSpan.FromMilliseconds(80));
+        return snap;
     }
 
     private static async Task SeedAsync(IHost host, Guid characterId, int gold, Guid itemId, int qty)
@@ -216,9 +230,6 @@ public sealed class Phase10TradePostgresTests
         Assert.True(TradeWire.TryParseSnapshot(frame.AsSpan(1), out var snap));
         return snap;
     }
-
-    private static async Task<TradeSnapshotWire> ReadTradeSnapshotAsync(Phase7TcpTestClient client)
-        => DecodeSnap(await client.ReadUntilAsync(PacketId.TradeSnapshot));
 
     private static string UniqueUser(string prefix) => prefix + Guid.NewGuid().ToString("N")[..8];
 }
