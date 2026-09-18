@@ -9,8 +9,8 @@ Turn-in quête transactionnel (idempotent via `requestId`).
 **Signature :** `questtryturninasync(characterId, questId, requestId)`
 
 **Entrées :**
-- `characterId` (`Guid`)
-- `questId` (`Guid`)
+- `characterId` (`Guid`) — perso qui rend
+- `questId` (`Guid`) — quête à valider
 - `requestId` (`Guid`) — idempotence
 
 **Sorties :**

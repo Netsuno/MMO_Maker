@@ -9,10 +9,10 @@ Ajoute une quantité d’item (stacks / slots libres).
 **Signature :** `inventorytryaddasync(characterId, itemId, quantity, maxStack)`
 
 **Entrées :**
-- `characterId` (`Guid`)
-- `itemId` (`Guid`)
-- `quantity` (`int`)
-- `maxStack` (`int`)
+- `characterId` (`Guid`) — perso cible
+- `itemId` (`Guid`) — item à ajouter
+- `quantity` (`int`) — quantité demandée
+- `maxStack` (`int`) — taille max de stack
 
 **Sorties :**
 - (`InventoryMutationResult`) — Status + snapshot éventuellement

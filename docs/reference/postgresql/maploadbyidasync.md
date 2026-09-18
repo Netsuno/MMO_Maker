@@ -9,7 +9,7 @@ Charge une carte stockée (brouillon ou état courant selon le repo).
 **Signature :** `maploadbyidasync(mapId)`
 
 **Entrées :**
-- `mapId` (`Guid`)
+- `mapId` (`Guid`) — carte stockée
 
 **Sorties :**
 - (`StoredMap?`) — null si absente

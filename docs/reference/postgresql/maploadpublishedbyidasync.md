@@ -9,7 +9,7 @@ Charge la révision **publiée** d’une carte (jamais le brouillon seul).
 **Signature :** `maploadpublishedbyidasync(mapId)`
 
 **Entrées :**
-- `mapId` (`Guid`)
+- `mapId` (`Guid`) — carte publiée
 
 **Sorties :**
 - (`StoredMap?`) — null si pas de publication

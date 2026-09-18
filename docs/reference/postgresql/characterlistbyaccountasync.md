@@ -9,7 +9,7 @@ Liste les personnages d’un compte.
 **Signature :** `characterlistbyaccountasync(accountId)`
 
 **Entrées :**
-- `accountId` (`Guid`)
+- `accountId` (`Guid`) — compte à lister
 
 **Sorties :**
 - (`IReadOnlyList<CharacterSummary>`) — liste (vide si aucun)

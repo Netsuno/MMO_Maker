@@ -9,7 +9,7 @@ Crée un compte (hash mot de passe géré en amont / dans le repo).
 **Signature :** `accounttrycreateasync(username, password)`
 
 **Entrées :**
-- `username` (`string`)
+- `username` (`string`) — login à créer
 - `password` (`string`) — secret ; jamais loggé dans la doc
 
 **Sorties :**

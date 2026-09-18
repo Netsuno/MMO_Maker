@@ -14,9 +14,9 @@ Repositories PG, A–Z (1 fichier / fonction). Tip : `ea116afa`.
 | [characterlistbyaccountasync](characterlistbyaccountasync.md) | `characterlistbyaccountasync(accountId)` | Liste les persos |
 | [charactersaveasync](charactersaveasync.md) | `charactersaveasync(character)` | Sauve un perso |
 | [inventorygetasync](inventorygetasync.md) | `inventorygetasync(characterId)` | Snapshot inventaire |
-| [inventorytryaddasync](inventorytryaddasync.md) | `inventorytryaddasync(…)` | Ajoute des items |
+| [inventorytryaddasync](inventorytryaddasync.md) | `inventorytryaddasync(characterId, itemId, quantity, maxStack)` | Ajoute des items |
 | [inventorytryremoveasync](inventorytryremoveasync.md) | `inventorytryremoveasync(characterId, slotIndex, quantity)` | Retire des items |
 | [maploadbyidasync](maploadbyidasync.md) | `maploadbyidasync(mapId)` | Charge une carte stockée |
 | [maploadpublishedbyidasync](maploadpublishedbyidasync.md) | `maploadpublishedbyidasync(mapId)` | Charge révision publiée |
 | [mapsaveasync](mapsaveasync.md) | `mapsaveasync(request)` | Sauve / publie carte |
-| [questtryturninasync](questtryturninasync.md) | `questtryturninasync(…)` | Turn-in quête transactionnel |
+| [questtryturninasync](questtryturninasync.md) | `questtryturninasync(characterId, questId, requestId)` | Turn-in quête transactionnel |

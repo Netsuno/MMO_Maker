@@ -9,12 +9,12 @@ Retire une quantité depuis un slot inventaire.
 **Signature :** `inventorytryremoveasync(characterId, slotIndex, quantity)`
 
 **Entrées :**
-- `characterId` (`Guid`)
+- `characterId` (`Guid`) — perso cible
 - `slotIndex` (`int`) — index de slot
-- `quantity` (`int`)
+- `quantity` (`int`) — quantité à retirer
 
 **Sorties :**
-- (`InventoryMutationResult`)
+- (`InventoryMutationResult`) — Status + snapshot éventuellement
 
 **Refus :**
 - slot invalide, quantité insuffisante, personnage introuvable

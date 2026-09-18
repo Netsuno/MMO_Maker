@@ -9,7 +9,7 @@ Charge le snapshot inventaire d’un personnage.
 **Signature :** `inventorygetasync(characterId)`
 
 **Entrées :**
-- `characterId` (`Guid`)
+- `characterId` (`Guid`) — perso cible
 
 **Sorties :**
 - (`InventorySnapshot`) — slots
