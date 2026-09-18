@@ -203,6 +203,9 @@ jobs:
       - name: Build (Release)
         run: dotnet build Frog.Creator.sln -c Release --no-restore /m:1
 
+      - name: Install PostgreSQL client (pg_dump / pg_restore)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
       - name: Integration tests (PostgreSQL)
         timeout-minutes: 15
         env:
