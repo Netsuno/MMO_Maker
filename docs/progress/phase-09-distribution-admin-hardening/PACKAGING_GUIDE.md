@@ -1,9 +1,9 @@
 # Phase 9 — PACKAGING_GUIDE
 
-**Status:** P9-4 (operator publish layouts). No installer, no store listing, no code-signing.
+**Status:** P10-6 (self-contained layouts + SHA-256 archives). No installer, no store listing, no code-signing.
 **SDK pin:** `global.json` → **8.0.424** (`rollForward: latestFeature`).
-**Protocol:** `FrogWireProtocol.Version = 11` (Phase 10 social 80–83). Packaged client and server **must** be the same generation. Phase 9 trees on `main` were v10.
-**Proof of start:** `PackagedServerPostgreSqlProcessTests` (job `postgres-integration` in [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)). This file does **not** invent a CI run URL.
+**Protocol:** `FrogWireProtocol.Version = 11` (Phase 10 social 80–83, trade 84–86). Packaged client and server **must** be the same generation. Phase 9 trees on `main` were v10.
+**Proof of start:** `PackagedServerPostgreSqlProcessTests` (job `postgres-integration` in [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)). This file does **not** invent a CI run URL. **Windows `Frog.Client.exe` / `Frog.Editor.exe` launch from a zip extracted outside the repo is not proven on Linux agents.**
 
 ## What an operator runs
 
@@ -29,17 +29,13 @@ Windows (PowerShell):
 Equivalent raw `dotnet publish` (same flags the scripts use):
 
 ```bash
-dotnet publish Frog.Server/Frog.Server.csproj  -c Release -r linux-x64 --self-contained false -o artifacts/publish/server-linux-x64 -p:PublishSingleFile=false
-dotnet publish Frog.Server/Frog.Server.csproj  -c Release -r win-x64   --self-contained false -o artifacts/publish/server-win-x64   -p:PublishSingleFile=false
-dotnet publish Frog.Client/Frog.Client.csproj  -c Release -r win-x64   --self-contained false -o artifacts/publish/client-win-x64   -p:PublishSingleFile=false
-dotnet publish Frog.Editor/Frog.Editor.csproj  -c Release -r win-x64   --self-contained false -o artifacts/publish/editor-win-x64   -p:PublishSingleFile=false
+dotnet publish Frog.Server/Frog.Server.csproj  -c Release -r linux-x64 --self-contained true -o artifacts/publish/server-linux-x64 -p:PublishSingleFile=false
+dotnet publish Frog.Server/Frog.Server.csproj  -c Release -r win-x64   --self-contained true -o artifacts/publish/server-win-x64   -p:PublishSingleFile=false
+dotnet publish Frog.Client/Frog.Client.csproj  -c Release -r win-x64   --self-contained true -o artifacts/publish/client-win-x64   -p:PublishSingleFile=false
+dotnet publish Frog.Editor/Frog.Editor.csproj  -c Release -r win-x64   --self-contained true -o artifacts/publish/editor-win-x64   -p:PublishSingleFile=false
 ```
 
-Then copy `appsettings.Local.json` **after** publish (see Config overlay). Zip if you want a drop:
-
-```bash
-(cd artifacts/publish && zip -r server-linux-x64.zip server-linux-x64)
-```
+Then copy `appsettings.Local.json` **after** publish (see Config overlay). Scripts also write `artifacts/publish/archives/<layout>.zip` and `SHA256SUMS` (SHA-256 of each archive). Each layout includes `DEMO_WORLD.md` and `demo-world/LICENSES.md`.
 
 `artifacts/` is gitignored. Do not commit publish trees or dumps.
 
@@ -47,21 +43,21 @@ Then copy `appsettings.Local.json` **after** publish (see Config overlay). Zip i
 
 | Layout | Project | TFM | RID | Runnable where | Host file |
 | --- | --- | --- | --- | --- | --- |
-| `server-linux-x64` | `Frog.Server/Frog.Server.csproj` | `net8.0` | `linux-x64` | Linux x64 + .NET 8 runtime | `Frog.Server` |
-| `server-win-x64` | `Frog.Server/Frog.Server.csproj` | `net8.0` | `win-x64` | Windows x64 + .NET 8 runtime | `Frog.Server.exe` |
+| `server-linux-x64` | `Frog.Server/Frog.Server.csproj` | `net8.0` | `linux-x64` | Linux x64 (runtime bundled) | `Frog.Server` |
+| `server-win-x64` | `Frog.Server/Frog.Server.csproj` | `net8.0` | `win-x64` | Windows x64 (runtime bundled) | `Frog.Server.exe` |
 | `client-win-x64` | `Frog.Client/Frog.Client.csproj` | `net8.0-windows` | `win-x64` | Windows only (WinForms) | `Frog.Client.exe` |
 | `editor-win-x64` | `Frog.Editor/Frog.Editor.csproj` | `net8.0-windows` | `win-x64` | Windows only (WinForms + WPF) | `Frog.Editor.exe` |
 
 Rules:
 
-- **Framework-dependent.** Not `--self-contained`. Install the .NET 8 runtime (or the SDK) on the host.
+- **Self-contained.** `--self-contained true` (runtime bundled; tester does not install the SDK). Still **not** single-file.
 - **Not single-file.** `Frog.Server/Program.cs` `TryLoadPostgreSqlAuthBackend` does `Assembly.LoadFrom(AppContext.BaseDirectory + "Frog.Persistence.PostgreSql.dll")`. A single-file publish would hide that DLL. `Frog.Server/Build/CopyPostgreSqlRuntime.targets` publishes the persistence project as **portable `net8.0`** (it strips the host RID via `RemoveProperties`) and copies those DLLs next to the RID-specific host. Forwarding `linux-x64` / `win-x64` into that class library fails restore (`NETSDK1047`).
 - **x64 only** (`PlatformTarget=x64` on the three executables).
 - Linux agents can **produce** the Windows layouts (`Directory.Build.props` `EnableWindowsTargeting=true`) but cannot **launch** WinForms/WPF. From-source editor / gameplay / Phase 8 smokes remain the `windows-latest` jobs in `ci.yml` (including `scripts/verify-phase8-screenshot-manifest.ps1`). Those smokes do **not** launch `publish-frog.ps1` output.
 
 ## Output tree
 
-Default root: `artifacts/publish/<layout>/`. Each tree also gets `packaging-manifest.json` (SDK, RID, protocol v10, git SHA, UTC time).
+Default root: `artifacts/publish/<layout>/`. Each tree also gets `packaging-manifest.json` (SDK, RID, protocol v11, git SHA, UTC time, `selfContained: true`, `archiveSha256` after zip). Archives: `artifacts/publish/archives/<layout>.zip` + `SHA256SUMS`.
 
 ### Server (`server-linux-x64` / `server-win-x64`)
 
@@ -70,6 +66,7 @@ Required (script-enforced):
 | File | Why |
 | --- | --- |
 | `Frog.Server` or `Frog.Server.exe` | RID apphost |
+| `libhostfxr.so` / `hostfxr.dll` | runtime self-contained |
 | `Frog.Server.dll` | managed entry |
 | `Frog.Server.runtimeconfig.json` / `Frog.Server.deps.json` | shared-framework probe |
 | `Frog.Persistence.PostgreSql.dll` | runtime auth / world backend |
@@ -119,7 +116,7 @@ Do not set `PostgreSql:allowInMemoryFallback=true` on a hosted world. Do not ena
 
 ## Version stamp / compatibility
 
-`packaging-manifest.json` records `protocolVersion` (from `FrogWireProtocol.Version`), SDK, RID, and `gitSha`. Ship matching client + server trees. Mixing a v10 client with an older server is unsupported.
+`packaging-manifest.json` records `protocolVersion` (from `FrogWireProtocol.Version`), SDK, RID, `selfContained`, `gitSha`, and `archiveSha256`. Ship matching client + server trees. Mixing a v10 client with an older server is unsupported.
 
 ## Smoke / gates (do not invent URLs)
 
@@ -137,7 +134,7 @@ export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=f
 ./scripts/packaged-server-smoke.sh
 ```
 
-This guide does **not** claim that `publish-frog.ps1` client/editor packages have been launched. Server packaging has Linux proofs (`PackagedServerPostgreSqlProcessTests` + layout-only smoke). Windows CI smokes prove from-source test hosts, not the published RID trees.
+This guide does **not** claim that `publish-frog.ps1` client/editor packages have been launched. Server packaging has Linux proofs (`PackagedServerPostgreSqlProcessTests` + layout-only smoke). Windows CI smokes prove from-source test hosts, not the published RID trees. P10-6 ships self-contained layouts + SHA-256 archives; extracting `Frog.Client.exe` outside the repo on Windows remains a named residual.
 
 ## Out of scope
 

@@ -1,5 +1,5 @@
 # Publish Frog.Server (win-x64 / linux-x64) and WinForms Frog.Client / Frog.Editor (win-x64).
-# Mirrors scripts/publish-frog.sh. Framework-dependent, not single-file.
+# Mirrors scripts/publish-frog.sh. Self-contained, not single-file.
 [CmdletBinding()]
 param(
     [string[]] $Target = @(),
@@ -15,7 +15,7 @@ function Show-Usage {
     @"
 Usage: publish-frog.ps1 -Target NAME [-Target NAME ...]
 
-Repeatable dotnet publish layouts for Phase 9 packaging (P9-4).
+Repeatable dotnet publish layouts for Phase 10 packaging (P10-6 self-contained).
 
 Targets:
   server-linux-x64   Frog.Server, RID linux-x64 (layout only on Windows)
@@ -94,7 +94,7 @@ function Write-Manifest([string] $dest, [string] $name, [string] $project, [stri
         targetFramework = $tfm
         runtimeIdentifier = $rid
         configuration = $Configuration
-        selfContained = $false
+        selfContained = $true
         singleFile = $false
         sdk = (dotnet --version)
         protocolVersion = (Get-ProtocolVersion)
@@ -135,7 +135,7 @@ function Assert-ServerLayout([string] $dest, [string] $rid) {
         "appsettings.Local.json.example",
         "packaging-manifest.json"
     )
-    if ($rid -eq "win-x64") { $files += "Frog.Server.exe" } else { $files += "Frog.Server" }
+    if ($rid -eq "win-x64") { $files += "Frog.Server.exe"; $files += "hostfxr.dll" } else { $files += "Frog.Server"; $files += "libhostfxr.so" }
     Assert-Files $dest $files
     Assert-NoLocalOverlay $dest
     $deps = Get-Content -Raw (Join-Path $dest "Frog.Server.deps.json")
@@ -150,6 +150,7 @@ function Assert-ClientLayout([string] $dest) {
         "Frog.Client.exe",
         "Frog.Core.dll",
         "Frog.Application.dll",
+        "hostfxr.dll",
         "packaging-manifest.json"
     )
 }
@@ -160,9 +161,41 @@ function Assert-EditorLayout([string] $dest) {
         "Frog.Editor.exe",
         "Frog.Persistence.PostgreSql.dll",
         "Frog.Core.dll",
+        "hostfxr.dll",
         "appsettings.Local.json.example",
         "packaging-manifest.json"
     )
+}
+
+function Copy-DemoDocs([string] $dest) {
+    $demoDir = Join-Path $dest "demo-world"
+    New-Item -ItemType Directory -Force -Path $demoDir | Out-Null
+    Copy-Item (Join-Path $root "docs/progress/phase-10-beta-release/demo-world/LICENSES.md") (Join-Path $demoDir "LICENSES.md")
+    Copy-Item (Join-Path $root "docs/progress/phase-10-beta-release/DEMO_WORLD.md") (Join-Path $dest "DEMO_WORLD.md")
+}
+
+function Write-Archive([string] $dest, [string] $name) {
+    $archives = Join-Path $OutputRoot "archives"
+    New-Item -ItemType Directory -Force -Path $archives | Out-Null
+    $zipPath = Join-Path $archives "$name.zip"
+    if (Test-Path $zipPath) {
+        Remove-Item -Force $zipPath
+    }
+    Compress-Archive -Path $dest -DestinationPath $zipPath -Force
+    $hash = (Get-FileHash -Algorithm SHA256 $zipPath).Hash.ToLowerInvariant()
+    $sums = Join-Path $archives "SHA256SUMS"
+    $lines = @()
+    if (Test-Path $sums) {
+        $lines = Get-Content $sums | Where-Object { $_ -and -not $_.EndsWith("  $name.zip") }
+    }
+    $lines += "$hash  $name.zip"
+    Set-Content -Path $sums -Value $lines -Encoding utf8
+    $manifestPath = Join-Path $dest "packaging-manifest.json"
+    $data = Get-Content -Raw $manifestPath | ConvertFrom-Json
+    $data | Add-Member -NotePropertyName archive -NotePropertyValue "$name.zip" -Force
+    $data | Add-Member -NotePropertyName archiveSha256 -NotePropertyValue $hash -Force
+    ($data | ConvertTo-Json -Depth 6) | Set-Content -Path $manifestPath -Encoding utf8
+    Write-Host "archive $zipPath sha256=$hash"
 }
 
 function Publish-One([string] $name, [string] $project, [string] $rid, [string] $tfm) {
@@ -186,7 +219,7 @@ function Publish-One([string] $name, [string] $project, [string] $rid, [string] 
     & dotnet publish $projectPath `
         -c $Configuration `
         -r $rid `
-        --self-contained false `
+        --self-contained true `
         -o $dest `
         -p:PublishSingleFile=false `
         -p:DebugType=None `
@@ -196,11 +229,13 @@ function Publish-One([string] $name, [string] $project, [string] $rid, [string] 
     }
 
     Write-Manifest $dest $name $project $rid $tfm
+    Copy-DemoDocs $dest
     switch ($name) {
         { $_ -in @("server-linux-x64", "server-win-x64") } { Assert-ServerLayout $dest $rid }
         "client-win-x64" { Assert-ClientLayout $dest }
         "editor-win-x64" { Assert-EditorLayout $dest }
     }
+    Write-Archive $dest $name
     Write-Host "OK $dest"
 }
 

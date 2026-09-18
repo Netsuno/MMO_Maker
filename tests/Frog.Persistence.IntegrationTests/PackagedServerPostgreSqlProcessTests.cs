@@ -200,7 +200,7 @@ public sealed class PackagedServerPostgreSqlProcessTests
             startInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"publish \"{Path.Combine(repoRoot, "Frog.Server", "Frog.Server.csproj")}\" -c Release -r win-x64 --self-contained false -o \"{publishDir}\" -p:PublishSingleFile=false",
+                Arguments = $"publish \"{Path.Combine(repoRoot, "Frog.Server", "Frog.Server.csproj")}\" -c Release -r win-x64 --self-contained true -o \"{publishDir}\" -p:PublishSingleFile=false",
                 WorkingDirectory = repoRoot,
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -244,6 +244,8 @@ public sealed class PackagedServerPostgreSqlProcessTests
 
         var apphost = Path.Combine(publishDir, OperatingSystem.IsWindows() ? "Frog.Server.exe" : "Frog.Server");
         Assert.True(File.Exists(apphost), "RID apphost missing from packaged output: " + apphost);
+        var hostfxr = Path.Combine(publishDir, OperatingSystem.IsWindows() ? "hostfxr.dll" : "libhostfxr.so");
+        Assert.True(File.Exists(hostfxr), "self-contained hostfxr missing from packaged output: " + hostfxr);
     }
 
     private static void WritePackagedServerConfig(string publishDir, string connectionString, int port)

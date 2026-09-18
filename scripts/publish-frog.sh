@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publish Frog.Server (linux-x64 / win-x64) and WinForms Frog.Client / Frog.Editor (win-x64).
-# Framework-dependent, not single-file: Program.TryLoadPostgreSqlAuthBackend loads
+# Self-contained, not single-file: Program.TryLoadPostgreSqlAuthBackend loads
 # Frog.Persistence.PostgreSql.dll from AppContext.BaseDirectory.
 set -euo pipefail
 
@@ -12,7 +12,7 @@ TARGETS=()
 
 USAGE='Usage: publish-frog.sh [options] --target NAME [--target NAME ...]
 
-Repeatable dotnet publish layouts for Phase 9 packaging (P9-4).
+Repeatable dotnet publish layouts for Phase 10 packaging (P10-6 self-contained).
 
 Targets:
   server-linux-x64   Frog.Server, RID linux-x64
@@ -123,7 +123,7 @@ write_manifest() {
   "targetFramework": "${tfm}",
   "runtimeIdentifier": "${rid}",
   "configuration": "${CONFIGURATION}",
-  "selfContained": false,
+  "selfContained": true,
   "singleFile": false,
   "sdk": "${sdk}",
   "protocolVersion": ${protocol},
@@ -169,9 +169,9 @@ verify_server_layout() {
     appsettings.Local.json.example \
     packaging-manifest.json
   if [[ "$rid" == win-x64 ]]; then
-    require_files "$dest" Frog.Server.exe
+    require_files "$dest" Frog.Server.exe hostfxr.dll
   else
-    require_files "$dest" Frog.Server
+    require_files "$dest" Frog.Server libhostfxr.so
   fi
   verify_no_local_overlay "$dest"
   if grep -qi "Npgsql.EntityFrameworkCore.PostgreSQL" "${dest}/Frog.Server.deps.json"; then
@@ -188,6 +188,7 @@ verify_client_layout() {
     Frog.Client.exe \
     Frog.Core.dll \
     Frog.Application.dll \
+    hostfxr.dll \
     packaging-manifest.json
 }
 
@@ -198,8 +199,51 @@ verify_editor_layout() {
     Frog.Editor.exe \
     Frog.Persistence.PostgreSql.dll \
     Frog.Core.dll \
+    hostfxr.dll \
     appsettings.Local.json.example \
     packaging-manifest.json
+}
+
+copy_demo_docs() {
+  local dest="$1"
+  local licenses="${ROOT}/docs/progress/phase-10-beta-release/demo-world/LICENSES.md"
+  local demo="${ROOT}/docs/progress/phase-10-beta-release/DEMO_WORLD.md"
+  mkdir -p "${dest}/demo-world"
+  cp "$licenses" "${dest}/demo-world/LICENSES.md"
+  cp "$demo" "${dest}/DEMO_WORLD.md"
+}
+
+archive_layout() {
+  local dest="$1" name="$2"
+  local archives="${OUTPUT_ROOT}/archives"
+  mkdir -p "$archives"
+  python3 - "$dest" "$archives" "$name" <<'PY'
+import hashlib, json, sys, zipfile
+from pathlib import Path
+dest = Path(sys.argv[1])
+archives = Path(sys.argv[2])
+name = sys.argv[3]
+zip_path = archives / f"{name}.zip"
+if zip_path.exists():
+    zip_path.unlink()
+with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    for path in dest.rglob("*"):
+        if path.is_file():
+            zf.write(path, path.relative_to(dest.parent).as_posix())
+digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+sums = archives / "SHA256SUMS"
+lines = []
+if sums.exists():
+    lines = [ln for ln in sums.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.endswith("  " + zip_path.name)]
+lines.append(f"{digest}  {zip_path.name}")
+sums.write_text("\n".join(lines) + "\n", encoding="utf-8")
+manifest = dest / "packaging-manifest.json"
+data = json.loads(manifest.read_text(encoding="utf-8"))
+data["archive"] = zip_path.name
+data["archiveSha256"] = digest
+manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+print(f"archive {zip_path} sha256={digest}")
+PY
 }
 
 publish_one() {
@@ -221,13 +265,14 @@ publish_one() {
   dotnet publish "$project_path" \
     -c "$CONFIGURATION" \
     -r "$rid" \
-    --self-contained false \
+    --self-contained true \
     -o "$dest" \
     -p:PublishSingleFile=false \
     -p:DebugType=None \
     -p:DebugSymbols=false
 
   write_manifest "$dest" "$name" "$project" "$rid" "$tfm"
+  copy_demo_docs "$dest"
 
   case "$name" in
     server-linux-x64|server-win-x64) verify_server_layout "$dest" "$rid" ;;
@@ -235,6 +280,7 @@ publish_one() {
     editor-win-x64) verify_editor_layout "$dest" ;;
   esac
 
+  archive_layout "$dest" "$name"
   echo "OK ${dest}"
 }
 
