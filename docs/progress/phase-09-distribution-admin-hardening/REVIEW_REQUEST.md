@@ -1,6 +1,6 @@
 # Phase 9 — REVIEW_REQUEST
 
-**Status:** **READY** for acceptance review. P9-0…P9-6 **DONE**. Product tip `66fa070` CI https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS**. P9-S **DEFERRED**. Orchestrator owns draft PR #7 and the user-facing gate phrase — this file must not announce it.
+**Status:** **READY** for acceptance review. P9-0…P9-6 **DONE**. Evidence pack tip `8bf6f08` CI https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS** (product tip `66fa070` / 35291880532 also SUCCESS, same counts). P9-S **DEFERRED**. Orchestrator owns draft PR #7 and the user-facing gate phrase — this file must not announce it.
 
 ## Identity
 
@@ -9,12 +9,12 @@
 | Branch | `cursor/phase9-distribution-admin-hardening` |
 | PR | https://github.com/Netsuno/MMO_Maker/pull/7 (draft; Orchestrator-owned) |
 | Start / audit tip | `5af47b9cf6ba18a82dba5eee933fc1d0e6afa3eb` |
-| Product tip (CI measured) | `66fa070b07352c5ee0429234bb31470e10608805` |
+| Product tip | `66fa070b07352c5ee0429234bb31470e10608805` / https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS** |
+| Evidence pack tip | `8bf6f088cc002ba8957d062952843a82706600a1` / https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS** |
 | Phase 8 | ACCEPTED on main (`1cd57ba`) |
 | Baseline CI (main) | https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 SUCCESS |
-| Phase 9 CI | https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS** |
-| `build-and-test` | success — https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532/job/105436343236 |
-| `postgres-integration` | success — https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532/job/105436343549 |
+| `build-and-test` (`8bf6f08`) | success — https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956/job/105438279174 |
+| `postgres-integration` (`8bf6f08`) | success — https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956/job/105438279075 |
 | Counts (CI logs) | Frog.Tests **436**; PG **180**; editor **87×3**; gameplay **6×3**; Phase 8 **24×3** + 12 exact-sha |
 | Protocol | `FrogWireProtocol.Version = 10` |
 | Phase 9 | **READY** |
@@ -29,7 +29,7 @@
 - [x] P9-4 package starts without MariaDB (`PackagedServerPostgreSqlProcessTests` + CI `layout-only smoke OK`)
 - [x] P9-5 load numbers are measured (`LOAD_REPORT.md`); revised (not certified) rows are explicit
 - [x] Phase 8 suites green on `66fa070`; screenshot SHA gate not weakened (12 exact-sha OK)
-- [x] Evidence uses real SHAs and real CI URLs (run **35291880532** SUCCESS)
+- [x] Evidence uses real SHAs and real CI URLs (runs **35291880532** and **35292542956** SUCCESS)
 - [ ] No Phase 10 / no merge without Marc (process; still true)
 
 ## Suggested PR #7 body update (Orchestrator)
@@ -42,6 +42,7 @@ Phase 9 delivery branch: packaging, admin moderation (mute/kick/ban), production
 
 **Baseline:** `main` `5af47b9` / CI https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 SUCCESS
 **Product tip:** `66fa070` / CI https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 SUCCESS
+**Evidence pack tip:** `8bf6f08` / CI https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 SUCCESS
 **Counts (CI logs):** Frog.Tests 436 · PG 180 · editor 87×3 · gameplay 6×3 · Phase 8 24×3 (12 exact-sha)
 
 ## Status

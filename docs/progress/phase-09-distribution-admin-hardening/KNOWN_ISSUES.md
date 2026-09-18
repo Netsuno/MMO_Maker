@@ -2,9 +2,9 @@
 
 ## Gate (P9-6)
 
-- Phase 9 is **READY**. Product tip `66fa070` CI **SUCCESS**: https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532
-  - `build-and-test` success 7m13s (job 105436343236): Frog.Tests **Passed: 436**; editor **87×3**; gameplay **6×3**; Phase 8 **24×3**; 12-file exact-sha OK
-  - `postgres-integration` success 4m53s (job 105436343549): **Passed: 180**; `layout-only smoke OK`
+- Phase 9 is **READY**. Evidence pack tip `8bf6f08` CI **SUCCESS**: https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 (product tip `66fa070` / 35291880532 also SUCCESS).
+  - `build-and-test` success 9m41s (job 105438279174): Frog.Tests **Passed: 436**; editor **87×3**; gameplay **6×3**; Phase 8 **24×3**; 12-file exact-sha OK
+  - `postgres-integration` success 4m54s (job 105438279075): **Passed: 180**; `layout-only smoke OK`
 - P9-6 is **DONE**. P9-S remains **DEFERRED**.
 - CI annotation (not a test failure): Node.js 20 deprecation on `actions/checkout@v4` / `setup-dotnet@v4` / `upload-artifact@v4`.
 

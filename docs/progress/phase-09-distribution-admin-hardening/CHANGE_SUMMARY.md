@@ -1,6 +1,6 @@
 # Phase 9 — CHANGE_SUMMARY
 
-**Status:** P9-0…P9-6 landed on `cursor/phase9-distribution-admin-hardening`. Product tip `66fa070` CI https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS**. Phase 9 **READY**. P9-S **DEFERRED**.
+**Status:** P9-0…P9-6 landed on `cursor/phase9-distribution-admin-hardening`. Evidence pack tip `8bf6f08` CI https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS** (product `66fa070` / 35291880532 also SUCCESS). Phase 9 **READY**. P9-S **DEFERRED**.
 
 ## P9-0 (bootstrap)
 
@@ -50,7 +50,7 @@
 ## P9-6 Evidence
 
 - Filled `TEST_PLAN.md`, `E2E_MATRIX.md`, `PHASE_REPORT.md`, `REVIEW_REQUEST.md`, `KNOWN_ISSUES.md`, this file, `TASK_MATRIX.md`, and `docs/STATUS.md`.
-- Pinned real SHA `66fa070` and real CI URL https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS**. Counts from logs: 436 / 180 / 87×3 / 6×3 / 24×3.
+- Pinned real SHAs `66fa070` (product) and `8bf6f08` (evidence pack) with CI https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 and https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS**. Counts from logs: 436 / 180 / 87×3 / 6×3 / 24×3.
 - Verdict: **READY**. Suggested PR #7 body lives in `REVIEW_REQUEST.md` for Orchestrator.
 - Phase 8 screenshot scripts / `SCREENSHOT_MANIFEST.md` unchanged. **No Phase 8 regression found.**
 

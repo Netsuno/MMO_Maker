@@ -1,6 +1,6 @@
 # Phase 9 — E2E_MATRIX
 
-**Status:** P9-0…P9-6 **DONE** on product tip `66fa070`. CI https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS**. Phase 9 is **READY**. P9-S remains **DEFERRED**.
+**Status:** P9-0…P9-6 **DONE**. Evidence pack tip `8bf6f08` CI https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS** (product `66fa070` / 35291880532 also SUCCESS). Phase 9 is **READY**. P9-S remains **DEFERRED**.
 
 Phase 8 matrix remains the product gameplay gate: [`../phase-08-quests-events-advanced-creation/E2E_MATRIX.md`](../phase-08-quests-events-advanced-creation/E2E_MATRIX.md). Do not drop those steps. This branch does not change Phase 8 E2E product behavior.
 
@@ -27,7 +27,7 @@ Phase 8 matrix remains the product gameplay gate: [`../phase-08-quests-events-ad
 
 ## CI pin
 
-- Product tip: `66fa070b07352c5ee0429234bb31470e10608805`
-- Run: https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS**
+- Product tip: `66fa070` / https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS**
+- Evidence pack tip: `8bf6f08` / https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS**
 - Windows: Frog.Tests **436**, editor **87×3**, gameplay **6×3**, Phase 8 **24×3**
 - Ubuntu: PG **180**, layout-only smoke OK

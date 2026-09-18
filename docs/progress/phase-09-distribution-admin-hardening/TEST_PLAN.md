@@ -1,24 +1,24 @@
 # Phase 9 — TEST_PLAN
 
-**Status:** P9-6 **DONE**. CI on product tip `66fa070` is **SUCCESS**. Phase 9 is **READY** (residuals listed in `KNOWN_ISSUES.md`). Do not weaken Phase 8 suites or screenshot SHA gates.
+**Status:** P9-6 **DONE**. CI on product tip `66fa070` and evidence pack tip `8bf6f08` is **SUCCESS**. Phase 9 is **READY** (residuals listed in `KNOWN_ISSUES.md`). Do not weaken Phase 8 suites or screenshot SHA gates.
 
 ## Identity (do not invent)
 
 | Item | Value |
 | --- | --- |
 | Branch | `cursor/phase9-distribution-admin-hardening` |
-| Product tip (measured) | `66fa070b07352c5ee0429234bb31470e10608805` (`66fa070`) |
+| Product tip | `66fa070b07352c5ee0429234bb31470e10608805` (`66fa070`) / https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS** |
+| Evidence pack tip | `8bf6f088cc002ba8957d062952843a82706600a1` (`8bf6f08`) / https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS** |
 | Draft PR | https://github.com/Netsuno/MMO_Maker/pull/7 |
-| CI on product tip | https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 — **SUCCESS** (event `pull_request`, SHA `66fa070`) |
-| `build-and-test` | **success** 7m13s — https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532/job/105436343236 |
-| `postgres-integration` | **success** 4m53s — https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532/job/105436343549 |
+| `build-and-test` (`8bf6f08`) | **success** 9m41s — https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956/job/105438279174 |
+| `postgres-integration` (`8bf6f08`) | **success** 4m54s — https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956/job/105438279075 |
 | Earlier completed CI on this PR | https://github.com/Netsuno/MMO_Maker/actions/runs/35288813093 SUCCESS on P9-0 docs-only tip `6f178e9`. Later product commits before `66fa070` were **cancelled** (`cancel-in-progress`) — not green evidence. |
 | Baseline CI (main, branch-start SHA `5af47b9`) | https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 SUCCESS |
 | Protocol | `FrogWireProtocol.Version = 10` |
 
-## Counts from run 35291880532 logs
+## Counts from CI logs
 
-Quoted from `gh run view 35291880532 --log` (`Test Run Successful` summaries). No Failed/Skipped lines were printed next to these totals.
+Same totals on product tip run 35291880532 and evidence tip run 35292542956 (`Test Run Successful` summaries). No Failed/Skipped lines were printed next to these totals. Quoted from `gh run view … --log`.
 
 | Step (job) | Log line |
 | --- | --- |
