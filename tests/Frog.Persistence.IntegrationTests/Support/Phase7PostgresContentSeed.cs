@@ -189,6 +189,7 @@ public static class Phase7PostgresContentSeed
         var now = DateTimeOffset.UtcNow;
         await gate.ExecuteAsync(async (db, ct) =>
         {
+            db.ChangeTracker.Clear();
             var row = await db.WorldSpawnSettings.SingleOrDefaultAsync(s => s.Id == 1, ct)
                 .ConfigureAwait(false);
             if (row is null)
