@@ -10,7 +10,7 @@ Classement **par sous-projet**, puis **A–Z**.
 | Sous-projet | Page | Contenu (1 ligne) |
 | --- | --- | --- |
 | Client | [Client](client/README.md) | `FrogGameClient` Send*/Connect* |
-| Server | [Server](server/README.md) | Handlers, services *(à venir)* |
+| Server | [Server](server/README.md) | Auth, move, map, modération (1 fichier / fonction) |
 | Editor | [Editor](editor/README.md) | Publish, outils auteur *(à venir)* |
 | Core | [Core](core/README.md) | Formules, limites, codecs partagés |
 | PostgreSQL | [PostgreSQL](postgresql/README.md) | Repos / SQL *(à venir)* |

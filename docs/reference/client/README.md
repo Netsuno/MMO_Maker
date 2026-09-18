@@ -18,7 +18,7 @@ Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip : `6fe5bd97`.
 | [sendloginasync](#sendloginasync) | `sendloginasync(username, password)` | Authentifie |
 | [sendmaprequestasync](#sendmaprequestasync) | `sendmaprequestasync(hintMapId?)` | Demande la carte |
 | [sendmeleeattackasync](#sendmeleeattackasync) | `sendmeleeattackasync(targetUsername)` | Attaque mêlée |
-| [sendpositionsyncasync](#sendpositionsyncasync) | `sendpositionsyncasync(x, y)` | Sync position pixel |
+| [sendpositionsyncasync](#sendpositionsyncasync) | `sendpositionsyncasync(pixelCenterX, pixelCenterY)` | Sync position pixel |
 | [sendquestturninasync](#sendquestturninasync) | `sendquestturninasync(questId)` | Rend une quête |
 | [sendsocialasync](#sendsocialasync) | `sendsocialasync(…)` | Enveloppe sociale 80 |
 | [sendspellcastasync](#sendspellcastasync) | `sendspellcastasync(spellId, targetName)` | Lance un sort |
@@ -43,6 +43,8 @@ Efface l’identifiant d’activation d’interaction en attente.
 ### connectasync
 
 Ouvre la connexion TCP vers le serveur.
+
+*Source : `ConnectAsync`*
 
 **Signature :** `connectasync(host, port)`
 
@@ -143,6 +145,8 @@ Déclenche l’interaction sur la tuile courante.
 
 Authentifie un compte auprès du serveur.
 
+*Source : `SendLoginAsync`*
+
 **Signature :** `sendloginasync(username, password)`
 
 **Entrées :**
@@ -187,6 +191,8 @@ Envoie une attaque mêlée vers une cible.
 
 Synchronise le centre pixel du personnage.
 
+*Source : `SendPositionSyncAsync`*
+
 **Signature :** `sendpositionsyncasync(pixelCenterX, pixelCenterY)`
 
 **Entrées :**
@@ -218,15 +224,18 @@ Rend une quête (idempotent côté serveur).
 
 Envoie une enveloppe sociale (opcode 80).
 
-*Statut : présent sur tip P10-1 — vérifier handlers serveur*
+*Statut : présent tip P10-1* · *Source : `SendSocialAsync`*
 
-**Signature :** `sendsocialasync(…)`
-*(voir surcharges `FrogGameClient.SendSocialAsync` dans le source)*
+**Signature :** `sendsocialasync(kind, action, requestId, extra)`
 
 **Entrées :**
-- `kind` / `action` / `requestId` / payload — famille sociale
+- `kind` (`SocialKind`) — Party / Guild / Friend / Block
+- `action` (`byte`) — action dans la famille
+- `requestId` (`Guid`) — corrélation
+- `extra` (`ReadOnlySpan<byte>`) — payload typé
 
 **Sorties :**
+- paquet `SocialRequest` envoyé
 - `SocialResultReceived` / `SocialSnapshotReceived` / `SocialEventReceived`
 
 ---
