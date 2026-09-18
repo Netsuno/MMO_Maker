@@ -20,6 +20,9 @@
       "allowCleartextLoopback": false
     }
   },
+  "Registration": {
+    "mode": "ProvisionedOnly"
+  },
   "Maps": {
     "worldMapPath": "",
     "databaseFallbackMapId": 1

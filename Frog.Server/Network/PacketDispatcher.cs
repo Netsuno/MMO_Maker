@@ -59,6 +59,7 @@ public sealed partial class PacketDispatcher(
     SessionTeardown sessionTeardown,
     ServerOpsMetrics opsMetrics,
     SocialService socialService,
+    IOptions<RegistrationOptions> registrationOptions,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -90,6 +91,7 @@ public sealed partial class PacketDispatcher(
     private readonly SessionTeardown _sessionTeardown = sessionTeardown;
     private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
     private readonly SocialService _social = socialService;
+    private readonly RegistrationOptions _registration = registrationOptions.Value;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     /// <summary>Test barrier: runs at the start of <see cref="TryGetActiveSession"/>.</summary>
@@ -765,6 +767,20 @@ public sealed partial class PacketDispatcher(
                 clientSession,
                 false,
                 "Compte deja existant ou invalide.",
+                cancellationToken);
+            return;
+        }
+
+        if (!_registration.AllowsTcpRegister)
+        {
+            var reason = _registration.Mode == RegistrationMode.InviteOnly
+                ? "invite_only"
+                : "provisioned_only";
+            ServerNetworkLogs.RegisterFailed(_logger, reason);
+            await _packetSender.SendRegisterResultAsync(
+                clientSession,
+                false,
+                "Inscriptions fermees.",
                 cancellationToken);
             return;
         }

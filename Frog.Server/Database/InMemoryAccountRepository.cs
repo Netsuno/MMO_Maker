@@ -65,4 +65,24 @@ public sealed class InMemoryAccountRepository : IAccountRepository
                 ? new AccountCreateResult(AccountCreateStatus.Created, record.Id)
                 : new AccountCreateResult(AccountCreateStatus.DuplicateUsername));
     }
+
+    public Task<bool> UpdatePasswordAsync(
+        string username,
+        string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        if (!AccountInputRules.IsValidUsername(username) || !AccountInputRules.IsValidPassword(newPassword))
+        {
+            return Task.FromResult(false);
+        }
+
+        var normalized = username.Trim();
+        if (!_accounts.TryGetValue(normalized, out var existing))
+        {
+            return Task.FromResult(false);
+        }
+
+        _accounts[normalized] = existing with { PasswordHash = PasswordHasher.HashPassword(newPassword) };
+        return Task.FromResult(true);
+    }
 }

@@ -18,8 +18,8 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | **LOAD** | Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, TLS, monde publié. Pas de HTTP `/metrics`. | P10-8 |
 | **Restore avec sanctions** | `PostgresBackupRestoreTests` : migrate + seed Phase 7 + compte + dump/restore + login. **Pas** de campagne dont le dump contient des lignes mute/ban. Guildes/amis/échanges n’existent pas encore. | P10-7 |
 | **Rate-limit login** | IP normalisée + username (8/60s) et IP (30/60s). Plus de clé IP:port. Voir [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
-| **Grant opérateur** | Hors bande SQL / `IOperatorDirectory.GrantAsync` — **pas** d’outil opérateur documenté pour reset mot de passe, invitations, revoke GM. | P10-5 |
-| **Inscriptions ouvertes** | `RegisterRequest` crée un compte sans invitation. Le premier inscrit n’est pas GM (OK) mais la bêta fermée n’existe pas. | P10-5 |
+| **Inscriptions ouvertes** | Défaut local `Registration:Mode=Open`. Bêta : `ProvisionedOnly` (TCP refusé). InviteOnly = jalon sans jetons. | P10-5 C **livré** (jalon invites) |
+| **Grant opérateur** | `tools/Frog.OpsCli operator grant|revoke` + SQL toujours possible | P10-5 C **livré** |
 | **P9-S social** | Groupes/guildes/amis/blocage **P10-1 livré** (v11, 80–83). Trade P2P **absent** (P10-2). Stubs `Guild.cs` / `GuildService.cs` toujours morts. | P10-1 fait ; P10-2 |
 
 Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vrais) :
@@ -41,8 +41,8 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Amis / blocage | `player.friendships`, `player.character_blocks` | P10-1 **livré** |
 | Échanges P2P | Boutique/banque Phase 7 **≠** trade joueur ; pas d’opcode 84–86 | P10-2 |
 | Client TLS + validation certificat | `FrogGameClient.ConnectAsync` + `TlsClientAuthenticator` (Mode=Required) ; défaut Off | P10-5 A **livré** |
-| Invitations / comptes provisionnés | `HandleRegisterRequestAsync` ouvert | P10-5 |
-| Outil reset mot de passe / revoke session / grant GM | Pas de projet `tools/` opérateur (hors LoadHarness) | P10-5 |
+| Invitations / comptes provisionnés | `Registration:Mode=ProvisionedOnly` + OpsCli create ; **InviteOnly sans jetons** (jalon) | P10-5 C **livré** (jalon invites) |
+| Outil reset mot de passe / revoke session / grant GM | `tools/Frog.OpsCli` | P10-5 C **livré** |
 | Aide intégrée, rebind AZERTY/QWERTY, settings persistés | `UserSettings.cs` / `OptionsForm.cs` / `InputService.cs` = stubs ; pas de « Help » dans `MainShellForm` | P10-3 |
 | Numéro de version visible + copie diagnostics | Token redacté dans le log interne ; pas de commande dédiée ni version UI | P10-3 |
 | Monde démo 3 cartes 30–60 min + licences | `fixtures/` = legacy ; seeds de tests seulement | P10-4 |

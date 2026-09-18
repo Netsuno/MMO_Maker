@@ -120,9 +120,9 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Port PG non exposé aux joueurs | compose expose 5432 en **dev** | doc prod | **incomplet** |
 | Pas de superutilisateur runtime | `docker-compose` `POSTGRES_USER=frog` (superuser instance) ; appsettings Username=frog | | **incomplet** |
 | Rate-limit IP normalisée + compte | `AuthRateLimitKey` + `AuthRateLimiter` 8/60s IP+user, 30/60s IP ; login+register+reconnect | `Phase10AuthRateLimitTests` ports distincts ; [AUTH_RATE_LIMIT.md](AUTH_RATE_LIMIT.md) | **lot B livré** |
-| Inscriptions invitation / provisionnées | `RegisterRequest` ouvert | | **absent** |
-| Invitation ≠ rôle GM | register n’écrit pas `auth.operators` | `Phase9SecurityGateTests` | **présent** (mais inscriptions ouvertes) |
-| Outil opérateur comptes / reset / revoke / GM / sanctions | SQL grant seulement | | **absent** |
+| Inscriptions invitation / provisionnées | `Registration:Mode` ; bêta `ProvisionedOnly` ; TCP Register refusé | `Phase10ClosedBetaTests` ; [CLOSED_BETA.md](CLOSED_BETA.md) | **lot C livré** (InviteOnly = jalon, pas de jetons) |
+| Invitation ≠ rôle GM | create OpsCli n’écrit pas `auth.operators` | `Phase10ClosedBetaTests` + `Phase9SecurityGateTests` | **lot C livré** |
+| Outil opérateur comptes / reset / revoke / GM / sanctions | `tools/Frog.OpsCli` + `UpdatePasswordAsync` | `Phase10ClosedBetaTests` | **lot C livré** |
 | Autorisation nouvelles ops + limites tailles | C2/C2b + rate chat/move | suites Phase 9 | **incomplet** (social/trade pas là) |
 | Suites C2/C2b conservées | `Phase9SessionRaceTests`, teardown | CI 454 | **présent** |
 

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Frog.OpsCli</RootNamespace>
+    <AssemblyName>Frog.OpsCli</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Frog.Application\Frog.Application.csproj" />
+    <ProjectReference Include="..\..\Frog.Persistence.PostgreSql\Frog.Persistence.PostgreSql.csproj" />
+  </ItemGroup>
+</Project>

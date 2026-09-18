@@ -145,6 +145,9 @@ public static class FrogServerHostFactory
                 services
                     .AddOptions<SocialOptions>()
                     .Bind(ctx.Configuration.GetSection("Social"));
+                services
+                    .AddOptions<RegistrationOptions>()
+                    .Bind(ctx.Configuration.GetSection(RegistrationOptions.SectionName));
 
                 var pg = ctx.Configuration.GetSection("PostgreSql").Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
                 if (string.IsNullOrWhiteSpace(pg.ConnectionString))
