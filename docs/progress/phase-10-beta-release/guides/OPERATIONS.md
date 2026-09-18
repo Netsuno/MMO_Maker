@@ -1,6 +1,8 @@
 # Operations — stack bêta
 
-> **Brouillon P10-0** — référence ops pour opérateurs. Pas une diffusion joueur.
+Utilise ce guide quand tu **démarres, arrêtes, sauvegardes ou restaures** le serveur de bêta (pas pour jouer).
+
+> **Brouillon P10-0** — référence ops. Pas une diffusion joueur.
 
 ## Prérequis
 
@@ -8,7 +10,7 @@
 - Runtime / SDK .NET 8 selon le mode (from-source vs paquet)
 - Overlay local **gitignoré** (jamais committer les secrets)
 
-Référence détaillée Phase 9 (à suivre tant que Phase 10 n’étend pas) :
+Référence détaillée Phase 9 :
 
 - [OPERATIONS_RUNBOOK](../../phase-09-distribution-admin-hardening/OPERATIONS_RUNBOOK.md)
 - [BACKUP_RESTORE_RUNBOOK](../../phase-09-distribution-admin-hardening/BACKUP_RESTORE_RUNBOOK.md)

@@ -14,29 +14,29 @@
 
 Lance l’éditeur. Tu arrives sur l’écran d’accueil ou la dernière carte.
 
-![Accueil éditeur](assets/auteur-01-accueil.png)
-*Fenêtre principale — menus en haut ; panneaux latéraux ; zone carte au centre.*
+<!-- CAPTURE: assets/auteur-01-accueil.png -->
+*Capture à venir : fenêtre principale — menus en haut ; panneaux latéraux ; zone carte au centre.*
 
 ## 2. Créer une nouvelle carte
 
 Menu **Fichier** → **Nouvelle carte** (libellé exact = celui de ton build). Donne un nom court.
 
-![Dialogue nouvelle carte](assets/auteur-02-nouvelle-carte.png)
-*Dialogue — nom + taille ; valide avec le bouton principal.*
+<!-- CAPTURE: assets/auteur-02-nouvelle-carte.png -->
+*Capture à venir : dialogue — nom + taille ; valide avec le bouton principal.*
 
 ## 3. Peindre le sol
 
 Sélectionne la couche sol, choisis une tuile, peins une zone simple.
 
-![Éditeur — peinture](assets/auteur-03-peinture.png)
-*Centre = carte ; côté = palette de tuiles ; couche active indiquée.*
+<!-- CAPTURE: assets/auteur-03-peinture.png -->
+*Capture à venir : centre = carte ; côté = palette de tuiles ; couche active indiquée.*
 
 ## 4. Enregistrer
 
 **Fichier** → **Enregistrer**. Vérifie le nom affiché.
 
-![Enregistrer](assets/auteur-04-save.png)
-*Confirmation ou barre de titre avec le nom de la carte sauvegardée.*
+<!-- CAPTURE: assets/auteur-04-save.png -->
+*Capture à venir : confirmation ou barre de titre avec le nom de la carte sauvegardée.*
 
 ## Tu es prêt si…
 
@@ -49,7 +49,3 @@ Sélectionne la couche sol, choisis une tuile, peins une zone simple.
 - Publier vers le monde (quand ton build le propose) — masquer toute chaîne de connexion à l’écran
 - [Périmètre bêta](../BETA_SCOPE.md)
 - Wiki : [Auteur](https://github.com/Netsuno/MMO_Maker/wiki/Auteur)
-
-## Captures
-
-Prévues : `auteur-01-accueil.png` … `auteur-04-save.png` dans `assets/`. **Pas encore disponibles.**
