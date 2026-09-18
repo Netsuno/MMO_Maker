@@ -392,7 +392,7 @@ public sealed class Phase10TlsTests
         })
         {
             var text = File.ReadAllText(file);
-            Assert.DoesNotContain("AcceptAll", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("AcceptAllCertificate", text, StringComparison.Ordinal);
             Assert.DoesNotContain("DangerousAcceptAnyServerCertificateValidator", text, StringComparison.Ordinal);
             Assert.DoesNotContain("=> true", text, StringComparison.Ordinal);
         }

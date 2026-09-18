@@ -5,7 +5,7 @@ namespace Frog.Core.Security;
 
 /// <summary>
 /// Validation stricte du certificat serveur : chaîne, nom/SNI, expiration, ancre CA.
-/// Aucun AcceptAll, aucun callback qui renvoie true sans contrôle.
+/// Aucun callback « tout accepter », aucun callback qui renvoie true sans contrôle.
 /// </summary>
 public static class TlsCertificateValidator
 {

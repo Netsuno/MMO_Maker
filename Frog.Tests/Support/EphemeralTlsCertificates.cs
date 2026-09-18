@@ -56,7 +56,7 @@ internal sealed class EphemeralTlsCertificates : IDisposable
             new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, true));
         caReq.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(caReq.PublicKey, false));
         using var ca = caReq.CreateSelfSigned(
-            DateTimeOffset.UtcNow.AddDays(-1),
+            DateTimeOffset.UtcNow.AddDays(-90),
             DateTimeOffset.UtcNow.AddDays(14));
 
         using var leafRsa = RSA.Create(2048);

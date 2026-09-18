@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -59,9 +60,12 @@ public sealed class GameServerService(
             GameServerLogs.ServerStarted(_log, _options.BindAddress, _options.Port);
             if (tlsCertificate is not null)
             {
-                GameServerLogs.TlsRequired(
-                    _log,
-                    _options.Tls.PfxPath ?? _options.Tls.CertificatePath ?? "<configured>");
+                var certSource = !string.IsNullOrWhiteSpace(_options.Tls.PfxPath)
+                    ? _options.Tls.PfxPath!
+                    : !string.IsNullOrWhiteSpace(_options.Tls.CertificatePath)
+                        ? _options.Tls.CertificatePath!
+                        : "<configured>";
+                GameServerLogs.TlsRequired(_log, certSource);
             }
 
             using var stopAcceptingRegistration = stoppingToken.Register(() =>
@@ -79,6 +83,18 @@ public sealed class GameServerService(
                     }
 
                     Stream? transport = null;
+                    var remoteEndPoint = "<unknown>";
+                    try
+                    {
+                        remoteEndPoint = client.Client?.RemoteEndPoint?.ToString() ?? "<unknown>";
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                    catch (SocketException)
+                    {
+                    }
+
                     try
                     {
                         transport = await TlsServerTransport
@@ -88,10 +104,7 @@ public sealed class GameServerService(
                     catch (Exception ex) when (
                         ClientNetworkExceptions.IsExpectedTermination(ex) || ex is AuthenticationException)
                     {
-                        GameServerLogs.TlsHandshakeFailed(
-                            _log,
-                            client.Client?.RemoteEndPoint?.ToString() ?? "<unknown>",
-                            ex);
+                        GameServerLogs.TlsHandshakeFailed(_log, remoteEndPoint, ex);
                         if (transport is not null)
                         {
                             await transport.DisposeAsync().ConfigureAwait(false);
