@@ -12,8 +12,8 @@ Phase 8 matrix remains the product gameplay gate: [`../phase-08-quests-events-ad
 | 4 | Ban rejects login and reconnect token | `Phase9ModerationTests` TCP + PG host restart | DONE |
 | 5 | Unprivileged account cannot issue mute/kick/ban | `Phase9ModerationTests` unit + TCP | DONE |
 | 6 | `pg_dump` / restore of a seeded world; server migrates 0 pending; login works | `PostgresBackupRestoreTests` | DONE (P9-3). **Re-run after P9-1 migration.** |
-| 7 | Packaged server starts with `PostgreSql:Enabled=true` | TBD P9-4 | NOT STARTED |
-| 8 | Load run at the certified session count (number TBD after P9-5 measure) | TBD P9-5 | NOT STARTED |
+| 7 | Packaged server starts with `PostgreSql:Enabled=true` | `PackagedServerPostgreSqlProcessTests` | **DONE** (P9-4; re-run this agent: included in PG **180 PASS**) |
+| 8 | Load run at the certified session count | `scripts/run-load-harness.sh` + `Phase9OpsMetricsTests` / `PostgresLoadObservabilityTests` | **DONE** — certified **100 authed mixed** in-memory, **200 TCP Hello**; see `LOAD_REPORT.md` |
 | — | Guild / group / trade | — | **DEFERRED (P9-S)** |
 
 ## Multi-client (planned)

@@ -294,7 +294,7 @@ P9-0 did not run a load tool. These are **hypotheses** derived from existing cap
 | PG connections | ≤ 20 from one server process | No pool settings documented; measure |
 | Restart recovery | Full reconnect of certified N within 60 s | Needs harness |
 
-**Do not** publish these as certified numbers. P9-5 owns `LOAD_REPORT.md`.
+**Do not** publish these as certified numbers without a `LOAD_REPORT`. P9-5 measured and revised them in [`LOAD_REPORT.md`](LOAD_REPORT.md) (100 authed mixed in-memory / 200 TCP Hello on a 4-core Linux agent; idle 300 s, economy TPS, interact, restart-reconnect, and PG pool size **not** certified).
 
 ---
 

@@ -115,7 +115,9 @@ Automatic: `Database.Migrate()` on server (and editor) start. There is no separa
 
 ## Logs
 
-Console only (`Microsoft.Extensions.Logging.Console`). Background start appends to `<publish-dir>/frog-server.log`. No log rotation, no metrics endpoint (P9-5).
+Console only (`Microsoft.Extensions.Logging.Console`). Background start appends to `<publish-dir>/frog-server.log`. No log rotation. No HTTP `/metrics`.
+
+P9-5 process counters (structured log EventId **5030** `ops_metrics`): connections accepted/rejected, rate-limit hits (login/reconnect/chat/movement), PostgreSQL errors, active sessions. Optional JSON snapshot: set `FROG_OPS_METRICS_PATH` (interval `FROG_OPS_METRICS_INTERVAL_SECONDS`, default 15). Load probe: [`LOAD_REPORT.md`](LOAD_REPORT.md) / `./scripts/run-load-harness.sh`.
 
 ## First GM
 

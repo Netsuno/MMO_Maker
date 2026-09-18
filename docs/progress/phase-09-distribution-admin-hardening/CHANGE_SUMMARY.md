@@ -1,6 +1,6 @@
 # Phase 9 — CHANGE_SUMMARY
 
-**Status:** P9-0 + P9-1 + P9-2 + P9-3 + P9-4 landed on `cursor/phase9-distribution-admin-hardening`. P9-5 / P9-6 still TBD.
+**Status:** P9-0 + P9-1 + P9-2 + P9-3 + P9-4 + P9-5 landed on `cursor/phase9-distribution-admin-hardening`. P9-6 still TBD.
 
 ## P9-0 (bootstrap)
 
@@ -43,7 +43,11 @@
 
 ## P9-5 Load / observability
 
-TBD.
+- Harness: `tools/Frog.LoadHarness` + `scripts/run-load-harness.sh` (in-memory self-host or `--host/--port` attach).
+- Ops: `ServerOpsMetrics` counters + structured `ops_metrics` (EventId 5030), connection reject / chat-rate / movement-rate / login-rate / PG-error logs. Optional `FROG_OPS_METRICS_PATH` JSON snapshot. No HTTP `/metrics`.
+- Measured on this agent (4 cores, 15 GiB, SDK 8.0.424): **200 TCP Hello**, **100 authed mixed** in-memory; chat 8/10s and move 50/s caps visible; 1 MiB+1 frame dropped; PG `postgresErrors=0`. See [`LOAD_REPORT.md`](LOAD_REPORT.md).
+- Sanity this run: `Frog.Tests` **436 PASS**; PG integration **180 PASS**. Phase 8 SHA gates not touched.
+- Tests: `Frog.Tests/Phase9OpsMetricsTests.cs`, `tests/Frog.Persistence.IntegrationTests/PostgresLoadObservabilityTests.cs`.
 
 ## P9-6 Evidence
 
