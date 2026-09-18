@@ -111,7 +111,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | --- | --- | --- | --- |
 | Client TLS + validation cert/chaîne/nom | `SslStream.AuthenticateAsClient` + `TlsCertificateValidator` (pas AcceptAll) | `Phase10TlsTests` expiré / nom / CA inconnue | **lot A livré** |
 | Pas de callback tout-accepter, pas de repli clair | Mode Off\|Required ; pas de fallback silencieux | `Phase10TlsTests` + scan sources | **lot A livré** |
-| Terminaison TLS externe OK si client parle TLS | in-process SslStream seulement | | **absent** (lots B–E / proxy hors lot A) |
+| Terminaison TLS externe OK si client parle TLS | in-process SslStream ; harness P10-8 parle TLS Required | `Phase10LoadHarnessTlsTests` ; proxy externe **absent** | **lot E livré** (proxy hors périmètre) |
 | Certs dev confinés | tests éphémères temp ; aucun `.pfx`/`.pem` prod dans Git | `Phase10TlsTests.CommittedAppsettings_DefaultTlsModeIsOff_NoProductionCerts` | **lot A livré** |
 | Pas de secret Git / paquets / captures / logs | placeholders `NOT_A_PRODUCTION_SECRET` ; Local gitignoré | scan P10-9 | **incomplet** (jeton client en RAM) |
 | Jetons mémorisés protégés OS | `_storedAuthToken` champ UI | | **absent** |
@@ -174,7 +174,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Connexions PG budget 20 | pool non dumpé ; 4 authed PG | **incomplet** |
 | CPU &lt; 80 %, mémoire bornée | ~31 % process à 100 mixed in-memory (autre scénario) | **incomplet** |
 | 50/100 exploratoire | 100 mixed in-memory mesuré — **pas** une certif hébergée | **hors périmètre** tant que 25×60 échoue ; ne pas vendre |
-| Générateur décode réponses / états | harness compte Hello/select/chat/move | **incomplet** |
+| Générateur décode réponses / états | harness Hello/select/chat/move + **TLS Required** | `Phase10LoadHarnessTlsTests` ; [LOAD_HARNESS_TLS.md](LOAD_HARNESS_TLS.md) | **lot E livré** (économie/social 60 min = P10-8) |
 | Job CI ~90 min dédié | absent | **absent** |
 
 ---
@@ -208,7 +208,7 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 | --- | --- |
 | Social (groupes/guildes/amis/blocage) | **P10-1 livré** (stubs `Guild.cs` non composés) |
 | Trade P2P | **absent** |
-| TLS | **lot A livré** (SslStream in-process ; proxy/LoadHarness TLS absents) |
+| TLS | **lots A+E livrés** (SslStream in-process + LoadHarness Required ; proxy externe absent) |
 | PG runtime least-privilege | **lot D livré** (`frog_runtime` DML-only ; compose démo ≠ hébergé) |
 | Éditeur publish | **incomplet** (from-source oui ; paquet / playtest livré non) |
 | Paquets | **incomplet** (serveur Linux oui ; client/éditeur autonomes non) |

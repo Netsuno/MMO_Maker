@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# P9-5 TCP load harness wrapper.
-# Default: in-memory self-hosted Frog.Server (no PostgreSQL, no packaged layout).
-# Attach to a packaged/from-source listener with --host/--port.
+# P9-5 / P10-5 TCP load harness wrapper.
+# Default: in-memory self-hosted Frog.Server (no PostgreSQL, TLS Off).
+# P10-8 hosted: --tls-mode Required --tls-target-host --tls-ca-path (never AcceptAll).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,16 +15,21 @@ PORT=""
 JSON_OUT=""
 MAX_PARALLEL_AUTH=8
 CONFIGURATION="Release"
+TLS_MODE=""
+TLS_TARGET_HOST=""
+TLS_CA_PATH=""
+TLS_CERT_PATH=""
+TLS_KEY_PATH=""
 
 USAGE='Usage: run-load-harness.sh [options]
 
 Runs tools/Frog.LoadHarness against a startable TCP server.
 
-Default (in-memory self-host, no PostgreSQL):
+Default (in-memory self-host, no PostgreSQL, TLS Off):
   ./scripts/run-load-harness.sh --sessions 25 --scenario mixed
 
-Attach to a packaged or from-source server already listening:
-  ./scripts/run-load-harness.sh --host 127.0.0.1 --port 6000 --sessions 10 --scenario connect
+P10-8 attach with TLS Required (confined test CA or public CA — never AcceptAll):
+  ./scripts/run-load-harness.sh --host HOST --port 6000 --tls-mode Required --tls-target-host HOST --tls-ca-path /tmp/test-ca.pem --sessions 25
 
 Options:
   --scenario connect|chat|move|mixed
@@ -35,6 +40,11 @@ Options:
   --host ADDR --port N     attach (skips self-host)
   --json-out PATH          also written by the harness; default artifacts/load/load-report.json
   --max-parallel-auth N    cap concurrent register/login (PBKDF2 is CPU-heavy)
+  --tls-mode Off|Required
+  --tls-target-host NAME
+  --tls-ca-path PEM        confined test CA (CustomRootTrust)
+  --tls-cert-path PEM      self-host server cert when Required
+  --tls-key-path PEM
   --configuration Debug|Release
   -h|--help
 '
@@ -50,6 +60,11 @@ while [[ $# -gt 0 ]]; do
     --port) PORT="${2:-}"; shift 2 ;;
     --json-out) JSON_OUT="${2:-}"; shift 2 ;;
     --max-parallel-auth) MAX_PARALLEL_AUTH="${2:-}"; shift 2 ;;
+    --tls-mode) TLS_MODE="${2:-}"; shift 2 ;;
+    --tls-target-host) TLS_TARGET_HOST="${2:-}"; shift 2 ;;
+    --tls-ca-path) TLS_CA_PATH="${2:-}"; shift 2 ;;
+    --tls-cert-path) TLS_CERT_PATH="${2:-}"; shift 2 ;;
+    --tls-key-path) TLS_KEY_PATH="${2:-}"; shift 2 ;;
     --configuration) CONFIGURATION="${2:-}"; shift 2 ;;
     -h|--help) printf '%s' "$USAGE"; exit 0 ;;
     *) echo "error: unknown argument: $1" >&2; printf '%s' "$USAGE" >&2; exit 2 ;;
@@ -77,6 +92,12 @@ if [[ -n "$HOST" ]]; then
 else
   ARGS+=(--self-host)
 fi
+
+[[ -n "$TLS_MODE" ]] && ARGS+=(--tls-mode "$TLS_MODE")
+[[ -n "$TLS_TARGET_HOST" ]] && ARGS+=(--tls-target-host "$TLS_TARGET_HOST")
+[[ -n "$TLS_CA_PATH" ]] && ARGS+=(--tls-ca-path "$TLS_CA_PATH")
+[[ -n "$TLS_CERT_PATH" ]] && ARGS+=(--tls-cert-path "$TLS_CERT_PATH")
+[[ -n "$TLS_KEY_PATH" ]] && ARGS+=(--tls-key-path "$TLS_KEY_PATH")
 
 dotnet run --project "${ROOT}/tools/Frog.LoadHarness/Frog.LoadHarness.csproj" \
   -c "$CONFIGURATION" --no-launch-profile -- "${ARGS[@]}"

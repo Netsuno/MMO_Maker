@@ -20,6 +20,8 @@ public sealed class LoadHostInfo
     public string Mode { get; init; } = "";
     public string Address { get; init; } = "";
     public int Port { get; init; }
+    public string TlsMode { get; init; } = "Off";
+    public string? TlsTargetHost { get; init; }
 }
 
 public sealed class LoadMachineInfo

@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Frog.Core.Enums;
+using Frog.Core.Security;
 using Frog.Server.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -22,9 +23,9 @@ public sealed class LoadHarnessRunner
 
     public const string Usage =
         """
-        Frog.LoadHarness — P9-5 TCP load / observability probe.
+        Frog.LoadHarness — P9-5 / P10-5 TCP load / observability probe.
 
-        Default: spin up an in-memory Frog.Server on a free loopback port (no PostgreSQL).
+        Default: spin up an in-memory Frog.Server on a free loopback port (no PostgreSQL, TLS Off).
 
           dotnet run --project tools/Frog.LoadHarness -- --scenario mixed --sessions 25
           ./scripts/run-load-harness.sh --sessions 25 --scenario mixed
@@ -32,6 +33,10 @@ public sealed class LoadHarnessRunner
         Attach to an already-running server (packaged or from-source):
 
           dotnet run --project tools/Frog.LoadHarness -- --host 127.0.0.1 --port 6000 --sessions 10 --scenario connect
+
+        P10-8 hosted load (TLS Required, confined or public CA — never AcceptAll):
+
+          ./scripts/run-load-harness.sh --host HOST --port 6000 --tls-mode Required --tls-target-host HOST --tls-ca-path /path/to/test-ca.pem --sessions 25 --scenario mixed
 
         Options:
           --scenario connect|chat|move|mixed   (default mixed)
@@ -43,6 +48,10 @@ public sealed class LoadHarnessRunner
           --host ADDR --port N                 attach instead of self-host
           --json-out PATH                      write the JSON report
           --max-parallel-auth N                cap concurrent register/login (default 8)
+          --tls-mode Off|Required              (default Off; Required = SslStream + TargetHost)
+          --tls-target-host NAME               SNI / certificate name (required with Required)
+          --tls-ca-path PEM                    confined test CA (CustomRootTrust; not AcceptAll)
+          --tls-cert-path / --tls-key-path     self-host server PEM when Required
 
         mixed = connect + authenticate + chat burst + move burst + oversize reject + login rate-limit probe.
         """;
@@ -53,6 +62,7 @@ public sealed class LoadHarnessRunner
     {
         var started = DateTimeOffset.UtcNow;
         var cpuStart = Process.GetCurrentProcess().TotalProcessorTime;
+        options.ValidateTls();
         IHost? host = null;
         var address = options.Host ?? "127.0.0.1";
         var port = options.Port;
@@ -64,7 +74,7 @@ public sealed class LoadHarnessRunner
             {
                 port = GetFreePort();
                 address = "127.0.0.1";
-                host = InMemoryLoadHost.Create(port);
+                host = InMemoryLoadHost.Create(port, options.TlsCertificatePath, options.TlsPrivateKeyPath);
                 await host.StartAsync(cancellationToken).ConfigureAwait(false);
                 serverMetrics = host.Services.GetRequiredService<ServerOpsMetrics>();
                 await WaitForAcceptAsync(address, port, TimeSpan.FromSeconds(8), cancellationToken)
@@ -97,6 +107,10 @@ public sealed class LoadHarnessRunner
                     Mode = options.SelfHost ? "self-host-inmemory" : "attach",
                     Address = address,
                     Port = port,
+                    TlsMode = options.TlsMode.ToString(),
+                    TlsTargetHost = options.TlsMode == TlsTransportMode.Required
+                        ? options.ResolveTargetHost()
+                        : null,
                 },
                 Machine = new LoadMachineInfo
                 {
@@ -162,6 +176,7 @@ public sealed class LoadHarnessRunner
         var runId = Guid.NewGuid().ToString("N")[..8];
         var clients = new LoadTcpClient[options.Sessions];
         var gate = new SemaphoreSlim(options.MaxParallelAuth, options.MaxParallelAuth);
+        var tls = options.CreateClientTlsOptions();
 
         try
         {
@@ -171,7 +186,11 @@ public sealed class LoadHarnessRunner
                 clients[i] = tcp;
                 try
                 {
-                    await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(options.ConnectTimeoutMs))
+                    await tcp.ConnectAsync(
+                            address,
+                            port,
+                            TimeSpan.FromMilliseconds(options.ConnectTimeoutMs),
+                            tls)
                         .ConfigureAwait(false);
                     Interlocked.Increment(ref counters.TcpConnectOk);
                     var hello = await tcp.ReadFrameAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
@@ -254,13 +273,13 @@ public sealed class LoadHarnessRunner
 
             if (needOversize)
             {
-                await OversizeProbeAsync(address, port, options.ConnectTimeoutMs, counters)
+                await OversizeProbeAsync(address, port, options.ConnectTimeoutMs, counters, tls)
                     .ConfigureAwait(false);
             }
 
             if (needLoginRate)
             {
-                await LoginRateProbeAsync(address, port, options.ConnectTimeoutMs, counters)
+                await LoginRateProbeAsync(address, port, options.ConnectTimeoutMs, counters, tls)
                     .ConfigureAwait(false);
             }
         }
@@ -449,12 +468,13 @@ public sealed class LoadHarnessRunner
         string address,
         int port,
         int connectTimeoutMs,
-        LoadClientCounters counters)
+        LoadClientCounters counters,
+        ClientTlsOptions tls)
     {
         await using var tcp = new LoadTcpClient();
         try
         {
-            await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs))
+            await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs), tls)
                 .ConfigureAwait(false);
             _ = await tcp.ReadFrameAsync(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
             await tcp.SendRawLengthPrefixAsync(1024 * 1024 + 1).ConfigureAwait(false);
@@ -487,12 +507,13 @@ public sealed class LoadHarnessRunner
         string address,
         int port,
         int connectTimeoutMs,
-        LoadClientCounters counters)
+        LoadClientCounters counters,
+        ClientTlsOptions tls)
     {
         await using var tcp = new LoadTcpClient();
         try
         {
-            await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs))
+            await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs), tls)
                 .ConfigureAwait(false);
             _ = await tcp.ReadFrameAsync(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
             for (var i = 0; i < 9; i++)

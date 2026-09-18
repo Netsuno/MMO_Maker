@@ -12,10 +12,10 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 
 | Sujet | État réel | Lot |
 | --- | --- | --- |
-| **TLS** | Lot A : `SslStream` in-process (`Server:Tls:Mode=Off\|Required`, défaut Off). Bind public sans cert + Required = fail-fast. Proxy externe, mTLS, DPAPI : absents. | P10-5 A **livré** ; B–E ouverts |
+| **TLS** | Lots A+E : `SslStream` in-process + LoadHarness `Mode=Required` (pas AcceptAll). Proxy externe, mTLS, DPAPI : absents. | P10-5 A+E **livrés** |
 | **Packaging client/éditeur** | Scripts `publish-frog.ps1/.sh` produisent des layouts **framework-dependent** (`--self-contained false`). Lancement de `Frog.Client.exe` / `Frog.Editor.exe` depuis l’arbre publié **non prouvé**. Smokes Windows = `dotnet test` from-source. Serveur Linux **prouvé** (`PackagedServerPostgreSqlProcessTests`). | P10-6 |
 | **Paquet autonome sans SDK** | Le mandat bêta exige un runtime fourni ou déclaré. Aujourd’hui il faut le runtime .NET 8 sur la machine. | P10-6 |
-| **LOAD** | Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, TLS, monde publié. Pas de HTTP `/metrics`. | P10-8 |
+| **LOAD** | Harness TLS Required livré (P10-5 E). Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, monde publié. | P10-8 |
 | **Restore avec sanctions** | `PostgresBackupRestoreTests` : migrate + seed Phase 7 + compte + dump/restore + login. **Pas** de campagne dont le dump contient des lignes mute/ban. Guildes/amis/échanges n’existent pas encore. | P10-7 |
 | **Rate-limit login** | IP normalisée + username (8/60s) et IP (30/60s). Plus de clé IP:port. Voir [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
 | **Inscriptions ouvertes** | Défaut local `Registration:Mode=Open`. Bêta : `ProvisionedOnly` (TCP refusé). InviteOnly = jalon sans jetons. | P10-5 C **livré** (jalon invites) |
@@ -84,7 +84,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 ### Restore / load
 
 - Scripts `postgres-backup` / `restore` / `verify` + runbook Phase 9 : **présent**, campagne lignes métier incomplète.
-- `tools/Frog.LoadHarness` : Hello/chat/move/mixed in-memory ; ne décode pas l’économie, le social, le TLS, ni 60 minutes.
+- `tools/Frog.LoadHarness` : TLS Required + CA confinée (P10-5 E, [`LOAD_HARNESS_TLS.md`](LOAD_HARNESS_TLS.md)). Ne décode pas encore l’économie / le social ; palier 25×60 **non** exécuté.
 
 ### PostgreSQL rôles
 
