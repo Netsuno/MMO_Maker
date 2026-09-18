@@ -2180,12 +2180,15 @@ public sealed partial class PacketDispatcher(
         ReadOnlyMemory<byte> payload,
         CancellationToken cancellationToken)
     {
-        if (_postgreSql.Enabled)
+        if (WorldFlagsPatchPolicy.IsRejected(
+                _postgreSql.Enabled,
+                _playtest.Enabled,
+                _postgreSql.AllowInMemoryFallback))
         {
             await _packetSender.SendWorldFlagsPatchResultAsync(
                 clientSession,
                 false,
-                "WorldFlagsPatch desactive en production PostgreSQL (Phase 8).",
+                WorldFlagsPatchPolicy.RejectedMessage,
                 cancellationToken);
             return;
         }

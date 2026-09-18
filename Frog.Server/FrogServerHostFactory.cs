@@ -100,6 +100,10 @@ public static class FrogServerHostFactory
                     .AddOptions<ServerOptions>()
                     .Bind(ctx.Configuration.GetSection("Server"))
                     .Validate(o => o.Port is > 0 and <= 65535, "Port invalide")
+                    .Validate(o => System.Net.IPAddress.TryParse(o.BindAddress, out _), "BindAddress invalide")
+                    .Validate(
+                        o => o.IsLoopbackBind || o.AllowNonLoopbackBind,
+                        "Non-loopback bind requires Server:AllowNonLoopbackBind=true (clear-text TCP; see SECURITY_MODEL.md)")
                     .ValidateOnStart();
                 services
                     .AddOptions<PostgreSqlOptions>()
@@ -142,6 +146,21 @@ public static class FrogServerHostFactory
                 }
 
                 var usePostgreSql = !playtest.Enabled && pg.Enabled && !string.IsNullOrWhiteSpace(pg.ConnectionString);
+
+                var serverBind = ctx.Configuration.GetSection("Server").Get<ServerOptions>() ?? new ServerOptions();
+                var maria = ctx.Configuration.GetSection("MariaDb").Get<MariaDbOptions>() ?? new MariaDbOptions();
+                if (PlaceholderSecretPolicy.MustRejectPublicBind(
+                        playtest.Enabled,
+                        serverBind.IsLoopbackBind,
+                        pg.ConnectionString,
+                        maria.ConnectionString))
+                {
+                    throw new InvalidOperationException(
+                        "Refusing to start with a non-loopback bind and a known placeholder password "
+                        + "(committed appsettings / Compose / example values). "
+                        + "Copy appsettings.Local.json.example to the gitignored appsettings.Local.json "
+                        + "and set a real secret. See SECURITY_MODEL.md.");
+                }
 
                 services
                     .AddOptions<Phase7ContentOptions>()
@@ -197,6 +216,8 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IAccountRepository>(sp => sp.GetRequiredService<InMemoryAccountRepository>());
                     services.AddSingleton<IAuthSessionRepository>(sp =>
                         sp.GetRequiredService<InMemoryAuthSessionRepository>());
+                    services.AddSingleton<IOperatorDirectory>(sp =>
+                        new InMemoryOperatorDirectory(sp.GetRequiredService<IAccountRepository>()));
                     services.AddSingleton<ICharacterRepository, InMemoryCharacterRepository>();
                     services.AddSingleton<IInventoryRepository, InMemoryInventoryRepository>();
                     services.AddSingleton<IEquipmentRepository, InMemoryEquipmentRepository>();

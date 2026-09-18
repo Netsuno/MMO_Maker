@@ -1,6 +1,6 @@
 # Phase 9 — TEST_PLAN
 
-**Status:** stub (P9-0). No new tests in this bootstrap.
+**Status:** P9-2 tests added. P9-1 / P9-3…P9-6 still TBD.
 
 ## Baseline suites (already on main — do not weaken)
 
@@ -19,7 +19,7 @@ Baseline main CI: https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 
 | Task | Planned coverage | Status |
 | --- | --- | --- |
 | P9-1 | Mute / kick / ban unit + PG persist + TCP enforcement | TBD |
-| P9-2 | Unprivileged deny; WorldFlagsPatch still rejected in PG prod; secret file not committed | TBD |
+| P9-2 | Unprivileged deny (`IOperatorDirectory`); WorldFlagsPatch rejected in PG prod + production composition; committed secrets are placeholders; Local.json gitignored | **DONE** (unit + PG) |
 | P9-3 | Migrate empty → seed → dump → restore → health OK → login | TBD |
 | P9-4 | Published layout starts; client/editor still smoke on Windows | TBD |
 | P9-5 | Load harness against proposed thresholds in BASELINE_AUDIT | TBD |

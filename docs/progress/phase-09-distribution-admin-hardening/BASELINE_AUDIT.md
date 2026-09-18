@@ -72,7 +72,7 @@ These are **historical**. ADR-0003: do not revive them as FRoG parity.
 | No permission model | `AccessRightEnum.cs`, `Role.cs`, `Permission.cs` stubs; event commands have *session/character* authority only ([`COMMAND_CATALOG.md`](../phase-08-quests-events-advanced-creation/COMMAND_CATALOG.md)) | P9-2 |
 | `WorldFlagsPatchRequest` still on the wire | Rejected in PG production (`PacketDispatcher.HandleWorldFlagsPatchRequestAsync`) but opcode 34 remains | P9-2 |
 | Default bind `127.0.0.1:6000` | `Frog.Server/appsettings.json`, `ServerOptions` | P9-2 / P9-4 |
-| Placeholder DB passwords committed | `appsettings.json` `Password=changeme`; Compose `frog_dev_only` | P9-2 / P9-4 |
+| Placeholder DB passwords committed | `appsettings.json` now `NOT_A_PRODUCTION_SECRET` (P9-2); Compose still `frog_dev_only` | P9-2 gate: public bind + placeholder refused |
 | No TLS | Raw `TcpListener` (`Frog.Server/Network/ServerSocket.cs`) | P9-2 residual risk |
 | No backup/restore | No `pg_dump` script under `scripts/` | P9-3 |
 | No packaging | No publish profile, no installer, no server Docker image | P9-4 |

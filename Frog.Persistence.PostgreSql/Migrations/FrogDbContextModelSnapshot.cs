@@ -105,6 +105,40 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.ToTable("auth_sessions", "auth");
                 });
 
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Auth.OperatorEntity", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<DateTimeOffset>("GrantedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("granted_at_utc");
+
+                    b.Property<string>("GrantedBy")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("granted_by");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.HasKey("AccountId")
+                        .HasName("pk_operators");
+
+                    b.HasIndex("RevokedAtUtc")
+                        .HasDatabaseName("ix_operators_revoked_at_utc");
+
+                    b.ToTable("operators", "auth");
+                });
+
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.ClassEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2930,6 +2964,18 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_auth_sessions_auth_accounts_account_id");
+
+                    b.Navigation("Account");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Auth.OperatorEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Auth.AccountEntity", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_operators_accounts_account_id");
 
                     b.Navigation("Account");
                 });

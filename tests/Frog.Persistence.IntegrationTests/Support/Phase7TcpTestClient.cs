@@ -239,6 +239,16 @@ internal static class Phase7TcpPacketBuilder
     }
 
     public static byte[] BuildHeartbeat() => [(byte)PacketId.HeartbeatRequest];
+
+    public static byte[] BuildWorldFlagsPatch(string patchJsonObject)
+    {
+        var utf8 = Encoding.UTF8.GetBytes(patchJsonObject);
+        var payload = new byte[1 + sizeof(ushort) + utf8.Length];
+        payload[0] = (byte)PacketId.WorldFlagsPatchRequest;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(1), (ushort)utf8.Length);
+        utf8.CopyTo(payload.AsSpan(1 + sizeof(ushort)));
+        return payload;
+    }
 }
 
 internal sealed class Phase7TcpTestClient : IAsyncDisposable

@@ -63,6 +63,8 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<AuthSessionEntity> AuthSessions => Set<AuthSessionEntity>();
 
+    public DbSet<OperatorEntity> AuthOperators => Set<OperatorEntity>();
+
     public DbSet<CharacterEntity> PlayerCharacters => Set<CharacterEntity>();
 
     public DbSet<InventorySlotEntity> PlayerInventorySlots => Set<InventorySlotEntity>();
@@ -713,6 +715,20 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.CreatedAtUtc).IsRequired();
             e.Property(x => x.ExpiresAtUtc).IsRequired();
             e.Property(x => x.LastSeenAtUtc).IsRequired();
+        });
+
+        modelBuilder.Entity<OperatorEntity>(e =>
+        {
+            e.ToTable("operators", "auth");
+            e.HasKey(x => x.AccountId);
+            e.HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.GrantedBy).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(256);
+            e.Property(x => x.GrantedAtUtc).IsRequired();
+            e.HasIndex(x => x.RevokedAtUtc);
         });
 
         modelBuilder.Entity<CharacterEntity>(e =>
