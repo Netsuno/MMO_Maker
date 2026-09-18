@@ -1,6 +1,8 @@
 # Phase 9 — REVIEW_REQUEST
 
-**Status:** **NOT READY.** Prior READY on tip `5db5f6b` was **withdrawn** (Marc refused the gate despite green CI on `8bf6f08` / 35292542956). C1–C6 corrections are on product tip `422993b` with green CI 35369587406. C2 follow-up (ban vs pre-lock reconnect/login) is local-only until CI on the exact tip. C-fixes **awaiting re-review**. Orchestrator owns draft PR #7. This file does not announce a gate.
+> **Acceptation datée (2026-09-18).** Phase 9 **ACCEPTED**, PR #7 fusionnée (`f74b34c`). Ce fichier reste l’archive de la demande de re-revue C-fixes. Ne plus le lire comme « n’ouvrez pas Phase 10 » : Phase 10 P10-0 est le chantier actif.
+
+**Status (archive pré-acceptation) :** **NOT READY.** Prior READY on tip `5db5f6b` was **withdrawn** (Marc refused the gate despite green CI on `8bf6f08` / 35292542956). C1–C6 corrections are on product tip `422993b` with green CI 35369587406. C2 follow-up (ban vs pre-lock reconnect/login) is local-only until CI on the exact tip. C-fixes **awaiting re-review**. Orchestrator owns draft PR #7. This file does not announce a gate.
 
 ## Identity
 

@@ -1,23 +1,38 @@
 # STATUS
 
+Journal **actif** du dépôt. Les rapports de phase dans `docs/progress/phase-0N-*/` conservent leur texte d’époque ; un bandeau daté indique l’acceptation ultérieure.
+
 | Phase | Status |
 | --- | --- |
-| Phase 7 | ACCEPTED on main |
-| **Phase 8** | **ACCEPTED on main** (merge `1cd57ba`) |
-| **Phase 9** | **NOT READY** (C-fixes landed; CI green on `422993b`; **C2 follow-up in flight / awaiting CI**; C-fixes **awaiting re-review**). P9-S **DEFERRED**. Prior READY / gate on tip `5db5f6b` was **withdrawn**. |
+| Phase 7 | **ACCEPTED** on main |
+| Phase 8 | **ACCEPTED** on main (merge `1cd57ba`, PR #2) |
+| Phase 9 | **ACCEPTED** on main (merge `f74b34cca09dda819fe26747d48ee16d27007dfd`, PR #7) — 2026-09-18 |
+| **Phase 10** | **P10-0 only — NOT READY.** Branche `cursor/phase10-beta-release`. Pas de gate. |
 
-Branch: `cursor/phase9-distribution-admin-hardening` (from `main` tip `5af47b9cf6ba18a82dba5eee933fc1d0e6afa3eb`)
-Refused gate tip: `5db5f6bf30fee9599a55e42ef2c5ad41fca33dd7` — CI https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 SUCCESS on evidence pack `8bf6f08` (historical; READY was refused).
-Correction product tip: `422993b6f779df076b8061c85bca3523017081d5` (`422993b`).
-Correction CI: https://github.com/Netsuno/MMO_Maker/actions/runs/35369587406 **SUCCESS** on `422993b`.
-- `build-and-test` **SUCCESS** (job [105680123329](https://github.com/Netsuno/MMO_Maker/actions/runs/35369587406/job/105680123329)): Frog.Tests **445**; editor **87×3**; gameplay **6×3**; Phase 8 **24×3** + 12 exact-sha
-- `postgres-integration` **SUCCESS** (job [105680123069](https://github.com/Netsuno/MMO_Maker/actions/runs/35369587406/job/105680123069)): PG **181**; `layout-only smoke OK`
-C2 follow-up (ban vs reconnect/login after pre-lock validation; kick/ban↔packet and same-account reconnect serialization preserved): **in flight / awaiting CI** on this branch tip. Local Release: Frog.Tests **454** (was 451). Do **not** treat this as gated. Orchestrator owns re-review after CI on the exact tip.
-Predecessor FAILURE on `2cb842d`: https://github.com/Netsuno/MMO_Maker/actions/runs/35368492352 (`build-and-test` SUCCESS / `postgres-integration` FAILURE — fake `Host=db.example` at PG `Build()`). Fixed on `422993b`.
-Draft PR: https://github.com/Netsuno/MMO_Maker/pull/7
-Phase 8 acceptance: merge [`1cd57ba`](https://github.com/Netsuno/MMO_Maker/commit/1cd57bad694f530fa5699639f9e63008522507e0) (PR #2). README alignment: PR #6.
-Baseline CI **on main** at the branch start SHA: https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 SUCCESS.
+## Phase 10 (actif)
 
-Phase 9 folder: [`docs/progress/phase-09-distribution-admin-hardening/`](progress/phase-09-distribution-admin-hardening/). P9-S (guilds / groups / trades) is **DEFERRED**. `PRD_MMO_Maker_CSharp.md` v2.1 is cited but not present in the repository.
+- Mandat : [`progress/phase-10-beta-release/MANDATE.md`](progress/phase-10-beta-release/MANDATE.md)
+- Plan : [`progress/phase-10-beta-release/PHASE_PLAN.md`](progress/phase-10-beta-release/PHASE_PLAN.md)
+- Gel social : [`progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md`](progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md) (v11 **figé**, pas implémenté)
+- Base : `f74b34cca09dda819fe26747d48ee16d27007dfd`
+- Produit Phase 9 accepté : `cab57b94c20f86af2cc61738bdf3307ed9626ef4`
+- CI `main` post-merge : https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS**
+- CI produit Phase 9 : https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869 **SUCCESS** (Frog.Tests **454** / PG **181** / editor **87×3** / gameplay **6×3** / Phase 8 **24×3** + 12 exact-sha)
 
-Protocol remains `FrogWireProtocol.Version = 10`. Historical stubs outside Phase 8 are not claimed cleared. Residuals: no TLS / clear-text TCP; restore **with real sanction rows** not covered; LOAD_REPORT uncertified rows (idle 300 s, economy TPS, interact, restart-reconnect, PG pool, PG×100); packaged client/editor launch from `publish-frog.ps1` **not proven**. Do not merge; do not start Phase 10.
+P10-1…P10-9 : **pas commencés**. Social, trade P2P, TLS, paquets client/éditeur autonomes, restore sanctions, charge 25×60 : **absents ou incomplets** — [`progress/phase-10-beta-release/TASK_MATRIX.md`](progress/phase-10-beta-release/TASK_MATRIX.md).
+
+Protocole runtime : **v10**. Ne pas fusionner. Ne pas diffuser. Pas de Phase 11.
+
+## Phase 9 (historique daté — acceptée)
+
+Acceptation Marc 2026-09-18. Merge PR #7 `f74b34c`. Tip produit `cab57b9`.
+
+Le dossier [`progress/phase-09-distribution-admin-hardening/`](progress/phase-09-distribution-admin-hardening/) contient encore les rapports de re-revue (**NOT READY**, C-fixes, C2 follow-up) rédigés **avant** cette décision. Les lire comme archive, pas comme statut actif.
+
+Résidus **non certifiés** repris en Phase 10 : TLS clair ; lancement packaged client/éditeur ; LOAD idle/économie/interact/restart/pool/25×60 ; restore avec **lignes** mute/ban ; rate-limit IP:port ; P9-S social.
+
+P9-S reste la décision Phase 9 « différé » — le travail est désormais P10-1 / P10-2.
+
+## Phase 8 (historique)
+
+ACCEPTED, merge `1cd57ba`. README d’alignement : PR #6. Protocole v10 (`activationId`).

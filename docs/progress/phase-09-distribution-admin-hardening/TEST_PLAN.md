@@ -1,6 +1,8 @@
 # Phase 9 — TEST_PLAN
 
-**Status:** P9-6 **IN PROGRESS**. Phase 9 is **NOT READY**. Prior READY on `5db5f6b` / `8bf6f08` was withdrawn. C-fixes **awaiting re-review**. C2 follow-up (ban vs reconnect/login after pre-lock validation) is local-only until CI on the exact tip. Do not weaken Phase 8 suites or screenshot SHA gates.
+> **Acceptation datée (2026-09-18).** Phase 9 **ACCEPTED**. Le statut « P9-6 IN PROGRESS / NOT READY » ci-dessous est l’archive de re-revue. Les suites Phase 8 SHA restent obligatoires.
+
+**Status (archive pré-acceptation) :** P9-6 **IN PROGRESS**. Phase 9 is **NOT READY**. Prior READY on `5db5f6b` / `8bf6f08` was withdrawn. C-fixes **awaiting re-review**. C2 follow-up (ban vs reconnect/login after pre-lock validation) is local-only until CI on the exact tip. Do not weaken Phase 8 suites or screenshot SHA gates.
 
 ## Identity (do not invent)
 

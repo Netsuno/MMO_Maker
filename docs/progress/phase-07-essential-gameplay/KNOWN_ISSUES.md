@@ -10,4 +10,6 @@ Prior rejection items were addressed in code. Remaining limitations:
 
 ## Phase 8
 
-Not started.
+À la clôture de Phase 7 : not started.
+
+**Mise à jour (historique) :** Phase 8 **ACCEPTED** (`1cd57ba`). Phase 9 **ACCEPTED** 2026-09-18 (`f74b34c`). Phase 10 = P10-0.

@@ -1,6 +1,8 @@
 # Phase 9 — PHASE_REPORT
 
-**Status:** Phase 9 is **NOT READY**. Prior READY on tip `5db5f6b` / evidence pack `8bf6f08` was **withdrawn** (Marc refused the gate despite green CI). C1–C6 corrections are on product tip `422993b` with green CI; **awaiting re-review**. P9-S remains **DEFERRED**. Do not treat uncertified load rows or sanction-row restore as certified.
+> **Acceptation datée (2026-09-18).** Phase 9 **ACCEPTED** et fusionnée dans `main` : merge [`f74b34cca09dda819fe26747d48ee16d27007dfd`](https://github.com/Netsuno/MMO_Maker/commit/f74b34cca09dda819fe26747d48ee16d27007dfd) (PR [#7](https://github.com/Netsuno/MMO_Maker/pull/7)), tip produit [`cab57b94c20f86af2cc61738bdf3307ed9626ef4`](https://github.com/Netsuno/MMO_Maker/commit/cab57b94c20f86af2cc61738bdf3307ed9626ef4), CI produit [35384819869](https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869) SUCCESS, CI post-merge [35386572613](https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613) SUCCESS. Le corps ci-dessous est l’**archive de re-revue** (NOT READY / C-fixes) rédigée avant cette décision. Statut actif du dépôt : [`../../STATUS.md`](../../STATUS.md) et [`../phase-10-beta-release/STATUS.md`](../phase-10-beta-release/STATUS.md). Les résidus non certifiés (TLS, packaging client/éditeur, LOAD, restore sanctions, P9-S) sont repris en Phase 10.
+
+**Status (archive pré-acceptation) :** Phase 9 is **NOT READY**. Prior READY on tip `5db5f6b` / evidence pack `8bf6f08` was **withdrawn** (Marc refused the gate despite green CI). C1–C6 corrections are on product tip `422993b` with green CI; **awaiting re-review**. P9-S remains **DEFERRED**. Do not treat uncertified load rows or sanction-row restore as certified.
 
 | Tranche | Status |
 | --- | --- |
@@ -27,7 +29,7 @@
 | Prior green CI (historical) | https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 SUCCESS on `8bf6f08` (Frog.Tests **436** / PG **180**). READY was refused. |
 | Protocol | v10 (unchanged) |
 
-Do not merge. Do not start Phase 10.
+Do not merge. Do not start Phase 10. *(archive pré-acceptation — Phase 10 P10-0 a commencé après le 2026-09-18.)*
 
 ## TASK_MATRIX acceptance
 
@@ -55,6 +57,10 @@ None introduced by the C-fixes (product files outside kick teardown / secret pol
 - Operator grant remains out-of-band SQL (`auth.operators`).
 - `docs/DATA_MODEL.md` still maps/tilesets-era vs `FrogDbContext`.
 
-## Verdict
+## Verdict (archive pré-acceptation)
 
 **NOT READY** — C-fixes address the refused-gate items. CI 35369587406 is green on `422993b`. C2 follow-up (ban vs pre-lock reconnect/login) is local-only until CI on the exact tip. C-fixes **awaiting re-review**. Orchestrator re-gates after Marc. No user-facing gate phrase from this file.
+
+Do not merge. Do not start Phase 10.
+
+*(La phrase « Do not start Phase 10 » ci-dessus est historique. Phase 10 P10-0 a commencé après l’acceptation du 2026-09-18.)*

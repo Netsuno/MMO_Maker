@@ -31,4 +31,6 @@ Current head is R2 remediations + P1 Interact identity + **C1–C3** relative to
 
 ## Phase 9
 
-Not started.
+À la rédaction de ce rapport : not started.
+
+**Mise à jour 2026-09-18 :** Phase 9 **ACCEPTED** (PR #7 / `f74b34c`). Phase 10 ouverte en P10-0.
