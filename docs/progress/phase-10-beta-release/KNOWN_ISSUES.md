@@ -47,7 +47,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Numéro de version visible + copie diagnostics | Badge `v10.3.0` + « Copier diagnostics » expurgé | P10-3a **livré** |
 | Monde démo 3 cartes 30–60 min + licences | Catalogue + publisher PG + `LICENSES.md` | P10-4 **fixture livrée** ; durée humaine **non mesurée** |
 | Recette 12 étapes / 2 machines | Matrice automate vs 2 PCs dans `BETA_TEST_PLAN` ; campagne **non exécutée** | P10-4 |
-| Self-contained + manifeste SHA-256 d’archives | `publish-frog` + `SHA256SUMS` + layout-proof Linux | P10-6 **layout CI** ; lancement EXE = job Windows |
+| Self-contained + manifeste SHA-256 d’archives | `publish-frog` + `SHA256SUMS` + layout-proof Linux + `--smoke-launch` Windows [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) | P10-6 **CI** ; 2 PCs **non** |
 | Restore lignes sociales/trade/sanctions + serveur publié | `Phase10BackupRestoreRowsTests` | P10-7 **CI** ; chiffrement dumps **non** |
 | Mode maintenance / drain connexions | `MaintenanceService.cs` stub | P10-7 |
 | Rotation/rétention des logs | Console uniquement (`appsettings.json`) | P10-7 |
