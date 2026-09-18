@@ -9,6 +9,7 @@ using Frog.Server.Database;
 using Frog.Server.Gameplay;
 using Frog.Server.Network;
 using Frog.Server.Playtest;
+using Frog.Server.Observability;
 using Frog.Server.Persistence;
 using Frog.Server.Security;
 using Frog.Server.Services;
@@ -190,6 +191,7 @@ public static class FrogServerHostFactory
 
                 services.AddSingleton<LoginRateLimiter>();
                 services.AddSingleton<ChatRateLimiter>();
+                services.AddSingleton<ServerOpsMetrics>();
 
                 if (!playtest.Enabled && !usePostgreSql && !pg.AllowInMemoryFallback)
                 {
@@ -388,6 +390,7 @@ public static class FrogServerHostFactory
                 }
 
                 services.AddHostedService<GameServerService>();
+                services.AddHostedService<OpsMetricsSnapshotHostedService>();
                 services.AddHostedService<SessionCleanupService>();
                 services.AddHostedService<PlayerPersistenceService>();
                 services.AddHostedService<PublishedContentLiveRefreshHostedService>();

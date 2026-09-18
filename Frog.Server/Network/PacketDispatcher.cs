@@ -22,6 +22,7 @@ using Frog.Server.Persistence;
 using Frog.Server.Security;
 using Frog.Server.Services;
 using Frog.Server.Config;
+using Frog.Server.Observability;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -55,6 +56,7 @@ public sealed partial class PacketDispatcher(
     Phase8GameplayHandlers phase8Handlers,
     IAccountSanctionStore accountSanctions,
     ModerationService moderationService,
+    ServerOpsMetrics opsMetrics,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -84,6 +86,7 @@ public sealed partial class PacketDispatcher(
     private readonly Phase8GameplayHandlers _phase8 = phase8Handlers;
     private readonly IAccountSanctionStore _accountSanctions = accountSanctions;
     private readonly ModerationService _moderation = moderationService;
+    private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     public async Task DispatchAsync(ClientSession clientSession, byte[] framePayload, CancellationToken cancellationToken)
@@ -279,7 +282,7 @@ public sealed partial class PacketDispatcher(
             cancellationToken).ConfigureAwait(false);
         if (!authResult.Success || authResult.Account is null)
         {
-            ServerNetworkLogs.LoginFailed(_logger, "invalid_credentials");
+            ServerNetworkLogs.LoginFailed(_logger, authResult.RateLimited ? "rate_limited" : "invalid_credentials");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
             return;
         }
@@ -877,6 +880,7 @@ public sealed partial class PacketDispatcher(
 
         if (!session.MovementPacketRateGate.TryConsume(DateTime.UtcNow))
         {
+            _opsMetrics.RecordRateLimitHit("movement");
             ServerNetworkLogs.MovementRateLimited(_logger, session.Username);
             await _packetSender.SendErrorAsync(clientSession, "Trop de mouvements.", cancellationToken);
             return;
@@ -948,6 +952,7 @@ public sealed partial class PacketDispatcher(
 
         if (!session.MovementPacketRateGate.TryConsume(DateTime.UtcNow))
         {
+            _opsMetrics.RecordRateLimitHit("movement");
             ServerNetworkLogs.MovementRateLimited(_logger, session.Username);
             await _packetSender.SendErrorAsync(clientSession, "Trop de mouvements.", cancellationToken);
             return;
@@ -1482,6 +1487,8 @@ public sealed partial class PacketDispatcher(
 
         if (!_chatRateLimiter.TryAllow(session.Id))
         {
+            _opsMetrics.RecordRateLimitHit("chat");
+            ServerNetworkLogs.ChatRateLimited(_logger, session.Username);
             await _packetSender.SendErrorAsync(clientSession, "Trop de messages.", cancellationToken);
             return;
         }

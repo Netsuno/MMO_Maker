@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Frog.Server.Config;
 using Frog.Server.Logging;
 using Frog.Server.Network;
+using Frog.Server.Observability;
 using Frog.Server.Persistence;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,7 +28,8 @@ public sealed class GameServerService(
     ClientRegistry clientRegistry,
     PlayerLifecycleNotifier playerLifecycleNotifier,
     IPlayerStateStore playerStateStore,
-    Phase8GameplayHandlers phase8Handlers)
+    Phase8GameplayHandlers phase8Handlers,
+    ServerOpsMetrics opsMetrics)
         : BackgroundService
     {
         private readonly ILogger<GameServerService> _log = log;
@@ -39,6 +41,7 @@ public sealed class GameServerService(
         private readonly PlayerLifecycleNotifier _playerLifecycleNotifier = playerLifecycleNotifier;
         private readonly IPlayerStateStore _playerStateStore = playerStateStore;
         private readonly Phase8GameplayHandlers _phase8Handlers = phase8Handlers;
+        private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
         private readonly object _clientTasksLock = new();
         private readonly List<Task> _clientTasks = new();
         private int _acceptingClients = 1;
@@ -74,6 +77,7 @@ public sealed class GameServerService(
                     }
 
                     var handlerTask = HandleClientAsync(new ClientSession(client), stoppingToken);
+                    _opsMetrics.RecordConnectionAccepted();
                     lock (_clientTasksLock)
                     {
                         _clientTasks.Add(handlerTask);
@@ -164,6 +168,15 @@ public sealed class GameServerService(
                             catch (Exception ex) when (ex is not OperationCanceledException)
                             {
                                 // Keep the TCP alive: a fan-out failure must not drop the sender.
+                                if (_opsMetrics.RecordIfPostgresError(ex))
+                                {
+                                    ServerNetworkLogs.PostgresError(
+                                        _log,
+                                        ex,
+                                        clientSession.ConnectionId,
+                                        clientSession.RemoteEndPoint);
+                                }
+
                                 _log.LogError(
                                     ex,
                                     "Dispatch failed connection={ConnectionId} remote={Remote}",
@@ -185,6 +198,16 @@ public sealed class GameServerService(
 
                         if (!hasFrame)
                         {
+                            if (clientSession.LastFrameRejectReason is { } rejectReason)
+                            {
+                                _opsMetrics.RecordConnectionRejected(rejectReason);
+                                ServerNetworkLogs.ConnectionRejected(
+                                    _log,
+                                    clientSession.ConnectionId,
+                                    clientSession.RemoteEndPoint,
+                                    rejectReason);
+                            }
+
                             break;
                         }
                     }

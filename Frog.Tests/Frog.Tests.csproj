@@ -28,6 +28,7 @@
         <ProjectReference Include="..\Frog.Server\Frog.Server.csproj" />
         <ProjectReference Include="..\Frog.Legacy\Frog.Legacy.csproj" />
         <ProjectReference Include="..\tests\Frog.PlaytestHeadlessClient\Frog.PlaytestHeadlessClient.csproj" />
+        <ProjectReference Include="..\tools\Frog.LoadHarness\Frog.LoadHarness.csproj" />
     </ItemGroup>
 
 </Project>
