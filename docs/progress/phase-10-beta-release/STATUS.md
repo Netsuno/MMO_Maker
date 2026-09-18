@@ -24,7 +24,7 @@
 | P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a livré ; playtest résout layouts `../client-win-x64` / `../server-win-x64` ; recette humaine paquet **non** |
 | P10-4 Monde démo + recette | **INCOMPLET** — fixture 3 cartes **livrée** ; 12 étapes : CI/loopback vs **2 machines** nommé dans `BETA_TEST_PLAN` ; campagne 30–60 min **non exécutée** |
 | P10-5 Sécurité externe (TLS, invitations, NAT) | **PASS sécu** A–E (TLS Windows unitaires verts). Palier 25×60 = P10-8 |
-| P10-6 Paquets autonomes | **INCOMPLET** — layout+SHA-256 **CI Linux** ; lancement EXE `--smoke-launch` **job Windows** (pas Linux/wine) |
+| P10-6 Paquets autonomes | **INCOMPLET** — layout+SHA Linux **et** `--smoke-launch` Windows **CI 35403209506 SUCCESS** ; wine Linux ≠ pass ; 2 PCs **non** |
 | P10-7 Exploitation / restore | **INCOMPLET** — dump/restore **lignes** sanctions/guildes/amis/trades + serveur publié **CI** ; chiffrement/rétention/durée 30 min **non** |
 | P10-8 Charge 25 joueurs | **INCOMPLET** |
 | P10-9 Validation / candidate | **ABSENT** |
@@ -96,7 +96,7 @@
 - Présence `Frog.Client.exe` / `Frog.Editor.exe` + `hostfxr.dll` + `packaging-manifest.json` + docs démo.
 - SHA-256 des zip = `archives/SHA256SUMS` ; SHA-256 des EXE journalisé.
 
-**PROUVÉ (Windows CI, `packaged-winforms-smoke.ps1`) — une fois le job `windows-latest` vert :**
+**PROUVÉ (Windows CI, `packaged-winforms-smoke.ps1`) — [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) SUCCESS :**
 
 - Extraction hors dépôt (`%TEMP%\frog-p10-6-outside-*`).
 - `Frog.Client.exe --smoke-launch` et `Frog.Editor.exe --smoke-launch` exit 0, **PATH sans SDK**.

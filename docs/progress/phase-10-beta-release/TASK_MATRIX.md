@@ -132,7 +132,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Actuel | Preuve | Statut |
 | --- | --- | --- | --- |
-| Client Win x64 autonome | layout `client-win-x64` **self-contained** | Linux : EXE+SHA hors dépôt (`packaged-winforms-layout-proof.sh`) ; lancement **not proven on Linux agents** ; Windows : `--smoke-launch` (`packaged-winforms-smoke.ps1`) | **incomplet** (layout+SHA **oui** ; lancement = job Windows, pas Linux) |
+| Client Win x64 autonome | layout `client-win-x64` **self-contained** | Linux : EXE+SHA hors dépôt (`packaged-winforms-layout-proof.sh`) ; lancement **not proven on Linux agents** ; Windows CI `--smoke-launch` [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) SUCCESS | **incomplet** (layout+lancement CI **oui** ; 2 PCs / jeu réel **non**) |
 | Éditeur Win x64 autonome | idem `editor-win-x64` | idem | **incomplet** |
 | Serveur Linux x64 + profil | `server-linux-x64` self-contained + `libhostfxr.so` | `PackagedServerPostgreSqlProcessTests` + layout smoke | **présent** |
 | Monde démo + ressources dans le paquet | `DEMO_WORLD.md` + `demo-world/LICENSES.md` copiés | | **présent** (fixture docs ; pas un zip de cartes binaires) |
@@ -211,6 +211,6 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 | TLS | **lots A+E PASS** (SslStream in-process + LoadHarness Required ; proxy externe absent) |
 | PG runtime least-privilege | **lot D livré** (`frog_runtime` DML-only ; compose démo ≠ hébergé) |
 | Éditeur publish | **incomplet** (from-source oui ; chemins paquet **oui** ; recette humaine non) |
-| Paquets | **incomplet** (layout+SHA Linux **oui** ; lancement EXE = job Windows `--smoke-launch`, pas Linux) |
+| Paquets | **incomplet** (layout Linux + `--smoke-launch` Windows **CI 35403209506** ; 2 PCs / jeu réel **non**) |
 | Restore | **présent CI** (sanctions/social/trade + serveur publié) ; chiffrement/rétention **non** |
 | Load 25×60 | **absent** (mesures courtes in-memory seulement) |
