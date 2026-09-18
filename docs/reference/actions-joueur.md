@@ -55,6 +55,6 @@ Fiches pour les opérations gameplay déjà sur le fil (Phases 7–8) ou à veni
 
 ## À remplir (au fil des lots)
 
-- Groupes / guildes / amis / blocage — P10-1
-- Trade P2P — P10-2
+- Groupes / guildes / amis / blocage — P10-1 **livré** (`dca2185`)
+- Trade P2P — P10-2 **livré** (`TradeForm`, `/trade invite`, confirmation visible)
 - Aide / rebind / version UI — P10-3a livré (`HelpForm`, `OptionsForm`, badge 10.3.0)

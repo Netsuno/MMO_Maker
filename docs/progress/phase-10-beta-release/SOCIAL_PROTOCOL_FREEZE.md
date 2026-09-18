@@ -2,7 +2,7 @@
 
 **Statut :** figé en P10-0. Toute implémentation P10-1 / P10-2 doit respecter ce fichier. Un écart = mise à jour **explicite** de ce gel + justification, pas un opcode improvisé.
 
-**Protocole actuel sur `main` :** `FrogWireProtocol.Version = 10`. **Cette branche P10-1 :** `Version = 11`, opcodes 80–83 + canaux Party/Guild implémentés. Trade 84–86 toujours réservé P10-2.
+**Protocole actuel sur `main` :** `FrogWireProtocol.Version = 10`. **Cette branche :** `Version = 11`. P10-1 (**DONE** tip `dca2185`) : opcodes 80–83 + canaux Party/Guild. P10-2 : opcodes 84–86 (`TradeRequest` / `TradeResult` / `TradeSnapshot`) implémentés.
 
 **Décision incompatible :** passer à **`FrogWireProtocol.Version = 11`** dès le premier commit produit qui ajoute un canal Party/Guild ou un opcode 80–86.
 
@@ -54,7 +54,7 @@ Les payloads réseau portent des Guid. Les noms ne servent qu’à l’affichage
 
 `PacketId` 1–79 et 255 restent. Pas de réutilisation d’opcode.
 
-Fichiers d’intégration prévus (pas encore créés) : `Frog.Server/Network/PacketDispatcher.Social.cs`, `PacketDispatcher.Trade.cs`, codecs `Frog.Core/Protocol/SocialWire.cs`, `TradeWire.cs`.
+Fichiers d’intégration : `Frog.Server/Network/PacketDispatcher.Social.cs` (P10-1), `PacketDispatcher.Trade.cs` (P10-2), codecs `Frog.Core/Protocol/SocialWire.cs`, `TradeWire.cs`.
 
 ### 3.1 `SocialKind`
 

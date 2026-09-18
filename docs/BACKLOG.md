@@ -67,7 +67,7 @@ Mandat : [`progress/phase-10-beta-release/MANDATE.md`](progress/phase-10-beta-re
 
 - [x] P10-0 audit + plan + gel protocole
 - [x] P10-1 groupes / guildes / amis / blocage (code + tests ; **pas** gate bêta)
-- [ ] P10-2 échanges directs
+- [x] P10-2 échanges directs (opcodes 84–86, TX PG, replay ; **pas** gate bêta)
 - [ ] P10-3 client / éditeur utilisables hors dépôt
 - [ ] P10-4 monde démo + recette 12 étapes
 - [ ] P10-5 TLS, invitations, rate-limit IP+compte, outil opérateur

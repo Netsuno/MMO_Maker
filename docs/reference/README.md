@@ -34,12 +34,12 @@ Wiki miroir : [Référence](https://github.com/Netsuno/MMO_Maker/wiki/R%C3%A9f%C
 | Personnages | Joueur | liste / choix / création | perso actif | Disponible |
 | Déplacement | Joueur | sync position | PositionUpdate | Disponible |
 | Interaction tuile | Joueur | activationId | effets événement | Disponible |
-| Chat | Joueur | canal 0–2 + texte | message | Disponible (Party/Guild = Non livré) |
+| Chat | Joueur | canal 0–4 + texte | message | Disponible (Party/Guild P10-1) |
 | Banque / boutique | Joueur | dépôt/retrait/achat | inventaire/or | Disponible |
 | Quête / craft / dialogue | Joueur | requestId / choix | journal / loot | Disponible |
 | Modération | Ops | cible + action | mute/kick/ban | Disponible |
-| Social 80–83 | Joueur | kind/action | snapshot/event | Non livré (P10-1) |
-| Trade 84–86 | Joueur | trade_id | snapshot offre | Non livré (P10-2) |
+| Social 80–83 | Joueur | kind/action | snapshot/event | Livré P10-1 (`dca2185`) |
+| Trade 84–86 | Joueur | trade_id + revision | snapshot offre | Livré P10-2 |
 | Publish éditeur | Auteur | contenu + overlay local | monde publié | Partiel (paquet non prouvé) |
 | publish-frog | Ops | --target | arbres publish | Scripts oui |
 

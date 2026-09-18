@@ -1,6 +1,6 @@
 # Phase 10 — STATUS
 
-**Lot courant :** P10-3a (settings / aide / rebind) après P10-5 A–E. **Pas READY.**
+**Lot courant :** P10-2 échanges (opcodes 84–86) après P10-1 `dca2185`. **Pas READY.**
 
 | Item | Valeur |
 | --- | --- |
@@ -9,16 +9,17 @@
 | Produit Phase 9 accepté | `cab57b94c20f86af2cc61738bdf3307ed9626ef4` |
 | CI `main` post-fusion | https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS** |
 | Mandat | [`MANDATE.md`](MANDATE.md) (texte complet, 2026-09-18) |
-| Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–83 |
-| Gate Phase 10 | **pas atteinte** — P10-2…P10-4, P10-6…P10-9 absents |
+| Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–86 |
+| P10-1 tip produit | [`dca2185`](https://github.com/Netsuno/MMO_Maker/commit/dca2185dbb80b0414af8f95696a4e0e858e6ff90) — **DONE** (code + tests). CI de la PR **en cours**, pas une preuve verte. |
+| Gate Phase 10 | **pas atteinte** — P10-4, P10-6…P10-9 absents ; P10-3 hors 3a incomplet |
 
 ## Lots
 
 | Lot | Statut |
 | --- | --- |
 | P10-0 Audit + plan | **FAIT** |
-| P10-1 Groupes / guildes / relations | **LIVRÉ (code + tests)** — pas une gate |
-| P10-2 Échanges directs | **ABSENT** |
+| P10-1 Groupes / guildes / relations | **DONE** tip `dca2185` — CI PR en cours ; pas une gate |
+| P10-2 Échanges directs | **LIVRÉ (code + tests)** — opcodes 84–86, TX PG, replay |
 | P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a (aide, rebind, settings, version, craft noms) **livré** |
 | P10-4 Monde démo + recette | **ABSENT** |
 | P10-5 Sécurité externe (TLS, invitations, NAT) | **INCOMPLET** — lots A–E **LIVRÉS** ( palier 25×60 = P10-8 ) |
@@ -71,6 +72,17 @@
 - Tests : `Phase10TlsTests` (expiré, mauvais nom, CA inconnue, pas de fallback, fail-fast host). `Phase9SecurityGateTests` inchangé.
 - Certificats de test éphémères uniquement — aucun cert prod dans Git.
 
+## P10-2 — ce qui est livré
+
+- Opcodes **84–86** (`TradeRequest` / `TradeResult` / `TradeSnapshot`) ; `WorldMetrics.TradeRangePixels = 96` (3 tuiles).
+- `TradeService` : invite consentie 60 s, idle 120 s, max 8 piles + or / côté, révision qui invalide les confirms.
+- Réservation à `SetOffer` (`TradeHoldRegistry`) vs boutique / banque / sol / équipement / craft.
+- Commit : **une** transaction PostgreSQL (`player.trade_executions` + `economy_request_ids` opération `trade.commit`) ; verrou des deux personnages `FOR UPDATE` (ordre Guid).
+- Replay `request_id` du commit sans re-transfert. Annulation / déco / ban / carte / expire avant commit = aucun effet économique.
+- Crash injecté (`TestBeforeCommitAsync`) → rollback, biens inchangés, retry possible.
+- UI : `TradeForm` (noms, or, piles, révision, confirms visibles) + `/trade` ; snapshot = seule source d’affichage.
+- Tests : `Phase10TradeWireTests`, `Phase10TradeLogicTests`, `Phase10TradeTcpTests`, `Phase10TradePostgresTests`, smoke `Phase10TradePanelSmokeTests`.
+
 ## P10-1 — ce qui est livré
 
 - Groupes temporaires (invite 60 s, max 5, chef, chat Party, quit/kick/transfer/dissolve, dissolution au redémarrage processus).
@@ -82,8 +94,8 @@
 
 ## Interdits (toujours)
 
-Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. P10-2 trade non commencé (opcodes 84–86 réservés). PacketDispatcher social **non modifié** par P10-5 A–E (B : call sites login/register/reconnect seulement).
+Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. PacketDispatcher social **non modifié** par P10-5 A–E (B : call sites login/register/reconnect seulement). P10-2 ajoute `PacketDispatcher.Trade.cs` sans réécrire le social.
 
 ## Verdict
 
-**P10-1 + P10-5 A–E + P10-3a.** La bêta n’est **pas** prête.
+**P10-1 DONE `dca2185` (CI PR en cours) + P10-2 + P10-5 A–E + P10-3a.** La bêta n’est **pas** prête.

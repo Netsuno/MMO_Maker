@@ -1,4 +1,4 @@
-# Phase 10 — Matrice des exigences (P10-1)
+# Phase 10 — Matrice des exigences
 
 Statuts : **présent** (livré et prouvé sur `cursor/phase10-beta-release`) · **incomplet** (code ou preuve partielle) · **absent** · **hors périmètre**.
 
@@ -51,16 +51,16 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Code attendu | Test / preuve | Statut |
 | --- | --- | --- | --- |
-| Invite consentie, distance 3 tuiles, vivants, même carte | `TradeWire` + `WorldMetrics.TradeRangePixels=96` | TCP + PG | **absent** |
-| Offre / révision / confirm invalidé | `TradeSnapshot.revision` | changement d’offre | **absent** |
-| Vérifs serveur au commit | propriété, qty, or, cap inventaire | cas négatifs | **absent** |
-| Pas de double dépense vs shop/banque/sol/équip/craft | réservation | concurrence | **absent** |
-| Une transaction PG + ledger | `player.trade_executions` + `EconomyRequestId` | crash injecté, rollback | **absent** |
-| Replay `request_id` après commit | même table économie | reconnect replay | **absent** |
-| Annulation/déco/ban/carte/expire sans effet | `SessionTeardown` | C2-like | **absent** |
-| Après commit : biens transférés même si ACK perdu | serveur commit-first | drop réponse | **absent** |
-| UI confirmation visible | panneau client | smoke Windows | **absent** |
-| Journal admin sans secret | table + ops query | scan logs | **absent** |
+| Invite consentie, distance 3 tuiles, vivants, même carte | `TradeWire` + `WorldMetrics.TradeRangePixels=96` | TCP + PG | **présent** (ce lot) |
+| Offre / révision / confirm invalidé | `TradeSnapshot.revision` | changement d’offre | **présent** (ce lot) |
+| Vérifs serveur au commit | propriété, qty, or, cap inventaire | cas négatifs | **présent** (ce lot) |
+| Pas de double dépense vs shop/banque/sol/équip/craft | `TradeHoldRegistry` à `SetOffer` | concurrence TCP sell réservé | **présent** (ce lot) |
+| Une transaction PG + ledger | `player.trade_executions` + `EconomyRequestId` `trade.commit` | crash injecté, rollback | **présent** (ce lot) |
+| Replay `request_id` après commit | même table économie | reconnect / même `request_id` | **présent** (ce lot) |
+| Annulation/déco/ban/carte/expire sans effet | `SessionTeardown` + `ITradePresenceSink` | TCP disconnect | **présent** (ce lot) |
+| Après commit : biens transférés même si ACK perdu | serveur commit-first | replay commit | **présent** (ce lot) |
+| UI confirmation visible | `TradeForm` | `Phase10TradePanelSmokeTests` | **présent** (ce lot) |
+| Journal admin sans secret | `trade_executions.contents_json` | scan tests (pas `password`) | **présent** (ce lot) |
 | Boutique NPC / banque | `ShopBuy*` `Bank*` Phase 7 | suites existantes | **présent** (≠ P2P) |
 
 ---
@@ -123,7 +123,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Inscriptions invitation / provisionnées | `Registration:Mode` ; bêta `ProvisionedOnly` ; TCP Register refusé | `Phase10ClosedBetaTests` ; [CLOSED_BETA.md](CLOSED_BETA.md) | **lot C livré** (InviteOnly = jalon, pas de jetons) |
 | Invitation ≠ rôle GM | create OpsCli n’écrit pas `auth.operators` | `Phase10ClosedBetaTests` + `Phase9SecurityGateTests` | **lot C livré** |
 | Outil opérateur comptes / reset / revoke / GM / sanctions | `tools/Frog.OpsCli` + `UpdatePasswordAsync` | `Phase10ClosedBetaTests` | **lot C livré** |
-| Autorisation nouvelles ops + limites tailles | C2/C2b + rate chat/move | suites Phase 9 | **incomplet** (social/trade pas là) |
+| Autorisation nouvelles ops + limites tailles | C2/C2b + rate chat/move + `CrossInviteCounters` social/trade | suites Phase 9 + P10-1/P10-2 | **incomplet** (restore social/trade non recertifié) |
 | Suites C2/C2b conservées | `Phase9SessionRaceTests`, teardown | CI 454 | **présent** |
 
 ---
@@ -153,9 +153,9 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Maintenance / stop new conns | `MaintenanceService.cs` TODO | | **absent** |
 | Logs rotation / rétention / santé | console + `ops_metrics` fichier optionnel | | **incomplet** |
 | Backup schémas+ressources, chiffrement, 7 versions, hors exec dir | scripts `pg_dump -Fc` + runbook ; pas de rétention auto ni chiffrement | `PostgresBackupRestoreTests` | **incomplet** |
-| Restore lignes : comptes, persos, inventaires, or, banque, quêtes, métiers, monde, ops, mute/ban, **guildes, amis, échanges** | seed Phase 7 + compte ; pas sanctions peuplées ; social absent | | **incomplet** |
+| Restore lignes : comptes, persos, inventaires, or, banque, quêtes, métiers, monde, ops, mute/ban, **guildes, amis, échanges** | seed Phase 7 + compte ; pas sanctions peuplées ; social/trade dans le schéma | | **incomplet** |
 | Serveur publié sur base restaurée | host de test after restore + login | | **incomplet** (login seulement) |
-| Replay échange validé après restore | — | | **absent** |
+| Replay échange validé après restore | `economy_request_ids` `trade.commit` en runtime ; **pas** de campagne restore | | **absent** |
 | Crash pendant mutations | — | | **absent** |
 | Volume/durée restore ≤ 30 min démo | non mesuré | | **absent** |
 
@@ -206,8 +206,8 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 
 | Domaine | Statut |
 | --- | --- |
-| Social (groupes/guildes/amis/blocage) | **P10-1 livré** (stubs `Guild.cs` non composés) |
-| Trade P2P | **absent** |
+| Social (groupes/guildes/amis/blocage) | **P10-1 DONE `dca2185`** (stubs `Guild.cs` non composés ; CI PR en cours) |
+| Trade P2P | **P10-2 livré** (84–86, TX PG, replay, holds) |
 | TLS | **lots A+E livrés** (SslStream in-process + LoadHarness Required ; proxy externe absent) |
 | PG runtime least-privilege | **lot D livré** (`frog_runtime` DML-only ; compose démo ≠ hébergé) |
 | Éditeur publish | **incomplet** (from-source oui ; paquet / playtest livré non) |

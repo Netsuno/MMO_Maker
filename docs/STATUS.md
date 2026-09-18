@@ -7,19 +7,19 @@ Journal **actif** du dépôt. Les rapports de phase dans `docs/progress/phase-0N
 | Phase 7 | **ACCEPTED** on main |
 | Phase 8 | **ACCEPTED** on main (merge `1cd57ba`, PR #2) |
 | Phase 9 | **ACCEPTED** on main (merge `f74b34cca09dda819fe26747d48ee16d27007dfd`, PR #7) — 2026-09-18 |
-| Phase 10 | **P10-1 livré — NOT READY.** Branche `cursor/phase10-beta-release`. Pas de gate. |
+| Phase 10 | **P10-1 DONE `dca2185` + P10-2 livré — NOT READY.** Branche `cursor/phase10-beta-release`. CI PR en cours. Pas de gate. |
 
 ## Phase 10 (actif)
 
 - Mandat : [`progress/phase-10-beta-release/MANDATE.md`](progress/phase-10-beta-release/MANDATE.md)
 - Plan : [`progress/phase-10-beta-release/PHASE_PLAN.md`](progress/phase-10-beta-release/PHASE_PLAN.md)
-- Gel social : [`progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md`](progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md) (**v11 implémenté** P10-1, opcodes 80–83 ; trade 84–86 = P10-2)
+- Gel social : [`progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md`](progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md) (**v11** P10-1 opcodes 80–83 tip `dca2185` ; P10-2 opcodes 84–86)
 - Base : `f74b34cca09dda819fe26747d48ee16d27007dfd`
 - Produit Phase 9 accepté : `cab57b94c20f86af2cc61738bdf3307ed9626ef4`
 - CI `main` post-merge : https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS**
 - CI produit Phase 9 : https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869 **SUCCESS** (Frog.Tests **454** / PG **181** / editor **87×3** / gameplay **6×3** / Phase 8 **24×3** + 12 exact-sha)
 
-P10-1 : **livré** (groupes mémoire, guildes/amis/blocs PG). P10-2…P10-9 : **pas commencés**. Trade P2P, TLS, paquets client/éditeur autonomes, restore sanctions+social recertifié, charge 25×60 : **absents ou incomplets**.
+P10-1 : **DONE** tip `dca2185` (groupes mémoire, guildes/amis/blocs PG) — CI de la PR **en cours**, pas READY. P10-2 : **livré** (échanges 84–86, TX PG, replay). P10-5 A–E et P10-3a déjà sur la branche. P10-4 / P10-6…P10-9 : **absents ou incomplets**. Pas de merge.
 
 Protocole runtime (cette branche) : **v11**. Ne pas fusionner. Ne pas diffuser. Pas de Phase 11. **Pas READY.**
 

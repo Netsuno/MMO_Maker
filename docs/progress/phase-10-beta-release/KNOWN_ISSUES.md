@@ -16,11 +16,11 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | **Packaging client/éditeur** | Scripts `publish-frog.ps1/.sh` produisent des layouts **framework-dependent** (`--self-contained false`). Lancement de `Frog.Client.exe` / `Frog.Editor.exe` depuis l’arbre publié **non prouvé**. Smokes Windows = `dotnet test` from-source. Serveur Linux **prouvé** (`PackagedServerPostgreSqlProcessTests`). | P10-6 |
 | **Paquet autonome sans SDK** | Le mandat bêta exige un runtime fourni ou déclaré. Aujourd’hui il faut le runtime .NET 8 sur la machine. | P10-6 |
 | **LOAD** | Harness TLS Required livré (P10-5 E). Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, monde publié. | P10-8 |
-| **Restore avec sanctions** | `PostgresBackupRestoreTests` : migrate + seed Phase 7 + compte + dump/restore + login. **Pas** de campagne dont le dump contient des lignes mute/ban. Guildes/amis/échanges n’existent pas encore. | P10-7 |
+| **Restore avec sanctions** | `PostgresBackupRestoreTests` : migrate + seed Phase 7 + compte + dump/restore + login. **Pas** de campagne dont le dump contient des lignes mute/ban. Guildes/amis/échanges sont dans le schéma ; restore de ces lignes **non** recertifié. | P10-7 |
 | **Rate-limit login** | IP normalisée + username (8/60s) et IP (30/60s). Plus de clé IP:port. Voir [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
 | **Inscriptions ouvertes** | Défaut local `Registration:Mode=Open`. Bêta : `ProvisionedOnly` (TCP refusé). InviteOnly = jalon sans jetons. | P10-5 C **livré** (jalon invites) |
 | **Grant opérateur** | `tools/Frog.OpsCli operator grant|revoke` + SQL toujours possible | P10-5 C **livré** |
-| **P9-S social** | Groupes/guildes/amis/blocage **P10-1 livré** (v11, 80–83). Trade P2P **absent** (P10-2). Stubs `Guild.cs` / `GuildService.cs` toujours morts. | P10-1 fait ; P10-2 |
+| **P9-S social** | Groupes/guildes/amis/blocage **P10-1 DONE** tip `dca2185` (v11, 80–83 ; CI PR en cours). Trade P2P **P10-2 livré** (84–86). Stubs `Guild.cs` / `GuildService.cs` toujours morts. | P10-1 + P10-2 |
 
 Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vrais) :
 
@@ -39,7 +39,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Groupes | `PartyRoster` + opcodes 80–83 + canal Party | P10-1 **livré** |
 | Guildes persistées | `player.guilds*` ; stubs `Guild.cs` / `GuildService.cs` toujours TODO | P10-1 **livré** (stubs non composés) |
 | Amis / blocage | `player.friendships`, `player.character_blocks` | P10-1 **livré** |
-| Échanges P2P | Boutique/banque Phase 7 **≠** trade joueur ; pas d’opcode 84–86 | P10-2 |
+| Échanges P2P | `TradeWire` 84–86 + `player.trade_executions` + holds | P10-2 **livré** |
 | Client TLS + validation certificat | `FrogGameClient.ConnectAsync` + `TlsClientAuthenticator` (Mode=Required) ; défaut Off | P10-5 A **livré** |
 | Invitations / comptes provisionnés | `Registration:Mode=ProvisionedOnly` + OpsCli create ; **InviteOnly sans jetons** (jalon) | P10-5 C **livré** (jalon invites) |
 | Outil reset mot de passe / revoke session / grant GM | `tools/Frog.OpsCli` | P10-5 C **livré** |
