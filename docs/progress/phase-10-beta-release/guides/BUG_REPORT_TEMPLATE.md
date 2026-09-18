@@ -1,39 +1,45 @@
-# Modèle de signalement de bug
+# Signaler un bug
 
-> **Statut : BROUILLON P10-0.** À utiliser pendant la bêta ; adapter si le canal change.
+Une page. Remplis chaque bloc. **Aucun secret** (mot de passe, chaîne de connexion, jeton).
 
-## Avant d’ouvrir
+## Environnement
 
-1. Version / build affichée (si disponible).
-2. Heure (America/Toronto si possible) + personnage.
-3. Reproduire une fois si sûr.
-4. **Expurger** secrets : pas de DSN, mot de passe, jeton, `appsettings.Local.json`.
+| Champ | Valeur |
+| --- | --- |
+| Surface | Client / Éditeur / Serveur / Ops |
+| Version / build | |
+| OS | |
+| Personnage (pseudo) | |
+| Heure (America/Toronto si possible) | |
 
-## Modèle
+## Reproduire
 
-```text
-Titre court :
-Surface : [Client | Éditeur | Serveur | Ops]
-Gravité : [Bloquant parcours | Majeur | Mineur | Cosmétique]
-Version / build :
-OS :
-Étapes pour reproduire :
 1.
 2.
 3.
-Attendu :
-Obtenu :
-Fréquence : [Toujours | Parfois | Une fois]
-Captures / logs (expurgés) :
-```
+
+## Attendu
+
+…
+
+## Obtenu
+
+…
+
+## Captures / logs
+
+- Joindre PNG expurgés
+- Logs : retirer secrets avant envoi
 
 ## Gravité
 
-| Niveau | Exemple |
+| Niveau | Quand l’utiliser |
 | --- | --- |
-| Bloquant | Connexion impossible, perte/duplication d’objets, crash au lancement |
-| Majeur | Quête / trade / social inutilisable sur un parcours prévu |
-| Mineur | UI trompeuse, contournement existant |
-| Cosmétique | Typo, alignement |
+| Bloquant | Impossible de jouer / perte ou duplication / crash au lancement |
+| Majeur | Parcours important cassé, contournement difficile |
+| Mineur | Gênant, contournement simple |
+| Cosmétique | Texte, alignement |
 
-Wiki : [Bugs](https://github.com/Netsuno/MMO_Maker/wiki/Bugs)
+## Et après ?
+
+Envoie via le canal indiqué par l’opérateur. Wiki : [Bugs](https://github.com/Netsuno/MMO_Maker/wiki/Bugs)

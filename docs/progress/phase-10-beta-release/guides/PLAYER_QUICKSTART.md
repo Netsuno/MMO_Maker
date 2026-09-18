@@ -1,49 +1,49 @@
-# Guide rapide — Joueur testeur
+# Quickstart joueur
 
-> **Statut : BROUILLON P10-0 — Phase 10 pas prête. Ne pas diffuser comme procédure livrée.**
+À la fin de ce guide, tu es connecté, tu as un personnage, et tu peux te déplacer sur une carte.
 
-Ce guide s’adresse au **joueur testeur** : vous recevez seulement le **client** Windows. Vous n’avez jamais besoin (ni le droit) d’un secret de base de données.
+> **Bêta en cours** — certaines étapes (paquet autonome, connexion chiffrée, invitation fermée) ne sont pas encore dans tous les builds. Suis le message de l’opérateur pour *ton* build.
 
-## Ce que vous pourrez faire (cible bêta)
+## Prérequis
 
-1. Installer le client sans SDK / Visual Studio / Git.
-2. Vous connecter au serveur indiqué par l’opérateur (invitation / compte provisionné).
-3. Créer ou choisir un personnage, entrer dans le monde.
-4. Jouer le parcours de démonstration (environ 30–60 minutes une fois le monde démo livré).
+- Client MMO Maker fourni pour la bêta
+- Identifiants de test envoyés par l’opérateur
+- Connexion Internet stable
 
-<!-- CAPTURE: assets/player-01-install.png — écran d’install / dossier client ; à prendre quand paquet autonome existe (P10-6) -->
-*Capture à venir : installation du client.*
+## 1. Lancer le client
 
-## Ce qui est déjà vrai sur `main` (Phases 7–9)
+Ouvre le client et attends l’écran de connexion.
 
-Gameplay de base (cartes, combat, objets, quêtes, craft, boutique, banque, chat, mute/kick/ban) existe côté plateforme. Voir le journal : [`../../STATUS.md`](../../STATUS.md) et [`../BETA_SCOPE.md`](../BETA_SCOPE.md).
+![Écran de connexion](assets/joueur-01-connexion.png)
+*Écran de connexion — saisis l’identifiant et le mot de passe fournis, puis utilise le bouton principal de connexion.*
 
-## Ce qui n’est **pas** prêt (ne pas attendre ça aujourd’hui)
+## 2. Choisir ou créer un personnage
 
-D’après [`../KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) :
+Sur l’écran personnages, sélectionne une case libre ou un personnage existant, puis confirme.
 
-| Attente joueur | État réel |
-| --- | --- |
-| Paquet client autonome (sans runtime .NET à installer soi-même) | **Non prouvé** (P10-6) |
-| Connexion chiffrée TLS | **Absente** (TCP clair) — P10-5 |
-| Inscription fermée par invitation | **Absente** (register ouvert) — P10-5 |
-| Groupes / guildes / amis / blocage | **Absents** — P10-1 |
-| Échanges entre joueurs | **Absents** — P10-2 |
-| Aide intégrée / rebind / version visible | **Incomplets** — P10-3 |
+![Sélection de personnage](assets/joueur-02-perso.png)
+*Liste des personnages — clique une case, confirme avec le bouton principal en bas.*
 
-<!-- CAPTURE: assets/player-02-login.png — écran connexion ; sans adresse IP réelle ni identifiants -->
-*Capture à venir : connexion (expurger adresse / identifiants si besoin).*
+## 3. Premiers pas en jeu
 
-## Procédure provisoire (quand l’opérateur vous envoie un build)
+Une fois en carte, déplace-toi avec les contrôles indiqués à l’écran (ou rappelés par l’opérateur).
 
-1. Dézipper le dossier client fourni.
-2. Lancer l’exécutable indiqué dans le message de l’opérateur (nom exact à confirmer au packaging P10-6).
-3. Entrer **uniquement** l’adresse / le port et le compte fournis.
-4. Créer un personnage si demandé, puis suivre le parcours démo.
+![HUD en jeu](assets/joueur-03-hud.png)
+*Vue en jeu — personnage sur la carte ; chat en bas ; barres de statut si visibles.*
 
-Si quelque chose bloque le parcours : utilisez [`BUG_REPORT_TEMPLATE.md`](BUG_REPORT_TEMPLATE.md). **N’incluez jamais** un mot de passe, un DSN ou un fichier `appsettings.Local.json`.
+## Tu es prêt si…
 
-## Liens
+- [ ] Tu vois ton personnage sur la carte
+- [ ] Tu peux te déplacer
+- [ ] Tu peux ouvrir le chat (même sans écrire)
 
-- Périmètre : [`../BETA_SCOPE.md`](../BETA_SCOPE.md)
+## Et après ?
+
+- [Problèmes connus Phase 10](../KNOWN_ISSUES.md)
+- [Signaler un bug](BUG_REPORT_TEMPLATE.md)
 - Wiki : [Joueur](https://github.com/Netsuno/MMO_Maker/wiki/Joueur)
+
+## Captures
+
+Fichiers prévus dans `assets/` : `joueur-01-connexion.png`, `joueur-02-perso.png`, `joueur-03-hud.png`.  
+**Pas encore disponibles** (UI / paquet client autonome à venir). N’invente pas d’images.

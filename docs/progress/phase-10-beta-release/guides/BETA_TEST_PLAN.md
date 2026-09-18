@@ -1,36 +1,32 @@
-# Plan de test bêta (externe)
+# Plan de test bêta
 
-> **Statut : BROUILLON P10-0 — Phase 10 pas prête. Ce plan n’a pas été exécuté. Pas une preuve de gate.**
+> **Brouillon P10-0** — non exécuté. Pas une preuve de sortie.
 
-Objectif mandat : **12 étapes**, **2 joueurs**, **2 machines**, paquets livrés — pas une boucle locale seule.
+## Prérequis campagne
 
-## Prérequis (quand la candidate existera)
+| # | Prérequis | Statut |
+| --- | --- | --- |
+| 1 | Paquets client (2 PC) + serveur | À faire |
+| 2 | Comptes / invitations | À faire |
+| 3 | Transport chiffré validé | À faire |
+| 4 | Monde démo publié | À faire |
+| 5 | Canal bugs + [modèle](BUG_REPORT_TEMPLATE.md) | À faire |
 
-- [ ] Paquets client (2 machines Windows) + serveur Linux + PG 16
-- [ ] Comptes provisionnés / invitations
-- [ ] TLS validé sur le parcours externe
-- [ ] Monde démo publié
-- [ ] Canal de bugs + [`BUG_REPORT_TEMPLATE.md`](BUG_REPORT_TEMPLATE.md)
+## Scénarios (12)
 
-## Esquisse des 12 étapes
+| # | Rôle | Scénario | Étapes (résumé) | Attendu | Statut |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Joueur A | Install client | Dézipper / lancer | App démarre | Non joué |
+| 2 | Joueur B | Install client | Idem machine 2 | App démarre | Non joué |
+| 3 | A+B | Connexion | Login comptes fournis | Session OK | Non joué |
+| 4 | A+B | Personnages | Créer / choisir | En carte | Non joué |
+| 5 | A+B | Présence | Même carte | Se voient | Non joué |
+| 6 | A | Gameplay de base | Combat / objet / quête courte | Pas de blocage P0 | Non joué |
+| 7 | A+B | Social minimal | Selon build | Action OK ou « pas dans ce build » | Non joué |
+| 8 | A+B | Échange | Selon build | Pas de dup / perte | Non joué |
+| 9 | Auteur | Publish mineur | Éditeur → monde | Visible in-game | Non joué |
+| 10 | Ops | Backup / restore | Runbook | Login après restore | Non joué |
+| 11 | Ops | Sanction | Mute ou kick | Effet visible | Non joué |
+| 12 | A+B | Stabilité courte | Session continue | Inventaire cohérent | Non joué |
 
-| # | Étape | Attendu | Preuve |
-| --- | --- | --- | --- |
-| 1 | Installer client machine A | Lance sans SDK | Capture + version |
-| 2 | Installer client machine B | Idem | Capture |
-| 3 | Connexion TLS au serveur | Certificat accepté ; pas de repli clair silencieux | Log expurgé |
-| 4 | Création / login perso A et B | Deux persos distincts | — |
-| 5 | Même carte, se voir | Présence réseau | Capture |
-| 6 | Parcours combat / objets / quête | Pas de P0 | Notes |
-| 7 | Social minimal (groupe ou ami) | Selon gel P10-1 | — |
-| 8 | Échange P2P | Transaction unique, pas de dup | — |
-| 9 | Éditeur : publish mineur | Contenu visible in-game | Capture |
-| 10 | Backup + restore | Login OK après restore | Rapport |
-| 11 | Sanction (mute/kick) | Effet + restore sanctions (P10-7) | — |
-| 12 | Stabilité courte | Pas de perte inventaire | Notes |
-
-**Exécution :** non commencée (P10-4 / P10-9). Cocher seulement après preuves réelles.
-
-## Hors plan
-
-HdV, mail objets, mobile, import VB6, boutique réelle, updater auto.
+Cocher **Statut** seulement avec preuve (capture / note datée). Ne pas ajouter de lignes pour des fonctions hors build.

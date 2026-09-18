@@ -1,44 +1,55 @@
-# Guide rapide — Auteur de confiance
+# Quickstart auteur
 
-> **Statut : BROUILLON P10-0 — Phase 10 pas prête. Ne pas diffuser comme procédure livrée.**
+À la fin de ce guide, tu as une petite carte enregistrée, prête à être testée dans le client.
 
-Vous recevez l’**éditeur** Windows et une procédure d’accès **protégée** au monde. Les joueurs ne reçoivent pas cet accès.
+> **Bêta en cours** — le lancement depuis un **paquet** éditeur autonome n’est pas encore prouvé. Ce guide décrit le geste dans l’éditeur ; suis le build fourni par l’opérateur.
 
-## Objectif
+## Prérequis
 
-Créer / modifier / publier du contenu (cartes, PNJ, objets, quêtes, dialogues, recettes, événements) **sans** éditer du JSON ou du SQL à la main.
+- Éditeur MMO Maker (build bêta)
+- Jeu de tuiles de base disponible dans le projet
+- Accès monde **protégé** (fourni à part — jamais aux joueurs)
 
-<!-- CAPTURE: assets/creator-01-editor-home.png — fenêtre principale éditeur ; sans DSN visible -->
-*Capture à venir : accueil éditeur.*
+## 1. Ouvrir l’éditeur
 
-## Déjà disponible (from-source / Phases 6–9)
+Lance l’éditeur. Tu arrives sur l’écran d’accueil ou la dernière carte.
 
-- Éditeurs structurés Phase 6–8 (tilesets, PNJ, objets, sorts, classes, boutiques, ressources, contenu Phase 8).
-- Publication PostgreSQL réelle pour cartes et catalogues (voir rapports Phase 6–8).
-- Fermeture non coopérative / close-during-save : acquis Phase 8–9 à préserver.
+![Accueil éditeur](assets/auteur-01-accueil.png)
+*Fenêtre principale — menus en haut ; panneaux latéraux ; zone carte au centre.*
 
-Référence packaging (layouts) : [`../../phase-09-distribution-admin-hardening/PACKAGING_GUIDE.md`](../../phase-09-distribution-admin-hardening/PACKAGING_GUIDE.md).
+## 2. Créer une nouvelle carte
 
-## Pas encore prêt
+Menu **Fichier** → **Nouvelle carte** (libellé exact = celui de ton build). Donne un nom court.
 
-| Attente auteur | État |
-| --- | --- |
-| Paquet éditeur autonome + lancement prouvé depuis l’arbre publié | **Non prouvé** (P10-6) |
-| Playtest depuis binaires livrés (pas chemins `bin/Debug` du dépôt) | **Non prouvé** |
-| Monde démo 3 cartes 30–60 min redistribuable | **Absent** (P10-4) |
+![Dialogue nouvelle carte](assets/auteur-02-nouvelle-carte.png)
+*Dialogue — nom + taille ; valide avec le bouton principal.*
 
-Le **contenu final** du jeu (cartes définitives, dialogues, quêtes de sortie) reste la création de Marc. La Phase 10 livre les outils + un monde de démonstration temporaire pour la recette.
+## 3. Peindre le sol
 
-<!-- CAPTURE: assets/creator-02-publish.png — dialogue publier ; masquer connection string -->
-*Capture à venir : publication (aucun secret à l’écran).*
+Sélectionne la couche sol, choisis une tuile, peins une zone simple.
 
-## Règles de sécurité
+![Éditeur — peinture](assets/auteur-03-peinture.png)
+*Centre = carte ; côté = palette de tuiles ; couche active indiquée.*
 
-1. `appsettings.Local.json` de l’éditeur = accès monde-admin. **Ne jamais** le committer ni le partager aux joueurs.
-2. Ne pas coller de DSN dans le wiki, les tickets ou le chat public.
-3. Préférer les formulaires structurés ; ne pas dépendre d’édition JSON manuelle.
+## 4. Enregistrer
 
-## Liens
+**Fichier** → **Enregistrer**. Vérifie le nom affiché.
 
-- [`../BETA_SCOPE.md`](../BETA_SCOPE.md) § auteur / outils
+![Enregistrer](assets/auteur-04-save.png)
+*Confirmation ou barre de titre avec le nom de la carte sauvegardée.*
+
+## Tu es prêt si…
+
+- [ ] Une carte nommée apparaît dans ton projet
+- [ ] Tu vois des tuiles peintes (pas une carte vide)
+- [ ] Tu peux rouvrir la carte après fermeture
+
+## Et après ?
+
+- Publier vers le monde (quand ton build le propose) — masquer toute chaîne de connexion à l’écran
+- [Périmètre bêta](../BETA_SCOPE.md)
 - Wiki : [Auteur](https://github.com/Netsuno/MMO_Maker/wiki/Auteur)
+
+## Captures
+
+Prévues : `auteur-01-accueil.png` … `auteur-04-save.png` dans `assets/`. **Pas encore disponibles.**

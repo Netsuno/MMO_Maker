@@ -1,9 +1,16 @@
-# Captures guides Phase 10
+# Captures guides
 
-Déposer ici les PNG légendés (sans secrets). Noms prévus :
+PNG ~800–1000 px, légende dans le markdown parent, **sans secrets**.
 
-- `player-01-install.png`, `player-02-login.png`
-- `creator-01-editor-home.png`, `creator-02-publish.png`
-- `ops-01-server-start.png`
+| Fichier | Guide |
+| --- | --- |
+| `joueur-01-connexion.png` | PLAYER |
+| `joueur-02-perso.png` | PLAYER |
+| `joueur-03-hud.png` | PLAYER |
+| `auteur-01-accueil.png` | CREATOR |
+| `auteur-02-nouvelle-carte.png` | CREATOR |
+| `auteur-03-peinture.png` | CREATOR |
+| `auteur-04-save.png` | CREATOR |
+| `ops-01-server-start.png` | OPERATIONS (optionnel) |
 
-Aucun fichier image tant que les paquets / UI cibles n’existent pas (P10-6+).
+Aucun binaire tant que l’UI cible n’existe pas.

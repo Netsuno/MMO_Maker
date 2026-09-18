@@ -1,45 +1,54 @@
-# Operations — bêta (brouillon Phase 10)
+# Operations — stack bêta
 
-> **Statut : BROUILLON P10-0 — Phase 10 pas prête. Ne pas diffuser comme procédure livrée.**
+> **Brouillon P10-0** — référence ops pour opérateurs. Pas une diffusion joueur.
 
-## Source actuelle (Phase 9 sur `main`)
+## Prérequis
 
-Tant que les runbooks Phase 10 ne sont pas complets, utilisez :
+- PostgreSQL 16
+- Runtime / SDK .NET 8 selon le mode (from-source vs paquet)
+- Overlay local **gitignoré** (jamais committer les secrets)
 
-| Document | Lien |
-| --- | --- |
-| OPERATIONS_RUNBOOK | [`../../phase-09-distribution-admin-hardening/OPERATIONS_RUNBOOK.md`](../../phase-09-distribution-admin-hardening/OPERATIONS_RUNBOOK.md) |
-| BACKUP_RESTORE_RUNBOOK | [`../../phase-09-distribution-admin-hardening/BACKUP_RESTORE_RUNBOOK.md`](../../phase-09-distribution-admin-hardening/BACKUP_RESTORE_RUNBOOK.md) |
-| PACKAGING_GUIDE | [`../../phase-09-distribution-admin-hardening/PACKAGING_GUIDE.md`](../../phase-09-distribution-admin-hardening/PACKAGING_GUIDE.md) |
-| SECURITY_MODEL | [`../../phase-09-distribution-admin-hardening/SECURITY_MODEL.md`](../../phase-09-distribution-admin-hardening/SECURITY_MODEL.md) |
+Référence détaillée Phase 9 (à suivre tant que Phase 10 n’étend pas) :
 
-## Rappels non négociables
+- [OPERATIONS_RUNBOOK](../../phase-09-distribution-admin-hardening/OPERATIONS_RUNBOOK.md)
+- [BACKUP_RESTORE_RUNBOOK](../../phase-09-distribution-admin-hardening/BACKUP_RESTORE_RUNBOOK.md)
+- [PACKAGING_GUIDE](../../phase-09-distribution-admin-hardening/PACKAGING_GUIDE.md)
 
-- PostgreSQL 16 = source de vérité. MariaDB non requis.
-- Ne jamais committer `appsettings.Local.json`.
-- Placeholders (`NOT_A_PRODUCTION_SECRET`, etc.) ≠ secrets réels.
-- Bind public seulement avec `allowNonLoopbackBind=true` + config réelle.
+## 1. Démarrer (from-source, dev)
 
-<!-- CAPTURE: assets/ops-01-server-start.png — démarrage serveur ; masquer DSN -->
-*Capture à venir : démarrage serveur (expurger secrets).*
+1. Démarrer PostgreSQL (ex. Compose du dépôt).
+2. Copier l’exemple d’overlay local → fichier **gitignoré** à côté de l’hôte.
+3. Renseigner la connexion via le fichier local **ou** la variable d’environnement documentée dans le runbook (valeurs = hors git / hors wiki).
+4. Lancer le serveur : `dotnet run --project Frog.Server/Frog.Server.csproj`
 
-## Écarts Phase 10 (à traiter avant diffusion externe)
+**Résultat attendu :** processus qui écoute ; logs sans secret en clair dans les tickets.
 
-Inventaire honnête : [`../KNOWN_ISSUES.md`](../KNOWN_ISSUES.md).
+**Rollback :** arrêter le processus ; ne pas publier l’overlay.
 
-| Sujet | État | Lot |
+## 2. Sauvegarde / restauration
+
+Suivre le runbook Phase 9 (étapes numérotées + preuves).
+
+**Résultat attendu :** login possible après restore.
+
+**Incomplet Phase 10 :** restore avec lignes mute/ban (+ social/trade) pas encore couvert — voir [KNOWN_ISSUES](../KNOWN_ISSUES.md).
+
+## 3. Ce qui est testable vs incomplet
+
+| Sujet | Testable maintenant | Incomplet (Phase 10) |
 | --- | --- | --- |
-| TLS + certificat validé | Absent (TCP clair) | P10-5 |
-| Inscriptions fermées / invitations | Absent | P10-5 |
-| Outils opérateur (reset MDP, revoke, grant GM) | Incomplete | P10-5 |
-| Client/éditeur packaged prouvés | Incomplete | P10-6 |
-| Restore avec lignes mute/ban (+ social/trade) | Incomplete | P10-7 |
-| Charge 25 joueurs × 60 min | Absent | P10-8 |
+| Serveur Linux publié | Oui (preuve Phase 9) | — |
+| Client / éditeur paquet autonome | Non | P10-6 |
+| TLS + certificat validé | Non (TCP clair) | P10-5 |
+| Inscriptions fermées | Non | P10-5 |
+| Charge 25×60 | Non | P10-8 |
 
-## Dossier assets
+## Secrets
 
-Les captures ops iront dans [`assets/`](assets/). Aucune image secrète.
+- Nommer les variables / fichiers (`appsettings.Local.json`, variable Postgres documentée).
+- **Jamais** coller les valeurs dans ce guide, le wiki, ou un ticket public.
 
-## Wiki
+## Et après ?
 
-Miroir : [Ops](https://github.com/Netsuno/MMO_Maker/wiki/Ops)
+- [KNOWN_ISSUES](../KNOWN_ISSUES.md)
+- Wiki : [Ops](https://github.com/Netsuno/MMO_Maker/wiki/Ops)
