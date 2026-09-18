@@ -26,6 +26,8 @@ public sealed record Phase7PostgresContentSeedResult(
 /// <summary>Publie le contenu Phase 7 minimal (Guids déterministes) dans PostgreSQL.</summary>
 public static class Phase7PostgresContentSeed
 {
+    public const string WorldMapName = "Phase7World";
+
     public static async Task<Phase7PostgresContentSeedResult> PublishAsync(
         FrogDbContextGate gate,
         int monsterSpawnCount = 2)
@@ -95,32 +97,21 @@ public static class Phase7PostgresContentSeed
         int monsterSpawnCount)
     {
         var maps = new PostgresMapRepository(gate);
-        var existingSettings = await gate.ExecuteAsync(async (db, ct) =>
-            await db.WorldSpawnSettings.AsNoTracking()
-                .SingleOrDefaultAsync(s => s.Id == 1, ct)
+        var existingPhase7MapId = await gate.ExecuteAsync(async (db, ct) =>
+            await db.Maps.AsNoTracking()
+                .Where(m => m.Name == WorldMapName && m.PublishedRevision != null)
+                .Select(m => (Guid?)m.Id)
+                .FirstOrDefaultAsync(ct)
                 .ConfigureAwait(false)).ConfigureAwait(false);
 
-        if (existingSettings is not null)
+        if (existingPhase7MapId is Guid existingMapId)
         {
-            var existingMapId = existingSettings.StartMapId;
-            var existingRuntimeMapId = await gate.ExecuteAsync(async (db, ct) =>
-                await db.RuntimeMapBindings.AsNoTracking()
-                    .Where(b => b.MapId == existingMapId)
-                    .Select(b => b.RuntimeMapId)
-                    .SingleAsync(ct)
-                    .ConfigureAwait(false)).ConfigureAwait(false);
-
             var existingPublished = await maps.LoadPublishedByIdAsync(existingMapId).ConfigureAwait(false);
             if (existingPublished is not null)
             {
                 var catalog = new PostgresPublishedWorldCatalog(gate);
                 var spawns = await catalog.ListMonsterSpawnsAsync().ConfigureAwait(false);
                 var countOnMap = spawns.Count(s => s.MapId == existingMapId);
-                if (countOnMap == monsterSpawnCount)
-                {
-                    return (existingMapId, existingRuntimeMapId);
-                }
-
                 if (countOnMap != monsterSpawnCount)
                 {
                     var stored = await maps.LoadByIdAsync(existingMapId).ConfigureAwait(false);
@@ -132,9 +123,12 @@ public static class Phase7PostgresContentSeed
                             stored,
                             monsterId,
                             monsterSpawnCount).ConfigureAwait(false);
-                        return (existingMapId, existingRuntimeMapId);
                     }
                 }
+
+                var existingRuntimeMapId = await ReadRuntimeMapIdAsync(gate, existingMapId).ConfigureAwait(false);
+                await UpsertWorldSpawnSettingsAsync(gate, existingMapId).ConfigureAwait(false);
+                return (existingMapId, existingRuntimeMapId);
             }
         }
 
@@ -176,16 +170,19 @@ public static class Phase7PostgresContentSeed
         }));
         _ = published;
 
-        var runtimeMapId = await gate.ExecuteAsync(async (db, ct) =>
-            await db.RuntimeMapBindings.AsNoTracking()
-                .Where(b => b.MapId == saved.MapId)
-                .Select(b => b.RuntimeMapId)
-                .SingleAsync(ct)
-                .ConfigureAwait(false)).ConfigureAwait(false);
+        var createdRuntimeMapId = await ReadRuntimeMapIdAsync(gate, saved.MapId).ConfigureAwait(false);
 
         await UpsertWorldSpawnSettingsAsync(gate, saved.MapId).ConfigureAwait(false);
-        return (saved.MapId, runtimeMapId);
+        return (saved.MapId, createdRuntimeMapId);
     }
+
+    private static Task<int> ReadRuntimeMapIdAsync(FrogDbContextGate gate, Guid mapId) =>
+        gate.ExecuteAsync(async (db, ct) =>
+            await db.RuntimeMapBindings.AsNoTracking()
+                .Where(b => b.MapId == mapId)
+                .Select(b => b.RuntimeMapId)
+                .SingleAsync(ct)
+                .ConfigureAwait(false));
 
     private static async Task UpsertWorldSpawnSettingsAsync(FrogDbContextGate gate, Guid mapId)
     {
@@ -225,7 +222,7 @@ public static class Phase7PostgresContentSeed
 
     private static Map CreateDefaultWorldMap()
     {
-        var map = new Map { Name = "Phase7World", Width = 20, Height = 20 };
+        var map = new Map { Name = WorldMapName, Width = 20, Height = 20 };
         var ground = new Layer { LayerType = LayerType.Ground };
         for (var y = 0; y < map.Height; y++)
         {

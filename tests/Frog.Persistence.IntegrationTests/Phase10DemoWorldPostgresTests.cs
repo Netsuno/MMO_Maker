@@ -1,13 +1,15 @@
 using Frog.Application.Content;
 using Frog.Application.Demo;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql;
 using Frog.Persistence.PostgreSql.Demo;
+using Frog.Persistence.IntegrationTests.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace Frog.Persistence.IntegrationTests;
 
-[Collection("PostgresIsolated")]
+[Collection("PostgresIsolatedDemoWorld")]
 public sealed class Phase10DemoWorldPostgresTests
 {
     private readonly IsolatedPostgresFixture _fixture;
@@ -79,5 +81,15 @@ public sealed class Phase10DemoWorldPostgresTests
         var eventPlacements = await gate.ExecuteAsync(async (db, ct) =>
             await db.MapEventPlacements.AsNoTracking().CountAsync(p => p.MapId == first.VillageMapId, ct));
         Assert.True(eventPlacements >= 4);
+
+        var phase7 = await Phase7PostgresContentSeed.PublishAsync(gate);
+        var afterPhase7 = await gate.ExecuteAsync(async (db, ct) =>
+            await db.WorldSpawnSettings.AsNoTracking().SingleAsync(s => s.Id == 1, ct));
+        Assert.Equal(phase7.MapId, afterPhase7.StartMapId);
+        Assert.Equal(GameplayLimits.DefaultSpawnTileX, afterPhase7.StartTileX);
+        Assert.Equal(GameplayLimits.DefaultSpawnTileY, afterPhase7.StartTileY);
+        Assert.NotEqual(first.VillageMapId, phase7.MapId);
+        var phase7Map = await maps.LoadPublishedByIdAsync(phase7.MapId);
+        Assert.Equal(Phase7PostgresContentSeed.WorldMapName, phase7Map!.Map.Name);
     }
 }
