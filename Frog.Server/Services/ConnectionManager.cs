@@ -9,6 +9,7 @@ public sealed class ConnectionManager
     private readonly ConcurrentDictionary<Guid, Session> _sessionsById = new();
     private readonly ConcurrentDictionary<string, Guid> _sessionIdByUsername = new(AccountUsername.Comparer);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _usernameGates = new(AccountUsername.Comparer);
+    private readonly AsyncLocal<HashSet<string>?> _heldUsernames = new();
 
     public async Task RunExclusiveForUsernameAsync(
         string username,
@@ -18,14 +19,30 @@ public sealed class ConnectionManager
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
         ArgumentNullException.ThrowIfNull(action);
 
+        var held = _heldUsernames.Value;
+        if (held is not null && held.Contains(username))
+        {
+            throw new InvalidOperationException(
+                $"Nested acquisition of the per-username lock for '{username}' is not supported.");
+        }
+
         var gate = _usernameGates.GetOrAdd(username, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        held = _heldUsernames.Value;
+        if (held is null)
+        {
+            held = new HashSet<string>(AccountUsername.Comparer);
+            _heldUsernames.Value = held;
+        }
+
+        held.Add(username);
         try
         {
             await action(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
+            held.Remove(username);
             gate.Release();
         }
     }

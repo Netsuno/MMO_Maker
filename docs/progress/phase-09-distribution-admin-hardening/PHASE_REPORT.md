@@ -10,7 +10,7 @@
 | P9-3 PostgreSQL backup / restore | **DONE** (schema restore in CI). Restore **with real sanction rows** is **not covered**. |
 | P9-4 Packaging | **DONE** for server Linux proofs. Packaged client/editor **launch** from `publish-frog.ps1` is **not proven**. |
 | P9-5 Load / observability | **DONE** as a measurement lot — see `LOAD_REPORT.md`. Unexecuted BASELINE_AUDIT §10 rows remain **not certified**. Not a full hosted-world certification. |
-| P9-6 Tests + review | **IN PROGRESS** — C-fixes landed; CI green on `422993b`; overall Phase 9 **NOT READY**; C-fixes **awaiting re-review** |
+| P9-6 Tests + review | **IN PROGRESS** — C-fixes landed; CI green on `422993b`; C2 follow-up local; overall Phase 9 **NOT READY**; C-fixes **awaiting re-review** |
 | P9-S Guilds / groups / trades | **DEFERRED** |
 
 | Item | Value |
@@ -57,4 +57,4 @@ None introduced by the C-fixes (product files outside kick teardown / secret pol
 
 ## Verdict
 
-**NOT READY** — C-fixes address the refused-gate items. CI 35369587406 is green on `422993b`. C-fixes **awaiting re-review**. Orchestrator re-gates after Marc. No user-facing gate phrase from this file.
+**NOT READY** — C-fixes address the refused-gate items. CI 35369587406 is green on `422993b`. C2 follow-up (ban vs pre-lock reconnect/login) is local-only until CI on the exact tip. C-fixes **awaiting re-review**. Orchestrator re-gates after Marc. No user-facing gate phrase from this file.

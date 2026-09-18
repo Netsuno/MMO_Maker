@@ -99,16 +99,19 @@ public sealed class ModerationService(
                 return ModerationCommandResult.Applied(ModerationMessages.KickApplied);
 
             case ModerationAction.Ban:
-                await _sanctions.ApplyAsync(
-                    target.Id,
-                    SanctionKinds.Ban,
-                    actorAccountId,
-                    reasonText,
-                    expiresAtUtc: null,
-                    cancellationToken).ConfigureAwait(false);
-                await _authSessions.RevokeAllForAccountAsync(target.Id, cancellationToken).ConfigureAwait(false);
-                await DropLiveSessionAsync(target.Username, ModerationMessages.Banned, cancellationToken)
-                    .ConfigureAwait(false);
+                await _connections.RunExclusiveForUsernameAsync(target.Username, async ct =>
+                {
+                    await _sanctions.ApplyAsync(
+                        target.Id,
+                        SanctionKinds.Ban,
+                        actorAccountId,
+                        reasonText,
+                        expiresAtUtc: null,
+                        ct).ConfigureAwait(false);
+                    await _authSessions.RevokeAllForAccountAsync(target.Id, ct).ConfigureAwait(false);
+                    await DropLiveSessionCoreAsync(target.Username, ModerationMessages.Banned, ct)
+                        .ConfigureAwait(false);
+                }, cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Operator {Actor} banned {Target}", actorAccountId, target.Username);
                 return ModerationCommandResult.Applied(ModerationMessages.BanApplied);
 
@@ -130,26 +133,31 @@ public sealed class ModerationService(
     {
         await _connections.RunExclusiveForUsernameAsync(username, async ct =>
         {
-            if (!_connections.TryGetSessionByUsername(username, out var session) || session is null)
-            {
-                return;
-            }
-
-            if (_clients.TryGet(session.Id, out var client) && client is not null)
-            {
-                try
-                {
-                    await _packetSender.SendErrorAsync(client, message, ct).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Could not notify {Username} before drop.", username);
-                }
-            }
-
-            await _sessionTeardown.TearDownAsync(session.Id, SessionTeardownOptions.KickBan, ct)
-                .ConfigureAwait(false);
+            await DropLiveSessionCoreAsync(username, message, ct).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task DropLiveSessionCoreAsync(string username, string message, CancellationToken cancellationToken)
+    {
+        if (!_connections.TryGetSessionByUsername(username, out var session) || session is null)
+        {
+            return;
+        }
+
+        if (_clients.TryGet(session.Id, out var client) && client is not null)
+        {
+            try
+            {
+                await _packetSender.SendErrorAsync(client, message, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not notify {Username} before drop.", username);
+            }
+        }
+
+        await _sessionTeardown.TearDownAsync(session.Id, SessionTeardownOptions.KickBan, cancellationToken)
+            .ConfigureAwait(false);
     }
 }
 

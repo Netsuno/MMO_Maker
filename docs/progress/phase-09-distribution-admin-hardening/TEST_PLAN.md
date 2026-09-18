@@ -1,6 +1,6 @@
 # Phase 9 — TEST_PLAN
 
-**Status:** P9-6 **IN PROGRESS**. Phase 9 is **NOT READY**. Prior READY on `5db5f6b` / `8bf6f08` was withdrawn. C-fixes **awaiting re-review**. Do not weaken Phase 8 suites or screenshot SHA gates.
+**Status:** P9-6 **IN PROGRESS**. Phase 9 is **NOT READY**. Prior READY on `5db5f6b` / `8bf6f08` was withdrawn. C-fixes **awaiting re-review**. C2 follow-up (ban vs reconnect/login after pre-lock validation) is local-only until CI on the exact tip. Do not weaken Phase 8 suites or screenshot SHA gates.
 
 ## Identity (do not invent)
 
@@ -61,7 +61,7 @@ Phase 8 screenshot SHA-256 table is unchanged on this branch (`SCREENSHOT_MANIFE
 
 | Task | Coverage | Filter / command |
 | --- | --- | --- |
-| P9-1 | Mute / kick / ban unit + in-memory TCP (`Frog.Tests/Phase9ModerationTests.cs`). Teardown unit (`Phase9SessionTeardownTests`). PG persist + host restart + TCP (`tests/Frog.Persistence.IntegrationTests/Phase9ModerationTests.cs`). Phase 7 Global/Map/Whisper regression is inside the in-memory TCP Fact. Kick also proves peer `PlayerLeave`, state save, execution cancel, idempotent repeat. | `FullyQualifiedName~.Phase9ModerationTests` · `FullyQualifiedName~.Phase9SessionTeardownTests` |
+| P9-1 | Mute / kick / ban unit + in-memory TCP (`Frog.Tests/Phase9ModerationTests.cs`). Teardown unit (`Phase9SessionTeardownTests`). Race TCP (`Phase9SessionRaceTests`: kick/ban vs packet, simultaneous reconnects, ban vs pre-lock reconnect/login). PG persist + host restart + TCP (`tests/Frog.Persistence.IntegrationTests/Phase9ModerationTests.cs`). Phase 7 Global/Map/Whisper regression is inside the in-memory TCP Fact. Kick also proves peer `PlayerLeave`, state save, execution cancel, idempotent repeat. | `FullyQualifiedName~.Phase9ModerationTests` · `FullyQualifiedName~.Phase9SessionTeardownTests` · `FullyQualifiedName~.Phase9SessionRaceTests` |
 | P9-2 | Unprivileged / secrets / bind / WorldFlags (`Frog.Tests/Phase9SecurityGateTests.cs`). Disabled-backend placeholder host composition. PG operator + WorldFlags TCP (`tests/Frog.Persistence.IntegrationTests/Phase9SecurityGateTests.cs`). Extra: `Phase7InMemorySmokeE2ETests.WorldFlagsPatchRequest_RejectedInProductionComposition`. | `FullyQualifiedName~.Phase9SecurityGateTests` |
 | P9-3 | Empty migrate → seed → `pg_dump` → `pg_restore` → `PostgresDatabaseHealth` OK → Phase 7 TCP login (`PostgresBackupRestoreTests`, 1 `[PostgresFact]`). Included in the CI **181**. | `FullyQualifiedName~.PostgresBackupRestoreTests` · `./scripts/postgres-backup-restore-smoke.sh` |
 | P9-4 | Script/guide presence + Local overlay never published + PG sidecar RID (`Frog.Tests/Phase9PackagingTests.cs`, 3 `[Fact]`). Packaged process + PG login/shop (`PackagedServerPostgreSqlProcessTests`). Layout: `./scripts/packaged-server-smoke.sh --layout-only` (**OK** on this run). | |

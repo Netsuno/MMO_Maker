@@ -244,6 +244,157 @@ public sealed class Phase9SessionRaceTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
+    public async Task Tcp_BanDuringValidatedReconnect_RefusesRevokesAndLeavesNoSession()
+    {
+        var port = GetFreePort();
+        var countingStore = new CountingPlayerStateStore();
+        var countingCleanup = new CountingRuntimeCleanup();
+        using var host = CreateInMemoryHost(port, countingStore, countingCleanup);
+        await host.StartAsync();
+        PacketDispatcher? dispatcher = null;
+        try
+        {
+            var gm = UniqueUser("gm");
+            var player = UniqueUser("pl");
+            const string password = "password123";
+
+            await using var gmClient = new TcpProbe();
+            await using var original = new TcpProbe();
+            await RegisterLoginSelectAsync(gmClient, port, gm, password, "GmHero");
+            var login = await RegisterLoginSelectAsync(original, port, player, password, "PlHero");
+
+            var accounts = host.Services.GetRequiredService<IAccountRepository>();
+            var operators = host.Services.GetRequiredService<IOperatorDirectory>();
+            var gmAccount = await accounts.FindByUsernameAsync(gm);
+            Assert.NotNull(gmAccount);
+            Assert.Equal(
+                OperatorGrantStatus.Granted,
+                (await operators.GrantAsync(gmAccount!.Id, "sql", "p9-c2 ban-vs-reconnect")).Status);
+
+            countingCleanup.Inner = host.Services.GetRequiredService<Phase8GameplayHandlers>();
+            dispatcher = host.Services.GetRequiredService<PacketDispatcher>();
+            var connections = host.Services.GetRequiredService<ConnectionManager>();
+            var clients = host.Services.GetRequiredService<ClientRegistry>();
+            var authSessions = host.Services.GetRequiredService<IAuthSessionRepository>();
+
+            var reconnectAtBarrier = new ManualResetEventSlim(false);
+            var banCompleted = new ManualResetEventSlim(false);
+            dispatcher.BeforeSameAccountSessionReplace = () =>
+            {
+                reconnectAtBarrier.Set();
+                WaitGate(banCompleted, "public-protocol ban completed before reconnect lock");
+            };
+
+            await using var racing = new TcpProbe();
+            var racingTask = ConnectAndReconnectAsync(racing, port, login.Token);
+            WaitGate(reconnectAtBarrier, "reconnect paused after pre-lock validation");
+
+            await gmClient.SendFrameAsync(BuildModerate(ModerationAction.Ban, player, "cheat"));
+            var moderate = await gmClient.ReadUntilAsync(PacketId.ModerateResult);
+            Assert.True(TryDecodeStatus(moderate, out var banOk, out _));
+            Assert.True(banOk);
+            await ExpectSessionClosedAsync(original);
+
+            banCompleted.Set();
+            var (reconnectOk, reconnectMsg) = await racingTask;
+            Assert.False(reconnectOk);
+            Assert.Equal(ModerationMessages.Banned, reconnectMsg);
+
+            var tokenState = await authSessions.ValidateTokenAsync(login.Token);
+            Assert.Equal(AuthSessionValidationStatus.Revoked, tokenState.Status);
+            AssertNoLiveAccount(player, connections, clients);
+        }
+        finally
+        {
+            ClearHooks(dispatcher, teardown: null);
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
+    public async Task Tcp_BanDuringValidatedLogin_RefusesAndLeavesNoSession()
+    {
+        var port = GetFreePort();
+        var countingStore = new CountingPlayerStateStore();
+        var countingCleanup = new CountingRuntimeCleanup();
+        using var host = CreateInMemoryHost(port, countingStore, countingCleanup);
+        await host.StartAsync();
+        PacketDispatcher? dispatcher = null;
+        try
+        {
+            var gm = UniqueUser("gm");
+            var player = UniqueUser("pl");
+            const string password = "password123";
+
+            await using var gmClient = new TcpProbe();
+            await using var original = new TcpProbe();
+            await RegisterLoginSelectAsync(gmClient, port, gm, password, "GmHero");
+            var login = await RegisterLoginSelectAsync(original, port, player, password, "PlHero");
+
+            var accounts = host.Services.GetRequiredService<IAccountRepository>();
+            var operators = host.Services.GetRequiredService<IOperatorDirectory>();
+            var gmAccount = await accounts.FindByUsernameAsync(gm);
+            Assert.NotNull(gmAccount);
+            Assert.Equal(
+                OperatorGrantStatus.Granted,
+                (await operators.GrantAsync(gmAccount!.Id, "sql", "p9-c2 ban-vs-login")).Status);
+
+            countingCleanup.Inner = host.Services.GetRequiredService<Phase8GameplayHandlers>();
+            dispatcher = host.Services.GetRequiredService<PacketDispatcher>();
+            var connections = host.Services.GetRequiredService<ConnectionManager>();
+            var clients = host.Services.GetRequiredService<ClientRegistry>();
+            var authSessions = host.Services.GetRequiredService<IAuthSessionRepository>();
+
+            var loginAtBarrier = new ManualResetEventSlim(false);
+            var banCompleted = new ManualResetEventSlim(false);
+            dispatcher.BeforeSameAccountSessionReplace = () =>
+            {
+                loginAtBarrier.Set();
+                WaitGate(banCompleted, "public-protocol ban completed before login lock");
+            };
+
+            await using var racing = new TcpProbe();
+            var racingTask = ConnectAndLoginAsync(racing, port, player, password);
+            WaitGate(loginAtBarrier, "login paused after first ban check");
+
+            await gmClient.SendFrameAsync(BuildModerate(ModerationAction.Ban, player, "cheat"));
+            var moderate = await gmClient.ReadUntilAsync(PacketId.ModerateResult);
+            Assert.True(TryDecodeStatus(moderate, out var banOk, out _));
+            Assert.True(banOk);
+            await ExpectSessionClosedAsync(original);
+
+            banCompleted.Set();
+            var (loginOk, loginMsg) = await racingTask;
+            Assert.False(loginOk);
+            Assert.Equal(ModerationMessages.Banned, loginMsg);
+
+            var tokenState = await authSessions.ValidateTokenAsync(login.Token);
+            Assert.Equal(AuthSessionValidationStatus.Revoked, tokenState.Status);
+            AssertNoLiveAccount(player, connections, clients);
+        }
+        finally
+        {
+            ClearHooks(dispatcher, teardown: null);
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task RunExclusiveForUsernameAsync_NestedSameUsername_Throws()
+    {
+        var connections = new ConnectionManager();
+        await connections.RunExclusiveForUsernameAsync("alice", async ct =>
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                connections.RunExclusiveForUsernameAsync("alice", _ => Task.CompletedTask, ct));
+            Assert.Contains("Nested acquisition", ex.Message, StringComparison.Ordinal);
+            await connections.RunExclusiveForUsernameAsync("bob", _ => Task.CompletedTask, ct);
+        });
+    }
+
     private static IHost CreateInMemoryHost(
         int port,
         CountingPlayerStateStore store,
@@ -307,6 +458,51 @@ public sealed class Phase9SessionRaceTests
         Assert.True(select.Length > 1 && select[1] != 0);
         await client.DrainPendingAsync();
         return login;
+    }
+
+    private static void AssertNoLiveAccount(
+        string username,
+        ConnectionManager connections,
+        ClientRegistry clients)
+    {
+        Assert.False(connections.TryGetSessionByUsername(username, out _));
+        Assert.DoesNotContain(
+            connections.GetActiveSessions(),
+            s => AccountUsername.Equals(s.Username, username));
+        Assert.DoesNotContain(
+            clients.GetAllAuthenticatedClients(),
+            c => AccountUsername.Equals(c.Username, username)
+                || (c.AuthenticatedSession is not null
+                    && AccountUsername.Equals(c.AuthenticatedSession.Username, username)));
+    }
+
+    private static async Task<(bool Ok, string Message)> ConnectAndReconnectAsync(
+        TcpProbe client,
+        int port,
+        string token)
+    {
+        await client.ConnectAsync("127.0.0.1", port);
+        Assert.Equal((byte)PacketId.Hello, (await client.ReadFrameAsync())[0]);
+        await client.SendFrameAsync(BuildReconnect(token));
+        var frame = await client.ReadUntilAsync(PacketId.ReconnectResult);
+        Assert.True(TryDecodeStatus(frame, out var ok, out var message));
+        await client.DrainPendingAsync();
+        return (ok, message);
+    }
+
+    private static async Task<(bool Ok, string Message)> ConnectAndLoginAsync(
+        TcpProbe client,
+        int port,
+        string user,
+        string password)
+    {
+        await client.ConnectAsync("127.0.0.1", port);
+        Assert.Equal((byte)PacketId.Hello, (await client.ReadFrameAsync())[0]);
+        await client.SendFrameAsync(BuildLogin(user, password));
+        var frame = await client.ReadUntilAsync(PacketId.LoginResult);
+        Assert.True(TryDecodeStatus(frame, out var ok, out var message));
+        await client.DrainPendingAsync();
+        return (ok, message);
     }
 
     private static async Task ReconnectAsync(TcpProbe client, int port, string token)

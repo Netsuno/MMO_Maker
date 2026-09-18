@@ -23,6 +23,7 @@ Phase 8 matrix remains the product gameplay gate: [`../phase-08-quests-events-ad
 | --- | --- |
 | Two players: one muted, one not — chat isolation | **DONE** (`Phase9ModerationTests` TCP) |
 | Ban vs already-connected session | **DONE** (ban drops live session + PG restart rejects login) |
+| Ban vs reconnect/login that already passed pre-lock validation | **DONE** locally (`Tcp_BanDuringValidatedReconnect_*`, `Tcp_BanDuringValidatedLogin_*`; failed on `97fba2e`, then passed). Awaiting CI. |
 | Kick peer `PlayerLeave` + state save + execution cancel | **DONE** (`Tcp_KickNotifiesPeersSavesStateCancelsExecutionsAndIsIdempotent`) |
 | Restore then two-client Phase 7 chat still works | P9-3 restore proof exists (Phase 7 TCP login after restore). Dedicated two-client chat **after** a dump that contains sanction rows was **not** run. **Not certified.** |
 

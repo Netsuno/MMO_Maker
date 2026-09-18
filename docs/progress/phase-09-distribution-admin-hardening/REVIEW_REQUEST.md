@@ -1,6 +1,6 @@
 # Phase 9 — REVIEW_REQUEST
 
-**Status:** **NOT READY.** Prior READY on tip `5db5f6b` was **withdrawn** (Marc refused the gate despite green CI on `8bf6f08` / 35292542956). C1–C6 corrections are on product tip `422993b` with green CI 35369587406. C-fixes **awaiting re-review**. Orchestrator owns draft PR #7. This file does not announce a gate.
+**Status:** **NOT READY.** Prior READY on tip `5db5f6b` was **withdrawn** (Marc refused the gate despite green CI on `8bf6f08` / 35292542956). C1–C6 corrections are on product tip `422993b` with green CI 35369587406. C2 follow-up (ban vs pre-lock reconnect/login) is local-only until CI on the exact tip. C-fixes **awaiting re-review**. Orchestrator owns draft PR #7. This file does not announce a gate.
 
 ## Identity
 
@@ -27,6 +27,7 @@
 - [x] P9-S still deferred (no guild/group/trade delivery claim)
 - [x] P9-1 mute/kick/ban is server-authoritative (`IOperatorDirectory`) and persisted in PostgreSQL (`ops.account_sanctions` / `ops.moderation_events`)
 - [x] C2: kick/ban/disconnect share idempotent `SessionTeardown` (peer `PlayerLeave`, state save, Phase 8 cancel, no double-dispose)
+- [ ] C2 follow-up: ban vs pre-lock reconnect/login under the same per-username lock — **local tests passed; awaiting CI on the exact tip**
 - [x] C3: disabled-backend placeholders do not block start; enabled backends still gated on public bind
 - [x] P9-2 `SECURITY_MODEL.md` matches implementation (placeholder secrets, non-loopback flag, WorldFlags reject)
 - [ ] P9-3 restore with **real sanction rows** — **not covered** (schema restore only)

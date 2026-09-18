@@ -96,8 +96,9 @@ public sealed partial class PacketDispatcher(
     internal Action<ClientSession, bool>? AfterTryGetActiveSession { get; set; }
 
     /// <summary>
-    /// Test barrier: runs after reconnect validation and before same-account
-    /// session replacement (outside the per-username exclusive section).
+    /// Test barrier: runs after login/reconnect pre-lock validation and before
+    /// the per-username exclusive section, so a public-protocol ban can finish
+    /// first. Simultaneous reconnects still rendezvous here, then serialize.
     /// </summary>
     internal Action? BeforeSameAccountSessionReplace { get; set; }
 
@@ -310,8 +311,20 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
+        BeforeSameAccountSessionReplace?.Invoke();
         await _connectionManager.RunExclusiveForUsernameAsync(username, async ct =>
         {
+            if (await _accountSanctions.HasActiveBanAsync(authResult.Account.Id, ct).ConfigureAwait(false))
+            {
+                ServerNetworkLogs.LoginFailed(_logger, "account_banned");
+                await _packetSender.SendLoginResultAsync(
+                    clientSession,
+                    false,
+                    ModerationMessages.Banned,
+                    ct);
+                return;
+            }
+
             if (!_connectionManager.TryCreateSession(username, out var session) || session is null)
             {
                 ServerNetworkLogs.LoginFailed(_logger, "already_connected");
@@ -433,6 +446,31 @@ public sealed partial class PacketDispatcher(
         BeforeSameAccountSessionReplace?.Invoke();
         await _connectionManager.RunExclusiveForUsernameAsync(account.Username, async ct =>
         {
+            if (await _accountSanctions.HasActiveBanAsync(account.Id, ct).ConfigureAwait(false))
+            {
+                _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+                ServerNetworkLogs.LoginFailed(_logger, "account_banned");
+                await _packetSender.SendReconnectResultAsync(
+                    clientSession,
+                    false,
+                    ModerationMessages.Banned,
+                    ct).ConfigureAwait(false);
+                return;
+            }
+
+            var lockedValidation = await _authSessions.ValidateTokenAsync(token, ct).ConfigureAwait(false);
+            if (lockedValidation.Status != AuthSessionValidationStatus.Valid || lockedValidation.Session is null)
+            {
+                _authService.RegisterReconnectFailure(clientSession.RemoteEndPoint);
+                ServerNetworkLogs.LoginFailed(_logger, "invalid_reconnect_token");
+                await _packetSender.SendReconnectResultAsync(
+                    clientSession,
+                    false,
+                    "Session invalide.",
+                    ct).ConfigureAwait(false);
+                return;
+            }
+
             if (_connectionManager.TryGetSessionByUsername(account.Username, out var existing)
                 && existing is not null)
             {
@@ -453,8 +491,8 @@ public sealed partial class PacketDispatcher(
             }
 
             session.AccountId = account.Id;
-            session.AuthSessionId = validation.Session.Id;
-            await _authSessions.TouchAsync(validation.Session.Id, ct).ConfigureAwait(false);
+            session.AuthSessionId = lockedValidation.Session.Id;
+            await _authSessions.TouchAsync(lockedValidation.Session.Id, ct).ConfigureAwait(false);
             _authService.RegisterReconnectSuccess(clientSession.RemoteEndPoint);
 
             await CompleteLoginAsync(
