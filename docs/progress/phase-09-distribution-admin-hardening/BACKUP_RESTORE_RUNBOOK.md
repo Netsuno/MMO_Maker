@@ -1,8 +1,8 @@
 # Phase 9 — PostgreSQL backup / restore runbook (P9-3)
 
-**Status:** implemented on `cursor/phase9-distribution-admin-hardening`.  
-**Schema tip:** 27 EF Up migrations, latest `20260918001424_OpsAccountSanctions` under `Frog.Persistence.PostgreSql/Migrations/` (P9-1 `ops.account_sanctions` / `ops.moderation_events`; P9-2 `auth.operators` is `20260917223000_AuthOperators`).  
-**Product schemas (`FrogDbContext`):** `auth`, `content`, `ops`, `player`, `world`.  
+**Status:** implemented on `cursor/phase9-distribution-admin-hardening`.
+**Schema tip:** 27 EF Up migrations, latest `20260918001424_OpsAccountSanctions` under `Frog.Persistence.PostgreSql/Migrations/` (P9-1 `ops.account_sanctions` / `ops.moderation_events`; P9-2 `auth.operators` is `20260917223000_AuthOperators`).
+**Product schemas (`FrogDbContext`):** `auth`, `content`, `ops`, `player`, `world`.
 **Engine:** PostgreSQL 16 (Compose `postgres:16-alpine`, CI `postgres:16`).
 
 This runbook is the operator path. The automated proof is `PostgresBackupRestoreTests` (see §Proof). **Re-run after the P9-1 EF migration** (`20260918001424_OpsAccountSanctions` — `ops.account_sanctions` / `ops.moderation_events`). Dumps taken before that migration restore, then `Database.Migrate()` (or a server/editor start that migrates) applies leftover Ups; prefer a fresh dump after migrate.

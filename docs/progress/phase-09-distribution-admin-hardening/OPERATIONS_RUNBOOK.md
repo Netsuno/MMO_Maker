@@ -1,6 +1,6 @@
 # Phase 9 — OPERATIONS_RUNBOOK
 
-**Status:** P9-4 start/stop + config overlay (packaged and from-source). Mute/kick/ban: P9-1 (`ModerateRequest` / slash commands).  
+**Status:** P9-4 start/stop + config overlay (packaged and from-source). Mute/kick/ban: P9-1 (`ModerateRequest` / slash commands).
 **Companion docs:** [`PACKAGING_GUIDE.md`](PACKAGING_GUIDE.md), [`BACKUP_RESTORE_RUNBOOK.md`](BACKUP_RESTORE_RUNBOOK.md), [`SECURITY_MODEL.md`](SECURITY_MODEL.md).
 
 ## Prerequisites
@@ -31,7 +31,7 @@ Operator overlay (pick one):
 
 Editor overlay is a **different JSON shape** (`Frog.Editor/appsettings.Local.json.example`, PascalCase `PostgreSql:ConnectionString`) and is also gitignored. Possession of that string is world-admin (`SECURITY_MODEL.md` §3).
 
-Public bind (`Server.bindAddress` not loopback) requires `Server.allowNonLoopbackBind=true`. There is **no TLS** on `TcpListener`. `PlaceholderSecretPolicy` refuses to start if the bind is public **and** a DSN still contains a known placeholder (`NOT_A_PRODUCTION_SECRET`, `changeme`, `frog_dev_only`, `VOTRE_MOT_DE_PASSE`, …).
+Public bind (`Server.bindAddress` not loopback) requires `Server.allowNonLoopbackBind=true`. There is **no TLS** on `TcpListener`. `PlaceholderSecretPolicy` refuses to start if the bind is public **and** an **enabled** backend DSN still contains a known placeholder (`NOT_A_PRODUCTION_SECRET`, `changeme`, `frog_dev_only`, `VOTRE_MOT_DE_PASSE`, …). Placeholders on a **disabled** backend (MariaDB off while PostgreSQL is on) do not block start.
 
 Do not commit `appsettings.Local.json`. Publish layouts exclude it (`CopyToPublishDirectory=Never`).
 
@@ -140,7 +140,7 @@ Operator commands are `PacketId.ModerateRequest` (78). The server calls `IOperat
 - `/ban <username> <reason>`
 - `/unban <username> <reason>`
 
-Mute persists in `ops.account_sanctions` (`kind=mute`) and rejects `ChatSend` only. Kick closes the live TCP session and writes `ops.moderation_events` (not a lasting ban). Ban persists (`kind=ban`), revokes reconnect tokens, drops the live session, and rejects login/reconnect.
+Mute persists in `ops.account_sanctions` (`kind=mute`) and rejects `ChatSend` only. Kick closes the live TCP session and writes `ops.moderation_events` (not a lasting ban). Ban persists (`kind=ban`), revokes reconnect tokens, drops the live session, and rejects login/reconnect. Kick, ban, logout, idle expire, and peer disconnect share one idempotent `SessionTeardown` (player-left to peers, character state save, Phase 8 execution cancel). Repeating kick/ban/disconnect is a no-op, not a double-dispose.
 
 ## Backup reminder
 

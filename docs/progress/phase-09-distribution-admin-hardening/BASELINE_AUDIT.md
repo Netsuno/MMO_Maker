@@ -1,9 +1,9 @@
 # Phase 9 — Baseline audit (P9-0)
 
-**Audited tip:** `5af47b9cf6ba18a82dba5eee933fc1d0e6afa3eb`  
-**Branch:** `cursor/phase9-distribution-admin-hardening` (created from that `main` tip)  
-**Date:** 2026-09-17  
-**Repo:** https://github.com/Netsuno/MMO_Maker  
+**Audited tip:** `5af47b9cf6ba18a82dba5eee933fc1d0e6afa3eb`
+**Branch:** `cursor/phase9-distribution-admin-hardening` (created from that `main` tip)
+**Date:** 2026-09-17
+**Repo:** https://github.com/Netsuno/MMO_Maker
 
 This is a **new** Phase 9 audit. Do not treat [`docs/BASELINE_AUDIT.md`](../../BASELINE_AUDIT.md) as current — that file is the Phase 0 snapshot of `6df9f55` (2026-08-22) when PostgreSQL, Application, and Phase 7–8 did not exist.
 
@@ -163,7 +163,7 @@ Source: `Frog.Persistence.PostgreSql/Migrations/`. **24** Up migrations. Latest:
 | `20260916221500_MapEventActivationLedger` | `activation_id` + `wait_ordinal` |
 | `20260917204500_MapEventExecutionRequestIdGlobalUnique` | unique `request_id` |
 
-**Schemas actually in `FrogDbContext` / snapshot:** `auth`, `content`, `ops`, `player`, `world`.  
+**Schemas actually in `FrogDbContext` / snapshot:** `auth`, `content`, `ops`, `player`, `world`.
 [`docs/DATA_MODEL.md`](../../DATA_MODEL.md) lists only `world` / `content` (tilesets) / `ops` — **incomplete**.
 
 No moderation / ban / mute tables exist.
@@ -199,7 +199,7 @@ dotnet run --project Frog.Client/Frog.Client.csproj      # Windows
 dotnet run --project Frog.Editor/Frog.Editor.csproj      # Windows
 ```
 
-**Start:** `Program.Main` builds the generic host; `GameServerService.ExecuteAsync` binds `TcpListener` and logs `ServerStarted`.  
+**Start:** `Program.Main` builds the generic host; `GameServerService.ExecuteAsync` binds `TcpListener` and logs `ServerStarted`.
 **Stop:** host cancellation → stop accepting → dispose socket → await client handler tasks → `ServerStopped`. `Ctrl+C` / `IHost.StopAsync` is the supported path. Playtest stop is owned by `PlaytestOwnedProcessLauncher`.
 
 There is **no** packaged `systemctl` unit, Docker image for the game server, or graceful-drain beyond the hosted-service stop shown above.

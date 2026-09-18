@@ -1,7 +1,7 @@
 # Phase 9 — LOAD_REPORT
 
-**Status:** P9-5 **DONE** (measured on this agent, not guessed).  
-**Harness code SHA:** `0452504ee89627686dc6bf534c7103f0e606bd83` (`0452504`). Parent merge with P9-1/P9-4: `3138e7d4daa4e1dee61d6363a153a3f4325f4cfc`. Report-docs SHA is this file’s commit on `cursor/phase9-distribution-admin-hardening`. Do not invent a CI URL.  
+**Status:** P9-5 measured (in-memory). Not a full certification of BASELINE_AUDIT §10. Phase 9 overall **NOT READY** pending re-review after C-fixes.
+**Harness code SHA:** `0452504ee89627686dc6bf534c7103f0e606bd83` (`0452504`). Parent merge with P9-1/P9-4: `3138e7d4daa4e1dee61d6363a153a3f4325f4cfc`. Report-docs SHA is this file’s commit on `cursor/phase9-distribution-admin-hardening`. Do not invent a CI URL.
 **No CI URL** is claimed for this run (`ci.yml` still only fires on `main` / PRs to `main`). Draft PR #7 exists; this file does not invent a GitHub Actions URL.
 
 UDP / AOI was **not** built. Phase 8 E2E / screenshot SHA gates were **not** touched.
@@ -24,7 +24,7 @@ Attach to a packaged or from-source listener (P9-4 path):
 ./scripts/run-load-harness.sh --host 127.0.0.1 --port 6000 --sessions 10 --scenario connect
 ```
 
-CI-sized proof (always, no PG): `dotnet test Frog.Tests/Frog.Tests.csproj --filter FullyQualifiedName~.Phase9OpsMetricsTests`  
+CI-sized proof (always, no PG): `dotnet test Frog.Tests/Frog.Tests.csproj --filter FullyQualifiedName~.Phase9OpsMetricsTests`
 PG-sized proof (needs `FROG_POSTGRES_TEST_CONNECTION_STRING`): `FullyQualifiedName~.PostgresLoadObservabilityTests`
 
 ## Host that produced the numbers below
@@ -62,7 +62,7 @@ Hold was 2 s. Process CPU estimate ~3%. **200 concurrent TCP Hellos held** on th
 | 50 | 50 | 600 / 200 | 4000 / 1500 | 1 | 17.2 s | 1701 (chat 200, move 1500, login 1) | 0 | 22.3% |
 | 100 | 100 | 1200 / 400 | 8000 / 3000 | 1 | 23.3 s | 3401 (chat 400, move 3000, login 1) | 0 | 30.8% |
 
-Chat math matches the cap: 12 burst − 8 allowed / 10 s = **4 rejects / session**.  
+Chat math matches the cap: 12 burst − 8 allowed / 10 s = **4 rejects / session**.
 Move math matches the cap: 80 burst − 50 / rolling second = **30 rejects / session** (burst completed well under 1 s).
 
 Oversize probe (`length = 1 MiB + 1`, no payload): connection dropped every time; `connectionsRejected = 1`, log `TCP frame rejected … reason=oversize_frame`.
@@ -84,18 +84,18 @@ Working set at 100 mixed: ~164 MiB (harness + in-memory host in one process).
 
 | Signal | Proposed (P9-0, not measured) | This run | Verdict |
 | --- | --- | --- | --- |
-| Concurrent authenticated sessions | 25 / 50 / 100 | **100 mixed in-memory, 0 failures** | **Certified 100** (in-memory TCP on a 4-core / 15 GiB Linux host) |
-| Concurrent TCP connections (pre-auth) | 2× sessions | **200 Hello** | **Certified 200** (above 2×100) |
+| Concurrent authenticated sessions | 25 / 50 / 100 | **100 mixed in-memory, 0 failures** | **Measured 100** (in-memory TCP on a 4-core / 15 GiB Linux host). **Not** a hosted-world certification. |
+| Concurrent TCP connections (pre-auth) | 2× sessions | **200 Hello** | **Measured 200** (above 2×100). **Not** a hosted-world certification. |
 | Movement + position-sync | ≤ 50 / s / session | 80 burst → 30 rejects / session | **Enforced and visible** (`ops_metrics` + `Movement rate limited`) |
 | Chat accepted | 8 / 10 s / session | 12 burst → 4 rejects / session | **Enforced and visible** (`Chat rate limited`) |
-| Frame rejects > 1 MiB | 100% drop | 1/1 drop | **Certified** |
+| Frame rejects > 1 MiB | 100% drop | 1/1 drop | **Measured** |
 | Host CPU | < 70% at certified N | ~31% process estimate at 100 mixed | **Met** on this host (process-level, not whole-box) |
-| Idle disconnect ~300 s | proposed | **Not measured** (would need ≥5 min) | **Revised: not certified** |
-| Economy + quest TPS 10 / s | proposed | **Not in this harness** | **Revised: not certified** |
-| Interact 5 sustained / burst 20 | proposed | **Not in this harness** | **Revised: not certified** |
-| PG connections ≤ 20 | proposed | Pool not dumped; 4 authed mixed + 180 PG tests showed **0** `postgres_errors` | **Revised:** error **visibility** certified; pool size **not** certified |
-| Restart reconnect N in 60 s | proposed | **Not measured** | **Revised: not certified** |
-| PG 100 authed | implied by 100 | 4 authed mixed measured | **Revised certified PG floor: 4 concurrent authed** on a seeded host. Stretch 25–100 remains an operator attach (`--host/--port`) after a published world exists. |
+| Idle disconnect ~300 s | proposed | **Not measured** (would need ≥5 min) | **Not certified** |
+| Economy + quest TPS 10 / s | proposed | **Not in this harness** | **Not certified** |
+| Interact 5 sustained / burst 20 | proposed | **Not in this harness** | **Not certified** |
+| PG connections ≤ 20 | proposed | Pool not dumped; 4 authed mixed + 180 PG tests showed **0** `postgres_errors` | Error **visibility** measured; pool size **not certified** |
+| Restart reconnect N in 60 s | proposed | **Not measured** | **Not certified** |
+| PG 100 authed | implied by 100 | 4 authed mixed measured | PG floor measured: **4 concurrent authed** on a seeded host. Stretch 25–100 remains an operator attach (`--host/--port`) after a published world exists. **Not certified.** |
 
 ## Ops signals (minimal, proven)
 
@@ -123,9 +123,9 @@ There is still **no HTTP `/metrics`**. Console + optional file is the operator s
 - Chat Global fan-out is O(sessions²) under this harness; 100 mixed was fine here, not an AOI substitute.
 - Authenticated ramp is CPU-bound on PBKDF2 600k — that, not TCP accept, is the cost of “100 logins”.
 - Packaged-server attach was not a separate 100-session storm; P9-4 `PackagedServerPostgreSqlProcessTests` still passed in the 180 PG tests (process + PG login/shop).
-- P9-3 residual after P9-1: migration `20260918001424_OpsAccountSanctions` (`ops.account_sanctions` / `ops.moderation_events`). This run’s 180 PG tests included `PostgresBackupRestoreTests` (incidental). A dedicated restore campaign whose dump contains sanction rows is still an operator / P9-6 item — P9-5 did not rewrite backup scripts.
+- P9-3 residual after P9-1: migration `20260918001424_OpsAccountSanctions` (`ops.account_sanctions` / `ops.moderation_events`). This run’s 180 PG tests included `PostgresBackupRestoreTests` (incidental). A dedicated restore campaign whose dump contains **real sanction rows** is **not covered** and must not be sold as certified.
 - No TLS, no metrics HTTP, no player-drain on stop (existing).
-- P9-6 still owns Phase 8 Windows smokes ×3 and a real CI URL once a run exists.
+- Packaged client/editor launch from `publish-frog.ps1` is **not proven**.
 
 ## Out of scope (kept empty)
 

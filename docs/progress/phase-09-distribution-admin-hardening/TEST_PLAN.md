@@ -1,24 +1,24 @@
 # Phase 9 — TEST_PLAN
 
-**Status:** P9-6 **DONE**. CI on product tip `66fa070` and evidence pack tip `8bf6f08` is **SUCCESS**. Phase 9 is **READY** (residuals listed in `KNOWN_ISSUES.md`). Do not weaken Phase 8 suites or screenshot SHA gates.
+**Status:** P9-6 **IN PROGRESS**. Phase 9 is **NOT READY**. Prior READY on `5db5f6b` / `8bf6f08` was withdrawn. Do not weaken Phase 8 suites or screenshot SHA gates.
 
 ## Identity (do not invent)
 
 | Item | Value |
 | --- | --- |
 | Branch | `cursor/phase9-distribution-admin-hardening` |
-| Product tip | `66fa070b07352c5ee0429234bb31470e10608805` (`66fa070`) / https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS** |
-| Evidence pack tip | `8bf6f088cc002ba8957d062952843a82706600a1` (`8bf6f08`) / https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS** |
+| Refused gate tip | `5db5f6bf30fee9599a55e42ef2c5ad41fca33dd7` |
+| Historical product tip | `66fa070b07352c5ee0429234bb31470e10608805` (`66fa070`) / https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 **SUCCESS** |
+| Historical evidence pack tip | `8bf6f088cc002ba8957d062952843a82706600a1` (`8bf6f08`) / https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS** |
 | Draft PR | https://github.com/Netsuno/MMO_Maker/pull/7 |
-| `build-and-test` (`8bf6f08`) | **success** 9m41s — https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956/job/105438279174 |
-| `postgres-integration` (`8bf6f08`) | **success** 4m54s — https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956/job/105438279075 |
-| Earlier completed CI on this PR | https://github.com/Netsuno/MMO_Maker/actions/runs/35288813093 SUCCESS on P9-0 docs-only tip `6f178e9`. Later product commits before `66fa070` were **cancelled** (`cancel-in-progress`) — not green evidence. |
+| Correction-tip CI | **not pinned yet** — do not invent a URL |
 | Baseline CI (main, branch-start SHA `5af47b9`) | https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 SUCCESS |
 | Protocol | `FrogWireProtocol.Version = 10` |
+| Local Frog.Tests after C-fixes | **445** PASS / 0 fail / 0 skip |
 
-## Counts from CI logs
+## Counts from historical CI logs (`8bf6f08` — refused READY, still green)
 
-Same totals on product tip run 35291880532 and evidence tip run 35292542956 (`Test Run Successful` summaries). No Failed/Skipped lines were printed next to these totals. Quoted from `gh run view … --log`.
+Quoted from `gh run view … --log` on run 35292542956. Correction-tip counts are not invented here. Local Frog.Tests after C-fixes: **445**.
 
 | Step (job) | Log line |
 | --- | --- |
@@ -34,7 +34,7 @@ Same totals on product tip run 35291880532 and evidence tip run 35292542956 (`Te
 
 | Suite | Project | Phase 8 acceptance (main) | This branch CI (`66fa070` / 35291880532) |
 | --- | --- | --- | --- |
-| Unit / in-memory | `Frog.Tests/Frog.Tests.csproj` | **412** PASS | **436** Passed / 436 total |
+| Unit / in-memory | `Frog.Tests/Frog.Tests.csproj` | **412** PASS | **436** Passed on `8bf6f08`; **445** local after C-fixes |
 | PostgreSQL integration | `tests/Frog.Persistence.IntegrationTests/` | **174** PASS | **180** Passed / 180 total |
 | Editor smoke | `tests/Frog.Editor.WindowsSmokeTests/` filter `!~GameplayClientSmoke&!~Phase8` | **87×3** | **87×3** |
 | Gameplay smoke | same, `GameplayClientSmokeTests` | **6×3** | **6×3** |
@@ -46,8 +46,8 @@ Phase 8 screenshot SHA-256 table is unchanged on this branch (`SCREENSHOT_MANIFE
 
 | Task | Coverage | Filter / command |
 | --- | --- | --- |
-| P9-1 | Mute / kick / ban unit + in-memory TCP (`Frog.Tests/Phase9ModerationTests.cs`, 5 `[Fact]`). PG persist + host restart + TCP (`tests/Frog.Persistence.IntegrationTests/Phase9ModerationTests.cs`, 2 `[PostgresFact]`). Phase 7 Global/Map/Whisper regression is inside the in-memory TCP Fact. | `FullyQualifiedName~.Phase9ModerationTests` |
-| P9-2 | Unprivileged / secrets / bind / WorldFlags (`Frog.Tests/Phase9SecurityGateTests.cs`, 11 `[Fact]`). PG operator + WorldFlags TCP (`tests/Frog.Persistence.IntegrationTests/Phase9SecurityGateTests.cs`, 2 `[PostgresFact]`). Extra: `Phase7InMemorySmokeE2ETests.WorldFlagsPatchRequest_RejectedInProductionComposition` (+1 `[Fact]`). | `FullyQualifiedName~.Phase9SecurityGateTests` |
+| P9-1 | Mute / kick / ban unit + in-memory TCP (`Frog.Tests/Phase9ModerationTests.cs`). Teardown unit (`Phase9SessionTeardownTests`). PG persist + host restart + TCP (`tests/Frog.Persistence.IntegrationTests/Phase9ModerationTests.cs`). Phase 7 Global/Map/Whisper regression is inside the in-memory TCP Fact. Kick also proves peer `PlayerLeave`, state save, execution cancel, idempotent repeat. | `FullyQualifiedName~.Phase9ModerationTests` · `FullyQualifiedName~.Phase9SessionTeardownTests` |
+| P9-2 | Unprivileged / secrets / bind / WorldFlags (`Frog.Tests/Phase9SecurityGateTests.cs`). Disabled-backend placeholder host composition. PG operator + WorldFlags TCP (`tests/Frog.Persistence.IntegrationTests/Phase9SecurityGateTests.cs`). Extra: `Phase7InMemorySmokeE2ETests.WorldFlagsPatchRequest_RejectedInProductionComposition`. | `FullyQualifiedName~.Phase9SecurityGateTests` |
 | P9-3 | Empty migrate → seed → `pg_dump` → `pg_restore` → `PostgresDatabaseHealth` OK → Phase 7 TCP login (`PostgresBackupRestoreTests`, 1 `[PostgresFact]`). Included in the CI **180**. | `FullyQualifiedName~.PostgresBackupRestoreTests` · `./scripts/postgres-backup-restore-smoke.sh` |
 | P9-4 | Script/guide presence + Local overlay never published + PG sidecar RID (`Frog.Tests/Phase9PackagingTests.cs`, 3 `[Fact]`). Packaged process + PG login/shop (`PackagedServerPostgreSqlProcessTests`). Layout: `./scripts/packaged-server-smoke.sh --layout-only` (**OK** on this run). | |
 | P9-5 | In-memory mixed ×4 + counters (`Frog.Tests/Phase9OpsMetricsTests.cs`, 4 `[Fact]`). PG attach ×4 (`PostgresLoadObservabilityTests`, 1 `[PostgresFact]`). Harness: `./scripts/run-load-harness.sh --scenario mixed --sessions 25` | `FullyQualifiedName~.Phase9OpsMetricsTests` |

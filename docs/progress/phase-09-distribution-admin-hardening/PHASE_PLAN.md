@@ -1,8 +1,8 @@
 # Phase 9 — Delivery plan (P9-0)
 
-**Branch:** `cursor/phase9-distribution-admin-hardening`  
-**Base / audit tip:** `5af47b9cf6ba18a82dba5eee933fc1d0e6afa3eb` (`main` tip — README merge PR #6)  
-**Baseline CI (main only):** https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 SUCCESS  
+**Branch:** `cursor/phase9-distribution-admin-hardening`
+**Base / audit tip:** `5af47b9cf6ba18a82dba5eee933fc1d0e6afa3eb` (`main` tip — README merge PR #6)
+**Baseline CI (main only):** https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 SUCCESS
 **This document:** planning only. No feature implementation in P9-0.
 
 Phase 8 is **ACCEPTED on main** (merge `1cd57ba`). Phase 9 is **IN PROGRESS** on this branch. Do not start Phase 10. Do not change Phase 8 product behavior except documenting regressions found during later implementation (none claimed here).

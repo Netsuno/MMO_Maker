@@ -1,8 +1,8 @@
 # Phase 9 — PACKAGING_GUIDE
 
-**Status:** P9-4 (operator publish layouts). No installer, no store listing, no code-signing.  
-**SDK pin:** `global.json` → **8.0.424** (`rollForward: latestFeature`).  
-**Protocol:** `FrogWireProtocol.Version = 10` — packaged client and server **must** be the same generation.  
+**Status:** P9-4 (operator publish layouts). No installer, no store listing, no code-signing.
+**SDK pin:** `global.json` → **8.0.424** (`rollForward: latestFeature`).
+**Protocol:** `FrogWireProtocol.Version = 10` — packaged client and server **must** be the same generation.
 **Proof of start:** `PackagedServerPostgreSqlProcessTests` (job `postgres-integration` in [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)). This file does **not** invent a CI run URL.
 
 ## What an operator runs
@@ -57,7 +57,7 @@ Rules:
 - **Framework-dependent.** Not `--self-contained`. Install the .NET 8 runtime (or the SDK) on the host.
 - **Not single-file.** `Frog.Server/Program.cs` `TryLoadPostgreSqlAuthBackend` does `Assembly.LoadFrom(AppContext.BaseDirectory + "Frog.Persistence.PostgreSql.dll")`. A single-file publish would hide that DLL. `Frog.Server/Build/CopyPostgreSqlRuntime.targets` publishes the persistence project as **portable `net8.0`** (it strips the host RID via `RemoveProperties`) and copies those DLLs next to the RID-specific host. Forwarding `linux-x64` / `win-x64` into that class library fails restore (`NETSDK1047`).
 - **x64 only** (`PlatformTarget=x64` on the three executables).
-- Linux agents can **produce** the Windows layouts (`Directory.Build.props` `EnableWindowsTargeting=true`) but cannot **launch** WinForms/WPF. Client/editor launch remains the existing `windows-latest` smokes in `ci.yml` (editor / gameplay / Phase 8 ×3, including `scripts/verify-phase8-screenshot-manifest.ps1`).
+- Linux agents can **produce** the Windows layouts (`Directory.Build.props` `EnableWindowsTargeting=true`) but cannot **launch** WinForms/WPF. From-source editor / gameplay / Phase 8 smokes remain the `windows-latest` jobs in `ci.yml` (including `scripts/verify-phase8-screenshot-manifest.ps1`). Those smokes do **not** launch `publish-frog.ps1` output.
 
 ## Output tree
 
@@ -106,7 +106,7 @@ To run a packaged server with PostgreSQL enabled:
 
 1. `./scripts/publish-frog.sh --target server-linux-x64` (or the Windows RID).
 2. `cp artifacts/publish/server-linux-x64/appsettings.Local.json.example artifacts/publish/server-linux-x64/appsettings.Local.json`
-3. Edit Local: `PostgreSql.enabled=true`, real `connectionString`, keep `MariaDb.enabled=false`, keep `Server.bindAddress=127.0.0.1` unless `allowNonLoopbackBind=true` (clear-text TCP; `PlaceholderSecretPolicy` refuses a public bind with a known placeholder).
+3. Edit Local: `PostgreSql.enabled=true`, real `connectionString`, keep `MariaDb.enabled=false`, keep `Server.bindAddress=127.0.0.1` unless `allowNonLoopbackBind=true` (clear-text TCP; `PlaceholderSecretPolicy` refuses a public bind when an **enabled** backend still has a known placeholder; disabled MariaDB placeholders are ignored).
 4. PostgreSQL 16 must exist. Dev Compose: `docker compose up -d postgres` (user `frog`, password `frog_dev_only`, db `frog` — **not** production).
 5. Start (see [`OPERATIONS_RUNBOOK.md`](OPERATIONS_RUNBOOK.md)):
    ```bash
@@ -127,7 +127,8 @@ Do not set `PostgreSql:allowInMemoryFallback=true` on a hosted world. Do not ena
 | --- | --- | --- |
 | Layout files + PG DLL next to host | `./scripts/publish-frog.sh` / `packaged-server-smoke.sh --layout-only` | Any SDK host; CI step on `postgres-integration` |
 | Packaged process starts with PG, login + shop persist, graceful stop | `PackagedServerPostgreSqlProcessTests` | Ubuntu `postgres-integration` (needs `FROG_POSTGRES_TEST_CONNECTION_STRING`) |
-| Client / editor actually launch | Existing Windows editor / gameplay / Phase 8 smokes ×3 | `windows-latest` in `ci.yml` |
+| From-source WinForms editor / client smokes | Existing `windows-latest` editor / gameplay / Phase 8 smokes ×3 | `dotnet test` of `tests/Frog.Editor.WindowsSmokeTests` — **not** `artifacts/publish/client-win-x64` / `editor-win-x64` |
+| Packaged `Frog.Client.exe` / `Frog.Editor.exe` from `publish-frog.ps1` actually launched | **Not proven.** Linux agents cannot run WinForms. No CI step starts the publish-layout EXEs. | Honest residual: layout publish only |
 
 ```bash
 ./scripts/packaged-server-smoke.sh --layout-only
@@ -136,7 +137,7 @@ export FROG_POSTGRES_TEST_CONNECTION_STRING='Host=127.0.0.1;Port=5432;Database=f
 ./scripts/packaged-server-smoke.sh
 ```
 
-This guide does not claim a Windows GUI proof from a Linux agent.
+This guide does **not** claim that `publish-frog.ps1` client/editor packages have been launched. Server packaging has Linux proofs (`PackagedServerPostgreSqlProcessTests` + layout-only smoke). Windows CI smokes prove from-source test hosts, not the published RID trees.
 
 ## Out of scope
 

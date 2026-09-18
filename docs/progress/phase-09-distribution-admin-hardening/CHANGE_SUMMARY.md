@@ -1,11 +1,20 @@
 # Phase 9 — CHANGE_SUMMARY
 
-**Status:** P9-0…P9-6 landed on `cursor/phase9-distribution-admin-hardening`. Evidence pack tip `8bf6f08` CI https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS** (product `66fa070` / 35291880532 also SUCCESS). Phase 9 **READY**. P9-S **DEFERRED**.
+**Status:** C-fixes after refused gate on tip `5db5f6b`. Phase 9 **NOT READY**. P9-S **DEFERRED**. Prior READY withdrawn. Do not invent a CI URL for the correction tip until Actions has run on that SHA.
+
+## C-fixes (this pass)
+
+- **C1** Trailing whitespace stripped so `git diff --check origin/main...HEAD` is clean.
+- **C2** Kick/ban/logout/idle/peer-disconnect share idempotent `SessionTeardown` (peer `PlayerLeave`, character state save, Phase 8 execution cancel, no double-dispose). Tests: `Phase9SessionTeardownTests`, TCP `Tcp_KickNotifiesPeersSavesStateCancelsExecutionsAndIsIdempotent`.
+- **C3** `PlaceholderSecretPolicy` ignores **disabled** backends. PostgreSQL-on + MariaDB-off with MariaDB placeholders must not block a public bind. Enabled backends still fail start on placeholder + public bind. Tests in `Phase9SecurityGateTests` (unit + host composition; PG integration Build).
+- **C4** Documentary claims reduced: `publish-frog.ps1` client/editor **launch** is **not proven**. Server Linux packaging remains proven. Windows CI smokes are from-source test hosts.
+- **C5** P9-5 is a measurement lot, not a full certification. Unexecuted LOAD_REPORT rows and restore-with-sanction-rows stay **not covered**. STATUS / PHASE_REPORT / REVIEW_REQUEST say **NOT READY**.
+- **C6** New/updated tests as above. Local Frog.Tests **445** PASS (was 436). PG integration not run on this agent (no local Postgres).
 
 ## P9-0 (bootstrap)
 
 - Added `docs/progress/phase-09-distribution-admin-hardening/` planning pack.
-- Updated `docs/STATUS.md`: Phase 8 ACCEPTED on main; Phase 9 IN PROGRESS (later READY).
+- Updated `docs/STATUS.md`: Phase 8 ACCEPTED on main; Phase 9 was IN PROGRESS then (refused) READY; now **NOT READY**.
 - P9-S (guilds / groups / trades): **DEFERRED**. See PHASE_PLAN.
 
 ## P9-1 Admin / moderation
@@ -38,7 +47,7 @@
 - Scripts: `scripts/publish-frog.sh` / `.ps1` (RID layouts `server-linux-x64`, `server-win-x64`, `client-win-x64`, `editor-win-x64`), `scripts/run-packaged-server.sh` / `.ps1`, `scripts/packaged-server-smoke.sh`.
 - Framework-dependent, not single-file (runtime load of `Frog.Persistence.PostgreSql.dll`). `CopyPostgreSqlRuntime.targets` publishes the PG sidecar as portable `net8.0`. `appsettings.Local.json` is never published (`CopyToPublishDirectory=Never`).
 - Docs: concrete `PACKAGING_GUIDE.md` and `OPERATIONS_RUNBOOK.md`.
-- Proof: `PackagedServerPostgreSqlProcessTests` plus CI `layout-only smoke OK`. Client/editor launch: Windows CI smokes on this run (**87×3** / **6×3** / Phase 8 **24×3**).
+- Proof: `PackagedServerPostgreSqlProcessTests` plus CI `layout-only smoke OK`. Packaged client/editor launch from `publish-frog.ps1` is **not proven**. Windows CI smokes are from-source `dotnet test` hosts (**87×3** / **6×3** / Phase 8 **24×3** on the refused-gate CI), not published RID trees.
 
 ## P9-5 Load / observability
 
@@ -50,9 +59,9 @@
 ## P9-6 Evidence
 
 - Filled `TEST_PLAN.md`, `E2E_MATRIX.md`, `PHASE_REPORT.md`, `REVIEW_REQUEST.md`, `KNOWN_ISSUES.md`, this file, `TASK_MATRIX.md`, and `docs/STATUS.md`.
-- Pinned real SHAs `66fa070` (product) and `8bf6f08` (evidence pack) with CI https://github.com/Netsuno/MMO_Maker/actions/runs/35291880532 and https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956 **SUCCESS**. Counts from logs: 436 / 180 / 87×3 / 6×3 / 24×3.
-- Verdict: **READY**. Suggested PR #7 body lives in `REVIEW_REQUEST.md` for Orchestrator.
-- Phase 8 screenshot scripts / `SCREENSHOT_MANIFEST.md` unchanged. **No Phase 8 regression found.**
+- Historical pin: SHAs `66fa070` / `8bf6f08` with CI 35291880532 and 35292542956 SUCCESS (Frog.Tests **436** then). That READY was **refused**.
+- This pass: C-fixes; local Frog.Tests **445**. Correction-tip CI is not invented here.
+- Verdict: **NOT READY**. Phase 8 screenshot scripts / `SCREENSHOT_MANIFEST.md` unchanged.
 
 ## Out of scope (must stay empty)
 

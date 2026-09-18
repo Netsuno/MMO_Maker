@@ -87,9 +87,9 @@ MariaDB account tables are **frozen** (ADR-0002). Do not add operator bits there
 | `Frog.Server/Models/Role.cs` stubs | Rejected. Historical. |
 | **`auth.operators` 1:1 with `auth.accounts`** | **Accepted.** Explicit grant, soft-revoke, audit columns, unused by the login path. |
 
-Port: `Frog.Application/Identity/IOperatorDirectory.cs`  
-Implementations: `PostgresOperatorDirectory` (production), `InMemoryOperatorDirectory` (playtest / unit tests).  
-Entity: `Frog.Persistence.PostgreSql/Entities/Auth/OperatorEntity.cs`  
+Port: `Frog.Application/Identity/IOperatorDirectory.cs`
+Implementations: `PostgresOperatorDirectory` (production), `InMemoryOperatorDirectory` (playtest / unit tests).
+Entity: `Frog.Persistence.PostgreSql/Entities/Auth/OperatorEntity.cs`
 Migration: `20260917223000_AuthOperators`.
 
 ```text
@@ -160,7 +160,7 @@ P9-1 may add new `PacketId`s **or** an authenticated console channel. If packets
 | Env `FROG_POSTGRES_CONNECTION_STRING` | Server fallback if config CS empty (`FrogServerHostFactory`) | Yes |
 | `docker-compose.yml` | `frog` / `frog_dev_only` — local volume only | No |
 
-Gate (`PlaceholderSecretPolicy`): if the bind is **not** loopback and a connection string contains a known placeholder (`NOT_A_PRODUCTION_SECRET`, `changeme`, `CHANGE_ME`, `VOTRE_MOT_DE_PASSE`, `frog_dev_only`, `frog_test_local_only`), the host **refuses to start**. Loopback + Compose passwords remain valid for local docker.
+Gate (`PlaceholderSecretPolicy`): if the bind is **not** loopback, the host **refuses to start** when an **enabled** backend DSN contains a known placeholder (`NOT_A_PRODUCTION_SECRET`, `changeme`, `CHANGE_ME`, `VOTRE_MOT_DE_PASSE`, `frog_dev_only`, `frog_test_local_only`). A **disabled** backend (typical: `MariaDb.enabled=false` while PostgreSQL is the active store) does **not** participate in that check — leftover Compose / `appsettings.json` placeholders on the unused path must not block start. Loopback + Compose passwords remain valid for local docker. Production still requires a real secret on every **enabled** backend before a public bind.
 
 Do not commit `appsettings.Local.json`. Do not reuse Compose passwords on a hosted world.
 
