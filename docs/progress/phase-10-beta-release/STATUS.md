@@ -2,7 +2,7 @@
 
 **Lot A TLS landed :** [`ea116afa`](https://github.com/Netsuno/MMO_Maker/commit/ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b). CI **pending**. **Pas READY.**
 
-File ensuite **déjà sur cette branche** (ne pas rejouer) : docs référence DA → P10-2 → P10-3a → B → C → D → E. Tip courant `ebf3437`.
+File ensuite **déjà sur cette branche** (ne pas rejouer) : docs référence DA → P10-2 → P10-3a → B → C → D → E.
 
 | Item | Valeur |
 | --- | --- |
@@ -36,7 +36,7 @@ File ensuite **déjà sur cette branche** (ne pas rejouer) : docs référence DA
 | Lot | Tip | Statut |
 | --- | --- | --- |
 | P10-5 A TLS SslStream | `ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b` | **landed** — CI pending |
-| Docs référence DA | `ebf3437f642ba73b0e3bfa7b4977c25828520601` | **tip** (format DA, pas CATALOGUE.md) |
+| Docs référence DA | `ebf3437f642ba73b0e3bfa7b4977c25828520601` | **landed** (format DA, pas CATALOGUE.md) |
 | P10-2 Échanges 84–86 | `bd8462dba2c00e560ccde61ef30e411d0fd8ee94` | **livré** |
 | P10-3a Settings / aide / rebind | `4ea44de675642180fc5a39989bd22b9f78eb40f6` | **livré** (fix CI `ab1bec5`) |
 | P10-5 B Rate-limit | `6e73e22141447461c52878e0580dcc72b9841bb5` | **livré** |
