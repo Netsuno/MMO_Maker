@@ -8,6 +8,27 @@ public sealed class ConnectionManager
 {
     private readonly ConcurrentDictionary<Guid, Session> _sessionsById = new();
     private readonly ConcurrentDictionary<string, Guid> _sessionIdByUsername = new(AccountUsername.Comparer);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _usernameGates = new(AccountUsername.Comparer);
+
+    public async Task RunExclusiveForUsernameAsync(
+        string username,
+        Func<CancellationToken, Task> action,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        ArgumentNullException.ThrowIfNull(action);
+
+        var gate = _usernameGates.GetOrAdd(username, static _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await action(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
 
     public bool TryCreateSession(string username, out Session? session)
     {
@@ -42,16 +63,21 @@ public sealed class ConnectionManager
         return true;
     }
 
-    /// <summary>Pour reconnexion : déconnecte une éventuelle session existante du même compte.</summary>
+    /// <summary>
+    /// Creates a session when the username is free. Does not delete an occupant —
+    /// the caller must run any existing session through <see cref="SessionTeardown"/> first.
+    /// </summary>
     public bool TryDisplaceAndCreateSession(string username, out Session? session, out Guid? displacedSessionId)
     {
         displacedSessionId = null;
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
 
-        if (_sessionIdByUsername.TryGetValue(username, out var existingId))
+        if (_sessionIdByUsername.TryGetValue(username, out var existingId)
+            && _sessionsById.ContainsKey(existingId))
         {
             displacedSessionId = existingId;
-            RemoveSession(existingId);
+            session = null;
+            return false;
         }
 
         return TryCreateSession(username, out session);
@@ -71,7 +97,7 @@ public sealed class ConnectionManager
             return false;
         }
 
-        _sessionIdByUsername.TryRemove(session.Username, out _);
+        _sessionIdByUsername.TryRemove(new KeyValuePair<string, Guid>(session.Username, sessionId));
         return true;
     }
 

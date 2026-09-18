@@ -52,6 +52,12 @@ public sealed class SessionTeardown(
     private readonly IPlayerStateStore _playerState = playerState;
     private readonly ICharacterRuntimeCleanup _characterRuntime = characterRuntime;
 
+    /// <summary>
+    /// Test barrier: fires after the session row is dropped and before the
+    /// coordinator uses the retained TCP to finish cleanup.
+    /// </summary>
+    internal Action<Guid>? AfterSessionRemovedBeforeClientLookup { get; set; }
+
     public Task TearDownByUsernameAsync(
         string username,
         SessionTeardownOptions options,
@@ -72,15 +78,33 @@ public sealed class SessionTeardown(
         SessionTeardownOptions options,
         CancellationToken cancellationToken = default)
     {
+        // Retain the TCP before dropping the session row. A concurrent packet may
+        // observe the inactive session and Unregister the registry entry; cleanup
+        // must still close this connection.
+        _clients.TryGet(sessionId, out var client);
+        if (client is not null)
+        {
+            _clients.Unregister(sessionId);
+        }
+
         if (!_connections.TryRemoveSession(sessionId, out var session) || session is null)
         {
             if (options.DisconnectClient)
             {
-                DisconnectLeftoverClient(sessionId, options.ClearAuthenticatedSession);
+                if (client is not null)
+                {
+                    DisconnectClient(client, options.ClearAuthenticatedSession);
+                }
+                else
+                {
+                    DisconnectLeftoverClient(sessionId, options.ClearAuthenticatedSession);
+                }
             }
 
             return;
         }
+
+        AfterSessionRemovedBeforeClientLookup?.Invoke(sessionId);
 
         if (session.CharacterGuid is Guid characterId)
         {
@@ -94,16 +118,6 @@ public sealed class SessionTeardown(
                 session.CurrentMapId,
                 session.PixelX,
                 session.PixelY);
-        }
-
-        ClientSession? client = null;
-        if (_clients.TryGet(sessionId, out client))
-        {
-            _clients.Unregister(sessionId);
-        }
-        else
-        {
-            client = null;
         }
 
         if (options.NotifyPeers)
@@ -120,15 +134,27 @@ public sealed class SessionTeardown(
 
         if (client is not null)
         {
-            if (options.ClearAuthenticatedSession)
-            {
-                client.AuthenticatedSession = null;
-            }
+            DisconnectClient(client, options.ClearAuthenticatedSession, options.DisconnectClient);
+        }
+        else if (options.DisconnectClient)
+        {
+            DisconnectLeftoverClient(sessionId, options.ClearAuthenticatedSession);
+        }
+    }
 
-            if (options.DisconnectClient)
-            {
-                client.Disconnect();
-            }
+    private static void DisconnectClient(
+        ClientSession client,
+        bool clearAuthenticatedSession,
+        bool disconnect = true)
+    {
+        if (clearAuthenticatedSession)
+        {
+            client.AuthenticatedSession = null;
+        }
+
+        if (disconnect)
+        {
+            client.Disconnect();
         }
     }
 

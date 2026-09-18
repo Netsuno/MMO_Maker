@@ -128,25 +128,28 @@ public sealed class ModerationService(
 
     private async Task DropLiveSessionAsync(string username, string message, CancellationToken cancellationToken)
     {
-        if (!_connections.TryGetSessionByUsername(username, out var session) || session is null)
+        await _connections.RunExclusiveForUsernameAsync(username, async ct =>
         {
-            return;
-        }
-
-        if (_clients.TryGet(session.Id, out var client) && client is not null)
-        {
-            try
+            if (!_connections.TryGetSessionByUsername(username, out var session) || session is null)
             {
-                await _packetSender.SendErrorAsync(client, message, cancellationToken).ConfigureAwait(false);
+                return;
             }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Could not notify {Username} before drop.", username);
-            }
-        }
 
-        await _sessionTeardown.TearDownAsync(session.Id, SessionTeardownOptions.KickBan, cancellationToken)
-            .ConfigureAwait(false);
+            if (_clients.TryGet(session.Id, out var client) && client is not null)
+            {
+                try
+                {
+                    await _packetSender.SendErrorAsync(client, message, ct).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Could not notify {Username} before drop.", username);
+                }
+            }
+
+            await _sessionTeardown.TearDownAsync(session.Id, SessionTeardownOptions.KickBan, ct)
+                .ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
     }
 }
 
