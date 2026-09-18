@@ -12,7 +12,15 @@
 
 ## 1. Lancer le client
 
-Ouvre le client et attends l’écran de connexion.
+Sur Windows, dézipper `client-win-x64.zip` **hors** du dépôt git, puis double-cliquer `Frog.Client.exe` (runtime bundlé, pas de SDK). Windows peut afficher SmartScreen : binaire **non signé**.
+
+Preuve CI de démarrage (pas une partie) :
+
+```powershell
+./scripts/packaged-winforms-smoke.ps1
+# équivalent manuel après extraction hors repo :
+#   Frog.Client.exe --smoke-launch
+```
 
 <!-- CAPTURE: assets/joueur-01-connexion.png -->
 *Capture à venir : écran de connexion — saisis l’identifiant et le mot de passe fournis, puis utilise le bouton principal de connexion.*

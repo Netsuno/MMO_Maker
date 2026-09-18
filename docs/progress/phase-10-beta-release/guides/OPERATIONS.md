@@ -33,7 +33,7 @@ Suivre le runbook Phase 9 (étapes numérotées + preuves).
 
 **Résultat attendu :** login possible après restore.
 
-**Incomplet Phase 10 :** restore avec lignes mute/ban (+ social/trade) pas encore couvert — voir [KNOWN_ISSUES](../KNOWN_ISSUES.md).
+**Incomplet Phase 10 :** chiffrement dumps / rétention 7 / durée 30 min. Lignes sanctions/guildes/amis/trades : [`RESTORE_REPORT.md`](../RESTORE_REPORT.md) (CI).
 
 ## 3. Ce qui est testable vs incomplet
 

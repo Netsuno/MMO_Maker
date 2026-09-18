@@ -13,10 +13,10 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | Sujet | État réel | Lot |
 | --- | --- | --- |
 | **TLS** | Lots A+E : `SslStream` in-process + LoadHarness `Mode=Required` (pas AcceptAll). Proxy externe, mTLS, DPAPI : absents. | P10-5 A+E **livrés** |
-| **Packaging client/éditeur** | Scripts `publish-frog.ps1/.sh` : **self-contained** + archives SHA-256. Lancement de `Frog.Client.exe` / `Frog.Editor.exe` depuis un zip hors dépôt **non prouvé**. Smokes Windows = `dotnet test` from-source. Serveur Linux **prouvé** (`PackagedServerPostgreSqlProcessTests`). | P10-6 |
-| **Paquet autonome sans SDK** | Runtime bundlé dans le layout. Lancement Windows hors dépôt encore à certifier. | P10-6 |
+| **Packaging client/éditeur** | Scripts `publish-frog` self-contained + SHA-256. Layout EXE hors dépôt : `packaged-winforms-layout-proof.sh` (Linux). Lancement process : `packaged-winforms-smoke.ps1` (Windows CI `--smoke-launch`). **not proven on Linux agents.** Smokes Phase 8 = from-source, distincts. Serveur Linux **prouvé**. | P10-6 |
+| **Paquet autonome sans SDK** | Runtime bundlé. Smoke Windows PATH sans `dotnet.exe`. Jeu réel 2 PCs **non**. | P10-6 |
 | **LOAD** | Harness TLS Required livré (P10-5 E). Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, monde publié. | P10-8 |
-| **Restore avec sanctions** | `PostgresBackupRestoreTests` : migrate + seed Phase 7 + compte + dump/restore + login. **Pas** de campagne dont le dump contient des lignes mute/ban. Guildes/amis/échanges sont dans le schéma ; restore de ces lignes **non** recertifié. | P10-7 |
+| **Restore avec sanctions** | `Phase10BackupRestoreRowsTests` : dump avec mute/ban + guildes + amis + trades ; serveur publié refuse le banni. Chiffrement/rétention 7 **non**. | P10-7 |
 | **Rate-limit login** | IP normalisée + username (8/60s) et IP (30/60s). Plus de clé IP:port. Voir [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
 | **Inscriptions ouvertes** | Défaut local `Registration:Mode=Open`. Bêta : `ProvisionedOnly` (TCP refusé). InviteOnly = jalon sans jetons. | P10-5 C **livré** (jalon invites) |
 | **Grant opérateur** | `tools/Frog.OpsCli operator grant|revoke` + SQL toujours possible | P10-5 C **livré** |
@@ -46,8 +46,9 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Aide intégrée, rebind AZERTY/QWERTY, settings persistés | `HelpForm` + `OptionsForm` + `ClientSettingsStore` (`%LocalAppData%\Frog\client-settings.json`) | P10-3a **livré** |
 | Numéro de version visible + copie diagnostics | Badge `v10.3.0` + « Copier diagnostics » expurgé | P10-3a **livré** |
 | Monde démo 3 cartes 30–60 min + licences | Catalogue + publisher PG + `LICENSES.md` | P10-4 **fixture livrée** ; durée humaine **non mesurée** |
-| Recette 12 étapes / 2 machines | Non exécutée | P10-4 |
-| Self-contained + manifeste SHA-256 d’archives | `publish-frog` + `SHA256SUMS` | P10-6 **layout livré** ; EXE hors dépôt **non** lancé |
+| Recette 12 étapes / 2 machines | Matrice automate vs 2 PCs dans `BETA_TEST_PLAN` ; campagne **non exécutée** | P10-4 |
+| Self-contained + manifeste SHA-256 d’archives | `publish-frog` + `SHA256SUMS` + layout-proof Linux | P10-6 **layout CI** ; lancement EXE = job Windows |
+| Restore lignes sociales/trade/sanctions + serveur publié | `Phase10BackupRestoreRowsTests` | P10-7 **CI** ; chiffrement dumps **non** |
 | Mode maintenance / drain connexions | `MaintenanceService.cs` stub | P10-7 |
 | Rotation/rétention des logs | Console uniquement (`appsettings.json`) | P10-7 |
 | Job CI 60 min charge | Absent de `.github/workflows/ci.yml` | P10-8 |
@@ -71,19 +72,19 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 ### Éditeur / publish
 
 - Publication PostgreSQL **réelle** (cartes, catalogues Phase 6, contenu Phase 8). Menu « Publier vers MariaDB… (héritage) » encore visible.
-- Playtest éditeur résout `Frog.Server.exe` via chemins `bin/Debug|Release` du **dépôt**, pas via l’arbre `publish-frog`.
+- Playtest éditeur : même dossier que l’éditeur, layouts frères `../client-win-x64` / `../server-win-x64`, puis `bin/Debug|Release` du dépôt.
+- Lancement depuis zip hors dépôt : layout **Linux CI** ; process `--smoke-launch` **Windows CI**. Wine Linux ≠ pass.
 - `Phase8JsonEditorPanel` n’est plus branché (éditeurs structurés Dialogue/Quête/Recette/Région/CommonEvent/Métier/Météo) — fichier mort, pas une preuve d’édition JSON obligatoire, mais le mandat interdit de **dépendre** du JSON ; rester sur les formulaires.
-- Lancement depuis paquet publié : **non prouvé**.
 
 ### Packaging
 
 - `scripts/publish-frog.sh` / `.ps1` : RID self-contained, archives zip + SHA-256.
 - Preuve serveur : `packaged-server-smoke.sh` + test processus PG.
-- Client/éditeur : layout possible depuis Linux (`EnableWindowsTargeting`), **exécution Windows non certifiée**.
+- Client/éditeur : layout + SHA-256 hors dépôt **Linux CI** ; process `--smoke-launch` **Windows CI**. Wine ≠ pass.
 
 ### Restore / load
 
-- Scripts `postgres-backup` / `restore` / `verify` + runbook Phase 9 : **présent**, campagne lignes métier incomplète.
+- Scripts `postgres-backup` / `restore` / `verify` + `Phase10BackupRestoreRowsTests` (lignes sanctions/social/trade + serveur publié). Chiffrement/rétention **non**.
 - `tools/Frog.LoadHarness` : TLS Required + CA confinée (P10-5 E, [`LOAD_HARNESS_TLS.md`](LOAD_HARNESS_TLS.md)). Ne décode pas encore l’économie / le social ; palier 25×60 **non** exécuté.
 
 ### PostgreSQL rôles

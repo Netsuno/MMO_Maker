@@ -1,6 +1,6 @@
 # Phase 10 — STATUS
 
-**P10-5 A–E PASS sécu** (TLS Windows unitaires verts). P10-2 déjà livré. P10-4/P10-6 sur la branche. **Pas READY.**
+**P10-5 A–E PASS sécu** (TLS Windows unitaires verts). P10-2 déjà livré. P10-4/P10-6/P10-7 sur la branche. **Pas READY.**
 
 | Item | Valeur |
 | --- | --- |
@@ -12,7 +12,7 @@
 | Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–86 |
 | P10-5 A | **PASS** TLS Windows unitaires verts — lot [`ea116afa`](https://github.com/Netsuno/MMO_Maker/commit/ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b) ; B–E déjà sur la branche |
 | P10-1 tip produit | [`dca2185`](https://github.com/Netsuno/MMO_Maker/commit/dca2185dbb80b0414af8f95696a4e0e858e6ff90) — **DONE** |
-| Gate Phase 10 | **pas atteinte** — recette 2 machines, lancement client/éditeur hors dépôt, P10-7…P10-9 |
+| Gate Phase 10 | **pas atteinte** — recette 2 machines physiques, P10-8 25×60, P10-9 candidate |
 
 ## Lots
 
@@ -21,11 +21,11 @@
 | P10-0 Audit + plan | **FAIT** |
 | P10-1 Groupes / guildes / relations | **DONE** tip `dca2185` — CI PR en cours ; pas une gate |
 | P10-2 Échanges directs | **LIVRÉ (code + tests)** — opcodes 84–86, TX PG, replay, **block sur invites** |
-| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a (aide, rebind, settings, version, craft noms) **livré** |
-| P10-4 Monde démo + recette | **INCOMPLET** — fixture 3 cartes **livrée** ; recette 12 étapes / 2 machines **non exécutée** |
+| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a livré ; playtest résout layouts `../client-win-x64` / `../server-win-x64` ; recette humaine paquet **non** |
+| P10-4 Monde démo + recette | **INCOMPLET** — fixture 3 cartes **livrée** ; 12 étapes : CI/loopback vs **2 machines** nommé dans `BETA_TEST_PLAN` ; campagne 30–60 min **non exécutée** |
 | P10-5 Sécurité externe (TLS, invitations, NAT) | **PASS sécu** A–E (TLS Windows unitaires verts). Palier 25×60 = P10-8 |
-| P10-6 Paquets autonomes | **INCOMPLET** — self-contained + SHA-256 **livrés** ; lancement EXE hors dépôt **non prouvé** |
-| P10-7 Exploitation / restore | **INCOMPLET** (guildes/amis/blocs désormais dans le schéma ; restore de ces lignes **non** recertifié backup) |
+| P10-6 Paquets autonomes | **INCOMPLET** — layout+SHA-256 **CI Linux** ; lancement EXE `--smoke-launch` **job Windows** (pas Linux/wine) |
+| P10-7 Exploitation / restore | **INCOMPLET** — dump/restore **lignes** sanctions/guildes/amis/trades + serveur publié **CI** ; chiffrement/rétention/durée 30 min **non** |
 | P10-8 Charge 25 joueurs | **INCOMPLET** |
 | P10-9 Validation / candidate | **ABSENT** |
 
@@ -87,11 +87,31 @@
 - Tests : `Phase10TlsTests` (expiré, mauvais nom, CA inconnue, pas de fallback, fail-fast host). `Phase9SecurityGateTests` inchangé.
 - Certificats de test éphémères uniquement — aucun cert prod dans Git.
 
-## P10-6 — ce qui est livré
+## P10-6 — ce qui est PROUVÉ vs RESTANT
 
-- Scripts `publish-frog.sh` / `.ps1` : `--self-contained true`, `hostfxr` exigé, archives zip + `SHA256SUMS`.
-- Chaque layout embarque `DEMO_WORLD.md` + `demo-world/LICENSES.md`.
-- Preuve Linux : layout `server-linux-x64` + `libhostfxr.so` + archive SHA-256. **Lancement** `Frog.Client.exe` / `Frog.Editor.exe` extraits hors dépôt : **non prouvé**.
+**PROUVÉ (Linux CI, `packaged-winforms-layout-proof.sh`) :**
+
+- Publish self-contained `client-win-x64` + `editor-win-x64`.
+- Copie des zip **hors arbre git** (`/tmp/frog-p10-6-outside-*`).
+- Présence `Frog.Client.exe` / `Frog.Editor.exe` + `hostfxr.dll` + `packaging-manifest.json` + docs démo.
+- SHA-256 des zip = `archives/SHA256SUMS` ; SHA-256 des EXE journalisé.
+
+**PROUVÉ (Windows CI, `packaged-winforms-smoke.ps1`) — une fois le job `windows-latest` vert :**
+
+- Extraction hors dépôt (`%TEMP%\frog-p10-6-outside-*`).
+- `Frog.Client.exe --smoke-launch` et `Frog.Editor.exe --smoke-launch` exit 0, **PATH sans SDK**.
+
+**RESTANT :**
+
+- Lancement WinForms/WPF **sur Linux** : **non prouvé** (wine optionnel, jamais un pass). Phrase guide : *not proven on Linux agents*.
+- SmartScreen / binaire non signé : alerte honnête dans le guide, pas de signature Authenticode.
+- Installer / MAJ candidate / 2 PCs distants : P10-4 / P10-9.
+
+`--smoke-launch` affiche le shell puis quitte (client : `Shown`→`Close` ; éditeur : skip workspace PG). Ce n’est **pas** une recette de jeu.
+
+## P10-7 — ce qui est PROUVÉ vs RESTANT
+
+Voir [`RESTORE_REPORT.md`](RESTORE_REPORT.md). **PROUVÉ** en CI : `pg_dump -Fc` d’une base avec sanctions + guildes + amis + trades → restore → `Frog.Server` publié login OK / ban rejeté. **RESTANT** : chiffrement dumps, rétention 7, durée 30 min, crash pendant dump.
 
 ## P10-4 — ce qui est livré
 
@@ -99,7 +119,7 @@
 - Publication via chemins éditeur (`SaveAsync` / `Publish`) : `Phase10DemoWorldPublisher`, `tools/Frog.DemoWorld`, `scripts/publish-demo-world.sh`.
 - Licences : [`demo-world/LICENSES.md`](demo-world/LICENSES.md) (tuiles procédurales, pas d’asset FRoG).
 - Tests : `Phase10DemoWorldCatalogTests`, `Phase10DemoWorldPostgresTests` (base vierge + replay idempotent).
-- Recette 12 étapes / 2 machines / 30–60 min : **non exécutée** (agent Linux). Voir [`DEMO_WORLD.md`](DEMO_WORLD.md).
+- Recette 12 étapes / 2 machines / 30–60 min : **non exécutée**. Matrice automate vs 2 PCs : [`guides/BETA_TEST_PLAN.md`](guides/BETA_TEST_PLAN.md).
 
 ## P10-2 — ce qui est livré
 
@@ -128,4 +148,4 @@ Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. PacketDi
 
 ## Verdict
 
-**P10-5 A–E PASS sécu (TLS Windows unitaires verts) + P10-2 déjà livré + P10-4/P10-6 sur la branche.** Correctif CI : replay craft avant holds + `OptionsForm` DialogResult. La bêta n’est **pas** prête.
+**P10-5 A–E PASS sécu (TLS Windows unitaires verts) + P10-2 + P10-6 layout/EXE scripts + P10-7 restore lignes.** La bêta n’est **pas** prête. P10-8 (25×60) attend toujours TLS **et** paquets lancés en recette 2 machines.

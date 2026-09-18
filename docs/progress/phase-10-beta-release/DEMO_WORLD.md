@@ -24,9 +24,9 @@ Réinstall base vierge : `Migrate()` + `publish` sur une base vide.
 
 ## Recette 12 étapes / 2 machines
 
-**Non exécutée** sur cet agent (Linux, pas deux clients Windows distants).
-Le plan reste [`guides/BETA_TEST_PLAN.md`](guides/BETA_TEST_PLAN.md). Lacune nommée :
-lancement des paquets `Frog.Client.exe` sur deux machines distinctes + durée humaine 30–60 min.
+**Non exécutée** de bout en bout (il faut deux PCs Windows + 30–60 min).
+Matrice automate vs 2 machines : [`guides/BETA_TEST_PLAN.md`](guides/BETA_TEST_PLAN.md).
+Lancement `Frog.Client.exe --smoke-launch` est un smoke Windows CI, **pas** l’étape 2 (deuxième machine).
 
 ## Publier
 

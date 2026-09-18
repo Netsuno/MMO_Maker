@@ -81,12 +81,12 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Settings persistés (fenêtre, volume, touches) | `ClientSettingsStore` `%LocalAppData%\Frog\client-settings.json` atomique ; `OptionsForm` | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
 | 1366×768 et 1920×1080, DPI 100/150, accents | smokes actuels non dimensionnés ainsi | | **absent** |
 | Version visible + copie diagnostics expurgés | badge `v10.3.0` + « Copier diagnostics » (jamais jeton/mdp) | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
-| Éditeur : ouvrir/créer monde depuis paquet | playtest résout `bin/Debug\|Release` du repo | | **incomplet** |
+| Éditeur : ouvrir/créer monde depuis paquet | playtest : même dossier + `../client-win-x64` / `../server-win-x64` | `Phase10PackagedLauncherResolveTests` | **incomplet** (chemins livrés ; recette humaine paquet non) |
 | Import graphismes chemins transportables | tilesets PG + fichiers ; risque chemins dev | | **incomplet** |
 | Créer carte, collisions, warps, NPC, objets, dialogue, quête, recette, événement | formulaires Phase 4–8 | editor smoke **87×3** | **présent** (from-source) |
 | Save / close / reopen / publish | workspace PG + close coordinator | smokes close | **présent** |
 | Erreurs publish liées au contenu | messages workspace | | **incomplet** (pas recette paquet) |
-| Playtest depuis binaires **livrés** | `EditorFrogServerLauncher` chemins SDK | | **absent** (preuve paquet) |
+| Playtest depuis binaires **livrés** | `EditorFrogServerLauncher` / `EditorFrogClientLauncher` layouts frères | résolution unitaire + smoke EXE `--smoke-launch` | **incomplet** (résolution **oui** ; playtest E2E paquet **non**) |
 | Modification publiée visible joueur | live refresh Phase 8 existe en interne | | **incomplet** |
 | Pas d’édition SQL obligatoire pour le contenu | vrai pour cartes/catalogues ; grant GM = SQL | | **incomplet** (ops) |
 
@@ -100,7 +100,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Licences / crédits assets | `demo-world/LICENSES.md` | tuiles procédurales, pas FRoG | **présent** |
 | Réinstall base vierge | `Migrate` + `Frog.DemoWorld publish` | PG isolated empty | **présent** |
 | Contenu distinct créé pendant recette | éditeur publié | étape 11 | **absent** |
-| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` / `DEMO_WORLD.md` | pas une boucle locale seule | **absent** (lacune nommée) |
+| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` (matrice automate vs 2 PCs) / `DEMO_WORLD.md` | étapes 2/12 + WAN **exigent 2 machines** | **absent** (lacune nommée, pas coché) |
 | Seeds `Phase7PostgresContentSeed` / smokes | tests seulement | CI | **présent** (≠ monde démo) |
 
 ---
@@ -123,7 +123,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Inscriptions invitation / provisionnées | `Registration:Mode` ; bêta `ProvisionedOnly` ; TCP Register refusé | `Phase10ClosedBetaTests` ; [CLOSED_BETA.md](CLOSED_BETA.md) | **lot C livré** (InviteOnly = jalon, pas de jetons) |
 | Invitation ≠ rôle GM | create OpsCli n’écrit pas `auth.operators` | `Phase10ClosedBetaTests` + `Phase9SecurityGateTests` | **lot C livré** |
 | Outil opérateur comptes / reset / revoke / GM / sanctions | `tools/Frog.OpsCli` + `UpdatePasswordAsync` | `Phase10ClosedBetaTests` | **lot C livré** |
-| Autorisation nouvelles ops + limites tailles | C2/C2b + rate chat/move + `CrossInviteCounters` social/trade | suites Phase 9 + P10-1/P10-2 | **incomplet** (restore social/trade non recertifié) |
+| Autorisation nouvelles ops + limites tailles | C2/C2b + rate chat/move + `CrossInviteCounters` social/trade | suites Phase 9 + P10-1/P10-2 + restore P10-7 | **incomplet** (taille payloads campagne humaine non) |
 | Suites C2/C2b conservées | `Phase9SessionRaceTests`, teardown | CI 454 | **présent** |
 
 ---
@@ -132,15 +132,15 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Actuel | Preuve | Statut |
 | --- | --- | --- | --- |
-| Client Win x64 autonome | layout `client-win-x64` **self-contained** | scripts + `hostfxr.dll` ; lancement EXE hors dépôt | **incomplet** (layout oui ; EXE **non** lancé) |
+| Client Win x64 autonome | layout `client-win-x64` **self-contained** | Linux : EXE+SHA hors dépôt (`packaged-winforms-layout-proof.sh`) ; lancement **not proven on Linux agents** ; Windows : `--smoke-launch` (`packaged-winforms-smoke.ps1`) | **incomplet** (layout+SHA **oui** ; lancement = job Windows, pas Linux) |
 | Éditeur Win x64 autonome | idem `editor-win-x64` | idem | **incomplet** |
 | Serveur Linux x64 + profil | `server-linux-x64` self-contained + `libhostfxr.so` | `PackagedServerPostgreSqlProcessTests` + layout smoke | **présent** |
 | Monde démo + ressources dans le paquet | `DEMO_WORLD.md` + `demo-world/LICENSES.md` copiés | | **présent** (fixture docs ; pas un zip de cartes binaires) |
 | Manifeste commit / protocole / SHA-256 archives | `packaging-manifest.json` + `archives/SHA256SUMS` | `Phase10PackagingTests` | **présent** (archives locales gitignorées) |
 | Serveur Windows | layout produit, lancement **non** revendiqué | | **incomplet** / secondaire |
-| Testeur ne compile pas, n’installe pas PG | self-contained client/éditeur : runtime bundlé ; PG serveur toujours requis | | **incomplet** (EXE hors dépôt non lancé) |
-| Guide install / version / update / uninstall | `PACKAGING_GUIDE.md` Phase 9 ops | | **incomplet** |
-| Alerte binaire non signé honnête | non documentée pour testeurs | | **absent** |
+| Testeur ne compile pas, n’installe pas PG | self-contained + smoke PATH sans SDK | job Windows `--smoke-launch` | **incomplet** (jeu réel / 2 PCs non) |
+| Guide install / version / update / uninstall | `PACKAGING_GUIDE.md` + scripts P10-6 | | **incomplet** (pas d’installer / MAJ) |
+| Alerte binaire non signé honnête | `PACKAGING_GUIDE.md` SmartScreen | | **présent** (pas de signature) |
 | MAJ candidate → candidate + rollback | — | | **absent** |
 
 ---
@@ -153,9 +153,9 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Maintenance / stop new conns | `MaintenanceService.cs` TODO | | **absent** |
 | Logs rotation / rétention / santé | console + `ops_metrics` fichier optionnel | | **incomplet** |
 | Backup schémas+ressources, chiffrement, 7 versions, hors exec dir | scripts `pg_dump -Fc` + runbook ; pas de rétention auto ni chiffrement | `PostgresBackupRestoreTests` | **incomplet** |
-| Restore lignes : comptes, persos, inventaires, or, banque, quêtes, métiers, monde, ops, mute/ban, **guildes, amis, échanges** | seed Phase 7 + compte ; pas sanctions peuplées ; social/trade dans le schéma | | **incomplet** |
-| Serveur publié sur base restaurée | host de test after restore + login | | **incomplet** (login seulement) |
-| Replay échange validé après restore | `economy_request_ids` `trade.commit` en runtime ; **pas** de campagne restore | | **absent** |
+| Restore lignes : comptes, persos, inventaires, or, banque, quêtes, métiers, monde, ops, mute/ban, **guildes, amis, échanges** | seed Phase 7 + lignes P10-7 (guild/friends/block/trade/mute/ban) | `Phase10BackupRestoreRowsTests` + [RESTORE_REPORT.md](RESTORE_REPORT.md) | **présent** (démo CI ; pas un dump prod) |
+| Serveur publié sur base restaurée | `Frog.Server` publié + login OK / ban rejeté | `Phase10BackupRestoreRowsTests` | **présent** (CI) |
+| Replay échange validé après restore | `TryReplayAsync` `trade.commit` sur la base restaurée | `Phase10BackupRestoreRowsTests` | **présent** (CI) |
 | Crash pendant mutations | — | | **absent** |
 | Volume/durée restore ≤ 30 min démo | non mesuré | | **absent** |
 
@@ -184,11 +184,11 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Livrable mandat | Statut |
 | --- | --- |
 | E2E_MATRIX / TEST_RESULTS Phase 10 | **absent** |
-| LOAD_REPORT / RESTORE_REPORT Phase 10 | **absent** (Phase 9 LOAD_REPORT = historique in-memory) |
+| LOAD_REPORT / RESTORE_REPORT Phase 10 | **RESTORE_REPORT** P10-7 **présent** ; LOAD_REPORT 25×60 **absent** |
 | RELEASE_MANIFEST / RELEASE_NOTES | **absent** |
 | PLAYER_QUICKSTART / CREATOR_QUICKSTART | **absent** |
-| OPERATIONS / BACKUP_RESTORE Phase 10 | **incomplet** (runbooks Phase 9 à étendre) |
-| BETA_TEST_PLAN / BUG_REPORT_TEMPLATE | **absent** |
+| OPERATIONS / BACKUP_RESTORE Phase 10 | **incomplet** (runbooks Phase 9 + RESTORE_REPORT P10-7) |
+| BETA_TEST_PLAN / BUG_REPORT_TEMPLATE | **présent** (brouillon + matrice 2 machines) ; campagne **non jouée** |
 | PHASE_REPORT / REVIEW_REQUEST Phase 10 | **absent** (STATUS dit pas READY) |
 | Capture SHA-256 Phase 8 non affaibli | **présent** (ne pas toucher) |
 | `git diff --check` | à tenir à chaque push |
@@ -210,7 +210,7 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 | Trade P2P | **P10-2 livré** (84–86, TX PG, replay, holds, block invites) |
 | TLS | **lots A+E PASS** (SslStream in-process + LoadHarness Required ; proxy externe absent) |
 | PG runtime least-privilege | **lot D livré** (`frog_runtime` DML-only ; compose démo ≠ hébergé) |
-| Éditeur publish | **incomplet** (from-source oui ; paquet / playtest livré non) |
-| Paquets | **incomplet** (self-contained + SHA-256 oui ; client/éditeur EXE hors dépôt non) |
-| Restore | **incomplet** (schéma + login ; sanctions/social/trade non) |
+| Éditeur publish | **incomplet** (from-source oui ; chemins paquet **oui** ; recette humaine non) |
+| Paquets | **incomplet** (layout+SHA Linux **oui** ; lancement EXE = job Windows `--smoke-launch`, pas Linux) |
+| Restore | **présent CI** (sanctions/social/trade + serveur publié) ; chiffrement/rétention **non** |
 | Load 25×60 | **absent** (mesures courtes in-memory seulement) |
