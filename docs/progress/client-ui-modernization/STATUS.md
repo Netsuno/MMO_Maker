@@ -38,7 +38,7 @@ Ce run / CI Linux : **zéro PNG HUD**. Voir [CAPTURES.md](CAPTURES.md) + `script
 - [ ] PNG Windows 1280×720 / 1920×1080 DPI 100 + 125 (7 cases) — **ambre DA visuelle**
 - [ ] Isolation perf `MapViewRenderer` full-map Bitmap (hors HUD)
 - [ ] Restyle SHA Dialogue / Quêtes / Environnement **uniquement** si CI Windows régénère le manifeste
-- [ ] CI verte à confirmer sur le tip poussé
+- [ ] CI verte à confirmer (flake `PlaytestProductionLauncherTests` hors HUD durci)
 
 ---
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -182,7 +183,10 @@ public sealed class PlaytestProductionLauncherTests
         Assert.False(launcher.HasOwnedProcesses);
         Assert.False(await IsPortOpenAsync(port));
 
-        var logs = launcher.DrainLogsSnapshot();
+        var logs = await WaitForLogsAsync(
+            launcher,
+            static l => l.Any(line => line.Contains("exited role=client", StringComparison.OrdinalIgnoreCase)),
+            TimeSpan.FromSeconds(3));
         Assert.True(
             logs.Any(l => l.Contains("started role=client", StringComparison.OrdinalIgnoreCase)),
             "expected started role=client in logs:\n" + string.Join('\n', logs));
@@ -365,6 +369,22 @@ public sealed class PlaytestProductionLauncherTests
 
         return Path.GetFullPath(Path.Combine(
             baseDir, "..", "..", "..", "..", "Frog.Server", "bin", "Release", "net8.0", "Frog.Server.dll"));
+    }
+
+    private static async Task<IReadOnlyList<string>> WaitForLogsAsync(
+        PlaytestOwnedProcessLauncher launcher,
+        Func<IReadOnlyList<string>, bool> predicate,
+        TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        var logs = launcher.DrainLogsSnapshot();
+        while (!predicate(logs) && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(25).ConfigureAwait(false);
+            logs = launcher.DrainLogsSnapshot();
+        }
+
+        return logs;
     }
 
     private static int GetFreePort()
