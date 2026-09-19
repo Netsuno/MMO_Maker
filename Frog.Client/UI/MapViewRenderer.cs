@@ -20,6 +20,7 @@ internal static class MapViewRenderer
     /// <param name="otherPlayerCentersPx">Centre joueur autres en pixels monde (coins carte = grille × taille tuile).</param>
     /// <param name="mapEvents">Tuiles avec événements serveur (léger surlignage).</param>
     /// <param name="tilesetBitmaps">Id tileset → image ; peut être vide (rendu couleur de secours).</param>
+    /// <param name="showTileGrid">Contour de tuile debug. Défaut <c>false</c> — pas de grille visible en jeu.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -27,7 +28,8 @@ internal static class MapViewRenderer
         float localCenterXPx,
         float localCenterYPx,
         IReadOnlyDictionary<int, Bitmap>? tilesetBitmaps,
-        IReadOnlyList<MapEventWireEntry>? mapEvents = null)
+        IReadOnlyList<MapEventWireEntry>? mapEvents = null,
+        bool showTileGrid = false)
     {
         var tw = WorldMetrics.DefaultTileSizePixels;
         var w = map.Width * tw;
@@ -98,8 +100,11 @@ internal static class MapViewRenderer
                     }
                 }
 
-                using var pen = new Pen(Color.FromArgb(40, 0, 0, 0));
-                g.DrawRectangle(pen, rect);
+                if (showTileGrid)
+                {
+                    using var pen = new Pen(Color.FromArgb(40, 0, 0, 0));
+                    g.DrawRectangle(pen, rect);
+                }
             }
         }
 
