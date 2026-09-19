@@ -57,7 +57,7 @@ Publié **avant** les mesures (mandat P10-8).
 | Packaged server VmRSS peak | 222 784 kB |
 | Harness CPU / RSS | ~0,9 % / ~70 Mio (processus **séparé** du serveur) |
 
-Profils : `ci` 5 s (CI postgres-integration) · `cloud` 45 s · `dedicated` 3600 s.
+Profils : `ci` 5 s (CI postgres-integration [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) SUCCESS) · `cloud` 45 s · `dedicated` 3600 s.
 
 ### Run cloud in-memory 2026-09-19 (lot P10-8 précédent)
 

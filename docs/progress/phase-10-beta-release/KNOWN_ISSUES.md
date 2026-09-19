@@ -51,7 +51,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Restore lignes sociales/trade/sanctions + serveur publié | `Phase10BackupRestoreRowsTests` | P10-7 **CI** ; chiffrement dumps **non** |
 | Mode maintenance / drain connexions | `MaintenanceService.cs` stub | P10-7 |
 | Rotation/rétention des logs | Console uniquement (`appsettings.json`) | P10-7 |
-| Job CI 60 min charge | Hold 5 s hosted dans postgres-integration. 60 min = `phase10-hosted-load-campaign.sh --profile dedicated` | P10-8 |
+| Job CI 60 min charge | Hold 5 s hosted CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) SUCCESS. 60 min = `phase10-hosted-load-campaign.sh --profile dedicated` | P10-8 |
 | Guides PLAYER/CREATOR/OPERATIONS Phase 10 | Dossier créé en P10-0 ; guides de sortie **absents** | P10-9 |
 
 ---

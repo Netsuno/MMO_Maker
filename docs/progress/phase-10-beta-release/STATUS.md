@@ -8,6 +8,7 @@
 | Base / tip `main` | `f74b34cca09dda819fe26747d48ee16d27007dfd` (merge PR #7 Phase 9) |
 | Produit Phase 9 accepté | `cab57b94c20f86af2cc61738bdf3307ed9626ef4` |
 | CI `main` post-fusion | https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS** |
+| CI tip `814b8ba` | https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364 **SUCCESS** (build-and-test + postgres-integration, playtest zip + hosted P10-8 5 s) |
 | Mandat | [`MANDATE.md`](MANDATE.md) (texte complet, 2026-09-18) |
 | Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–86 |
 | P10-5 A | **PASS** TLS Windows unitaires verts — lot [`ea116afa`](https://github.com/Netsuno/MMO_Maker/commit/ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b) ; B–E déjà sur la branche |

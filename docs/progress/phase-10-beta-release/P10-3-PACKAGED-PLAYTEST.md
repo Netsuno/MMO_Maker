@@ -19,7 +19,7 @@ WinForms / WPF **impossible** à lancer de façon prouvée : `Frog.Client.exe` /
 
 Phrase guide : *not proven on Linux agents* pour le playtest menu éditeur → client WinForms.
 
-CI : job `postgres-integration`, étape `Packaged playtest from zip (server Linux, hors dépôt)`.
+CI : job `postgres-integration`, étapes Hello zip + READY headless — [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) SUCCESS.
 
 ## Windows (CI windows-latest)
 
