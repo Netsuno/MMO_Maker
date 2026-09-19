@@ -58,16 +58,17 @@ DEST="${OUTSIDE}/extracted"
 rm -rf "$DEST"
 mkdir -p "$DEST"
 ZIP="$ZIP" DEST="$DEST" python3 -c 'import os, zipfile; zipfile.ZipFile(os.environ["ZIP"]).extractall(os.environ["DEST"])'
-
-if [[ -x "${DEST}/server-linux-x64/Frog.Server" ]]; then
+# CPython zipfile.extractall does not restore Unix execute bits.
+if [[ -f "${DEST}/server-linux-x64/Frog.Server" ]]; then
   SERVER_DIR="${DEST}/server-linux-x64"
-elif [[ -x "${DEST}/Frog.Server" ]]; then
+elif [[ -f "${DEST}/Frog.Server" ]]; then
   SERVER_DIR="$DEST"
 else
   echo "error: Frog.Server missing under $DEST" >&2
   find "$DEST" -maxdepth 3 -type f | head
   exit 1
 fi
+chmod +x "${SERVER_DIR}/Frog.Server"
 
 if [[ -z "$PORT" ]]; then
   PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"

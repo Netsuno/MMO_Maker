@@ -62,6 +62,8 @@ public sealed class Phase10PackagingTests
         Assert.Contains("outside the git tree", playtestSh, StringComparison.Ordinal);
         Assert.Contains("not proven on Linux agents", playtestSh, StringComparison.Ordinal);
         Assert.Contains("WinForms", playtestSh, StringComparison.Ordinal);
+        Assert.Contains("chmod +x", playtestSh, StringComparison.Ordinal);
+        Assert.Contains("does not restore Unix execute bits", playtestSh, StringComparison.Ordinal);
 
         var playtestPs = File.ReadAllText(Path.Combine(root, "scripts", "packaged-playtest-e2e.ps1"));
         Assert.Contains("sibling", playtestPs, StringComparison.OrdinalIgnoreCase);
