@@ -156,7 +156,7 @@ public sealed class Phase10LoadHarnessTlsTests
         Assert.True(report.Campaign.ActualHoldMs >= 2000);
         Assert.True(
             report.Client.HeartbeatAckRecv >= 25,
-            $"HeartbeatAckRecv={report.Client.HeartbeatAckRecv}");
+            $"HeartbeatAckRecv={report.Client.HeartbeatAckRecv} fail={report.Client.HeartbeatFail} sent={report.Client.HeartbeatSent}");
         Assert.True(
             report.Campaign.HeartbeatRtt.Count >= 25,
             $"HeartbeatRtt.Count={report.Campaign.HeartbeatRtt.Count}");
