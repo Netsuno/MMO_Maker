@@ -54,7 +54,7 @@ public sealed class HudStatusModule : HudModulePanel
 
     internal string MetaTextForTest => _meta.Text;
 
-    internal bool IsDeadVisibleForTest => _dead.Visible;
+    internal bool IsDeadVisibleForTest => _state?.IsDead == true;
 
     internal int HpFillWidthForTest => _hpFill.Width;
 
