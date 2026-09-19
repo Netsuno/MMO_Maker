@@ -35,4 +35,12 @@ Pas de mode optionnel, pas de repli clair silencieux.
 
 Self-host TLS : le script campaign émet une CA confinée (`--emit-test-certs`). `--tls-mode Required --tls-target-host localhost --tls-cert-path leaf.pem --tls-key-path leaf.key --tls-ca-path ca.pem`.
 
-Tests : `Phase10LoadHarnessTlsTests` (Hello + CA inconnue + **campaign 25×TLS** + scan AcceptAll). Rapport : [`LOAD_REPORT.md`](LOAD_REPORT.md). Le palier **60 min + PG + monde publié** n’est pas clos.
+Hosted packaged + PostgreSQL (serveur hors dépôt) :
+
+```bash
+./scripts/phase10-hosted-load-campaign.sh --profile ci         # hold 5 s (CI)
+./scripts/phase10-hosted-load-campaign.sh --profile cloud      # hold 45 s
+./scripts/phase10-hosted-load-campaign.sh --profile dedicated  # hold 3600 s
+```
+
+Tests : `Phase10LoadHarnessTlsTests` (Hello + CA inconnue + **campaign 25×TLS** + scan AcceptAll). Rapport : [`LOAD_REPORT.md`](LOAD_REPORT.md). Le palier **60 min** n’est pas clos.

@@ -10,9 +10,12 @@ WinForms / WPF **impossible** à lancer de façon prouvée : `Frog.Client.exe` /
 
 1. Publie `server-linux-x64` (ou `--skip-publish` après `packaged-server-smoke`).
 2. Copie le zip hors de l’arbre git, extrait.
-3. Démarre `Frog.Server` du zip (`AllowInMemoryFallback` local au dossier extrait).
-4. TCP Hello opcode 1.
-5. Arrêt (fichier shutdown + SIGTERM).
+3. `chmod +x Frog.Server` (zip Python perd souvent le bit exécutable).
+4. Démarre `Frog.Server` du zip (`AllowInMemoryFallback` local au dossier extrait).
+5. TCP Hello opcode 1.
+6. Arrêt (fichier shutdown + SIGTERM).
+
+**Prouvé (test)** : `Phase10PackagedPlaytestFromZipTests` — serveur publié hors dépôt + client headless, marqueur READY spawn exact. WinForms `Frog.Client.exe` : *not proven on Linux agents*.
 
 Phrase guide : *not proven on Linux agents* pour le playtest menu éditeur → client WinForms.
 

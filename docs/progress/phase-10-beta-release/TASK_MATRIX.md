@@ -86,7 +86,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Créer carte, collisions, warps, NPC, objets, dialogue, quête, recette, événement | formulaires Phase 4–8 | editor smoke **87×3** | **présent** (from-source) |
 | Save / close / reopen / publish | workspace PG + close coordinator | smokes close | **présent** |
 | Erreurs publish liées au contenu | messages workspace | | **incomplet** (pas recette paquet) |
-| Playtest depuis binaires **livrés** | `packaged-playtest-e2e.sh` / `.ps1` + layouts frères | Hello TCP depuis zip hors dépôt ; WinForms Linux **not proven** | **incomplet** (process/Hello **oui** ; menu Playtest / 2 PCs **non**) |
+| Playtest depuis binaires **livrés** | `packaged-playtest-e2e.sh` / `.ps1` + `Phase10PackagedPlaytestFromZipTests` | Hello TCP zip hors dépôt ; READY headless + serveur publié (Linux) ; WinForms Linux **not proven** | **incomplet** (Hello/READY **oui** ; menu Playtest / 2 PCs **non**) |
 | Modification publiée visible joueur | live refresh Phase 8 existe en interne | | **incomplet** |
 | Pas d’édition SQL obligatoire pour le contenu | vrai pour cartes/catalogues ; grant GM = SQL | | **incomplet** (ops) |
 
@@ -165,7 +165,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Essai mandat | Actuel Phase 9 | Statut |
 | --- | --- | --- |
-| 25 joueurs × 60 min, actions réelles, TLS+PG+monde | harness `campaign` 25×TLS in-memory ; 60 min **non** | **incomplet** ([LOAD_REPORT.md](LOAD_REPORT.md)) |
+| 25 joueurs × 60 min, actions réelles, TLS+PG+monde | in-memory `campaign` + `phase10-hosted-load-campaign.sh` (packaged+PG) ; 60 min = `--profile dedicated` | **incomplet** ([LOAD_REPORT.md](LOAD_REPORT.md)) |
 | Latence p95 ≤ 250 ms / p99 ≤ 1 s | RTT heartbeat/move/interact mesurés en loopback campaign | **incomplet** (pas WAN / pas 60 min) |
 | Économie ≥ 10 mut/s × 5 min @ 25 | non certifié | **absent** |
 | Interact 5/s × 60 s + rafale 20 | interact cadencé campaign, pas le palier isolé | **absent** |
@@ -175,7 +175,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | CPU &lt; 80 %, mémoire bornée | échantillons process campaign (générateur+serveur) | **incomplet** |
 | 50/100 exploratoire | 100 mixed in-memory mesuré — **pas** une certif hébergée | **hors périmètre** tant que 25×60 échoue ; ne pas vendre |
 | Générateur décode réponses / états | campaign décode Hello/auth/heartbeat/move/interact/melee/chat + TLS | `Phase10LoadHarnessTlsTests` ; [LOAD_HARNESS_TLS.md](LOAD_HARNESS_TLS.md) | **incomplet** (60 min / PG) |
-| Job CI ~90 min dédié | absent (volontaire, job existant borné) | **absent** |
+| Job CI ~90 min dédié | hold 5 s hosted CI (`--profile ci`) ; 60 min **pas** branché | **incomplet** |
 
 ---
 

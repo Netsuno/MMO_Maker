@@ -24,7 +24,7 @@
 | 6 | A | Gameplay de base | Gameplay / Phase 8 smokes from-source | **Oui** pour HUD 1366/1920 + DPI | Smokes internes ; recette paquet **non** |
 | 7 | A+B | Social | `Phase10SocialTcpTests` / PG | **Oui** pour chat réel 2 PCs | Automatisé loopback |
 | 8 | A+B | Échange | `Phase10TradeTcpTests` / PG | **Oui** pour UI `TradeForm` à deux souris | Automatisé loopback |
-| 9 | Auteur | Publish mineur | `Frog.DemoWorld` + publisher PG | **Oui** si éditeur **paquet** → joueur distant voit le warp | Fixture **oui** ; paquet+2 PCs **non** |
+| 9 | Auteur | Publish mineur | `Frog.DemoWorld` + publisher PG ; `phase10-recipe-automated.sh` | **Oui** si éditeur **paquet** → joueur distant voit le warp | Fixture **oui** ; paquet+2 PCs **non** |
 | 10 | Ops | Backup / restore | `Phase10BackupRestoreRowsTests` (lignes sociales/trade/sanctions + serveur publié) | Non pour la preuve CI | **CI** |
 | 11 | Ops | Sanction | mute/ban TCP + restore banni rejeté | **Oui** pour effet visible HUD distant | Automatisé loopback |
 | 12 | A+B | Stabilité 30–60 min | Harness P10-8 `campaign` (1 hôte, ≠ 2 clients GUI) | **Oui** (2 clients idle humains) | Harness borné ; 2 PCs **non** |

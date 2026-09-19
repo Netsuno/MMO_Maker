@@ -228,8 +228,16 @@ if zip_path.exists():
     zip_path.unlink()
 with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
     for path in dest.rglob("*"):
-        if path.is_file():
-            zf.write(path, path.relative_to(dest.parent).as_posix())
+        if not path.is_file():
+            continue
+        arc = path.relative_to(dest.parent).as_posix()
+        info = zipfile.ZipInfo.from_file(path, arc)
+        info.compress_type = zipfile.ZIP_DEFLATED
+        mode = path.stat().st_mode
+        if path.name == "Frog.Server" or path.suffix == ".sh" or (mode & 0o111):
+            mode = (mode & ~0o777) | 0o755
+        info.external_attr = (mode & 0xFFFF) << 16
+        zf.writestr(info, path.read_bytes())
 digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
 sums = archives / "SHA256SUMS"
 lines = []

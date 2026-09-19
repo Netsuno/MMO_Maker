@@ -21,12 +21,12 @@
 | P10-0 Audit + plan | **FAIT** |
 | P10-1 Groupes / guildes / relations | **DONE** tip `dca2185` — CI PR en cours ; pas une gate |
 | P10-2 Échanges directs | **LIVRÉ (code + tests)** — opcodes 84–86, TX PG, replay, **block sur invites** |
-| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a livré ; deadlock ouverture **corrigé** ; playtest zip serveur Hello hors dépôt (Linux + script Windows CI) ; menu Playtest WinForms / 2 PCs **non** |
+| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a livré ; deadlock ouverture **corrigé** ; playtest zip Hello + READY headless hors dépôt (Linux) / Hello + layouts frères (Windows) ; menu Playtest WinForms / 2 PCs **non** |
 | P10-4 Monde démo + recette | **INCOMPLET** — fixture 3 cartes **livrée** ; loopback 2 clients **automatisé** (`Phase10RecipeLoopbackTests`) ; étapes 2 / 5-WAN / 9-distant / 12 **exigent 2 machines** |
 | P10-5 Sécurité externe (TLS, invitations, NAT) | **PASS sécu** A–E (TLS Windows unitaires verts). Palier 25×60 = P10-8 |
 | P10-6 Paquets autonomes | **INCOMPLET** — layout+SHA Linux **et** `--smoke-launch` Windows **CI 35403209506 SUCCESS** ; wine Linux ≠ pass ; 2 PCs **non** |
 | P10-7 Exploitation / restore | **INCOMPLET** — dump/restore **lignes** sanctions/guildes/amis/trades + serveur publié **CI** ; chiffrement/rétention/durée 30 min **non** |
-| P10-8 Charge 25 joueurs | **INCOMPLET** — harness `campaign` 25×TLS + métriques **livré** ; 60 min / PG / monde publié **non** ([`LOAD_REPORT.md`](LOAD_REPORT.md)) |
+| P10-8 Charge 25 joueurs | **INCOMPLET** — harness `campaign` 25×TLS + script hosted packaged+PG ([`LOAD_REPORT.md`](LOAD_REPORT.md)) ; **60 min full non** (profil `dedicated`) |
 | P10-9 Validation / candidate | **INCOMPLET** — STATUS/matrice/KNOWN_ISSUES + LOAD_REPORT borné ; phrase gate **interdite** |
 
 ## File (déjà landed, ne pas rejouer)

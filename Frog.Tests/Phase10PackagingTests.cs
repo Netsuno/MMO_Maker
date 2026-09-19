@@ -57,11 +57,15 @@ public sealed class Phase10PackagingTests
         Assert.Contains("packaged-winforms-layout-proof.sh", ci, StringComparison.Ordinal);
         Assert.Contains("packaged-playtest-e2e.ps1", ci, StringComparison.Ordinal);
         Assert.Contains("packaged-playtest-e2e.sh", ci, StringComparison.Ordinal);
+        Assert.Contains("phase10-hosted-load-campaign.sh", ci, StringComparison.Ordinal);
+        Assert.Contains("Phase10PackagedPlaytestFromZipTests", ci, StringComparison.Ordinal);
 
         var playtestSh = File.ReadAllText(Path.Combine(root, "scripts", "packaged-playtest-e2e.sh"));
         Assert.Contains("outside the git tree", playtestSh, StringComparison.Ordinal);
         Assert.Contains("not proven on Linux agents", playtestSh, StringComparison.Ordinal);
         Assert.Contains("WinForms", playtestSh, StringComparison.Ordinal);
+        Assert.Contains("chmod +x", playtestSh, StringComparison.Ordinal);
+        Assert.Contains("-f \"${DEST}/server-linux-x64/Frog.Server\"", playtestSh, StringComparison.Ordinal);
 
         var playtestPs = File.ReadAllText(Path.Combine(root, "scripts", "packaged-playtest-e2e.ps1"));
         Assert.Contains("sibling", playtestPs, StringComparison.OrdinalIgnoreCase);

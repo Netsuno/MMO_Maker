@@ -15,7 +15,7 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | **TLS** | Lots A+E : `SslStream` in-process + LoadHarness `Mode=Required` (pas AcceptAll). Proxy externe, mTLS, DPAPI : absents. | P10-5 A+E **livrés** |
 | **Packaging client/éditeur** | Scripts `publish-frog` self-contained + SHA-256. Layout EXE hors dépôt : `packaged-winforms-layout-proof.sh` (Linux). Lancement process : `packaged-winforms-smoke.ps1` (Windows CI `--smoke-launch`). **not proven on Linux agents.** Smokes Phase 8 = from-source, distincts. Serveur Linux **prouvé**. | P10-6 |
 | **Paquet autonome sans SDK** | Runtime bundlé. Smoke Windows PATH sans `dotnet.exe`. Jeu réel 2 PCs **non**. | P10-6 |
-| **LOAD** | Harness `campaign` 25×TLS + RTT/TPS/CPU ([`LOAD_REPORT.md`](LOAD_REPORT.md)). Mesuré aussi : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : **60 min**, économie 10 mut/s, interact palier, idle 300 s, restart-reconnect 25, pool PG ≤ 20, monde publié. | P10-8 |
+| **LOAD** | Harness `campaign` 25×TLS + RTT/TPS/CPU ([`LOAD_REPORT.md`](LOAD_REPORT.md)). Hosted packaged+PG : `phase10-hosted-load-campaign.sh` (ci 5 s / cloud 45 s / dedicated 3600 s). Non certifiés : **60 min**, économie 10 mut/s, interact palier, idle 300 s, restart-reconnect 25, pool PG ≤ 20. | P10-8 |
 | **Restore avec sanctions** | `Phase10BackupRestoreRowsTests` : dump avec mute/ban + guildes + amis + trades ; serveur publié refuse le banni. Chiffrement/rétention 7 **non**. | P10-7 |
 | **Rate-limit login** | IP normalisée + username (8/60s) et IP (30/60s). Plus de clé IP:port. Voir [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
 | **Inscriptions ouvertes** | Défaut local `Registration:Mode=Open`. Bêta : `ProvisionedOnly` (TCP refusé). InviteOnly = jalon sans jetons. | P10-5 C **livré** (jalon invites) |
@@ -51,7 +51,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Restore lignes sociales/trade/sanctions + serveur publié | `Phase10BackupRestoreRowsTests` | P10-7 **CI** ; chiffrement dumps **non** |
 | Mode maintenance / drain connexions | `MaintenanceService.cs` stub | P10-7 |
 | Rotation/rétention des logs | Console uniquement (`appsettings.json`) | P10-7 |
-| Job CI 60 min charge | Absent de `.github/workflows/ci.yml` (volontaire). Script `run-p10-8-load-campaign.sh --hold-ms 3600000` | P10-8 |
+| Job CI 60 min charge | Hold 5 s hosted dans postgres-integration. 60 min = `phase10-hosted-load-campaign.sh --profile dedicated` | P10-8 |
 | Guides PLAYER/CREATOR/OPERATIONS Phase 10 | Dossier créé en P10-0 ; guides de sortie **absents** | P10-9 |
 
 ---

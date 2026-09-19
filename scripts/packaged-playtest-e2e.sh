@@ -59,15 +59,22 @@ rm -rf "$DEST"
 mkdir -p "$DEST"
 ZIP="$ZIP" DEST="$DEST" python3 -c 'import os, zipfile; zipfile.ZipFile(os.environ["ZIP"]).extractall(os.environ["DEST"])'
 
-if [[ -x "${DEST}/server-linux-x64/Frog.Server" ]]; then
-  SERVER_DIR="${DEST}/server-linux-x64"
-elif [[ -x "${DEST}/Frog.Server" ]]; then
-  SERVER_DIR="$DEST"
+# zipfile often drops the Unix +x bit; locate by name then chmod.
+SERVER_BIN=""
+if [[ -f "${DEST}/server-linux-x64/Frog.Server" ]]; then
+  SERVER_BIN="${DEST}/server-linux-x64/Frog.Server"
+elif [[ -f "${DEST}/Frog.Server" ]]; then
+  SERVER_BIN="${DEST}/Frog.Server"
 else
+  SERVER_BIN="$(find "$DEST" -name Frog.Server -type f -print -quit || true)"
+fi
+if [[ -z "$SERVER_BIN" || ! -f "$SERVER_BIN" ]]; then
   echo "error: Frog.Server missing under $DEST" >&2
-  find "$DEST" -maxdepth 3 -type f | head
+  find "$DEST" -name 'Frog.Server*' -maxdepth 4 -print || true
   exit 1
 fi
+chmod +x "$SERVER_BIN"
+SERVER_DIR="$(cd "$(dirname "$SERVER_BIN")" && pwd)"
 
 if [[ -z "$PORT" ]]; then
   PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
