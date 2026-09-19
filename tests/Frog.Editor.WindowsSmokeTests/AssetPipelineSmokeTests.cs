@@ -86,7 +86,7 @@ public sealed class AssetPipelineSmokeTests
                 var bytes = File.ReadAllBytes(pngPath);
                 MapTilesetPackage.WriteSidecars(dir, ["Coral Field"], [new MapTilesetFile(1, bytes)]);
 
-                var map = new Map { Width = 1, Height = 1, Name = "Coral Field" };
+                var map = new Map { Width = 2, Height = 1, Name = "Coral Field" };
                 var layer = new Layer { LayerType = LayerType.Ground, Visible = true };
                 layer.Tiles.Add(new Tile
                 {
@@ -106,11 +106,17 @@ public sealed class AssetPipelineSmokeTests
                     map,
                     new Dictionary<string, (float, float)>(),
                     localUsername: null,
-                    localCenterXPx: 16,
+                    localCenterXPx: 48,
                     localCenterYPx: 16,
                     tilesetBitmaps: loaded);
-                var pixel = rendered.GetPixel(8, 8);
-                Assert.True(pixel.R > 150 && pixel.G < 80 && pixel.B < 80, $"expected coral tile, got {pixel}");
+                // Corner of tile (0,0) — away from the local player ellipse on tile (1,0).
+                var pixel = rendered.GetPixel(2, 2);
+                Assert.True(
+                    pixel.R > 150 && pixel.G < 80 && pixel.B < 80,
+                    $"expected coral tile, got {pixel}");
+                Assert.False(
+                    pixel.R is >= 100 and <= 140 && pixel.G is >= 140 and <= 180,
+                    $"fallback GroundTile color, got {pixel}");
             }
             finally
             {
