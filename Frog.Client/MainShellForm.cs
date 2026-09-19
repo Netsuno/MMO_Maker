@@ -152,7 +152,11 @@ public sealed class MainShellForm : Form
     private readonly ComboBox _cmbSpell = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, Enabled = false };
     private PublishedCatalogWire? _publishedCatalog;
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
-    private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = MapSurfaceBackColor };
+    /// <summary>
+    /// Viewport carte. <see cref="Panel.AutoScroll"/> reste faux : le coin (0,0) de la carte
+    /// n’est plus collé au coin client — <see cref="ApplyMapViewportCamera"/> pose <see cref="_picMap"/>.
+    /// </summary>
+    private readonly Panel _mapScroll = new() { Dock = DockStyle.Fill, AutoScroll = false, BackColor = MapSurfaceBackColor };
     private readonly PictureBox _picMap = new()
     {
         Location = new Point(0, 0),
@@ -3053,6 +3057,7 @@ public sealed class MainShellForm : Form
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
+        ApplyMapViewportCamera();
     }
 
     private void ReloadTilesetBitmaps()
@@ -3090,6 +3095,43 @@ public sealed class MainShellForm : Form
         var old = _picMap.Image;
         _picMap.Image = null;
         old?.Dispose();
+        _picMap.Location = Point.Empty;
+    }
+
+    /// <summary>
+    /// Centre le viewport sur le joueur local (monde) ou sur le rectangle carte (pas de focus).
+    /// <c>offset = (client / 2) − focusMonde</c> — plus d’alignement coin-à-coin.
+    /// </summary>
+    private void ApplyMapViewportCamera()
+    {
+        if (_map is null || _picMap.Image is null)
+        {
+            if (_picMap.Location != Point.Empty)
+            {
+                _picMap.Location = Point.Empty;
+            }
+
+            return;
+        }
+
+        var view = _mapScroll.ClientSize;
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var mapW = _map.Width * tw;
+        var mapH = _map.Height * tw;
+        float? focusX = null;
+        float? focusY = null;
+        if (_localVisualInitialized)
+        {
+            focusX = _visLocalCx;
+            focusY = _visLocalCy;
+        }
+
+        var (ox, oy) = MapViewportCamera.ComputeDrawOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
+        var next = new Point(ox, oy);
+        if (_picMap.Location != next)
+        {
+            _picMap.Location = next;
+        }
     }
 
     private void AppendLog(string line)
@@ -3278,6 +3320,8 @@ public sealed class MainShellForm : Form
         {
             _gameplayTabs.BringToFront();
         }
+
+        ApplyMapViewportCamera();
     }
 
     private void SetWindowLayerVisible(bool visible)
@@ -3856,6 +3900,34 @@ public sealed class MainShellForm : Form
     internal Panel WorldHostForTest => _worldHost;
 
     internal Panel MapScrollForTest => _mapScroll;
+
+    internal PictureBox MapPictureForTest => _picMap;
+
+    internal bool MapScrollUsesAutoScrollForTest => _mapScroll.AutoScroll;
+
+    internal Point MapPictureLocationForTest => _picMap.Location;
+
+    internal void ShowOfflineMapViewportForTest(Map map, float? focusWorldXPx, float? focusWorldYPx)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        _map = map;
+        if (focusWorldXPx is { } fx && focusWorldYPx is { } fy)
+        {
+            _localVisualInitialized = true;
+            _visLocalCx = fx;
+            _visLocalCy = fy;
+            _srvPixelX = (int)Math.Round(fx);
+            _srvPixelY = (int)Math.Round(fy);
+        }
+        else
+        {
+            _localVisualInitialized = false;
+        }
+
+        SetPhase(ClientUiPhase.Playing);
+        RedrawMap();
+        LayoutGameHud();
+    }
 
     internal HudStatusModule StatusHudForTest => _hudStatus;
 

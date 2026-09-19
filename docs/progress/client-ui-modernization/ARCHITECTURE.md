@@ -41,7 +41,7 @@ MainShellForm  (Form unique : phases, bind FrogGameClient, *ForTest)
 
 | Couche DA | Rôle | Source **réelle** (`853776e`) | Ne pas faire |
 | --- | --- | --- | --- |
-| **GameWorldView** | Rendu monde, interpolation 16 ms | `_mapScroll` + `_picMap` + `UI/MapViewRenderer` + `_smoothTimer` | Remplir `Services/MapRenderer` / `EntityRenderer` / `GameLoop` ; **pas** de grille tuile visible en jeu (`showTileGrid` défaut off, Netsun) |
+| **GameWorldView** | Rendu monde, interpolation 16 ms, caméra centrée (`MapViewportCamera` : joueur ou centre carte, pas coin 0,0) | `_mapScroll` + `_picMap` + `UI/MapViewRenderer` + `_smoothTimer` | Remplir `Services/MapRenderer` / `EntityRenderer` / `GameLoop` ; **pas** de grille tuile visible en jeu (`showTileGrid` défaut off, Netsun) |
 | **HudLayer** | 6 modules §3 | Aujourd’hui : `_lblCombat`, `_lblPlayerStatus`, `_topChrome`, chat **inline** (`_cmbChannel` + `_txtChat` + `_txtLog`), toolbar mêlée/sort | Remplir `StatusBar` / `ChatPanel` / `MiniMap` stubs **à côté** du shell |
 | **WindowLayer** | Même chrome toutes fenêtres | `InventoryPanel`, `EquipmentPanel`, `QuestJournalPanel`, `DialoguePanel`, `CraftPanel`, `EnvironmentPanel`, `OptionsForm`, `HelpForm`, `TradeForm` + shop/banque inline | Nouveau paper-doll N slots ; second store settings |
 | **LoginShell** | Écran immersif compte | `_panelLogin` / `_panelCharacter` | Perdre hôte/port (les **déplacer** vers Options → Réseau + F9 éventuel) |
