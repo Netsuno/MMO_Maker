@@ -1,6 +1,8 @@
 # Signaler un bug
 
-Une page. Remplis chaque bloc. **Aucun secret** (mot de passe, chaîne de connexion, jeton).
+Une page. Remplis chaque bloc. **Aucun secret** (mot de passe, chaîne de connexion, jeton, dump `appsettings.Local.json`).
+
+Version / build : badge client `v10.3.0` + SHA indiqué par l’opérateur (protocole **v11**). Canal = celui de l’opérateur, pas un ticket Git public avec secrets.
 
 ## Environnement
 
@@ -65,7 +67,7 @@ Captures / logs (expurgés) :
 Titre : Crash au clic sur Inventaire
 Surface : Client
 Gravité : Majeur
-Version / build : bêta-test-2026-09-xx
+Version / build : v10.3.0 / SHA fourni par l’opérateur
 OS : Windows 11
 Personnage : TesteurBleu
 Heure (America/Toronto) : 2026-09-18 16:00

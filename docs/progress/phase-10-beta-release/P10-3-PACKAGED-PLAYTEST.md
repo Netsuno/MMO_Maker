@@ -1,6 +1,8 @@
 # P10-3 — Playtest depuis zip livré
 
-**Pas READY.** Preuve de process / Hello depuis archives extraites **hors dépôt**. Ce n’est pas une partie WinForms 30–60 min ni une recette 2 PC.
+Preuve de process / Hello depuis archives extraites **hors dépôt**. Ce n’est **pas** une partie WinForms 30–60 min.
+
+Recette 2 PCs physiques : **DONE / accepted by owner Marc Giroux on 2026-09-19** (voir [`guides/BETA_TEST_PLAN.md`](guides/BETA_TEST_PLAN.md)) — **non rejouée** ici. Menu Playtest WinForms : *not proven on Linux agents* (**hors gate**).
 
 ## Linux (cet agent / CI ubuntu)
 
@@ -19,7 +21,7 @@ WinForms / WPF **impossible** à lancer de façon prouvée : `Frog.Client.exe` /
 
 Phrase guide : *not proven on Linux agents* pour le playtest menu éditeur → client WinForms.
 
-CI : job `postgres-integration`, étapes Hello zip + READY headless — [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) SUCCESS.
+CI : job `postgres-integration`, étapes Hello zip + READY headless — [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) SUCCESS sur `814b8ba` ; tip `a489379` [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) SUCCESS.
 
 ## Windows (CI windows-latest)
 
@@ -32,10 +34,10 @@ CI : job `postgres-integration`, étapes Hello zip + READY headless — [3544973
 
 CI : job `build-and-test`, étape `Packaged playtest from zip (sibling layouts + server Hello)`.
 
-## Encore manquant
+## Encore manquant / hors gate
 
 | Item | Pourquoi |
 | --- | --- |
-| Menu Playtest WinForms (éditeur → spawn client) | Exige GUI Windows + workspace PG ; pas automatisé ici |
-| Playtest 2 machines / IP publique | P10-4 |
-| HUD 1366×768 / 1920×1080 | P10-3 résolutions |
+| Menu Playtest WinForms (éditeur → spawn client) | Exige GUI Windows + workspace PG ; *not proven on Linux agents* — **hors gate** (mandat = Windows 11 x64) |
+| Playtest 2 machines / IP publique | **DONE / accepted by owner Marc Giroux on 2026-09-19** (P10-4) — pas un manquant ouvert |
+| HUD 1366×768 / 1920×1080 | P10-3 résolutions — **hors gate** (non exigé dans l’update 2026-09-19) |

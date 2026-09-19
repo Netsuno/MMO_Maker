@@ -1,10 +1,12 @@
 # Phase 10 — Matrice des exigences
 
-Statuts : **présent** (livré et prouvé sur `cursor/phase10-beta-release`) · **incomplet** (code ou preuve partielle) · **absent** · **hors périmètre**.
+Statuts : **présent** (livré et prouvé sur `cursor/phase10-beta-release`) · **incomplet** (code ou preuve partielle) · **absent** · **hors périmètre** · **accepted by owner** (preuve physique acceptée par Marc Giroux le 2026-09-19, **non rejouée** dans cette PR).
 
-Les chemins « code attendu » pour l’absent sont des **cibles**, pas des fichiers déjà créés. Preuve = test ou artefact nommé, pas un rapport « en attente ».
+Les chemins « code attendu » pour l’absent sont des **cibles**, pas des fichiers déjà créés. Preuve automatisée = test ou artefact nommé + SHA/CI. Preuve propriétaire = acceptation datée, **sans** chiffres inventés.
 
-Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 démo/recette · P10-5 sécu · P10-6 paquets · P10-7 ops/restore · P10-8 charge · P10-9 gate.
+Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 démo/recette · P10-5 sécu · P10-6 paquets · P10-7 ops/restore · P10-8 charge · P10-9 docs candidate.
+
+**Pins CI connus (avant ce commit docs) :** tip `a489379` → [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) SUCCESS ; produit `814b8ba` → [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) SUCCESS ; EXE smoke [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) SUCCESS. Le CI du tip P10-9 n’est **pas** inventé ici (mandat §6).
 
 ---
 
@@ -86,7 +88,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Créer carte, collisions, warps, NPC, objets, dialogue, quête, recette, événement | formulaires Phase 4–8 | editor smoke **87×3** | **présent** (from-source) |
 | Save / close / reopen / publish | workspace PG + close coordinator | smokes close | **présent** |
 | Erreurs publish liées au contenu | messages workspace | | **incomplet** (pas recette paquet) |
-| Playtest depuis binaires **livrés** | `packaged-playtest-e2e.sh` / `.ps1` + `Phase10PackagedPlaytestFromZipTests` | Hello TCP zip hors dépôt ; READY headless + serveur publié (Linux) ; WinForms Linux **not proven** | **incomplet** (Hello/READY **oui** ; menu Playtest / 2 PCs **non**) |
+| Playtest depuis binaires **livrés** | `packaged-playtest-e2e.sh` / `.ps1` + `Phase10PackagedPlaytestFromZipTests` | Hello TCP zip hors dépôt ; READY headless + serveur publié (Linux) — CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) / [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) ; WinForms Linux **not proven** | **incomplet / hors gate** (Hello/READY **oui** ; menu Playtest GUI Linux **non** ; recette 2 PCs = P10-4 acceptée propriétaire) |
 | Modification publiée visible joueur | live refresh Phase 8 existe en interne | | **incomplet** |
 | Pas d’édition SQL obligatoire pour le contenu | vrai pour cartes/catalogues ; grant GM = SQL | | **incomplet** (ops) |
 
@@ -99,8 +101,8 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | 3 cartes, 2 régions, 3 NPC, 2 monstres, 8 objets, 1 métier, 2 recettes, 2 quêtes 5 types | `Phase10DemoWorldCatalog` + publisher PG | `Phase10DemoWorldCatalogTests`, `Phase10DemoWorldPostgresTests` | **présent** (fixture) |
 | Licences / crédits assets | `demo-world/LICENSES.md` | tuiles procédurales, pas FRoG | **présent** |
 | Réinstall base vierge | `Migrate` + `Frog.DemoWorld publish` | PG isolated empty | **présent** |
-| Contenu distinct créé pendant recette | éditeur publié | étape 11 | **absent** |
-| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` + `Phase10RecipeLoopbackTests` + `run-p10-4-recipe-loopback.sh` | loopback 3–8/10–11 **oui** ; 2/5-WAN/9-distant/12 **2 machines** | **incomplet** (lacune 2 PCs nommée) |
+| Contenu distinct créé pendant recette | éditeur publié | étape 11 recette 2 PCs | **présent (accepted by owner Marc Giroux on 2026-09-19)** — non rejoué dans cette PR |
+| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` + `Phase10RecipeLoopbackTests` + `run-p10-4-recipe-loopback.sh` | **Automatisé :** loopback 3–8/10–11 CI. **Physique :** 2 / 5-WAN / 9-distant / 12 **DONE / accepted by owner Marc Giroux on 2026-09-19** (pas rejoué ici) | **présent** (loopback CI + acceptation propriétaire) |
 | Seeds `Phase7PostgresContentSeed` / smokes | tests seulement | CI | **présent** (≠ monde démo) |
 
 ---
@@ -132,13 +134,13 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Actuel | Preuve | Statut |
 | --- | --- | --- | --- |
-| Client Win x64 autonome | layout `client-win-x64` **self-contained** | Linux : EXE+SHA hors dépôt (`packaged-winforms-layout-proof.sh`) ; lancement **not proven on Linux agents** ; Windows CI `--smoke-launch` [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) SUCCESS | **incomplet** (layout+lancement CI **oui** ; 2 PCs / jeu réel **non**) |
-| Éditeur Win x64 autonome | idem `editor-win-x64` | idem | **incomplet** |
+| Client Win x64 autonome | layout `client-win-x64` **self-contained** | Linux : EXE+SHA hors dépôt (`packaged-winforms-layout-proof.sh`) ; lancement **not proven on Linux agents** ; Windows CI `--smoke-launch` [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) SUCCESS | **incomplet / hors gate Linux GUI** (layout+lancement CI **oui** ; jeu 2 PCs = P10-4 **accepted by owner**) |
+| Éditeur Win x64 autonome | idem `editor-win-x64` | idem | **incomplet / hors gate Linux GUI** |
 | Serveur Linux x64 + profil | `server-linux-x64` self-contained + `libhostfxr.so` | `PackagedServerPostgreSqlProcessTests` + layout smoke | **présent** |
 | Monde démo + ressources dans le paquet | `DEMO_WORLD.md` + `demo-world/LICENSES.md` copiés | | **présent** (fixture docs ; pas un zip de cartes binaires) |
 | Manifeste commit / protocole / SHA-256 archives | `packaging-manifest.json` + `archives/SHA256SUMS` | `Phase10PackagingTests` | **présent** (archives locales gitignorées) |
 | Serveur Windows | layout produit, lancement **non** revendiqué | | **incomplet** / secondaire |
-| Testeur ne compile pas, n’installe pas PG | self-contained + smoke PATH sans SDK | job Windows `--smoke-launch` | **incomplet** (jeu réel / 2 PCs non) |
+| Testeur ne compile pas, n’installe pas PG | self-contained + smoke PATH sans SDK | job Windows `--smoke-launch` | **présent** (smoke CI) ; jeu 2 PCs **accepted by owner** (P10-4) |
 | Guide install / version / update / uninstall | `PACKAGING_GUIDE.md` + scripts P10-6 | | **incomplet** (pas d’installer / MAJ) |
 | Alerte binaire non signé honnête | `PACKAGING_GUIDE.md` SmartScreen | | **présent** (pas de signature) |
 | MAJ candidate → candidate + rollback | — | | **absent** |
@@ -163,36 +165,38 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 ## P10-8 — Charge
 
-| Essai mandat | Actuel Phase 9 | Statut |
+Deux classes de preuve : **automatisée (CI / harness court)** vs **physique acceptée propriétaire**. Ne pas inventer de latence / TPS / CPU pour le run 60 min. Aucun job CI 3600 s.
+
+| Essai mandat | Preuve | Statut |
 | --- | --- | --- |
-| 25 joueurs × 60 min, actions réelles, TLS+PG+monde | in-memory `campaign` + `phase10-hosted-load-campaign.sh` (packaged+PG) ; 60 min = `--profile dedicated` | **incomplet** ([LOAD_REPORT.md](LOAD_REPORT.md)) |
-| Latence p95 ≤ 250 ms / p99 ≤ 1 s | RTT heartbeat/move/interact mesurés en loopback campaign | **incomplet** (pas WAN / pas 60 min) |
-| Économie ≥ 10 mut/s × 5 min @ 25 | non certifié | **absent** |
-| Interact 5/s × 60 s + rafale 20 | interact cadencé campaign, pas le palier isolé | **absent** |
-| Idle 300 s | config 300 s existe ; **non mesuré** | **incomplet** |
-| Reconnect 25 &lt; 60 s après restart | non mesuré | **absent** |
-| Connexions PG budget 20 | pool non dumpé ; 4 authed PG | **incomplet** |
-| CPU &lt; 80 %, mémoire bornée | échantillons process campaign (générateur+serveur) | **incomplet** |
-| 50/100 exploratoire | 100 mixed in-memory mesuré — **pas** une certif hébergée | **hors périmètre** tant que 25×60 échoue ; ne pas vendre |
-| Générateur décode réponses / états | campaign décode Hello/auth/heartbeat/move/interact/melee/chat + TLS | `Phase10LoadHarnessTlsTests` ; [LOAD_HARNESS_TLS.md](LOAD_HARNESS_TLS.md) | **incomplet** (60 min / PG) |
-| Job CI ~90 min dédié | hold 5 s hosted CI (`--profile ci`) ; 60 min **pas** branché | **incomplet** |
+| 25 joueurs × 60 min, actions réelles, TLS+PG+monde | **Automatisé :** hosted packaged+PG hold **5 000 ms** (`mandateDurationMet=false`) CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) ; in-memory **45 s**. **Physique :** machine dédiée **DONE / accepted by owner Marc Giroux on 2026-09-19** — non rejouée ici, **aucun** chiffre inventé | **présent (accepted by owner Marc Giroux on 2026-09-19)** |
+| Latence p95 ≤ 250 ms / p99 ≤ 1 s | RTT heartbeat/move/interact **loopback** campaign courte seulement ([LOAD_REPORT.md](LOAD_REPORT.md)) | **incomplet** (indicatif 5 s / 45 s ; **pas** de p95/p99 dédié inventé) |
+| Économie ≥ 10 mut/s × 5 min @ 25 | non mesuré en CI | **absent** (non bloqueur gate après update 2026-09-19) |
+| Interact 5/s × 60 s + rafale 20 | interact cadencé campaign courte, pas le palier isolé | **absent** (non bloqueur gate) |
+| Idle 300 s | config 300 s existe ; **non mesuré** en CI | **incomplet** (non bloqueur gate) |
+| Reconnect 25 &lt; 60 s après restart | non mesuré en CI | **absent** (non bloqueur gate) |
+| Connexions PG budget 20 | pool non dumpé en CI | **incomplet** (non bloqueur gate) |
+| CPU &lt; 80 %, mémoire bornée | échantillons process **campagne courte seulement** — pas de CPU dédié inventé | **incomplet** (indicatif 5 s / 45 s) |
+| 50/100 exploratoire | 100 mixed in-memory historique — **pas** une certif hébergée | **hors périmètre** |
+| Générateur décode réponses / états | campaign décode Hello/auth/heartbeat/move/interact/melee/chat + TLS | `Phase10LoadHarnessTlsTests` ; [LOAD_HARNESS_TLS.md](LOAD_HARNESS_TLS.md) | **présent** (harness) |
+| Job CI ~90 min dédié | hold 5 s hosted CI (`--profile ci`) ; 60 min **pas** branché | **absent** (volontaire ; acceptation propriétaire ≠ job CI) |
 
 ---
 
-## P10-9 — Validation / docs de sortie
+## P10-9 — Validation / docs candidate
 
 | Livrable mandat | Statut |
 | --- | --- |
-| E2E_MATRIX / TEST_RESULTS Phase 10 | **absent** (playtest zip = [P10-3-PACKAGED-PLAYTEST.md](P10-3-PACKAGED-PLAYTEST.md)) |
-| LOAD_REPORT / RESTORE_REPORT Phase 10 | **RESTORE_REPORT** P10-7 **présent** ; LOAD_REPORT hosted 5 s + in-memory **présent** ; 25×60 **non** |
-| RELEASE_MANIFEST / RELEASE_NOTES | **absent** |
-| PLAYER_QUICKSTART / CREATOR_QUICKSTART | **absent** |
-| OPERATIONS / BACKUP_RESTORE Phase 10 | **incomplet** (runbooks Phase 9 + RESTORE_REPORT P10-7) |
-| BETA_TEST_PLAN / BUG_REPORT_TEMPLATE | **présent** (brouillon + matrice 2 machines) ; campagne **non jouée** |
-| PHASE_REPORT / REVIEW_REQUEST Phase 10 | **absent** (STATUS dit pas READY) |
+| E2E_MATRIX / TEST_RESULTS Phase 10 | **incomplet** — preuves éclatées : playtest zip [P10-3-PACKAGED-PLAYTEST.md](P10-3-PACKAGED-PLAYTEST.md), recette [guides/BETA_TEST_PLAN.md](guides/BETA_TEST_PLAN.md), charge [LOAD_REPORT.md](LOAD_REPORT.md). Pas de matrice E2E unique inventée. |
+| LOAD_REPORT / RESTORE_REPORT Phase 10 | **présent** — RESTORE_REPORT P10-7 CI ; LOAD_REPORT = harness court **plus** acceptation propriétaire 25×60 (sans métriques inventées) |
+| RELEASE_MANIFEST / checklist candidate | **présent** — [RELEASE_MANIFEST.md](RELEASE_MANIFEST.md) + [CANDIDATE_CHECKLIST.md](CANDIDATE_CHECKLIST.md) ; **pas** un claim de sortie |
+| PLAYER_QUICKSTART / CREATOR_QUICKSTART | **présent** (guides P10-9) |
+| OPERATIONS / BACKUP_RESTORE Phase 10 | **présent** (guide + runbooks Phase 9 + RESTORE_REPORT P10-7) |
+| BETA_TEST_PLAN / BUG_REPORT_TEMPLATE | **présent** — loopback CI + **accepted by owner Marc Giroux on 2026-09-19** pour 2 PCs |
+| PHASE_REPORT / REVIEW_REQUEST Phase 10 | **absent** volontairement — docs candidate seulement ; phrase gate **interdite** dans ce lot |
 | Capture SHA-256 Phase 8 non affaibli | **présent** (ne pas toucher) |
 | `git diff --check` | à tenir à chaque push |
-| Phrase `PHASE 10 GATE REACHED` | **interdit** tant que §7 du mandat est faux |
+| Phrase de gate | **absent / interdit** dans ce lot — Orchestrator après CI du tip docs exact |
 
 ---
 
@@ -206,11 +210,11 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 
 | Domaine | Statut |
 | --- | --- |
-| Social (groupes/guildes/amis/blocage) | **P10-1 DONE `dca2185`** (stubs `Guild.cs` non composés ; CI PR en cours) |
+| Social (groupes/guildes/amis/blocage) | **P10-1 DONE `dca2185`** (stubs `Guild.cs` non composés) |
 | Trade P2P | **P10-2 livré** (84–86, TX PG, replay, holds, block invites) |
 | TLS | **lots A+E PASS** (SslStream in-process + LoadHarness Required ; proxy externe absent) |
 | PG runtime least-privilege | **lot D livré** (`frog_runtime` DML-only ; compose démo ≠ hébergé) |
-| Éditeur publish | **incomplet** (from-source oui ; chemins paquet **oui** ; recette humaine non) |
-| Paquets | **incomplet** (layout Linux + `--smoke-launch` Windows **CI 35403209506** ; 2 PCs / jeu réel **non**) |
-| Restore | **présent CI** (sanctions/social/trade + serveur publié) ; chiffrement/rétention **non** |
-| Load 25×60 | **incomplet** (campaign TLS 25 + métriques ; 60 min dédié **non**) |
+| Éditeur publish | **présent** chemins + fixture ; recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19** |
+| Paquets | **incomplet / hors gate Linux GUI** (layout Linux + `--smoke-launch` Windows **CI 35403209506**) |
+| Restore | **présent CI** (sanctions/social/trade + serveur publié) ; chiffrement/rétention **non** (non bloqueur gate) |
+| Load 25×60 | **présent (accepted by owner Marc Giroux on 2026-09-19)** ; harness CI = 5 s / 45 s seulement |

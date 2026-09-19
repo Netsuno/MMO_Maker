@@ -1,51 +1,55 @@
 # Plan de test bêta
 
-> **P10-4** — recette **non exécutée** de bout en bout (il manque deux PCs Windows + 30–60 min humaines). Ce fichier nomme ce qui est **automatisable** vs ce qui **exige 2 machines physiques**. Pas une preuve de sortie. Pas READY.
+Paquet docs candidate (P10-9). Distingue **automatisable (CI / 1 hôte)** vs **2 machines physiques**.
+
+**Update 2026-09-19 ~11:21 ET — Marc Giroux :** recette **2 PCs physiques** (WAN / éditeur distant / stabilité) = **DONE / accepted by owner Marc Giroux on 2026-09-19**. **Non rejouée** dans cette PR. Pas de captures inventées.
 
 ## Prérequis campagne
 
-| # | Prérequis | Statut |
-| --- | --- | --- |
-| 1 | Paquets client (2 PC) + serveur | Layout + SHA-256 **CI** ; lancement EXE **Windows CI `--smoke-launch`** ; 2 PCs distants **non** |
-| 2 | Comptes / invitations | OpsCli + `ProvisionedOnly` livrés ; pas de campagne humaine |
-| 3 | Transport chiffré validé | TLS unitaires PASS ; pas de session 2 joueurs TLS |
-| 4 | Monde démo publié | Fixture PG **oui** ; pas joué 30–60 min |
-| 5 | Canal bugs + [modèle](BUG_REPORT_TEMPLATE.md) | Modèle présent ; canal humain **non** ouvert |
+| # | Prérequis | Automatisé | Physique |
+| --- | --- | --- | --- |
+| 1 | Paquets client (2 PC) + serveur | Layout + SHA-256 CI ; `--smoke-launch` Windows CI [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) | Inclus dans l’acceptation 2 PCs |
+| 2 | Comptes / invitations | OpsCli + `ProvisionedOnly` | Inclus dans l’acceptation 2 PCs |
+| 3 | Transport chiffré validé | TLS unitaires PASS ; harness Required | Inclus dans l’acceptation 2 PCs |
+| 4 | Monde démo publié | Fixture PG + `Frog.DemoWorld` | Inclus dans l’acceptation 2 PCs |
+| 5 | Canal bugs + [modèle](BUG_REPORT_TEMPLATE.md) | Modèle présent | Canal humain = ops |
 
 ## Matrice 12 étapes — automate vs 2 machines
 
-| # | Rôle | Scénario | Automatisable (CI / 1 hôte) | Exige 2 machines physiques | Statut |
+| # | Rôle | Scénario | Automatisable (CI / 1 hôte) | 2 machines physiques | Statut |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Joueur A | Install client | Zip + `Frog.Client.exe --smoke-launch` (`packaged-winforms-smoke.ps1`, 1 Windows) | Non pour le smoke ; **oui** pour un testeur A réel | Smoke CI Windows ; install humaine **non jouée** |
-| 2 | Joueur B | Install client machine 2 | Non (deuxième OS / deuxième écran) | **Oui** — second PC Windows hors agent | Non joué |
-| 3 | A+B | Connexion | TCP login 2 clients loopback (suites PG) | **Oui** si NAT / IP publique / TLS réel | Loopback **oui** ; 2 WAN **non** |
-| 4 | A+B | Personnages | TCP create/select | Idem | Loopback **oui** |
-| 5 | A+B | Présence même carte | TCP 2 sessions même process serveur | **Oui** pour latence / NAT / firewall | Loopback **oui** |
-| 6 | A | Gameplay de base | Gameplay / Phase 8 smokes from-source | **Oui** pour HUD 1366/1920 + DPI | Smokes internes ; recette paquet **non** |
-| 7 | A+B | Social | `Phase10SocialTcpTests` / PG | **Oui** pour chat réel 2 PCs | Automatisé loopback |
-| 8 | A+B | Échange | `Phase10TradeTcpTests` / PG | **Oui** pour UI `TradeForm` à deux souris | Automatisé loopback |
-| 9 | Auteur | Publish mineur | `Frog.DemoWorld` + publisher PG ; `phase10-recipe-automated.sh` | **Oui** si éditeur **paquet** → joueur distant voit le warp | Fixture **oui** ; paquet+2 PCs **non** |
-| 10 | Ops | Backup / restore | `Phase10BackupRestoreRowsTests` (lignes sociales/trade/sanctions + serveur publié) | Non pour la preuve CI | **CI** |
-| 11 | Ops | Sanction | mute/ban TCP + restore banni rejeté | **Oui** pour effet visible HUD distant | Automatisé loopback |
-| 12 | A+B | Stabilité 30–60 min | Harness P10-8 `campaign` (1 hôte, ≠ 2 clients GUI) | **Oui** (2 clients idle humains) | Harness borné ; 2 PCs **non** |
+| 1 | Joueur A | Install client | Zip + `Frog.Client.exe --smoke-launch` | Testeur A réel | Smoke CI Windows ; install humaine **accepted by owner** (recette 2 PCs) |
+| 2 | Joueur B | Install client machine 2 | Non (deuxième OS) | **Oui** | **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+| 3 | A+B | Connexion | TCP login 2 clients loopback | **Oui** si NAT / IP / TLS réel | Loopback **oui** ; WAN **accepted by owner** |
+| 4 | A+B | Personnages | TCP create/select | Idem | Loopback **oui** + acceptation propriétaire |
+| 5 | A+B | Présence même carte | TCP 2 sessions même process | **Oui** latence / NAT / firewall | Loopback **oui** ; WAN **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+| 6 | A | Gameplay de base | Gameplay / Phase 8 smokes from-source | HUD réel | Smokes internes + acceptation recette |
+| 7 | A+B | Social | `Phase10SocialTcpTests` / PG | Chat réel 2 PCs | Automatisé loopback + acceptation propriétaire |
+| 8 | A+B | Échange | `Phase10TradeTcpTests` / PG | UI `TradeForm` à deux souris | Automatisé loopback + acceptation propriétaire |
+| 9 | Auteur | Publish mineur | `Frog.DemoWorld` + `phase10-recipe-automated.sh` | Éditeur **paquet** → joueur distant voit le warp | Fixture **oui** ; distant **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+| 10 | Ops | Backup / restore | `Phase10BackupRestoreRowsTests` | Non requis pour la preuve CI | **CI** |
+| 11 | Ops | Sanction | mute/ban TCP + restore banni rejeté | Effet HUD distant | Automatisé loopback + acceptation propriétaire |
+| 12 | A+B | Stabilité 30–60 min | Harness P10-8 `campaign` (≠ 2 clients GUI) | **Oui** (2 clients idle humains) | Harness court CI **plus** **DONE / accepted by owner Marc Giroux on 2026-09-19** |
 
-**Deux machines physiques sont obligatoires pour les étapes 2, 5 (WAN), 9 (éditeur livré → joueur distant), 12.** Un agent Linux unique ne peut pas les cocher.
+Les étapes **2, 5 (WAN), 9 (éditeur distant), 12** ne peuvent pas être cochées par un agent Linux seul. Elles sont **closes par acceptation propriétaire**, pas par un replay dans cette PR.
 
-## Scénarios (12) — journal campagne
+## Scénarios (12) — journal
 
-Cocher **Statut** seulement avec preuve (capture / note datée / SHA CI). Ne pas ajouter de lignes hors build.
+Cocher **Statut** seulement avec preuve (CI nommée **ou** acceptation propriétaire datée). Ne pas inventer de SHA de captures.
 
-| # | Rôle | Scénario | Étapes (résumé) | Attendu | Statut |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Joueur A | Install client | Dézipper / lancer | App démarre | Smoke `--smoke-launch` CI Windows ; campagne 2 PC **non jouée** |
-| 2 | Joueur B | Install client | Idem machine 2 | App démarre | Non joué (2e machine) |
-| 3 | A+B | Connexion | Login comptes fournis | Session OK | `Phase10RecipeLoopbackTests` ; WAN **non** |
-| 4 | A+B | Personnages | Créer / choisir | En carte | `Phase10RecipeLoopbackTests` |
-| 5 | A+B | Présence | Même carte | Se voient | Move/chat loopback ; 2 PCs **non** |
-| 6 | A | Gameplay de base | Combat / objet / quête courte | Pas de blocage P0 | Smokes from-source |
-| 7 | A+B | Social minimal | Groupe / guilde / ami | Action OK | Tests TCP/PG |
-| 8 | A+B | Échange | Invite + commit | Pas de dup / perte | Tests TCP/PG |
-| 9 | Auteur | Publish mineur | Éditeur paquet → monde | Visible in-game | Fixture démo ; playtest paquet **chemins livrés** (P10-3), recette humaine **non** |
-| 10 | Ops | Backup / restore | Runbook + P10-7 | Login après restore ; banni refusé | **CI** `Phase10BackupRestoreRowsTests` |
-| 11 | Ops | Sanction | Mute ou kick / ban | Effet visible | Tests + restore |
-| 12 | A+B | Stabilité courte | Session 30–60 min | Inventaire cohérent | Harness P10-8 ≠ 2 GUI ; 2 machines **non** |
+| # | Rôle | Scénario | Attendu | Statut |
+| --- | --- | --- | --- | --- |
+| 1 | Joueur A | Install client | App démarre | Smoke `--smoke-launch` CI Windows + recette 2 PCs **accepted by owner** |
+| 2 | Joueur B | Install client | App démarre machine 2 | **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+| 3 | A+B | Connexion | Session OK | `Phase10RecipeLoopbackTests` ; WAN **accepted by owner** |
+| 4 | A+B | Personnages | En carte | `Phase10RecipeLoopbackTests` + acceptation propriétaire |
+| 5 | A+B | Présence | Se voient | Move/chat loopback ; WAN **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+| 6 | A | Gameplay de base | Pas de blocage P0 | Smokes from-source + acceptation recette |
+| 7 | A+B | Social minimal | Action OK | Tests TCP/PG + acceptation propriétaire |
+| 8 | A+B | Échange | Pas de dup / perte | Tests TCP/PG + acceptation propriétaire |
+| 9 | Auteur | Publish mineur | Visible in-game | Fixture démo CI ; distant **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+| 10 | Ops | Backup / restore | Login après restore ; banni refusé | **CI** `Phase10BackupRestoreRowsTests` |
+| 11 | Ops | Sanction | Effet visible | Tests + restore |
+| 12 | A+B | Stabilité courte | Inventaire cohérent | Harness P10-8 court ≠ 2 GUI ; stabilité 2 PCs **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+
+Charge 25×60 dédiée : voir [`../LOAD_REPORT.md`](../LOAD_REPORT.md) — acceptation propriétaire distincte de ce journal 12 étapes.

@@ -1,18 +1,25 @@
 # Quickstart joueur
 
-À la fin de ce guide, tu es connecté, tu as un personnage, et tu peux te déplacer sur une carte.
+À la fin de ce guide, tu es connecté, tu as un personnage, et tu peux te déplacer, chatter, grouper et échanger.
 
-> **Bêta en cours** — smoke `--smoke-launch` Windows CI ; playtest zip = Hello serveur hors dépôt, pas une partie. TLS campaign P10-8 ≠ 2 PCs.
+Client = **Windows 11 x64**. Playtest GUI *not proven on Linux agents* (hors gate).
+
+**Bêta fermée :** tu reçois un compte **provisionné** (pas d’inscription ouverte). Jamais un mot de passe base de données.
+
+> Smoke `--smoke-launch` Windows CI = démarrage du shell, **pas** une partie. Recette 2 PCs : **accepted by owner Marc Giroux on 2026-09-19** (non rejouée dans cette PR).
 
 ## Prérequis
 
-- Client MMO Maker fourni pour la bêta
-- Identifiants de test envoyés par l’opérateur
-- Connexion Internet stable
+- Archive `client-win-x64.zip` (même génération protocole **v11** que le serveur)
+- Identifiants envoyés par l’opérateur
+- Adresse / port du serveur (et consigne TLS si fournie)
+- Connexion réseau vers le serveur
 
-## 1. Lancer le client
+## 1. Installer / lancer
 
-Sur Windows, dézipper `client-win-x64.zip` **hors** du dépôt git, puis double-cliquer `Frog.Client.exe` (runtime bundlé, pas de SDK). Windows peut afficher SmartScreen : binaire **non signé**.
+1. Dézipper `client-win-x64.zip` **hors** de tout dépôt git.
+2. Double-cliquer `Frog.Client.exe` (runtime bundlé, **pas** de SDK).
+3. Windows peut afficher SmartScreen : binaire **non signé** — demandé par l’opérateur, pas un store.
 
 Preuve CI de démarrage (pas une partie) :
 
@@ -22,31 +29,67 @@ Preuve CI de démarrage (pas une partie) :
 #   Frog.Client.exe --smoke-launch
 ```
 
+CI smoke : [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) SUCCESS.
+
 <!-- CAPTURE: assets/joueur-01-connexion.png -->
-*Capture à venir : écran de connexion — saisis l’identifiant et le mot de passe fournis, puis utilise le bouton principal de connexion.*
+*Capture à venir : écran de connexion — hôte, identifiant, mot de passe, bouton Connecter / Login.*
 
-## 2. Choisir ou créer un personnage
+## 2. Se connecter
 
-Sur l’écran personnages, sélectionne une case libre ou un personnage existant, puis confirme.
+1. Saisir l’**adresse** et le **port** fournis (défaut local `127.0.0.1:6000` seulement si l’opérateur le dit).
+2. **Connecter**, puis **Login** avec le compte provisionné.
+3. Messages possibles (honnêtes) : serveur indisponible, version incompatible (client v10 vs serveur v11), mauvais identifiants, compte banni, certificat TLS refusé.
+
+Pas d’inscription si le serveur est en `ProvisionedOnly` (profil bêta).
+
+## 3. Personnage
+
+Sur l’écran personnages : **Liste persos**, **Créer perso** (nom court), **Entrer dans le jeu**.
 
 <!-- CAPTURE: assets/joueur-02-perso.png -->
-*Capture à venir : liste des personnages — clique une case, confirme avec le bouton principal en bas.*
+*Capture à venir : liste des personnages — case, nom, bouton Entrer dans le jeu.*
 
-## 3. Premiers pas en jeu
+## 4. Premiers pas en carte
 
-Une fois en carte, déplace-toi avec les contrôles indiqués à l’écran (ou rappelés par l’opérateur).
+- Déplacement : preset **AZERTY ZQSD+E** ou **QWERTY WASD+E**, plus flèches. Rebind dans **Options** (persisté).
+- **F1** / bouton **Aide** : aide FR scrollable.
+- Chat : onglet Chat — canaux Global / Map / Whisper / Party / Guild selon tes appartenances.
+- Inventaire, banque, quêtes, craft : onglets Gameplay / Quêtes. Craft = **noms** de recettes (pas un Guid comme UI normale).
+- Version visible `v10.3.0` ; **Copier diagnostics** expurgé (jamais mot de passe / jeton).
 
 <!-- CAPTURE: assets/joueur-03-hud.png -->
-*Capture à venir : vue en jeu — personnage sur la carte ; chat en bas ; barres de statut si visibles.*
+*Capture à venir : vue en jeu — personnage, chat, barres de statut.*
+
+## 5. Social et échange (slash)
+
+Saisis dans le chat (libellés exacts = ceux de ton build) :
+
+| Commande | Effet |
+| --- | --- |
+| `/party` … | Inviter / accepter / quitter un groupe (max 5, expire 60 s) |
+| `/guild` … | Guilde persistée (cap 50, rôles chef/officier/membre) |
+| `/friend` … | Amitié consentie |
+| `/block` … | Blocage : coupe whisper + invites sociales **et** d’échange |
+| `/trade` | Ouvre / invite un échange (distance 3 tuiles, même carte) |
+
+Un redémarrage serveur **dissout les groupes** (temporaires). Guildes / amis / blocages survivent.
+
+Échange : les deux voient la même révision ; modifier l’offre annule les confirms ; commit = une transaction serveur.
+
+## 6. Options persistées
+
+**Options** : fenêtre, volume 0–100, disposition clavier. Fichier `%LocalAppData%\Frog\client-settings.json` (atomique).
 
 ## Tu es prêt si…
 
 - [ ] Tu vois ton personnage sur la carte
 - [ ] Tu peux te déplacer
-- [ ] Tu peux ouvrir le chat (même sans écrire)
+- [ ] Tu peux ouvrir le chat
+- [ ] Aide (F1) et Options s’ouvrent
+- [ ] Un problème se signale avec [BUG_REPORT_TEMPLATE](BUG_REPORT_TEMPLATE.md) **sans secret**
 
 ## Et après ?
 
-- [Problèmes connus Phase 10](../KNOWN_ISSUES.md)
-- [Signaler un bug](BUG_REPORT_TEMPLATE.md)
+- [Problèmes connus](../KNOWN_ISSUES.md)
+- [Périmètre bêta](../BETA_SCOPE.md)
 - Wiki : [Joueur](https://github.com/Netsuno/MMO_Maker/wiki/Joueur)

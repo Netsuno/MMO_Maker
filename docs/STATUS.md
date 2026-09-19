@@ -7,7 +7,7 @@ Journal **actif** du dépôt. Les rapports de phase dans `docs/progress/phase-0N
 | Phase 7 | **ACCEPTED** on main |
 | Phase 8 | **ACCEPTED** on main (merge `1cd57ba`, PR #2) |
 | Phase 9 | **ACCEPTED** on main (merge `f74b34cca09dda819fe26747d48ee16d27007dfd`, PR #7) — 2026-09-18 |
-| Phase 10 | **P10-5 A–E PASS sécu (TLS Windows unitaires verts). P10-2 déjà livré. P10-4 monde démo + P10-6 paquets self-contained sur la branche. NOT READY.** Pas de gate. |
+| Phase 10 | **P10-9 docs candidate** sur `cursor/phase10-beta-release` (PR #8). P10-8 25×60 dédié + P10-4 recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19**. Phrase de gate **non écrite**. Pas de claim marketing de sortie. |
 
 ## Phase 10 (actif)
 
@@ -19,9 +19,9 @@ Journal **actif** du dépôt. Les rapports de phase dans `docs/progress/phase-0N
 - CI `main` post-merge : https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS**
 - CI produit Phase 9 : https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869 **SUCCESS** (Frog.Tests **454** / PG **181** / editor **87×3** / gameplay **6×3** / Phase 8 **24×3** + 12 exact-sha)
 
-P10-5 A–E : **PASS sécu** (TLS Windows unitaires verts, lots A–E déjà sur la branche). P10-2 échanges **déjà livré** (`bd8462d`, block sur invites ; replay craft avant holds). P10-4 monde démo **livré** (3 cartes / catalogues ; recette 12 étapes / 2 machines **non** exécutée). P10-6 paquets **self-contained + SHA-256** (lancement `Frog.Client.exe` hors dépôt **non** prouvé). P10-1 DONE `dca2185`. P10-3 hors 3a / P10-7…P10-9 incomplets. Pas de merge.
+Détail lots : [`progress/phase-10-beta-release/STATUS.md`](progress/phase-10-beta-release/STATUS.md). CI connu tip `a489379` : [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) SUCCESS. Harness charge CI = **5 s** (pas un job 60 min). GUI WinForms *not proven on Linux agents* = hors gate.
 
-Protocole runtime (cette branche) : **v11**. Ne pas fusionner. Ne pas diffuser. Pas de Phase 11. **Pas READY.**
+Protocole runtime (cette branche) : **v11**. Ne pas fusionner. Ne pas diffuser. Pas de Phase 11. Pas de phrase de gate dans le lot docs.
 
 ## Phase 9 (historique daté — acceptée)
 
@@ -29,7 +29,7 @@ Acceptation Marc 2026-09-18. Merge PR #7 `f74b34c`. Tip produit `cab57b9`.
 
 Le dossier [`progress/phase-09-distribution-admin-hardening/`](progress/phase-09-distribution-admin-hardening/) contient encore les rapports de re-revue (**NOT READY**, C-fixes, C2 follow-up) rédigés **avant** cette décision. Les lire comme archive, pas comme statut actif.
 
-Résidus **non certifiés** repris en Phase 10 : TLS clair ; lancement packaged client/éditeur ; LOAD idle/économie/interact/restart/pool/25×60 ; restore avec **lignes** mute/ban ; rate-limit IP:port ; P9-S social.
+Résidus Phase 9 repris en Phase 10 (TLS, paquets, LOAD, restore lignes, social) : traités sur la branche — voir [`progress/phase-10-beta-release/STATUS.md`](progress/phase-10-beta-release/STATUS.md). 25×60 dédié + recette 2 PCs **accepted by owner** 2026-09-19.
 
 P9-S reste la décision Phase 9 « différé » — le travail est désormais P10-1 / P10-2.
 

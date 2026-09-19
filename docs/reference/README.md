@@ -3,7 +3,7 @@
 Fonctions documentées : `nom(args)` · entrées/sorties typées.
 Classement **par sous-projet**, puis **A–Z**.
 
-> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `ea116afa`.
+> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire historique : `ea116afa`. Alignement P10-9 (2026-09-19) : protocole **v11**, TLS `SslStream` (P10-5), social/trade 80–86. Pas une réécriture API. Guides : [`../progress/phase-10-beta-release/guides/`](../progress/phase-10-beta-release/guides/).
 
 ## Sous-projets (assemblies)
 

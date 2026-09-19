@@ -1,5 +1,7 @@
 # Phase 10 — Plan d’exécution (P10-0)
 
+> **Bandeau 2026-09-19 :** plan d’origine P10-0, conservé. Statut actif = [`STATUS.md`](STATUS.md). P10-4 recette 2 PCs et P10-8 25×60 dédié = **accepted by owner Marc Giroux on 2026-09-19**. P10-9 = docs candidate ; la phrase de gate n’est **pas** écrite dans ce lot.
+
 **Branche :** `cursor/phase10-beta-release`
 **Base :** `f74b34cca09dda819fe26747d48ee16d27007dfd` (`main`, merge PR #7)
 **CI `main` :** https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 SUCCESS

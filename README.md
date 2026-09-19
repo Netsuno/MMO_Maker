@@ -17,14 +17,14 @@ Dépôt : [Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
 
 ## Statut
 
-Phase 9 est **acceptée** et fusionnée sur `main`. La Phase 10 (bêta fermée externe) est **ouverte** : **P10-1 DONE** tip [`dca2185`](https://github.com/Netsuno/MMO_Maker/commit/dca2185dbb80b0414af8f95696a4e0e858e6ff90) (CI PR en cours) + **P10-2** échanges sur `cursor/phase10-beta-release` — **pas READY**.
+Phase 9 est **acceptée** et fusionnée sur `main`. La Phase 10 (bêta fermée externe) est **ouverte** sur `cursor/phase10-beta-release` (PR Draft [#8](https://github.com/Netsuno/MMO_Maker/pull/8)) : lots P10-0…P10-8 livrés ou acceptés propriétaire (25×60 dédié + recette 2 PCs, **2026-09-19**). Paquet **docs candidate** P10-9 — pas de phrase de gate dans ce lot.
 
 | Phase | Statut | Preuve |
 | --- | --- | --- |
 | **7** — Gameplay essentiel | ✅ **ACCEPTED** | [`docs/progress/phase-07-essential-gameplay/`](docs/progress/phase-07-essential-gameplay/) |
 | **8** — Quêtes, événements, création avancée | ✅ **ACCEPTED** | Merge [`1cd57ba`](https://github.com/Netsuno/MMO_Maker/commit/1cd57bad694f530fa5699639f9e63008522507e0) · [CI SUCCESS](https://github.com/Netsuno/MMO_Maker/actions/runs/35285230766) |
 | **9** — Distribution, admin, durcissement | ✅ **ACCEPTED** | Merge [`f74b34c`](https://github.com/Netsuno/MMO_Maker/commit/f74b34cca09dda819fe26747d48ee16d27007dfd) (PR [#7](https://github.com/Netsuno/MMO_Maker/pull/7)) · tip produit [`cab57b9`](https://github.com/Netsuno/MMO_Maker/commit/cab57b94c20f86af2cc61738bdf3307ed9626ef4) · [CI produit](https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869) · [CI post-merge](https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613) SUCCESS |
-| **10** — Bêta fermée externe | 📝 **P10-1 DONE + P10-2** | [`docs/progress/phase-10-beta-release/`](docs/progress/phase-10-beta-release/) — social tip `dca2185` ; échanges 84–86 ; TLS A–E + P10-3a déjà sur la branche ; paquets autonomes/charge 25×60 **non livrés**. **Pas READY.** |
+| **10** — Bêta fermée externe | 📝 **P10-9 docs candidate** | [`docs/progress/phase-10-beta-release/`](docs/progress/phase-10-beta-release/) — P10-0…P10-8 ; 25×60 dédié + recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19** ; harness CI charge = 5 s. Phrase de gate **non écrite**. |
 
 **Persistance produit :** **PostgreSQL** (EF Core / Npgsql). MariaDB = héritage optionnel uniquement — [ADR-0002](docs/decisions/ADR-0002-postgresql-source-of-truth.md), [matrice MariaDB](docs/MARIADB_DOMAIN_MATRIX.md).
 
@@ -139,15 +139,15 @@ Vision : un **seul monde hébergé**, équipe comme auteurs ; plus tard, les jou
 | **Persistance** | **PostgreSQL** (EF Core). MariaDB = runtime historique, gelé — pas de nouvelles tables. |
 | **Événements** | **Livré (Phase 8)** : cas, pages, catalogue DB réutilisable, commandes typées, association carte / tuile. |
 | **Scripts auteur** | Pas d’exécution Lua/C# arbitraire. Interpréteur de **commandes typées** côté serveur. |
-| **Réseau** | TCP fiable, contrôle serveur. **TLS obligatoire** pour le parcours bêta externe (Phase 10, non livré). UDP / AOI hors périmètre. |
+| **Réseau** | TCP fiable, contrôle serveur. **TLS** `Mode=Required` livré (P10-5, pas AcceptAll). UDP / AOI hors périmètre. |
 | **Combat** | Mêlée 8 directions, PvE d’abord ; knockback + i-frames à affiner. |
 | **Cartes** | Multi-maps + warps ; pas d’instances pour l’instant. |
 | **Objets** | Une place par type au début ; définitions et inventaire **relationnels PostgreSQL**. |
-| **Chat** | Global / map / whisper **livrés**. Groupe / guilde / amis / blocage / échanges = Phase 10 (absents ; gel [`SOCIAL_PROTOCOL_FREEZE.md`](docs/progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md)). |
+| **Chat** | Global / map / whisper **livrés**. Groupe / guilde / amis / blocage / échanges **livrés** (v11, opcodes 80–86) — gel [`SOCIAL_PROTOCOL_FREEZE.md`](docs/progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md). |
 | **Héritage FRoG** | Inspiration uniquement — **pas** d’import `.fcc` ni parité VB6 ([ADR-0003](docs/decisions/ADR-0003-frog-inspiration-no-compatibility.md)). |
 | **Publication éditeur** | Oui, vers PostgreSQL via les ports applicatifs. |
 
-Succès utilisateur visé (bêta) : **deux joueurs à distance** sur le client livré, **chat + social + échange**, **dialogue NPC**, **combattre**, **éditeur publié** — voir [`BETA_SCOPE.md`](docs/progress/phase-10-beta-release/BETA_SCOPE.md). Pas encore atteint.
+Succès utilisateur visé (bêta) : **deux joueurs à distance** sur le client livré, **chat + social + échange**, **dialogue NPC**, **combattre**, **éditeur publié** — voir [`BETA_SCOPE.md`](docs/progress/phase-10-beta-release/BETA_SCOPE.md). Recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19**.
 
 ---
 
@@ -162,12 +162,12 @@ Succès utilisateur visé (bêta) : **deux joueurs à distance** sur le client l
 | 6 | Éditeurs de contenu essentiels (tilesets, NPC, items, sorts, classes, shops, ressources) | ✅ |
 | 7 | Gameplay essentiel | ✅ **ACCEPTED** |
 | 8 | Quêtes, événements, création avancée | ✅ **ACCEPTED** sur `main` |
-| 9 | Packaging, admin (mute/kick/ban), sécurité, backup, charge mesurée | ✅ **ACCEPTED** sur `main` (PR #7) — résidus TLS / paquets client / LOAD 25×60 / restore sanctions **non certifiés** |
-| 10 | Bêta fermée externe (social, trade, TLS, paquets autonomes, recette, 25 joueurs) | 📝 **P10-0** audit + plan — [mandat](docs/progress/phase-10-beta-release/MANDATE.md) |
+| 9 | Packaging, admin (mute/kick/ban), sécurité, backup, charge mesurée | ✅ **ACCEPTED** sur `main` (PR #7) — résidus repris et traités en Phase 10 |
+| 10 | Bêta fermée externe (social, trade, TLS, paquets autonomes, recette, 25 joueurs) | 📝 **P10-9 docs candidate** — [mandat](docs/progress/phase-10-beta-release/MANDATE.md) · [STATUS](docs/progress/phase-10-beta-release/STATUS.md) |
 
 Dossiers d’avancement : [`docs/progress/`](docs/progress/).
 
-**Chantier en cours :** Phase 10, branche `cursor/phase10-beta-release`, **P10-0 seulement**. CI Release (Windows smokes + PostgreSQL) : [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+**Chantier en cours :** Phase 10, branche `cursor/phase10-beta-release`, PR Draft #8, **P10-9 docs candidate**. CI Release (Windows smokes + PostgreSQL) : [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 <details>
 <summary><strong>Historique — checklist créateur (phases 1–6 d’origine)</strong></summary>
@@ -207,8 +207,8 @@ Conservé comme mémoire des fondations pré-PRD. Les événements carte **Postg
 ### Frog.Client
 - [x] Réseau Hello versionné, login, map PNG 32 px, warps, chat, mêlée
 - [x] Multi-slots perso ; gameplay Phase 7 ; panneaux dialogue / quêtes / craft / environnement
-- [ ] Polish HUD, options (plein écran, volume), aide, rebind — **Phase 10 P10-3**
-- [ ] TLS client + validation certificat — **Phase 10 P10-5**
+- [x] Options, volume, aide F1, rebind AZERTY/QWERTY — **P10-3a**
+- [x] TLS client + validation certificat — **P10-5** (pas AcceptAll)
 - [ ] Combat action complet (animations, i-frames, armes) — hors gate bêta si mêlée actuelle suffit
 
 ### Frog.Editor
@@ -234,7 +234,7 @@ Conservé comme mémoire des fondations pré-PRD. Les événements carte **Postg
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Frontières de projets et ADRs |
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | Schéma PostgreSQL |
 | [`docs/BACKLOG.md`](docs/BACKLOG.md) | Backlog actif |
-| [`docs/progress/phase-10-beta-release/`](docs/progress/phase-10-beta-release/) | Phase 10 — mandat, plan, gel social, audit |
+| [`docs/progress/phase-10-beta-release/`](docs/progress/phase-10-beta-release/) | Phase 10 — STATUS, matrice, LOAD_REPORT, guides, manifeste candidate |
 | [`docs/progress/`](docs/progress/) | Rapports de phase (2 → 10) |
 | [`docs/decisions/`](docs/decisions/) | ADR-0001 … ADR-0004 |
 

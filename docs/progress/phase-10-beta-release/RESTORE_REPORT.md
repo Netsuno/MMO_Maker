@@ -38,4 +38,4 @@ Le test :
 - Volume / durée ≤ 30 min sur un dump « gros monde » : **non mesuré** (bases jetables CI).
 - Crash pendant mutations au moment du dump : **absent**.
 - Mode maintenance / drain : stub `MaintenanceService.cs`.
-- Recette humaine 2 machines après restore : P10-4, pas ce rapport.
+- Recette humaine 2 machines après restore : P10-4 **accepted by owner Marc Giroux on 2026-09-19** (pas ce rapport, non rejouée ici).

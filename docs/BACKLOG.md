@@ -68,12 +68,12 @@ Mandat : [`progress/phase-10-beta-release/MANDATE.md`](progress/phase-10-beta-re
 - [x] P10-0 audit + plan + gel protocole
 - [x] P10-1 groupes / guildes / amis / blocage (code + tests ; **pas** gate bêta)
 - [x] P10-2 échanges directs (opcodes 84–86, TX PG, replay ; **pas** gate bêta)
-- [ ] P10-3 client / éditeur utilisables hors dépôt
-- [x] P10-4 monde démo (recette 12 étapes / 2 machines **non** exécutée)
-- [x] P10-5 TLS / invitations / rate-limit / OpsCli / rôles PG / LoadHarness TLS (25×60 = P10-8)
-- [x] P10-6 paquets self-contained + SHA-256 (lancement EXE hors dépôt **non** prouvé)
-- [ ] P10-7 restore lignes métier + drain
-- [ ] P10-8 25 joueurs × 60 min
-- [ ] P10-9 candidate / gate (GO Marc)
+- [x] P10-3a settings / aide / rebind ; zip Hello + READY headless (GUI WinForms Linux **hors gate**)
+- [x] P10-4 monde démo + recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19**
+- [x] P10-5 TLS / invitations / rate-limit / OpsCli / rôles PG / LoadHarness TLS
+- [x] P10-6 paquets self-contained + SHA-256 + `--smoke-launch` Windows CI (GUI Linux **hors gate**)
+- [x] P10-7 restore lignes métier + serveur publié **CI** (chiffrement / drain **non**)
+- [x] P10-8 25 joueurs × 60 min **accepted by owner Marc Giroux on 2026-09-19** (harness CI = 5 s)
+- [ ] P10-9 docs candidate poussée — phrase de gate **réservée Orchestrator** (pas ce lot)
 
 Différé explicite (ne pas cocher ici) : coffre de guilde, HdV, mail objets, raids, UDP/AOI, clients non-Windows, import `.fcc`, boutique réelle.

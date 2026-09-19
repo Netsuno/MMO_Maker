@@ -13,4 +13,4 @@ PNG ~800–1000 px, légende dans le markdown parent, **sans secrets**.
 | `auteur-04-save.png` | CREATOR |
 | `ops-01-server-start.png` | OPERATIONS (optionnel) |
 
-Aucun binaire tant que l’UI cible n’existe pas.
+Aucun binaire dans ce lot docs (P10-9). Les légendes des guides restent des placeholders — ne pas inventer de PNG.
