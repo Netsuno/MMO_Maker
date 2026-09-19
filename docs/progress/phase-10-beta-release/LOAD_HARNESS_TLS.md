@@ -15,17 +15,24 @@ Pas de mode optionnel, pas de repli clair silencieux.
 
 `--tls-ca-path` pointe vers un PEM **confiné** (répertoire temp, jamais Git). Le client ancre cette CA (`CustomRootTrust`). Sans `--tls-ca-path`, ancre **système** (certificat public hébergé) — toujours une vraie chaîne, jamais « tout accepter ».
 
-## P10-8 (charge 25×60, pas encore exécutée)
+## P10-8 (charge)
 
 ```bash
+# Preuve cloud / CI-sized (défaut 90 s)
+./scripts/run-p10-8-load-campaign.sh
+
+# Mandat 60 min — machine dédiée seulement
+./scripts/run-p10-8-load-campaign.sh --hold-ms 3600000
+
+# Attacher un serveur déjà lancé
 ./scripts/run-load-harness.sh \
   --host VOTRE_HOTE --port 6000 \
   --tls-mode Required \
   --tls-target-host VOTRE_HOTE \
   --tls-ca-path /chemin/confine/ca.pem \
-  --sessions 25 --scenario mixed --hold-ms 3600000
+  --sessions 25 --scenario campaign --hold-ms 3600000
 ```
 
-Self-host TLS (preuve locale) : `--tls-mode Required --tls-target-host localhost --tls-cert-path leaf.pem --tls-key-path leaf.key --tls-ca-path ca.pem`.
+Self-host TLS : le script campaign émet une CA confinée (`--emit-test-certs`). `--tls-mode Required --tls-target-host localhost --tls-cert-path leaf.pem --tls-key-path leaf.key --tls-ca-path ca.pem`.
 
-Tests : `Phase10LoadHarnessTlsTests` (Hello + CA inconnue + scan AcceptAll). Le palier 25×60 min + PG + monde publié reste **P10-8**.
+Tests : `Phase10LoadHarnessTlsTests` (Hello + CA inconnue + **campaign 25×TLS** + scan AcceptAll). Rapport : [`LOAD_REPORT.md`](LOAD_REPORT.md). Le palier **60 min + PG + monde publié** n’est pas clos.

@@ -45,6 +45,8 @@ public sealed class Phase10LoadHarnessTlsTests
             Path.Combine("tools", "Frog.LoadHarness", "LoadHarnessOptions.cs"),
             Path.Combine("tools", "Frog.LoadHarness", "LoadHarnessRunner.cs"),
             Path.Combine("tools", "Frog.LoadHarness", "InMemoryLoadHost.cs"),
+            Path.Combine("tools", "Frog.LoadHarness", "LoadTestCertificates.cs"),
+            Path.Combine("tools", "Frog.LoadHarness", "Program.cs"),
         })
         {
             var text = File.ReadAllText(Path.Combine(root, rel));
@@ -121,6 +123,41 @@ public sealed class Phase10LoadHarnessTlsTests
 
         Assert.Equal("Off", report.Host.TlsMode);
         Assert.Equal(1, report.Client.HelloOk);
+    }
+
+    [Fact]
+    [Trait("Category", "Load")]
+    public async Task Campaign_TlsRequired_TwentyFiveSessions_RecordsMetrics()
+    {
+        using var certs = EphemeralTlsCertificates.Create("localhost");
+        var report = await LoadHarnessRunner.RunAsync(new LoadHarnessOptions
+        {
+            SelfHost = true,
+            Scenario = "campaign",
+            Sessions = 25,
+            HoldMilliseconds = 2500,
+            ActionIntervalMilliseconds = 200,
+            SampleMilliseconds = 400,
+            TlsMode = TlsTransportMode.Required,
+            TlsTargetHost = "localhost",
+            TlsCaPath = certs.CaPemPath,
+            TlsCertificatePath = certs.LeafCertPemPath,
+            TlsPrivateKeyPath = certs.LeafKeyPemPath,
+            MaxParallelAuth = 8,
+            ConnectTimeoutMs = 15_000,
+        });
+
+        Assert.Equal("Required", report.Host.TlsMode);
+        Assert.Equal(25, report.Client.HelloOk);
+        Assert.Equal(25, report.Client.CharacterSelectOk);
+        Assert.NotNull(report.Campaign);
+        Assert.Equal(LoadCampaignInfo.MandateHoldMilliseconds, report.Campaign!.MandateHoldMs);
+        Assert.False(report.Campaign.MandateDurationMet);
+        Assert.True(report.Campaign.ActualHoldMs >= 2000);
+        Assert.True(report.Client.HeartbeatAckRecv >= 25);
+        Assert.True(report.Campaign.HeartbeatRtt.Count >= 25);
+        Assert.True(report.Campaign.ActionsPerSecond > 0);
+        Assert.NotEmpty(report.Campaign.ResourceSamples);
     }
 
     private static string RepoRoot()

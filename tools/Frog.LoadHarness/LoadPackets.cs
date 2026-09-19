@@ -60,6 +60,25 @@ internal static class LoadPackets
 
     public static byte[] Heartbeat() => [(byte)PacketId.HeartbeatRequest];
 
+    public static byte[] Melee(string target)
+    {
+        var t = Encoding.UTF8.GetBytes(target);
+        var payload = new byte[1 + 1 + t.Length];
+        payload[0] = (byte)PacketId.MeleeAttackRequest;
+        payload[1] = (byte)t.Length;
+        t.CopyTo(payload, 2);
+        return payload;
+    }
+
+    public static byte[] Interact(Guid activationId)
+    {
+        var body = Phase8Wire.BuildInteractRequest(activationId);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.InteractRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return payload;
+    }
+
     public static Guid DefaultClassId => Phase7ContentSeed.DefaultClassId;
 
     public static bool IsHello(ReadOnlySpan<byte> frame)

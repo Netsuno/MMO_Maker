@@ -16,6 +16,9 @@ public sealed class LoadHarnessOptions
     public string? JsonOut { get; init; }
     public int ConnectTimeoutMs { get; init; } = 15_000;
     public int MaxParallelAuth { get; init; } = 8;
+    public int SampleMilliseconds { get; init; } = 1_000;
+    public int ActionIntervalMilliseconds { get; init; } = 250;
+    public long MandateHoldMilliseconds { get; init; } = LoadCampaignInfo.MandateHoldMilliseconds;
 
     /// <summary>Off (défaut, tests Phase 9 clair) ou Required. Pas de mode optionnel / AcceptAll.</summary>
     public TlsTransportMode TlsMode { get; init; } = TlsTransportMode.Off;
@@ -44,6 +47,9 @@ public sealed class LoadHarnessOptions
         string? jsonOut = null;
         var connectTimeoutMs = 15_000;
         var maxParallelAuth = 8;
+        var sampleMs = 1_000;
+        var actionIntervalMs = 250;
+        var mandateHoldMs = LoadCampaignInfo.MandateHoldMilliseconds;
         var tlsMode = TlsTransportMode.Off;
         string? tlsTargetHost = null;
         string? tlsCaPath = null;
@@ -87,6 +93,15 @@ public sealed class LoadHarnessOptions
                     break;
                 case "--max-parallel-auth":
                     maxParallelAuth = int.Parse(Require(args, ref i, "--max-parallel-auth"));
+                    break;
+                case "--sample-ms":
+                    sampleMs = int.Parse(Require(args, ref i, "--sample-ms"));
+                    break;
+                case "--action-interval-ms":
+                    actionIntervalMs = int.Parse(Require(args, ref i, "--action-interval-ms"));
+                    break;
+                case "--mandate-hold-ms":
+                    mandateHoldMs = long.Parse(Require(args, ref i, "--mandate-hold-ms"));
                     break;
                 case "--tls-mode":
                     tlsMode = ParseTlsMode(Require(args, ref i, "--tls-mode"));
@@ -134,6 +149,9 @@ public sealed class LoadHarnessOptions
             JsonOut = jsonOut,
             ConnectTimeoutMs = connectTimeoutMs,
             MaxParallelAuth = Math.Max(1, maxParallelAuth),
+            SampleMilliseconds = Math.Max(200, sampleMs),
+            ActionIntervalMilliseconds = Math.Max(50, actionIntervalMs),
+            MandateHoldMilliseconds = Math.Max(1, mandateHoldMs),
             TlsMode = tlsMode,
             TlsTargetHost = tlsTargetHost,
             TlsCaPath = tlsCaPath,

@@ -10,6 +10,9 @@ SESSIONS=25
 HOLD_MS=3000
 CHAT_BURST=12
 MOVE_BURST=80
+SAMPLE_MS=""
+ACTION_INTERVAL_MS=""
+MANDATE_HOLD_MS=""
 HOST=""
 PORT=""
 JSON_OUT=""
@@ -32,11 +35,14 @@ P10-8 attach with TLS Required (confined test CA or public CA — never AcceptAl
   ./scripts/run-load-harness.sh --host HOST --port 6000 --tls-mode Required --tls-target-host HOST --tls-ca-path /tmp/test-ca.pem --sessions 25
 
 Options:
-  --scenario connect|chat|move|mixed
+  --scenario connect|chat|move|mixed|campaign
   --sessions N
   --hold-ms N
   --chat-burst N
   --move-burst N
+  --sample-ms N
+  --action-interval-ms N
+  --mandate-hold-ms N
   --host ADDR --port N     attach (skips self-host)
   --json-out PATH          also written by the harness; default artifacts/load/load-report.json
   --max-parallel-auth N    cap concurrent register/login (PBKDF2 is CPU-heavy)
@@ -56,6 +62,9 @@ while [[ $# -gt 0 ]]; do
     --hold-ms) HOLD_MS="${2:-}"; shift 2 ;;
     --chat-burst) CHAT_BURST="${2:-}"; shift 2 ;;
     --move-burst) MOVE_BURST="${2:-}"; shift 2 ;;
+    --sample-ms) SAMPLE_MS="${2:-}"; shift 2 ;;
+    --action-interval-ms) ACTION_INTERVAL_MS="${2:-}"; shift 2 ;;
+    --mandate-hold-ms) MANDATE_HOLD_MS="${2:-}"; shift 2 ;;
     --host) HOST="${2:-}"; shift 2 ;;
     --port) PORT="${2:-}"; shift 2 ;;
     --json-out) JSON_OUT="${2:-}"; shift 2 ;;
@@ -98,6 +107,9 @@ fi
 [[ -n "$TLS_CA_PATH" ]] && ARGS+=(--tls-ca-path "$TLS_CA_PATH")
 [[ -n "$TLS_CERT_PATH" ]] && ARGS+=(--tls-cert-path "$TLS_CERT_PATH")
 [[ -n "$TLS_KEY_PATH" ]] && ARGS+=(--tls-key-path "$TLS_KEY_PATH")
+[[ -n "$SAMPLE_MS" ]] && ARGS+=(--sample-ms "$SAMPLE_MS")
+[[ -n "$ACTION_INTERVAL_MS" ]] && ARGS+=(--action-interval-ms "$ACTION_INTERVAL_MS")
+[[ -n "$MANDATE_HOLD_MS" ]] && ARGS+=(--mandate-hold-ms "$MANDATE_HOLD_MS")
 
 dotnet run --project "${ROOT}/tools/Frog.LoadHarness/Frog.LoadHarness.csproj" \
   -c "$CONFIGURATION" --no-launch-profile -- "${ARGS[@]}"
