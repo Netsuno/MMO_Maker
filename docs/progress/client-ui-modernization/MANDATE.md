@@ -20,7 +20,7 @@ Objectifs de direction :
 - Zone de jeu maximale, HUD peu intrusive, panneaux **modulaires**
 - Pixel-art du monde **conservé** ; l’UI peut être un peu plus moderne que le monde
 
-Ne pas recopier le mockup au pixel. Ne pas inventer des mécaniques (guilde, groupe, paper-doll à 12 slots, canaux chat absents du protocole) uniquement pour coller à l’image.
+Ne pas recopier le mockup au pixel. Ne pas inventer de paper-doll à N slots ni de fiche guilde. Canaux Party/Guild et trade : déjà sur le tip P10 `853776e` — les **conserver** au restyle, ne pas les recréer / ne pas ajouter d’opcode depuis cette branche. Inventaire factuel : [BASELINE_AUDIT.md](BASELINE_AUDIT.md).
 
 ---
 
@@ -28,13 +28,13 @@ Ne pas recopier le mockup au pixel. Ne pas inventer des mécaniques (guilde, gro
 
 | # | Surface | Direction mockup | Réalité produit aujourd’hui |
 | --- | --- | --- | --- |
-| 1 | Écran principal | Carte presque plein écran ; HUD HG (portrait / nom / niveau / HP / MP) ; minimap HD ; tracker quête ; chat BG ; hotbar ; menu BD | `MainShellForm` : toolbar + carte `PictureBox` + onglets droite 360 px + journal bas. Pas de HUD overlay, pas de minimap, pas de hotbar. |
+| 1 | Écran principal | Carte presque plein écran ; HUD HG (portrait / nom / niveau / HP / MP) ; minimap HD ; tracker quête ; chat BG ; hotbar ; menu BD | `MainShellForm` (~119 Ko sur P10) : TopChrome + statut + carte `PictureBox` + onglets 360 px + log. Pas de HUD overlay / minimap / hotbar. |
 | 2 | Inventaire | Overlay : équipement gauche, grille droite, stacks, or | `InventoryPanel` : `ListBox` + Équiper / Déposer. Or via `CombatStateWire`, pas dans le panneau. |
-| 3 | Personnage | Portrait, classe, guilde, stats Force/Agi/…, onglets | Stats STR/AGI/DEX/INT/VIT/LUCK dans le JSON perso ; **édition UI masquée**. Pas de fiche overlay. Guilde **absente** du produit. |
+| 3 | Personnage | Portrait, classe, guilde, stats Force/Agi/…, onglets | Stats STR/AGI/DEX/INT/VIT/LUCK dans le JSON perso ; **édition UI masquée**. Pas de fiche overlay. Canal chat Guild (P10) ≠ fiche guilde. |
 | 4 | Quêtes | Liste En cours / Terminées + détail ; même source que le tracker | `QuestJournalPanel` + `QuestJournalSnapshot`. Pas de tracker HUD. |
 | 5 | Dialogue PNJ | Portrait, texte, choix | `DialoguePanel` dans l’onglet Quêtes. |
 | 6 | Magasin | Achat / Vente, icône, prix | Combos + boutons dans l’onglet Gameplay ; paquets shop existants. |
-| 7 | Options | Graphismes / Son / Commandes / Interface / Réseau | `OptionsForm` et `UserSettings` = **stubs** (`// TODO`). |
+| 7 | Options | Graphismes / Son / Commandes / Interface / Réseau | Sur P10 `853776e` : `OptionsForm` + `UserSettings` + `ClientSettingsStore` **live** (fenêtre, volume, AZERTY/QWERTY, rebind). Restyler, ne pas recréer. |
 | 8 | Login | Même DA, auth existante | Phase `Login` claire (hôte / port / compte) — chrome clair WinForms. |
 
 ---

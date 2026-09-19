@@ -1,228 +1,231 @@
 # Baseline audit — UI Frog.Client
 
-**Audited tip :** `f74b34cca09dda819fe26747d48ee16d27007dfd` (`main`, merge PR #7)  
-**Branche d’audit :** `cursor/client-ui-modernization`  
-**Date :** 2026-09-19  
-**Repo :** https://github.com/Netsuno/MMO_Maker  
-**Propriétaire chantier :** Netsun
+**Propriétaire chantier :** Netsun  
+**Branche docs :** `cursor/client-ui-modernization` (depuis `main` @ `f74b34c` — **aucun** checkout / merge Phase 10)  
+**Inventaire UI faisant foi :** lecture seule tip Phase 10 `853776e0d75312458e47200cd5fa797ea96fd8f0` (`cursor/phase10-beta-release`, 2026-09-19)  
+**Repo :** https://github.com/Netsuno/MMO_Maker
 
-Ce fichier est l’état **factuel** du client joueur. Il ne décrit pas le mockup (voir [MANDATE.md](MANDATE.md)). Il ne propose pas l’architecture cible (voir [ARCHITECTURE.md](ARCHITECTURE.md)).
+Ce fichier est l’état **factuel** du client joueur. Direction mockup : [MANDATE.md](MANDATE.md). Cible découpe : [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Le `docs/BASELINE_AUDIT.md` racine (Phase 0, 2026-08-22) et l’audit Phase 9 sont **d’autres** snapshots. Ne pas les traiter comme l’UI actuelle.
+Les audits Phase 0 / Phase 9 et le premier jet de ce dossier (tip `main` seul) sont **périmés** pour Options, settings, input, aide, trade et chrome haut.
+
+---
+
+## 0. Deux snapshots — ne pas les mélanger
+
+| Snapshot | SHA | Rôle pour ce chantier |
+| --- | --- | --- |
+| `main` (cette PR) | `f74b34cca09dda819fe26747d48ee16d27007dfd` | Base git des **docs**. Le working tree de cette branche n’embarque **pas** le code P10. |
+| Phase 10 tip (lecture seule) | `853776e0d75312458e47200cd5fa797ea96fd8f0` | **Inventaire client-engineer** : shell ~119 Ko, Options/Help/Trade live, settings, chat 5 canaux dans le combo. |
+
+Ne pas cherry-picker P10 ici. Ne pas toucher wire / opcodes / TLS. Quand une étape UI sera codée, se rebaser ou se greffer **après** accord sur le tip produit — en préservant les smokes `Phase10ClientSettings*` et les `*ForTest` Phase 8.
 
 ---
 
 ## 1. Qu’est-ce que le client réellement ?
 
-`Frog.Client` est un WinExe `net8.0-windows` (WinForms). Point d’entrée : `Program.Main` → `Application.Run(new MainShellForm(options))`.
+**Pas de `GameForm`.** Le shell exécuté est `MainShellForm` (`net8.0-windows` WinForms).
 
-| Fichier live | Lignes (approx.) | Rôle |
-| --- | --- | --- |
-| `MainShellForm.cs` | 3177 | **Tout** le chrome : phases Login / CharacterSelect / Playing, layout, input, binding événements |
-| `Network/FrogGameClient.cs` | 1720 | TCP, paquets, events UI-thread (`SynchronizationContext`) |
-| `Network/TcpFrameCodec.cs` | — | Framing live (pas le stub `NetworkService`) |
-| `UI/MapViewRenderer.cs` | 275 | Rendu GDI+ **carte entière** → `Bitmap` |
-| `Assets/ClientTilesetLoader.cs` | — | PNG tilesets |
-| `Controls/InventoryPanel.cs` | — | Liste + Équiper / Déposer |
-| `Controls/EquipmentPanel.cs` | — | Arme / Armure + Déséquiper |
-| `Controls/QuestJournalPanel.cs` | — | Journal + turn-in |
-| `Controls/DialoguePanel.cs` | — | Speaker / texte / choix |
-| `Controls/CraftPanel.cs` | — | Guid recette + Craft |
-| `Controls/EnvironmentPanel.cs` | — | Carte / région / météo / éclairage |
-| `ClientSmokeTestAccess.cs` | — | Hooks smokes + screenshots |
-| `Phase7ClientContentSeed.cs` | — | Guids démo (shop, etc.) |
+Sur `853776e` : `Frog.Client/MainShellForm.cs` = **119 447 octets**, **3605 lignes**. Point d’entrée inchangé : `Program.Main` → `Application.Run(new MainShellForm(options))`.
 
-**Il n’existe pas de `GameForm`.** L’analyse historique `Frog.Client/Docs/analyse_client.md` nomme `GameForm` / `StatusBar` / `ChatPanel` comme plan de conversion VB6 — ce n’est **pas** le code exécuté.
+Host de phases : **Login / Characters / Game** (`_panelLogin`, `_panelCharacter`, `_panelGame` dans `_hostPages`).
 
-`FrogGameClient` poste tous les events sur le contexte UI. `MainShellForm` s’abonne et met à jour contrôles + `AppendLog`.
+| Fichier **live** (logique à conserver ; chrome restylable) | Rôle sur `853776e` |
+| --- | --- |
+| `MainShellForm.cs` | Orchestration : phases, layout, bind `FrogGameClient`, input, settings |
+| `Network/FrogGameClient.cs` (~1826 lignes) | TCP / paquets / events UI-thread — **hors chrome UI** |
+| `Network/TcpFrameCodec.cs` | Framing live |
+| `UI/MapViewRenderer.cs` | Rendu GDI+ carte → `Bitmap` (passe tiles **sans** HUD) |
+| `Assets/ClientTilesetLoader.cs` | PNG tilesets |
+| `Controls/InventoryPanel.cs` | Liste + Équiper / Déposer |
+| `Controls/EquipmentPanel.cs` | Arme / Armure + Déséquiper |
+| `Controls/CraftPanel.cs` | Recette **par nom** (Guid secours hidden) |
+| `Controls/DialoguePanel.cs` | Speaker / texte / choix |
+| `Controls/QuestJournalPanel.cs` | Journal + turn-in |
+| `Controls/EnvironmentPanel.cs` | Carte / région / météo / éclairage |
+| `Forms/OptionsForm.cs` | Modal : fenêtre, volume, AZERTY/QWERTY, rebind |
+| `Forms/HelpForm.cs` | Modal aide FR (F1 / bouton Aide) |
+| `Forms/TradeForm.cs` | Modal échange (snapshot + confirm/unconfirm/cancel) |
+| `Config/UserSettings.cs` | POCO persisté (fenêtre, volume, preset, bindings) |
+| `Config/ClientSettingsStore.cs` | JSON atomique `%LocalAppData%\Frog\client-settings.json` (override env) |
+| `Config/ClientVersion.cs` | Badge `10.3.0` |
+| `Services/InputService.cs` | ZQSD / WASD + flèches ; `IsTextInputFocus` |
+| `Services/SoundService.cs` | Volume 0–100 / `Gain` (pas de lecture audio encore) |
+| `Services/PlayerFacingMessages.cs` | Libellés FR ; jamais jeton / mot de passe |
+| `ClientSmokeTestAccess.cs` | Hooks smokes + screenshots |
 
----
-
-## 2. Stubs historiques (présentation future possible, **pas** le chemin actuel)
-
-Un seul ligne `// TODO: Implémenter …` — **aucun** usage par `MainShellForm` / `FrogGameClient`. ADR-0003 : ne pas les relancer comme parité FRoG/VB6.
-
-| Fichier | Mentionné dans le mandat ? | État |
-| --- | --- | --- |
-| `Controls/StatusBar.cs` | oui | stub |
-| `Controls/ChatPanel.cs` | oui | stub |
-| `Controls/ChatBox.cs` | oui | stub |
-| `Controls/MiniMap.cs` | oui | stub |
-| `Controls/FpsLabel.cs` | — | stub |
-| `Controls/ClockLabel.cs` | — | stub |
-| `Forms/OptionsForm.cs` | oui | stub |
-| `Forms/DialogForm.cs` | — | stub (le live est `DialoguePanel`) |
-| `Config/UserSettings.cs` | oui (direction) | stub |
-| `Services/UIService.cs` | oui | stub |
-| `Services/AuthService.cs`, `ChatService`, `InventoryService`, `EquipmentService`, `DialogService`, `InputService`, `MovementService`, `GameLoop`, `MapRenderer`, `EntityRenderer`, `CommandService`, `SoundService`, `ClockService` | — | stubs |
-| `Network/NetworkService.cs`, `PacketReader.cs`, `PacketWriter.cs` | — | stubs (live = `FrogGameClient` + `TcpFrameCodec`) |
-| `Models/Player.cs`, `Item.cs`, `InventorySlot.cs`, `Equipment*.cs`, `ChatMessage.cs`, `DialogLine.cs`, `Npc.cs`, `CombatEffect.cs`, `WarpAttribute.cs` | — | stubs (live = types `Frog.Core.Protocol`) |
-
-**Règle pour les étapes UI :** implémenter de **nouveaux** contrôles overlay (ou étendre les panneaux **live**) plutôt que de remplir ces squelettes « pour faire exister le nom ». Si un nom de fichier est réutilisé, le remplacer **en entier** et mettre à jour les smokes — ne pas mixer stub + partiel.
+`FrogGameClient` n’est **pas** un contrôle. Le moderniser = hors chantier chrome (sauf si un event UI manque déjà — alors pas un nouveau opcode).
 
 ---
 
-## 3. Layout et phases (ce que le joueur voit)
+## 2. Folklore stubs (1 ligne `// TODO`, **non** utilisés par le shell)
 
-`ClientUiPhase` : `Login` → `CharacterSelect` → `Playing`. Un seul `Form` (1040×720, min 980×640), fond `SystemColors.Control` / login `245,248,252` (clair).
+Vérifiés absents de `MainShellForm` / des forms live sur `853776e` :
 
-### 3.1 Login
+| Fichier | Notes |
+| --- | --- |
+| `Controls/ChatBox.cs` | stub |
+| `Controls/ChatPanel.cs` | stub — le chat **réel** est inline dans le shell |
+| `Controls/StatusBar.cs` | stub — le statut live est `_lblPlayerStatus` |
+| `Controls/MiniMap.cs` | stub — minimap = étape **tardive** |
+| `Controls/ClockLabel.cs` | stub |
+| `Controls/FpsLabel.cs` | stub |
+| `Forms/DialogForm.cs` | stub — le live est `DialoguePanel` |
+| `Services/UIService.cs` | stub |
+| `Services/MapRenderer.cs` | stub — le live est `UI/MapViewRenderer` |
+| `Services/EntityRenderer.cs` | stub |
+| `Services/GameLoop.cs` | stub — le live est `_smoothTimer` |
+| `Services/AuthService.cs`, `ChatService.cs`, `InventoryService.cs` | stubs (+ `EquipmentService`, `DialogService`, `MovementService`, `CommandService`, `ClockService`) |
+| `Network/NetworkService.cs`, `PacketReader.cs`, `PacketWriter.cs` | stubs |
+| `Models/*` (Player, Item, …) | stubs — types live = `Frog.Core.Protocol` |
 
-Champs : hôte, port, compte, mot de passe. Boutons : Connecter, Déconnecter, Login, Inscription, Reconnecter (jeton). Statut jeton. Auth **existante** (`SendLoginAsync` / register / reconnect). Playtest : login automatique `__frog_playtest__` + jeton env (jamais logué).
+**Règle (client-engineer) :** ne **pas** remplir ces stubs en parallèle du shell. Soit **extraire** depuis `MainShellForm` vers de vrais `UserControl` / `Form` (remplacement **atomique** du fichier stub + smokes), soit **supprimer / renommer** après la découpe. Interdit : stub + implémentation partielle du même nom.
 
-### 3.2 Sélection de personnage
+L’analyse `Frog.Client/Docs/analyse_client.md` qui parle de `GameForm` est un plan VB6 historique, pas le runtime.
 
-Liste persos, Entrer dans le jeu, création (nom + classe catalogue). Rangée stats STR…LUCK **`Visible = false`** (le serveur refuse `CharacterStatsUpdateRequest` hors playtest / fallback mémoire).
+---
 
-### 3.3 Playing — chrome actuel (pas overlay)
+## 3. Layout sur `853776e` (ce que le joueur voit)
+
+`ClientUiPhase` : Login → CharacterSelect → Playing.
+
+Chrome **global** (toutes phases) :
+
+- `_topChrome` (`Dock.Top`) : Aide, Options, badge version, Copier diagnostics
+- `_lblPlayerStatus` (`Dock.Top`) : ligne d’état FR (`PlayerFacingMessages` / `[ui]` dans le log)
+- `_txtLog` (`Dock.Bottom`) : journal système + **réception chat** (TextBox multiligne — pas une ListBox)
+- `_hostPages` : un des trois panneaux phase
+
+### 3.1 Login / Characters
+
+Même flux auth (Connecter / Login / Inscription / Reconnecter). Playtest auto-login. Stats STR…LUCK toujours `Visible = false`.
+
+### 3.2 Game
 
 ```text
-┌ toolbar (map, changer perso, logout, cible, mêlée, sort, respawn, aide E) ─┐
-│ ┌ map scroll + PictureBox (Fill) ───┐┌ TabControl 360 px ───────────────┐ │
-│ │ MapViewRenderer → Bitmap entière  ││ Chat | Gameplay | Quêtes         │ │
-│ └───────────────────────────────────┘└──────────────────────────────────┘ │
-└ _txtLog Dock.Bottom (journal système + chat reçu) ─────────────────────────┘
++-- _topChrome (Aide, Options, version, diagnostics) ---------------+
+| _lblPlayerStatus                                                  |
+| +-- toolbar jeu (map, perso, logout, cible, melee, sort, hint) -+ |
+| | +-- _mapScroll + _picMap ----------+ +-- TabControl 360 px --+ | |
+| | | MapViewRenderer -> Bitmap        | | Chat | Gameplay | Quetes | | |
+| | +----------------------------------+ +-----------------------+ | |
+| +----------------------------------------------------------------+ |
++-- _txtLog --------------------------------------------------------+
 ```
 
-| Onglet | Contenu |
+| Surface | Implémentation `853776e` |
 | --- | --- |
-| **Chat** | Combo canal Global / Map / Whisper, cible whisper, `_txtChat` (saisie), Envoyer. **Réception** → `AppendLog` (`[G]`/`[M]`/`[W]`), **pas** dans `_txtChat`. |
-| **Gameplay** | `_lblCombat` (Niv/XP/HP/MP/Or) ; `EquipmentPanel` ; `InventoryPanel` ; shop (combos + qty + Acheter/Vendre) ; banque (list + or) ; sol + Ramasser |
-| **Quêtes** | `EnvironmentPanel` ; `QuestJournalPanel` ; `DialoguePanel` ; `CraftPanel` |
-
-Pas de portrait, pas de barres HP/MP sur la carte, pas de minimap, pas de tracker quête, pas de hotbar 1–0, pas de menu Perso/Inventaire/Quêtes/Carte/Options.
+| Carte | `PictureBox` `_picMap` + `MapViewRenderer` ; `EnableDoubleBuffer` déjà posé |
+| Chat **inline** | Onglet Chat : `_cmbChannel` (Global / Map / Whisper / **Party** / **Guild**) + `_txtWhisperTo` + `_txtChat` + Envoyer. Historique = `_txtLog`. Le stub `ChatPanel` n’est **pas** ça. Inventaire engineer « ListBox+Combo inline » = chrome **dans le shell** (Combo réel ; historique aujourd’hui TextBox — la cible d’extraction est ListBox **bornée** + Combo). |
+| Statut joueur | `_lblPlayerStatus` + `_lblCombat` (Niv/XP/HP/MP/Or dans l’onglet Gameplay) + respawn |
+| Options / Aide | Modales `OptionsForm` / `HelpForm` (F1). **Pas** des stubs. |
+| Inventaire / équip / banque / sol / shop | Onglet Gameplay (panels live + combos / ListBox banque-sol) |
+| Craft / quête / dialogue / environnement | Onglet Quêtes (`SidePanels` à extraire) |
+| Trade | `TradeForm` modal, `TradeSnapshotWire` |
 
 ---
 
-## 4. Surfaces demandées — fonctionne / conserve / présentation-only
+## 4. Surfaces — fonctionne / conserve / présentation-only
 
-Légende :
+Légende : **Fonctionne** (tip `853776e`) · **Se conserve** (logique / tests) · **Présentation-only**.
 
-- **Fonctionne** : branché, smokes ou paquets le prouvent
-- **Se conserve** : ne pas réécrire la logique / le contrat test
-- **Présentation-only** : chrome, disposition, thème, contrôles visuels
-
-### 4.1 HUD / état joueur
+### 4.1 Top chrome + HUD
 
 | Élément | Fonctionne | Se conserve | Présentation-only |
 | --- | --- | --- | --- |
-| HP/MP/XP/niveau/or/mort | Oui — `CombatStateWire` → `_lblCombat` + `_btnRespawn` | Event + champs wire + `CombatHpForTest` / `CombatGoldForTest` | Déplacer vers barres overlay HG ; ne pas recalculer HP côté client |
-| Portrait / classe / nom HUD | Non (nom = `_username` session) | Username + catalogue classes à la **création** | Chrome portrait ; classe HUD seulement si déjà dans payload / liste — **ne pas inventer un paquet** |
-| Interpolation mouvement | Oui — timer 16 ms, prédiction + réconciliation | `_smoothTimer`, `AdvanceMovementSmoothing`, `PositionSync` 52 ms | Ne pas lier le tick UI overlay au `RedrawMap` |
+| Ligne statut FR | Oui — `_lblPlayerStatus` | `PlayerFacingMessages`, `ShowPlayerStatus*ForTest`, redaction diagnostics | Extraire **TopChrome** |
+| HP/MP/XP/or/mort | Oui — `CombatStateWire` → `_lblCombat` | `Combat*ForTest` | Barres overlay ; pas de recalcul client |
+| Aide / Options / version | Oui | `HelpForm`, `OptionsForm`, `ClientVersion`, `Phase10ClientSettingsSmokeTests` | Skin sombre/or des **mêmes** modales |
+| Interpolation | Oui — timer 16 ms | `_smoothTimer`, `InputService` | Ne pas peindre le HUD dans la passe tiles |
 
-### 4.2 Carte / monde
+### 4.2 Carte / viewport
 
 | Élément | Fonctionne | Se conserve | Présentation-only |
 | --- | --- | --- | --- |
-| Carte tuiles 32 px + joueurs | Oui — `MapViewRenderer` + `PictureBox` | `FrogGameClient` map / fingerprint / warps | Cadre, scroll vs caméra centrée |
-| Mini-carte | **Non** (`MiniMap.cs` stub) | Aucune donnée serveur dédiée | Downscale / cache local de la carte déjà reçue |
-| FPS overlay | Non (`FpsLabel` stub) | Mesure locale | Label debug |
+| Carte 32 px + joueurs | Oui | `MapViewRenderer` (monde seulement) | Extraire **GameViewport** autour de `_picMap` |
+| Mini-carte | **Non** (stub) | Aucun paquet dédié | Étape **tardive** (UI-12) ; cache local |
+| Double-buffer map | Oui — `EnableDoubleBuffer` | Garder | Redraw **confiné viewport** ; pas `Invalidate` full-form |
 
-**Risque perf actuel (déjà là) :** `RedrawMap()` alloue un `Bitmap` **carte complète** à chaque tick sale (~16 ms). Toute UI qui invalide la carte ou appelle `Refresh()` global aggrave ça. Voir [STEP_PLAN.md](STEP_PLAN.md) UI-15.
+**Risque perf :** `RedrawMap()` alloue encore un `Bitmap` carte entière à chaque tick sale. UI-15. Toute étape qui `Refresh()` le `Form` aggrave.
 
 ### 4.3 Chat
 
 | Élément | Fonctionne | Se conserve | Présentation-only |
 | --- | --- | --- | --- |
-| Envoi Global / Map / Whisper | Oui | `ChatChannel` (3 valeurs) + `SendChatAsync` + slash modération Phase 9 | Dock BG, onglets visuels, couleurs par canal |
-| Réception | Oui mais dans `_txtLog` | `ChatMessageReceived` | Historique dédié (le log mélange système + chat) |
-| Général / Local / Guilde / Groupe / Système (mockup) | **Non** | Local ≈ Map ; Système ≈ `AppendLog` erreurs | **Guilde / Groupe : pas de canal wire** — ne pas les inventer |
+| Envoi 5 canaux (P10) | Oui — combo + `SendChatAsync` | Enum `ChatChannel` P10 (Global…Guild). Sur `main` : 3 canaux seulement. **Ne pas ajouter d’opcode** ici. | Extraire un **vrai** `ChatPanel` (ListBox bornée + Combo + saisie) depuis le shell ; **remplacer** le stub, ne pas le remplir à côté |
+| Réception | Oui → `_txtLog` | `ChatMessageReceived`, `LogContainsForTest` | Historique dédié borné |
+| Slash modération | Oui | `ModerateWire` | Inchangé |
+| Focus saisie | Oui — `InputService.IsTextInputFocus` bloque le move | Conserver | OverlayHost réutilise le même prédicat |
 
-### 4.4 Inventaire / équipement
-
-| Élément | Fonctionne | Se conserve | Présentation-only |
-| --- | --- | --- | --- |
-| Liste slots + qty + nom catalogue | Oui — `InventorySnapshotWire` | `ApplySnapshot`, `ItemNameLookup`, `EquipRequested` / `DropRequested` | Grille, icônes, stacks visuels, overlay |
-| Équiper / déposer | Oui — smokes `GameplayClientSmokeTests` | Texte `Arme: {Name}` (jamais GUID) ; `*ForTest` | Boutons / drag-drop **plus tard** (drag = présentation + mêmes events) |
-| Arme / armure | Oui — 2 slots serveur | `EquipmentSlotKind` Weapon/Armor | Paper-doll mockup (casque, bottes…) = **slots absents** — chrome vide ou masqué, pas de nouveaux slots |
-| Or inventaire | Or sur `CombatStateWire` + banque | Ne pas inventer un champ or inventaire | Afficher l’or combat sur la fenêtre inventaire |
-
-### 4.5 Personnage / stats
+### 4.4 Inventaire / équip / banque / sol / shop / trade
 
 | Élément | Fonctionne | Se conserve | Présentation-only |
 | --- | --- | --- | --- |
-| Stats STR/AGI/DEX/INT/VIT/LUCK | Reçues (`OnCharacterPayload`) ; UI édition **cachée** | JSON `stats` ; pas de réactivation édition hors playtest | Fiche lecture seule ; labels FR (Force…) **uniquement** comme alias d’affichage des 6 clés existantes |
-| Guilde / réputation | Non | — | Hors chantier (pas de données) |
+| Inv / équip | Oui | Panels + `Arme: {Name}` + `*ForTest` | **HudInventoryDock** (tabs restylés) |
+| Banque / sol / shop | Oui | Listes / combos / `Phase7` smokes | Même dock ou fenêtres liées |
+| Trade | Oui (P10) | `TradeForm` + `Phase10TradePanelSmokeTests` | Modal restylée ; pas de nouveau protocole trade |
+| 2 slots équipement | Oui | Weapon / Armor | Pas de paper-doll N slots |
 
-### 4.6 Quêtes
-
-| Élément | Fonctionne | Se conserve | Présentation-only |
-| --- | --- | --- | --- |
-| Journal + objectifs + turn-in | Oui — `QuestJournalSnapshot` | `QuestJournalPanel.ApplySnapshot` + `TurnInRequested` ; smokes Phase 8 + SHA captures | Fenêtre overlay + onglets En cours / Terminées (filtre **local** sur `CharacterQuestStatus`) |
-| Tracker HUD | Non | **Même** snapshot — pas de 2e source | Liste compacte sous minimap |
-
-### 4.7 Dialogue
+### 4.5 Quêtes / dialogue / craft / environnement
 
 | Élément | Fonctionne | Se conserve | Présentation-only |
 | --- | --- | --- | --- |
-| Speaker / texte / choix | Oui — `DialogueStatePush` | `DialoguePanel` + `SessionToken` + `ChoiceRequested` ; smokes `SpeakerTextForTest` / `ClickFirstChoiceForTest` | Overlay + portrait optionnel (sprite **si** déjà disponible, sinon placeholder) |
+| Journal + turn-in | Oui | `QuestJournalPanel`, smokes Phase 8 | **SidePanels** + tracker plus tard (même snapshot) |
+| Dialogue | Oui | `DialoguePanel` + token | Overlay / modal restyle |
+| Craft nommé | Oui (P10 combo) | `CraftPanel` | Skin ; pas de nouveau craft serveur |
+| Environnement | Oui | `EnvironmentPanel` | Compact HUD optionnel |
 
-### 4.8 Magasin / banque / sol
-
-| Élément | Fonctionne | Se conserve | Présentation-only |
-| --- | --- | --- | --- |
-| Achat / vente | Oui — catalogue + `ShopBuy` / `ShopSell` | Combos / `TrySelect*ForTest` / résultats log | Fenêtre Achat/Vente ; prix = données catalogue **si déjà là**, sinon qty seulement |
-| Banque | Oui | List + or + `*ForTest` | Overlay ou onglet inventaire |
-| Sol + ramasser | Oui | `GroundItemsSnapshot` + Pickup | Optionnel : pins carte plus tard (présentation) |
-
-### 4.9 Options / login DA
+### 4.6 Login / settings / input / son
 
 | Élément | Fonctionne | Se conserve | Présentation-only |
 | --- | --- | --- | --- |
-| Options persistantes | **Non** | — | `UserSettings` JSON **nouveau** (volume, plein écran, taille fenêtre) — pas de paquet |
-| Login / register / reconnect | Oui | Flux + jeton jamais logué | Skin sombre/or, même champs |
-
-### 4.10 Combat / input (ne pas « habiller » en changeant la règle)
-
-| Élément | Fonctionne | Se conserve |
-| --- | --- | --- |
-| Flèches + E interagir (400 ms) | Oui | `KeyPreview`, ignore si focus chat à traiter en UI-4 |
-| Mêlée / sort / respawn | Oui | Cibles combo + paquets |
-| Craft Guid | Oui (outil) | `CraftPanel` — polish recette catalogue = étape séparée, pas un nouveau craft serveur |
+| Login / persos | Oui | Auth, jeton jamais logué, `*ForTest` | Extraire **LoginView** / **CharacterSelectView** |
+| `UserSettings` + store | Oui (P10) | JSON atomique, env path, `SettingsForTest` | **Ne pas** réécrire un second store. Restyler `OptionsForm` |
+| `InputService` | Oui | Presets + rebind + flèches | Raccourcis fenêtres (I/J/…) en plus, locaux |
+| `SoundService` | Volume persisté | `Gain` / mute | Slider déjà là ; pas de mixer tant que pas de lecture |
+| Fiche Force/Guilde mockup | Stats JSON cachées | 6 clés STR…LUCK | Lecture seule ; guilde chat ≠ fiche guilde |
 
 ---
 
-## 5. Contrats tests à ne pas casser
+## 5. Contrats tests
 
-Smokes Windows (`tests/Frog.Editor.WindowsSmokeTests`) pilotent le chrome **via** `*ForTest` :
+**Phase 8 (hooks `*ForTest`)** — conserver en déplaçant les getters avec les contrôles :
 
-- `GameplayClientSmokeTests` — login, inventaire nommée, équipement `Arme: `, shop, banque, drop/pickup, chat
-- `Phase8GameplayClientSmokeTests` / `Phase8ClientPanelRenderingTests` — onglet Quêtes, `DialoguePanel` / `QuestJournalPanel` / `EnvironmentPanel`, screenshots Phase 8
+- `GameplayClientSmokeTests`
+- `Phase8GameplayClientSmokeTests` / `Phase8ClientPanelRenderingTests`
 
-Règles pour toute étape UI ultérieure :
+**Phase 10 (à préserver dès que le code UI se greffe sur un tip ≥ `853776e`)** :
 
-1. Garder les accesseurs `internal *ForTest` (les déplacer avec le contrôle, ne pas les supprimer).
-2. Ne pas changer les chaînes assertées (`Arme: `, `Achat: Achat reussi.`, etc.) sans mettre à jour le smoke **dans la même étape**.
-3. Les SHA de screenshots Phase 7/8 **changeront** dès le thème : l’étape qui change le chrome possède le manifeste.
-4. Linux CI compile (`EnableWindowsTargeting`) mais **n’exécute pas** WinForms — preuve visuelle = job `windows-latest`.
+- `Phase10ClientSettingsSmokeTests` (store JSON, AZERTY/QWERTY, volume, F1, badge `10.3.0`, diagnostics sans secret, statut `[ui]`)
+- `Phase10TradePanelSmokeTests`
 
----
+Règles :
 
-## 6. Couleurs / DA actuelle (écart vs mockup)
-
-| Zone | Actuel | Direction |
-| --- | --- | --- |
-| Login / perso | Bleu-gris clair `245,248,252` | Sombre + or, art château optionnel |
-| Jeu | `SystemColors.Control` | Sombre, chrome semi-transparent |
-| Carte fallback | Vert `60,90,60` ; joueur local or `240,200,60` | Monde pixel inchangé |
-| Boutons | `StyleToolbarButton` (min 96×30) | Boutons or / sombres cohérents |
-
-Aucun système de thème. Styles dupliqués dans `BuildLayout`.
+1. Ne pas supprimer `*ForTest` ; les faire suivre LoginView / ChatPanel / TopChrome.
+2. Chaînes assertées (`Arme: `, `Achat: Achat reussi.`, `Aide`, `Options`, `ZQSD`, …) : même PR si on les change.
+3. SHA screenshots Phase 8 : l’étape thème possède le manifeste.
+4. Linux = compile only ; WinForms = `windows-latest`.
 
 ---
 
-## 7. Synthèse écart mockup ↔ produit
+## 6. Couleurs / DA
 
-| Mockup | Produit | Action UI |
+Toujours clair (`245,248,252` / `SystemColors.Control`) + `_lblPlayerStatus` `235,240,246`. Carte fallback inchangée (`60,90,60`). Pas de `UiTheme`. Monde **sans** jetons or.
+
+---
+
+## 7. Synthèse écart mockup ↔ `853776e`
+
+| Mockup | Produit P10 | Action UI |
 | --- | --- | --- |
-| Carte plein écran + HUD flottant | Split 100% / 360 px + log | Layout overlay (UI-2+) |
-| Barres HP/MP compactes HG | Texte dans onglet Gameplay | Relayer `CombatStateWire` |
-| Minimap + tracker | Absents | Cache local + même journal |
-| Chat canaux 5 + saisie overlay | 3 canaux + log bas | 3 canaux + onglet Système = log |
-| Hotbar 1–0 | Boutons toolbar | Bind mêlée / sort / interact — **pas** nouveau combat |
-| Inventaire grille + paper-doll | ListBox + 2 slots | Grille visuelle ; 2 slots réels |
-| Fiche Force/Esprit/Guilde | 6 stats JSON cachées | Lecture seule ; pas de guilde |
-| Options | Stub | Nouveau settings fichier |
-| Login DA | Formulaire clair | Skin only |
+| Carte plein écran + HUD | Split + tabs 360 px + log + top chrome | GameViewport + overlays |
+| Barres HP/MP HG | Texte `_lblCombat` + `_lblPlayerStatus` | TopChrome / PlayerHud |
+| Minimap | Stub | **Tardif** |
+| Chat 5 onglets overlay | Combo 5 canaux inline + log | Vrai `ChatPanel` extrait |
+| Hotbar | Toolbar | Bind actions existantes |
+| Inventaire grille | ListBox + 2 slots | HudInventoryDock |
+| Options | **Modal live** + JSON | Restyle, pas recréer |
+| Trade | Modal live | Restyle |
+| Login DA | Formulaire clair | LoginView skin |
 
-**Rien de tout cela n’exige un changement serveur** si on reste sur les snapshots / paquets existants.
+**Aucun nouveau opcode / TLS / wire** pour cet écart.

@@ -1,173 +1,174 @@
 # Architecture UI — overlays compatibles (Frog.Client)
 
 **Propriétaire :** Netsun  
-**Statut :** proposition pour les étapes UI-1…UI-15. **Aucun** de ces types n’est implémenté dans ce run.  
-**Base auditée :** `f74b34c` — voir [BASELINE_AUDIT.md](BASELINE_AUDIT.md).
+**Statut :** proposition (aucune de ces extractions n’est dans ce run).  
+**Inventaire source :** tip P10 lecture seule `853776e` — [BASELINE_AUDIT.md](BASELINE_AUDIT.md).  
+**Cette branche :** docs sur `main` ; **pas** de merge Phase 10.
 
-Objectif : moderniser la **présentation** sans recoupler le TCP, sans réécrire le gameplay, sans toucher Phase 10.
+Objectif : moderniser la **présentation** sans recoupler le TCP, sans réécrire le gameplay, sans toucher wire / opcodes / TLS, sans remplir les stubs folklore.
 
 ---
 
 ## 1. Principes
 
-1. **`FrogGameClient` reste la seule I/O réseau.** Les panneaux ne parlent pas au socket.
-2. **Les snapshots / events existants restent la source de vérité UI** (`CombatStateWire`, `InventorySnapshotWire`, `QuestJournalEntryWire`, `DialogueStateWire`, `BankSnapshotWire`, `GroundItemsSnapshotWire`, `EnvironmentStateWire`, `ChatMessageReceived`, catalogue publié).
-3. **Un contrôle = présentation + events d’intention** (`EquipRequested`, `ChoiceRequested`, …). `MainShellForm` (ou un futur `ClientSessionController` extrait) traduit l’intention en `Send*Async`.
-4. **La carte ne dépend pas des panneaux.** `MapViewRenderer` + timer 16 ms restent un pipeline à part. Invalider un overlay **ne doit pas** forcer `RedrawMap()`.
-5. **Thème = jetons**, pas de couleurs magiques dans chaque bouton.
-6. **Stubs `// TODO` :** ne pas les « remplir pour le nom ». Nouveaux types sous `Frog.Client/UI/` (ou remplacement atomique d’un fichier stub).
-7. **ADR-0003 / ADR-0004 :** pas de parité VB6 ; pas d’extension WPF sur le client joueur (le client est déjà WinForms pur — le garder ainsi).
-8. **Mockup = direction**, pas spec pixel. Canaux / slots / stats absents du wire restent absents.
+1. **`FrogGameClient` reste hors chrome.** Seule I/O réseau. Les vues n’ouvrent pas de socket.
+2. **Source de vérité = snapshots / events déjà là** (combat, inv, quêtes, dialogue, banque, sol, environnement, chat, catalogue, trade P10).
+3. **Contrôle = présentation + intentions.** Le shell (puis un facade optionnel) appelle `Send*Async`.
+4. **Passe tiles ≠ passe HUD.** `MapViewRenderer` ne dessine pas barres / chat / chrome. Invalider un overlay **ne** force **pas** `RedrawMap()`.
+5. **Thème = jetons**, apply à la construction.
+6. **Stubs folklore :** ne pas les implémenter « à côté ». Extraire depuis `MainShellForm` **ou** supprimer/renommer après découpe. Remplacement atomique si on réutilise un nom (`ChatPanel`).
+7. **Settings / input / son / messages joueur déjà live (P10) :** `UserSettings`, `ClientSettingsStore`, `InputService`, `SoundService`, `PlayerFacingMessages` — **conserver**, restyler l’UI qui les expose.
+8. **ADR-0003 / ADR-0004 :** pas de parité VB6 ; pas de WPF sur le client joueur.
+9. **Mockup = direction.** Paper-doll N slots et fiche guilde restent hors données.
 
 ---
 
-## 2. Couches
+## 2. Mapping proposé (client-engineer)
+
+Noms cibles = extraits depuis le shell, **pas** de nouveaux services métier.
 
 ```text
-┌─ Presentation (WinForms) ─────────────────────────────────────────┐
-│  MainShellForm          phases Login | CharacterSelect | Playing    │
-│  OverlayHost            Z-order HUD / fenêtres / modal              │
-│  UiTheme                couleurs, polices, métriques chrome         │
-│  Panels                 vitals, chat, inv, quest, shop, …           │
+MainShellForm  (reste le Form : phases, bind FrogGameClient, *ForTest)
+ │
+ ├─ TopChrome              ← _topChrome + _lblPlayerStatus (+ plus tard barres CombatState)
+ ├─ LoginView              ← _panelLogin
+ ├─ CharacterSelectView    ← _panelCharacter
+ ├─ GameViewport           ← _mapScroll + _picMap + MapViewRenderer (monde only)
+ ├─ ChatPanel              ← chrome chat INLINE (combo + saisie + historique borné)
+ ├─ HudInventoryDock       ← tabs Gameplay : InventoryPanel, EquipmentPanel, banque, sol, shop
+ ├─ SidePanels             ← CraftPanel, QuestJournalPanel, DialoguePanel, EnvironmentPanel
+ ├─ OptionsForm            ← garder modal, restyler
+ ├─ HelpForm               ← garder modal, restyler
+ └─ TradeForm              ← garder modal, restyler
+ MiniMap                   ← étape tardive (nouveau contrôle ; pas le stub 1-ligne)
+```
+
+`FrogGameClient` : **aucun** de ces extraits.
+
+```text
+┌─ Presentation ────────────────────────────────────────────────────┐
+│  MainShellForm     host Login | Characters | Game                   │
+│  UiTheme           jetons sombre/or                                 │
+│  OverlayHost       ancres / z-order (après extract dock)            │
+│  Views ci-dessus   UserControls extraits du shell                   │
 └───────────────────────────────┬───────────────────────────────────┘
-                                │ events + Apply*(snapshot)
-┌─ Session (code-behind puis extract) ──────────────────────────────┐
-│  MainShellForm aujourd’hui : bind FrogGameClient ↔ panels          │
-│  Plus tard (optionnel, étape dédiée) : ClientSessionFacade         │
-│    - pas de nouveau protocole                                      │
-│    - juste sortir les 3k lignes de layout hors du Form             │
+                                │ Apply*(snapshot) / intentions
+┌─ Session déjà live ───────────────────────────────────────────────┐
+│  InputService, SoundService, PlayerFacingMessages                   │
+│  UserSettings + ClientSettingsStore                                 │
+│  MainShellForm bind (extract facade seulement si BuildLayout explose)│
 └───────────────────────────────┬───────────────────────────────────┘
                                 │ Send* / events
-┌─ Network (inchangé) ──────────────────────────────────────────────┐
-│  FrogGameClient + TcpFrameCodec + Frog.Core.Protocol               │
+┌─ Network (hors chrome) ───────────────────────────────────────────┐
+│  FrogGameClient + TcpFrameCodec + Frog.Core.Protocol                │
 └───────────────────────────────────────────────────────────────────┘
-┌─ World render (inchangé fonctionnellement) ───────────────────────┐
-│  MapViewRenderer → Bitmap ; _smoothTimer ; tilesets                │
+┌─ World render ────────────────────────────────────────────────────┐
+│  MapViewRenderer → Bitmap viewport ; _smoothTimer ; tilesets        │
+│  Double-buffer déjà sur _picMap — garder                            │
 └───────────────────────────────────────────────────────────────────┘
 ```
-
-`Frog.Client` continue de référencer `Frog.Core` + `Frog.Application` (playtest CLI seulement). **Pas** de référence `Frog.Server` / persistence depuis l’UI.
 
 ---
 
-## 3. Overlay host (WinForms, contraintes réelles)
+## 3. Overlay host (après les extraits dock)
 
-WinForms n’a pas de vrai calque transparent cheap. Trois modes, du plus sûr au plus risqué :
+WinForms : pas de calque transparent cheap.
 
-| Mode | Idée | Quand | Risque 60 FPS |
-| --- | --- | --- | --- |
-| **A — Dock chrome** | Garder split carte / rail, mais skin sombre/or | UI-1 | Faible |
-| **B — Overlay opaque ancré** | `Panel`s `Location` sur un host `Dock.Fill` **au-dessus** de la carte, fonds opaques / alpha simulé (couleur sombre pleine) | UI-2…UI-8 | Moyen si `Invalidate(true)` sur le Form |
-| **C — TransparencyKey / layered** | Vrai voir-à-travers | Interdit en première intention | Élevé (invalidation carte sous-jacente) |
+| Mode | Quand | Risque 60 FPS |
+| --- | --- | --- |
+| **A — Dock + thème** | UI-1 (layout actuel P10 : top chrome + split + log) | Faible |
+| **B — Overlay opaque ancré** | UI-2+ une fois GameViewport / ChatPanel extraits | Moyen si `Invalidate` Form |
+| **C — TransparencyKey** | Interdit v1 | Élevé |
 
-**Décision recommandée :** A puis B. Les fenêtres (inventaire, quêtes) sont des `UserControl` draggables **opaques** (bordure or). Le HUD HG/BD/BG est ancré, pas une fenêtre libre. La carte reste un sibling dessous, pas un enfant invalidé par le chrome.
+**Décision :** A puis B. Fenêtres opaques (bordure or). Carte = sibling (`GameViewport`), pas enfant invalidé par le chrome.
 
-Contrat `IOverlayHost` (à introduire en UI-2) :
+Contrat `IOverlayHost` (UI-2) :
 
 ```text
-Register(anchor, control)     // TopLeft, TopRight, BottomLeft, BottomCenter, BottomRight, CenterModal
-Show(id) / Hide(id) / Toggle
-IsTextInputFocused            // pour ne pas manger les flèches
-SetMapExclusiveInput(bool)
+Register(anchor, control)
+Show / Hide / Toggle
+IsTextInputFocused     // déléguer à InputService.IsTextInputFocus
+SetMapExclusiveInput
 ```
 
-Z-order : carte < HUD ancré < fenêtres < modal (dialogue, options, mort).
+Z-order : GameViewport < TopChrome / Chat / docks < fenêtres < modal (dialogue, options, help, trade, mort).
 
-Ne **pas** mettre le `PictureBox` carte dans le même parent que des contrôles qui font `SuspendLayout` global à 60 Hz.
+**Perf (non négociable) :**
+
+- Pas d’`Invalidate` / `Refresh` **full-form** dans le timer 16 ms.
+- Redraw **confiné** au viewport (`GameViewport` / `PictureBox`).
+- Chat : `ListBox` (ou équivalent) **bornée** (cap, pas rebuild 60 Hz).
+- Double-buffer map **conservé**.
+- HUD **jamais** dans `MapViewRenderer.Render` (passe tiles).
 
 ---
 
 ## 4. Thème sombre + or
 
-Nouveau type proposé : `Frog.Client/UI/UiTheme.cs` (UI-1).
+`Frog.Client/UI/UiTheme.cs` (UI-1) — apply récursif **une fois**.
 
-| Jeton | Usage |
-| --- | --- |
-| `BackgroundDeep` | Fond form / login |
-| `PanelFill` | Corps fenêtre |
-| `PanelHeader` | Barre titre |
-| `BorderGold` | Contour 1 px |
-| `TextPrimary` / `TextMuted` | Labels |
-| `HpFill` / `MpFill` / `XpFill` | Barres (données `CombatStateWire`) |
-| `AccentGold` | Bouton primaire, slot sélectionné |
-| `ChatGlobal` / `ChatMap` / `ChatWhisper` / `ChatSystem` | Couleurs lignes |
+Jetons : `BackgroundDeep`, `PanelFill`, `PanelHeader`, `BorderGold`, `TextPrimary` / `TextMuted`, `HpFill` / `MpFill` / `XpFill`, `AccentGold`, couleurs chat par canal (y compris Party/Guild **si** le tip code a déjà l’enum — pas d’ajout wire ici).
 
-Règles :
-
-- `UiTheme.Apply(Control)` récursif **une fois** à la construction / changement de thème — pas par frame.
-- Polices : `Segoe UI` / `MessageBoxFont` ; tailles HUD compactes. Pas d’assets ornementaux bloquants.
-- Le **monde** (`MapViewRenderer` couleurs fallback, nearest-neighbor) n’utilise **pas** `UiTheme` (pixel-art conservé).
-
-Référence visuelle : mockup fourni avec le mandat (navy + or). Valeurs RGB exactes = choix UI-1, pas clone.
+`MapViewRenderer` **n’utilise pas** `UiTheme`.
 
 ---
 
-## 5. Mapping panneaux → services existants
+## 5. Binding extraits → logique existante
 
-Pas de nouveaux `*Service` métier. Table de binding :
-
-| Surface overlay | Contrôle live à réutiliser / extraire | Source | Intention → |
+| Extrait | Réutilise | Source | Intention |
 | --- | --- | --- | --- |
-| PlayerHud | nouveau (texte `_lblCombat` aujourd’hui) | `CombatStateReceived` | Respawn button |
-| ChatDock | extraire saisie + **nouveau** historique (sortir le chat de `_txtLog`) | `ChatMessageReceived` ; slash `ModerateWire` | `SendChatAsync` |
-| InventoryWindow | `InventoryPanel` + or HUD | `InventorySnapshot` + `CombatState.Gold` | Equip / Drop |
-| EquipmentPane | `EquipmentPanel` | même snapshot | Unequip |
-| CharacterSheet | nouveau lecture seule | payload JSON stats + combat + nom | aucun send (édition reste masquée) |
-| QuestWindow + QuestTracker | `QuestJournalPanel` + filtre | `QuestJournalSnapshot` | Turn-in |
-| DialogueModal | `DialoguePanel` | `DialogueStatePush` | `SendDialogueChoiceAsync` |
-| ShopWindow | extraire combos shop | catalogue + buy/sell results | `SendShopBuy/Sell` |
-| BankPane | listes existantes | `BankSnapshot` | deposit/withdraw |
-| GroundPane | liste sol | `GroundItemsSnapshot` | Pickup |
-| CraftPane | `CraftPanel` | résultat craft | `SendCraft` |
-| EnvironmentHud | `EnvironmentPanel` (compact) | `EnvironmentStatePush` | — |
-| OptionsWindow | **nouveau** (pas le stub vide) | fichier local | — |
-| MiniMap | **nouveau** | `_map` + positions déjà en mémoire | — |
-| Hotbar | **nouveau** | boutons mêlée / sort / E | mêmes `Send*` |
-| Login / Char | panels existants | auth / character list | inchangé |
+| TopChrome | `_lblPlayerStatus`, boutons Aide/Options, version, diagnostics, plus `_lblCombat` | `PlayerFacingMessages`, `CombatStateReceived` | `OpenHelp` / `OpenOptions` / respawn |
+| LoginView / CharacterSelectView | champs et boutons actuels | auth / character list | mêmes `Send*` |
+| GameViewport | `_picMap`, `MapViewRenderer` | map + positions | aucun paquet nouveau |
+| ChatPanel (**nouveau vrai** contrôle) | `_cmbChannel`, `_txtChat`, historique | `ChatMessageReceived` ; slash modération | `SendChatAsync` |
+| HudInventoryDock | `InventoryPanel`, `EquipmentPanel`, banque, sol, shop | snapshots + catalogue | Equip/Drop/Shop/Bank/Pickup |
+| SidePanels | Craft / Quest / Dialogue / Environment | snapshots Phase 8 | Choice / Turn-in / Craft |
+| OptionsForm / HelpForm | **garder types** | `UserSettings` / store | `ApplySettingsFromStore` |
+| TradeForm | **garder type** | `TradeSnapshotWire` | Confirm/Unconfirm/Cancel existants |
+| MiniMap (tardif) | nouveau, pas le stub | `_map` + positions mémoire | — |
+| Hotbar (plus tard) | boutons mêlée/sort/interact | `InputService` | mêmes `Send*` |
 
-`_txtLog` reste un **journal debug / système** (erreurs, XP, résultats). Le chat joueur ne doit plus dépendre uniquement du log une fois UI-4 livré, mais le log peut rester (smokes `LogContainsForTest`).
+`FrogGameClient` : colonne « hors UI chrome » — on n’y met pas de `BackColor`.
 
 ---
 
-## 6. Données que l’UI ne doit pas inventer
+## 6. Ce qu’on n’invente pas
 
-| Tentation mockup | Réalité wire | Conduite |
-| --- | --- | --- |
-| Canaux Guilde / Groupe | `ChatChannel` = Global, Map, Whisper | 3 onglets + Système (local). Pas d’onglet Guilde cliquable « pour plus tard » qui ment. |
-| 8+ slots paper-doll | Weapon + Armor | 2 slots actifs ; le reste non dessiné ou clairement « — » non interactif **interdit** (évite faux équipement). Préférer layout 2 slots soigné. |
-| Stats Esprit / Endurance / Réputation | STR AGI DEX INT VIT LUCK | Alias d’affichage optionnels, 6 valeurs. |
-| Prix boutique fancy | Catalogue items + shop item ids | Afficher nom ; prix seulement si le catalogue le porte déjà. |
-| Options vsync / 1280×720 serveur | Rien | Settings **client** : taille fenêtre, plein écran WinForms, volume no-op tant que `SoundService` est stub. |
+| Tentation | Conduite |
+| --- | --- |
+| Remplir `ChatPanel.cs` stub pendant que le shell garde le chat inline | Extraire **puis** remplacer le fichier stub |
+| Second `UserSettings` / autre JSON | Un seul `ClientSettingsStore` |
+| Nouvel opcode Party/Guild « pour le mockup » | Sur P10 l’enum **existe déjà** ; cette PR docs ne touche pas le wire. Sur `main` : 3 canaux jusqu’au merge P10. |
+| Paper-doll 8+ slots | 2 slots live |
+| Peindre HP sur les tuiles | HUD hors `MapViewRenderer` |
+| TLS / version protocole / bind serveur | Hors chantier |
+| WPF / MonoGame | Hors plan |
 
 ---
 
 ## 7. Input
 
-Aujourd’hui : `KeyPreview` + flèches / E même si un TextBox a le focus (risque de bouger en tapant le chat selon focus — à vérifier en UI-4).
+Déjà (P10) : `InputService` + `IsTextInputFocus` → pas de move pendant le chat / mot de passe.
 
-Contrat cible :
-
-- Si `OverlayHost.IsTextInputFocused` → ne pas poser `_holdLeft` etc. ; Enter envoie le chat.
-- Raccourcis fenêtres (I inventaire, J journal, C fiche, O options, Esc ferme) = **présentation**, mappés localement. Pas de `KeyBindings` serveur.
-- E / mêlée / sorts inchangés.
+Cible overlay : `OverlayHost.IsTextInputFocused` **=** ce prédicat. Enter envoie le chat. Raccourcis I/J/C/O/Esc = locaux. Interact / move = `InputService` uniquement.
 
 ---
 
-## 8. Tests et extractibilité
+## 8. Tests
 
-Garder `InternalsVisibleTo` + accesseurs sur `MainShellForm`. Si un panneau bouge dans un overlay, le getter pointe le **même type**.
+- Phase 8 : getters `*ForTest` suivent les extraits (même type de panneau).
+- Phase 10 : `Phase10ClientSettingsSmokeTests` (F1, Options, badge, diagnostics, store) et `Phase10TradePanelSmokeTests` restent verts après restyle.
+- Nouveau dossier captures chrome : `artifacts/client-ui-modernization/` — ne pas écraser les SHA Phase 8 tant que l’étape ne le revendique pas.
 
-Extract `ClientSessionFacade` **seulement** si une étape de layout rend `BuildLayout` ingérable — ce n’est **pas** un prérequis UI-1. Quand on extraie : tests compilent, aucun changement de paquet.
-
-Screenshots : nouveau dossier `artifacts/client-ui-modernization/` pour les preuves chrome ; **ne pas** écraser les SHA Phase 8 tant que l’étape n’assume pas le manifeste.
+Extract `ClientSessionFacade` : seulement si `BuildLayout` devient ingérable. Pas un prérequis UI-1.
 
 ---
 
-## 9. Ce que cette architecture refuse
+## 9. Refus
 
-- Nouveau opcode / champ wire « pour le HUD »
-- Recalcul HP/MP/or côté client
-- Deuxième client TCP
-- WPF / Avalonia / MonoGame « pour faire joli » dans ce chantier (changement de stack = autre décision, hors plan)
-- Remplir `Services/GameLoop.cs` stub en parallèle du `_smoothTimer` live (double boucle)
-- Modifier `Frog.Server` ou `cursor/phase10-beta-release`
+- Nouveau opcode / champ wire / changement TLS « pour le HUD »
+- Recalcul HP/MP/or
+- Deuxième TCP
+- Double boucle (`GameLoop` stub + `_smoothTimer`)
+- Modifier `cursor/phase10-beta-release` depuis cette branche
+- Remplir folklore stubs en parallèle
