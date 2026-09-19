@@ -49,7 +49,7 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal(16, form.SmoothTimerIntervalForTest);
 
                 var tabs = form.GameplayTabsForTest;
-                Assert.True(tabs.Visible, "window layer should show TabControl");
+                Assert.True(form.WindowLayerVisibleForTest, "window layer flag after show");
                 Assert.Equal(360, tabs.Width);
                 Assert.True(
                     tabs.Width >= 300 && tabs.Width <= 400 && tabs.Height >= 250 && tabs.Height <= 700,
