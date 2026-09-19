@@ -7,7 +7,7 @@
 | **Statut** | **PLAN / AUDIT ONLY** — pas de code produit HUD |
 | **Base** | `main` @ `f74b34cca09dda819fe26747d48ee16d27007dfd` (merge PR #7 Phase 9) |
 | **Branche** | `cursor/client-ui-modernization` |
-| **PR** | Draft séparé vers `main` — **pas de merge** |
+| **PR** | Draft https://github.com/Netsuno/MMO_Maker/pull/9 vers `main` — **pas de merge** |
 | **Non-interférence** | Ne pas toucher `cursor/phase10-beta-release` / PR #8 |
 
 Protocole inchangé : `FrogWireProtocol.Version = 10`.
