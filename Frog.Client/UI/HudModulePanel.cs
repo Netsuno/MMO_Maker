@@ -13,15 +13,19 @@ public class HudModulePanel : Panel
 
     public const int CompactTitleHeight = 18;
 
+    private readonly bool _showTitle;
+
     public HudModulePanel(string title, bool showTitle = true)
     {
         SetStyle(ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
         BackColor = UiTheme.BgPanel;
         ForeColor = UiTheme.TextPrimary;
+        _showTitle = showTitle;
         Padding = showTitle ? new Padding(8, 22, 8, 8) : new Padding(8, 8, 8, 8);
         TitleLabel = new Label
         {
             Text = title,
+            AutoSize = false,
             Dock = DockStyle.Top,
             Height = showTitle ? CompactTitleHeight : 0,
             Visible = showTitle,
@@ -35,9 +39,9 @@ public class HudModulePanel : Panel
         Paint += DrawChrome;
     }
 
-    internal bool TitleVisibleForTest => TitleLabel.Visible;
+    internal bool TitleVisibleForTest => _showTitle;
 
-    internal int TitleHeightForTest => TitleLabel.Visible ? TitleLabel.Height : 0;
+    internal int TitleHeightForTest => _showTitle ? CompactTitleHeight : 0;
 
     private void DrawChrome(object? sender, PaintEventArgs e)
     {
