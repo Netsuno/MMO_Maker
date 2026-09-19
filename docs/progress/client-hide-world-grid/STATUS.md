@@ -12,6 +12,6 @@
 `MapViewRenderer` dessinait un `DrawRectangle` semi-transparent sur **chaque** tuile (`Pen` ARGB 40,0,0,0). C’était un overlay debug, pas un tileset.
 
 Jeu : `MainShellForm` appelle `Render` **sans** `showTileGrid` → défaut `false`.
-Tests : `showTileGrid: true` reste disponible pour alignement tuile.
+Tests : `showTileGrid: true` reste disponible ; overlay debug = filets 1 px alignés (pas `DrawRectangle` + Half, qui ratait les coutures en smoke Windows).
 
 Inchangé : tilesets, caméra / `_smoothTimer` 16 ms, HUD, sprites joueurs, marqueurs d’événements carte.

@@ -102,8 +102,7 @@ internal static class MapViewRenderer
 
                 if (showTileGrid)
                 {
-                    using var pen = new Pen(Color.FromArgb(40, 0, 0, 0));
-                    g.DrawRectangle(pen, rect);
+                    DrawDebugTileGrid(g, rect);
                 }
             }
         }
@@ -167,6 +166,23 @@ internal static class MapViewRenderer
         DrawPlayerDotAtPixelCenter(g, localCenterXPx, localCenterYPx, tw, SelfPlayer);
         g.SmoothingMode = prevSmooth;
         return bmp;
+    }
+
+    /// <summary>Filets 1 px alignés pixels (évite <c>DrawRectangle</c> + <c>PixelOffsetMode.Half</c> qui rate les coutures).</summary>
+    private static void DrawDebugTileGrid(Graphics g, Rectangle rect)
+    {
+        var previous = g.PixelOffsetMode;
+        g.PixelOffsetMode = PixelOffsetMode.None;
+        try
+        {
+            using var brush = new SolidBrush(Color.FromArgb(40, 0, 0, 0));
+            g.FillRectangle(brush, rect.X, rect.Y, rect.Width, 1);
+            g.FillRectangle(brush, rect.X, rect.Y, 1, rect.Height);
+        }
+        finally
+        {
+            g.PixelOffsetMode = previous;
+        }
     }
 
     private static bool TryDrawGraphicTile(
