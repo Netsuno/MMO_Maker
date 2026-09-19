@@ -33,4 +33,10 @@
     <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Assets\Ui\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

@@ -43,11 +43,19 @@ public class HudModulePanel : Panel
 
     internal int TitleHeightForTest => _showTitle ? CompactTitleHeight : 0;
 
+    internal bool UsesFrameAssetForTest => UiPackAssets.HasFramePanel;
+
     private void DrawChrome(object? sender, PaintEventArgs e)
     {
         if (Width < 6 || Height < 6)
         {
             return;
+        }
+
+        if (UiPackAssets.TryGetFramePanel(out var frame))
+        {
+            using var tint = UiTheme.CreatePanelTintAttributes();
+            UiPackDraw.NineSlice(e.Graphics, frame, ClientRectangle, UiPackDraw.PanelNineSliceBorder, tint);
         }
 
         using var dim = new Pen(UiTheme.AccentGoldDim);

@@ -60,6 +60,23 @@ public sealed class HudHotbar : Panel
                 Font = UiTheme.UiFont(10f, FontStyle.Bold),
             };
             UiTheme.StyleButton(btn);
+            var slotArt = UiPackAssets.CloneSlot();
+            if (slotArt is not null)
+            {
+                btn.BackgroundImage = slotArt;
+                btn.BackgroundImageLayout = ImageLayout.Stretch;
+            }
+
+            var icon = UiPackAssets.CloneHotbarIcon(index);
+            if (icon is not null)
+            {
+                btn.Image = icon;
+                btn.ImageAlign = ContentAlignment.TopCenter;
+                btn.TextAlign = ContentAlignment.BottomRight;
+                btn.TextImageRelation = TextImageRelation.Overlay;
+                btn.Padding = new Padding(1);
+            }
+
             if (!wired)
             {
                 btn.ForeColor = UiTheme.TextMuted;
@@ -89,6 +106,12 @@ public sealed class HudHotbar : Panel
 
     internal string SlotToolTipForTest(int index) => (uint)index < SlotCount ? _tooltips[index] : string.Empty;
 
+    internal bool SlotHasChromeForTest(int index) =>
+        (uint)index < SlotCount && _slots[index].BackgroundImage is not null;
+
+    internal bool SlotHasIconForTest(int index) =>
+        (uint)index < SlotCount && _slots[index].Image is not null;
+
     public void ActivateSlot(int index)
     {
         if ((uint)index >= SlotCount || !_slots[index].Enabled)
@@ -104,6 +127,12 @@ public sealed class HudHotbar : Panel
         if (Width < 4 || Height < 4)
         {
             return;
+        }
+
+        if (UiPackAssets.TryGetFrameInset(out var inset))
+        {
+            using var tint = UiTheme.CreatePanelTintAttributes();
+            UiPackDraw.NineSlice(e.Graphics, inset, ClientRectangle, UiPackDraw.PanelNineSliceBorder, tint);
         }
 
         using var gold = new Pen(UiTheme.AccentGold);
