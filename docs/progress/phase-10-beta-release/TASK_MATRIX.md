@@ -184,7 +184,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Livrable mandat | Statut |
 | --- | --- |
 | E2E_MATRIX / TEST_RESULTS Phase 10 | **absent** (playtest zip = [P10-3-PACKAGED-PLAYTEST.md](P10-3-PACKAGED-PLAYTEST.md)) |
-| LOAD_REPORT / RESTORE_REPORT Phase 10 | **RESTORE_REPORT** P10-7 **présent** ; **LOAD_REPORT** borné (pas 60 min) |
+| LOAD_REPORT / RESTORE_REPORT Phase 10 | **RESTORE_REPORT** P10-7 **présent** ; LOAD_REPORT hosted 5 s + in-memory **présent** ; 25×60 **non** |
 | RELEASE_MANIFEST / RELEASE_NOTES | **absent** |
 | PLAYER_QUICKSTART / CREATOR_QUICKSTART | **absent** |
 | OPERATIONS / BACKUP_RESTORE Phase 10 | **incomplet** (runbooks Phase 9 + RESTORE_REPORT P10-7) |
