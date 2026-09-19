@@ -7,7 +7,9 @@
 | **Statut** | MVP branché sur les fils réels (`MainForm`, `TilesetCache`, `ClientTilesetLoader`, `MapViewRenderer`, `PublishedCatalogWire`) |
 | **Base** | `main` @ `eb731de` |
 | **Branche** | `cursor/asset-pipeline-editor-client` |
-| **PR** | Draft vers `main` — **pas de merge** |
+| **PR** | Draft [#14](https://github.com/Netsuno/MMO_Maker/pull/14) vers `main` — **pas de merge** |
+| **Tip** | `e8ae65c` |
+| **CI** | [35473026295](https://github.com/Netsuno/MMO_Maker/actions/runs/35473026295) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 
 Protocole fil **inchangé** (`FrogWireProtocol.Version = 11`). Champ JSON catalogue `tilesets` **additif** (même politique que `recipes`).
 
