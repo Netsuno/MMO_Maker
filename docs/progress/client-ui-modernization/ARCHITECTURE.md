@@ -1,7 +1,7 @@
 # Architecture UI — couches DA + inventaire réel
 
 **Propriétaire :** Netsun  
-**Statut :** proposition (aucun chrome DA n’est implémenté dans ce run).  
+**Statut :** E2–E8 en cours d’implémentation (`Hud*` + overlay) ; SHA Phase 8 02–04 non restylées.  
 **Tokens :** [TOKENS-DA.md](TOKENS-DA.md) (livrable visual-design-engineer).  
 **Inventaire :** tip P10 lecture seule `853776e` — [BASELINE_AUDIT.md](BASELINE_AUDIT.md).  
 **Cette branche :** docs sur `main` ; **pas** de merge Phase 10.

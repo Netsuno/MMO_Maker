@@ -225,4 +225,4 @@ Correspondance ancienne numérotation UI-1…UI-15 (docs précédentes) :
 E0–E2 : tokens + login + carte plein cadre + 6 HUD vides, 60 FPS monde.  
 E3–E8 : données + fenêtres + options + DPI, smokes Phase 8/10 verts, mécaniques inchangées.
 
-Succès **de ce run** : TOKENS-DA + ARCHITECTURE + ce plan. [STATUS.md](STATUS.md).
+Succès **de ce run** : E2 overlay + E3–E5 wires + E7 nav Options + notes DPI. SHA 02–04 intactes. [STATUS.md](STATUS.md).

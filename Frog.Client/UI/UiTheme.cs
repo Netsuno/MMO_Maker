@@ -54,6 +54,22 @@ public static class UiTheme
         }
     }
 
+    /// <summary>Double filet or (E6) — ne pas appeler sur surfaces SHA Phase 8.</summary>
+    public static void PaintDoubleGoldFrame(Control control, PaintEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        ArgumentNullException.ThrowIfNull(e);
+        if (control.Width < 6 || control.Height < 6)
+        {
+            return;
+        }
+
+        using var dim = new Pen(AccentGoldDim);
+        using var gold = new Pen(AccentGold);
+        e.Graphics.DrawRectangle(dim, 0, 0, control.Width - 1, control.Height - 1);
+        e.Graphics.DrawRectangle(gold, 1, 1, control.Width - 3, control.Height - 3);
+    }
+
     public static void StyleInput(Control control)
     {
         control.BackColor = BgInput;
