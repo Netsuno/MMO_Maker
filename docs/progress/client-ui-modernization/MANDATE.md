@@ -42,8 +42,8 @@ Ne pas recopier le mockup au pixel. Ne pas inventer de paper-doll à N slots ni 
 ## Architecture imposée
 
 - Panneaux **overlay** (à terme), séparation **contrôles / logique métier**.
-- Chemin produit : `MainShellForm` + `FrogGameClient` + panneaux live (`InventoryPanel`, `EquipmentPanel`, `QuestJournalPanel`, `DialoguePanel`, `CraftPanel`, `EnvironmentPanel`) + `MapViewRenderer`.
-- Les fichiers historiques `GameForm`, `StatusBar`, `ChatPanel`, `ChatBox`, `MiniMap`, `UIService`, `*Service` stub **ne sont pas** le client actuel. Ne pas les « réveiller » comme parité VB6 (ADR-0003).
+- Chemin produit : `MainShellForm` + `FrogGameClient` (hors chrome) + panneaux live + `OptionsForm` / `HelpForm` / `TradeForm` + `UserSettings` / `InputService` / `SoundService` + `MapViewRenderer`.
+- Folklore stubs (`ChatBox`, `ChatPanel`, `StatusBar`, `MiniMap`, `UIService`, `GameLoop`, …) : **ne pas** les remplir en parallèle. Extraire depuis le shell ou supprimer après découpe (ADR-0003).
 - **Aucune** logique serveur / gameplay réécrite uniquement pour l’apparence.
 - Ne pas recoupler un modèle VB6.
 
