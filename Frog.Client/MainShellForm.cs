@@ -171,6 +171,12 @@ public sealed class MainShellForm : Form
     private readonly Label _lblCombat = new() { AutoSize = true, Text = "Combat: —", Margin = new Padding(4, 8, 4, 4) };
     private readonly InventoryPanel _inventoryPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
     private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
+    /// <summary>
+    /// Overlay TabControl is 360 (DA). Pre-overlay the tab filled a 360 TLP cell with
+    /// default Margin 3+3, so Dialogue/Quest/Environment exact-sha crops stayed 324 wide.
+    /// </summary>
+    internal const int Phase8ExactShaPanelWidth = 324;
+
     private readonly DialoguePanel _dialoguePanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 96) };
     private readonly QuestJournalPanel _questJournalPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
     private readonly CraftPanel _craftPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 56) };
@@ -1041,7 +1047,8 @@ public sealed class MainShellForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 4,
-            Padding = new Padding(4),
+            // +3 L/R restores the 6 px lost when the tab left the 360 TLP cell (Margin 3+3).
+            Padding = new Padding(7, 4, 7, 4),
         };
         phase8Tab.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         phase8Tab.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
