@@ -41,7 +41,25 @@ Publié **avant** les mesures (mandat P10-8).
 
 ## Mesure exécutée ici
 
-### Run cloud 2026-09-19 (cet agent)
+### Run hosted packaged+PG 2026-09-19 (cet agent)
+
+| Item | Valeur |
+| --- | --- |
+| Commande | `./scripts/phase10-hosted-load-campaign.sh --profile ci` |
+| Backend | `server-linux-x64` publié hors dépôt + PostgreSQL jetable + TLS Required (CA confinée) |
+| Elapsed total | 19 491 ms (auth 25 + hold 5 000 ms) |
+| Sessions | 25 Hello OK, 25 Login OK, 25 CharacterSelect OK |
+| Hold vs mandat | **5 000 ms / 3 600 000 ms** — `mandateDurationMet=false` |
+| Actions/s | 69,4 (heartbeat 137/123 ack, interact 137/112, melee 137/112) |
+| Heartbeat RTT | n=123 p50 0,58 ms p95 389 ms p99 1 395 ms (contention démarrage / PBKDF2) |
+| Interact RTT | n=112 p50 0,35 ms p95 2,4 ms p99 2,53 ms |
+| Move → PositionUpdate | 137 sent / 0 recv (même limite spawns que l’in-memory) |
+| Packaged server VmRSS peak | 222 784 kB |
+| Harness CPU / RSS | ~0,9 % / ~70 Mio (processus **séparé** du serveur) |
+
+Profils : `ci` 5 s (CI postgres-integration) · `cloud` 45 s · `dedicated` 3600 s.
+
+### Run cloud in-memory 2026-09-19 (lot P10-8 précédent)
 
 | Item | Valeur |
 | --- | --- |
@@ -72,10 +90,10 @@ Publié **avant** les mesures (mandat P10-8).
 
 ## Ce qui reste pour une machine dédiée
 
-1. `--hold-ms 3600000` sur hôte 4 vCPU / 8 Gio (ou décrit).
-2. Attacher le harness (`--host` / `--port`) au **serveur publié** + PostgreSQL + monde démo + TLS.
-3. Distinguer CPU/RAM serveur vs générateur (deux processus).
-4. Palier économie / interact / idle 300 s / restart-reconnect 25.
-5. Job CI optionnel ~90 min, même SHA que la candidate — **pas** branché ici pour garder CI verte et bornée.
+1. `--profile dedicated` / `--hold-ms 3600000` sur hôte 4 vCPU / 8 Gio (ou décrit).
+2. Le hosted packaged+PG+TLS **court** est automatisé (`phase10-hosted-load-campaign.sh`) ; il reste à tenir **60 min**.
+3. Distinguer CPU/RAM serveur vs générateur sur la run dédiée (deux processus déjà dans le profil hosted).
+4. Palier économie / interact isolé / idle 300 s / restart-reconnect 25.
+5. Job CI ~90 min optionnel — **pas** branché (hold CI = 5 s).
 
 Ne pas lire ce rapport comme une certification 25×60.

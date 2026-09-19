@@ -101,12 +101,14 @@ chmod +x "${PUB}/Frog.Server"
 
 echo "==> seed Phase 7 world (migrate + Phase7PostgresContentSeed)"
 dotnet build "${ROOT}/tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj" -c Release --verbosity quiet
-export FROG_P108_SEED_CONNECTION_STRING="$LOAD_CS"
-dotnet test "${ROOT}/tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj" \
+FROG_P108_SEED_CONNECTION_STRING="$LOAD_CS" \
+  dotnet test "${ROOT}/tests/Frog.Persistence.IntegrationTests/Frog.Persistence.IntegrationTests.csproj" \
   -c Release --no-build --verbosity minimal \
   --filter "FullyQualifiedName~.Phase10LoadCampaignSeedTests" \
   || die "Phase10LoadCampaignSeedTests failed (migrate+seed)"
-unset FROG_P108_SEED_CONNECTION_STRING
+MAPS="$(PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$DBNAME" -Atc "SELECT count(*) FROM world.maps;")"
+[[ "${MAPS:-0}" -ge 1 ]] || die "seed produced no world.maps rows (got ${MAPS:-empty})"
+echo "OK seed world.maps=${MAPS}"
 
 echo "==> ephemeral TLS certs (confined, not in git)"
 CERTS="${OUT_DIR}/certs"

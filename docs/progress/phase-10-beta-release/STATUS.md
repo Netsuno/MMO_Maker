@@ -162,4 +162,4 @@ Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. PacketDi
 
 ## Verdict
 
-**P10-5 A–E PASS sécu + P10-2 + P10-6 + P10-7 + deadlock éditeur + harness P10-8 borné + playtest zip serveur.** La bêta n’est **pas** prête. Restent 25×60 min dédié, recette 2 PCs, playtest menu WinForms.
+**P10-5 A–E PASS sécu + P10-2 + P10-6 + P10-7 + deadlock éditeur + harness P10-8 borné (in-memory **et** hosted packaged+PG 5 s) + playtest zip Hello/READY.** La bêta n’est **pas** prête. Restent 25×60 min dédié, recette 2 PCs, playtest menu WinForms. Ne pas écrire `PHASE 10 GATE REACHED`.
