@@ -176,10 +176,26 @@ public sealed class MainShellForm : Form
     private readonly CraftPanel _craftPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 56) };
     private readonly TradeForm _tradeForm = new();
     private readonly EnvironmentPanel _environmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
-    private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.Fill, MinimumSize = new Size(300, 0) };
+    private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.None, Width = 360, Height = 480, MinimumSize = new Size(300, 250), MaximumSize = new Size(360, 700) };
     private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
     private readonly TabPage _tabGameplay = new("Gameplay") { Padding = new Padding(4) };
     private readonly TabPage _tabPhase8 = new("Quêtes") { Padding = new Padding(4) };
+    private readonly Panel _worldHost = new() { Dock = DockStyle.Fill };
+    private readonly FlowLayoutPanel _gameToolbar = new()
+    {
+        AutoSize = true,
+        FlowDirection = FlowDirection.LeftToRight,
+        WrapContents = true,
+        Padding = new Padding(4),
+        BackColor = UiTheme.BgPanel,
+    };
+    private readonly HudStatusModule _hudStatus = new();
+    private readonly HudMinimapModule _hudMinimap = new();
+    private readonly HudQuestTrackerModule _hudQuest = new();
+    private readonly HudChatDock _hudChat = new();
+    private readonly HudHotbar _hudHotbar = new();
+    private readonly HudMenuRing _hudMenu = new();
+    private bool _windowLayerVisible = true;
     private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid (secours)", Visible = false };
     private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid (secours)", Visible = false };
     private readonly NumericUpDown _numShopQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
@@ -227,6 +243,7 @@ public sealed class MainShellForm : Form
         _input.Apply(_settings);
         _sound.Apply(_settings);
         AutoScaleMode = AutoScaleMode.Font;
+        AutoScaleDimensions = new SizeF(96f, 96f);
         Text = "FRoG — Frog Isle";
         ClientSize = new Size(1040, 720);
         MinimumSize = new Size(980, 640);
@@ -314,6 +331,7 @@ public sealed class MainShellForm : Form
         else
         {
             _panelGame.BringToFront();
+            LayoutGameHud();
         }
     }
 
@@ -1005,42 +1023,15 @@ public sealed class MainShellForm : Form
         tabRight.TabPages.Add(_tabChat);
         tabRight.TabPages.Add(_tabGameplay);
         tabRight.TabPages.Add(_tabPhase8);
-        var tabChat = _tabChat;
-        var tabGameplay = _tabGameplay;
-
-        var rightChat = new TableLayoutPanel
+        _tabChat.Controls.Add(new Label
         {
+            Text = "Saisie chat : dock bas-gauche (canaux réels Global / Map / Whisper / Party / Guild).",
             Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            Padding = new Padding(6),
-            MinimumSize = new Size(300, 0),
-        };
-        rightChat.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        rightChat.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        rightChat.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        var chatTop = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = true,
-            AutoSize = true,
-        };
-        chatTop.Controls.Add(_cmbChannel);
-        _txtWhisperTo.MinimumSize = new Size(140, 0);
-        chatTop.Controls.Add(_txtWhisperTo);
-        rightChat.Controls.Add(chatTop, 0, 0);
-        _txtChat.Dock = DockStyle.Fill;
-        _txtChat.MinimumSize = new Size(160, 60);
-        rightChat.Controls.Add(_txtChat, 0, 1);
-        _btnSendChat.AutoSize = false;
-        _btnSendChat.Dock = DockStyle.Fill;
-        _btnSendChat.MinimumSize = new Size(160, 32);
-        _btnSendChat.Padding = new Padding(12, 6, 12, 6);
-        _btnSendChat.Margin = new Padding(0, 4, 0, 0);
-        rightChat.Controls.Add(_btnSendChat, 0, 2);
-        tabChat.Controls.Add(rightChat);
-        tabGameplay.Controls.Add(gameplayTab);
+            TextAlign = ContentAlignment.MiddleCenter,
+            ForeColor = UiTheme.TextSecondary,
+            Padding = new Padding(12),
+        });
+        _tabGameplay.Controls.Add(gameplayTab);
 
         var phase8Tab = new TableLayoutPanel
         {
@@ -1059,40 +1050,45 @@ public sealed class MainShellForm : Form
         phase8Tab.Controls.Add(_craftPanel, 0, 3);
         _tabPhase8.Controls.Add(phase8Tab);
 
-        var center = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-        center.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        center.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360));
-        center.Controls.Add(_mapScroll, 0, 0);
-        center.Controls.Add(tabRight, 1, 0);
-
-        var gameTop = CreateToolbarRow();
-        gameTop.WrapContents = true;
-        gameTop.Controls.Add(_btnMap);
-        gameTop.Controls.Add(_btnSwitchCharacter);
-        gameTop.Controls.Add(_btnLogout);
-        gameTop.Controls.Add(Lbl("Cible"));
-        gameTop.Controls.Add(_cmbMeleeTarget);
-        gameTop.Controls.Add(_btnMelee);
-        gameTop.Controls.Add(_cmbSpell);
-        gameTop.Controls.Add(_btnSpell);
-        gameTop.Controls.Add(_btnRespawn);
+        _gameToolbar.Controls.Add(_btnMap);
+        _gameToolbar.Controls.Add(_btnSwitchCharacter);
+        _gameToolbar.Controls.Add(_btnLogout);
+        _gameToolbar.Controls.Add(Lbl("Cible"));
+        _gameToolbar.Controls.Add(_cmbMeleeTarget);
+        _gameToolbar.Controls.Add(_btnMelee);
+        _gameToolbar.Controls.Add(_cmbSpell);
+        _gameToolbar.Controls.Add(_btnSpell);
+        _gameToolbar.Controls.Add(_btnRespawn);
         _lblMoveHint.Margin = new Padding(8, 14, 4, 4);
-        gameTop.Controls.Add(_lblMoveHint);
+        _gameToolbar.Controls.Add(_lblMoveHint);
 
-        var gameLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            Padding = new Padding(6, 4, 6, 6),
-            BackColor = UiTheme.BgApp,
-        };
-        gameLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        gameLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        gameLayout.Controls.Add(gameTop, 0, 0);
-        gameLayout.Controls.Add(center, 0, 1);
+        _worldHost.BackColor = MapSurfaceBackColor;
+        _mapScroll.Dock = DockStyle.Fill;
+        _worldHost.Controls.Add(_mapScroll);
+        _hudStatus.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        _hudMinimap.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _hudQuest.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _hudChat.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        _hudHotbar.Anchor = AnchorStyles.Bottom;
+        _hudMenu.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+        _gameToolbar.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        tabRight.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _worldHost.Controls.Add(_hudStatus);
+        _worldHost.Controls.Add(_hudMinimap);
+        _worldHost.Controls.Add(_hudQuest);
+        _worldHost.Controls.Add(_hudChat);
+        _worldHost.Controls.Add(_hudHotbar);
+        _worldHost.Controls.Add(_hudMenu);
+        _worldHost.Controls.Add(_gameToolbar);
+        _worldHost.Controls.Add(tabRight);
+        _worldHost.Resize += (_, _) => LayoutGameHud();
+        _hudChat.AttachInputs(_cmbChannel, _txtWhisperTo, _txtChat, _btnSendChat);
+        _hudHotbar.SlotActivated += OnHotbarSlotActivated;
+        _hudMenu.Command += OnHudMenuCommand;
         _panelGame.Controls.Clear();
-        _panelGame.Controls.Add(gameLayout);
+        _panelGame.Padding = new Padding(0);
+        _panelGame.Controls.Add(_worldHost);
+        LayoutGameHud();
 
         _hostPages.BackColor = UiTheme.BgApp;
         _hostPages.Controls.Add(_panelGame);
@@ -1499,6 +1495,7 @@ public sealed class MainShellForm : Form
             $"Niv {state.Level} · XP {state.Experience} · HP {state.Hp}/{state.MaxHp} · MP {state.Mp}/{state.MaxMp} · Or {state.Gold}";
         _btnRespawn.Visible = state.IsDead;
         _btnRespawn.Enabled = state.IsDead;
+        _hudStatus.ApplyCombat(state, _username);
     }
 
     private void OnInventorySnapshot(InventorySnapshotWire snapshot)
@@ -1605,6 +1602,7 @@ public sealed class MainShellForm : Form
     private void OnQuestJournalSnapshot(IReadOnlyList<QuestJournalEntryWire> entries)
     {
         _questJournalPanel.ApplySnapshot(entries);
+        _hudQuest.ApplySnapshot(entries);
         AppendLog($"Journal quêtes: {entries.Count} entrée(s)");
     }
 
@@ -2306,6 +2304,12 @@ public sealed class MainShellForm : Form
 
         ReloadTilesetBitmaps();
         RedrawMap();
+        _hudMinimap.RebuildCache(map);
+        if (_localVisualInitialized)
+        {
+            _hudMinimap.SetPlayerPixel(_srvPixelX, _srvPixelY);
+        }
+
         _ = RequestMapEventsFromServerAsync();
         TryEnterPlayingPhaseAfterMapReady();
         if (_playtestOptions is { IsPlaytest: true })
@@ -2686,6 +2690,11 @@ public sealed class MainShellForm : Form
         {
             RedrawMap();
         }
+
+        if (isLocal)
+        {
+            _hudMinimap.SetPlayerPixel(_srvPixelX, _srvPixelY);
+        }
     }
 
     private void TryScheduleMapRequestAfterWarp(int serverMapId)
@@ -2747,6 +2756,7 @@ public sealed class MainShellForm : Form
         };
         var target = string.IsNullOrEmpty(to) ? string.Empty : $"→{to} ";
         AppendLog($"{prefix} {from} {target}: {message}");
+        _hudChat.AppendChat(ch, from, to, message);
     }
 
     private async Task SendChatAsync()
@@ -2897,6 +2907,19 @@ public sealed class MainShellForm : Form
 
         if (InputService.IsTextInputFocus(ActiveControl))
         {
+            return;
+        }
+
+        if (e.KeyCode == Keys.Escape)
+        {
+            SetWindowLayerVisible(false);
+            e.Handled = true;
+            return;
+        }
+
+        if (TryActivateHotbarKey(e.KeyCode))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -3191,6 +3214,133 @@ public sealed class MainShellForm : Form
         UiTheme.Apply(this);
         _mapScroll.BackColor = MapSurfaceBackColor;
         _picMap.BackColor = MapSurfaceBackColor;
+        _worldHost.BackColor = MapSurfaceBackColor;
+    }
+
+    private void LayoutGameHud()
+    {
+        var host = _worldHost;
+        if (host.Width < 32 || host.Height < 32)
+        {
+            return;
+        }
+
+        const int gap = 8;
+        var tabW = _windowLayerVisible ? 360 + gap : 0;
+        var tabH = Math.Clamp(host.Height - (gap * 2), 250, 700);
+        _gameplayTabs.Visible = _windowLayerVisible;
+        if (_windowLayerVisible)
+        {
+            _gameplayTabs.Size = new Size(360, tabH);
+            _gameplayTabs.Location = new Point(Math.Max(0, host.Width - 360 - gap), gap);
+            _gameplayTabs.BringToFront();
+        }
+
+        _hudStatus.Location = new Point(gap, gap);
+        var rightX = Math.Max(gap, host.Width - tabW - _hudMinimap.Width - gap);
+        _hudMinimap.Location = new Point(rightX, gap);
+        _hudQuest.Location = new Point(rightX, _hudMinimap.Bottom + gap);
+        _hudChat.Location = new Point(gap, Math.Max(gap, host.Height - _hudChat.Height - gap));
+        _hudHotbar.Location = new Point(
+            Math.Max(gap, (host.Width - tabW - _hudHotbar.Width) / 2),
+            Math.Max(gap, host.Height - _hudHotbar.Height - gap));
+        _hudMenu.Location = new Point(
+            Math.Max(gap, host.Width - tabW - _hudMenu.Width - gap),
+            Math.Max(gap, host.Height - _hudMenu.Height - gap));
+        _gameToolbar.Location = new Point(gap, _hudStatus.Bottom + gap);
+        _gameToolbar.BringToFront();
+        _hudStatus.BringToFront();
+        _hudMinimap.BringToFront();
+        _hudQuest.BringToFront();
+        _hudChat.BringToFront();
+        _hudHotbar.BringToFront();
+        _hudMenu.BringToFront();
+        if (_windowLayerVisible)
+        {
+            _gameplayTabs.BringToFront();
+        }
+    }
+
+    private void SetWindowLayerVisible(bool visible)
+    {
+        _windowLayerVisible = visible;
+        LayoutGameHud();
+    }
+
+    private void OnHudMenuCommand(HudMenuCommand command)
+    {
+        switch (command)
+        {
+            case HudMenuCommand.Character:
+            case HudMenuCommand.Inventory:
+                SetWindowLayerVisible(true);
+                _gameplayTabs.SelectedTab = _tabGameplay;
+                break;
+            case HudMenuCommand.Quests:
+                SetWindowLayerVisible(true);
+                _gameplayTabs.SelectedTab = _tabPhase8;
+                _tabPhase8.PerformLayout();
+                break;
+            case HudMenuCommand.Map:
+                SetWindowLayerVisible(false);
+                break;
+            case HudMenuCommand.Options:
+                OpenOptions();
+                break;
+        }
+    }
+
+    private void OnHotbarSlotActivated(int index)
+    {
+        switch (index)
+        {
+            case 0:
+                _ = MeleeAsync();
+                break;
+            case 1:
+                _ = SpellCastAsync();
+                break;
+            case 2:
+                if (_map is null || _phase != ClientUiPhase.Playing)
+                {
+                    return;
+                }
+
+                var now = DateTime.UtcNow;
+                if ((now - _lastInteractUtc).TotalMilliseconds < 400)
+                {
+                    return;
+                }
+
+                _lastInteractUtc = now;
+                _ = SendInteractAsync();
+                break;
+        }
+    }
+
+    private bool TryActivateHotbarKey(Keys key)
+    {
+        var index = key switch
+        {
+            Keys.D1 or Keys.NumPad1 => 0,
+            Keys.D2 or Keys.NumPad2 => 1,
+            Keys.D3 or Keys.NumPad3 => 2,
+            Keys.D4 or Keys.NumPad4 => 3,
+            Keys.D5 or Keys.NumPad5 => 4,
+            Keys.D6 or Keys.NumPad6 => 5,
+            Keys.D7 or Keys.NumPad7 => 6,
+            Keys.D8 or Keys.NumPad8 => 7,
+            Keys.D9 or Keys.NumPad9 => 8,
+            Keys.D0 or Keys.NumPad0 => 9,
+            _ => -1,
+        };
+        if (index < 0)
+        {
+            return false;
+        }
+
+        _hudHotbar.ActivateSlot(index);
+        return index < 3;
     }
 
     private void PersistLastEndpoint(string host, int port)
@@ -3558,9 +3708,17 @@ public sealed class MainShellForm : Form
 
     internal Button RespawnButtonForTest => _btnRespawn;
 
-    internal void SelectGameplayTabForTest() => _gameplayTabs.SelectedTab = _tabGameplay;
+    internal void SelectGameplayTabForTest()
+    {
+        SetWindowLayerVisible(true);
+        _gameplayTabs.SelectedTab = _tabGameplay;
+    }
 
-    internal void SelectChatTabForTest() => _gameplayTabs.SelectedTab = _tabChat;
+    internal void SelectChatTabForTest()
+    {
+        SetWindowLayerVisible(true);
+        _gameplayTabs.SelectedTab = _tabChat;
+    }
 
     internal void SelectChatChannelForTest(int channelIndex) => _cmbChannel.SelectedIndex = channelIndex;
 
@@ -3575,8 +3733,10 @@ public sealed class MainShellForm : Form
 
     internal void SelectPhase8TabForTest()
     {
+        SetWindowLayerVisible(true);
         _gameplayTabs.SelectedTab = _tabPhase8;
         _tabPhase8.PerformLayout();
+        LayoutGameHud();
         Update();
     }
 
@@ -3643,4 +3803,28 @@ public sealed class MainShellForm : Form
     {
         MainShell_KeyDown(this, new KeyEventArgs(Keys.F1));
     }
+
+    internal Panel WorldHostForTest => _worldHost;
+
+    internal Panel MapScrollForTest => _mapScroll;
+
+    internal HudStatusModule StatusHudForTest => _hudStatus;
+
+    internal HudMinimapModule MinimapForTest => _hudMinimap;
+
+    internal HudQuestTrackerModule QuestTrackerForTest => _hudQuest;
+
+    internal HudChatDock ChatDockForTest => _hudChat;
+
+    internal HudHotbar HotbarForTest => _hudHotbar;
+
+    internal HudMenuRing MenuRingForTest => _hudMenu;
+
+    internal bool WindowLayerVisibleForTest => _windowLayerVisible;
+
+    internal int SmoothTimerIntervalForTest => _smoothTimer.Interval;
+
+    internal void SetWindowLayerVisibleForTest(bool visible) => SetWindowLayerVisible(visible);
+
+    internal void LayoutGameHudForTest() => LayoutGameHud();
 }
