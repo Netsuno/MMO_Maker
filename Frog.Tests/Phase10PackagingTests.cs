@@ -66,6 +66,7 @@ public sealed class Phase10PackagingTests
         Assert.Contains("WinForms", playtestSh, StringComparison.Ordinal);
         Assert.Contains("chmod +x", playtestSh, StringComparison.Ordinal);
         Assert.Contains("-f \"${DEST}/server-linux-x64/Frog.Server\"", playtestSh, StringComparison.Ordinal);
+        Assert.Contains("does not restore Unix execute bits", playtestSh, StringComparison.Ordinal);
 
         var playtestPs = File.ReadAllText(Path.Combine(root, "scripts", "packaged-playtest-e2e.ps1"));
         Assert.Contains("sibling", playtestPs, StringComparison.OrdinalIgnoreCase);

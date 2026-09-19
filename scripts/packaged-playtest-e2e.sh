@@ -59,7 +59,7 @@ rm -rf "$DEST"
 mkdir -p "$DEST"
 ZIP="$ZIP" DEST="$DEST" python3 -c 'import os, zipfile; zipfile.ZipFile(os.environ["ZIP"]).extractall(os.environ["DEST"])'
 
-# zipfile often drops the Unix +x bit; locate by name then chmod.
+# CPython zipfile.extractall does not restore Unix execute bits.
 SERVER_BIN=""
 if [[ -f "${DEST}/server-linux-x64/Frog.Server" ]]; then
   SERVER_BIN="${DEST}/server-linux-x64/Frog.Server"
