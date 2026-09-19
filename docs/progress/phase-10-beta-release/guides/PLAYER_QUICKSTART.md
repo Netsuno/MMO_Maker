@@ -2,11 +2,11 @@
 
 À la fin de ce guide, tu es connecté, tu as un personnage, et tu peux te déplacer, chatter, grouper et échanger.
 
-Client = **Windows 11 x64**. Playtest GUI *not proven on Linux agents* (hors gate).
+Client = **Windows 11 x64**. Playtest GUI manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**
 
 **Bêta fermée :** tu reçois un compte **provisionné** (pas d’inscription ouverte). Jamais un mot de passe base de données.
 
-> Smoke `--smoke-launch` Windows CI = démarrage du shell, **pas** une partie. Recette 2 PCs : **accepted by owner Marc Giroux on 2026-09-19** (non rejouée dans cette PR).
+> Smoke `--smoke-launch` Windows CI = démarrage du shell, **pas** une partie. Recette 2 PCs : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (non rejouée dans cette PR).
 
 ## Prérequis
 

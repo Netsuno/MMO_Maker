@@ -1,13 +1,13 @@
 # Phase 10 — STATUS (P10-9 docs candidate)
 
-Paquet documentation **candidate** pour relecture Marc. Ce fichier n’annonce pas une sortie.
+Paquet documentation **candidate** pour relecture Netsun. Ce fichier n’annonce pas une sortie.
 Aucun claim marketing de bêta distribuable. La phrase de gate n’est **pas** écrite ici
 (réservée à l’Orchestrator après CI SUCCESS du tip docs exact).
 
-**Acceptation propriétaire 2026-09-19 ~11:21 ET (Amérique/Toronto) — Marc Giroux :**
+**Acceptation / skip propriétaire 2026-09-19 — Netsun :**
 
-1. Campagne P10-8 **25 joueurs × 60 min** réelle (machine dédiée) — **DONE / accepted by owner Marc Giroux on 2026-09-19**
-2. Recette P10-4 **2 PCs physiques** (WAN / éditeur distant / stabilité) — **DONE / accepted by owner Marc Giroux on 2026-09-19**
+1. Campagne P10-8 **25 joueurs × 60 min** réelle (machine dédiée) — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**
+2. Recette P10-4 **2 PCs physiques** (WAN / éditeur distant / stabilité) — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**
 
 Ces deux preuves **physiques n’ont pas été rejouées dans cette PR**. Aucun chiffre de latence, TPS ou CPU n’est inventé pour le run 60 min. Aucun job CI 60 min n’existe.
 
@@ -29,8 +29,8 @@ Ces deux preuves **physiques n’ont pas été rejouées dans cette PR**. Aucun 
 | Classe | Quoi | Preuve |
 | --- | --- | --- |
 | Automatisée (dépôt / CI) | Harness hosted packaged+PG **~5 s** (`--profile ci`) ; in-memory **~45 s** ; loopback recette ; zip Hello / READY headless ; EXE `--smoke-launch` Windows | SHA/CI ci-dessus + [`LOAD_REPORT.md`](LOAD_REPORT.md) + [`P10-3-PACKAGED-PLAYTEST.md`](P10-3-PACKAGED-PLAYTEST.md) |
-| Physique **acceptée propriétaire** | 25×60 min machine dédiée ; recette 2 PCs (WAN / éditeur distant / stabilité) | **accepted by owner Marc Giroux on 2026-09-19** — **pas** rejouée ici, **pas** un run CI 60 min |
-| Hors gate | Playtest GUI WinForms client/éditeur **not proven on Linux agents** | Mandat §2 = Windows 11 x64 seulement ; wine ≠ pass |
+| Physique **acceptée propriétaire** | 25×60 min machine dédiée ; recette 2 PCs (WAN / éditeur distant / stabilité) | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** — **pas** rejouée ici, **pas** un run CI 60 min |
+| Skip PC Windows local (hors bloqueurs gate) | Menu Playtest WinForms manuel (éditeur → spawn client) ; HUD 1366×768 / 1920×1080 | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** CI Windows prouve `--smoke-launch` seulement |
 
 ## Lots
 
@@ -39,12 +39,12 @@ Ces deux preuves **physiques n’ont pas été rejouées dans cette PR**. Aucun 
 | P10-0 Audit + plan | **FAIT** |
 | P10-1 Groupes / guildes / relations | **DONE** tip `dca2185` |
 | P10-2 Échanges directs | **LIVRÉ** — opcodes 84–86, TX PG, replay, block sur invites |
-| P10-3 Client / éditeur externes | **INCOMPLET (hors gate Linux GUI)** — P10-3a livré ; deadlock ouverture **corrigé** ; playtest zip Hello + READY headless hors dépôt (Linux) / Hello + layouts frères (Windows) ; menu Playtest WinForms **not proven on Linux agents** |
-| P10-4 Monde démo + recette | **FAIT** — fixture 3 cartes **livrée** ; loopback CI **oui** ; recette 2 PCs physiques **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+| P10-3 Client / éditeur externes | **P10-3a + zip Hello CI** ; `--smoke-launch` Windows CI. Menu Playtest WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (hors bloqueurs gate) |
+| P10-4 Monde démo + recette | **FAIT** — fixture 3 cartes **livrée** ; loopback CI **oui** ; recette 2 PCs physiques **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | P10-5 Sécurité externe | **PASS sécu** A–E (TLS Windows unitaires verts) |
-| P10-6 Paquets autonomes | **INCOMPLET (hors gate Linux GUI)** — layout+SHA Linux **et** `--smoke-launch` Windows **CI 35403209506 SUCCESS** ; wine Linux ≠ pass |
+| P10-6 Paquets autonomes | Layout+SHA Linux **et** `--smoke-launch` Windows **CI 35403209506 SUCCESS**. Wine Linux ≠ pass. Jeu GUI local : skip P10-3 / P10-4 ci-dessus. |
 | P10-7 Exploitation / restore | **INCOMPLET (non bloqueur gate)** — dump/restore **lignes** sanctions/guildes/amis/trades + serveur publié **CI** ; chiffrement/rétention/durée 30 min **non** |
-| P10-8 Charge 25 joueurs | **DONE / accepted by owner Marc Giroux on 2026-09-19** pour le palier 25×60 dédié. Harness court CI **5 s / 45 s** seulement (voir [`LOAD_REPORT.md`](LOAD_REPORT.md)) |
+| P10-8 Charge 25 joueurs | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** pour le palier 25×60 dédié. Harness court CI **5 s / 45 s** seulement (voir [`LOAD_REPORT.md`](LOAD_REPORT.md)) |
 | P10-9 Validation / candidate | **EN COURS (ce lot)** — docs candidate poussées ; phrase gate **interdite ici** |
 
 ## Bloqueurs gate
@@ -58,7 +58,7 @@ Restent uniquement le **processus docs**, pas des preuves produit à rejouer :
 | CI SUCCESS du **tip docs exact** (ce commit, après push) | Ouvert jusqu’à lecture fraîche — mandat §6 : ne pas auto-pinner son propre SHA/CI |
 | Phrase de gate | **Non écrite** — Orchestrator uniquement, après CI du tip exact |
 
-WinForms GUI playtest sur Linux : **incomplete / hors gate** (client + éditeur = Windows 11 x64).
+Menu Playtest WinForms manuel (PC Windows local, pas le smoke CI) : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Hors bloqueurs gate.
 
 ## File (déjà landed, ne pas rejouer)
 
@@ -83,16 +83,16 @@ Cause : `MapEventsPostgreSqlService.LoadPlacementsForMap` (et les autres `Load*`
 Voir [`LOAD_REPORT.md`](LOAD_REPORT.md).
 
 - **Automatisé :** scénario `campaign` (25 sessions, TLS Required), hosted packaged+PG **5 000 ms** (`mandateDurationMet=false`), in-memory **45 000 ms**, test CI ~2,5 s.
-- **Accepté propriétaire :** 25×60 min machine dédiée — **DONE / accepted by owner Marc Giroux on 2026-09-19**. Pas de métriques inventées. Pas de job CI 3600 s.
+- **Accepté propriétaire :** 25×60 min machine dédiée — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Pas de métriques inventées. Pas de job CI 3600 s.
 
 ## P10-4 — PROUVÉ (automatisé) vs ACCEPTÉ (propriétaire)
 
 - **Automatisé :** fixture 3 cartes ; `Phase10RecipeLoopbackTests` / `run-p10-4-recipe-loopback.sh` (loopback 1 hôte).
-- **Accepté propriétaire :** étapes 2 / 5-WAN / 9-distant / 12 sur **2 machines physiques** — **DONE / accepted by owner Marc Giroux on 2026-09-19**. Pas rejoué dans cette PR.
+- **Accepté propriétaire :** étapes 2 / 5-WAN / 9-distant / 12 sur **2 machines physiques** — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Pas rejoué dans cette PR.
 
 ## P10-3 playtest zip — PROUVÉ vs HORS GATE
 
-Voir [`P10-3-PACKAGED-PLAYTEST.md`](P10-3-PACKAGED-PLAYTEST.md). **PROUVÉ :** zip serveur hors dépôt → Hello (Linux CI) ; layouts frères + Hello (Windows). **HORS GATE :** menu Playtest WinForms / client GUI *not proven on Linux agents* (mandat = Windows 11 x64).
+Voir [`P10-3-PACKAGED-PLAYTEST.md`](P10-3-PACKAGED-PLAYTEST.md). **PROUVÉ CI :** zip serveur hors dépôt → Hello (Linux) ; layouts frères + Hello (Windows) ; `--smoke-launch`. Menu Playtest WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**
 
 ## P10-6 / P10-7 — rappel court
 
@@ -106,4 +106,4 @@ Pas de merge. Pas de distribution. Pas de Phase 11. Pas de claim marketing de so
 
 ## Verdict docs
 
-P10-0…P10-2, P10-3a, P10-4 fixture+loopback, P10-5, P10-6 CI, P10-7 CI, deadlock éditeur, harness P10-8 borné, playtest zip : **dans le dépôt**. P10-4 2 PCs et P10-8 25×60 dédié : **accepted by owner Marc Giroux on 2026-09-19**. Ce lot livre le paquet docs candidate. L’Orchestrator tranche la gate après CI du tip exact.
+P10-0…P10-2, P10-3a, P10-4 fixture+loopback, P10-5, P10-6 CI, P10-7 CI, deadlock éditeur, harness P10-8 borné, playtest zip : **dans le dépôt**. P10-4 2 PCs et P10-8 25×60 dédié : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Ce lot livre le paquet docs candidate. L’Orchestrator tranche la gate après CI du tip exact.

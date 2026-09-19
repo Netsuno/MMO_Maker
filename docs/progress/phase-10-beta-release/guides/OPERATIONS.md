@@ -69,7 +69,7 @@ Runbook Phase 9 + preuve P10-7 :
 | --- | --- | --- |
 | `ci` | 5 s | CI postgres-integration ([35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) / [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601)) |
 | `cloud` | 45 s | Script hosted / in-memory documenté |
-| `dedicated` | 3600 s | Machine dédiée — **accepted by owner Marc Giroux on 2026-09-19** ; **pas** un job CI ; **pas** de métriques inventées ici |
+| `dedicated` | 3600 s | Machine dédiée — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** ; **pas** un job CI ; **pas** de métriques inventées ici |
 
 ```bash
 ./scripts/phase10-hosted-load-campaign.sh --profile ci
@@ -82,11 +82,11 @@ Détail : [`../LOAD_REPORT.md`](../LOAD_REPORT.md).
 | Sujet | Testable maintenant | Limite honnête |
 | --- | --- | --- |
 | Serveur Linux publié | Oui (Phase 9 + P10-3 zip Hello) | — |
-| Client / éditeur paquet | `--smoke-launch` Windows CI | GUI *not proven on Linux agents* (hors gate) |
+| Client / éditeur paquet | `--smoke-launch` Windows CI | Menu Playtest WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | TLS + cert validé | Unitaires + harness Required | Proxy externe / mTLS absents |
 | Inscriptions fermées | `ProvisionedOnly` + OpsCli | InviteOnly sans jetons |
-| Recette 2 PCs | Loopback CI | Physique **accepted by owner** (non rejouée ici) |
-| Charge 25×60 | Harness 5 s / 45 s | Dédié **accepted by owner** ; pas de CI 60 min |
+| Recette 2 PCs | Loopback CI | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
+| Charge 25×60 | Harness 5 s / 45 s | Dédié **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** ; pas de CI 60 min |
 | Restore lignes métier | `Phase10BackupRestoreRowsTests` | Chiffrement / rétention non |
 
 ## Secrets

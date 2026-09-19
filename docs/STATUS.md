@@ -7,7 +7,7 @@ Journal **actif** du dépôt. Les rapports de phase dans `docs/progress/phase-0N
 | Phase 7 | **ACCEPTED** on main |
 | Phase 8 | **ACCEPTED** on main (merge `1cd57ba`, PR #2) |
 | Phase 9 | **ACCEPTED** on main (merge `f74b34cca09dda819fe26747d48ee16d27007dfd`, PR #7) — 2026-09-18 |
-| Phase 10 | **P10-9 docs candidate** sur `cursor/phase10-beta-release` (PR #8). P10-8 25×60 dédié + P10-4 recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19**. Phrase de gate **non écrite**. Pas de claim marketing de sortie. |
+| Phase 10 | **P10-9 docs candidate** sur `cursor/phase10-beta-release` (PR #8). 25×60 dédié, recette 2 PCs et playtest GUI WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Phrase de gate **non écrite**. |
 
 ## Phase 10 (actif)
 
@@ -25,7 +25,7 @@ Protocole runtime (cette branche) : **v11**. Ne pas fusionner. Ne pas diffuser. 
 
 ## Phase 9 (historique daté — acceptée)
 
-Acceptation Marc 2026-09-18. Merge PR #7 `f74b34c`. Tip produit `cab57b9`.
+Acceptation Netsun 2026-09-18. Merge PR #7 `f74b34c`. Tip produit `cab57b9`.
 
 Le dossier [`progress/phase-09-distribution-admin-hardening/`](progress/phase-09-distribution-admin-hardening/) contient encore les rapports de re-revue (**NOT READY**, C-fixes, C2 follow-up) rédigés **avant** cette décision. Les lire comme archive, pas comme statut actif.
 

@@ -2,11 +2,11 @@
 
 À la fin de ce guide, tu as une carte enregistrée, publiée, et un joueur peut la voir (même monde que le serveur).
 
-Éditeur = **Windows 11 x64**. Menu Playtest WinForms *not proven on Linux agents* (hors gate).
+Éditeur = **Windows 11 x64**. Menu Playtest WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (`--smoke-launch` Windows CI distinct).
 
 Accès monde **protégé** — jamais le secret PostgreSQL aux joueurs. Overlay `appsettings.Local.json` = machine auteur / ops seulement.
 
-> Zip serveur : Hello hors dépôt (`packaged-playtest-e2e.sh`). Recette éditeur distant 2 PCs : **accepted by owner Marc Giroux on 2026-09-19** (non rejouée dans cette PR).
+> Zip serveur : Hello hors dépôt (`packaged-playtest-e2e.sh`). Recette éditeur distant 2 PCs : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (non rejouée dans cette PR).
 
 ## Prérequis
 
@@ -57,7 +57,7 @@ Le monde démo de validation (3 cartes Village / Faubourgs / Arène) est une **f
 
 Publier vers PostgreSQL par le chemin éditeur supporté (`SaveAsync` / `Intent=Publish`). Masquer toute chaîne de connexion à l’écran et dans les tickets.
 
-Un joueur connecté au **même** serveur doit voir le warp / le NPC après publication (recette étape 9 : **accepted by owner** pour le cas distant).
+Un joueur connecté au **même** serveur doit voir le warp / le NPC après publication (recette étape 9 : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**).
 
 Publication fixture (ops / CI, pas ton monde final) :
 
@@ -68,7 +68,7 @@ Publication fixture (ops / CI, pas ton monde final) :
 ## 6. Playtest depuis les binaires livrés
 
 - **Prouvé CI :** serveur zip hors dépôt → Hello TCP ; Linux headless READY spawn ; Windows layouts frères + Hello. Voir [`../P10-3-PACKAGED-PLAYTEST.md`](../P10-3-PACKAGED-PLAYTEST.md).
-- **Menu Playtest WinForms** (éditeur → spawn client) : **not proven on Linux agents**. Sur Windows, layouts frères `../client-win-x64` / `../server-win-x64`.
+- **Menu Playtest WinForms** (éditeur → spawn client) : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Layouts frères `../client-win-x64` / `../server-win-x64`.
 - Wine n’est **jamais** un pass.
 
 ## Tu es prêt si…

@@ -1,8 +1,8 @@
 # Phase 10 — Périmètre de la bêta
 
-Source : mandat [`MANDATE.md`](MANDATE.md) §2 et §5 + update propriétaire **2026-09-19 ~11:21 ET** (Marc Giroux).
+Source : mandat [`MANDATE.md`](MANDATE.md) §2 et §5 + update propriétaire **2026-09-19** (Netsun).
 
-Ce fichier distingue **ce que la plateforme garantit**, **le monde de démonstration temporaire**, **le contenu final de Marc**, et **ce qui est différé**.
+Ce fichier distingue **ce que la plateforme garantit**, **le monde de démonstration temporaire**, **le contenu final de Netsun**, et **ce qui est différé**.
 
 Paquet **docs candidate** (P10-9). Pas un claim marketing de sortie. Pas de phrase de gate ici.
 
@@ -12,10 +12,10 @@ Paquet **docs candidate** (P10-9). Pas un claim marketing de sortie. Pas de phra
 
 | Garantie mandat | Automatisé (dépôt / CI) | Physique |
 | --- | --- | --- |
-| 25 joueurs × 60 min | Harness hosted packaged+PG **~5 s** + in-memory **~45 s** ([`LOAD_REPORT.md`](LOAD_REPORT.md)). Aucun job CI 60 min. Aucune latence/TPS/CPU inventée pour le dédié. | **DONE / accepted by owner Marc Giroux on 2026-09-19** — non rejouée dans cette PR |
-| Recette 2 machines (WAN / éditeur distant / stabilité) | Fixture 3 cartes + loopback `Phase10RecipeLoopbackTests` | **DONE / accepted by owner Marc Giroux on 2026-09-19** — non rejouée dans cette PR |
+| 25 joueurs × 60 min | Harness hosted packaged+PG **~5 s** + in-memory **~45 s** ([`LOAD_REPORT.md`](LOAD_REPORT.md)). Aucun job CI 60 min. Aucune latence/TPS/CPU inventée pour le dédié. | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** — non rejouée dans cette PR |
+| Recette 2 machines (WAN / éditeur distant / stabilité) | Fixture 3 cartes + loopback `Phase10RecipeLoopbackTests` | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** — non rejouée dans cette PR |
 
-Client / éditeur = **Windows 11 x64**. Playtest GUI WinForms *not proven on Linux agents* = **hors gate**.
+Client / éditeur = **Windows 11 x64**. Playtest GUI WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**
 
 ---
 
@@ -25,17 +25,17 @@ Client / éditeur = **Windows 11 x64**. Playtest GUI WinForms *not proven on Lin
 
 | Surface | Garantie | État docs 2026-09-19 |
 | --- | --- | --- |
-| Client Windows 11 x64 | Paquet autonome ; lancement → inscription autorisée → perso → monde | Layout + `--smoke-launch` Windows CI ; recette humaine 2 PCs **accepted by owner** |
-| Éditeur Windows 11 x64 | Paquet autonome ; créer / modifier / publier **sans JSON/SQL manuels** | Chemins paquet + fixture ; éditeur distant **accepted by owner** |
+| Client Windows 11 x64 | Paquet autonome ; lancement → inscription autorisée → perso → monde | Layout + `--smoke-launch` Windows CI ; recette humaine 2 PCs **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
+| Éditeur Windows 11 x64 | Paquet autonome ; créer / modifier / publier **sans JSON/SQL manuels** | Chemins paquet + fixture ; éditeur distant **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | Serveur Linux x64 | PostgreSQL 16 ; profil documenté | Processus publié CI + hosted load courte |
-| Réseau | Deux clients sur machines distinctes rejoignent le même serveur | Loopback CI **plus** recette 2 PCs **accepted by owner** |
+| Réseau | Deux clients sur machines distinctes rejoignent le même serveur | Loopback CI **plus** recette 2 PCs **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | Transport | TLS + certificat serveur **validé** (pas AcceptAll, pas de repli clair) | P10-5 A–E PASS (unitaires + harness Required) |
 | Comptes | Inscriptions **fermées** (`ProvisionedOnly`) ; joueur ≠ secret DB | P10-5 C livré |
 | Gameplay Phase 7–8 | Cartes, warps, combat, objets, quêtes, métiers, craft, boutique, banque, chat, sanctions | Suites existantes + fixture démo |
 | Social | Groupes, guildes, amis, blocage — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) | P10-1 DONE `dca2185` |
 | Échanges | Trade objets + or, TX unique, replay, journal admin | P10-2 livré |
 | Exploitation | Démarrer, arrêter, sauvegarder, restaurer — exécutés | Restore lignes **CI** ; chiffrement/rétention **non** (hors bloqueurs update) |
-| Charge | **25** joueurs × 60 min sur l’environnement annoncé | Harness court CI **plus** **accepted by owner Marc Giroux on 2026-09-19** |
+| Charge | **25** joueurs × 60 min sur l’environnement annoncé | Harness court CI **plus** **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | Qualité | Aucun P0/P1 connu sur un parcours obligatoire | Voir [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) — les deux items physiques ne sont plus des bloqueurs |
 
 Deux profils :
@@ -47,7 +47,7 @@ Deux profils :
 
 ## 2. Ce que Grok implémente (fonctions et outils)
 
-Socle mandat §2, **y compris** les outils pour que Marc crée ensuite son contenu :
+Socle mandat §2, **y compris** les outils pour que Netsun crée ensuite son contenu :
 
 - Serveur autoritaire, protocole v11, TLS, invitations, OpsCli (créer compte, reset mot de passe, révoquer sessions, grant/revoke GM, sanctions).
 - Client : HUD, aide, AZERTY/QWERTY ou rebind persisté, settings, diagnostics expurgés, version `v10.3.0`.
@@ -56,13 +56,13 @@ Socle mandat §2, **y compris** les outils pour que Marc crée ensuite son conte
 - Monde de **démonstration temporaire** (section 3).
 - Preuves : tests PG, smokes Windows, loopback recette, charge courte, restore CI.
 
-Grok **ne** crée **pas** le jeu final de Marc.
+Grok **ne** crée **pas** le jeu final de Netsun.
 
 ---
 
 ## 3. Monde de démonstration temporaire (fixture de recette)
 
-Rôle : prouver la plateforme. **Ce n’est pas** le contenu que Marc distribuera.
+Rôle : prouver la plateforme. **Ce n’est pas** le contenu que Netsun distribuera.
 
 **Présent (code + tests) :** [`DEMO_WORLD.md`](DEMO_WORLD.md) — `Phase10DemoWorldCatalog` :
 
@@ -75,15 +75,15 @@ Rôle : prouver la plateforme. **Ce n’est pas** le contenu que Marc distribuer
 - Licences : [`demo-world/LICENSES.md`](demo-world/LICENSES.md) (tuiles procédurales, pas FRoG).
 - Réinstallable base vierge : `Migrate` + `Frog.DemoWorld publish`.
 
-Durée 30–60 min humaine + contenu distinct créé pendant recette + 12 étapes / 2 machines : **DONE / accepted by owner Marc Giroux on 2026-09-19** (physique, non rejouée ici). Loopback 1 hôte : **automatisé** (`Phase10RecipeLoopbackTests`).
+Durée 30–60 min humaine + contenu distinct créé pendant recette + 12 étapes / 2 machines : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (physique, non rejouée ici). Loopback 1 hôte : **automatisé** (`Phase10RecipeLoopbackTests`).
 
 Les seeds `Phase7PostgresContentSeed` / smokes in-memory **≠** ce monde.
 
 ---
 
-## 4. Contenu final Marc (hors implémentation Grok)
+## 4. Contenu final Netsun (hors implémentation Grok)
 
-Marc créera lui-même, **avec l’éditeur livré** : cartes finales, ambiance, dialogues, quêtes, monstres, objets, recettes, événements.
+Netsun créera lui-même, **avec l’éditeur livré** : cartes finales, ambiance, dialogues, quêtes, monstres, objets, recettes, événements.
 
 La Phase 10 échoue si ces outils ne permettent pas de créer, publier, modifier et restaurer **son** contenu.
 

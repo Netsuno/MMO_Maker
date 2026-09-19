@@ -1,6 +1,6 @@
 # Phase 10 — Plan d’exécution (P10-0)
 
-> **Bandeau 2026-09-19 :** plan d’origine P10-0, conservé. Statut actif = [`STATUS.md`](STATUS.md). P10-4 recette 2 PCs et P10-8 25×60 dédié = **accepted by owner Marc Giroux on 2026-09-19**. P10-9 = docs candidate ; la phrase de gate n’est **pas** écrite dans ce lot.
+> **Bandeau 2026-09-19 :** plan d’origine P10-0, conservé. Statut actif = [`STATUS.md`](STATUS.md). P10-4 recette 2 PCs et P10-8 25×60 dédié = **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** P10-9 = docs candidate ; la phrase de gate n’est **pas** écrite dans ce lot.
 
 **Branche :** `cursor/phase10-beta-release`
 **Base :** `f74b34cca09dda819fe26747d48ee16d27007dfd` (`main`, merge PR #7)
@@ -15,7 +15,7 @@ Phase 9 est **ACCEPTED** sur `main` (tip produit `cab57b9`, CI 35384819869). Les
 
 ## Objectif de sortie (rappel)
 
-Bêta fermée externe, monde persistant unique : client Windows x64 autonome, éditeur Windows x64 autonome, serveur Linux x64 + PostgreSQL 16, TLS avec certificat validé, 25 joueurs simultanés authentifiés **mesurés**, restauration de données réelles, recette à deux machines, preuves et guides. La fusion, l’infra payante et la diffusion aux testeurs restent un GO Marc.
+Bêta fermée externe, monde persistant unique : client Windows x64 autonome, éditeur Windows x64 autonome, serveur Linux x64 + PostgreSQL 16, TLS avec certificat validé, 25 joueurs simultanés authentifiés **mesurés**, restauration de données réelles, recette à deux machines, preuves et guides. La fusion, l’infra payante et la diffusion aux testeurs restent un GO Netsun.
 
 ---
 
@@ -113,7 +113,7 @@ Chaque lot déclare DONE seulement après intégration + tests, pas sur un compt
 | P10-6 | Extraction hors dépôt ; `Frog.Client.exe` / `Frog.Editor.exe` démarrent ; manifeste SHA-256 |
 | P10-7 | Restore sur base vide + serveur publié + ban/mute/guildes/échanges rejoués |
 | P10-8 | Job borné ~90 min, mêmes SHA que la candidate, 25×60 min |
-| P10-9 | CI vert du tip final + artefacts cohérents ; PR reste Draft jusqu’à re-revue Marc |
+| P10-9 | CI vert du tip final + artefacts cohérents ; PR reste Draft jusqu’à re-revue Netsun |
 
 ---
 

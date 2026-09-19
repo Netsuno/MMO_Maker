@@ -25,7 +25,7 @@ Réinstall base vierge : `Migrate()` + `publish` sur une base vide.
 ## Recette 12 étapes / 2 machines
 
 **Automatisé :** fixture PG + loopback [`guides/BETA_TEST_PLAN.md`](guides/BETA_TEST_PLAN.md) (`Phase10RecipeLoopbackTests`).
-**Physique (WAN / éditeur distant / stabilité) :** **DONE / accepted by owner Marc Giroux on 2026-09-19** — non rejouée dans cette PR.
+**Physique (WAN / éditeur distant / stabilité) :** **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** — non rejouée dans cette PR.
 `Frog.Client.exe --smoke-launch` reste un smoke Windows CI, distinct de l’étape 2 acceptée.
 
 ## Publier

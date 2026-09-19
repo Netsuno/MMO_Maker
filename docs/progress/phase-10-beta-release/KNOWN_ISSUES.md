@@ -3,7 +3,7 @@
 Inventaire **honnête**. Un fichier ou un bouton ≠ fonction livrée.
 Gravité : **P0** = perte/duplication, compromission, monde inutilisable ; **P1** = installation / accès / parcours essentiel bloqué.
 
-**Update propriétaire 2026-09-19 ~11:21 ET — Marc Giroux :** P10-8 25×60 dédié et P10-4 recette 2 PCs physiques sont **DONE / accepted by owner**. Ils **ne sont plus** des bloqueurs gate ouverts.
+**Update propriétaire 2026-09-19 — Netsun :** P10-8 25×60 dédié, P10-4 recette 2 PCs physiques, et le playtest GUI WinForms **manuel** sont **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Ils **ne sont plus** des bloqueurs gate ouverts.
 
 ---
 
@@ -18,7 +18,7 @@ Restent uniquement le **processus docs** (pas des preuves à rejouer ici) :
 | CI SUCCESS du tip **docs exact** (commit P10-9, après push) | Processus | Ouvert jusqu’à lecture fraîche. Mandat §6 : ne pas inventer l’URL CI de ce commit. |
 | Phrase de gate | Processus | **Non écrite** — Orchestrator uniquement, après CI du tip exact. |
 
-**Hors gate (incomplet honnête) :** playtest GUI WinForms client/éditeur *not proven on Linux agents*. Le mandat §2 exige Windows 11 x64, pas un client Linux. Wine n’est jamais un pass.
+**Hors bloqueurs gate :** menu Playtest WinForms manuel (PC Windows local). CI Windows prouve `--smoke-launch` seulement. **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Wine n’est jamais un pass.
 
 ---
 
@@ -26,8 +26,8 @@ Restent uniquement le **processus docs** (pas des preuves à rejouer ici) :
 
 | Item | Preuve automatisée (dépôt) | Preuve physique | Statut |
 | --- | --- | --- | --- |
-| P10-8 25 joueurs × 60 min machine dédiée | Harness `campaign` hosted packaged+PG **5 s** (CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) / tip [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601)) ; in-memory **45 s**. **Pas** de job CI 3600 s. **Pas** de latence/TPS/CPU inventés pour le run dédié. | **DONE / accepted by owner Marc Giroux on 2026-09-19** — non rejouée dans cette PR | Clos par acceptation |
-| P10-4 recette 2 PCs (WAN / éditeur distant / stabilité) | Fixture 3 cartes + `Phase10RecipeLoopbackTests` (1 hôte) | **DONE / accepted by owner Marc Giroux on 2026-09-19** — non rejouée dans cette PR | Clos par acceptation |
+| P10-8 25 joueurs × 60 min machine dédiée | Harness `campaign` hosted packaged+PG **5 s** (CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) / tip [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601)) ; in-memory **45 s**. **Pas** de job CI 3600 s. **Pas** de latence/TPS/CPU inventés pour le run dédié. | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** — non rejouée dans cette PR | Clos par acceptation |
+| P10-4 recette 2 PCs (WAN / éditeur distant / stabilité) | Fixture 3 cartes + `Phase10RecipeLoopbackTests` (1 hôte) | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** — non rejouée dans cette PR | Clos par acceptation |
 
 ---
 
@@ -38,8 +38,8 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | Sujet | État réel | Lot |
 | --- | --- | --- |
 | **TLS** | Lots A+E : `SslStream` in-process + LoadHarness `Mode=Required` (pas AcceptAll). Proxy externe, mTLS, DPAPI : absents. | P10-5 A+E **livrés** |
-| **Packaging client/éditeur** | Layout EXE hors dépôt Linux + `--smoke-launch` Windows CI. *not proven on Linux agents.* Serveur Linux **prouvé**. | P10-6 |
-| **LOAD 25×60** | Harness court CI + **accepted by owner Marc Giroux on 2026-09-19** pour le dédié. Palier économie 10 mut/s / interact isolé / idle 300 s / restart-reconnect 25 : **non mesurés en CI** (pas des bloqueurs gate après l’update). | P10-8 |
+| **Packaging client/éditeur** | Layout EXE hors dépôt Linux + `--smoke-launch` Windows CI. Serveur Linux **prouvé**. Menu Playtest manuel = skip Netsun. | P10-6 |
+| **LOAD 25×60** | Harness court CI + **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** pour le dédié. Palier économie 10 mut/s / interact isolé / idle 300 s / restart-reconnect 25 : **non mesurés en CI** (pas des bloqueurs gate après l’update). | P10-8 |
 | **Restore avec sanctions** | `Phase10BackupRestoreRowsTests` CI. Chiffrement/rétention 7 **non**. | P10-7 |
 | **Rate-limit login** | IP normalisée + username. [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
 | **Inscriptions** | Défaut local `Open`. Bêta : `ProvisionedOnly`. | P10-5 C **livré** |
@@ -59,8 +59,8 @@ Autres résidus (non bloqueurs gate) :
 
 | Item | Preuve | Lot |
 | --- | --- | --- |
-| Menu Playtest WinForms éditeur → client | Hello zip + READY headless **oui** ; GUI Linux **not proven** | P10-3 — **hors gate** |
-| Résolutions 1366×768 / 1920×1080 + DPI 100/150 | Smokes non dimensionnés ainsi | P10-3 — **hors gate** (non exigé dans l’update) |
+| Menu Playtest WinForms éditeur → client (manuel, PC Windows local) | Hello zip + READY headless + `--smoke-launch` **CI** ; menu GUI **pas** CI | P10-3 — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Hors bloqueurs gate |
+| Résolutions 1366×768 / 1920×1080 + DPI 100/150 | Smokes non dimensionnés ainsi (PC Windows local) | P10-3 — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | Jetons reconnect protégés OS (DPAPI) | `_storedAuthToken` champ UI | P10-5 — **absent**, hors update |
 | Mode maintenance / drain | `MaintenanceService.cs` stub | P10-7 — **absent**, hors update |
 | Chiffrement dumps / rétention 7 / durée restore 30 min | Runbook Phase 9 seulement | P10-7 — **incomplet**, hors update |

@@ -24,7 +24,7 @@ Phase 9 est **acceptée** et fusionnée sur `main`. La Phase 10 (bêta fermée e
 | **7** — Gameplay essentiel | ✅ **ACCEPTED** | [`docs/progress/phase-07-essential-gameplay/`](docs/progress/phase-07-essential-gameplay/) |
 | **8** — Quêtes, événements, création avancée | ✅ **ACCEPTED** | Merge [`1cd57ba`](https://github.com/Netsuno/MMO_Maker/commit/1cd57bad694f530fa5699639f9e63008522507e0) · [CI SUCCESS](https://github.com/Netsuno/MMO_Maker/actions/runs/35285230766) |
 | **9** — Distribution, admin, durcissement | ✅ **ACCEPTED** | Merge [`f74b34c`](https://github.com/Netsuno/MMO_Maker/commit/f74b34cca09dda819fe26747d48ee16d27007dfd) (PR [#7](https://github.com/Netsuno/MMO_Maker/pull/7)) · tip produit [`cab57b9`](https://github.com/Netsuno/MMO_Maker/commit/cab57b94c20f86af2cc61738bdf3307ed9626ef4) · [CI produit](https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869) · [CI post-merge](https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613) SUCCESS |
-| **10** — Bêta fermée externe | 📝 **P10-9 docs candidate** | [`docs/progress/phase-10-beta-release/`](docs/progress/phase-10-beta-release/) — P10-0…P10-8 ; 25×60 dédié + recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19** ; harness CI charge = 5 s. Phrase de gate **non écrite**. |
+| **10** — Bêta fermée externe | 📝 **P10-9 docs candidate** | [`docs/progress/phase-10-beta-release/`](docs/progress/phase-10-beta-release/) — P10-0…P10-8 ; 25×60 dédié + recette 2 PCs **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** ; harness CI charge = 5 s. Phrase de gate **non écrite**. |
 
 **Persistance produit :** **PostgreSQL** (EF Core / Npgsql). MariaDB = héritage optionnel uniquement — [ADR-0002](docs/decisions/ADR-0002-postgresql-source-of-truth.md), [matrice MariaDB](docs/MARIADB_DOMAIN_MATRIX.md).
 
@@ -147,7 +147,7 @@ Vision : un **seul monde hébergé**, équipe comme auteurs ; plus tard, les jou
 | **Héritage FRoG** | Inspiration uniquement — **pas** d’import `.fcc` ni parité VB6 ([ADR-0003](docs/decisions/ADR-0003-frog-inspiration-no-compatibility.md)). |
 | **Publication éditeur** | Oui, vers PostgreSQL via les ports applicatifs. |
 
-Succès utilisateur visé (bêta) : **deux joueurs à distance** sur le client livré, **chat + social + échange**, **dialogue NPC**, **combattre**, **éditeur publié** — voir [`BETA_SCOPE.md`](docs/progress/phase-10-beta-release/BETA_SCOPE.md). Recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19**.
+Succès utilisateur visé (bêta) : **deux joueurs à distance** sur le client livré, **chat + social + échange**, **dialogue NPC**, **combattre**, **éditeur publié** — voir [`BETA_SCOPE.md`](docs/progress/phase-10-beta-release/BETA_SCOPE.md). Recette 2 PCs **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**
 
 ---
 

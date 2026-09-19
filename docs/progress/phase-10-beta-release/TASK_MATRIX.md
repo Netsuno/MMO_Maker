@@ -1,6 +1,6 @@
 # Phase 10 — Matrice des exigences
 
-Statuts : **présent** (livré et prouvé sur `cursor/phase10-beta-release`) · **incomplet** (code ou preuve partielle) · **absent** · **hors périmètre** · **accepted by owner** (preuve physique acceptée par Marc Giroux le 2026-09-19, **non rejouée** dans cette PR).
+Statuts : **présent** (livré et prouvé sur `cursor/phase10-beta-release`) · **incomplet** (code ou preuve partielle) · **absent** · **hors périmètre** · **skip owner** (`Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.`).
 
 Les chemins « code attendu » pour l’absent sont des **cibles**, pas des fichiers déjà créés. Preuve automatisée = test ou artefact nommé + SHA/CI. Preuve propriétaire = acceptation datée, **sans** chiffres inventés.
 
@@ -81,14 +81,14 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Aide intégrée | `HelpForm` FR scrollable, F1 + bouton Aide | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
 | AZERTY/QWERTY ou rebind persisté | `InputService` ZQSD / WASD + flèches ; rebind JSON | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
 | Settings persistés (fenêtre, volume, touches) | `ClientSettingsStore` `%LocalAppData%\Frog\client-settings.json` atomique ; `OptionsForm` | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
-| 1366×768 et 1920×1080, DPI 100/150, accents | smokes actuels non dimensionnés ainsi | | **absent** |
+| 1366×768 et 1920×1080, DPI 100/150, accents | smokes actuels non dimensionnés ainsi (PC Windows local) | | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | Version visible + copie diagnostics expurgés | badge `v10.3.0` + « Copier diagnostics » (jamais jeton/mdp) | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
 | Éditeur : ouvrir/créer monde depuis paquet | playtest : même dossier + `../client-win-x64` / `../server-win-x64` ; `LoadPlacementsForMap` hors SyncContext UI | `Phase10PackagedLauncherResolveTests` + `Phase10EditorSyncOverAsyncTests` | **incomplet** (deadlock ouverture **corrigé** ; chemins livrés ; recette humaine paquet non) |
 | Import graphismes chemins transportables | tilesets PG + fichiers ; risque chemins dev | | **incomplet** |
 | Créer carte, collisions, warps, NPC, objets, dialogue, quête, recette, événement | formulaires Phase 4–8 | editor smoke **87×3** | **présent** (from-source) |
 | Save / close / reopen / publish | workspace PG + close coordinator | smokes close | **présent** |
 | Erreurs publish liées au contenu | messages workspace | | **incomplet** (pas recette paquet) |
-| Playtest depuis binaires **livrés** | `packaged-playtest-e2e.sh` / `.ps1` + `Phase10PackagedPlaytestFromZipTests` | Hello TCP zip hors dépôt ; READY headless + serveur publié (Linux) — CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) / [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) ; WinForms Linux **not proven** | **incomplet / hors gate** (Hello/READY **oui** ; menu Playtest GUI Linux **non** ; recette 2 PCs = P10-4 acceptée propriétaire) |
+| Playtest depuis binaires **livrés** | `packaged-playtest-e2e.sh` / `.ps1` + `Phase10PackagedPlaytestFromZipTests` | Hello TCP zip hors dépôt ; READY headless + serveur publié (Linux) — CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) / [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) ; `--smoke-launch` Windows CI | **présent** Hello/READY/smoke CI ; menu Playtest WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | Modification publiée visible joueur | live refresh Phase 8 existe en interne | | **incomplet** |
 | Pas d’édition SQL obligatoire pour le contenu | vrai pour cartes/catalogues ; grant GM = SQL | | **incomplet** (ops) |
 
@@ -101,8 +101,8 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | 3 cartes, 2 régions, 3 NPC, 2 monstres, 8 objets, 1 métier, 2 recettes, 2 quêtes 5 types | `Phase10DemoWorldCatalog` + publisher PG | `Phase10DemoWorldCatalogTests`, `Phase10DemoWorldPostgresTests` | **présent** (fixture) |
 | Licences / crédits assets | `demo-world/LICENSES.md` | tuiles procédurales, pas FRoG | **présent** |
 | Réinstall base vierge | `Migrate` + `Frog.DemoWorld publish` | PG isolated empty | **présent** |
-| Contenu distinct créé pendant recette | éditeur publié | étape 11 recette 2 PCs | **présent (accepted by owner Marc Giroux on 2026-09-19)** — non rejoué dans cette PR |
-| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` + `Phase10RecipeLoopbackTests` + `run-p10-4-recipe-loopback.sh` | **Automatisé :** loopback 3–8/10–11 CI. **Physique :** 2 / 5-WAN / 9-distant / 12 **DONE / accepted by owner Marc Giroux on 2026-09-19** (pas rejoué ici) | **présent** (loopback CI + acceptation propriétaire) |
+| Contenu distinct créé pendant recette | éditeur publié | étape 11 recette 2 PCs | **présent (Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.)** — non rejoué dans cette PR |
+| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` + `Phase10RecipeLoopbackTests` + `run-p10-4-recipe-loopback.sh` | **Automatisé :** loopback 3–8/10–11 CI. **Physique :** 2 / 5-WAN / 9-distant / 12 **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (pas rejoué ici) | **présent** (loopback CI + acceptation propriétaire) |
 | Seeds `Phase7PostgresContentSeed` / smokes | tests seulement | CI | **présent** (≠ monde démo) |
 
 ---
@@ -134,13 +134,13 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Exigence | Actuel | Preuve | Statut |
 | --- | --- | --- | --- |
-| Client Win x64 autonome | layout `client-win-x64` **self-contained** | Linux : EXE+SHA hors dépôt (`packaged-winforms-layout-proof.sh`) ; lancement **not proven on Linux agents** ; Windows CI `--smoke-launch` [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) SUCCESS | **incomplet / hors gate Linux GUI** (layout+lancement CI **oui** ; jeu 2 PCs = P10-4 **accepted by owner**) |
-| Éditeur Win x64 autonome | idem `editor-win-x64` | idem | **incomplet / hors gate Linux GUI** |
+| Client Win x64 autonome | layout `client-win-x64` **self-contained** | Linux : EXE+SHA hors dépôt (`packaged-winforms-layout-proof.sh`) ; Windows CI `--smoke-launch` [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) SUCCESS | **présent** (layout + smoke CI) ; jeu 2 PCs / GUI manuel = skip Netsun (P10-4 / P10-3) |
+| Éditeur Win x64 autonome | idem `editor-win-x64` | idem | **présent** (layout + smoke CI) ; menu Playtest manuel = skip Netsun |
 | Serveur Linux x64 + profil | `server-linux-x64` self-contained + `libhostfxr.so` | `PackagedServerPostgreSqlProcessTests` + layout smoke | **présent** |
 | Monde démo + ressources dans le paquet | `DEMO_WORLD.md` + `demo-world/LICENSES.md` copiés | | **présent** (fixture docs ; pas un zip de cartes binaires) |
 | Manifeste commit / protocole / SHA-256 archives | `packaging-manifest.json` + `archives/SHA256SUMS` | `Phase10PackagingTests` | **présent** (archives locales gitignorées) |
 | Serveur Windows | layout produit, lancement **non** revendiqué | | **incomplet** / secondaire |
-| Testeur ne compile pas, n’installe pas PG | self-contained + smoke PATH sans SDK | job Windows `--smoke-launch` | **présent** (smoke CI) ; jeu 2 PCs **accepted by owner** (P10-4) |
+| Testeur ne compile pas, n’installe pas PG | self-contained + smoke PATH sans SDK | job Windows `--smoke-launch` | **présent** (smoke CI) ; jeu 2 PCs **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | Guide install / version / update / uninstall | `PACKAGING_GUIDE.md` + scripts P10-6 | | **incomplet** (pas d’installer / MAJ) |
 | Alerte binaire non signé honnête | `PACKAGING_GUIDE.md` SmartScreen | | **présent** (pas de signature) |
 | MAJ candidate → candidate + rollback | — | | **absent** |
@@ -169,7 +169,7 @@ Deux classes de preuve : **automatisée (CI / harness court)** vs **physique acc
 
 | Essai mandat | Preuve | Statut |
 | --- | --- | --- |
-| 25 joueurs × 60 min, actions réelles, TLS+PG+monde | **Automatisé :** hosted packaged+PG hold **5 000 ms** (`mandateDurationMet=false`) CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) ; in-memory **45 s**. **Physique :** machine dédiée **DONE / accepted by owner Marc Giroux on 2026-09-19** — non rejouée ici, **aucun** chiffre inventé | **présent (accepted by owner Marc Giroux on 2026-09-19)** |
+| 25 joueurs × 60 min, actions réelles, TLS+PG+monde | **Automatisé :** hosted packaged+PG hold **5 000 ms** (`mandateDurationMet=false`) CI [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) ; in-memory **45 s**. **Physique :** machine dédiée **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** — non rejouée ici, **aucun** chiffre inventé | **présent (Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.)** |
 | Latence p95 ≤ 250 ms / p99 ≤ 1 s | RTT heartbeat/move/interact **loopback** campaign courte seulement ([LOAD_REPORT.md](LOAD_REPORT.md)) | **incomplet** (indicatif 5 s / 45 s ; **pas** de p95/p99 dédié inventé) |
 | Économie ≥ 10 mut/s × 5 min @ 25 | non mesuré en CI | **absent** (non bloqueur gate après update 2026-09-19) |
 | Interact 5/s × 60 s + rafale 20 | interact cadencé campaign courte, pas le palier isolé | **absent** (non bloqueur gate) |
@@ -192,7 +192,7 @@ Deux classes de preuve : **automatisée (CI / harness court)** vs **physique acc
 | RELEASE_MANIFEST / checklist candidate | **présent** — [RELEASE_MANIFEST.md](RELEASE_MANIFEST.md) + [CANDIDATE_CHECKLIST.md](CANDIDATE_CHECKLIST.md) ; **pas** un claim de sortie |
 | PLAYER_QUICKSTART / CREATOR_QUICKSTART | **présent** (guides P10-9) |
 | OPERATIONS / BACKUP_RESTORE Phase 10 | **présent** (guide + runbooks Phase 9 + RESTORE_REPORT P10-7) |
-| BETA_TEST_PLAN / BUG_REPORT_TEMPLATE | **présent** — loopback CI + **accepted by owner Marc Giroux on 2026-09-19** pour 2 PCs |
+| BETA_TEST_PLAN / BUG_REPORT_TEMPLATE | **présent** — loopback CI + **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** pour 2 PCs |
 | PHASE_REPORT / REVIEW_REQUEST Phase 10 | **absent** volontairement — docs candidate seulement ; phrase gate **interdite** dans ce lot |
 | Capture SHA-256 Phase 8 non affaibli | **présent** (ne pas toucher) |
 | `git diff --check` | à tenir à chaque push |
@@ -214,7 +214,7 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 | Trade P2P | **P10-2 livré** (84–86, TX PG, replay, holds, block invites) |
 | TLS | **lots A+E PASS** (SslStream in-process + LoadHarness Required ; proxy externe absent) |
 | PG runtime least-privilege | **lot D livré** (`frog_runtime` DML-only ; compose démo ≠ hébergé) |
-| Éditeur publish | **présent** chemins + fixture ; recette 2 PCs **accepted by owner Marc Giroux on 2026-09-19** |
-| Paquets | **incomplet / hors gate Linux GUI** (layout Linux + `--smoke-launch` Windows **CI 35403209506**) |
+| Éditeur publish | **présent** chemins + fixture ; recette 2 PCs **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
+| Paquets | layout Linux + `--smoke-launch` Windows **CI 35403209506** ; GUI manuel = skip Netsun |
 | Restore | **présent CI** (sanctions/social/trade + serveur publié) ; chiffrement/rétention **non** (non bloqueur gate) |
-| Load 25×60 | **présent (accepted by owner Marc Giroux on 2026-09-19)** ; harness CI = 5 s / 45 s seulement |
+| Load 25×60 | **présent (Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.)** ; harness CI = 5 s / 45 s seulement |

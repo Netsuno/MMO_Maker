@@ -52,9 +52,10 @@ Licences fixture : [`demo-world/LICENSES.md`](demo-world/LICENSES.md). Licence d
 - Bêta : `Registration:Mode=ProvisionedOnly`.
 - Groupes dissous au redémarrage processus.
 
-Changements détaillés : lots P10-0…P10-8 dans [`STATUS.md`](STATUS.md). Contenu créatif final = Marc, pas ce manifeste.
+Changements détaillés : lots P10-0…P10-8 dans [`STATUS.md`](STATUS.md). Contenu créatif final = Netsun, pas ce manifeste.
 
 ## Acceptations propriétaire 2026-09-19
 
-- P10-8 25×60 dédié — **accepted by owner Marc Giroux on 2026-09-19** (pas de métriques inventées).
-- P10-4 recette 2 PCs — **accepted by owner Marc Giroux on 2026-09-19** (pas rejouée ici).
+- P10-8 25×60 dédié — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (pas de métriques inventées).
+- P10-4 recette 2 PCs — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**
+- Menu Playtest WinForms manuel — **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (`--smoke-launch` Windows CI distinct).

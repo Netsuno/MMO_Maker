@@ -1,6 +1,6 @@
 # MMO_Maker — Mandat Phase 10 pour Grok Bot
 
-> Copie de traçabilité (P10-0, 2026-09-18). Texte officiel de Marc. Toute réduction de périmètre ou de preuve est hors autorité de l’agent. Fichier source de travail : ce chemin dans `docs/progress/phase-10-beta-release/`.
+> Copie de traçabilité (P10-0, 2026-09-18). Texte officiel de Netsun. Toute réduction de périmètre ou de preuve est hors autorité de l’agent. Fichier source de travail : ce chemin dans `docs/progress/phase-10-beta-release/`.
 
 ## GO Phase 10 — Bêta jouable, distribuable et exploitable
 

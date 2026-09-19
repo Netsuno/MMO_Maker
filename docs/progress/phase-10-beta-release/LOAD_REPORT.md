@@ -3,17 +3,17 @@
 Deux classes de preuve, à ne **pas** fusionner :
 
 1. **Automatisée (dépôt / CI)** — campagne hébergée courte (~5 s) et in-memory (~45 s). Chiffres ci-dessous = ces runs seulement.
-2. **Physique acceptée propriétaire** — 25 joueurs × 60 min machine dédiée : **DONE / accepted by owner Marc Giroux on 2026-09-19**. **Non rejouée** dans cette PR. **Aucun** chiffre de latence, TPS ou CPU n’est inventé pour ce run. **Aucun** job CI 60 min n’existe.
+2. **Physique / machine dédiée** — 25 joueurs × 60 min : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** **Aucun** chiffre de latence, TPS ou CPU n’est inventé pour ce run. **Aucun** job CI 60 min n’existe.
 
 Paquet docs candidate. Pas un claim marketing de sortie.
 
-## Acceptation propriétaire (2026-09-19 ~11:21 ET)
+## Acceptation / skip propriétaire (2026-09-19 — Netsun)
 
 | Item | Valeur |
 | --- | --- |
 | Palier mandat | 25 joueurs simultanés authentifiés × **60 min** |
 | Environnement | Machine dédiée (annonce opérateur / propriétaire) |
-| Statut | **DONE / accepted by owner Marc Giroux on 2026-09-19** |
+| Statut | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | Rejoué ici | **Non** |
 | Métriques 60 min (p50/p95/p99, actions/s, CPU%, RSS) | **Non publiées dans ce fichier** — les inventer serait un mensonge |
 | Job CI `--hold-ms 3600000` | **Absent** (`ci.yml` reste `--profile ci` = 5 s) |
@@ -66,7 +66,7 @@ Profils hosted : `ci` 5 s · `cloud` 45 s · `dedicated` 3600 s. Seuls `ci` (et 
 | Harness CPU / RSS | ~0,9 % / ~70 Mio (processus **séparé** du serveur) |
 | CI | [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) SUCCESS sur `814b8ba` ; tip `a489379` [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) SUCCESS |
 
-Ces lignes **ne** décrivent **pas** le run 60 min accepté par Marc.
+Ces lignes **ne** décrivent **pas** le palier 60 min (**Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**).
 
 ## Run cloud in-memory 2026-09-19 (automatisé, lot P10-8)
 
@@ -90,7 +90,7 @@ Ces lignes **ne** décrivent **pas** le run 60 min accepté par Marc.
 | Signal | Mandat | Automatisé ici | Physique |
 | --- | --- | --- | --- |
 | 25 sessions authentifiées | 25 | 25 (CI + scripts) | Inclus dans l’acceptation propriétaire |
-| Durée 60 min | 3 600 000 ms | **5 000 ms** hosted CI / **45 000 ms** in-memory (`mandateDurationMet=false`) | **accepted by owner Marc Giroux on 2026-09-19** |
+| Durée 60 min | 3 600 000 ms | **5 000 ms** hosted CI / **45 000 ms** in-memory (`mandateDurationMet=false`) | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
 | p95 ≤ 250 ms / p99 ≤ 1 s | bout-en-bout | mesuré **loopback court seulement** | **non inventé** pour le dédié |
 | Économie 10 mut/s × 5 min | — | non (campaign n’enchaîne pas shop/banque/trade) | non documenté ici |
 | Interact 5/s × 60 s + rafale 20 | — | cadencé court, pas le palier isolé | non documenté ici |

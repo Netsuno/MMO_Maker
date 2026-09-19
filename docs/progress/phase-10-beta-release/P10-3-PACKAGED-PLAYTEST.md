@@ -2,7 +2,7 @@
 
 Preuve de process / Hello depuis archives extraites **hors dépôt**. Ce n’est **pas** une partie WinForms 30–60 min.
 
-Recette 2 PCs physiques : **DONE / accepted by owner Marc Giroux on 2026-09-19** (voir [`guides/BETA_TEST_PLAN.md`](guides/BETA_TEST_PLAN.md)) — **non rejouée** ici. Menu Playtest WinForms : *not proven on Linux agents* (**hors gate**).
+Recette 2 PCs physiques : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (voir [`guides/BETA_TEST_PLAN.md`](guides/BETA_TEST_PLAN.md)). Menu Playtest WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (`--smoke-launch` Windows CI reste une preuve automatisée distincte).
 
 ## Linux (cet agent / CI ubuntu)
 
@@ -17,9 +17,9 @@ WinForms / WPF **impossible** à lancer de façon prouvée : `Frog.Client.exe` /
 5. TCP Hello opcode 1.
 6. Arrêt (fichier shutdown + SIGTERM).
 
-**Prouvé (test)** : `Phase10PackagedPlaytestFromZipTests` — serveur publié hors dépôt + client headless, marqueur READY spawn exact. WinForms `Frog.Client.exe` : *not proven on Linux agents*.
+**Prouvé (test)** : `Phase10PackagedPlaytestFromZipTests` — serveur publié hors dépôt + client headless, marqueur READY spawn exact.
 
-Phrase guide : *not proven on Linux agents* pour le playtest menu éditeur → client WinForms.
+Menu Playtest WinForms manuel (éditeur → spawn client) : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** Wine n’est jamais un pass.
 
 CI : job `postgres-integration`, étapes Hello zip + READY headless — [35449733364](https://github.com/Netsuno/MMO_Maker/actions/runs/35449733364) SUCCESS sur `814b8ba` ; tip `a489379` [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) SUCCESS.
 
@@ -34,10 +34,10 @@ CI : job `postgres-integration`, étapes Hello zip + READY headless — [3544973
 
 CI : job `build-and-test`, étape `Packaged playtest from zip (sibling layouts + server Hello)`.
 
-## Encore manquant / hors gate
+## Skip PC local (hors bloqueurs gate)
 
 | Item | Pourquoi |
 | --- | --- |
-| Menu Playtest WinForms (éditeur → spawn client) | Exige GUI Windows + workspace PG ; *not proven on Linux agents* — **hors gate** (mandat = Windows 11 x64) |
-| Playtest 2 machines / IP publique | **DONE / accepted by owner Marc Giroux on 2026-09-19** (P10-4) — pas un manquant ouvert |
-| HUD 1366×768 / 1920×1080 | P10-3 résolutions — **hors gate** (non exigé dans l’update 2026-09-19) |
+| Menu Playtest WinForms (éditeur → spawn client) | Exige GUI Windows + workspace PG ; CI prouve `--smoke-launch` seulement. **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
+| Playtest 2 machines / IP publique | **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (P10-4) |
+| HUD 1366×768 / 1920×1080 | PC Windows local. **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** |
