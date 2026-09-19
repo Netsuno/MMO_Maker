@@ -31,7 +31,9 @@ Paquet docs candidate (P10-9). Distingue **automatisable (CI / 1 hôte)** vs **2
 | 11 | Ops | Sanction | mute/ban TCP + restore banni rejeté | Effet HUD distant | Automatisé loopback + acceptation propriétaire |
 | 12 | A+B | Stabilité 30–60 min | Harness P10-8 `campaign` (≠ 2 clients GUI) | **Oui** (2 clients idle humains) | Harness court CI **plus** **DONE / accepted by owner Marc Giroux on 2026-09-19** |
 
-Les étapes **2, 5 (WAN), 9 (éditeur distant), 12** ne peuvent pas être cochées par un agent Linux seul. Elles sont **closes par acceptation propriétaire**, pas par un replay dans cette PR.
+**Exige 2 machines physiques** : les **étapes 2, 5 (WAN), 9 (éditeur distant), 12**.
+**Deux machines physiques sont obligatoires** pour ces étapes. Un agent Linux unique ne les rejoue pas.
+Elles sont **closes par acceptation propriétaire** (2026-09-19), pas par un replay dans cette PR.
 
 ## Scénarios (12) — journal
 
