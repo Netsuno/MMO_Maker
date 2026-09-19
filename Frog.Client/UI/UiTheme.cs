@@ -85,6 +85,28 @@ public static class UiTheme
     {
         ArgumentNullException.ThrowIfNull(root);
         ApplyCore(root, skipShaSurfaces: true);
+        IsolatePhase8ExactShaSurfaces(root);
+    }
+
+    /// <summary>
+    /// ForeColor/BackColor are ambient. Theming the parent TabPage/TLP would
+    /// otherwise recolor skipped SHA panels (exact-sha 02–04) without visiting them.
+    /// Pin system colors on the SHA roots only — do not restyle their chrome.
+    /// </summary>
+    public static void IsolatePhase8ExactShaSurfaces(Control root)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        if (IsPhase8ExactShaSurface(root))
+        {
+            root.ForeColor = SystemColors.ControlText;
+            root.BackColor = SystemColors.Control;
+            return;
+        }
+
+        foreach (Control child in root.Controls)
+        {
+            IsolatePhase8ExactShaSurfaces(child);
+        }
     }
 
     public static void ApplyIncludingShaSurfaces(Control root)

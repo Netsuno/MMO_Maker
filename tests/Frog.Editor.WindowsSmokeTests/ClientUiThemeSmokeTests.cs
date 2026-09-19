@@ -51,8 +51,12 @@ public sealed class ClientUiThemeSmokeTests
                 Assert.True(UiTheme.IsPhase8ExactShaSurface(form.QuestJournalPanelForTest));
                 Assert.True(UiTheme.IsPhase8ExactShaSurface(form.EnvironmentPanelForTest));
 
-                var dialogueBg = form.DialoguePanelForTest.BackColor;
-                Assert.NotEqual(UiTheme.BgPanel, dialogueBg);
+                var dialogue = form.DialoguePanelForTest;
+                Assert.NotEqual(UiTheme.BgPanel, dialogue.BackColor);
+                Assert.Equal(SystemColors.Control, dialogue.BackColor);
+                Assert.Equal(SystemColors.ControlText, dialogue.ForeColor);
+                Assert.Equal(SystemColors.ControlText, form.QuestJournalPanelForTest.ForeColor);
+                Assert.Equal(SystemColors.ControlText, form.EnvironmentPanelForTest.ForeColor);
 
                 form.HostTextBoxForTest.Text = "10.0.0.8";
                 form.PortNumericForTest.Value = 6123;
