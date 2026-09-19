@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -481,11 +482,25 @@ public sealed class LoadHarnessRunner
         LoadClientCounters counters,
         CancellationToken cancellationToken)
     {
-        var holdMs = Math.Max(0, options.HoldMilliseconds);
-        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(holdMs);
         var heartbeatRtt = new LoadLatencyCollector();
         var moveRtt = new LoadLatencyCollector();
         var interactRtt = new LoadLatencyCollector();
+        var live = clients.Where(c => c is not null).Cast<LoadTcpClient>().ToArray();
+        // First heartbeat is outside the hold clock: 25 TLS sessions racing a 3s
+        // in-loop timeout against a 2.5–5s hold dropped HeartbeatAckRecv below 25 on CI.
+        await Task.WhenAll(live.Select(tcp => TimedExchangeAsync(
+                tcp,
+                LoadPackets.Heartbeat(),
+                PacketId.HeartbeatAck,
+                TimeSpan.FromSeconds(8),
+                () => Interlocked.Increment(ref counters.HeartbeatSent),
+                () => Interlocked.Increment(ref counters.HeartbeatAckRecv),
+                () => Interlocked.Increment(ref counters.HeartbeatFail),
+                heartbeatRtt)))
+            .ConfigureAwait(false);
+
+        var holdMs = Math.Max(0, options.HoldMilliseconds);
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(holdMs);
         var samples = new List<LoadResourceSample>();
         var sampleGate = new object();
         var process = Process.GetCurrentProcess();

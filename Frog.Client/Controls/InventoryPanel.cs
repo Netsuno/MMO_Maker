@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
+using Frog.Client.UI;
 using Frog.Core.Protocol;
 
 namespace Frog.Client.Controls;
@@ -32,6 +33,8 @@ public sealed class InventoryPanel : UserControl
         top.Controls.Add(_btnDrop);
         Controls.Add(_list);
         Controls.Add(top);
+        SetStyle(ControlStyles.ResizeRedraw, true);
+        Paint += (s, e) => UiTheme.PaintDoubleGoldFrame(this, e);
         _btnEquip.Click += (_, _) =>
         {
             if (_list.SelectedItem is InventoryRow row)

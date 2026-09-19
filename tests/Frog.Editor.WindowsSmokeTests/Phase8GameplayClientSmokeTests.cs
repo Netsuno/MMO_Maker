@@ -143,6 +143,10 @@ public sealed class Phase8GameplayClientSmokeTests
         Assert.True(
             tabs.Width >= 300 && tabs.Width <= 400 && tabs.Height >= 250 && tabs.Height <= 700,
             $"Gameplay TabControl screenshot surface not laid out as a tab crop ({tabs.Width}×{tabs.Height}); expected 300–400×250–700.");
+        Assert.Equal(360, tabs.Width);
+        Assert.Equal(MainShellForm.Phase8ExactShaPanelWidth, form.DialoguePanelForTest.Width);
+        Assert.Equal(MainShellForm.Phase8ExactShaPanelWidth, form.QuestJournalPanelForTest.Width);
+        Assert.Equal(MainShellForm.Phase8ExactShaPanelWidth, form.EnvironmentPanelForTest.Width);
     }
 
     private static void WaitForPaint(Control control)

@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using Frog.Client.UI;
 using Frog.Core.Gameplay;
 using Frog.Core.Protocol;
 
@@ -31,6 +32,8 @@ public sealed class EquipmentPanel : UserControl
         flow.Controls.Add(_lblArmor);
         flow.Controls.Add(_btnUnequipArmor);
         Controls.Add(flow);
+        SetStyle(ControlStyles.ResizeRedraw, true);
+        Paint += (s, e) => UiTheme.PaintDoubleGoldFrame(this, e);
         _btnUnequipWeapon.Click += (_, _) => UnequipRequested?.Invoke(EquipmentSlotKind.Weapon);
         _btnUnequipArmor.Click += (_, _) => UnequipRequested?.Invoke(EquipmentSlotKind.Armor);
     }

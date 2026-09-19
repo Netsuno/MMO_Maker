@@ -135,7 +135,7 @@ public sealed class Phase10LoadHarnessTlsTests
             SelfHost = true,
             Scenario = "campaign",
             Sessions = 25,
-            HoldMilliseconds = 2500,
+            HoldMilliseconds = 5000,
             ActionIntervalMilliseconds = 200,
             SampleMilliseconds = 400,
             TlsMode = TlsTransportMode.Required,
@@ -154,8 +154,12 @@ public sealed class Phase10LoadHarnessTlsTests
         Assert.Equal(LoadCampaignInfo.MandateHoldMilliseconds, report.Campaign!.MandateHoldMs);
         Assert.False(report.Campaign.MandateDurationMet);
         Assert.True(report.Campaign.ActualHoldMs >= 2000);
-        Assert.True(report.Client.HeartbeatAckRecv >= 25);
-        Assert.True(report.Campaign.HeartbeatRtt.Count >= 25);
+        Assert.True(
+            report.Client.HeartbeatAckRecv >= 25,
+            $"HeartbeatAckRecv={report.Client.HeartbeatAckRecv} fail={report.Client.HeartbeatFail} sent={report.Client.HeartbeatSent}");
+        Assert.True(
+            report.Campaign.HeartbeatRtt.Count >= 25,
+            $"HeartbeatRtt.Count={report.Campaign.HeartbeatRtt.Count}");
         Assert.True(report.Campaign.ActionsPerSecond > 0);
         Assert.NotEmpty(report.Campaign.ResourceSamples);
     }

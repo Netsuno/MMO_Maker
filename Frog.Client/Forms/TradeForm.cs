@@ -1,4 +1,5 @@
 using System.Windows.Forms;
+using Frog.Client.UI;
 using Frog.Core.Enums;
 using Frog.Core.Protocol;
 
@@ -74,6 +75,7 @@ public sealed class TradeForm : Form
         root.Controls.Add(buttons, 0, 3);
         root.SetColumnSpan(buttons, 2);
         Controls.Add(root);
+        UiTheme.Apply(this);
 
         _btnConfirm.Click += (_, _) =>
         {

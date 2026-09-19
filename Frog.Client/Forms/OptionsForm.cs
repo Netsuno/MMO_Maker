@@ -1,5 +1,7 @@
+using System.Drawing;
 using System.Windows.Forms;
 using Frog.Client.Config;
+using Frog.Client.UI;
 
 namespace Frog.Client.Forms;
 
@@ -27,6 +29,9 @@ public sealed class OptionsForm : Form
     private readonly Button _btnRight = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Button _btnInteract = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Label _lblCapture = new() { AutoSize = true, Text = "Cliquez une action puis appuyez sur une touche." };
+    private readonly TextBox _txtHost = new() { Width = 160 };
+    private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Width = 80 };
+    private ListBox? _nav;
 
     private UserSettings _draft;
     private string? _capturing;
@@ -43,7 +48,8 @@ public sealed class OptionsForm : Form
         ShowInTaskbar = false;
         KeyPreview = true;
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(480, 420);
+        AutoScaleDimensions = new SizeF(96f, 96f);
+        ClientSize = new Size(620, 540);
 
         _cmbLayout.Items.AddRange(new object[] { "AZERTY (ZQSD)", "QWERTY (WASD)" });
         _cmbLayout.SelectedIndex = _draft.KeyboardPreset == KeyboardLayoutPreset.Qwerty ? 1 : 0;
@@ -52,41 +58,81 @@ public sealed class OptionsForm : Form
         _numHeight.Value = _draft.Window.Height;
         _chkMaximized.Checked = _draft.Window.Maximized;
         _chkFullScreen.Checked = _draft.Window.FullScreen;
+        _txtHost.Text = _draft.LastHost;
+        _numPort.Value = _draft.LastPort;
         RefreshVolumeLabel();
         RefreshBindButtons();
 
-        var root = new FlowLayoutPanel
+        var nav = new ListBox
         {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            Padding = new Padding(16),
-            AutoScroll = true,
+            Dock = DockStyle.Left,
+            Width = 140,
+            IntegralHeight = false,
         };
+        nav.Items.AddRange(new object[] { "Graphisme", "Son", "Contrôles", "Interface", "Réseau" });
 
-        root.Controls.Add(Heading("Affichage"));
-        root.Controls.Add(Row(Lbl("Largeur"), _numWidth, Lbl("Hauteur"), _numHeight));
-        root.Controls.Add(_chkMaximized);
-        root.Controls.Add(_chkFullScreen);
+        var graphics = Page(
+            Heading("Graphisme"),
+            Row(Lbl("Largeur"), _numWidth, Lbl("Hauteur"), _numHeight),
+            _chkMaximized,
+            _chkFullScreen);
+        var sound = Page(Heading("Son"), _volume, _lblVolume);
+        var controls = Page(
+            Heading("Contrôles"),
+            Row(Lbl("Disposition"), _cmbLayout),
+            Row(Lbl("Haut"), _btnUp, Lbl("Bas"), _btnDown),
+            Row(Lbl("Gauche"), _btnLeft, Lbl("Droite"), _btnRight),
+            Row(Lbl("Interagir"), _btnInteract),
+            _lblCapture);
+        var ui = Page(
+            Heading("Interface"),
+            Note("DPI Windows 100 / 125 / 150 % : layout DIP (AutoScaleMode.Font)."),
+            Note("Hitboxes et cadres restent en pixels logiques — pas de chiffre FPS inventé."),
+            Note("Le HUD n’est pas repeint par le timer mouvement 16 ms."));
+        var network = Page(
+            Heading("Réseau"),
+            Row(Lbl("Hôte"), _txtHost, Lbl("Port"), _numPort),
+            Note("TLS : géré par le serveur — pas de handshake ajouté ici."));
+        var pages = new[] { graphics, sound, controls, ui, network };
+        var content = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8) };
+        foreach (var page in pages)
+        {
+            page.Dock = DockStyle.Fill;
+            page.Visible = false;
+            content.Controls.Add(page);
+        }
 
-        root.Controls.Add(Heading("Volume"));
-        root.Controls.Add(_volume);
-        root.Controls.Add(_lblVolume);
+        void ShowPage(int index)
+        {
+            for (var i = 0; i < pages.Length; i++)
+            {
+                pages[i].Visible = i == index;
+            }
+        }
 
-        root.Controls.Add(Heading("Clavier"));
-        root.Controls.Add(Row(Lbl("Disposition"), _cmbLayout));
-        root.Controls.Add(Row(Lbl("Haut"), _btnUp, Lbl("Bas"), _btnDown));
-        root.Controls.Add(Row(Lbl("Gauche"), _btnLeft, Lbl("Droite"), _btnRight));
-        root.Controls.Add(Row(Lbl("Interagir"), _btnInteract));
-        root.Controls.Add(_lblCapture);
+        nav.SelectedIndexChanged += (_, _) => ShowPage(Math.Max(0, nav.SelectedIndex));
+        nav.SelectedIndex = 0;
+        ShowPage(0);
 
         var save = new Button { Text = "Enregistrer", AutoSize = true, DialogResult = DialogResult.OK };
         var cancel = new Button { Text = "Annuler", AutoSize = true, DialogResult = DialogResult.Cancel };
         AcceptButton = save;
         CancelButton = cancel;
-        root.Controls.Add(Row(save, cancel));
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            AutoSize = true,
+            FlowDirection = FlowDirection.RightToLeft,
+            Padding = new Padding(8),
+        };
+        buttons.Controls.Add(cancel);
+        buttons.Controls.Add(save);
 
-        Controls.Add(root);
+        Controls.Add(content);
+        Controls.Add(nav);
+        Controls.Add(buttons);
+        UiTheme.Apply(this);
+        _nav = nav;
 
         _cmbLayout.SelectedIndexChanged += (_, _) =>
         {
@@ -103,6 +149,8 @@ public sealed class OptionsForm : Form
         _numHeight.ValueChanged += (_, _) => _draft.Window.Height = (int)_numHeight.Value;
         _chkMaximized.CheckedChanged += (_, _) => _draft.Window.Maximized = _chkMaximized.Checked;
         _chkFullScreen.CheckedChanged += (_, _) => _draft.Window.FullScreen = _chkFullScreen.Checked;
+        _txtHost.TextChanged += (_, _) => _draft.LastHost = _txtHost.Text.Trim();
+        _numPort.ValueChanged += (_, _) => _draft.LastPort = (int)_numPort.Value;
 
         _btnUp.Click += (_, _) => BeginCapture("MoveUp");
         _btnDown.Click += (_, _) => BeginCapture("MoveDown");
@@ -123,6 +171,12 @@ public sealed class OptionsForm : Form
     internal Button SaveButtonForTest => AcceptButton as Button ?? throw new InvalidOperationException("Save");
 
     internal Button MoveUpButtonForTest => _btnUp;
+
+    internal TextBox HostTextBoxForTest => _txtHost;
+
+    internal NumericUpDown PortNumericForTest => _numPort;
+
+    internal ListBox SectionNavForTest => _nav ?? throw new InvalidOperationException("nav");
 
     internal void CommitSave()
     {
@@ -198,6 +252,32 @@ public sealed class OptionsForm : Form
         "MoveRight" => "droite",
         "Interact" => "interagir",
         _ => action,
+    };
+
+    private static FlowLayoutPanel Page(params Control[] controls)
+    {
+        var page = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            AutoScroll = true,
+            Padding = new Padding(8),
+        };
+        foreach (var c in controls)
+        {
+            page.Controls.Add(c);
+        }
+
+        return page;
+    }
+
+    private static Label Note(string text) => new()
+    {
+        Text = text,
+        AutoSize = true,
+        MaximumSize = new Size(420, 0),
+        ForeColor = Color.FromArgb(0xA8, 0xB0, 0xC0),
+        Margin = new Padding(0, 4, 0, 4),
     };
 
     private static Label Heading(string text) => new()

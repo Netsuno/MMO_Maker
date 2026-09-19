@@ -1,4 +1,5 @@
 using System.Windows.Forms;
+using Frog.Client.UI;
 
 namespace Frog.Client.Forms;
 
@@ -91,6 +92,7 @@ public sealed class HelpForm : Form
 
         Controls.Add(text);
         Controls.Add(bottom);
+        UiTheme.Apply(this);
 
         KeyDown += (_, e) =>
         {
