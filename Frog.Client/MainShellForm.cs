@@ -234,7 +234,14 @@ public sealed class MainShellForm : Form
         KeyPreview = true;
         DoubleBuffered = true;
         ApplyWindowSettings(_settings.Window);
+        if (_playtestOptions is not { IsPlaytest: true })
+        {
+            _txtHost.Text = _settings.LastHost;
+            _numPort.Value = Math.Clamp(_settings.LastPort, 1, 65535);
+        }
+
         BuildLayout();
+        ApplyDaTheme();
         ApplyVersionChrome();
         ApplyPlayerStatusLayout();
         RefreshMoveHint();
@@ -756,6 +763,7 @@ public sealed class MainShellForm : Form
         b.MinimumSize = new Size(96, 30);
         b.Padding = new Padding(10, 4, 10, 4);
         b.Margin = new Padding(4, 4, 4, 4);
+        UiTheme.StyleButton(b);
     }
 
     private static FlowLayoutPanel CreateToolbarRow()
@@ -847,10 +855,10 @@ public sealed class MainShellForm : Form
         StyleToolbarButton(_btnHelp);
         StyleToolbarButton(_btnOptions);
         StyleToolbarButton(_btnCopyDiagnostics);
-        BackColor = SystemColors.Control;
-        _panelLogin.BackColor = Color.FromArgb(245, 248, 252);
-        _panelCharacter.BackColor = Color.FromArgb(245, 248, 252);
-        _panelGame.BackColor = SystemColors.Control;
+        BackColor = UiTheme.BgApp;
+        _panelLogin.BackColor = UiTheme.BgApp;
+        _panelCharacter.BackColor = UiTheme.BgApp;
+        _panelGame.BackColor = UiTheme.BgApp;
         foreach (Panel p in new[] { _panelLogin, _panelCharacter })
         {
             p.AutoScroll = true;
@@ -1077,7 +1085,7 @@ public sealed class MainShellForm : Form
             ColumnCount = 1,
             RowCount = 2,
             Padding = new Padding(6, 4, 6, 6),
-            BackColor = SystemColors.Control,
+            BackColor = UiTheme.BgApp,
         };
         gameLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gameLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -1086,7 +1094,7 @@ public sealed class MainShellForm : Form
         _panelGame.Controls.Clear();
         _panelGame.Controls.Add(gameLayout);
 
-        _hostPages.BackColor = SystemColors.Control;
+        _hostPages.BackColor = UiTheme.BgApp;
         _hostPages.Controls.Add(_panelGame);
         _hostPages.Controls.Add(_panelCharacter);
         _hostPages.Controls.Add(_panelLogin);
@@ -2000,6 +2008,7 @@ public sealed class MainShellForm : Form
             var host = _txtHost.Text.Trim();
             var port = (int)_numPort.Value;
             var tls = ClientTlsOptions.FromEnvironment(host);
+            PersistLastEndpoint(host, port);
             await _client.ConnectAsync(host, port, tls).ConfigureAwait(true);
             var connected = tls.Mode == TlsTransportMode.Required
                 ? $"TLS connecté {host}:{port} SNI={tls.TargetHost}"
@@ -3138,6 +3147,8 @@ public sealed class MainShellForm : Form
                 && FormBorderStyle != FormBorderStyle.None;
             _settings.Window.FullScreen = FormBorderStyle == FormBorderStyle.None;
             _settings.VolumePercent = _sound.VolumePercent;
+            _settings.LastHost = _txtHost.Text.Trim();
+            _settings.LastPort = (int)_numPort.Value;
             _settingsStore.Save(_settings);
         }
         catch
@@ -3152,6 +3163,12 @@ public sealed class MainShellForm : Form
         _input.Apply(_settings);
         _sound.Apply(_settings);
         ApplyWindowSettings(_settings.Window);
+        if (_playtestOptions is not { IsPlaytest: true })
+        {
+            _txtHost.Text = _settings.LastHost;
+            _numPort.Value = Math.Clamp(_settings.LastPort, 1, 65535);
+        }
+
         RefreshMoveHint();
         _settingsStore.Save(_settings);
     }
@@ -3169,9 +3186,31 @@ public sealed class MainShellForm : Form
 
     private void ApplyVersionChrome() => UpdateVersionBadge();
 
+    private void ApplyDaTheme()
+    {
+        UiTheme.Apply(this);
+        _mapScroll.BackColor = MapSurfaceBackColor;
+        _picMap.BackColor = MapSurfaceBackColor;
+    }
+
+    private void PersistLastEndpoint(string host, int port)
+    {
+        _settings.LastHost = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();
+        _settings.LastPort = Math.Clamp(port, 1, 65535);
+        try
+        {
+            _settingsStore.Save(_settings);
+        }
+        catch
+        {
+            // persistance optionnelle
+        }
+    }
+
     private void ApplyPlayerStatusLayout()
     {
-        _lblPlayerStatus.BackColor = Color.FromArgb(235, 240, 246);
+        _lblPlayerStatus.BackColor = UiTheme.BgPanelHeader;
+        _lblPlayerStatus.ForeColor = UiTheme.TextPrimary;
     }
 
     private void ApplyOptionsHelpChrome()
@@ -3196,6 +3235,8 @@ public sealed class MainShellForm : Form
     private void OpenOptions()
     {
         ReleaseAllMoveKeys();
+        _settings.LastHost = _txtHost.Text.Trim();
+        _settings.LastPort = (int)_numPort.Value;
         using var dlg = new OptionsForm(_settings);
         if (dlg.ShowDialog(this) != DialogResult.OK)
         {

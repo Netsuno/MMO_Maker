@@ -15,6 +15,11 @@ public sealed class UserSettings
 
     public WindowSettings Window { get; set; } = new();
 
+    /// <summary>Dernier hôte TCP (login + Options → Réseau). Une seule vérité JSON.</summary>
+    public string LastHost { get; set; } = "127.0.0.1";
+
+    public int LastPort { get; set; } = 6000;
+
     public void Normalize()
     {
         if (SchemaVersion < 1)
@@ -27,6 +32,8 @@ public sealed class UserSettings
         Bindings.Normalize(KeyboardPreset);
         Window ??= new WindowSettings();
         Window.Normalize();
+        LastHost = string.IsNullOrWhiteSpace(LastHost) ? "127.0.0.1" : LastHost.Trim();
+        LastPort = Math.Clamp(LastPort, 1, 65535);
     }
 
     public void ApplyPreset(KeyboardLayoutPreset preset)
@@ -44,6 +51,8 @@ public sealed class UserSettings
             Bindings = Bindings.Clone(),
             VolumePercent = VolumePercent,
             Window = Window.Clone(),
+            LastHost = LastHost,
+            LastPort = LastPort,
         };
         copy.Normalize();
         return copy;

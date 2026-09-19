@@ -4,7 +4,7 @@
 **Ordre DA (validé) :** **E0 → E2 avant** tout peaufinage fenêtre par fenêtre. Puis E3…E8.  
 **Tokens / chrome :** [TOKENS-DA.md](TOKENS-DA.md). Architecture : [ARCHITECTURE.md](ARCHITECTURE.md).  
 **Inventaire :** `MainShellForm` réel (`853776e`) — [BASELINE_AUDIT.md](BASELINE_AUDIT.md).  
-**Ce run :** docs only. Branche ≠ Phase 10. Pas de wire / opcodes / TLS.
+**Base code :** `main` @ `e58a185` (Phase 10 mergée). Pas de wire / opcodes / TLS. Mouvement = priorité #1.
 
 Si une étape glisse vers le serveur ou `cursor/phase10-beta-release` : **stop**.
 

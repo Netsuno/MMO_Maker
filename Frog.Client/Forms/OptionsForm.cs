@@ -1,5 +1,6 @@
 using System.Windows.Forms;
 using Frog.Client.Config;
+using Frog.Client.UI;
 
 namespace Frog.Client.Forms;
 
@@ -27,6 +28,8 @@ public sealed class OptionsForm : Form
     private readonly Button _btnRight = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Button _btnInteract = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Label _lblCapture = new() { AutoSize = true, Text = "Cliquez une action puis appuyez sur une touche." };
+    private readonly TextBox _txtHost = new() { Width = 160 };
+    private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Width = 80 };
 
     private UserSettings _draft;
     private string? _capturing;
@@ -43,7 +46,7 @@ public sealed class OptionsForm : Form
         ShowInTaskbar = false;
         KeyPreview = true;
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(480, 420);
+        ClientSize = new Size(500, 520);
 
         _cmbLayout.Items.AddRange(new object[] { "AZERTY (ZQSD)", "QWERTY (WASD)" });
         _cmbLayout.SelectedIndex = _draft.KeyboardPreset == KeyboardLayoutPreset.Qwerty ? 1 : 0;
@@ -52,6 +55,8 @@ public sealed class OptionsForm : Form
         _numHeight.Value = _draft.Window.Height;
         _chkMaximized.Checked = _draft.Window.Maximized;
         _chkFullScreen.Checked = _draft.Window.FullScreen;
+        _txtHost.Text = _draft.LastHost;
+        _numPort.Value = _draft.LastPort;
         RefreshVolumeLabel();
         RefreshBindButtons();
 
@@ -68,6 +73,9 @@ public sealed class OptionsForm : Form
         root.Controls.Add(Row(Lbl("Largeur"), _numWidth, Lbl("Hauteur"), _numHeight));
         root.Controls.Add(_chkMaximized);
         root.Controls.Add(_chkFullScreen);
+
+        root.Controls.Add(Heading("Réseau"));
+        root.Controls.Add(Row(Lbl("Hôte"), _txtHost, Lbl("Port"), _numPort));
 
         root.Controls.Add(Heading("Volume"));
         root.Controls.Add(_volume);
@@ -87,6 +95,7 @@ public sealed class OptionsForm : Form
         root.Controls.Add(Row(save, cancel));
 
         Controls.Add(root);
+        UiTheme.Apply(this);
 
         _cmbLayout.SelectedIndexChanged += (_, _) =>
         {
@@ -103,6 +112,8 @@ public sealed class OptionsForm : Form
         _numHeight.ValueChanged += (_, _) => _draft.Window.Height = (int)_numHeight.Value;
         _chkMaximized.CheckedChanged += (_, _) => _draft.Window.Maximized = _chkMaximized.Checked;
         _chkFullScreen.CheckedChanged += (_, _) => _draft.Window.FullScreen = _chkFullScreen.Checked;
+        _txtHost.TextChanged += (_, _) => _draft.LastHost = _txtHost.Text.Trim();
+        _numPort.ValueChanged += (_, _) => _draft.LastPort = (int)_numPort.Value;
 
         _btnUp.Click += (_, _) => BeginCapture("MoveUp");
         _btnDown.Click += (_, _) => BeginCapture("MoveDown");
@@ -123,6 +134,10 @@ public sealed class OptionsForm : Form
     internal Button SaveButtonForTest => AcceptButton as Button ?? throw new InvalidOperationException("Save");
 
     internal Button MoveUpButtonForTest => _btnUp;
+
+    internal TextBox HostTextBoxForTest => _txtHost;
+
+    internal NumericUpDown PortNumericForTest => _numPort;
 
     internal void CommitSave()
     {
