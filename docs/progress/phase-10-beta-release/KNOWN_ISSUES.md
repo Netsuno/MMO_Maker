@@ -71,6 +71,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 
 ### Éditeur / publish
 
+- **Deadlock ouverture carte (corrigé)** : `LoadPlacementsForMap` / `LoadCatalog` / `Try*` sync de `MapEventsPostgreSqlService` attendaient EF sur le thread UI. Pattern `Task.Run` hors SynchronizationContext (`RunOffUiSyncContext`). `GameDataForm.EnsureInitializedSynchronouslyForTest` reste un helper de test, pas le chemin Shown.
 - Publication PostgreSQL **réelle** (cartes, catalogues Phase 6, contenu Phase 8). Menu « Publier vers MariaDB… (héritage) » encore visible.
 - Playtest éditeur : même dossier que l’éditeur, layouts frères `../client-win-x64` / `../server-win-x64`, puis `bin/Debug|Release` du dépôt.
 - Lancement depuis zip hors dépôt : layout **Linux CI** ; process `--smoke-launch` **Windows CI**. Wine Linux ≠ pass.

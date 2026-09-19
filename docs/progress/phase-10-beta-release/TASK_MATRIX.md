@@ -81,7 +81,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Settings persistés (fenêtre, volume, touches) | `ClientSettingsStore` `%LocalAppData%\Frog\client-settings.json` atomique ; `OptionsForm` | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
 | 1366×768 et 1920×1080, DPI 100/150, accents | smokes actuels non dimensionnés ainsi | | **absent** |
 | Version visible + copie diagnostics expurgés | badge `v10.3.0` + « Copier diagnostics » (jamais jeton/mdp) | `Phase10ClientSettingsSmokeTests` | **présent** (P10-3a) |
-| Éditeur : ouvrir/créer monde depuis paquet | playtest : même dossier + `../client-win-x64` / `../server-win-x64` | `Phase10PackagedLauncherResolveTests` | **incomplet** (chemins livrés ; recette humaine paquet non) |
+| Éditeur : ouvrir/créer monde depuis paquet | playtest : même dossier + `../client-win-x64` / `../server-win-x64` ; `LoadPlacementsForMap` hors SyncContext UI | `Phase10PackagedLauncherResolveTests` + `Phase10EditorSyncOverAsyncTests` | **incomplet** (deadlock ouverture **corrigé** ; chemins livrés ; recette humaine paquet non) |
 | Import graphismes chemins transportables | tilesets PG + fichiers ; risque chemins dev | | **incomplet** |
 | Créer carte, collisions, warps, NPC, objets, dialogue, quête, recette, événement | formulaires Phase 4–8 | editor smoke **87×3** | **présent** (from-source) |
 | Save / close / reopen / publish | workspace PG + close coordinator | smokes close | **présent** |

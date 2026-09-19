@@ -1,6 +1,6 @@
 # Phase 10 — STATUS
 
-**P10-5 A–E PASS sécu** (TLS Windows unitaires verts). P10-2 déjà livré. P10-4/P10-6/P10-7 sur la branche. **Pas READY.**
+**P10-5 A–E PASS sécu** (TLS Windows unitaires verts). P10-2 déjà livré. P10-4/P10-6/P10-7 sur la branche. Correctif éditeur sync-over-async (`LoadPlacementsForMap`). **Pas READY.**
 
 | Item | Valeur |
 | --- | --- |
@@ -21,7 +21,7 @@
 | P10-0 Audit + plan | **FAIT** |
 | P10-1 Groupes / guildes / relations | **DONE** tip `dca2185` — CI PR en cours ; pas une gate |
 | P10-2 Échanges directs | **LIVRÉ (code + tests)** — opcodes 84–86, TX PG, replay, **block sur invites** |
-| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a livré ; playtest résout layouts `../client-win-x64` / `../server-win-x64` ; recette humaine paquet **non** |
+| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a livré ; deadlock ouverture carte **corrigé** (`Task.Run` hors SyncContext UI) ; playtest résout layouts `../client-win-x64` / `../server-win-x64` ; recette humaine paquet **non** |
 | P10-4 Monde démo + recette | **INCOMPLET** — fixture 3 cartes **livrée** ; 12 étapes : CI/loopback vs **2 machines** nommé dans `BETA_TEST_PLAN` ; campagne 30–60 min **non exécutée** |
 | P10-5 Sécurité externe (TLS, invitations, NAT) | **PASS sécu** A–E (TLS Windows unitaires verts). Palier 25×60 = P10-8 |
 | P10-6 Paquets autonomes | **INCOMPLET** — layout+SHA Linux **et** `--smoke-launch` Windows **CI 35403209506 SUCCESS** ; wine Linux ≠ pass ; 2 PCs **non** |
@@ -40,6 +40,12 @@
 | P10-5 C ClosedBeta + OpsCli | `726e037b4e5cd4943c1e076f732385f4d76cc76b` | **livré** |
 | P10-5 D PG least-privilege | `8f06cde0cec35fefb3c27817b1e7090562633649` | **livré** |
 | P10-5 E LoadHarness TLS | `b58a02a03d269ac1e89cc812638e90badb7b9634` | **livré** |
+
+## Éditeur — deadlock ouverture (sync-over-async)
+
+Cause : `MapEventsPostgreSqlService.LoadPlacementsForMap` (et les autres `Load*` / `Try*` sync) faisaient `_gate.ExecuteAsync(...).ConfigureAwait(false).GetAwaiter().GetResult()` depuis le thread UI WinForms (`Shown` / `OpenMap` → `RefreshMapEventMarkers`). `WaitAsync` complète souvent de façon synchrone : EF reprend alors le SynchronizationContext UI pendant que `GetResult` le bloque → chargement infini.
+
+Correctif : `RunOffUiSyncContext` = `Task.Run(work).GetResult()` autour de tout sync-over-async du service. Tests : `Phase10EditorSyncOverAsyncTests` (scan sources) + `Phase10EditorSyncOverAsyncSmokeTests` (contexte bloquant, pas de Post).
 
 ## P10-3a — ce qui est livré
 
