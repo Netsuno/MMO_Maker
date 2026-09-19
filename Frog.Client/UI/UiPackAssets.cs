@@ -213,7 +213,7 @@ public static class UiPackAssets
     {
         foreach (var candidate in RootCandidates())
         {
-            if (File.Exists(Path.Combine(candidate, "frames", "panel_brown.png")))
+            if (File.Exists(Path.Combine(candidate, "frames", "panel.png")))
             {
                 root = candidate;
                 return true;
@@ -226,32 +226,33 @@ public static class UiPackAssets
 
     internal static IReadOnlyList<string> ExpectedRelativeFiles { get; } =
     [
-        "frames/panel_brown.png",
-        "frames/panelInset_brown.png",
-        "slots/buttonSquare_brown.png",
-        "slots/buttonSquare_brown_pressed.png",
-        "menu/buttonRound_brown.png",
-        "bars/barRed_horizontalLeft.png",
-        "bars/barRed_horizontalMid.png",
-        "bars/barRed_horizontalRight.png",
-        "bars/barBlue_horizontalLeft.png",
-        "bars/barBlue_horizontalBlue.png",
-        "bars/barBlue_horizontalRight.png",
-        "bars/barBack_horizontalLeft.png",
-        "bars/barBack_horizontalMid.png",
-        "bars/barBack_horizontalRight.png",
-        "chrome/buttonLong_brown.png",
-        "chrome/arrowBrown_left.png",
-        "chrome/arrowBrown_right.png",
-        "icons/menu/walk.png",
-        "icons/menu/backpack.png",
-        "icons/menu/scroll-unfurled.png",
-        "icons/menu/treasure-map.png",
-        "icons/menu/cog.png",
-        "icons/hotbar/broadsword.png",
-        "icons/hotbar/fire-spell-cast.png",
-        "icons/hotbar/hand.png",
-        "CREDITS.md",
+        "frames/panel.png",
+        "frames/panel_inset.png",
+        "slots/slot.png",
+        "slots/slot_pressed.png",
+        "menu/btn_round.png",
+        "bars/hp_left.png",
+        "bars/hp_mid.png",
+        "bars/hp_right.png",
+        "bars/mp_left.png",
+        "bars/mp_mid.png",
+        "bars/mp_right.png",
+        "bars/track_left.png",
+        "bars/track_mid.png",
+        "bars/track_right.png",
+        "chrome/btn_long.png",
+        "chrome/arrow_left.png",
+        "chrome/arrow_right.png",
+        "menu/icon_perso.png",
+        "menu/icon_inv.png",
+        "menu/icon_quetes.png",
+        "menu/icon_carte.png",
+        "menu/icon_options.png",
+        "hotbar/icon_melee.png",
+        "hotbar/icon_spell.png",
+        "hotbar/icon_interact.png",
+        "THIRD_PARTY.md",
+        "KIT-SELECTION.md",
     ];
 
     private static bool TryGet(ref Image? cached, out Image image)
@@ -284,32 +285,32 @@ public static class UiPackAssets
             if (TryResolveRoot(out var root))
             {
                 _resolvedRoot = root;
-                _framePanel = Load(root, "frames/panel_brown.png");
-                _frameInset = Load(root, "frames/panelInset_brown.png");
-                _slot = Load(root, "slots/buttonSquare_brown.png");
-                _slotPressed = Load(root, "slots/buttonSquare_brown_pressed.png");
-                _menuPill = Load(root, "menu/buttonRound_brown.png");
-                _cta = Load(root, "chrome/buttonLong_brown.png");
-                _ctaPressed = Load(root, "chrome/buttonLong_brown_pressed.png");
-                _arrowLeft = Load(root, "chrome/arrowBrown_left.png");
-                _arrowRight = Load(root, "chrome/arrowBrown_right.png");
-                _barBackLeft = Load(root, "bars/barBack_horizontalLeft.png");
-                _barBackMid = Load(root, "bars/barBack_horizontalMid.png");
-                _barBackRight = Load(root, "bars/barBack_horizontalRight.png");
-                _barRedLeft = Load(root, "bars/barRed_horizontalLeft.png");
-                _barRedMid = Load(root, "bars/barRed_horizontalMid.png");
-                _barRedRight = Load(root, "bars/barRed_horizontalRight.png");
-                _barBlueLeft = Load(root, "bars/barBlue_horizontalLeft.png");
-                _barBlueMid = Load(root, "bars/barBlue_horizontalBlue.png");
-                _barBlueRight = Load(root, "bars/barBlue_horizontalRight.png");
-                _iconWalk = Load(root, "icons/menu/walk.png");
-                _iconBackpack = Load(root, "icons/menu/backpack.png");
-                _iconScroll = Load(root, "icons/menu/scroll-unfurled.png");
-                _iconMap = Load(root, "icons/menu/treasure-map.png");
-                _iconCog = Load(root, "icons/menu/cog.png");
-                _iconSword = Load(root, "icons/hotbar/broadsword.png");
-                _iconSpell = Load(root, "icons/hotbar/fire-spell-cast.png");
-                _iconHand = Load(root, "icons/hotbar/hand.png");
+                _framePanel = Load(root, "frames/panel.png");
+                _frameInset = Load(root, "frames/panel_inset.png");
+                _slot = Load(root, "slots/slot.png");
+                _slotPressed = Load(root, "slots/slot_pressed.png");
+                _menuPill = Load(root, "menu/btn_round.png");
+                _cta = Load(root, "chrome/btn_long.png");
+                _ctaPressed = Load(root, "chrome/btn_long_pressed.png");
+                _arrowLeft = Load(root, "chrome/arrow_left.png");
+                _arrowRight = Load(root, "chrome/arrow_right.png");
+                _barBackLeft = Load(root, "bars/track_left.png");
+                _barBackMid = Load(root, "bars/track_mid.png");
+                _barBackRight = Load(root, "bars/track_right.png");
+                _barRedLeft = Load(root, "bars/hp_left.png");
+                _barRedMid = Load(root, "bars/hp_mid.png");
+                _barRedRight = Load(root, "bars/hp_right.png");
+                _barBlueLeft = Load(root, "bars/mp_left.png");
+                _barBlueMid = Load(root, "bars/mp_mid.png");
+                _barBlueRight = Load(root, "bars/mp_right.png");
+                _iconWalk = Load(root, "menu/icon_perso.png");
+                _iconBackpack = Load(root, "menu/icon_inv.png");
+                _iconScroll = Load(root, "menu/icon_quetes.png");
+                _iconMap = Load(root, "menu/icon_carte.png");
+                _iconCog = Load(root, "menu/icon_options.png");
+                _iconSword = Load(root, "hotbar/icon_melee.png");
+                _iconSpell = Load(root, "hotbar/icon_spell.png");
+                _iconHand = Load(root, "hotbar/icon_interact.png");
             }
 
             _loaded = true;

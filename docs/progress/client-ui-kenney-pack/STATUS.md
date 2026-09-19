@@ -2,10 +2,10 @@
 
 | Champ | Valeur |
 | --- | --- |
-| **Chantier** | Brancher le pack UI Kenney (RPG Expansion) + icônes game-icons sur le HUD live |
+| **Chantier** | Brancher le kit DA Kenney + game-icons sur le HUD live |
 | **Propriétaire** | Netsun |
-| **Statut** | Assets + crédits + fils HUD existants (frames / slots / menu / hotbar / barres / CTA) |
-| **Base** | `main` @ `e5b298d` (ou plus récent) |
+| **Statut** | Kit `Assets/Ui/` + crédits + fils HUD existants |
+| **Base** | `main` @ `e5b298d` |
 | **Branche** | `cursor/client-ui-kenney-pack-79b6` |
 | **PR** | Draft vers `main` — **pas de merge** |
 
@@ -15,26 +15,30 @@ Jetons DA inchangés (`#161C28` / `#C9A227`) — tint `ImageAttributes` dans `Ui
 
 Aucun claim de publication publique.
 
+Kit source : archive DA `frog-ui-kit.tar.gz` → `Frog.Client/Assets/Ui/` (`KIT-SELECTION.md`).
+
 ---
 
 ## Mapping (fils réels uniquement)
 
-| Asset | Chemin | Fil live |
+| Asset kit | Source Kenney / game-icons | Fil live |
 | --- | --- | --- |
-| `panel_brown.png` | `Frog.Client/Assets/Ui/frames/` | `HudModulePanel` (Status, Minimap, QuestTracker, Chat) — 9-slice + filet or DA |
-| `panelInset_brown.png` | `Frog.Client/Assets/Ui/frames/` | `HudHotbar` chrome intérieur |
-| `buttonSquare_brown.png` (+ pressed copié) | `Frog.Client/Assets/Ui/slots/` | Cases `HudHotbar` (chiffres 1–0 conservés) |
-| `buttonRound_brown.png` | `Frog.Client/Assets/Ui/menu/` | Pills `HudMenuRing` (libellés Perso/Inv/Quêtes/Carte/Options conservés) |
-| `barRed_*` / `barBlue_*` / `barBack_*` | `Frog.Client/Assets/Ui/bars/` | HP / MP `HudStatusModule` (pas de barre XP) |
-| `buttonLong_brown.png` | `Frog.Client/Assets/Ui/chrome/` | CTA « Envoyer chat » (`HudChatDock.AttachInputs`) |
-| `arrowBrown_*` | `Frog.Client/Assets/Ui/chrome/` | **Livrés, non branchés** — `DialoguePanel` est SHA Phase 8 |
-| `walk` / `backpack` / `scroll-unfurled` / `treasure-map` / `cog` | `Frog.Client/Assets/Ui/icons/menu/` | MenuRing (Perso / Inv / Quêtes / Carte / Options) |
-| `broadsword` / `fire-spell-cast` / `hand` | `Frog.Client/Assets/Ui/icons/hotbar/` | Hotbar slots 1–3 (mêlée / sort / interagir) |
+| `frames/panel.png` | `panel_brown.png` | `HudModulePanel` (Status, Minimap, QuestTracker, Chat) |
+| `frames/panel_inset.png` | `panelInset_brown.png` | `HudHotbar` chrome intérieur |
+| `slots/slot.png` (+ `_pressed`) | `buttonSquare_brown.png` | Cases `HudHotbar` (chiffres 1–0 conservés) |
+| `menu/btn_round.png` | `buttonRound_brown.png` | Pills `HudMenuRing` (libellés conservés) |
+| `bars/hp_*` / `mp_*` / `track_*` | `barRed_*` / `barBlue_*` / `barBack_*` | HP / MP `HudStatusModule` |
+| `bars/mp_mid.png` | `barBlue_horizontalBlue.png` | MP mid (nom Kenney) |
+| `bars/xp_*` | `barYellow_*` | **Livrés, non branchés** (max XP absent du fil) |
+| `chrome/btn_long.png` | `buttonLong_brown.png` | CTA « Envoyer chat » |
+| `chrome/arrow_*.png` | `arrowBrown_*` | **Livrés, non branchés** — `DialoguePanel` SHA Phase 8 |
+| `menu/icon_perso` / `_inv` / `_quetes` / `_carte` / `_options` | walk / backpack / scroll-unfurled / treasure-map / cog | MenuRing |
+| `hotbar/icon_melee` / `_spell` / `_interact` | broadsword / fire-spell-cast / hand | Hotbar slots 1–3 |
 
-Tint : cadres / slots / pills / fond de barre → `UiTheme.CreatePanelTintAttributes()` vers `#161C28`.
-Icônes blanches → `UiTheme.CreateGoldTintAttributes()` vers `#C9A227`.
+Tint : cadres / slots / pills / piste → `UiTheme.CreatePanelTintAttributes()` vers `#161C28`.
+Icônes → `UiTheme.CreateGoldTintAttributes()` vers `#C9A227`.
 
-Crédits : [THIRD_PARTY.md](../../../THIRD_PARTY.md), [CREDITS.md](../../../CREDITS.md), copie runtime `Frog.Client/Assets/Ui/CREDITS.md`.
+Crédits : [THIRD_PARTY.md](../../../THIRD_PARTY.md), [CREDITS.md](../../../CREDITS.md), runtime `Frog.Client/Assets/Ui/THIRD_PARTY.md`.
 
 ---
 

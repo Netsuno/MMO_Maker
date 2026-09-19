@@ -11,32 +11,35 @@ public sealed class ClientUiKenneyPackTests
 {
     private static readonly string[] RequiredRelativeFiles =
     [
-        "frames/panel_brown.png",
-        "frames/panelInset_brown.png",
-        "slots/buttonSquare_brown.png",
-        "slots/buttonSquare_brown_pressed.png",
-        "menu/buttonRound_brown.png",
-        "bars/barRed_horizontalLeft.png",
-        "bars/barRed_horizontalMid.png",
-        "bars/barRed_horizontalRight.png",
-        "bars/barBlue_horizontalLeft.png",
-        "bars/barBlue_horizontalBlue.png",
-        "bars/barBlue_horizontalRight.png",
-        "bars/barBack_horizontalLeft.png",
-        "bars/barBack_horizontalMid.png",
-        "bars/barBack_horizontalRight.png",
-        "chrome/buttonLong_brown.png",
-        "chrome/arrowBrown_left.png",
-        "chrome/arrowBrown_right.png",
-        "icons/menu/walk.png",
-        "icons/menu/backpack.png",
-        "icons/menu/scroll-unfurled.png",
-        "icons/menu/treasure-map.png",
-        "icons/menu/cog.png",
-        "icons/hotbar/broadsword.png",
-        "icons/hotbar/fire-spell-cast.png",
-        "icons/hotbar/hand.png",
-        "CREDITS.md",
+        "frames/panel.png",
+        "frames/panel_inset.png",
+        "slots/slot.png",
+        "slots/slot_pressed.png",
+        "menu/btn_round.png",
+        "bars/hp_left.png",
+        "bars/hp_mid.png",
+        "bars/hp_right.png",
+        "bars/mp_left.png",
+        "bars/mp_mid.png",
+        "bars/mp_right.png",
+        "bars/track_left.png",
+        "bars/track_mid.png",
+        "bars/track_right.png",
+        "chrome/btn_long.png",
+        "chrome/arrow_left.png",
+        "chrome/arrow_right.png",
+        "menu/icon_perso.png",
+        "menu/icon_inv.png",
+        "menu/icon_quetes.png",
+        "menu/icon_carte.png",
+        "menu/icon_options.png",
+        "hotbar/icon_melee.png",
+        "hotbar/icon_spell.png",
+        "hotbar/icon_interact.png",
+        "menu/icon_perso.svg",
+        "hotbar/icon_melee.svg",
+        "THIRD_PARTY.md",
+        "KIT-SELECTION.md",
     ];
 
     [Fact]
@@ -65,7 +68,7 @@ public sealed class ClientUiKenneyPackTests
         {
             Path.Combine(RepoRoot(), "THIRD_PARTY.md"),
             Path.Combine(RepoRoot(), "CREDITS.md"),
-            Path.Combine(RepoRoot(), "Frog.Client", "Assets", "Ui", "CREDITS.md"),
+            Path.Combine(RepoRoot(), "Frog.Client", "Assets", "Ui", "THIRD_PARTY.md"),
             Path.Combine(RepoRoot(), "docs", "progress", "client-ui-kenney-pack", "STATUS.md"),
         };
         foreach (var path in files)
@@ -81,6 +84,13 @@ public sealed class ClientUiKenneyPackTests
         Assert.Contains("CC0", third, StringComparison.Ordinal);
         Assert.Contains("game-icons.net", third, StringComparison.Ordinal);
         Assert.Contains("CC BY", third, StringComparison.Ordinal);
+        Assert.Contains("barBlue_horizontalBlue.png", third, StringComparison.Ordinal);
+
+        var packThird = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Assets", "Ui", "THIRD_PARTY.md"));
+        Assert.Contains("Kenney", packThird, StringComparison.Ordinal);
+        Assert.Contains("CC0", packThird, StringComparison.Ordinal);
+        Assert.Contains("CC BY 3.0", packThird, StringComparison.Ordinal);
+        Assert.Contains("mp_mid.png", packThird, StringComparison.Ordinal);
 
         var credits = File.ReadAllText(Path.Combine(RepoRoot(), "CREDITS.md"));
         Assert.Contains("Netsun", credits, StringComparison.Ordinal);

@@ -11,7 +11,7 @@ and are dedicated to the public domain under
 
 ## game-icons.net
 
-Menu and hotbar icons in `Frog.Client/Assets/Ui/icons/` are from
+Menu and hotbar icons in `Frog.Client/Assets/Ui/menu/` and `…/hotbar/` are from
 [game-icons.net](https://game-icons.net/), licensed under
 [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
 
@@ -23,4 +23,5 @@ Icons by:
 
 Available at https://game-icons.net/ under CC BY 3.0.
 
-Full license notes: [THIRD_PARTY.md](THIRD_PARTY.md).
+Full license notes: [THIRD_PARTY.md](THIRD_PARTY.md) and
+`Frog.Client/Assets/Ui/THIRD_PARTY.md`.
