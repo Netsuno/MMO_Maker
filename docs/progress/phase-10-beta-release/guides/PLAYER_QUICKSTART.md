@@ -2,7 +2,7 @@
 
 À la fin de ce guide, tu es connecté, tu as un personnage, et tu peux te déplacer sur une carte.
 
-> **Bêta en cours** — certaines étapes (paquet autonome, connexion chiffrée, invitation fermée) ne sont pas encore dans tous les builds. Suis le message de l’opérateur pour *ton* build.
+> **Bêta en cours** — smoke `--smoke-launch` Windows CI ; playtest zip = Hello serveur hors dépôt, pas une partie. TLS campaign P10-8 ≠ 2 PCs.
 
 ## Prérequis
 

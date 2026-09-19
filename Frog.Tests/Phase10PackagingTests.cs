@@ -55,6 +55,18 @@ public sealed class Phase10PackagingTests
         var ci = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
         Assert.Contains("packaged-winforms-smoke.ps1", ci, StringComparison.Ordinal);
         Assert.Contains("packaged-winforms-layout-proof.sh", ci, StringComparison.Ordinal);
+        Assert.Contains("packaged-playtest-e2e.ps1", ci, StringComparison.Ordinal);
+        Assert.Contains("packaged-playtest-e2e.sh", ci, StringComparison.Ordinal);
+
+        var playtestSh = File.ReadAllText(Path.Combine(root, "scripts", "packaged-playtest-e2e.sh"));
+        Assert.Contains("outside the git tree", playtestSh, StringComparison.Ordinal);
+        Assert.Contains("not proven on Linux agents", playtestSh, StringComparison.Ordinal);
+        Assert.Contains("WinForms", playtestSh, StringComparison.Ordinal);
+
+        var playtestPs = File.ReadAllText(Path.Combine(root, "scripts", "packaged-playtest-e2e.ps1"));
+        Assert.Contains("sibling", playtestPs, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Frog.Server.exe", playtestPs, StringComparison.Ordinal);
+        Assert.Contains("outside the git tree", playtestPs, StringComparison.Ordinal);
 
         var guide = File.ReadAllText(Path.Combine(
             root, "docs", "progress", "phase-09-distribution-admin-hardening", "PACKAGING_GUIDE.md"));

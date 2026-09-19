@@ -1,6 +1,6 @@
 # Phase 10 — STATUS
 
-**P10-5 A–E PASS sécu** (TLS Windows unitaires verts). P10-2 déjà livré. P10-4/P10-6/P10-7 sur la branche. Correctif éditeur sync-over-async (`LoadPlacementsForMap`). **Pas READY.**
+**P10-5 A–E PASS sécu.** Deadlock éditeur corrigé. Harness P10-8 `campaign` + playtest zip serveur Hello. Recette 2 PCs et 25×60 min **non clos**. **Pas READY.**
 
 | Item | Valeur |
 | --- | --- |
@@ -12,7 +12,7 @@
 | Protocole runtime (cette branche) | **v11** — [`SOCIAL_PROTOCOL_FREEZE.md`](SOCIAL_PROTOCOL_FREEZE.md) opcodes 80–86 |
 | P10-5 A | **PASS** TLS Windows unitaires verts — lot [`ea116afa`](https://github.com/Netsuno/MMO_Maker/commit/ea116afae9ee1a84c8d80e08ae9f6f0bf2e7af3b) ; B–E déjà sur la branche |
 | P10-1 tip produit | [`dca2185`](https://github.com/Netsuno/MMO_Maker/commit/dca2185dbb80b0414af8f95696a4e0e858e6ff90) — **DONE** |
-| Gate Phase 10 | **pas atteinte** — recette 2 machines physiques, P10-8 25×60, P10-9 candidate |
+| Gate Phase 10 | **pas atteinte** — recette 2 machines physiques, P10-8 25×60 **full**, P10-9 candidate |
 
 ## Lots
 
@@ -21,13 +21,13 @@
 | P10-0 Audit + plan | **FAIT** |
 | P10-1 Groupes / guildes / relations | **DONE** tip `dca2185` — CI PR en cours ; pas une gate |
 | P10-2 Échanges directs | **LIVRÉ (code + tests)** — opcodes 84–86, TX PG, replay, **block sur invites** |
-| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a livré ; deadlock ouverture carte **corrigé** (`Task.Run` hors SyncContext UI) ; playtest résout layouts `../client-win-x64` / `../server-win-x64` ; recette humaine paquet **non** |
-| P10-4 Monde démo + recette | **INCOMPLET** — fixture 3 cartes **livrée** ; 12 étapes : CI/loopback vs **2 machines** nommé dans `BETA_TEST_PLAN` ; campagne 30–60 min **non exécutée** |
+| P10-3 Client / éditeur externes | **INCOMPLET** — P10-3a livré ; deadlock ouverture **corrigé** ; playtest zip serveur Hello hors dépôt (Linux + script Windows CI) ; menu Playtest WinForms / 2 PCs **non** |
+| P10-4 Monde démo + recette | **INCOMPLET** — fixture 3 cartes **livrée** ; loopback 2 clients **automatisé** (`Phase10RecipeLoopbackTests`) ; étapes 2 / 5-WAN / 9-distant / 12 **exigent 2 machines** |
 | P10-5 Sécurité externe (TLS, invitations, NAT) | **PASS sécu** A–E (TLS Windows unitaires verts). Palier 25×60 = P10-8 |
 | P10-6 Paquets autonomes | **INCOMPLET** — layout+SHA Linux **et** `--smoke-launch` Windows **CI 35403209506 SUCCESS** ; wine Linux ≠ pass ; 2 PCs **non** |
 | P10-7 Exploitation / restore | **INCOMPLET** — dump/restore **lignes** sanctions/guildes/amis/trades + serveur publié **CI** ; chiffrement/rétention/durée 30 min **non** |
-| P10-8 Charge 25 joueurs | **INCOMPLET** |
-| P10-9 Validation / candidate | **ABSENT** |
+| P10-8 Charge 25 joueurs | **INCOMPLET** — harness `campaign` 25×TLS + métriques **livré** ; 60 min / PG / monde publié **non** ([`LOAD_REPORT.md`](LOAD_REPORT.md)) |
+| P10-9 Validation / candidate | **INCOMPLET** — STATUS/matrice/KNOWN_ISSUES + LOAD_REPORT borné ; phrase gate **interdite** |
 
 ## File (déjà landed, ne pas rejouer)
 
@@ -93,6 +93,14 @@ Correctif : `RunOffUiSyncContext` = `Task.Run(work).GetResult()` autour de tout 
 - Tests : `Phase10TlsTests` (expiré, mauvais nom, CA inconnue, pas de fallback, fail-fast host). `Phase9SecurityGateTests` inchangé.
 - Certificats de test éphémères uniquement — aucun cert prod dans Git.
 
+## P10-8 — ce qui est PROUVÉ vs RESTANT
+
+Voir [`LOAD_REPORT.md`](LOAD_REPORT.md). **PROUVÉ** : scénario `campaign` (25 sessions, TLS Required, RTT/TPS/CPU/RAM), script `run-p10-8-load-campaign.sh`, test CI 25×~2,5 s. **RESTANT** : 60 min wall, serveur publié + PG + monde, économie 10 mut/s, idle 300 s, reconnect 25, job CI 90 min.
+
+## P10-3 playtest zip — ce qui est PROUVÉ vs RESTANT
+
+Voir [`P10-3-PACKAGED-PLAYTEST.md`](P10-3-PACKAGED-PLAYTEST.md). **PROUVÉ** : zip serveur hors dépôt → process + Hello (Linux CI) ; script Windows sibling layouts + Hello. **RESTANT** : menu Playtest WinForms, Linux client/éditeur (impossible honnêtement), 2 PCs.
+
 ## P10-6 — ce qui est PROUVÉ vs RESTANT
 
 **PROUVÉ (Linux CI, `packaged-winforms-layout-proof.sh`) :**
@@ -154,4 +162,4 @@ Pas de merge. Pas de distribution. Pas de Phase 11. Pas de READY bêta. PacketDi
 
 ## Verdict
 
-**P10-5 A–E PASS sécu (TLS Windows unitaires verts) + P10-2 + P10-6 layout/EXE scripts + P10-7 restore lignes.** La bêta n’est **pas** prête. P10-8 (25×60) attend toujours TLS **et** paquets lancés en recette 2 machines.
+**P10-5 A–E PASS sécu + P10-2 + P10-6 + P10-7 + deadlock éditeur + harness P10-8 borné + playtest zip serveur.** La bêta n’est **pas** prête. Restent 25×60 min dédié, recette 2 PCs, playtest menu WinForms.

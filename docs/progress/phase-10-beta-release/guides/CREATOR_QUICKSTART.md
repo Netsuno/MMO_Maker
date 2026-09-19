@@ -2,7 +2,7 @@
 
 À la fin de ce guide, tu as une petite carte enregistrée, prête à être testée dans le client.
 
-> **Bêta en cours** — le lancement depuis un **paquet** éditeur autonome n’est pas encore prouvé. Ce guide décrit le geste dans l’éditeur ; suis le build fourni par l’opérateur.
+> **Bêta en cours** — zip serveur : Hello hors dépôt (`packaged-playtest-e2e.sh`). Menu Playtest WinForms depuis `Frog.Editor.exe` livré : **pas** prouvé sur Linux (*not proven on Linux agents*). Script Windows : `packaged-playtest-e2e.ps1`.
 
 ## Prérequis
 

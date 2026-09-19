@@ -27,7 +27,7 @@
 | 9 | Auteur | Publish mineur | `Frog.DemoWorld` + publisher PG | **Oui** si éditeur **paquet** → joueur distant voit le warp | Fixture **oui** ; paquet+2 PCs **non** |
 | 10 | Ops | Backup / restore | `Phase10BackupRestoreRowsTests` (lignes sociales/trade/sanctions + serveur publié) | Non pour la preuve CI | **CI** |
 | 11 | Ops | Sanction | mute/ban TCP + restore banni rejeté | **Oui** pour effet visible HUD distant | Automatisé loopback |
-| 12 | A+B | Stabilité 30–60 min | Non (durée humaine / 2 clients idle) | **Oui** | Non joué |
+| 12 | A+B | Stabilité 30–60 min | Harness P10-8 `campaign` (1 hôte, ≠ 2 clients GUI) | **Oui** (2 clients idle humains) | Harness borné ; 2 PCs **non** |
 
 **Deux machines physiques sont obligatoires pour les étapes 2, 5 (WAN), 9 (éditeur livré → joueur distant), 12.** Un agent Linux unique ne peut pas les cocher.
 
@@ -39,13 +39,13 @@ Cocher **Statut** seulement avec preuve (capture / note datée / SHA CI). Ne pas
 | --- | --- | --- | --- | --- | --- |
 | 1 | Joueur A | Install client | Dézipper / lancer | App démarre | Smoke `--smoke-launch` CI Windows ; campagne 2 PC **non jouée** |
 | 2 | Joueur B | Install client | Idem machine 2 | App démarre | Non joué (2e machine) |
-| 3 | A+B | Connexion | Login comptes fournis | Session OK | Loopback tests ; WAN **non** |
-| 4 | A+B | Personnages | Créer / choisir | En carte | Loopback tests |
-| 5 | A+B | Présence | Même carte | Se voient | Loopback tests ; 2 PCs **non** |
+| 3 | A+B | Connexion | Login comptes fournis | Session OK | `Phase10RecipeLoopbackTests` ; WAN **non** |
+| 4 | A+B | Personnages | Créer / choisir | En carte | `Phase10RecipeLoopbackTests` |
+| 5 | A+B | Présence | Même carte | Se voient | Move/chat loopback ; 2 PCs **non** |
 | 6 | A | Gameplay de base | Combat / objet / quête courte | Pas de blocage P0 | Smokes from-source |
 | 7 | A+B | Social minimal | Groupe / guilde / ami | Action OK | Tests TCP/PG |
 | 8 | A+B | Échange | Invite + commit | Pas de dup / perte | Tests TCP/PG |
 | 9 | Auteur | Publish mineur | Éditeur paquet → monde | Visible in-game | Fixture démo ; playtest paquet **chemins livrés** (P10-3), recette humaine **non** |
 | 10 | Ops | Backup / restore | Runbook + P10-7 | Login après restore ; banni refusé | **CI** `Phase10BackupRestoreRowsTests` |
 | 11 | Ops | Sanction | Mute ou kick / ban | Effet visible | Tests + restore |
-| 12 | A+B | Stabilité courte | Session 30–60 min | Inventaire cohérent | Non joué (2 machines) |
+| 12 | A+B | Stabilité courte | Session 30–60 min | Inventaire cohérent | Harness P10-8 ≠ 2 GUI ; 2 machines **non** |

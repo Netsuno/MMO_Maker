@@ -1,0 +1,38 @@
+# P10-3 — Playtest depuis zip livré
+
+**Pas READY.** Preuve de process / Hello depuis archives extraites **hors dépôt**. Ce n’est pas une partie WinForms 30–60 min ni une recette 2 PC.
+
+## Linux (cet agent / CI ubuntu)
+
+WinForms / WPF **impossible** à lancer de façon prouvée : `Frog.Client.exe` / `Frog.Editor.exe` sont des apphost Windows. Wine n’est **jamais** un pass ([`packaged-winforms-layout-proof.sh`](../../../scripts/packaged-winforms-layout-proof.sh) `--skip-wine`).
+
+**Prouvé (script)** : [`scripts/packaged-playtest-e2e.sh`](../../../scripts/packaged-playtest-e2e.sh)
+
+1. Publie `server-linux-x64` (ou `--skip-publish` après `packaged-server-smoke`).
+2. Copie le zip hors de l’arbre git, extrait.
+3. Démarre `Frog.Server` du zip (`AllowInMemoryFallback` local au dossier extrait).
+4. TCP Hello opcode 1.
+5. Arrêt (fichier shutdown + SIGTERM).
+
+Phrase guide : *not proven on Linux agents* pour le playtest menu éditeur → client WinForms.
+
+CI : job `postgres-integration`, étape `Packaged playtest from zip (server Linux, hors dépôt)`.
+
+## Windows (CI windows-latest)
+
+[`scripts/packaged-playtest-e2e.ps1`](../../../scripts/packaged-playtest-e2e.ps1)
+
+1. Publie `client-win-x64` + `editor-win-x64` + `server-win-x64`.
+2. Extrait hors dépôt, aplatit en layouts **frères** (`../client-win-x64`, `../server-win-x64`) — les mêmes candidats que `EditorFrogClientLauncher` / `EditorFrogServerLauncher`.
+3. Démarre `Frog.Server.exe` du zip, TCP Hello.
+4. `--smoke-launch` client/éditeur reste P10-6 (`packaged-winforms-smoke.ps1`) : shell visible puis quit, **pas** le menu Playtest.
+
+CI : job `build-and-test`, étape `Packaged playtest from zip (sibling layouts + server Hello)`.
+
+## Encore manquant
+
+| Item | Pourquoi |
+| --- | --- |
+| Menu Playtest WinForms (éditeur → spawn client) | Exige GUI Windows + workspace PG ; pas automatisé ici |
+| Playtest 2 machines / IP publique | P10-4 |
+| HUD 1366×768 / 1920×1080 | P10-3 résolutions |

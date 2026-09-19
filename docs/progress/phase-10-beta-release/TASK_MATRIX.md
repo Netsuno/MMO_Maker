@@ -86,7 +86,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Créer carte, collisions, warps, NPC, objets, dialogue, quête, recette, événement | formulaires Phase 4–8 | editor smoke **87×3** | **présent** (from-source) |
 | Save / close / reopen / publish | workspace PG + close coordinator | smokes close | **présent** |
 | Erreurs publish liées au contenu | messages workspace | | **incomplet** (pas recette paquet) |
-| Playtest depuis binaires **livrés** | `EditorFrogServerLauncher` / `EditorFrogClientLauncher` layouts frères | résolution unitaire + smoke EXE `--smoke-launch` | **incomplet** (résolution **oui** ; playtest E2E paquet **non**) |
+| Playtest depuis binaires **livrés** | `packaged-playtest-e2e.sh` / `.ps1` + layouts frères | Hello TCP depuis zip hors dépôt ; WinForms Linux **not proven** | **incomplet** (process/Hello **oui** ; menu Playtest / 2 PCs **non**) |
 | Modification publiée visible joueur | live refresh Phase 8 existe en interne | | **incomplet** |
 | Pas d’édition SQL obligatoire pour le contenu | vrai pour cartes/catalogues ; grant GM = SQL | | **incomplet** (ops) |
 
@@ -100,7 +100,7 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 | Licences / crédits assets | `demo-world/LICENSES.md` | tuiles procédurales, pas FRoG | **présent** |
 | Réinstall base vierge | `Migrate` + `Frog.DemoWorld publish` | PG isolated empty | **présent** |
 | Contenu distinct créé pendant recette | éditeur publié | étape 11 | **absent** |
-| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` (matrice automate vs 2 PCs) / `DEMO_WORLD.md` | étapes 2/12 + WAN **exigent 2 machines** | **absent** (lacune nommée, pas coché) |
+| 12 étapes, 2 joueurs, 2 machines, paquets | `BETA_TEST_PLAN` + `Phase10RecipeLoopbackTests` + `run-p10-4-recipe-loopback.sh` | loopback 3–8/10–11 **oui** ; 2/5-WAN/9-distant/12 **2 machines** | **incomplet** (lacune 2 PCs nommée) |
 | Seeds `Phase7PostgresContentSeed` / smokes | tests seulement | CI | **présent** (≠ monde démo) |
 
 ---
@@ -165,17 +165,17 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Essai mandat | Actuel Phase 9 | Statut |
 | --- | --- | --- |
-| 25 joueurs × 60 min, actions réelles, TLS+PG+monde | non exécuté (mixed 25 in-memory **14 s**) | **absent** |
-| Latence p95 ≤ 250 ms / p99 ≤ 1 s | non mesuré bout-en-bout | **absent** |
+| 25 joueurs × 60 min, actions réelles, TLS+PG+monde | harness `campaign` 25×TLS in-memory ; 60 min **non** | **incomplet** ([LOAD_REPORT.md](LOAD_REPORT.md)) |
+| Latence p95 ≤ 250 ms / p99 ≤ 1 s | RTT heartbeat/move/interact mesurés en loopback campaign | **incomplet** (pas WAN / pas 60 min) |
 | Économie ≥ 10 mut/s × 5 min @ 25 | non certifié | **absent** |
-| Interact 5/s × 60 s + rafale 20 | non certifié | **absent** |
+| Interact 5/s × 60 s + rafale 20 | interact cadencé campaign, pas le palier isolé | **absent** |
 | Idle 300 s | config 300 s existe ; **non mesuré** | **incomplet** |
 | Reconnect 25 &lt; 60 s après restart | non mesuré | **absent** |
 | Connexions PG budget 20 | pool non dumpé ; 4 authed PG | **incomplet** |
-| CPU &lt; 80 %, mémoire bornée | ~31 % process à 100 mixed in-memory (autre scénario) | **incomplet** |
+| CPU &lt; 80 %, mémoire bornée | échantillons process campaign (générateur+serveur) | **incomplet** |
 | 50/100 exploratoire | 100 mixed in-memory mesuré — **pas** une certif hébergée | **hors périmètre** tant que 25×60 échoue ; ne pas vendre |
-| Générateur décode réponses / états | harness Hello/select/chat/move + **TLS Required** | `Phase10LoadHarnessTlsTests` ; [LOAD_HARNESS_TLS.md](LOAD_HARNESS_TLS.md) | **lot E livré** (économie/social 60 min = P10-8) |
-| Job CI ~90 min dédié | absent | **absent** |
+| Générateur décode réponses / états | campaign décode Hello/auth/heartbeat/move/interact/melee/chat + TLS | `Phase10LoadHarnessTlsTests` ; [LOAD_HARNESS_TLS.md](LOAD_HARNESS_TLS.md) | **incomplet** (60 min / PG) |
+| Job CI ~90 min dédié | absent (volontaire, job existant borné) | **absent** |
 
 ---
 
@@ -183,8 +183,8 @@ Légende lots : P10-1 social · P10-2 trade · P10-3 client/éditeur · P10-4 d�
 
 | Livrable mandat | Statut |
 | --- | --- |
-| E2E_MATRIX / TEST_RESULTS Phase 10 | **absent** |
-| LOAD_REPORT / RESTORE_REPORT Phase 10 | **RESTORE_REPORT** P10-7 **présent** ; LOAD_REPORT 25×60 **absent** |
+| E2E_MATRIX / TEST_RESULTS Phase 10 | **absent** (playtest zip = [P10-3-PACKAGED-PLAYTEST.md](P10-3-PACKAGED-PLAYTEST.md)) |
+| LOAD_REPORT / RESTORE_REPORT Phase 10 | **RESTORE_REPORT** P10-7 **présent** ; **LOAD_REPORT** borné (pas 60 min) |
 | RELEASE_MANIFEST / RELEASE_NOTES | **absent** |
 | PLAYER_QUICKSTART / CREATOR_QUICKSTART | **absent** |
 | OPERATIONS / BACKUP_RESTORE Phase 10 | **incomplet** (runbooks Phase 9 + RESTORE_REPORT P10-7) |
@@ -213,4 +213,4 @@ Coffre guilde, HdV, mail objets, guerres, raids, instances, sharding, UDP/AOI, m
 | Éditeur publish | **incomplet** (from-source oui ; chemins paquet **oui** ; recette humaine non) |
 | Paquets | **incomplet** (layout Linux + `--smoke-launch` Windows **CI 35403209506** ; 2 PCs / jeu réel **non**) |
 | Restore | **présent CI** (sanctions/social/trade + serveur publié) ; chiffrement/rétention **non** |
-| Load 25×60 | **absent** (mesures courtes in-memory seulement) |
+| Load 25×60 | **incomplet** (campaign TLS 25 + métriques ; 60 min dédié **non**) |

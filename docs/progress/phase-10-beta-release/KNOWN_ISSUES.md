@@ -15,7 +15,7 @@ Source historique : [`../phase-09-distribution-admin-hardening/KNOWN_ISSUES.md`]
 | **TLS** | Lots A+E : `SslStream` in-process + LoadHarness `Mode=Required` (pas AcceptAll). Proxy externe, mTLS, DPAPI : absents. | P10-5 A+E **livrés** |
 | **Packaging client/éditeur** | Scripts `publish-frog` self-contained + SHA-256. Layout EXE hors dépôt : `packaged-winforms-layout-proof.sh` (Linux). Lancement process : `packaged-winforms-smoke.ps1` (Windows CI `--smoke-launch`). **not proven on Linux agents.** Smokes Phase 8 = from-source, distincts. Serveur Linux **prouvé**. | P10-6 |
 | **Paquet autonome sans SDK** | Runtime bundlé. Smoke Windows PATH sans `dotnet.exe`. Jeu réel 2 PCs **non**. | P10-6 |
-| **LOAD** | Harness TLS Required livré (P10-5 E). Mesuré : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : idle 300 s, économie 10 mut/s, interact 5/s + rafale 20, restart-reconnect 25 &lt; 60 s, pool PG ≤ 20, palier **25×60 min**, monde publié. | P10-8 |
+| **LOAD** | Harness `campaign` 25×TLS + RTT/TPS/CPU ([`LOAD_REPORT.md`](LOAD_REPORT.md)). Mesuré aussi : 200 Hello + 100 mixed **in-memory**. PG authed concurrent = **4**. Non certifiés : **60 min**, économie 10 mut/s, interact palier, idle 300 s, restart-reconnect 25, pool PG ≤ 20, monde publié. | P10-8 |
 | **Restore avec sanctions** | `Phase10BackupRestoreRowsTests` : dump avec mute/ban + guildes + amis + trades ; serveur publié refuse le banni. Chiffrement/rétention 7 **non**. | P10-7 |
 | **Rate-limit login** | IP normalisée + username (8/60s) et IP (30/60s). Plus de clé IP:port. Voir [`AUTH_RATE_LIMIT.md`](AUTH_RATE_LIMIT.md). | P10-5 B **livré** |
 | **Inscriptions ouvertes** | Défaut local `Registration:Mode=Open`. Bêta : `ProvisionedOnly` (TCP refusé). InviteOnly = jalon sans jetons. | P10-5 C **livré** (jalon invites) |
@@ -46,12 +46,12 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 | Aide intégrée, rebind AZERTY/QWERTY, settings persistés | `HelpForm` + `OptionsForm` + `ClientSettingsStore` (`%LocalAppData%\Frog\client-settings.json`) | P10-3a **livré** |
 | Numéro de version visible + copie diagnostics | Badge `v10.3.0` + « Copier diagnostics » expurgé | P10-3a **livré** |
 | Monde démo 3 cartes 30–60 min + licences | Catalogue + publisher PG + `LICENSES.md` | P10-4 **fixture livrée** ; durée humaine **non mesurée** |
-| Recette 12 étapes / 2 machines | Matrice automate vs 2 PCs dans `BETA_TEST_PLAN` ; campagne **non exécutée** | P10-4 |
+| Recette 12 étapes / 2 machines | Loopback automatisé (`Phase10RecipeLoopbackTests`) ; étapes 2 / 5-WAN / 9-distant / 12 **2 PCs** | P10-4 |
 | Self-contained + manifeste SHA-256 d’archives | `publish-frog` + `SHA256SUMS` + layout-proof Linux + `--smoke-launch` Windows [35403209506](https://github.com/Netsuno/MMO_Maker/actions/runs/35403209506) | P10-6 **CI** ; 2 PCs **non** |
 | Restore lignes sociales/trade/sanctions + serveur publié | `Phase10BackupRestoreRowsTests` | P10-7 **CI** ; chiffrement dumps **non** |
 | Mode maintenance / drain connexions | `MaintenanceService.cs` stub | P10-7 |
 | Rotation/rétention des logs | Console uniquement (`appsettings.json`) | P10-7 |
-| Job CI 60 min charge | Absent de `.github/workflows/ci.yml` | P10-8 |
+| Job CI 60 min charge | Absent de `.github/workflows/ci.yml` (volontaire). Script `run-p10-8-load-campaign.sh --hold-ms 3600000` | P10-8 |
 | Guides PLAYER/CREATOR/OPERATIONS Phase 10 | Dossier créé en P10-0 ; guides de sortie **absents** | P10-9 |
 
 ---
@@ -74,7 +74,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 - **Deadlock ouverture carte (corrigé)** : `LoadPlacementsForMap` / `LoadCatalog` / `Try*` sync de `MapEventsPostgreSqlService` attendaient EF sur le thread UI. Pattern `Task.Run` hors SynchronizationContext (`RunOffUiSyncContext`). `GameDataForm.EnsureInitializedSynchronouslyForTest` reste un helper de test, pas le chemin Shown.
 - Publication PostgreSQL **réelle** (cartes, catalogues Phase 6, contenu Phase 8). Menu « Publier vers MariaDB… (héritage) » encore visible.
 - Playtest éditeur : même dossier que l’éditeur, layouts frères `../client-win-x64` / `../server-win-x64`, puis `bin/Debug|Release` du dépôt.
-- Lancement depuis zip hors dépôt : layout **Linux CI** ; process `--smoke-launch` **Windows CI**. Wine Linux ≠ pass.
+- Lancement depuis zip hors dépôt : layout **Linux CI** ; process `--smoke-launch` **Windows CI**. Playtest zip : Hello serveur hors dépôt (`packaged-playtest-e2e.sh` / `.ps1`). Wine Linux ≠ pass. Menu Playtest WinForms **non**.
 - `Phase8JsonEditorPanel` n’est plus branché (éditeurs structurés Dialogue/Quête/Recette/Région/CommonEvent/Métier/Météo) — fichier mort, pas une preuve d’édition JSON obligatoire, mais le mandat interdit de **dépendre** du JSON ; rester sur les formulaires.
 
 ### Packaging
@@ -86,7 +86,7 @@ Autres résidus documentés Phase 9 (non bloquants pour *leur* gate, toujours vr
 ### Restore / load
 
 - Scripts `postgres-backup` / `restore` / `verify` + `Phase10BackupRestoreRowsTests` (lignes sanctions/social/trade + serveur publié). Chiffrement/rétention **non**.
-- `tools/Frog.LoadHarness` : TLS Required + CA confinée (P10-5 E, [`LOAD_HARNESS_TLS.md`](LOAD_HARNESS_TLS.md)). Ne décode pas encore l’économie / le social ; palier 25×60 **non** exécuté.
+- `tools/Frog.LoadHarness` : TLS Required + scénario `campaign` (heartbeat/move/interact/melee/chat + RTT). Économie/trade 60 min + PG **non**. Voir [`LOAD_REPORT.md`](LOAD_REPORT.md).
 
 ### PostgreSQL rôles
 

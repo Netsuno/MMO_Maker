@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: windows-latest
-    timeout-minutes: 55
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
 
@@ -125,6 +125,12 @@ jobs:
         run: |
           ./scripts/packaged-winforms-smoke.ps1
 
+      - name: Packaged playtest from zip (sibling layouts + server Hello)
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          ./scripts/packaged-playtest-e2e.ps1
+
       - name: Upload hang dumps and CI logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -235,6 +241,11 @@ jobs:
         timeout-minutes: 10
         shell: bash
         run: ./scripts/packaged-winforms-layout-proof.sh --skip-wine
+
+      - name: Packaged playtest from zip (server Linux, hors dépôt)
+        timeout-minutes: 8
+        shell: bash
+        run: ./scripts/packaged-playtest-e2e.sh --skip-publish
 
       - name: Guard PostgreSQL logs for lifecycle crash markers
         if: always()
