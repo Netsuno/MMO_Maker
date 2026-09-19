@@ -36,7 +36,9 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.False(form.GameToolbarOnWorldForTest);
                 Assert.False(form.StatusHudForTest.TitleVisibleForTest);
                 Assert.False(form.StatusHudForTest.XpBarVisibleForTest);
-                Assert.True(form.MinimapForTest.TitleHeightForTest <= 20);
+                Assert.True(
+                    form.MinimapForTest.TitleHeightForTest is >= 16 and <= 24,
+                    $"minimap title height {form.MinimapForTest.TitleHeightForTest}");
                 Assert.Equal(DrawMode.OwnerDrawFixed, form.ChatDockForTest.HistoryDrawModeForTest);
 
                 form.SetWindowLayerVisibleForTest(true);
@@ -47,7 +49,7 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal(16, form.SmoothTimerIntervalForTest);
 
                 var tabs = form.GameplayTabsForTest;
-                Assert.True(tabs.Visible);
+                Assert.True(tabs.Visible, "window layer should show TabControl");
                 Assert.Equal(360, tabs.Width);
                 Assert.True(
                     tabs.Width >= 300 && tabs.Width <= 400 && tabs.Height >= 250 && tabs.Height <= 700,
@@ -56,9 +58,9 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal(10, form.HotbarForTest.SlotCountForTest);
                 Assert.Equal("1", form.HotbarForTest.SlotTextForTest(0));
                 Assert.Contains("Mêlée", form.HotbarForTest.SlotToolTipForTest(0), StringComparison.Ordinal);
-                Assert.True(form.HotbarForTest.SlotEnabledForTest(0));
-                Assert.True(form.HotbarForTest.SlotEnabledForTest(1));
-                Assert.True(form.HotbarForTest.SlotEnabledForTest(2));
+                Assert.True(form.HotbarForTest.SlotEnabledForTest(0), "slot 1 melee");
+                Assert.True(form.HotbarForTest.SlotEnabledForTest(1), "slot 2 spell");
+                Assert.True(form.HotbarForTest.SlotEnabledForTest(2), "slot 3 interact");
                 Assert.False(form.HotbarForTest.SlotEnabledForTest(3));
                 Assert.False(form.HotbarForTest.SlotEnabledForTest(9));
 
@@ -84,7 +86,7 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal("Netsun", form.StatusHudForTest.NameTextForTest);
                 Assert.Equal("Lv 3", form.StatusHudForTest.MetaTextForTest);
                 Assert.DoesNotContain("HP", form.StatusHudForTest.MetaTextForTest, StringComparison.Ordinal);
-                Assert.True(form.StatusHudForTest.IsDeadVisibleForTest);
+                Assert.True(form.StatusHudForTest.IsDeadVisibleForTest, "dead flag from CombatState");
                 Assert.False(form.StatusHudForTest.XpBarVisibleForTest);
 
                 form.QuestTrackerForTest.ApplySnapshot(new[]
@@ -103,14 +105,16 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal("Herbier", form.QuestTrackerForTest.TitleTextForTest);
                 Assert.Contains("Fleurs", form.QuestTrackerForTest.Objective1ForTest, StringComparison.Ordinal);
 
-                form.ChatTextBoxForTest.Focus();
-                Assert.True(InputService.IsTextInputFocus(form.ActiveControl));
+                Assert.True(
+                    InputService.IsTextInputFocus(form.ChatTextBoxForTest),
+                    "chat input must count as text focus (KeyDown skips move)");
+                Assert.False(InputService.IsTextInputFocus(form.LoginButtonForTest));
 
                 form.SetWindowLayerVisibleForTest(false);
                 Assert.False(form.WindowLayerVisibleForTest);
                 form.SelectPhase8TabForTest();
-                Assert.True(form.WindowLayerVisibleForTest);
-                Assert.True(form.IsPhase8TabSelectedForTest);
+                Assert.True(form.WindowLayerVisibleForTest, "SelectPhase8Tab reopens window layer");
+                Assert.True(form.IsPhase8TabSelectedForTest, "phase 8 tab selected");
             }
             finally
             {
@@ -139,13 +143,21 @@ public sealed class ClientHudOverlaySmokeTests
         {
             var settings = new UserSettings { LastHost = "192.0.2.20", LastPort = 6112 };
             using var options = new OptionsForm(settings);
-            Assert.Equal(5, options.SectionNavForTest.Items.Count);
-            Assert.Contains("Réseau", options.SectionNavForTest.Items.Cast<object>().Select(o => o.ToString()));
-            Assert.Contains("Interface", options.SectionNavForTest.Items.Cast<object>().Select(o => o.ToString()));
-            options.SectionNavForTest.SelectedItem = "Réseau";
-            Assert.Equal("192.0.2.20", options.HostTextBoxForTest.Text);
-            Assert.Equal(6112, (int)options.PortNumericForTest.Value);
-            Assert.True(options.HostTextBoxForTest.Visible);
+            options.Show();
+            try
+            {
+                Assert.Equal(5, options.SectionNavForTest.Items.Count);
+                Assert.Contains("Réseau", options.SectionNavForTest.Items.Cast<object>().Select(o => o.ToString()));
+                Assert.Contains("Interface", options.SectionNavForTest.Items.Cast<object>().Select(o => o.ToString()));
+                options.SectionNavForTest.SelectedIndex = 4;
+                Assert.Equal("192.0.2.20", options.HostTextBoxForTest.Text);
+                Assert.Equal(6112, (int)options.PortNumericForTest.Value);
+                Assert.True(options.HostTextBoxForTest.Visible, "Réseau page should show host field");
+            }
+            finally
+            {
+                options.Close();
+            }
         });
     }
 

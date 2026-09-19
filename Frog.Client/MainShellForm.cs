@@ -3276,6 +3276,16 @@ public sealed class MainShellForm : Form
     private void SetWindowLayerVisible(bool visible)
     {
         _windowLayerVisible = visible;
+        _gameplayTabs.Visible = visible;
+        if (visible)
+        {
+            _gameplayTabs.Width = 360;
+            if (_gameplayTabs.Height < 250 || _gameplayTabs.Height > 700)
+            {
+                _gameplayTabs.Height = 480;
+            }
+        }
+
         LayoutGameHud();
     }
 
