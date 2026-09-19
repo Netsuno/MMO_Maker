@@ -23,6 +23,7 @@ Protocole inchangé : `FrogWireProtocol.Version = 10`.
 - [x] Découpe en petites étapes indépendantes + critères done + risques 60 FPS
 - [x] Docs dans `docs/progress/client-ui-modernization/`
 - [x] Recalage inventaire P10 `853776e` (Options/Help/Trade/settings live ; stubs folklore ; mapping extraits)
+- [x] Tokens DA + couches `GameWorldView` ⊥ `HudLayer` ⊥ `WindowLayer` ⊥ `LoginShell` ; plan **E0–E8** ([TOKENS-DA.md](TOKENS-DA.md))
 
 ## Pas livré (volontaire)
 
@@ -50,4 +51,4 @@ Protocole inchangé : `FrogWireProtocol.Version = 10`.
 
 ## Prochaine action (run suivant, pas celui-ci)
 
-Étape **UI-1** du [STEP_PLAN.md](STEP_PLAN.md) : jetons de thème + application chrome existant **sans** changer le layout ni les `*ForTest`.
+Étape **E0** du [STEP_PLAN.md](STEP_PLAN.md) : jetons + chrome réutilisable ([TOKENS-DA.md](TOKENS-DA.md)). **E0–E2 avant** le peaufinage des fenêtres.

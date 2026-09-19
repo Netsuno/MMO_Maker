@@ -71,8 +71,9 @@ Ces cinq points sont livrés dans ce dossier :
 | --- | --- |
 | [STATUS.md](STATUS.md) | État du chantier (plan only) |
 | [BASELINE_AUDIT.md](BASELINE_AUDIT.md) | (1)(2)(3) — inventaire factuel |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | (4) — overlays, thème, services |
-| [STEP_PLAN.md](STEP_PLAN.md) | (5) — étapes 1..N, done, risques 60 FPS |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | (4) — GameWorldView ⊥ HudLayer ⊥ WindowLayer ⊥ LoginShell |
+| [STEP_PLAN.md](STEP_PLAN.md) | (5) — **E0–E8** (DA) + contraintes inventaire réel |
+| [TOKENS-DA.md](TOKENS-DA.md) | Jetons couleur / typo / chrome / risques UX |
 
 ---
 

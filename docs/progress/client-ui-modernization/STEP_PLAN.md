@@ -1,228 +1,209 @@
-# Plan d’étapes — Client UI modernization
+# Plan d’étapes — DA E0–E8 + inventaire réel
 
 **Propriétaire :** Netsun  
-**Ordre recommandé :** UI-1 → UI-15. Étapes **indépendamment mergeable** si done + smokes.  
-**Ce run :** documentation seulement.  
-**Inventaire :** tip P10 lecture seule `853776e` — [BASELINE_AUDIT.md](BASELINE_AUDIT.md).  
-**Branche :** séparée de `cursor/phase10-beta-release`. Pas de merge P10 ici. Pas de wire / opcodes / TLS.
+**Ordre DA (validé) :** **E0 → E2 avant** tout peaufinage fenêtre par fenêtre. Puis E3…E8.  
+**Tokens / chrome :** [TOKENS-DA.md](TOKENS-DA.md). Architecture : [ARCHITECTURE.md](ARCHITECTURE.md).  
+**Inventaire :** `MainShellForm` réel (`853776e`) — [BASELINE_AUDIT.md](BASELINE_AUDIT.md).  
+**Ce run :** docs only. Branche ≠ Phase 10. Pas de wire / opcodes / TLS.
 
-Si une étape glisse vers le serveur ou Phase 10 : **stop**.
+Si une étape glisse vers le serveur ou `cursor/phase10-beta-release` : **stop**.
 
 ---
 
 ## Vue d’ordre
 
 ```text
-UI-1  Thème (chrome P10 actuel : TopChrome + tabs + log — layout inchangé)
-  └─► UI-2  OverlayHost (ancres, focus = InputService.IsTextInputFocus)
-        ├─► UI-3  TopChrome / PlayerHud (_lblPlayerStatus + CombatState)
-        ├─► UI-4  Extraire ChatPanel (ListBox bornée + Combo) depuis le shell
-        ├─► UI-5  HudInventoryDock (inv / équip / banque / sol / shop)
-        ├─► UI-6  Dialogue (SidePanels / modal)
-        ├─► UI-7  Quêtes + tracker (même snapshot)
-        ├─► UI-8  Boutique chrome + TradeForm restyle (modales existantes)
-        ├─► UI-9  Fiche personnage (lecture seule)
-        ├─► UI-10 LoginView + CharacterSelectView
-        ├─► UI-11 Restyle OptionsForm / HelpForm (store déjà live)
-        ├─► UI-12 MiniMap — TARDIF (pas le stub)
-        ├─► UI-13 Hotbar + menu BD
-        └─► UI-14 Banque / sol (si pas déjà dans UI-5)
-UI-15 Isolation viewport / budget 60 FPS   ← parallèle dès UI-1
+E0  Tokens + chrome réutilisable (panel, bouton, onglet, slot)
+ └─► E1  LoginShell immersif (compte ; host/port → Options→Réseau)
+      └─► E2  GameWorldView plein cadre + HudLayer 6 modules VIDES
+            ├─► E3  Status + Minimap + QuestTracker branchés
+            ├─► E4  Chat (onglets honnêtes, ListBox bornée)
+            ├─► E5  Hotbar 10 slots + MenuRing
+            ├─► E6  WindowLayer (Inv / Perso / Quêtes / Dialogue / Magasin / Trade)
+            ├─► E7  OptionsForm restyle (UserSettings déjà live)
+            └─► E8  DPI 100/125/150 + guides + revue captures
+Perf viewport (ex-UI-15)  ← contrainte dès E2, mesurée en E8
 ```
 
-Découpe **extract-from-shell**, jamais « remplir le stub en parallèle ».
+**Règle DA :** ne pas fignoler Inventaire/Quêtes/Dialogue tant que E0–E2 n’ont pas le même chrome et une carte plein cadre.
+
+Correspondance ancienne numérotation UI-1…UI-15 (docs précédentes) :
+
+| Ancien | DA | Note |
+| --- | --- | --- |
+| UI-1 | **E0** | Jetons d’abord, pas seulement skin des onglets actuels |
+| UI-10 | **E1** | Login **avant** les fenêtres jeu |
+| UI-2 + viewport | **E2** | HUD vides + carte plein cadre |
+| UI-3 + UI-7 tracker + UI-12 | **E3** | Minimap n’est plus « tout à la fin » : chrome E2, données E3 |
+| UI-4 | **E4** | |
+| UI-13 | **E5** | |
+| UI-5…UI-9, UI-8, UI-14 | **E6** | Fenêtres **après** le shell |
+| UI-11 | **E7** | Store déjà live — restyle + nav Réseau |
+| (nouveau) | **E8** | DPI + guides |
+| UI-15 | contrainte E2–E8 | |
 
 ---
 
 ## Règles communes
 
-- Branche ≠ `cursor/phase10-beta-release`.
-- **Pas** de nouveau `PacketId`, pas de change TLS / Hello / bind.
-- Smokes :
-  - Phase 8 : `*ForTest` conservés (déplacés avec le contrôle).
-  - Dès greffe sur tip ≥ `853776e` : `Phase10ClientSettingsSmokeTests` + `Phase10TradePanelSmokeTests` verts.
-- Perf : pas d’`Invalidate`/`Refresh` full-form à 16 ms ; redraw **viewport only** ; chat borné ; double-buffer map ; HUD hors passe tiles. UI-15 **réduit** le coût `RedrawMap`.
-- Stub folklore : extraire **puis** remplacer/supprimer le fichier 1-ligne. Pas les deux à la fois.
-- Done = code + smokes + ligne dans [STATUS.md](STATUS.md).
+- Extraire depuis `MainShellForm` ; **ne pas** remplir `ChatPanel` / `StatusBar` / `MiniMap` / `DialogForm` stubs en parallèle.
+- Smokes Phase 8 `*ForTest` ; dès tip ≥ `853776e` : `Phase10ClientSettingsSmokeTests` + `Phase10TradePanelSmokeTests`.
+- Perf : pas d’Invalidate full-form ; redraw **GameWorldView** only ; chat borné ; double-buffer map ; HUD hors passe tiles ; alpha → `bg.panel.solid` `#161C28` si besoin.
+- Canaux Guilde/Groupe : onglet **masqué** si le tip n’envoie pas le canal. P10 `853776e` les a dans le combo — les garder alors. Pas de nouvel opcode.
+- Hotbar **10 slots v1**.
+- Done = code + smokes + captures DA si E0–E2 + ligne [STATUS.md](STATUS.md).
 
 ---
 
-## UI-1 — Thème sur le chrome **actuel** (P10)
+## E0 — Tokens + chrome de base
 
-**But :** sombre + or sur `_topChrome`, `_lblPlayerStatus`, Login/Character, toolbar, onglets, `OptionsForm`/`HelpForm` **sans** extraire.
-
-**Fait :** `UiTheme` apply-once ; contrastes ; hiérarchie `BuildLayout` inchangée ; smokes Phase 8 (+ Phase 10 settings si le tip code est P10).
-
-**Hors :** OverlayHost, MiniMap, nouveaux UserControls.
-
-**Perf :** `Apply` hors `SmoothTimer_OnTick`.
-
----
-
-## UI-2 — OverlayHost
-
-**But :** ancres + Show/Hide ; tabs peuvent rester.
-
-**Fait :** host sibling de `GameViewport` (même si le viewport n’est pas encore extrait : sibling de `_mapScroll`) ; **pas** `TransparencyKey` ; `IsTextInputFocused` = `InputService.IsTextInputFocus` ; carte redessinée seulement sur le chemin mouvement.
-
-**Hors :** migrer tous les onglets d’un coup.
-
-**Perf :** interdit `Invalidate` sur `MainShellForm` à 16 ms.
-
----
-
-## UI-3 — TopChrome / PlayerHud
-
-**But :** extraire `_topChrome` + `_lblPlayerStatus` ; barres HP/MP depuis `CombatStateReceived` (pas depuis `_lblCombat` recalculé).
-
-**Fait :** Aide / Options / version / diagnostics **mêmes** handlers (`OpenHelp`, `OpenOptions`, `CopyDiagnostics*ForTest`) ; respawn sur `IsDead` ; `PlayerFacingMessages` inchangé.
-
-**Hors :** portrait obligatoire, fake regen, remplir `StatusBar.cs` stub.
-
-**Perf :** update event-driven.
-
----
-
-## UI-4 — Extraire `ChatPanel` (vrai contrôle)
-
-**But :** sortir le chat **inline** du shell vers un UserControl : Combo canaux + saisie + **ListBox bornée**. Remplacer **atomiquement** le stub `Controls/ChatPanel.cs`.
+**But :** contrôles réutilisables (`DaPanel` / bouton or / onglet / slot) = jetons [TOKENS-DA.md](TOKENS-DA.md). Pas encore de refonte layout.
 
 **Fait :**
 
-- Canaux = ceux du tip code (3 sur `main`, 5 sur P10). Pas de nouvel opcode.
-- Historique cap (ex. 200) — append, pas clear/rebuild 60 Hz.
-- `SendChatButtonForTest` / `ChatTextBoxForTest` / `SelectChatChannelForTest` / `LogContainsForTest` (log système peut rester `_txtLog`).
-- Focus saisie : déjà bloqué par `InputService` — ne pas régresser.
-- Slash modération inchangé.
+- `UiTheme` : `bg.app` `#0E1218`, `bg.panel` `#141A24` (~90 %) + fallback solid `#161C28`, or `#C9A227` / hi `#E8C547`, texte `#F2F4F8`, HP/MP/XP `#C62828` / `#1565C0` / `#2E7D32`
+- Typo Segoe/Inter/system — **pas** de pixel-font chrome
+- Radius 6–8, double filet or, titlebar 28–32
+- Capture : 1 panel + 1 bouton or sur fond sombre
+- Apply-once, hors timer 16 ms
 
-**Hors :** emotes ; remplir `ChatBox.cs` en plus.
-
-**Perf :** ListBox bornée (exigence client-engineer).
+**Hors :** extraire tous les panels ; MiniMap données ; clone planche.
 
 ---
 
-## UI-5 — HudInventoryDock
+## E1 — LoginShell
 
-**But :** extraire onglet Gameplay : `InventoryPanel`, `EquipmentPanel`, banque, sol, shop → dock restylé (tabs ou fenêtre).
+**But :** écran immersif compte / mdp / souvenir / Connexion. Inscription + reconnect **secondaires**.
 
-**Fait :** mêmes events Equip/Drop/Unequip ; or = `CombatState.Gold` ; textes `Arme:` / smokes ; 2 slots seulement.
+**Fait :**
 
-**Hors :** drag-drop ; paper-doll N slots ; remplir `InventoryService` stub.
+- Extraire `_panelLogin` (+ `_panelCharacter` peut rester page 2 du même shell)
+- **Hôte/port** quittent le panneau joueur → Options → Réseau (E7 peut poser la nav ; E1 doit déjà **déplacer** les champs ou un lien F9). `HostTextBoxForTest` / `PortNumericForTest` suivent.
+- Playtest auto-login + jeton jamais logué
+- Asset logo **licence OK** — pas de copie d’art commercial
+- `LoginButtonForTest` / `PassTextBoxForTest` / diagnostics
 
-**Perf :** `ApplySnapshot` event-only ; pas de `RedrawMap`.
-
----
-
-## UI-6 — Dialogue (SidePanels)
-
-**But :** `DialoguePanel` en modal/overlay ; auto-show `DialogueStatePush`.
-
-**Fait :** `DialoguePanelForTest` / choix / token. **Pas** `DialogForm` stub.
-
-**Perf :** event-only.
+**Hors :** launcher ; peaufiner Inventaire.
 
 ---
 
-## UI-7 — Quêtes + tracker
+## E2 — Carte plein cadre + HUD vides
 
-**But :** `QuestJournalPanel` fenêtre + tracker (même `ApplySnapshot`).
+**But :** `GameWorldView` occupe le cadre ; `HudLayer` pose les **6** blocs stylés **vides** (Status, Minimap, QuestTracker, Chat, Hotbar, MenuRing). Onglets Chat|Gameplay|Quêtes **ne** structurent plus le shell (peuvent rester hidden pour smokes le temps du remap `*ForTest`).
 
-**Fait :** turn-in ; `SelectPhase8TabForTest` remappé si l’onglet disparaît ; filtre En cours / Terminées local.
+**Fait :**
 
-**Hors :** minimap quests (UI-12).
+- Extraire viewport (`_picMap` + `MapViewRenderer`) — sibling, pas TransparencyKey
+- Emprises §4 TOKENS-DA ; `gap.hud` 8
+- 60 FPS **carte seule** (pas de paint HUD dans les tuiles)
+- Host : `IsTextInputFocused` = `InputService.IsTextInputFocus`
+- Modules vides = chrome E0 seulement (pas de bind données sauf ce qui casse un smoke — alors bind minimal)
 
----
+**Hors :** fignoler chaque fenêtre (E6) ; remplir stub `MiniMap` avec un Render 60 Hz.
 
-## UI-8 — Boutique chrome + TradeForm
-
-**But :** restyler shop (mêmes `SendShop*` / `TrySelect*ForTest`) et **`TradeForm` existant** (P10) — pas une nouvelle UI trade.
-
-**Fait :** `Phase10TradePanelSmokeTests` (révision affichée, confirm) verts ; GUID secours hidden.
-
-**Hors :** nouveau protocole d’échange.
+**Perf :** critère DA « 60 FPS carte seule ». Invalidate viewport only.
 
 ---
 
-## UI-9 — Fiche personnage
+## E3 — Status + Minimap + QuestTracker (données)
 
-**But :** overlay lecture seule (nom, combat, 6 stats JSON).
+**But :** brancher les 3 blocs HD/HG.
 
-**Fait :** pas de `CharacterStatsUpdate` ; pas de fiche guilde (le canal Guild P10 ≠ une guilde joueur).
+**Fait :**
 
----
+- Status : `CombatStateWire` → barres HP/MP (+ XP optionnelle) ; nom / niveau ; respawn `IsDead`
+- Minimap : cache au `MapDataReceived` **seulement** ; point joueur invalidate local ; remplacer le stub `MiniMap.cs` **à ce moment**
+- QuestTracker : 1–2 lignes, `text.gold`, **même** snapshot que `QuestJournalPanel`
+- Lisibilité / contraste barres (revue DA)
 
-## UI-10 — LoginView + CharacterSelectView
-
-**But :** extraire `_panelLogin` / `_panelCharacter`. Même auth, playtest, jeton jamais logué.
-
-**Fait :** tous les `LoginButtonForTest` / `PassTextBoxForTest` / etc. suivent la vue.
-
-**Hors :** launcher.
+**Hors :** fog, N slots équipement.
 
 ---
 
-## UI-11 — Restyle Options + Help (déjà live)
+## E4 — Chat
 
-**But :** **ne pas** recréer `UserSettings` / `ClientSettingsStore`. Skin sombre/or de `OptionsForm` et `HelpForm`.
+**But :** extraire le chat **inline** vers un vrai `ChatPanel` (ListBox bornée + onglets + saisie). Remplacement atomique du stub.
 
-**Fait :** fenêtre, plein écran, volume, preset, rebind, écriture atomique — comportement P10 ; `Phase10ClientSettingsSmokeTests` PASS ; F1 / `HelpButtonForTest` / `OptionsButtonForTest`.
+**Fait :**
 
-**Hors :** vsync GPU ; second fichier de config ; remplir un stub (il n’y en a plus pour Options).
+- Couleurs `chat.*` TOKENS-DA
+- Onglets : Général / Local / Système / Whisper ; Guilde / Groupe **seulement si** canal livré
+- Cap historique ; slash modération ; `ChatTextBoxForTest` / `SelectChatChannelForTest`
+- `_txtLog` = système / `[ui]` (`LogContainsForTest`)
 
-**Perf :** apply settings une fois (resize), pas par frame.
-
----
-
-## UI-12 — MiniMap (**tardif**)
-
-**But :** miniature cache de la carte mémoire + point joueur.
-
-**Fait :** rebuild cache **seulement** au `MapDataReceived` ; invalidate local du point ; **nouveau** fichier — supprimer le stub `MiniMap.cs` au moment de l’ajout, pas avant.
-
-**Hors :** fog, ping serveur.
-
-**Perf :** **interdit** d’appeler `MapViewRenderer.Render` à 16 ms pour la mini.
+**Hors :** `ChatBox` stub en plus ; emotes.
 
 ---
 
-## UI-13 — Hotbar + menu BD
+## E5 — Hotbar + MenuRing
 
-**But :** 1–0 = mêlée / sort / interact (`InputService`) ; menu Perso / Inventaire / Quêtes / Options = `Toggle` extraits. « Carte » = fermer overlays.
+**But :** 10 slots (1–0) + 5 pills BD → `Toggle` WindowLayer.
 
-**Hors :** nouveaux cooldowns serveur.
+**Fait :**
+
+- Slots = mêlée / sort sélectionné / interact (`InputService`) — **mêmes** `Send*`
+- Menu : Perso / Inventaire / Quêtes / Carte / Options (`OpenOptions` existant)
+- Aide (F1) reste `HelpForm` (bouton chrome ou menu)
+
+**Hors :** 2e rangée ; nouveaux cooldowns serveur.
 
 ---
 
-## UI-14 — Banque / sol (si UI-5 ne les a pas pris)
+## E6 — Fenêtres (même chrome E0)
 
-**But :** chrome cohérent, mêmes `*ForTest` listes / pickup.
+**But :** restyler / extraire les panels **live** : inventaire, perso, quêtes, dialogue, magasin, `TradeForm`, banque/sol, craft/environnement.
+
+**Fait :**
+
+- Chrome identique (double filet, titlebar, X)
+- Inventaire : 2 slots réels ; grille visuelle ok ; `Arme:` / `*ForTest`
+- Quêtes : liste + parchemin (`bg.parchment` seule exception claire)
+- Dialogue : `DialoguePanel` (pas `DialogForm`)
+- Shop + `Phase10TradePanelSmokeTests`
+- Une fenêtre focus ; Esc ferme
+
+**Hors :** drag-drop obligatoire ; paper-doll interactif fantôme.
 
 ---
 
-## UI-15 — Viewport / 60 FPS (parallèle dès UI-1)
+## E7 — Options
 
-**But :** monde fluide avec overlays. Mesurer, puis réduire `RedrawMap`.
+**But :** restyler `OptionsForm` (déjà live P10). Nav : Graphisme / Son / Contrôles / Interface / **Réseau**.
 
-**Fait (min) :**
+**Fait :**
 
-- Redraw **confiné** `GameViewport` ; pas full-form.
-- Surface persistante / clip viewport si possible (plus de `new Bitmap(full map)` par tick).
-- HUD hors passe tiles.
-- Chat borné.
-- Double-buffer map conservé.
-- Avant/après documentés (même machine) — pas de chiffre inventé.
+- Un seul `ClientSettingsStore` — **ne pas** recréer
+- Réseau : hôte, port (champs déplacés depuis E1) ; TLS = libellé / état, **pas** un nouveau handshake ici
+- Volume / AZERTY-QWERTY / rebind / fenêtre / plein écran
+- `Phase10ClientSettingsSmokeTests` PASS
 
-**Hors :** MonoGame, GPU, UDP.
+**Hors :** vsync GPU réel ; second JSON.
 
-| Risque | Preuve (`853776e`) | Mitigation |
-| --- | --- | --- |
-| `new Bitmap(w,h)` full-map / tick | `MapViewRenderer.Render` + `RedrawMap` | surface persistante / dirty |
-| `PictureBox.Image` reassign 60 Hz | `RedrawMap` | blit in-place |
-| Invalidate Form | WinForms | sibling viewport |
-| Chat / inv rebuild 60 Hz | à éviter | event + cap ListBox |
-| HUD dans les tuiles | refuser PR | `MapViewRenderer` monde-only |
+---
 
-Cible : ~60 FPS ressenti, carte Phase 7, HUD + 1 fenêtre. Saisie chat / toggle I sans latence chrome.
+## E8 — DPI + guides
+
+**But :** 100 / 125 / 150 % Windows ; focus clavier or (`state.focus`) ; captures + quickstart chrome.
+
+**Fait :**
+
+- Layout DIP ; hitboxes ; cadres non flous
+- Revue DA sur captures **réelles** E0–E7 (alignement, contraste or/texte, emprise HUD)
+- Guides « chaque bouton » seulement **après** E5–E6 (sinon docs mortes)
+
+**Hors :** chiffre FPS inventé — mesurer ou se taire.
+
+---
+
+## Perf (contrainte continue, ex-UI-15)
+
+| Risque | Mitigation |
+| --- | --- |
+| Full-map `Bitmap` / tick | Surface persistante / clip viewport |
+| Alpha panels GDI | `bg.panel.solid` |
+| Invalidate Form | GameWorldView sibling |
+| Chat rebuild 60 Hz | ListBox cap, event-only |
+| HUD dans les tuiles | Refuser la PR |
 
 ---
 
@@ -230,17 +211,18 @@ Cible : ~60 FPS ressenti, carte Phase 7, HUD + 1 fenêtre. Saisie chat / toggle 
 
 | Sujet | Pourquoi |
 | --- | --- |
-| Coder dans `cursor/phase10-beta-release` | Chantier séparé |
-| Wire / opcodes / TLS | Interdit pour l’apparence |
-| Remplir stubs folklore en parallèle | Règle extract-or-delete |
-| MiniMap tôt | Tardif (UI-12) |
-| Clone pixel mockup | Mandat |
-| Merge de cette PR docs | Pas ce run |
+| Coder Phase 10 / PR #8 | Séparé |
+| Wire / TLS | Interdit pour le look |
+| Clone pixel planche | DA §8 |
+| Stubs folklore en parallèle | Client-engineer |
+| Peaufiner E6 avant E2 | Ordre DA |
+| Merge cette PR docs | Pas ce run |
 
 ---
 
-## Succès chantier (plusieurs runs)
+## Succès
 
-Carte dominante, chrome sombre/or, **toutes** les actions live P10 encore là (settings, aide, trade, shop, banque, quêtes, dialogue, craft, chat du tip, mêlée). `FrogGameClient` hors chrome. Protocole / TLS inchangés.
+E0–E2 : tokens + login + carte plein cadre + 6 HUD vides, 60 FPS monde.  
+E3–E8 : données + fenêtres + options + DPI, smokes Phase 8/10 verts, mécaniques inchangées.
 
-Succès **de ce run** : docs à jour vs inventaire `853776e`. [STATUS.md](STATUS.md).
+Succès **de ce run** : TOKENS-DA + ARCHITECTURE + ce plan. [STATUS.md](STATUS.md).
