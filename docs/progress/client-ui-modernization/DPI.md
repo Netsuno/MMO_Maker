@@ -22,4 +22,4 @@ Le chrome WinForms utilise `AutoScaleMode.Font` + `AutoScaleDimensions` 96 DPI (
 | 100 % | Référence design 1280×720 |
 | 150 % | Contrôles System Font ; vérifier Options + chat input |
 
-Linux CI : compile `EnableWindowsTargeting` seulement — pas de revue visuelle DPI ici.
+Linux CI : compile `EnableWindowsTargeting` seulement — pas de revue visuelle DPI ici. Captures : [CAPTURES.md](CAPTURES.md).

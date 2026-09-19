@@ -11,26 +11,33 @@ public class HudModulePanel : Panel
 {
     protected readonly Label TitleLabel;
 
-    public HudModulePanel(string title)
+    public const int CompactTitleHeight = 18;
+
+    public HudModulePanel(string title, bool showTitle = true)
     {
         SetStyle(ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
         BackColor = UiTheme.BgPanel;
         ForeColor = UiTheme.TextPrimary;
-        Padding = new Padding(8, 32, 8, 8);
+        Padding = showTitle ? new Padding(8, 22, 8, 8) : new Padding(8, 8, 8, 8);
         TitleLabel = new Label
         {
             Text = title,
             Dock = DockStyle.Top,
-            Height = 28,
+            Height = showTitle ? CompactTitleHeight : 0,
+            Visible = showTitle,
             TextAlign = ContentAlignment.MiddleLeft,
             ForeColor = UiTheme.TextGold,
             BackColor = UiTheme.BgPanelHeader,
-            Padding = new Padding(8, 0, 8, 0),
-            Font = UiTheme.UiFont(9f, FontStyle.Bold),
+            Padding = new Padding(6, 0, 6, 0),
+            Font = UiTheme.UiFont(8f, FontStyle.Bold),
         };
         Controls.Add(TitleLabel);
         Paint += DrawChrome;
     }
+
+    internal bool TitleVisibleForTest => TitleLabel.Visible;
+
+    internal int TitleHeightForTest => TitleLabel.Visible ? TitleLabel.Height : 0;
 
     private void DrawChrome(object? sender, PaintEventArgs e)
     {

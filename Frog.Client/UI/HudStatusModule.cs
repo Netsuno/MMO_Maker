@@ -5,17 +5,16 @@ using Frog.Core.Protocol;
 
 namespace Frog.Client.UI;
 
-/// <summary>Status HG — barres HP/MP/XP depuis <see cref="CombatStateWire"/> uniquement.</summary>
+/// <summary>Status HG — nom + Lv + barres HP/MP. Pas de barre XP tant que le max n’existe pas au fil.</summary>
 public sealed class HudStatusModule : HudModulePanel
 {
-    private readonly Label _name = new() { AutoSize = true, ForeColor = UiTheme.TextPrimary };
+    private readonly ToolTip _tips = new();
+    private readonly Label _name = new() { AutoSize = true, ForeColor = UiTheme.TextPrimary, Font = UiTheme.UiFont(9f, FontStyle.Bold) };
     private readonly Label _meta = new() { AutoSize = true, ForeColor = UiTheme.TextSecondary };
     private readonly Panel _hpTrack = new() { Height = 10, Dock = DockStyle.Top, BackColor = UiTheme.BgInput };
     private readonly Panel _hpFill = new() { Height = 10, BackColor = UiTheme.BarHp };
     private readonly Panel _mpTrack = new() { Height = 10, Dock = DockStyle.Top, BackColor = UiTheme.BgInput, Margin = new Padding(0, 3, 0, 0) };
     private readonly Panel _mpFill = new() { Height = 10, BackColor = UiTheme.BarMp };
-    private readonly Panel _xpTrack = new() { Height = 6, Dock = DockStyle.Top, BackColor = UiTheme.BgInput, Margin = new Padding(0, 3, 0, 0) };
-    private readonly Panel _xpFill = new() { Height = 6, BackColor = UiTheme.BarXp };
     private readonly Label _dead = new()
     {
         AutoSize = true,
@@ -26,13 +25,12 @@ public sealed class HudStatusModule : HudModulePanel
     private CombatStateWire? _state;
 
     public HudStatusModule()
-        : base("Statut")
+        : base("Statut", showTitle: false)
     {
-        Size = new Size(280, 96);
-        MinimumSize = new Size(220, 88);
+        Size = new Size(280, 72);
+        MinimumSize = new Size(200, 64);
         _hpTrack.Controls.Add(_hpFill);
         _mpTrack.Controls.Add(_mpFill);
-        _xpTrack.Controls.Add(_xpFill);
         var body = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -44,14 +42,12 @@ public sealed class HudStatusModule : HudModulePanel
         body.Controls.Add(_meta);
         body.Controls.Add(_hpTrack);
         body.Controls.Add(_mpTrack);
-        body.Controls.Add(_xpTrack);
         body.Controls.Add(_dead);
         Controls.Add(body);
         body.BringToFront();
         ApplyCombat(null, null);
         _hpTrack.Resize += (_, _) => LayoutBars();
         _mpTrack.Resize += (_, _) => LayoutBars();
-        _xpTrack.Resize += (_, _) => LayoutBars();
     }
 
     internal string NameTextForTest => _name.Text;
@@ -62,20 +58,27 @@ public sealed class HudStatusModule : HudModulePanel
 
     internal int HpFillWidthForTest => _hpFill.Width;
 
+    internal bool XpBarVisibleForTest => false;
+
     public void ApplyCombat(CombatStateWire? state, string? playerName)
     {
         _state = state;
         _name.Text = string.IsNullOrWhiteSpace(playerName) ? "—" : playerName.Trim();
         if (state is null)
         {
-            _meta.Text = "Lv —  ·  HP —  ·  MP —";
+            _meta.Text = "Lv —";
             _dead.Visible = false;
+            _tips.SetToolTip(_hpTrack, "HP —");
+            _tips.SetToolTip(_mpTrack, "MP —");
             LayoutBars();
             return;
         }
 
-        _meta.Text = $"Lv {state.Level}  ·  HP {state.Hp}/{state.MaxHp}  ·  MP {state.Mp}/{state.MaxMp}  ·  XP {state.Experience}";
+        _meta.Text = $"Lv {state.Level}";
         _dead.Visible = state.IsDead;
+        _tips.SetToolTip(_hpTrack, $"HP {state.Hp}/{state.MaxHp}");
+        _tips.SetToolTip(_mpTrack, $"MP {state.Mp}/{state.MaxMp}");
+        _tips.SetToolTip(_name, state.Experience > 0 ? $"XP {state.Experience} (max inconnu)" : "XP —");
         LayoutBars();
     }
 
@@ -84,8 +87,6 @@ public sealed class HudStatusModule : HudModulePanel
         var state = _state;
         SetFill(_hpTrack, _hpFill, state?.Hp ?? 0, state?.MaxHp ?? 0);
         SetFill(_mpTrack, _mpFill, state?.Mp ?? 0, state?.MaxMp ?? 0);
-        // Pas de max XP filaire : barre informative seulement (vide si XP inconnue / 0).
-        SetFill(_xpTrack, _xpFill, state is { Experience: > 0 } ? 1 : 0, state is { Experience: > 0 } ? 1 : 0);
     }
 
     private static void SetFill(Panel track, Panel fill, int value, int max)

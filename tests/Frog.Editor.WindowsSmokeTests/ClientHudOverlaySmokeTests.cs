@@ -32,6 +32,13 @@ public sealed class ClientHudOverlaySmokeTests
             {
                 form = ClientSmokeTestAccess.CreateAndShowMainShell();
                 form.LayoutGameHudForTest();
+                Assert.False(form.WindowLayerVisibleForTest);
+                Assert.False(form.GameToolbarOnWorldForTest);
+                Assert.False(form.StatusHudForTest.TitleVisibleForTest);
+                Assert.False(form.StatusHudForTest.XpBarVisibleForTest);
+                Assert.True(form.MinimapForTest.TitleHeightForTest <= 20);
+                Assert.Equal(DrawMode.OwnerDrawFixed, form.ChatDockForTest.HistoryDrawModeForTest);
+
                 form.SetWindowLayerVisibleForTest(true);
                 form.LayoutGameHudForTest();
 
@@ -40,12 +47,15 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal(16, form.SmoothTimerIntervalForTest);
 
                 var tabs = form.GameplayTabsForTest;
+                Assert.True(tabs.Visible);
                 Assert.Equal(360, tabs.Width);
                 Assert.True(
                     tabs.Width >= 300 && tabs.Width <= 400 && tabs.Height >= 250 && tabs.Height <= 700,
                     $"TabControl crop {tabs.Width}×{tabs.Height}");
 
                 Assert.Equal(10, form.HotbarForTest.SlotCountForTest);
+                Assert.Equal("1", form.HotbarForTest.SlotTextForTest(0));
+                Assert.Contains("Mêlée", form.HotbarForTest.SlotToolTipForTest(0), StringComparison.Ordinal);
                 Assert.True(form.HotbarForTest.SlotEnabledForTest(0));
                 Assert.True(form.HotbarForTest.SlotEnabledForTest(1));
                 Assert.True(form.HotbarForTest.SlotEnabledForTest(2));
@@ -72,8 +82,10 @@ public sealed class ClientHudOverlaySmokeTests
                     },
                     "Netsun");
                 Assert.Equal("Netsun", form.StatusHudForTest.NameTextForTest);
-                Assert.Contains("Lv 3", form.StatusHudForTest.MetaTextForTest, StringComparison.Ordinal);
+                Assert.Equal("Lv 3", form.StatusHudForTest.MetaTextForTest);
+                Assert.DoesNotContain("HP", form.StatusHudForTest.MetaTextForTest, StringComparison.Ordinal);
                 Assert.True(form.StatusHudForTest.IsDeadVisibleForTest);
+                Assert.False(form.StatusHudForTest.XpBarVisibleForTest);
 
                 form.QuestTrackerForTest.ApplySnapshot(new[]
                 {

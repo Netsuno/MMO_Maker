@@ -23,8 +23,8 @@ public sealed class HudQuestTrackerModule : HudModulePanel
     public HudQuestTrackerModule()
         : base("Quête")
     {
-        Size = new Size(180, 88);
-        MinimumSize = new Size(140, 72);
+        Size = new Size(180, 76);
+        MinimumSize = new Size(140, 64);
         Controls.Add(_obj2);
         Controls.Add(_obj1);
         Controls.Add(_title);

@@ -7,7 +7,8 @@ namespace Frog.Client.UI;
 
 /// <summary>
 /// Chat BG — canaux réels uniquement (Global / Map / Whisper / Party / Guild).
-/// ListBox bornée ; saisie = contrôles live extraits du shell (un seul parent).
+/// ListBox bornée, owner-draw couleurs <c>chat.*</c> ; préfixes [G]/[M]/[W]/[P]/[H] aussi dans le texte.
+/// Saisie = contrôles live extraits du shell (un seul parent).
 /// </summary>
 public sealed class HudChatDock : HudModulePanel
 {
@@ -28,6 +29,8 @@ public sealed class HudChatDock : HudModulePanel
         BorderStyle = BorderStyle.FixedSingle,
         BackColor = UiTheme.BgInput,
         ForeColor = UiTheme.TextPrimary,
+        DrawMode = DrawMode.OwnerDrawFixed,
+        ItemHeight = 16,
     };
     private readonly Panel _inputHost = new() { Dock = DockStyle.Bottom, Height = 72 };
     private readonly Button[] _tabButtons;
@@ -62,6 +65,7 @@ public sealed class HudChatDock : HudModulePanel
         Controls.Add(_inputHost);
         Controls.Add(_tabs);
         _history.BringToFront();
+        _history.DrawItem += OnDrawHistory;
         HighlightTabs();
     }
 
@@ -70,6 +74,8 @@ public sealed class HudChatDock : HudModulePanel
     internal int VisibleChannelCountForTest => _tabButtons.Length;
 
     internal int SelectedChannelIndexForTest => _filterIndex;
+
+    internal DrawMode HistoryDrawModeForTest => _history.DrawMode;
 
     public void AttachInputs(ComboBox channel, TextBox whisper, TextBox input, Button send)
     {
@@ -160,14 +166,34 @@ public sealed class HudChatDock : HudModulePanel
 
     private void AppendLine(string line, Color color)
     {
-        _ = color;
-        _history.Items.Add(line);
+        _history.Items.Add(new ChatLine(line, color));
         while (_history.Items.Count > HistoryCap)
         {
             _history.Items.RemoveAt(0);
         }
 
         _history.TopIndex = Math.Max(0, _history.Items.Count - 1);
+    }
+
+    private void OnDrawHistory(object? sender, DrawItemEventArgs e)
+    {
+        e.DrawBackground();
+        if (e.Index < 0 || e.Index >= _history.Items.Count)
+        {
+            return;
+        }
+
+        var item = _history.Items[e.Index];
+        var text = item.ToString() ?? string.Empty;
+        var color = item is ChatLine line ? line.Color : _history.ForeColor;
+        using var brush = new SolidBrush(color);
+        var font = e.Font ?? _history.Font;
+        e.Graphics.DrawString(text, font, brush, e.Bounds);
+    }
+
+    private sealed record ChatLine(string Text, Color Color)
+    {
+        public override string ToString() => Text;
     }
 
     private void HighlightTabs()

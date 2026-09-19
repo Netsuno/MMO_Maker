@@ -195,7 +195,7 @@ public sealed class MainShellForm : Form
     private readonly HudChatDock _hudChat = new();
     private readonly HudHotbar _hudHotbar = new();
     private readonly HudMenuRing _hudMenu = new();
-    private bool _windowLayerVisible = true;
+    private bool _windowLayerVisible;
     private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid (secours)", Visible = false };
     private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid (secours)", Visible = false };
     private readonly NumericUpDown _numShopQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
@@ -1031,7 +1031,10 @@ public sealed class MainShellForm : Form
             ForeColor = UiTheme.TextSecondary,
             Padding = new Padding(12),
         });
+        _gameToolbar.Dock = DockStyle.Top;
+        _gameToolbar.WrapContents = true;
         _tabGameplay.Controls.Add(gameplayTab);
+        _tabGameplay.Controls.Add(_gameToolbar);
 
         var phase8Tab = new TableLayoutPanel
         {
@@ -1058,7 +1061,6 @@ public sealed class MainShellForm : Form
         _gameToolbar.Controls.Add(_btnMelee);
         _gameToolbar.Controls.Add(_cmbSpell);
         _gameToolbar.Controls.Add(_btnSpell);
-        _gameToolbar.Controls.Add(_btnRespawn);
         _lblMoveHint.Margin = new Padding(8, 14, 4, 4);
         _gameToolbar.Controls.Add(_lblMoveHint);
 
@@ -1071,16 +1073,18 @@ public sealed class MainShellForm : Form
         _hudChat.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
         _hudHotbar.Anchor = AnchorStyles.Bottom;
         _hudMenu.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        _gameToolbar.Anchor = AnchorStyles.Top | AnchorStyles.Left;
         tabRight.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _btnRespawn.Anchor = AnchorStyles.Top | AnchorStyles.Left;
         _worldHost.Controls.Add(_hudStatus);
         _worldHost.Controls.Add(_hudMinimap);
         _worldHost.Controls.Add(_hudQuest);
         _worldHost.Controls.Add(_hudChat);
         _worldHost.Controls.Add(_hudHotbar);
         _worldHost.Controls.Add(_hudMenu);
-        _worldHost.Controls.Add(_gameToolbar);
+        _worldHost.Controls.Add(_btnRespawn);
         _worldHost.Controls.Add(tabRight);
+        _picMap.Click += (_, _) => DismissWindowLayerFromMap();
+        _mapScroll.Click += (_, _) => DismissWindowLayerFromMap();
         _worldHost.Resize += (_, _) => LayoutGameHud();
         _hudChat.AttachInputs(_cmbChannel, _txtWhisperTo, _txtChat, _btnSendChat);
         _hudHotbar.SlotActivated += OnHotbarSlotActivated;
@@ -1496,6 +1500,10 @@ public sealed class MainShellForm : Form
         _btnRespawn.Visible = state.IsDead;
         _btnRespawn.Enabled = state.IsDead;
         _hudStatus.ApplyCombat(state, _username);
+        if (state.IsDead)
+        {
+            LayoutGameHud();
+        }
     }
 
     private void OnInventorySnapshot(InventorySnapshotWire snapshot)
@@ -3247,8 +3255,12 @@ public sealed class MainShellForm : Form
         _hudMenu.Location = new Point(
             Math.Max(gap, host.Width - tabW - _hudMenu.Width - gap),
             Math.Max(gap, host.Height - _hudMenu.Height - gap));
-        _gameToolbar.Location = new Point(gap, _hudStatus.Bottom + gap);
-        _gameToolbar.BringToFront();
+        if (_btnRespawn.Visible)
+        {
+            _btnRespawn.Location = new Point(_hudStatus.Right + gap, gap);
+            _btnRespawn.BringToFront();
+        }
+
         _hudStatus.BringToFront();
         _hudMinimap.BringToFront();
         _hudQuest.BringToFront();
@@ -3267,16 +3279,36 @@ public sealed class MainShellForm : Form
         LayoutGameHud();
     }
 
+    private void DismissWindowLayerFromMap()
+    {
+        if (_windowLayerVisible)
+        {
+            SetWindowLayerVisible(false);
+        }
+    }
+
     private void OnHudMenuCommand(HudMenuCommand command)
     {
         switch (command)
         {
             case HudMenuCommand.Character:
             case HudMenuCommand.Inventory:
+                if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabGameplay)
+                {
+                    SetWindowLayerVisible(false);
+                    break;
+                }
+
                 SetWindowLayerVisible(true);
                 _gameplayTabs.SelectedTab = _tabGameplay;
                 break;
             case HudMenuCommand.Quests:
+                if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabPhase8)
+                {
+                    SetWindowLayerVisible(false);
+                    break;
+                }
+
                 SetWindowLayerVisible(true);
                 _gameplayTabs.SelectedTab = _tabPhase8;
                 _tabPhase8.PerformLayout();
@@ -3821,6 +3853,8 @@ public sealed class MainShellForm : Form
     internal HudMenuRing MenuRingForTest => _hudMenu;
 
     internal bool WindowLayerVisibleForTest => _windowLayerVisible;
+
+    internal bool GameToolbarOnWorldForTest => _gameToolbar.Parent == _worldHost;
 
     internal int SmoothTimerIntervalForTest => _smoothTimer.Interval;
 
