@@ -73,3 +73,8 @@ public sealed class IsolatedPostgresFixture : IAsyncLifetime
 public sealed class PostgresCollection : ICollectionFixture<IsolatedPostgresFixture>
 {
 }
+
+[CollectionDefinition("PostgresIsolatedDemoWorld")]
+public sealed class PostgresDemoWorldCollection : ICollectionFixture<IsolatedPostgresFixture>
+{
+}

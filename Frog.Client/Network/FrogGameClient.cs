@@ -10,6 +10,7 @@ using Frog.Core.Gameplay;
 using Frog.Core.IO;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Security;
 
 namespace Frog.Client.Network;
 
@@ -18,7 +19,7 @@ public sealed class FrogGameClient : IDisposable
 {
     private readonly SynchronizationContext _ui;
     private TcpClient? _tcp;
-    private NetworkStream? _stream;
+    private Stream? _stream;
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveTask;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -91,18 +92,43 @@ public sealed class FrogGameClient : IDisposable
     public event Action<EnvironmentStateWire>? EnvironmentStatePushReceived;
     public event Action<IReadOnlyList<WorldSwitchWire>>? WorldSwitchSnapshotReceived;
     public event Action<bool, string>? ModerateResultReceived;
+    public event Action<SocialResultWire>? SocialResultReceived;
+    public event Action<SocialSnapshotWire>? SocialSnapshotReceived;
+    public event Action<SocialEventWire>? SocialEventReceived;
+    public event Action<TradeResultWire>? TradeResultReceived;
+    public event Action<TradeSnapshotWire>? TradeSnapshotReceived;
     public event Action? ConnectionClosed;
 
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
     public PublishedCatalogWire? LatestPublishedCatalog { get; private set; }
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
+        => await ConnectAsync(host, port, ClientTlsOptions.Off, cancellationToken).ConfigureAwait(false);
+
+    public async Task ConnectAsync(
+        string host,
+        int port,
+        ClientTlsOptions tls,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(tls);
         await DisconnectAsync().ConfigureAwait(false);
         var tcp = new TcpClient();
-        await tcp.ConnectAsync(host, port, cancellationToken).ConfigureAwait(false);
-        _tcp = tcp;
-        _stream = tcp.GetStream();
+        try
+        {
+            await tcp.ConnectAsync(host, port, cancellationToken).ConfigureAwait(false);
+            var stream = await TlsClientAuthenticator
+                .WrapAfterConnectAsync(tcp.GetStream(), tls, host, cancellationToken)
+                .ConfigureAwait(false);
+            _tcp = tcp;
+            _stream = stream;
+        }
+        catch
+        {
+            tcp.Dispose();
+            throw;
+        }
+
         _receiveCts = new CancellationTokenSource();
         var loopCt = _receiveCts.Token;
         _receiveTask = Task.Run(() => ReceiveLoopAsync(loopCt), CancellationToken.None);
@@ -137,7 +163,19 @@ public sealed class FrogGameClient : IDisposable
             _receiveTask = null;
             _receiveCts?.Dispose();
             _receiveCts = null;
-            _stream = null;
+            if (_stream is not null)
+            {
+                try
+                {
+                    _stream.Dispose();
+                }
+                catch
+                {
+                    // ignore
+                }
+
+                _stream = null;
+            }
             if (_tcp is not null)
             {
                 try
@@ -716,6 +754,46 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.SocialResult:
+                if (SocialWire.TryParseResult(body.Span, out var socialResult))
+                {
+                    Post(() => SocialResultReceived?.Invoke(socialResult));
+                }
+
+                break;
+
+            case PacketId.SocialSnapshot:
+                if (SocialWire.TryParseSnapshot(body.Span, out var socialSnap))
+                {
+                    Post(() => SocialSnapshotReceived?.Invoke(socialSnap));
+                }
+
+                break;
+
+            case PacketId.SocialEvent:
+                if (SocialWire.TryParseEvent(body.Span, out var socialEv))
+                {
+                    Post(() => SocialEventReceived?.Invoke(socialEv));
+                }
+
+                break;
+
+            case PacketId.TradeResult:
+                if (TradeWire.TryParseResult(body.Span, out var tradeResult))
+                {
+                    Post(() => TradeResultReceived?.Invoke(tradeResult));
+                }
+
+                break;
+
+            case PacketId.TradeSnapshot:
+                if (TradeWire.TryParseSnapshot(body.Span, out var tradeSnap))
+                {
+                    Post(() => TradeSnapshotReceived?.Invoke(tradeSnap));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -1053,6 +1131,34 @@ public sealed class FrogGameClient : IDisposable
         o += sizeof(ushort);
         msgBytes.CopyTo(payload.AsSpan(o));
         await SendRawAsync(payload, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task SendSocialAsync(
+        SocialKind kind,
+        byte action,
+        Guid requestId,
+        ReadOnlySpan<byte> extra,
+        CancellationToken cancellationToken = default)
+    {
+        var body = SocialWire.BuildRequest(kind, action, requestId, extra);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.SocialRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendTradeAsync(
+        byte action,
+        Guid tradeId,
+        Guid requestId,
+        ReadOnlySpan<byte> extra,
+        CancellationToken cancellationToken = default)
+    {
+        var body = TradeWire.BuildRequest(action, tradeId, requestId, extra);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.TradeRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
     }
 
     public Task SendModerateAsync(

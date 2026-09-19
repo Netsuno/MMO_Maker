@@ -10,7 +10,8 @@ public sealed class ShopBankGameplayService(
     ICharacterRepository characters,
     IInventoryRepository inventory,
     IBankRepository bank,
-    IEconomyTransactionRepository economy)
+    IEconomyTransactionRepository economy,
+    ITradeHoldQuery? tradeHolds = null)
 {
     private readonly IPublishedShopCatalog _shops = shops;
     private readonly IPublishedItemCatalog _items = items;
@@ -18,6 +19,7 @@ public sealed class ShopBankGameplayService(
     private readonly IInventoryRepository _inventory = inventory;
     private readonly IBankRepository _bank = bank;
     private readonly IEconomyTransactionRepository _economy = economy;
+    private readonly ITradeHoldQuery _tradeHolds = tradeHolds ?? NullTradeHoldQuery.Instance;
 
     public Task<BankSnapshot> GetBankAsync(Guid characterId, CancellationToken ct = default)
         => _bank.GetAsync(characterId, ct);
@@ -69,6 +71,12 @@ public sealed class ShopBankGameplayService(
         }
 
         var characterId = session.RequireCharacterGuid();
+        var totalCost = checked(listing.Price * quantity);
+        if (!_tradeHolds.CanSpendGold(characterId, totalCost, session.Gold))
+        {
+            return ShopBuyResult.Fail("Or reserve pour un echange.");
+        }
+
         var result = await _economy.TryBuyAsync(
             characterId,
             shopId,
@@ -116,6 +124,11 @@ public sealed class ShopBankGameplayService(
         if (slot?.ItemId is not Guid itemId || slot.Quantity < quantity)
         {
             return ShopSellResult.Fail("Objet insuffisant.");
+        }
+
+        if (!_tradeHolds.CanRemoveFromSlot(characterId, inventorySlotIndex, quantity, slot.Quantity))
+        {
+            return ShopSellResult.Fail("Objets reserves pour un echange.");
         }
 
         var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
@@ -169,6 +182,11 @@ public sealed class ShopBankGameplayService(
         if (slot?.ItemId is not Guid itemId || slot.Quantity < quantity)
         {
             return BankDepositResult.Fail("Objet insuffisant.");
+        }
+
+        if (!_tradeHolds.CanRemoveFromSlot(characterId, inventorySlotIndex, quantity, slot.Quantity))
+        {
+            return BankDepositResult.Fail("Objets reserves pour un echange.");
         }
 
         var item = await _items.LoadPublishedByIdAsync(itemId, ct).ConfigureAwait(false);
@@ -267,6 +285,10 @@ public sealed class ShopBankGameplayService(
         }
 
         var characterId = session.RequireCharacterGuid();
+        if (!_tradeHolds.CanSpendGold(characterId, amount, session.Gold))
+        {
+            return BankGoldResult.Fail("Or reserve pour un echange.");
+        }
         var result = await _economy.TryBankDepositGoldAsync(characterId, amount, requestId, ct)
             .ConfigureAwait(false);
         if (!result.Success || result.State is null)

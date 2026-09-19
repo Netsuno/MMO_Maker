@@ -42,3 +42,38 @@ Aligné sur `PRD_MMO_Maker_CSharp.md` v2.1 et ADR-0003.
 - [x] Classes
 - [x] Shops
 - [x] Resources and spawns
+
+## Phase 7 — Gameplay essentiel
+
+- [x] Acceptée sur `main` (inventaire, équipement, boutique, banque, mêlée, mort/respawn)
+
+## Phase 8 — Quêtes / événements
+
+- [x] Acceptée sur `main` (merge `1cd57ba`)
+
+## Phase 9 — Distribution / admin / hardening
+
+- [x] Acceptée et fusionnée 2026-09-18 — PR #7 / `f74b34c` / tip produit `cab57b9`
+- [x] Mute / kick / ban persistés, `SessionTeardown`, C2/C2b
+- [x] `auth.operators`, gates bind / secrets / WorldFlags
+- [x] Backup/restore **schéma** + login (lignes sanctions **non** certifiées)
+- [x] Packaging serveur Linux prouvé ; client/éditeur publiés **non** lancés en preuve
+- [x] Charge in-memory mesurée ; palier 25×60 **non** certifié
+- [x] P9-S (guildes / groupes / trades) **différé** en Phase 9 → repris Phase 10
+
+## Phase 10 — Bêta fermée externe (actif)
+
+Mandat : [`progress/phase-10-beta-release/MANDATE.md`](progress/phase-10-beta-release/MANDATE.md).
+
+- [x] P10-0 audit + plan + gel protocole
+- [x] P10-1 groupes / guildes / amis / blocage (code + tests ; **pas** gate bêta)
+- [x] P10-2 échanges directs (opcodes 84–86, TX PG, replay ; **pas** gate bêta)
+- [x] P10-3a settings / aide / rebind ; zip Hello + READY headless (GUI WinForms Linux **hors gate**)
+- [x] P10-4 monde démo + recette 2 PCs **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.**
+- [x] P10-5 TLS / invitations / rate-limit / OpsCli / rôles PG / LoadHarness TLS
+- [x] P10-6 paquets self-contained + SHA-256 + `--smoke-launch` Windows CI (GUI Linux **hors gate**)
+- [x] P10-7 restore lignes métier + serveur publié **CI** (chiffrement / drain **non**)
+- [x] P10-8 25 joueurs × 60 min **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (harness CI = 5 s)
+- [ ] P10-9 docs candidate poussée — phrase de gate **réservée Orchestrator** (pas ce lot)
+
+Différé explicite (ne pas cocher ici) : coffre de guilde, HdV, mail objets, raids, UDP/AOI, clients non-Windows, import `.fcc`, boutique réelle.

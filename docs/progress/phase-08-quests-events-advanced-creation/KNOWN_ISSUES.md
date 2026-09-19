@@ -31,4 +31,6 @@ Phase 8 work does not claim the whole repository is placeholder-free. Pre-existi
 
 ## Phase 9
 
-Not started.
+À la clôture de Phase 8 : not started.
+
+**Mise à jour 2026-09-18 :** Phase 9 **ACCEPTED** (merge `f74b34c`, PR #7). Résidus (TLS, packaging client/éditeur, LOAD, restore sanctions, P9-S) → Phase 10 [`../phase-10-beta-release/`](../phase-10-beta-release/).

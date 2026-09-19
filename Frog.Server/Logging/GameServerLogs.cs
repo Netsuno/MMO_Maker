@@ -15,4 +15,10 @@ internal static class GameServerLogs
 
     public static void ClientHandlerFaulted(ILogger logger, Exception exception)
         => logger.LogError(exception, "Client handler task faulted unexpectedly.");
+
+    public static void TlsRequired(ILogger logger, string certificateSource)
+        => logger.LogInformation("TLS Required (SslStream AuthenticateAsServer before framing). cert={CertificateSource}", certificateSource);
+
+    public static void TlsHandshakeFailed(ILogger logger, string remoteEndPoint, Exception exception)
+        => logger.LogWarning(exception, "TLS handshake failed remote={RemoteEndPoint}", remoteEndPoint);
 }

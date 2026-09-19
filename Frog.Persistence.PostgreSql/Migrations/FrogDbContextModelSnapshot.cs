@@ -1655,6 +1655,29 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.CharacterBlockEntity", b =>
+                {
+                    b.Property<Guid>("BlockerCharacterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("blocker_character_id");
+
+                    b.Property<Guid>("BlockedCharacterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("blocked_character_id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.HasKey("BlockerCharacterId", "BlockedCharacterId")
+                        .HasName("pk_character_blocks");
+
+                    b.HasIndex("BlockedCharacterId")
+                        .HasDatabaseName("ix_character_blocks_blocked_character_id");
+
+                    b.ToTable("character_blocks", "player");
+                });
+
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1947,6 +1970,58 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.ToTable("event_craft_requests", "player");
                 });
 
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.FriendshipEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CharacterA")
+                        .HasColumnType("uuid")
+                        .HasColumnName("character_a");
+
+                    b.Property<Guid>("CharacterB")
+                        .HasColumnType("uuid")
+                        .HasColumnName("character_b");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTimeOffset?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<Guid>("RequestedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_friendships");
+
+                    b.HasIndex("CharacterB")
+                        .HasDatabaseName("ix_friendships_character_b");
+
+                    b.HasIndex("RequestedBy")
+                        .HasDatabaseName("ix_friendships_requested_by");
+
+                    b.HasIndex("CharacterA", "CharacterB")
+                        .IsUnique()
+                        .HasDatabaseName("ix_friendships_character_a_character_b");
+
+                    b.ToTable("friendships", "player", t =>
+                        {
+                            t.HasCheckConstraint("ck_friendships_pair", "character_a < character_b");
+                        });
+                });
+
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.GroundItemEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1995,6 +2070,122 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.ToTable("ground_items", "player", t =>
                         {
                             t.HasCheckConstraint("ck_ground_items_quantity", "quantity >= 1 AND quantity <= 999");
+                        });
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.GuildEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("Motd")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("motd");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("normalized_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_guilds");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("ix_guilds_normalized_name");
+
+                    b.ToTable("guilds", "player");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.GuildInviteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<Guid>("FromCharacterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("from_character_id");
+
+                    b.Property<Guid>("GuildId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("guild_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("ToCharacterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("to_character_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_guild_invites");
+
+                    b.HasIndex("FromCharacterId")
+                        .HasDatabaseName("ix_guild_invites_from_character_id");
+
+                    b.HasIndex("ToCharacterId")
+                        .HasDatabaseName("ix_guild_invites_to_character_id");
+
+                    b.HasIndex("GuildId", "ToCharacterId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_guild_invites_guild_id_to_character_id")
+                        .HasFilter("status = 'pending'");
+
+                    b.ToTable("guild_invites", "player");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.GuildMemberEntity", b =>
+                {
+                    b.Property<Guid>("GuildId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("guild_id");
+
+                    b.Property<Guid>("CharacterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("character_id");
+
+                    b.Property<DateTimeOffset>("JoinedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joined_at_utc");
+
+                    b.Property<byte>("Role")
+                        .HasColumnType("smallint")
+                        .HasColumnName("role");
+
+                    b.HasKey("GuildId", "CharacterId")
+                        .HasName("pk_guild_members");
+
+                    b.HasIndex("CharacterId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_guild_members_character_id");
+
+                    b.ToTable("guild_members", "player", t =>
+                        {
+                            t.HasCheckConstraint("ck_guild_members_role", "role IN (0, 1, 2)");
                         });
                 });
 
@@ -2153,6 +2344,52 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         {
                             t.HasCheckConstraint("ck_shop_stock_remaining", "remaining >= 0");
                         });
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.TradeExecutionEntity", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("trade_id");
+
+                    b.Property<Guid>("CommitRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("commit_request_id");
+
+                    b.Property<DateTimeOffset>("CommittedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("committed_at_utc");
+
+                    b.Property<string>("ContentsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("contents_json");
+
+                    b.Property<Guid>("InitiatorCharacterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("initiator_character_id");
+
+                    b.Property<Guid>("PartnerCharacterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("partner_character_id");
+
+                    b.HasKey("TradeId")
+                        .HasName("pk_trade_executions");
+
+                    b.HasIndex("CommitRequestId")
+                        .HasDatabaseName("ix_trade_executions_commit_request_id");
+
+                    b.HasIndex("CommittedAtUtc")
+                        .HasDatabaseName("ix_trade_executions_committed_at_utc");
+
+                    b.HasIndex("InitiatorCharacterId")
+                        .HasDatabaseName("ix_trade_executions_initiator_character_id");
+
+                    b.HasIndex("PartnerCharacterId")
+                        .HasDatabaseName("ix_trade_executions_partner_character_id");
+
+                    b.ToTable("trade_executions", "player");
                 });
 
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.ResourceEntity", b =>
@@ -3404,6 +3641,23 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.Navigation("Character");
                 });
 
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.CharacterBlockEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("BlockedCharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_character_blocks_characters_blocked_character_id");
+
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("BlockerCharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_character_blocks_characters_blocker_character_id");
+                });
+
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", b =>
                 {
                     b.HasOne("Frog.Persistence.PostgreSql.Entities.Auth.AccountEntity", "Account")
@@ -3438,6 +3692,70 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasConstraintName("fk_character_world_variables_characters_character_id");
                 });
 
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.FriendshipEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterA")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_friendships_characters_character_a");
+
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterB")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_friendships_characters_character_b");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.GuildInviteEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FromCharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_guild_invites_characters_from_character_id");
+
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.GuildEntity", "Guild")
+                        .WithMany("Invites")
+                        .HasForeignKey("GuildId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_guild_invites_guilds_guild_id");
+
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ToCharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_guild_invites_characters_to_character_id");
+
+                    b.Navigation("Guild");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.GuildMemberEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", "Character")
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_guild_members_characters_character_id");
+
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.GuildEntity", "Guild")
+                        .WithMany("Members")
+                        .HasForeignKey("GuildId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_guild_members_guilds_guild_id");
+
+                    b.Navigation("Character");
+
+                    b.Navigation("Guild");
+                });
+
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.InventorySlotEntity", b =>
                 {
                     b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", "Character")
@@ -3448,6 +3766,23 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasConstraintName("fk_inventory_slots_characters_character_id");
 
                     b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.TradeExecutionEntity", b =>
+                {
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("InitiatorCharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_trade_executions_characters_initiator_character_id");
+
+                    b.HasOne("Frog.Persistence.PostgreSql.Entities.Player.CharacterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PartnerCharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_trade_executions_characters_partner_character_id");
                 });
 
             modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.ResourceEntity", b =>
@@ -3666,6 +4001,13 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.Navigation("WorldSwitches");
 
                     b.Navigation("WorldVariables");
+                });
+
+            modelBuilder.Entity("Frog.Persistence.PostgreSql.Entities.Player.GuildEntity", b =>
+                {
+                    b.Navigation("Invites");
+
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

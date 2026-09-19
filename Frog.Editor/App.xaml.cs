@@ -7,6 +7,9 @@ public partial class App : System.Windows.Application
         System.Windows.Forms.Application.EnableVisualStyles();
         System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
+        Services.EditorTestHooks.PackagedSmokeLaunch = e.Args.Any(
+            a => string.Equals(a, "--smoke-launch", StringComparison.OrdinalIgnoreCase));
+
         base.OnStartup(e);
     }
 }

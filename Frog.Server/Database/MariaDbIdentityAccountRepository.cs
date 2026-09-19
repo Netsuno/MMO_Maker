@@ -117,6 +117,33 @@ public sealed class MariaDbIdentityAccountRepository : IAccountRepository
         }
     }
 
+    public async Task<bool> UpdatePasswordAsync(
+        string username,
+        string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        if (!AccountInputRules.IsValidUsername(username) || !AccountInputRules.IsValidPassword(newPassword))
+        {
+            return false;
+        }
+
+        var passwordHash = PasswordHasher.HashPassword(newPassword);
+        await using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new MySqlCommand(
+            """
+            UPDATE accounts
+            SET password_hash = @password_hash, password_salt = @password_salt
+            WHERE username = @username;
+            """,
+            connection);
+        command.Parameters.AddWithValue("@username", username.Trim());
+        command.Parameters.AddWithValue("@password_hash", passwordHash);
+        command.Parameters.AddWithValue("@password_salt", string.Empty);
+        var rows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return rows == 1;
+    }
+
     private static Guid CreateDeterministicAccountId(string username)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes("frog-account:" + username.Trim().ToUpperInvariant()));

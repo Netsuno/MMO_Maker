@@ -1,6 +1,8 @@
 # Phase 9 — KNOWN_ISSUES
 
-## Gate (P9-6)
+> **Acceptation datée (2026-09-18).** Phase 9 **ACCEPTED** (merge `f74b34c` / PR #7). Les résidus ci-dessous restent **techniquement vrais** et sont repris par [`../phase-10-beta-release/KNOWN_ISSUES.md`](../phase-10-beta-release/KNOWN_ISSUES.md). Le bandeau « NOT READY / awaiting re-review / Do not start Phase 10 » est l’état **d’avant** l’acceptation.
+
+## Gate (P9-6) — archive pré-acceptation
 
 - Phase 9 is **NOT READY**. Prior READY / gate on tip `5db5f6b` was **withdrawn** (Marc refused despite green CI on evidence pack `8bf6f08` / https://github.com/Netsuno/MMO_Maker/actions/runs/35292542956).
 - C1–C6 corrections are on product tip `422993b`. CI https://github.com/Netsuno/MMO_Maker/actions/runs/35369587406 **SUCCESS** (`build-and-test` SUCCESS, `postgres-integration` SUCCESS; Frog.Tests **445** / PG **181** / editor **87×3** / gameplay **6×3** / Phase 8 **24×3** + 12 exact-sha). C-fixes **awaiting re-review**. Predecessor FAILURE: 35368492352 on `2cb842d`.

@@ -77,15 +77,33 @@ public sealed class InMemoryEventCraftRepository(
 {
     private readonly ConcurrentDictionary<(Guid CharacterId, Guid RequestId), EventCraftResult> _completed = new();
 
+    public Task<EventCraftResult?> TryGetReplayAsync(
+        Guid characterId,
+        Guid recipeId,
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = recipeId;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_completed.TryGetValue((characterId, requestId), out var replay))
+        {
+            return Task.FromResult<EventCraftResult?>(replay with { Status = EventCraftStatus.IdempotentReplay });
+        }
+
+        return Task.FromResult<EventCraftResult?>(null);
+    }
+
     public async Task<EventCraftResult> TryCraftAsync(
         Guid characterId,
         Guid recipeId,
         Guid requestId,
         CancellationToken cancellationToken = default)
     {
-        if (_completed.TryGetValue((characterId, requestId), out var replay))
+        var existing = await TryGetReplayAsync(characterId, recipeId, requestId, cancellationToken)
+            .ConfigureAwait(false);
+        if (existing is not null)
         {
-            return replay with { Status = EventCraftStatus.IdempotentReplay };
+            return existing;
         }
 
         var recipe = await recipes.TryGetPublishedByIdAsync(recipeId, cancellationToken).ConfigureAwait(false);

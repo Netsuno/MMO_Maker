@@ -54,6 +54,11 @@ public sealed partial class PacketDispatcher
         await SendBankSnapshotAsync(clientSession, session, cancellationToken);
         await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
         await SendPhase8SnapshotsAsync(clientSession, session, cancellationToken);
+        if (session.CharacterGuid is Guid socialCharacterId)
+        {
+            await _social.NotifyCharacterOnlineAsync(socialCharacterId, session.Username, cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     private Task SendCombatStateAsync(ClientSession clientSession, Session session, CancellationToken cancellationToken)

@@ -5,22 +5,29 @@ using Frog.Server.Security;
 
 namespace Frog.Server.Services;
 
-public sealed class AuthService(
-    IAccountRepository accountRepository,
-    LoginRateLimiter rateLimiter,
-    ServerOpsMetrics? opsMetrics = null)
+public sealed class AuthService
 {
-    private readonly IAccountRepository _accountRepository = accountRepository;
-    private readonly LoginRateLimiter _rateLimiter = rateLimiter;
-    private readonly ServerOpsMetrics? _opsMetrics = opsMetrics;
+    private readonly IAccountRepository _accountRepository;
+    private readonly AuthRateLimiter _rateLimiter;
+    private readonly ServerOpsMetrics? _opsMetrics;
+
+    public AuthService(
+        IAccountRepository accountRepository,
+        AuthRateLimiter rateLimiter,
+        ServerOpsMetrics? opsMetrics = null)
+    {
+        _accountRepository = accountRepository;
+        _rateLimiter = rateLimiter;
+        _opsMetrics = opsMetrics;
+    }
 
     public async Task<(bool Success, AccountRecord? Account, bool RateLimited)> TryAuthenticateAsync(
         string username,
         string password,
-        string rateLimitKey,
+        string remoteEndPoint,
         CancellationToken cancellationToken = default)
     {
-        if (!_rateLimiter.TryAllow(rateLimitKey))
+        if (!_rateLimiter.TryAllow(remoteEndPoint, username))
         {
             _opsMetrics?.RecordRateLimitHit("login");
             return (false, null, true);
@@ -29,6 +36,7 @@ public sealed class AuthService(
         if (!AccountInputRules.IsValidUsername(username) || !AccountInputRules.IsValidLoginPassword(password))
         {
             PasswordHasher.VerifyOrTimingSafeReject(password, null, null);
+            _rateLimiter.RegisterFailure(remoteEndPoint, username);
             return (false, null, false);
         }
 
@@ -36,11 +44,11 @@ public sealed class AuthService(
         var ok = VerifyStoredPassword(password, account?.PasswordHash);
         if (!ok)
         {
-            _rateLimiter.RegisterFailure(rateLimitKey);
+            _rateLimiter.RegisterFailure(remoteEndPoint, username);
             return (false, null, false);
         }
 
-        _rateLimiter.RegisterSuccess(rateLimitKey);
+        _rateLimiter.RegisterSuccess(remoteEndPoint, username);
         return (true, account, false);
     }
 
@@ -48,18 +56,55 @@ public sealed class AuthService(
         string username,
         string password,
         CancellationToken cancellationToken = default)
+        => RegisterAccountAsync(username, password, remoteEndPoint: AuthRateLimitKey.Unknown, cancellationToken);
+
+    public async Task<AccountCreateResult> RegisterAccountAsync(
+        string username,
+        string password,
+        string remoteEndPoint,
+        CancellationToken cancellationToken = default)
     {
-        if (!AccountInputRules.IsValidUsername(username) || !AccountInputRules.IsValidPassword(password))
+        if (!_rateLimiter.TryAllow(remoteEndPoint, username))
         {
-            return Task.FromResult(new AccountCreateResult(AccountCreateStatus.InvalidInput));
+            _opsMetrics?.RecordRateLimitHit("login");
+            return new AccountCreateResult(AccountCreateStatus.RateLimited);
         }
 
-        return _accountRepository.TryCreateAsync(username, password, cancellationToken);
+        if (!AccountInputRules.IsValidUsername(username) || !AccountInputRules.IsValidPassword(password))
+        {
+            _rateLimiter.RegisterFailure(remoteEndPoint, username);
+            return new AccountCreateResult(AccountCreateStatus.InvalidInput);
+        }
+
+        var created = await _accountRepository.TryCreateAsync(username, password, cancellationToken)
+            .ConfigureAwait(false);
+        if (created.Status != AccountCreateStatus.Created)
+        {
+            _rateLimiter.RegisterFailure(remoteEndPoint, username);
+            return created;
+        }
+
+        _rateLimiter.RegisterSuccess(remoteEndPoint, username);
+        return created;
     }
 
-    public bool TryAllowReconnect(string rateLimitKey)
+    public void RegisterAuthFailure(string remoteEndPoint, string? username)
+        => _rateLimiter.RegisterFailure(remoteEndPoint, username);
+
+    public bool TryAllowAuth(string remoteEndPoint, string? username, string metricKind)
     {
-        var allowed = _rateLimiter.TryAllow("reconnect:" + rateLimitKey);
+        var allowed = _rateLimiter.TryAllow(remoteEndPoint, username);
+        if (!allowed)
+        {
+            _opsMetrics?.RecordRateLimitHit(metricKind);
+        }
+
+        return allowed;
+    }
+
+    public bool TryAllowReconnect(string remoteEndPoint, string? username = null)
+    {
+        var allowed = _rateLimiter.TryAllow(remoteEndPoint, username);
         if (!allowed)
         {
             _opsMetrics?.RecordRateLimitHit("reconnect");
@@ -68,9 +113,11 @@ public sealed class AuthService(
         return allowed;
     }
 
-    public void RegisterReconnectFailure(string rateLimitKey) => _rateLimiter.RegisterFailure("reconnect:" + rateLimitKey);
+    public void RegisterReconnectFailure(string remoteEndPoint, string? username = null)
+        => _rateLimiter.RegisterFailure(remoteEndPoint, username);
 
-    public void RegisterReconnectSuccess(string rateLimitKey) => _rateLimiter.RegisterSuccess("reconnect:" + rateLimitKey);
+    public void RegisterReconnectSuccess(string remoteEndPoint, string? username = null)
+        => _rateLimiter.RegisterSuccess(remoteEndPoint, username);
 
     private static bool VerifyStoredPassword(string password, string? stored)
     {

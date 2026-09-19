@@ -1,5 +1,7 @@
 # Phase 9 — Task matrix
 
+> **Acceptation datée (2026-09-18).** Lots P9-0…P9-6 **clos par acceptation** (PR #7). P9-S reste **DEFERRED** *au titre de la Phase 9* ; le travail est P10-1 / P10-2. Les cellules « IN PROGRESS / NOT READY » ci-dessous sont l’archive P9-6.
+
 Statuses: `DONE` | `IN PROGRESS` | `NOT STARTED` | `DEFERRED`.
 Owners are **roles**, not agent IDs.
 

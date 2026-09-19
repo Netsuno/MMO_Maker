@@ -9,7 +9,8 @@ public sealed class PublishedCatalogService(
     IPublishedItemCatalog items,
     IPublishedSpellCatalog spells,
     IPublishedShopCatalog shops,
-    IPublishedNpcCatalog npcs)
+    IPublishedNpcCatalog npcs,
+    IPublishedRecipeCatalog recipes)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,6 +24,7 @@ public sealed class PublishedCatalogService(
         var spellList = await spells.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
         var shopList = await shops.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
         var npcList = await npcs.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
+        var recipeList = await recipes.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
 
         return new PublishedCatalogWire
         {
@@ -55,6 +57,11 @@ public sealed class PublishedCatalogService(
             {
                 Id = n.Id.ToString("D"),
                 Name = n.Name,
+            }).ToArray(),
+            Recipes = recipeList.Select(r => new PublishedRecipeWireEntry
+            {
+                Id = r.Id.ToString("D"),
+                Name = r.Name,
             }).ToArray(),
         };
     }

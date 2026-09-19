@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Frog.Core.Enums;
+using Frog.Core.Security;
 using Frog.Server.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -22,9 +23,9 @@ public sealed class LoadHarnessRunner
 
     public const string Usage =
         """
-        Frog.LoadHarness — P9-5 TCP load / observability probe.
+        Frog.LoadHarness — P9-5 / P10-5 TCP load / observability probe.
 
-        Default: spin up an in-memory Frog.Server on a free loopback port (no PostgreSQL).
+        Default: spin up an in-memory Frog.Server on a free loopback port (no PostgreSQL, TLS Off).
 
           dotnet run --project tools/Frog.LoadHarness -- --scenario mixed --sessions 25
           ./scripts/run-load-harness.sh --sessions 25 --scenario mixed
@@ -33,16 +34,27 @@ public sealed class LoadHarnessRunner
 
           dotnet run --project tools/Frog.LoadHarness -- --host 127.0.0.1 --port 6000 --sessions 10 --scenario connect
 
+        P10-8 hosted load (TLS Required, confined or public CA — never AcceptAll):
+
+          ./scripts/run-load-harness.sh --host HOST --port 6000 --tls-mode Required --tls-target-host HOST --tls-ca-path /path/to/test-ca.pem --sessions 25 --scenario mixed
+
         Options:
-          --scenario connect|chat|move|mixed   (default mixed)
+          --scenario connect|chat|move|mixed|campaign   (default mixed)
           --sessions N                         (default 25, max 500)
-          --hold-ms N                          hold open after work (default 3000)
+          --hold-ms N                          hold / campaign duration (default 3000)
           --chat-burst N                       chat sends per authed session (default 12)
           --move-burst N                       move packets per authed session (default 80)
+          --sample-ms N                        CPU/RAM sample interval in campaign (default 1000)
+          --action-interval-ms N               per-session action cadence in campaign (default 250)
+          --mandate-hold-ms N                  report-only comparison (default 3600000)
           --self-host                          in-memory host (default)
           --host ADDR --port N                 attach instead of self-host
           --json-out PATH                      write the JSON report
           --max-parallel-auth N                cap concurrent register/login (default 8)
+          --tls-mode Off|Required              (default Off; Required = SslStream + TargetHost)
+          --tls-target-host NAME               SNI / certificate name (required with Required)
+          --tls-ca-path PEM                    confined test CA (CustomRootTrust; not AcceptAll)
+          --tls-cert-path / --tls-key-path     self-host server PEM when Required
 
         mixed = connect + authenticate + chat burst + move burst + oversize reject + login rate-limit probe.
         """;
@@ -53,6 +65,7 @@ public sealed class LoadHarnessRunner
     {
         var started = DateTimeOffset.UtcNow;
         var cpuStart = Process.GetCurrentProcess().TotalProcessorTime;
+        options.ValidateTls();
         IHost? host = null;
         var address = options.Host ?? "127.0.0.1";
         var port = options.Port;
@@ -64,14 +77,14 @@ public sealed class LoadHarnessRunner
             {
                 port = GetFreePort();
                 address = "127.0.0.1";
-                host = InMemoryLoadHost.Create(port);
+                host = InMemoryLoadHost.Create(port, options.TlsCertificatePath, options.TlsPrivateKeyPath);
                 await host.StartAsync(cancellationToken).ConfigureAwait(false);
                 serverMetrics = host.Services.GetRequiredService<ServerOpsMetrics>();
                 await WaitForAcceptAsync(address, port, TimeSpan.FromSeconds(8), cancellationToken)
                     .ConfigureAwait(false);
             }
 
-            var client = await ExecuteScenarioAsync(options, address, port, cancellationToken)
+            var (client, campaign) = await ExecuteScenarioAsync(options, address, port, cancellationToken)
                 .ConfigureAwait(false);
 
             // Give the snapshot service / handlers a beat to record rejects.
@@ -97,6 +110,10 @@ public sealed class LoadHarnessRunner
                     Mode = options.SelfHost ? "self-host-inmemory" : "attach",
                     Address = address,
                     Port = port,
+                    TlsMode = options.TlsMode.ToString(),
+                    TlsTargetHost = options.TlsMode == TlsTransportMode.Required
+                        ? options.ResolveTargetHost()
+                        : null,
                 },
                 Machine = new LoadMachineInfo
                 {
@@ -109,6 +126,7 @@ public sealed class LoadHarnessRunner
                 },
                 Client = client,
                 ServerOps = serverMetrics?.Snapshot(),
+                Campaign = campaign,
             };
 
             if (!string.IsNullOrWhiteSpace(options.JsonOut))
@@ -145,23 +163,26 @@ public sealed class LoadHarnessRunner
         }
     }
 
-    private static async Task<LoadClientCounters> ExecuteScenarioAsync(
+    private static async Task<(LoadClientCounters Client, LoadCampaignInfo? Campaign)> ExecuteScenarioAsync(
         LoadHarnessOptions options,
         string address,
         int port,
         CancellationToken cancellationToken)
     {
         var scenario = options.Scenario;
-        var needAuth = scenario is "chat" or "move" or "mixed";
+        var needAuth = scenario is "chat" or "move" or "mixed" or "campaign";
         var needChat = scenario is "chat" or "mixed";
         var needMove = scenario is "move" or "mixed";
+        var needCampaign = scenario is "campaign";
         var needOversize = scenario is "mixed";
         var needLoginRate = scenario is "mixed";
 
         var counters = new LoadClientCounters();
+        LoadCampaignInfo? campaign = null;
         var runId = Guid.NewGuid().ToString("N")[..8];
         var clients = new LoadTcpClient[options.Sessions];
         var gate = new SemaphoreSlim(options.MaxParallelAuth, options.MaxParallelAuth);
+        var tls = options.CreateClientTlsOptions();
 
         try
         {
@@ -171,7 +192,11 @@ public sealed class LoadHarnessRunner
                 clients[i] = tcp;
                 try
                 {
-                    await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(options.ConnectTimeoutMs))
+                    await tcp.ConnectAsync(
+                            address,
+                            port,
+                            TimeSpan.FromMilliseconds(options.ConnectTimeoutMs),
+                            tls)
                         .ConfigureAwait(false);
                     Interlocked.Increment(ref counters.TcpConnectOk);
                     var hello = await tcp.ReadFrameAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
@@ -247,20 +272,25 @@ public sealed class LoadHarnessRunner
                 await Task.WhenAll(moveTasks).ConfigureAwait(false);
             }
 
-            if (options.HoldMilliseconds > 0)
+            if (needCampaign)
+            {
+                campaign = await RunCampaignAsync(clients, options, counters, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else if (options.HoldMilliseconds > 0)
             {
                 await Task.Delay(options.HoldMilliseconds, cancellationToken).ConfigureAwait(false);
             }
 
             if (needOversize)
             {
-                await OversizeProbeAsync(address, port, options.ConnectTimeoutMs, counters)
+                await OversizeProbeAsync(address, port, options.ConnectTimeoutMs, counters, tls)
                     .ConfigureAwait(false);
             }
 
             if (needLoginRate)
             {
-                await LoginRateProbeAsync(address, port, options.ConnectTimeoutMs, counters)
+                await LoginRateProbeAsync(address, port, options.ConnectTimeoutMs, counters, tls)
                     .ConfigureAwait(false);
             }
         }
@@ -275,7 +305,7 @@ public sealed class LoadHarnessRunner
             }
         }
 
-        return counters;
+        return (counters, campaign);
     }
 
     private static async Task AuthenticateAsync(
@@ -445,16 +475,306 @@ public sealed class LoadHarnessRunner
         }
     }
 
+    private static async Task<LoadCampaignInfo> RunCampaignAsync(
+        LoadTcpClient[] clients,
+        LoadHarnessOptions options,
+        LoadClientCounters counters,
+        CancellationToken cancellationToken)
+    {
+        var holdMs = Math.Max(0, options.HoldMilliseconds);
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(holdMs);
+        var heartbeatRtt = new LoadLatencyCollector();
+        var moveRtt = new LoadLatencyCollector();
+        var interactRtt = new LoadLatencyCollector();
+        var samples = new List<LoadResourceSample>();
+        var sampleGate = new object();
+        var process = Process.GetCurrentProcess();
+        var wallStart = DateTime.UtcNow;
+        var cpuStart = process.TotalProcessorTime;
+        using var sampleCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        var sampler = Task.Run(async () =>
+        {
+            while (!sampleCts.IsCancellationRequested && DateTime.UtcNow < deadline)
+            {
+                process.Refresh();
+                var elapsed = DateTime.UtcNow - wallStart;
+                var cpuMs = (process.TotalProcessorTime - cpuStart).TotalMilliseconds;
+                var cpuPct = elapsed.TotalMilliseconds > 0
+                    ? 100.0 * cpuMs / (elapsed.TotalMilliseconds * Math.Max(1, Environment.ProcessorCount))
+                    : 0;
+                lock (sampleGate)
+                {
+                    samples.Add(new LoadResourceSample
+                    {
+                        ElapsedMs = (long)elapsed.TotalMilliseconds,
+                        ProcessCpuPercentEstimate = Math.Round(cpuPct, 1),
+                        WorkingSetBytes = process.WorkingSet64,
+                    });
+                }
+
+                try
+                {
+                    await Task.Delay(options.SampleMilliseconds, sampleCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
+        }, sampleCts.Token);
+
+        var workers = clients.Select((tcp, i) => tcp is null
+            ? Task.CompletedTask
+            : CampaignSessionAsync(
+                tcp,
+                i,
+                deadline,
+                options.ActionIntervalMilliseconds,
+                counters,
+                heartbeatRtt,
+                moveRtt,
+                interactRtt,
+                cancellationToken));
+        await Task.WhenAll(workers).ConfigureAwait(false);
+        sampleCts.Cancel();
+        try
+        {
+            await sampler.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // expected
+        }
+
+        var actualHold = Math.Min(holdMs, (long)(DateTime.UtcNow - wallStart).TotalMilliseconds);
+        var actions = counters.HeartbeatAckRecv
+            + counters.PositionUpdateRecv
+            + counters.InteractResultRecv
+            + counters.MeleeResultRecv
+            + counters.ChatMessageRecv;
+        var seconds = Math.Max(0.001, actualHold / 1000.0);
+        var mandate = options.MandateHoldMilliseconds;
+        LoadResourceSample[] snapshot;
+        lock (sampleGate)
+        {
+            snapshot = samples.ToArray();
+        }
+
+        return new LoadCampaignInfo
+        {
+            MandateHoldMs = mandate,
+            ActualHoldMs = actualHold,
+            MandateDurationMet = actualHold >= mandate,
+            MandateGap = actualHold >= mandate
+                ? ""
+                : $"atteint {actualHold} ms / mandat {mandate} ms — relancer --hold-ms {mandate} sur machine dédiée",
+            ActionsPerSecond = Math.Round(actions / seconds, 2),
+            HeartbeatRtt = heartbeatRtt.Snapshot(),
+            MoveRtt = moveRtt.Snapshot(),
+            InteractRtt = interactRtt.Snapshot(),
+            ResourceSamples = snapshot,
+        };
+    }
+
+    private static async Task CampaignSessionAsync(
+        LoadTcpClient tcp,
+        int index,
+        DateTime deadline,
+        int actionIntervalMs,
+        LoadClientCounters counters,
+        LoadLatencyCollector heartbeatRtt,
+        LoadLatencyCollector moveRtt,
+        LoadLatencyCollector interactRtt,
+        CancellationToken cancellationToken)
+    {
+        var tick = 0;
+        var dx = (sbyte)(index % 2 == 0 ? 1 : -1);
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            tick++;
+            await TimedExchangeAsync(
+                    tcp,
+                    LoadPackets.Heartbeat(),
+                    PacketId.HeartbeatAck,
+                    TimeSpan.FromSeconds(3),
+                    () => Interlocked.Increment(ref counters.HeartbeatSent),
+                    () => Interlocked.Increment(ref counters.HeartbeatAckRecv),
+                    () => Interlocked.Increment(ref counters.HeartbeatFail),
+                    heartbeatRtt)
+                .ConfigureAwait(false);
+
+            await TimedExchangeAnyAsync(
+                    tcp,
+                    LoadPackets.Move(dx, 0),
+                    [PacketId.PositionUpdate, PacketId.Error],
+                    TimeSpan.FromSeconds(2),
+                    () => Interlocked.Increment(ref counters.MoveSent),
+                    frame =>
+                    {
+                        if (frame[0] == (byte)PacketId.PositionUpdate)
+                        {
+                            Interlocked.Increment(ref counters.PositionUpdateRecv);
+                        }
+                        else if (LoadPackets.ErrorMessage(frame).Contains("Trop de mouvements", StringComparison.Ordinal))
+                        {
+                            Interlocked.Increment(ref counters.MoveRateLimited);
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref counters.OtherErrors);
+                        }
+                    },
+                    () => Interlocked.Increment(ref counters.MoveSendFail),
+                    moveRtt)
+                .ConfigureAwait(false);
+            dx = (sbyte)-dx;
+
+            await TimedExchangeAsync(
+                    tcp,
+                    LoadPackets.Interact(Guid.NewGuid()),
+                    PacketId.InteractResult,
+                    TimeSpan.FromSeconds(3),
+                    () => Interlocked.Increment(ref counters.InteractSent),
+                    () => Interlocked.Increment(ref counters.InteractResultRecv),
+                    () => Interlocked.Increment(ref counters.InteractFail),
+                    interactRtt)
+                .ConfigureAwait(false);
+
+            try
+            {
+                await tcp.SendFrameAsync(LoadPackets.Melee("Slime"), cancellationToken).ConfigureAwait(false);
+                Interlocked.Increment(ref counters.MeleeSent);
+                var melee = await tcp.ReadUntilAsync(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(2))
+                    .ConfigureAwait(false);
+                if (melee.Length > 0)
+                {
+                    Interlocked.Increment(ref counters.MeleeResultRecv);
+                }
+            }
+            catch
+            {
+                Interlocked.Increment(ref counters.MeleeFail);
+            }
+
+            if (tick % 8 == 0)
+            {
+                try
+                {
+                    await tcp.SendFrameAsync(LoadPackets.Chat(ChatChannel.Global, "p10-8 " + tick), cancellationToken)
+                        .ConfigureAwait(false);
+                    Interlocked.Increment(ref counters.ChatSent);
+                }
+                catch
+                {
+                    Interlocked.Increment(ref counters.ChatSendFail);
+                }
+            }
+
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            var delay = TimeSpan.FromMilliseconds(actionIntervalMs);
+            if (delay > remaining)
+            {
+                delay = remaining;
+            }
+
+            try
+            {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private static async Task TimedExchangeAsync(
+        LoadTcpClient tcp,
+        byte[] payload,
+        PacketId expected,
+        TimeSpan timeout,
+        Action onSend,
+        Action onOk,
+        Action onFail,
+        LoadLatencyCollector rtt)
+        => await TimedExchangeAnyAsync(
+                tcp,
+                payload,
+                [expected],
+                timeout,
+                onSend,
+                _ => onOk(),
+                onFail,
+                rtt)
+            .ConfigureAwait(false);
+
+    private static async Task TimedExchangeAnyAsync(
+        LoadTcpClient tcp,
+        byte[] payload,
+        PacketId[] expected,
+        TimeSpan timeout,
+        Action onSend,
+        Action<byte[]> onOk,
+        Action onFail,
+        LoadLatencyCollector rtt)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await tcp.SendFrameAsync(payload).ConfigureAwait(false);
+            onSend();
+            var deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                var remaining = deadline - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var frame = await tcp.ReadFrameAsync(remaining).ConfigureAwait(false);
+                if (frame.Length == 0)
+                {
+                    continue;
+                }
+
+                foreach (var id in expected)
+                {
+                    if (frame[0] == (byte)id)
+                    {
+                        rtt.Record(sw.Elapsed.TotalMilliseconds);
+                        onOk(frame);
+                        return;
+                    }
+                }
+            }
+
+            onFail();
+        }
+        catch
+        {
+            onFail();
+        }
+    }
+
     private static async Task OversizeProbeAsync(
         string address,
         int port,
         int connectTimeoutMs,
-        LoadClientCounters counters)
+        LoadClientCounters counters,
+        ClientTlsOptions tls)
     {
         await using var tcp = new LoadTcpClient();
         try
         {
-            await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs))
+            await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs), tls)
                 .ConfigureAwait(false);
             _ = await tcp.ReadFrameAsync(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
             await tcp.SendRawLengthPrefixAsync(1024 * 1024 + 1).ConfigureAwait(false);
@@ -487,12 +807,13 @@ public sealed class LoadHarnessRunner
         string address,
         int port,
         int connectTimeoutMs,
-        LoadClientCounters counters)
+        LoadClientCounters counters,
+        ClientTlsOptions tls)
     {
         await using var tcp = new LoadTcpClient();
         try
         {
-            await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs))
+            await tcp.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs), tls)
                 .ConfigureAwait(false);
             _ = await tcp.ReadFrameAsync(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
             for (var i = 0; i < 9; i++)

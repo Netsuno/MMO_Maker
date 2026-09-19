@@ -100,6 +100,18 @@ public sealed class FrogDbContext : DbContext
 
     public DbSet<QuestTurnInRequestEntity> PlayerQuestTurnInRequests => Set<QuestTurnInRequestEntity>();
 
+    public DbSet<GuildEntity> PlayerGuilds => Set<GuildEntity>();
+
+    public DbSet<GuildMemberEntity> PlayerGuildMembers => Set<GuildMemberEntity>();
+
+    public DbSet<GuildInviteEntity> PlayerGuildInvites => Set<GuildInviteEntity>();
+
+    public DbSet<FriendshipEntity> PlayerFriendships => Set<FriendshipEntity>();
+
+    public DbSet<CharacterBlockEntity> PlayerCharacterBlocks => Set<CharacterBlockEntity>();
+
+    public DbSet<TradeExecutionEntity> PlayerTradeExecutions => Set<TradeExecutionEntity>();
+
     public DbSet<Phase8ContentDefinitionEntity> Phase8ContentDefinitions => Set<Phase8ContentDefinitionEntity>();
 
     public DbSet<Phase8ContentPublishedSnapshotEntity> Phase8ContentPublishedSnapshots =>
@@ -995,6 +1007,106 @@ public sealed class FrogDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.ContentDefinitionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GuildEntity>(e =>
+        {
+            e.ToTable("guilds", "player");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.DisplayName).HasMaxLength(32).IsRequired();
+            e.Property(x => x.NormalizedName).HasMaxLength(64).IsRequired();
+            e.HasIndex(x => x.NormalizedName).IsUnique();
+            e.Property(x => x.Motd).HasMaxLength(256).IsRequired();
+            e.HasMany(x => x.Members).WithOne(x => x.Guild).HasForeignKey(x => x.GuildId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Invites).WithOne(x => x.Guild).HasForeignKey(x => x.GuildId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GuildMemberEntity>(e =>
+        {
+            e.ToTable("guild_members", "player", t =>
+            {
+                t.HasCheckConstraint("ck_guild_members_role", "role IN (0, 1, 2)");
+            });
+            e.HasKey(x => new { x.GuildId, x.CharacterId });
+            e.HasIndex(x => x.CharacterId).IsUnique();
+            e.HasOne(x => x.Character)
+                .WithMany()
+                .HasForeignKey(x => x.CharacterId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.Ignore(x => x.RoleEnum);
+        });
+
+        modelBuilder.Entity<GuildInviteEntity>(e =>
+        {
+            e.ToTable("guild_invites", "player");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.HasIndex(x => new { x.GuildId, x.ToCharacterId })
+                .IsUnique()
+                .HasFilter("status = 'pending'");
+            e.HasIndex(x => x.ToCharacterId);
+            e.HasIndex(x => x.FromCharacterId);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.FromCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ToCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FriendshipEntity>(e =>
+        {
+            e.ToTable("friendships", "player", t =>
+            {
+                t.HasCheckConstraint("ck_friendships_pair", "character_a < character_b");
+            });
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.HasIndex(x => new { x.CharacterA, x.CharacterB }).IsUnique();
+            e.HasIndex(x => x.RequestedBy);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.CharacterA)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.CharacterB)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CharacterBlockEntity>(e =>
+        {
+            e.ToTable("character_blocks", "player");
+            e.HasKey(x => new { x.BlockerCharacterId, x.BlockedCharacterId });
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.BlockerCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.BlockedCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TradeExecutionEntity>(e =>
+        {
+            e.ToTable("trade_executions", "player");
+            e.HasKey(x => x.TradeId);
+            e.Property(x => x.ContentsJson).HasColumnType("jsonb").IsRequired();
+            e.HasIndex(x => x.CommittedAtUtc);
+            e.HasIndex(x => x.CommitRequestId);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.InitiatorCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<CharacterEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.PartnerCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

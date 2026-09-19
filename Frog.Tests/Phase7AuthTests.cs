@@ -34,7 +34,7 @@ public sealed class Phase7AuthTests
     public async Task AuthService_RejectsDuplicateAccount()
     {
         var repo = new InMemoryAccountRepository();
-        var auth = new AuthService(repo, new LoginRateLimiter());
+        var auth = new AuthService(repo, new AuthRateLimiter());
         var first = await auth.RegisterAccountAsync("player-one", "password123");
         var second = await auth.RegisterAccountAsync("player-one", "password123");
         Assert.Equal(AccountCreateStatus.Created, first.Status);
@@ -45,7 +45,7 @@ public sealed class Phase7AuthTests
     public async Task AuthService_RejectsInvalidInput()
     {
         var repo = new InMemoryAccountRepository();
-        var auth = new AuthService(repo, new LoginRateLimiter());
+        var auth = new AuthService(repo, new AuthRateLimiter());
         var shortPassword = await auth.RegisterAccountAsync("valid-user", "short");
         var badUser = await auth.RegisterAccountAsync("x", "password123");
         Assert.Equal(AccountCreateStatus.InvalidInput, shortPassword.Status);
@@ -56,7 +56,7 @@ public sealed class Phase7AuthTests
     public async Task AuthService_GenericFailure_DoesNotRevealMissingAccount()
     {
         var repo = new InMemoryAccountRepository();
-        var auth = new AuthService(repo, new LoginRateLimiter(maxFailures: 20));
+        var auth = new AuthService(repo, new AuthRateLimiter(ipUserMaxFailures: 20));
         var missing = await auth.TryAuthenticateAsync("ghost-user", "password123", "k1");
         var wrong = await auth.TryAuthenticateAsync("demo", "wrong-pass", "k2");
         Assert.False(missing.Success);

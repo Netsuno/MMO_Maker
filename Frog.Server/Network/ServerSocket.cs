@@ -3,6 +3,10 @@ using System.Net.Sockets;
 
 namespace Frog.Server.Network;
 
+/// <summary>
+/// Acceptation TCP uniquement. L'enveloppe TLS (<c>SslStream.AuthenticateAsServer</c>)
+/// est appliquée après accept et avant le framing <see cref="ClientSession"/>.
+/// </summary>
 public sealed class ServerSocket : IAsyncDisposable
 {
     private readonly TcpListener _listener;

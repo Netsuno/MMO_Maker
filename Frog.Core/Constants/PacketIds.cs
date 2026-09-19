@@ -84,5 +84,12 @@ public static class PacketIds
     public const byte WorldSwitchSnapshot = 77;
     public const byte ModerateRequest = 78;
     public const byte ModerateResult = 79;
+    public const byte SocialRequest = 80;
+    public const byte SocialResult = 81;
+    public const byte SocialSnapshot = 82;
+    public const byte SocialEvent = 83;
+    public const byte TradeRequest = 84;
+    public const byte TradeResult = 85;
+    public const byte TradeSnapshot = 86;
     public const byte Error = 255;
 }

@@ -13,6 +13,7 @@ public sealed class LoadHarnessReport
     public LoadMachineInfo Machine { get; init; } = new();
     public LoadClientCounters Client { get; init; } = new();
     public ServerOpsSnapshot? ServerOps { get; init; }
+    public LoadCampaignInfo? Campaign { get; init; }
 }
 
 public sealed class LoadHostInfo
@@ -20,6 +21,8 @@ public sealed class LoadHostInfo
     public string Mode { get; init; } = "";
     public string Address { get; init; } = "";
     public int Port { get; init; }
+    public string TlsMode { get; init; } = "Off";
+    public string? TlsTargetHost { get; init; }
 }
 
 public sealed class LoadMachineInfo
@@ -62,4 +65,45 @@ public sealed class LoadClientCounters
     public int OversizeProbeFail;
     public int LoginProbeRejected;
     public int LoginProbeFail;
+    public int HeartbeatSent;
+    public int HeartbeatAckRecv;
+    public int HeartbeatFail;
+    public int InteractSent;
+    public int InteractResultRecv;
+    public int InteractFail;
+    public int MeleeSent;
+    public int MeleeResultRecv;
+    public int MeleeFail;
+}
+
+public sealed class LoadCampaignInfo
+{
+    public const long MandateHoldMilliseconds = 3_600_000;
+
+    public long MandateHoldMs { get; init; } = MandateHoldMilliseconds;
+    public long ActualHoldMs { get; init; }
+    public bool MandateDurationMet { get; init; }
+    public string MandateGap { get; init; } = "";
+    public double ActionsPerSecond { get; init; }
+    public LoadLatencyStats HeartbeatRtt { get; init; } = new();
+    public LoadLatencyStats MoveRtt { get; init; } = new();
+    public LoadLatencyStats InteractRtt { get; init; } = new();
+    public IReadOnlyList<LoadResourceSample> ResourceSamples { get; init; } = [];
+}
+
+public sealed class LoadLatencyStats
+{
+    public int Count { get; init; }
+    public double MeanMs { get; init; }
+    public double P50Ms { get; init; }
+    public double P95Ms { get; init; }
+    public double P99Ms { get; init; }
+    public double MaxMs { get; init; }
+}
+
+public sealed class LoadResourceSample
+{
+    public long ElapsedMs { get; init; }
+    public double ProcessCpuPercentEstimate { get; init; }
+    public long WorkingSetBytes { get; init; }
 }

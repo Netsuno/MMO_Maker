@@ -47,7 +47,7 @@ public sealed class Phase9OpsMetricsTests
     public async Task AuthService_RecordsLoginRateLimit()
     {
         var metrics = new ServerOpsMetrics();
-        var auth = new AuthService(new InMemoryAccountRepository(), new LoginRateLimiter(maxFailures: 2), metrics);
+        var auth = new AuthService(new InMemoryAccountRepository(), new AuthRateLimiter(ipUserMaxFailures: 2), metrics);
         Assert.False((await auth.TryAuthenticateAsync("ghost-user", "password123", "k")).Success);
         Assert.False((await auth.TryAuthenticateAsync("ghost-user", "password123", "k")).Success);
         var third = await auth.TryAuthenticateAsync("ghost-user", "password123", "k");

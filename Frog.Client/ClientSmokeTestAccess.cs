@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Windows.Forms;
+using Frog.Client.Config;
 
 namespace Frog.Client;
 
@@ -46,10 +47,37 @@ internal static class ClientSmokeTestAccess
 
     public static MainShellForm CreateAndShowMainShell()
     {
+        EnsureIsolatedSettingsPathForTest();
         var form = new MainShellForm();
         form.Show();
         PumpUntil(() => form.Visible, DefaultTimeout);
         return form;
+    }
+
+    /// <summary>
+    /// Évite d'écrire dans %LocalAppData% et d'hériter d'un plein écran développeur pendant les smokes.
+    /// </summary>
+    internal static string EnsureIsolatedSettingsPathForTest()
+    {
+        var existing = Environment.GetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(existing))
+        {
+            var dir = Path.GetDirectoryName(existing);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            return existing;
+        }
+
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            "frog-client-smoke-settings",
+            "client-settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, path);
+        return path;
     }
 
     public static void CloseMainShell(MainShellForm form)

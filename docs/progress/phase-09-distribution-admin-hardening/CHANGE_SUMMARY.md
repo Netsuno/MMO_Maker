@@ -1,6 +1,8 @@
 # Phase 9 — CHANGE_SUMMARY
 
-**Status:** C-fixes after refused gate on tip `5db5f6b`. Phase 9 **NOT READY**. P9-S **DEFERRED**. Prior READY withdrawn. C-fixes **awaiting re-review**. **C2 follow-up in flight / awaiting CI** (ban vs reconnect/login after pre-lock validation; prior kick/ban↔packet and same-account reconnect serialization preserved). Correction product tip `422993b` / CI https://github.com/Netsuno/MMO_Maker/actions/runs/35369587406 **SUCCESS** is the last pinned green; this pass is not gated.
+> **Acceptation datée (2026-09-18).** Merge PR #7 `f74b34c`. Tip produit `cab57b9` (C2 follow-up inclus dans l’acceptation). Corps ci-dessous = historique C-fixes.
+
+**Status (archive pré-acceptation) :** C-fixes after refused gate on tip `5db5f6b`. Phase 9 **NOT READY**. P9-S **DEFERRED**. Prior READY withdrawn. C-fixes **awaiting re-review**. **C2 follow-up in flight / awaiting CI** (ban vs reconnect/login after pre-lock validation; prior kick/ban↔packet and same-account reconnect serialization preserved). Correction product tip `422993b` / CI https://github.com/Netsuno/MMO_Maker/actions/runs/35369587406 **SUCCESS** is the last pinned green; this pass is not gated.
 
 ## C-fixes (this pass)
 

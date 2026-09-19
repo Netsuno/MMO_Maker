@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net.Sockets;
+using System.Security.Authentication;
 
 namespace Frog.Server.Network;
 
@@ -25,6 +26,11 @@ internal static class ClientNetworkExceptions
             }
 
             if (current is SocketException)
+            {
+                return true;
+            }
+
+            if (current is AuthenticationException)
             {
                 return true;
             }

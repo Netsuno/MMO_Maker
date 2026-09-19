@@ -1,5 +1,7 @@
 using Frog.Server.Network;
 using Frog.Server.Persistence;
+using Frog.Server.Social;
+using Frog.Server.Trade;
 
 namespace Frog.Server.Services;
 
@@ -44,13 +46,17 @@ public sealed class SessionTeardown(
     ClientRegistry clients,
     PlayerLifecycleNotifier lifecycle,
     IPlayerStateStore playerState,
-    ICharacterRuntimeCleanup characterRuntime)
+    ICharacterRuntimeCleanup characterRuntime,
+    ISocialPresenceSink? socialPresence = null,
+    ITradePresenceSink? tradePresence = null)
 {
     private readonly ConnectionManager _connections = connections;
     private readonly ClientRegistry _clients = clients;
     private readonly PlayerLifecycleNotifier _lifecycle = lifecycle;
     private readonly IPlayerStateStore _playerState = playerState;
     private readonly ICharacterRuntimeCleanup _characterRuntime = characterRuntime;
+    private readonly ISocialPresenceSink? _socialPresence = socialPresence;
+    private readonly ITradePresenceSink? _tradePresence = tradePresence;
 
     /// <summary>
     /// Test barrier: fires after the session row is dropped and before the
@@ -109,6 +115,29 @@ public sealed class SessionTeardown(
         if (session.CharacterGuid is Guid characterId)
         {
             _characterRuntime.CancelForCharacter(characterId);
+            if (_socialPresence is not null && (options.NotifyPeers || options.DisconnectClient))
+            {
+                try
+                {
+                    await _socialPresence.NotifyCharacterOfflineAsync(characterId, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+            }
+
+            if (_tradePresence is not null)
+            {
+                try
+                {
+                    await _tradePresence.NotifyCharacterOfflineAsync(characterId, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(session.CharacterId))

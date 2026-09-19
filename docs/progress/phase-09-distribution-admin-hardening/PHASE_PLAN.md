@@ -5,7 +5,7 @@
 **Baseline CI (main only):** https://github.com/Netsuno/MMO_Maker/actions/runs/35286923042 SUCCESS
 **This document:** planning only. No feature implementation in P9-0.
 
-Phase 8 is **ACCEPTED on main** (merge `1cd57ba`). Phase 9 is **IN PROGRESS** on this branch. Do not start Phase 10. Do not change Phase 8 product behavior except documenting regressions found during later implementation (none claimed here).
+Phase 8 is **ACCEPTED on main** (merge `1cd57ba`). Phase 9 was **IN PROGRESS** on this branch (archive). **Mise à jour 2026-09-18 :** Phase 9 **ACCEPTED** (PR #7 / `f74b34c`). Phase 10 = P10-0 sur `cursor/phase10-beta-release`.
 
 Product authority used for this plan (in order):
 

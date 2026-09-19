@@ -24,7 +24,7 @@ public sealed class Sprint1ServerTests
     public void AuthService_ValidatesBootstrapAccount()
     {
         var repository = new InMemoryAccountRepository();
-        var auth = new AuthService(repository, new LoginRateLimiter());
+        var auth = new AuthService(repository, new AuthRateLimiter());
 
         var result = auth.TryAuthenticateAsync("demo", "demo", "test", default).GetAwaiter().GetResult();
         Assert.True(result.Success);
@@ -48,7 +48,7 @@ public sealed class Sprint1ServerTests
     public async Task AuthService_CanRegisterNewAccount()
     {
         var repository = new InMemoryAccountRepository();
-        var auth = new AuthService(repository, new LoginRateLimiter());
+        var auth = new AuthService(repository, new AuthRateLimiter());
 
         var created = await auth.RegisterAccountAsync("fresh-user", "fresh-pass");
         var authenticated = await auth.TryAuthenticateAsync("fresh-user", "fresh-pass", "test");

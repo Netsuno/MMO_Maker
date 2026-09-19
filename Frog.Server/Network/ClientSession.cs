@@ -7,16 +7,24 @@ namespace Frog.Server.Network;
 public sealed class ClientSession : IAsyncDisposable
 {
     private readonly TcpClient _tcpClient;
-    private readonly NetworkStream _stream;
+    private readonly Stream _stream;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private int _closed;
     private int _disposing;
     private int _activeSends;
 
     public ClientSession(TcpClient tcpClient)
+        : this(tcpClient, tcpClient.GetStream())
+    {
+    }
+
+    /// <summary>
+    /// Session dont le flux a déjà été enveloppé (SslStream post-accept) ou est le NetworkStream brut.
+    /// </summary>
+    public ClientSession(TcpClient tcpClient, Stream stream)
     {
         _tcpClient = tcpClient;
-        _stream = tcpClient.GetStream();
+        _stream = stream;
         ConnectionId = Guid.NewGuid();
         RemoteEndPoint = tcpClient.Client?.RemoteEndPoint?.ToString() ?? "<unknown>";
     }

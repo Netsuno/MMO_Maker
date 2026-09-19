@@ -147,5 +147,26 @@ public enum PacketId : byte
     /// <summary>Résultat courte forme (succès + message), comme <see cref="LoginResult"/>.</summary>
     ModerateResult = 79,
 
+    /// <summary>Enveloppe sociale (groupe/guilde/ami/blocage). Corps : <see cref="Frog.Core.Protocol.SocialWire"/>.</summary>
+    SocialRequest = 80,
+
+    /// <summary>Résultat d'une <see cref="SocialRequest"/>.</summary>
+    SocialResult = 81,
+
+    /// <summary>Liste membres / amis / blocage.</summary>
+    SocialSnapshot = 82,
+
+    /// <summary>Poussée : invitation, départ, présence, dissolution.</summary>
+    SocialEvent = 83,
+
+    /// <summary>Enveloppe d'échange P2P. Corps : <see cref="Frog.Core.Protocol.TradeWire"/>.</summary>
+    TradeRequest = 84,
+
+    /// <summary>Résultat d'une <see cref="TradeRequest"/>.</summary>
+    TradeResult = 85,
+
+    /// <summary>Offre complète + révision + drapeaux de confirmation.</summary>
+    TradeSnapshot = 86,
+
     Error = 255
 }

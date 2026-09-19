@@ -4,6 +4,7 @@ using Frog.Application.Gameplay;
 using Frog.Core.Gameplay;
 using Frog.Server.Models;
 using Frog.Server.Services;
+using Frog.Server.Trade;
 
 namespace Frog.Server.Gameplay;
 
@@ -15,7 +16,8 @@ public sealed class CombatGameplayService(
     CharacterGameplayService characterService,
     ICombatMutationRepository combatMutations,
     CharacterMutationCoordinator mutationCoordinator,
-    IMonsterKillRewardRepository killRewards)
+    IMonsterKillRewardRepository killRewards,
+    ITradePresenceSink? tradePresence = null)
 {
     private readonly IPublishedNpcCatalog _npcs = npcs;
     private readonly IPublishedSpellCatalog _spells = spells;
@@ -25,6 +27,7 @@ public sealed class CombatGameplayService(
     private readonly ICombatMutationRepository _combatMutations = combatMutations;
     private readonly CharacterMutationCoordinator _mutationCoordinator = mutationCoordinator;
     private readonly IMonsterKillRewardRepository _killRewards = killRewards;
+    private readonly ITradePresenceSink? _tradePresence = tradePresence;
     private readonly ConcurrentDictionary<Guid, Guid> _sessionTargets = new();
 
     public async Task<MonsterInstance?> SpawnMonsterAsync(
@@ -412,6 +415,13 @@ public sealed class CombatGameplayService(
         }
 
         attacker.LastMeleeUtc = now;
+        if (pvpResult.TargetKilled
+            && _tradePresence is not null
+            && defender.CharacterGuid is Guid deadId)
+        {
+            await _tradePresence.NotifyCharacterUnfitAsync(deadId, "Personnage mort.", ct).ConfigureAwait(false);
+        }
+
         return pvpResult;
     }
 

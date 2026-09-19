@@ -78,6 +78,31 @@ public sealed class PostgresAccountRepository : IAccountRepository
             return new AccountCreateResult(AccountCreateStatus.Created, entity.Id);
         }, cancellationToken);
 
+    public Task<bool> UpdatePasswordAsync(
+        string username,
+        string newPassword,
+        CancellationToken cancellationToken = default)
+        => _gate.ExecuteAsync(async (db, ct) =>
+        {
+            if (!AccountInputRules.IsValidUsername(username) || !AccountInputRules.IsValidPassword(newPassword))
+            {
+                return false;
+            }
+
+            var normalized = username.Trim();
+            var entity = await db.AuthAccounts
+                .FirstOrDefaultAsync(a => EF.Functions.ILike(a.Username, normalized), ct)
+                .ConfigureAwait(false);
+            if (entity is null)
+            {
+                return false;
+            }
+
+            entity.PasswordHash = PasswordHasher.HashPassword(newPassword);
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            return true;
+        }, cancellationToken);
+
     private static AccountRecord ToRecord(AccountEntity entity)
         => new(entity.Id, entity.Username, entity.PasswordHash, entity.CreatedAtUtc);
 }

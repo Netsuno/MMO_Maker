@@ -54,18 +54,21 @@ public sealed class MapEventsPostgreSqlService : IDisposable
 
     public IReadOnlyList<PgEventCatalogRow> LoadCatalog()
     {
-        var entries = _repository.ListSummariesAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        return entries
-            .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(e => new PgEventCatalogRow(
-                e.EventId,
-                e.CatalogSlug ?? e.Name,
-                e.Name,
-                e.EditorAliasId,
-                e.Revision,
-                e.Status,
-                e.PageCount))
-            .ToList();
+        return RunOffUiSyncContext(async () =>
+        {
+            var entries = await _repository.ListSummariesAsync().ConfigureAwait(false);
+            return entries
+                .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(e => new PgEventCatalogRow(
+                    e.EventId,
+                    e.CatalogSlug ?? e.Name,
+                    e.Name,
+                    e.EditorAliasId,
+                    e.Revision,
+                    e.Status,
+                    e.PageCount))
+                .ToList();
+        });
     }
 
     public IReadOnlyList<PgMapEventPlacementRow> LoadPlacementsForMap(Guid mapId)
@@ -75,7 +78,11 @@ public sealed class MapEventsPostgreSqlService : IDisposable
             throw new ArgumentOutOfRangeException(nameof(mapId));
         }
 
-        return _gate.ExecuteAsync(async (db, ct) =>
+        // Shown / OpenMap call this on the WinForms UI thread. Do not
+        // ExecuteAsync(...).GetResult() on that thread: WaitAsync often
+        // completes synchronously, EF then posts back to the UI context,
+        // and GetResult deadlocks (editor infinite load).
+        return RunOffUiSyncContext(() => _gate.ExecuteAsync(async (db, ct) =>
         {
             var rows = await (
                     from p in db.MapEventPlacements.AsNoTracking()
@@ -106,7 +113,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
                 r.Slug,
                 r.Name,
                 NormalizePhase8TriggerKind(r.TriggerKind))).ToList();
-        }).ConfigureAwait(false).GetAwaiter().GetResult();
+        }));
     }
 
     public static IReadOnlyList<MapEventMarkerView> ToMarkerViews(IReadOnlyList<PgMapEventPlacementRow> rows)
@@ -167,11 +174,11 @@ public sealed class MapEventsPostgreSqlService : IDisposable
             ],
         };
 
-        var save = _repository.SaveAsync(new SaveMapEventRequest
+        var save = RunOffUiSyncContext(() => _repository.SaveAsync(new SaveMapEventRequest
         {
             Definition = definition,
             ExpectedRevision = 0,
-        }).ConfigureAwait(false).GetAwaiter().GetResult();
+        }));
 
         return save switch
         {
@@ -210,7 +217,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
             return false;
         }
 
-        var delete = _repository.DeleteAsync(eventId).ConfigureAwait(false).GetAwaiter().GetResult();
+        var delete = RunOffUiSyncContext(() => _repository.DeleteAsync(eventId));
         return delete switch
         {
             DeleteMapEventResult.Success => true,
@@ -252,7 +259,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         try
         {
             var failure = string.Empty;
-            var ok = _gate.ExecuteAsync(async (db, ct) =>
+            var ok = RunOffUiSyncContext(() => _gate.ExecuteAsync(async (db, ct) =>
             {
                 var mapExists = await db.Maps.AsNoTracking().AnyAsync(m => m.Id == mapId, ct).ConfigureAwait(false);
                 if (!mapExists)
@@ -298,7 +305,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
                 await db.SaveChangesAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
                 return true;
-            }).ConfigureAwait(false).GetAwaiter().GetResult();
+            }));
             if (!ok)
             {
                 errorMessage = failure;
@@ -341,7 +348,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         try
         {
             var failure = string.Empty;
-            var ok = _gate.ExecuteAsync(async (db, ct) =>
+            var ok = RunOffUiSyncContext(() => _gate.ExecuteAsync(async (db, ct) =>
             {
                 var entity = await db.MapEventPlacements
                     .FirstOrDefaultAsync(p => p.Id == placementId && p.MapId == mapId, ct)
@@ -356,7 +363,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
                 await db.SaveChangesAsync(ct).ConfigureAwait(false);
                 db.ChangeTracker.Clear();
                 return true;
-            }).ConfigureAwait(false).GetAwaiter().GetResult();
+            }));
             if (!ok)
             {
                 errorMessage = failure;
@@ -383,7 +390,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         try
         {
             var failure = string.Empty;
-            var ok = _gate.ExecuteAsync(async (db, ct) =>
+            var ok = RunOffUiSyncContext(() => _gate.ExecuteAsync(async (db, ct) =>
             {
                 var n = await db.MapEventPlacements
                     .Where(p => p.Id == placementId && p.MapId == mapId)
@@ -396,7 +403,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
                 }
 
                 return true;
-            }).ConfigureAwait(false).GetAwaiter().GetResult();
+            }));
             if (!ok)
             {
                 errorMessage = failure;
@@ -451,6 +458,17 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         }).ConfigureAwait(false);
 
         return save is SaveMapEventResult.Success;
+    }
+
+    /// <summary>
+    /// Sync-over-async from the WinForms UI thread must not capture that
+    /// SynchronizationContext. <c>Task.Run</c> starts the EF / repository work
+    /// without a context so <c>GetResult</c> can wait on UI without deadlock.
+    /// </summary>
+    internal static T RunOffUiSyncContext<T>(Func<Task<T>> work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        return Task.Run(work).GetAwaiter().GetResult();
     }
 
     public void Dispose()

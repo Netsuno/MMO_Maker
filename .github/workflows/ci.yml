@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
 
@@ -119,6 +119,18 @@ jobs:
           ./scripts/verify-phase8-screenshot-manifest.ps1 -CopyManifestToArtifacts
           Write-Host "=== Phase 8 smoke 3/3 consecutive passes OK (manifest gate verified) ==="
 
+      - name: Packaged WinForms EXE smoke (zip hors dépôt + --smoke-launch)
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          ./scripts/packaged-winforms-smoke.ps1
+
+      - name: Packaged playtest from zip (sibling layouts + server Hello)
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          ./scripts/packaged-playtest-e2e.ps1
+
       - name: Upload hang dumps and CI logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -171,7 +183,7 @@ jobs:
 
   postgres-integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16
@@ -224,6 +236,32 @@ jobs:
       - name: Publish layout smoke (server linux-x64)
         shell: bash
         run: ./scripts/packaged-server-smoke.sh --layout-only
+
+      - name: Packaged WinForms layout proof (client+editor zip hors dépôt)
+        timeout-minutes: 10
+        shell: bash
+        run: ./scripts/packaged-winforms-layout-proof.sh --skip-wine
+
+      - name: Packaged playtest from zip (server Linux, hors dépôt)
+        timeout-minutes: 8
+        shell: bash
+        run: ./scripts/packaged-playtest-e2e.sh --skip-publish
+
+      - name: Packaged playtest READY (server hors dépôt + headless)
+        timeout-minutes: 8
+        shell: bash
+        run: >
+          dotnet test Frog.Tests/Frog.Tests.csproj -c Release --no-build
+          --filter "FullyQualifiedName~.Phase10PackagedPlaytestFromZipTests"
+          --verbosity minimal
+          --logger "console;verbosity=detailed"
+
+      - name: P10-8 hosted campaign CI (25 TLS + packaged PG, hold 5s)
+        timeout-minutes: 8
+        env:
+          FROG_POSTGRES_TEST_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=frog_test;Username=frog_test;Password=frog_test_local_only
+        shell: bash
+        run: ./scripts/phase10-hosted-load-campaign.sh --profile ci
 
       - name: Guard PostgreSQL logs for lifecycle crash markers
         if: always()

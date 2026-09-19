@@ -6,6 +6,21 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        if (args.Length >= 2 && args[0] == "--emit-test-certs")
+        {
+            try
+            {
+                LoadTestCertificates.Write(args[1]);
+                Console.WriteLine("wrote test CA/leaf PEMs to " + Path.GetFullPath(args[1]));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("error: " + ex.Message);
+                return 2;
+            }
+        }
+
         LoadHarnessOptions options;
         try
         {

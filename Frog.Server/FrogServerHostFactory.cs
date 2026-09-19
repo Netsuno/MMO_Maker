@@ -105,6 +105,9 @@ public static class FrogServerHostFactory
                     .Validate(
                         o => o.IsLoopbackBind || o.AllowNonLoopbackBind,
                         "Non-loopback bind requires Server:AllowNonLoopbackBind=true (clear-text TCP; see SECURITY_MODEL.md)")
+                    .Validate(
+                        o => o.IsTlsStartable,
+                        "Server:Tls:Mode=Required requires a certificate (CertificatePath+PrivateKeyPath or PfxPath). Non-loopback bind has no silent cleartext fallback. Loopback cleartext requires Server:Tls:AllowCleartextLoopback=true.")
                     .ValidateOnStart();
                 services
                     .AddOptions<PostgreSqlOptions>()
@@ -139,6 +142,12 @@ public static class FrogServerHostFactory
                 services
                     .AddOptions<Phase8SmokeBootstrapOptions>()
                     .Bind(ctx.Configuration.GetSection(Phase8SmokeBootstrapOptions.SectionName));
+                services
+                    .AddOptions<SocialOptions>()
+                    .Bind(ctx.Configuration.GetSection("Social"));
+                services
+                    .AddOptions<RegistrationOptions>()
+                    .Bind(ctx.Configuration.GetSection(RegistrationOptions.SectionName));
 
                 var pg = ctx.Configuration.GetSection("PostgreSql").Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
                 if (string.IsNullOrWhiteSpace(pg.ConnectionString))
@@ -192,6 +201,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton(new PlaytestAuthTokenGate(playtest.AuthToken));
 
                 services.AddSingleton<LoginRateLimiter>();
+                services.AddSingleton<AuthRateLimiter>();
                 services.AddSingleton<ChatRateLimiter>();
                 services.AddSingleton<ServerOpsMetrics>();
 
@@ -272,6 +282,12 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
                     services.AddSingleton<IPublishedContentRevisionStamp>(_ =>
                         NullPublishedContentRevisionStamp.Instance);
+                    services.AddSingleton<Frog.Application.Social.ISocialStore, Frog.Server.Social.InMemorySocialStore>();
+                    services.AddSingleton<Frog.Application.Gameplay.ITradeCommitRepository>(sp =>
+                        new Frog.Server.Trade.InMemoryTradeCommitRepository(
+                            sp.GetRequiredService<ICharacterRepository>(),
+                            sp.GetRequiredService<IInventoryRepository>(),
+                            sp.GetRequiredService<IPublishedItemCatalog>()));
                 }
 
                 if (usePostgreSql)
@@ -384,6 +400,16 @@ public static class FrogServerHostFactory
                 services.AddSingleton<MapService>();
                 services.AddSingleton<MovementService>();
                 services.AddSingleton<PacketSender>();
+                services.AddSingleton<Frog.Server.Social.CrossInviteCounters>();
+                services.AddSingleton<Frog.Server.Trade.TradeHoldRegistry>();
+                services.AddSingleton<Frog.Application.Gameplay.ITradeHoldQuery>(sp =>
+                    sp.GetRequiredService<Frog.Server.Trade.TradeHoldRegistry>());
+                services.AddSingleton<Frog.Server.Social.SocialService>();
+                services.AddSingleton<Frog.Server.Social.ISocialPresenceSink>(sp =>
+                    sp.GetRequiredService<Frog.Server.Social.SocialService>());
+                services.AddSingleton<Frog.Server.Trade.TradeService>();
+                services.AddSingleton<Frog.Server.Trade.ITradePresenceSink>(sp =>
+                    sp.GetRequiredService<Frog.Server.Trade.TradeService>());
                 services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
                 services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();

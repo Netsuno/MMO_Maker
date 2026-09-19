@@ -79,12 +79,25 @@ public sealed class Phase8GameplayClientSmokeTests
             Pump(form, () => form.LogContainsForTest("Métier:") && form.LogContainsForTest("acquis"), "profession acquired");
             form.SelectPhase8TabForTest();
             Pump(form, () => form.IsPhase8TabSelectedForTest, "phase 8 tab after shop");
-            form.CraftPanelForTest.RecipeIdTextBoxForTest.Text = opts.RecipeId.ToString();
+            Pump(
+                form,
+                () => form.CraftPanelForTest.TrySelectRecipeForTest(opts.RecipeId),
+                "craft recipe combo populated with published names");
+            Assert.Equal("Fabriquer", form.CraftPanelForTest.CraftButtonForTest.Text);
+            Assert.Contains("Smoke Potion", form.CraftPanelForTest.SelectedRecipeDisplayForTest, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                opts.RecipeId.ToString(),
+                form.CraftPanelForTest.SelectedRecipeDisplayForTest,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.False(form.CraftPanelForTest.RecipeIdTextBoxForTest.Visible);
             Pump(form, () => form.CraftPanelForTest.CraftButtonForTest.Enabled, "craft button enabled in playing phase");
             form.CraftPanelForTest.ClickCraftForTest();
             Pump(
                 form,
-                () => form.LogContainsForTest("Craft:") || form.CraftPanelForTest.StatusTextForTest.Contains("Craft"),
+                () => form.LogContainsForTest("Craft:")
+                      || form.LogContainsForTest("[ui]")
+                      || form.CraftPanelForTest.StatusTextForTest.Contains("Fabrication", StringComparison.OrdinalIgnoreCase)
+                      || form.CraftPanelForTest.StatusTextForTest.Contains("Craft", StringComparison.OrdinalIgnoreCase),
                 "craft result");
             WaitForPaint(form.CraftPanelForTest);
             ClientSmokeTestAccess.SavePhase8Screenshot(form.CraftPanelForTest, "05-craft-panel.png");

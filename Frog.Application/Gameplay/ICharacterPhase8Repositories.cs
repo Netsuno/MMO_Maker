@@ -32,6 +32,13 @@ public interface ICharacterProfessionRepository
 
 public interface IEventCraftRepository
 {
+    /// <summary>Replay d’un requestId déjà persisté, ou null s’il n’existe pas encore.</summary>
+    Task<EventCraftResult?> TryGetReplayAsync(
+        Guid characterId,
+        Guid recipeId,
+        Guid requestId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Craft idempotent par requestId (Phase 8 — P8-4).</summary>
     Task<EventCraftResult> TryCraftAsync(
         Guid characterId,

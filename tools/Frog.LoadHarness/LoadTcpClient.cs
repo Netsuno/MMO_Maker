@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Net.Sockets;
 using Frog.Core.Enums;
+using Frog.Core.Security;
 
 namespace Frog.LoadHarness;
 
@@ -8,14 +9,21 @@ internal sealed class LoadTcpClient : IAsyncDisposable
 {
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private TcpClient? _tcp;
-    private NetworkStream? _stream;
+    private Stream? _stream;
 
-    public async Task ConnectAsync(string host, int port, TimeSpan timeout)
+    public async Task ConnectAsync(
+        string host,
+        int port,
+        TimeSpan timeout,
+        ClientTlsOptions? tls = null)
     {
         _tcp = new TcpClient();
         using var cts = new CancellationTokenSource(timeout);
         await _tcp.ConnectAsync(host, port, cts.Token).ConfigureAwait(false);
-        _stream = _tcp.GetStream();
+        var inner = _tcp.GetStream();
+        _stream = await TlsClientAuthenticator
+            .WrapAfterConnectAsync(inner, tls ?? ClientTlsOptions.Off, host, cts.Token)
+            .ConfigureAwait(false);
     }
 
     public async Task SendFrameAsync(byte[] payload, CancellationToken cancellationToken = default)

@@ -19,6 +19,14 @@ namespace Frog.Client
 
             ApplicationConfiguration.Initialize();
             var options = ClientPlaytestCli.Parse(args);
+            if (options.IsSmokeLaunch)
+            {
+                using var form = new MainShellForm(options);
+                form.Shown += (_, _) => form.Close();
+                System.Windows.Forms.Application.Run(form);
+                return;
+            }
+
             System.Windows.Forms.Application.Run(new MainShellForm(options));
         }
     }
@@ -27,6 +35,10 @@ namespace Frog.Client
     internal sealed class ClientPlaytestOptions
     {
         public bool IsPlaytest { get; init; }
+
+        /// <summary>P10-6 : affiche le shell puis quitte (preuve lancement EXE hors dépôt).</summary>
+        public bool IsSmokeLaunch { get; init; }
+
         public string Host { get; init; } = "127.0.0.1";
         public int Port { get; init; } = 6000;
         public string? CorrelationId { get; init; }
@@ -39,6 +51,7 @@ namespace Frog.Client
         public static ClientPlaytestOptions Parse(string[] args)
         {
             var isPlaytest = false;
+            var isSmokeLaunch = false;
             var host = "127.0.0.1";
             var port = 6000;
             string? correlation = null;
@@ -48,6 +61,10 @@ namespace Frog.Client
                 if (string.Equals(a, "--playtest", StringComparison.OrdinalIgnoreCase))
                 {
                     isPlaytest = true;
+                }
+                else if (string.Equals(a, "--smoke-launch", StringComparison.OrdinalIgnoreCase))
+                {
+                    isSmokeLaunch = true;
                 }
                 else if (string.Equals(a, "--host", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
                 {
@@ -76,6 +93,7 @@ namespace Frog.Client
             return new ClientPlaytestOptions
             {
                 IsPlaytest = isPlaytest,
+                IsSmokeLaunch = isSmokeLaunch,
                 Host = host,
                 Port = port,
                 CorrelationId = correlation,
