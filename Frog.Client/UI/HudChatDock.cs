@@ -1,5 +1,6 @@
 #nullable enable
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using Frog.Core.Enums;
 
@@ -77,6 +78,10 @@ public sealed class HudChatDock : HudModulePanel
 
     internal DrawMode HistoryDrawModeForTest => _history.DrawMode;
 
+    internal bool SendUsesCtaChromeForTest =>
+        _inputHost.Controls.Count > 0
+        && _inputHost.Controls[0].Controls.OfType<Button>().Any(b => b.BackgroundImage is not null);
+
     public void AttachInputs(ComboBox channel, TextBox whisper, TextBox input, Button send)
     {
         ArgumentNullException.ThrowIfNull(channel);
@@ -108,6 +113,7 @@ public sealed class HudChatDock : HudModulePanel
         send.Width = 88;
         send.Height = 26;
         send.Dock = DockStyle.Fill;
+        UiTheme.StyleCta(send);
         row.Controls.Add(channel, 0, 0);
         row.Controls.Add(whisper, 1, 0);
         row.SetColumnSpan(whisper, 2);

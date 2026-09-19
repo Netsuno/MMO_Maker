@@ -1,5 +1,7 @@
 #nullable enable
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Windows.Forms;
 using Frog.Client.Controls;
 
@@ -52,6 +54,82 @@ public static class UiTheme
         {
             button.Font = UiFont(button.Font.SizeInPoints, button.Font.Style);
         }
+    }
+
+    /// <summary>
+    /// ColorMatrix vers <see cref="BgPanel"/> (#161C28). Réutilise les jetons DA, pas un nouveau thème.
+    /// </summary>
+    public static ImageAttributes CreatePanelTintAttributes()
+    {
+        var matrix = new ColorMatrix(new float[][]
+        {
+            new float[] { 0.22f, 0.00f, 0.00f, 0f, 0f },
+            new float[] { 0.00f, 0.24f, 0.00f, 0f, 0f },
+            new float[] { 0.00f, 0.00f, 0.30f, 0f, 0f },
+            new float[] { 0f, 0f, 0f, 1f, 0f },
+            new float[] { 0.06f, 0.08f, 0.12f, 0f, 1f },
+        });
+        var attrs = new ImageAttributes();
+        attrs.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+        return attrs;
+    }
+
+    /// <summary>
+    /// ColorMatrix or <see cref="AccentGold"/> (#C9A227) pour icônes blanches game-icons.
+    /// </summary>
+    public static ImageAttributes CreateGoldTintAttributes()
+    {
+        var r = AccentGold.R / 255f;
+        var g = AccentGold.G / 255f;
+        var b = AccentGold.B / 255f;
+        var matrix = new ColorMatrix(new float[][]
+        {
+            new float[] { r, 0f, 0f, 0f, 0f },
+            new float[] { 0f, g, 0f, 0f, 0f },
+            new float[] { 0f, 0f, b, 0f, 0f },
+            new float[] { 0f, 0f, 0f, 1f, 0f },
+            new float[] { 0f, 0f, 0f, 0f, 1f },
+        });
+        var attrs = new ImageAttributes();
+        attrs.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+        return attrs;
+    }
+
+    public static Bitmap TintCopy(Image source, Size size, ImageAttributes attributes)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(attributes);
+        if (size.Width <= 0 || size.Height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(size));
+        }
+
+        var bmp = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.Transparent);
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        var dest = new Rectangle(0, 0, size.Width, size.Height);
+        g.DrawImage(source, dest, 0, 0, source.Width, source.Height, GraphicsUnit.Pixel, attributes);
+        return bmp;
+    }
+
+    /// <summary>Skin CTA Kenney (chat send). Ne touche pas les surfaces SHA Phase 8.</summary>
+    public static void StyleCta(Button button)
+    {
+        ArgumentNullException.ThrowIfNull(button);
+        StyleButton(button);
+        var cta = UiPackAssets.CloneCta();
+        if (cta is null)
+        {
+            return;
+        }
+
+        button.BackgroundImage?.Dispose();
+        button.BackgroundImage = cta;
+        button.BackgroundImageLayout = ImageLayout.Stretch;
+        button.FlatAppearance.BorderSize = 1;
+        button.FlatAppearance.BorderColor = AccentGold;
     }
 
     /// <summary>Double filet or (E6) — ne pas appeler sur surfaces SHA Phase 8.</summary>

@@ -63,12 +63,24 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.True(form.HotbarForTest.SlotEnabledForTest(2), "slot 3 interact");
                 Assert.False(form.HotbarForTest.SlotEnabledForTest(3));
                 Assert.False(form.HotbarForTest.SlotEnabledForTest(9));
+                Assert.True(form.StatusHudForTest.UsesFrameAssetForTest, "Kenney frame on HUD panels");
+                Assert.True(form.StatusHudForTest.UsesBarAssetsForTest, "Kenney HP/MP bars");
+                Assert.True(form.HotbarForTest.SlotHasChromeForTest(0), "slot chrome");
+                Assert.True(form.HotbarForTest.SlotHasIconForTest(0), "melee icon");
+                Assert.True(form.HotbarForTest.SlotHasIconForTest(1), "spell icon");
+                Assert.True(form.HotbarForTest.SlotHasIconForTest(2), "interact icon");
+                Assert.False(form.HotbarForTest.SlotHasIconForTest(3), "unwired slots stay digit-only");
+                Assert.True(form.ChatDockForTest.SendUsesCtaChromeForTest, "chat send CTA");
 
                 Assert.Equal(5, form.ChatDockForTest.VisibleChannelCountForTest);
                 Assert.Equal(5, form.MenuRingForTest.PillCountForTest);
                 Assert.Equal(
                     new[] { "Perso", "Inv", "Quêtes", "Carte", "Options" },
                     form.MenuRingForTest.PillTextsForTest.ToArray());
+                Assert.True(form.MenuRingForTest.PillHasIconForTest(0), "Perso walk");
+                Assert.True(form.MenuRingForTest.PillHasIconForTest(1), "Inv backpack");
+                Assert.True(form.MenuRingForTest.PillHasIconForTest(4), "Options cog");
+                Assert.True(form.MenuRingForTest.PillHasChromeForTest(0), "menu pill chrome");
 
                 form.StatusHudForTest.ApplyCombat(
                     new CombatStateWire

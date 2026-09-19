@@ -49,3 +49,4 @@ Ce run / CI Linux : **zéro PNG HUD**. Voir [CAPTURES.md](CAPTURES.md) + `script
 | Phase 7–8 | ACCEPTED — fonctionnalités conservées |
 | Phase 10 / PR #8 | MERGED `e58a185` |
 | Trade / Party / Guild | Canaux réels dans le dock — pas d’opcode ajouté |
+| Kenney UI pack | Pack + fils HUD : [../client-ui-kenney-pack/STATUS.md](../client-ui-kenney-pack/STATUS.md) |

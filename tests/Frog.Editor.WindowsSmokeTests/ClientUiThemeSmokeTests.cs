@@ -26,6 +26,23 @@ public sealed class ClientUiThemeSmokeTests
     }
 
     [Fact]
+    public void Theme_TintAttributes_ReuseExistingDaTokens()
+    {
+        using var panel = UiTheme.CreatePanelTintAttributes();
+        using var gold = UiTheme.CreateGoldTintAttributes();
+        Assert.NotNull(panel);
+        Assert.NotNull(gold);
+        Assert.Equal(Color.FromArgb(0x16, 0x1C, 0x28), UiTheme.BgPanel);
+        Assert.Equal(Color.FromArgb(0xC9, 0xA2, 0x27), UiTheme.AccentGold);
+        Assert.True(UiPackAssets.HasFramePanel, "Kenney frame resolves from output or repo");
+        Assert.True(UiPackAssets.HasSlot);
+        Assert.True(UiPackAssets.HasMenuPill);
+        Assert.NotNull(UiPackAssets.CloneHotbarIcon(0));
+        Assert.NotNull(UiPackAssets.CloneMenuIcon(HudMenuCommand.Inventory));
+        Assert.Null(UiPackAssets.CloneHotbarIcon(3));
+    }
+
+    [Fact]
     public void MainShell_AppliesTheme_KeepsMapAndPhase8Panels_KeepsEndpointFields()
     {
         StaTestRunner.Run(() =>

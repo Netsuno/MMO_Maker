@@ -48,6 +48,13 @@ public sealed class HudStatusModule : HudModulePanel
         ApplyCombat(null, null);
         _hpTrack.Resize += (_, _) => LayoutBars();
         _mpTrack.Resize += (_, _) => LayoutBars();
+        if (UiPackAssets.HasBarBack || UiPackAssets.HasBarHp || UiPackAssets.HasBarMp)
+        {
+            _hpTrack.Paint += (_, e) => PaintBarTrack(e, _hpTrack);
+            _mpTrack.Paint += (_, e) => PaintBarTrack(e, _mpTrack);
+            _hpFill.Paint += (_, e) => PaintBarFill(e, _hpFill, hp: true);
+            _mpFill.Paint += (_, e) => PaintBarFill(e, _mpFill, hp: false);
+        }
     }
 
     internal string NameTextForTest => _name.Text;
@@ -59,6 +66,8 @@ public sealed class HudStatusModule : HudModulePanel
     internal int HpFillWidthForTest => _hpFill.Width;
 
     internal bool XpBarVisibleForTest => false;
+
+    internal bool UsesBarAssetsForTest => UiPackAssets.HasBarBack && UiPackAssets.HasBarHp && UiPackAssets.HasBarMp;
 
     public void ApplyCombat(CombatStateWire? state, string? playerName)
     {
@@ -95,5 +104,26 @@ public sealed class HudStatusModule : HudModulePanel
         fill.Width = Math.Max(0, (int)Math.Round(track.Width * ratio));
         fill.Height = track.Height;
         fill.Location = new Point(0, 0);
+    }
+
+    private static void PaintBarTrack(PaintEventArgs e, Panel track)
+    {
+        if (!UiPackAssets.TryGetBarBack(out var left, out var mid, out var right))
+        {
+            return;
+        }
+
+        using var tint = UiTheme.CreatePanelTintAttributes();
+        UiPackDraw.ThreeSliceHorizontal(e.Graphics, left, mid, right, track.ClientRectangle, tint);
+    }
+
+    private static void PaintBarFill(PaintEventArgs e, Panel fill, bool hp)
+    {
+        if (fill.Width <= 0 || !UiPackAssets.TryGetBarFill(hp, out var left, out var mid, out var right))
+        {
+            return;
+        }
+
+        UiPackDraw.ThreeSliceHorizontal(e.Graphics, left, mid, right, fill.ClientRectangle, attrs: null);
     }
 }

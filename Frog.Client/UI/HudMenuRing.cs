@@ -54,6 +54,23 @@ public sealed class HudMenuRing : Panel
                 Margin = new Padding(2, 0, 2, 0),
             };
             UiTheme.StyleButton(btn);
+            var pill = UiPackAssets.CloneMenuPill();
+            if (pill is not null)
+            {
+                btn.BackgroundImage = pill;
+                btn.BackgroundImageLayout = ImageLayout.Stretch;
+            }
+
+            var icon = UiPackAssets.CloneMenuIcon(item.Cmd);
+            if (icon is not null)
+            {
+                btn.Image = icon;
+                btn.ImageAlign = ContentAlignment.MiddleLeft;
+                btn.TextAlign = ContentAlignment.MiddleRight;
+                btn.TextImageRelation = TextImageRelation.ImageBeforeText;
+                btn.Padding = new Padding(4, 0, 6, 0);
+            }
+
             btn.Click += (_, _) => Command?.Invoke(item.Cmd);
             _pills[i] = btn;
             row.Controls.Add(btn);
@@ -65,4 +82,10 @@ public sealed class HudMenuRing : Panel
     internal int PillCountForTest => _pills.Length;
 
     internal IReadOnlyList<string> PillTextsForTest => _pills.Select(p => p.Text).ToArray();
+
+    internal bool PillHasIconForTest(int index) =>
+        (uint)index < _pills.Length && _pills[index].Image is not null;
+
+    internal bool PillHasChromeForTest(int index) =>
+        (uint)index < _pills.Length && _pills[index].BackgroundImage is not null;
 }
