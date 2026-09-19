@@ -75,13 +75,18 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
 {
     private readonly IPlaytestMapPreparer _preparer;
     private readonly IPlaytestProcessLauncher _launcher;
+    private readonly IPlaytestAssetSidecar? _assets;
     private readonly object _gate = new();
     private PlaytestSessionState? _active;
 
-    public PlaytestOrchestrator(IPlaytestMapPreparer preparer, IPlaytestProcessLauncher launcher)
+    public PlaytestOrchestrator(
+        IPlaytestMapPreparer preparer,
+        IPlaytestProcessLauncher launcher,
+        IPlaytestAssetSidecar? assets = null)
     {
         _preparer = preparer ?? throw new ArgumentNullException(nameof(preparer));
         _launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
+        _assets = assets;
     }
 
     public PlaytestSessionState? ActiveSession
@@ -142,6 +147,20 @@ public sealed class PlaytestOrchestrator : IPlaytestOrchestrator
 
         try
         {
+            if (_assets is not null)
+            {
+                try
+                {
+                    _assets.Write(plan, clientExe);
+                    state.LogLines.Add($"[{plan.CorrelationId:N}] Sidecars tileset écrits (workspace + client).");
+                }
+                catch (Exception ex)
+                {
+                    state.LogLines.Add(
+                        $"[{plan.CorrelationId:N}] Sidecars tileset ignorés: {PlaytestLogSanitizer.Sanitize(ex.Message)}");
+                }
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             var port = plan.Port > 0 ? plan.Port : throw new InvalidOperationException("Port playtest non assigné.");
             state.LogLines.Add($"[{plan.CorrelationId:N}] Démarrage serveur port={port}");

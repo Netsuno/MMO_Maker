@@ -1,4 +1,5 @@
 #nullable enable
+using Frog.Application.Assets;
 using Frog.Application.Content;
 using Frog.Application.Events;
 using Frog.Application.Gameplay;
@@ -279,6 +280,7 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IPublishedSpellCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                     services.AddSingleton<IPublishedNpcCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                     services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
+                    services.AddSingleton<IPublishedTilesetCatalog>(_ => EmptyPublishedTilesetCatalog.Instance);
                     services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
                     services.AddSingleton<IPublishedContentRevisionStamp>(_ =>
                         NullPublishedContentRevisionStamp.Instance);
@@ -302,6 +304,12 @@ public static class FrogServerHostFactory
                 services.AddSingleton<ICombatMutationRepository, CombatMutationRepository>();
                 services.AddSingleton<CombatGameplayService>();
                 services.AddSingleton<ShopBankGameplayService>();
+                services.AddSingleton<IPublishedTilesetImageSource>(sp =>
+                {
+                    var config = sp.GetRequiredService<IConfiguration>();
+                    var configured = config["Maps:AssetRoot"] ?? config["Editor:AssetRoot"];
+                    return new ProjectAssetTilesetImageSource(ProjectAssetRootResolver.Resolve(configured));
+                });
                 services.AddSingleton<PublishedCatalogService>();
                 services.AddSingleton<MapEventCommandExecutor>();
                 services.AddSingleton<MapEventExecutionTracker>();

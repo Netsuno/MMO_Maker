@@ -77,6 +77,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.GameDataNonModalForTest = false;
         EditorTestHooks.OnGameDataFormShown = null;
         EditorTestHooks.OverrideProjectAssetRoot = null;
+        EditorTestHooks.OverrideImportSourcePath = null;
         EditorTestHooks.OverrideMessageBoxResult = null;
         EditorTestHooks.OverrideNewContentIdFactory = null;
         EditorTestHooks.UseSynchronousGameDataInitForTest = false;

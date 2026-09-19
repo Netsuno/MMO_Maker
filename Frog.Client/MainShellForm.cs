@@ -1296,8 +1296,15 @@ public sealed class MainShellForm : Form
         _publishedCatalog = catalog;
         ApplyCatalogToUi(catalog);
         ApplyCatalogRecipesToCraft(catalog);
+        var tilesetFiles = ClientPublishedTilesetMaterializer.Materialize(catalog, AppContext.BaseDirectory);
+        if (tilesetFiles > 0)
+        {
+            ReloadTilesetBitmaps();
+            RedrawMap();
+        }
+
         AppendLog(
-            $"Catalogue: {catalog.Classes.Count} classe(s), {catalog.Items.Count} objet(s), {catalog.Spells.Count} sort(s), {catalog.Shops.Count} boutique(s), {catalog.Recipes.Count} recette(s).");
+            $"Catalogue: {catalog.Classes.Count} classe(s), {catalog.Items.Count} objet(s), {catalog.Spells.Count} sort(s), {catalog.Shops.Count} boutique(s), {catalog.Recipes.Count} recette(s), {catalog.Tilesets.Count} tileset(s).");
     }
 
     private void ApplyCatalogToUi(PublishedCatalogWire catalog)

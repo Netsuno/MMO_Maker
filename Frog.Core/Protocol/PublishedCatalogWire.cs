@@ -23,6 +23,41 @@ public sealed class PublishedCatalogWire
     /// <summary>Recettes publiées (JSON additif, pas de bump de version fil).</summary>
     [JsonPropertyName("recipes")]
     public IReadOnlyList<PublishedRecipeWireEntry> Recipes { get; init; } = Array.Empty<PublishedRecipeWireEntry>();
+
+    /// <summary>Tilesets publiés avec palette éditeur (JSON additif, pas de bump de version fil).</summary>
+    [JsonPropertyName("tilesets")]
+    public IReadOnlyList<PublishedTilesetWireEntry> Tilesets { get; init; } = Array.Empty<PublishedTilesetWireEntry>();
+}
+
+public sealed class PublishedTilesetWireEntry
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("paletteId")]
+    public int PaletteId { get; init; }
+
+    [JsonPropertyName("logicalPath")]
+    public string LogicalPath { get; init; } = string.Empty;
+
+    [JsonPropertyName("sha256Hex")]
+    public string Sha256Hex { get; init; } = string.Empty;
+
+    [JsonPropertyName("tileSizePixels")]
+    public int TileSizePixels { get; init; }
+
+    [JsonPropertyName("widthPixels")]
+    public int WidthPixels { get; init; }
+
+    [JsonPropertyName("heightPixels")]
+    public int HeightPixels { get; init; }
+
+    /// <summary>PNG optionnel (base64). Absent si le serveur n’a pas le fichier sous la racine assets.</summary>
+    [JsonPropertyName("pngBase64")]
+    public string? PngBase64 { get; init; }
 }
 
 public sealed class PublishedRecipeWireEntry

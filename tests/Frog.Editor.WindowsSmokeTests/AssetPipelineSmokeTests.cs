@@ -1,0 +1,185 @@
+using System.Drawing;
+using System.IO;
+using Frog.Application.Assets;
+using Frog.Client.Assets;
+using Frog.Client.UI;
+using Frog.Core.Enums;
+using Frog.Core.Models;
+using Frog.Core.Protocol;
+using Frog.Editor;
+using Frog.Editor.Forms.GameData;
+using Xunit;
+
+namespace Frog.Editor.WindowsSmokeTests;
+
+[Collection(UiSmokeCollectionDefinition.Name)]
+public sealed class AssetPipelineSmokeTests
+{
+    [Fact]
+    public void GameData_Tileset_ImportFillsPathShaAndPalette()
+    {
+        StaTestRunner.Run(() =>
+        {
+            GameDataSmokeTestHelper.ConfigureInMemory();
+            var assetRoot = GameDataSmokeUiDriver.CreateSmokeAssetRoot();
+            var source = Path.Combine(Path.GetTempPath(), $"frog-import-smoke-{Guid.NewGuid():N}.png");
+            File.WriteAllBytes(source, File.ReadAllBytes(Path.Combine(assetRoot, "preview.png")));
+            MainWindow? window = null;
+            try
+            {
+                window = EditorSmokeTestAccess.CreateAndShowMainWindow();
+                StaTestRunner.PumpUntil(
+                    () => window.EditorForm.WorkspaceInitializationTask.IsCompleted,
+                    EditorSmokeTestAccess.DefaultTimeout);
+                EditorSmokeTestAccess.AssertShellReady(window);
+
+                var form = GameDataSmokeUiDriver.OpenViaMainWindowCommand(window, EditorSmokeTestAccess.DefaultTimeout);
+                var panel = form.TilesetsForTest;
+                GameDataSmokeUiDriver.Click(panel.BtnNewForTest);
+                GameDataSmokeUiDriver.SetText(panel.NameForTest, "ImportedTileset");
+                panel.ImportAssetFromPathForTest(source);
+                Assert.StartsWith("tiles/", panel.PathForTest.Text, StringComparison.Ordinal);
+                Assert.True(panel.PathForTest.Text.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal(AssetPreviewState.Loaded, panel.PreviewForTest.PreviewState);
+                GameDataSmokeUiDriver.CloseForm(form, EditorSmokeTestAccess.DefaultTimeout);
+            }
+            finally
+            {
+                try
+                {
+                    File.Delete(source);
+                }
+                catch
+                {
+                    // best-effort
+                }
+
+                if (window is not null)
+                {
+                    EditorSmokeTestAccess.ForceCloseMainWindow(window);
+                }
+
+                EditorSmokeTestAccess.ResetHooks();
+                GameDataSmokeUiDriver.CleanupAssetRoot(assetRoot);
+            }
+        });
+    }
+
+    [Fact]
+    public void Client_LoadsSidecarAndRendersCustomTileNotFallback()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), $"frog-client-tiles-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(dir);
+            try
+            {
+                using var tile = new Bitmap(32, 32);
+                using (var g = Graphics.FromImage(tile))
+                {
+                    g.Clear(Color.FromArgb(200, 40, 40));
+                }
+
+                var pngPath = Path.Combine(dir, "source.png");
+                tile.Save(pngPath);
+
+                var bytes = File.ReadAllBytes(pngPath);
+                MapTilesetPackage.WriteSidecars(dir, ["Coral Field"], [new MapTilesetFile(1, bytes)]);
+
+                var map = new Map { Width = 1, Height = 1, Name = "Coral Field" };
+                var layer = new Layer { LayerType = LayerType.Ground, Visible = true };
+                layer.Tiles.Add(new Tile
+                {
+                    X = 0,
+                    Y = 0,
+                    TilesetId = 1,
+                    SrcX = 0,
+                    SrcY = 0,
+                    Type = TileType.Ground,
+                });
+                map.Layers.Add(layer);
+
+                var loaded = ClientTilesetLoader.LoadForMap(map, dir);
+                Assert.True(loaded.ContainsKey(1));
+
+                using var rendered = MapViewRenderer.Render(
+                    map,
+                    new Dictionary<string, (float, float)>(),
+                    localUsername: null,
+                    localCenterXPx: 16,
+                    localCenterYPx: 16,
+                    tilesetBitmaps: loaded);
+                var pixel = rendered.GetPixel(8, 8);
+                Assert.True(pixel.R > 150 && pixel.G < 80 && pixel.B < 80, $"expected coral tile, got {pixel}");
+            }
+            finally
+            {
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch
+                {
+                    // best-effort
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public void Client_MaterializesPublishedCatalogPng()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), $"frog-client-cat-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(dir);
+            try
+            {
+                using var tile = new Bitmap(32, 32);
+                using (var g = Graphics.FromImage(tile))
+                {
+                    g.Clear(Color.FromArgb(20, 180, 40));
+                }
+
+                using var ms = new MemoryStream();
+                tile.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                var bytes = ms.ToArray();
+                var sha = TilesetDefinition.ComputeSha256Hex(bytes);
+
+                var catalog = new PublishedCatalogWire
+                {
+                    Tilesets =
+                    [
+                        new PublishedTilesetWireEntry
+                        {
+                            Id = Guid.NewGuid().ToString("D"),
+                            Name = "Green",
+                            PaletteId = 9,
+                            LogicalPath = "tiles/green.png",
+                            Sha256Hex = sha,
+                            PngBase64 = Convert.ToBase64String(bytes),
+                            TileSizePixels = 32,
+                            WidthPixels = 32,
+                            HeightPixels = 32,
+                        },
+                    ],
+                };
+
+                var n = ClientPublishedTilesetMaterializer.Materialize(catalog, dir);
+                Assert.Equal(1, n);
+                Assert.True(File.Exists(Path.Combine(dir, "Tilesets", "9.png")));
+            }
+            finally
+            {
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch
+                {
+                    // best-effort
+                }
+            }
+        });
+    }
+}

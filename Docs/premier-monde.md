@@ -30,8 +30,8 @@ dotnet test Frog.Tests/Frog.Tests.csproj
 dotnet run --project Frog.Editor/Frog.Editor.csproj
 ```
 
-- Crée une carte, charge un tileset (PNG), puis **Enregistrer** au format `.fmap` (ex. `world.fmap`).
-- L’éditeur écrit aussi **`world.tilesets.json`** à côté (liste `id` → nom de fichier PNG). Copiez **ce JSON et les PNG** utilisés vers le client pour le même rendu qu’en édition.
+- Crée une carte, **Importer un asset projet…** / **Charger une image tuiles…** (PNG), place les tuiles, puis **Enregistrer** au format `.fmap` (ex. `world.fmap`).
+- L’éditeur copie aussi les **PNG** (`{id}.png`) et écrit **`world.tilesets.json`** à côté (liste `id` → nom de fichier). Playtest écrit le même layout sous `Tilesets/` + `Maps/` du workspace et du répertoire client.
 
 ### Tilesets côté client (PNG)
 
