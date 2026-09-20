@@ -7,8 +7,8 @@
 | **Statut** | MVP overlay + dock chat — **pas de merge** |
 | **Base** | `main` @ `bc60186` (merge PR #26 prefabs) |
 | **Branche** | `cursor/client-social-panels-mvp-4176` |
-| **PR** | Draft vers `main` — **pas de merge** |
-| **Tip** | *(pin after CI)* |
+| **PR** | Draft [#27](https://github.com/Netsuno/MMO_Maker/pull/27) vers `main` — **pas de merge** |
+| **Tip** | `fcfb4b4e4a145df79531ed88dfed04c65358ca77` |
 | **CI** | *(pin after green)* |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcodes **80–83** inchangés |
 
