@@ -1,5 +1,5 @@
 # Main tip CI re-pin
 
-Tip `91eaa1260f237325d2a130346d916968a68d8c07` — forced push 2026-09-20T21:50Z to re-queue CI after cancel-in-progress cascade from #30/#31 merges.
+Tip `c428c26673a8567f766c26e9afba2e7fd028417e` — forced push 2026-09-20T22:28Z after #32 merge cancel-in-progress.
 
-Pre-merge greens: #30 `75f75e0`, #31 `23fc143`.
+Prior green: `8d63c3f` (docs pin after #30/#31). Pre-merge #32 green: `ec24f04`.
