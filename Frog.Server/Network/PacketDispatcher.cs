@@ -24,6 +24,7 @@ using Frog.Server.Security;
 using Frog.Server.Services;
 using Frog.Server.Config;
 using Frog.Server.Observability;
+using Frog.Server.Economy;
 using Frog.Server.Social;
 using Frog.Server.Trade;
 using Microsoft.Extensions.Logging;
@@ -62,6 +63,7 @@ public sealed partial class PacketDispatcher(
     ServerOpsMetrics opsMetrics,
     SocialService socialService,
     TradeService tradeService,
+    EconomyHubService economyHubService,
     IOptions<RegistrationOptions> registrationOptions,
     MaintenanceService maintenance,
     ILogger<PacketDispatcher> logger)
@@ -96,6 +98,7 @@ public sealed partial class PacketDispatcher(
     private readonly ServerOpsMetrics _opsMetrics = opsMetrics;
     private readonly SocialService _social = socialService;
     private readonly TradeService _trade = tradeService;
+    private readonly EconomyHubService _economyHub = economyHubService;
     private readonly RegistrationOptions _registration = registrationOptions.Value;
     private readonly MaintenanceService _maintenance = maintenance;
     private readonly ILogger<PacketDispatcher> _logger = logger;
@@ -195,6 +198,10 @@ public sealed partial class PacketDispatcher(
 
             case PacketId.TradeRequest:
                 await HandleTradeRequestAsync(clientSession, payload, cancellationToken);
+                break;
+
+            case PacketId.EconomyHubRequest:
+                await HandleEconomyHubRequestAsync(clientSession, payload, cancellationToken);
                 break;
 
             case PacketId.ModerateRequest:

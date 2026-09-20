@@ -168,5 +168,14 @@ public enum PacketId : byte
     /// <summary>Offre complète + révision + drapeaux de confirmation.</summary>
     TradeSnapshot = 86,
 
+    /// <summary>Enveloppe économie MVP (HdV / courrier / coffre de guilde). Corps : <see cref="Frog.Core.Protocol.EconomyHubWire"/>.</summary>
+    EconomyHubRequest = 87,
+
+    /// <summary>Résultat d'une <see cref="EconomyHubRequest"/>.</summary>
+    EconomyHubResult = 88,
+
+    /// <summary>Liste enchères / inbox / emplacements coffre.</summary>
+    EconomyHubSnapshot = 89,
+
     Error = 255
 }

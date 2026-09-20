@@ -23,6 +23,7 @@ using Frog.Core.Models;
 using Frog.Core.Observability;
 using Frog.Core.Protocol;
 using Frog.Core.Security;
+using Frog.Core.Economy;
 using Frog.Core.Social;
 using Frog.Core.Weather;
 
@@ -225,6 +226,7 @@ public sealed class MainShellForm : Form
     private readonly TabPage _tabPhase8 = new("Quêtes") { Padding = new Padding(4) };
     private readonly TabPage _tabSocial = new("Social") { Padding = new Padding(4) };
     private readonly ClientSocialRoster _socialRoster = new();
+    private readonly ClientEconomyHub _economyHub = new();
     private readonly SocialHubPanel _socialHub = new() { Dock = DockStyle.Fill };
     private readonly HudWindowChrome _windowChrome = new("Inventaire");
     private string _windowTitleHint = "Inventaire";
@@ -1084,6 +1086,8 @@ public sealed class MainShellForm : Form
         tabRight.TabPages.Add(_tabSocial);
         _tabSocial.Controls.Add(_socialHub);
         _socialHub.ActionRequested += OnSocialHubAction;
+        _socialHub.EconomyQueryRequested += OnEconomyHubQuery;
+        _socialHub.SurfaceChanged += RefreshWindowChromeTitle;
         _tabChat.Controls.Add(new Label
         {
             Text = "Saisie chat : dock bas-gauche (canaux réels Global / Map / Whisper / Party / Guild).",
@@ -1292,6 +1296,8 @@ public sealed class MainShellForm : Form
         _client.SocialResultReceived += OnSocialResult;
         _client.SocialEventReceived += OnSocialEvent;
         _client.SocialSnapshotReceived += OnSocialSnapshot;
+        _client.EconomyHubResultReceived += OnEconomyHubResult;
+        _client.EconomyHubSnapshotReceived += OnEconomyHubSnapshot;
         _client.TradeResultReceived += r =>
             AppendLog(r.Success ? "Échange: " + r.Message : "Échange refusé: " + r.Message);
         _client.TradeSnapshotReceived += OnTradeSnapshot;
@@ -3675,6 +3681,75 @@ public sealed class MainShellForm : Form
         RefreshWindowChromeTitle();
     }
 
+    private void OpenEconomyPanel(EconomyHubKind kind)
+    {
+        var title = ClientEconomyHub.KindLabel(kind);
+        _windowTitleHint = title;
+        if (_windowLayerVisible
+            && _gameplayTabs.SelectedTab == _tabSocial
+            && _socialHub.TryGetSelectedEconomy(out var current)
+            && current == kind)
+        {
+            SetWindowLayerVisible(false);
+            return;
+        }
+
+        SetWindowLayerVisible(true);
+        _gameplayTabs.SelectedTab = _tabSocial;
+        _socialHub.SelectEconomy(kind);
+        RefreshWindowChromeTitle();
+    }
+
+    private void OnEconomyHubQuery(EconomyHubKind kind)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        _ = SendEconomyHubQueryAsync(kind);
+    }
+
+    private async Task SendEconomyHubQueryAsync(EconomyHubKind kind)
+    {
+        if (_client is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendEconomyHubAsync(
+                    kind,
+                    (byte)EconomyHubAction.Query,
+                    Guid.NewGuid(),
+                    ClientEconomyHub.QueryExtra())
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Économie: " + ex.Message);
+        }
+    }
+
+    private void OnEconomyHubSnapshot(EconomyHubSnapshotWire snap)
+    {
+        _economyHub.ApplySnapshot(snap);
+        _socialHub.ApplyEconomy(_economyHub);
+        AppendLog($"{ClientEconomyHub.KindLabel(snap.Kind)}: {snap.Entries.Count} entrée(s)");
+        if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabSocial)
+        {
+            RefreshWindowChromeTitle();
+        }
+    }
+
+    private void OnEconomyHubResult(EconomyHubResultWire result)
+    {
+        _economyHub.ApplyResult(result);
+        _socialHub.ApplyEconomy(_economyHub);
+        AppendLog(result.Success ? "Économie: " + result.Message : "Économie refusée: " + result.Message);
+    }
+
     private void OnSocialSnapshot(SocialSnapshotWire snap)
     {
         _socialRoster.ApplySnapshot(snap);
@@ -4216,6 +4291,12 @@ public sealed class MainShellForm : Form
     internal bool IsSocialTabSelectedForTest => _gameplayTabs.SelectedTab == _tabSocial;
 
     internal void OpenSocialPanelForTest(SocialKind kind) => OpenSocialPanel(kind);
+
+    internal void OpenEconomyPanelForTest(EconomyHubKind kind) => OpenEconomyPanel(kind);
+
+    internal ClientEconomyHub EconomyHubForTest => _economyHub;
+
+    internal void OnEconomyHubSnapshotForTest(EconomyHubSnapshotWire snap) => OnEconomyHubSnapshot(snap);
 
     internal void OnSocialSnapshotForTest(SocialSnapshotWire snap) => OnSocialSnapshot(snap);
 
