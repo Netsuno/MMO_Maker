@@ -1,0 +1,4 @@
+# Local client VERSION (launcher scaffolding). Not an installer.
+product=10.3.0
+protocol=11
+minClient=10.3.0

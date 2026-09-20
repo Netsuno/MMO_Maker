@@ -1,0 +1,6 @@
+# Example of a future CDN / version-check payload.
+# Compare with scripts/check-client-version.sh --remote <this file>
+# or ClientVersionManifest.Compare(local, remote).
+product=10.3.0
+protocol=11
+minClient=10.3.0
