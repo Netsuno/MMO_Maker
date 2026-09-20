@@ -21,6 +21,7 @@ public sealed class ClientUiThemeSmokeTests
         Assert.Equal(Color.FromArgb(0x0C, 0x10, 0x18), UiTheme.BgSlot);
         Assert.Equal(Color.FromArgb(0xC9, 0xA2, 0x27), UiTheme.AccentGold);
         Assert.Equal(Color.FromArgb(0xF2, 0xF4, 0xF8), UiTheme.TextPrimary);
+        Assert.Equal(Color.FromArgb(0xB7, 0x1C, 0x1C), UiTheme.StateError);
         Assert.Equal(Color.FromArgb(0xC6, 0x28, 0x28), UiTheme.BarHp);
         Assert.Equal(Color.FromArgb(0x15, 0x65, 0xC0), UiTheme.BarMp);
         Assert.Equal(Color.FromArgb(0x2E, 0x7D, 0x32), UiTheme.BarXp);

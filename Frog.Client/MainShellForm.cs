@@ -189,8 +189,10 @@ public sealed class MainShellForm : Form
     private readonly EnvironmentPanel _environmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
     private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.None, Width = 360, Height = 480, MinimumSize = new Size(300, 250), MaximumSize = new Size(360, 700) };
     private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
-    private readonly TabPage _tabGameplay = new("Gameplay") { Padding = new Padding(4) };
+    private readonly TabPage _tabGameplay = new("Inventaire") { Padding = new Padding(4) };
     private readonly TabPage _tabPhase8 = new("Quêtes") { Padding = new Padding(4) };
+    private readonly HudWindowChrome _windowChrome = new("Inventaire");
+    private string _windowTitleHint = "Inventaire";
     private readonly Panel _worldHost = new() { Dock = DockStyle.Fill };
     private readonly FlowLayoutPanel _gameToolbar = new()
     {
@@ -1097,8 +1099,13 @@ public sealed class MainShellForm : Form
         _hudChat.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
         _hudHotbar.Anchor = AnchorStyles.Bottom;
         _hudMenu.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        tabRight.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        tabRight.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        _windowChrome.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _btnRespawn.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        UiTheme.StyleGoldTabs(tabRight);
+        _windowChrome.Host(tabRight);
+        _windowChrome.CloseClicked += (_, _) => SetWindowLayerVisible(false);
+        tabRight.SelectedIndexChanged += (_, _) => RefreshWindowChromeTitle();
         _worldHost.Controls.Add(_hudStatus);
         _worldHost.Controls.Add(_hudMinimap);
         _worldHost.Controls.Add(_hudQuest);
@@ -1106,7 +1113,7 @@ public sealed class MainShellForm : Form
         _worldHost.Controls.Add(_hudHotbar);
         _worldHost.Controls.Add(_hudMenu);
         _worldHost.Controls.Add(_btnRespawn);
-        _worldHost.Controls.Add(tabRight);
+        _worldHost.Controls.Add(_windowChrome);
         _picMap.Click += (_, _) => DismissWindowLayerFromMap();
         _mapScroll.Click += (_, _) => DismissWindowLayerFromMap();
         _worldHost.Resize += (_, _) => LayoutGameHud();
@@ -3298,6 +3305,8 @@ public sealed class MainShellForm : Form
     private void ApplyDaTheme()
     {
         UiTheme.Apply(this);
+        UiTheme.StyleGoldTabs(_gameplayTabs);
+        _windowChrome.ApplyTheme();
         _mapScroll.BackColor = MapSurfaceBackColor;
         _picMap.BackColor = MapSurfaceBackColor;
         _worldHost.BackColor = MapSurfaceBackColor;
@@ -3312,15 +3321,19 @@ public sealed class MainShellForm : Form
         }
 
         const int gap = 8;
-        var tabW = _windowLayerVisible ? 360 + gap : 0;
-        var tabH = Math.Clamp(host.Height - (gap * 2), 250, 700);
+        var chromeExtraH = HudWindowChrome.TitleBarHeight + HudWindowChrome.ContentPadding;
+        var tabH = Math.Clamp(host.Height - (gap * 2) - chromeExtraH, 250, 700);
+        _windowChrome.Visible = _windowLayerVisible;
         _gameplayTabs.Visible = _windowLayerVisible;
         if (_windowLayerVisible)
         {
             _gameplayTabs.Size = new Size(360, tabH);
-            _gameplayTabs.Location = new Point(Math.Max(0, host.Width - 360 - gap), gap);
-            _gameplayTabs.BringToFront();
+            _windowChrome.FitToContent();
+            _windowChrome.Location = new Point(Math.Max(0, host.Width - _windowChrome.Width - gap), gap);
+            _windowChrome.BringToFront();
         }
+
+        var tabW = _windowLayerVisible ? _windowChrome.Width + gap : 0;
 
         _hudStatus.Location = new Point(gap, gap);
         var rightX = Math.Max(gap, host.Width - tabW - _hudMinimap.Width - gap);
@@ -3347,7 +3360,7 @@ public sealed class MainShellForm : Form
         _hudMenu.BringToFront();
         if (_windowLayerVisible)
         {
-            _gameplayTabs.BringToFront();
+            _windowChrome.BringToFront();
         }
 
         ApplyMapViewportCamera();
@@ -3356,6 +3369,7 @@ public sealed class MainShellForm : Form
     private void SetWindowLayerVisible(bool visible)
     {
         _windowLayerVisible = visible;
+        _windowChrome.Visible = visible;
         _gameplayTabs.Visible = visible;
         if (visible)
         {
@@ -3364,9 +3378,28 @@ public sealed class MainShellForm : Form
             {
                 _gameplayTabs.Height = 480;
             }
+
+            RefreshWindowChromeTitle();
         }
 
         LayoutGameHud();
+    }
+
+    private void RefreshWindowChromeTitle()
+    {
+        if (_gameplayTabs.SelectedTab == _tabPhase8)
+        {
+            _windowChrome.Title = "Quêtes";
+            return;
+        }
+
+        if (_gameplayTabs.SelectedTab == _tabChat)
+        {
+            _windowChrome.Title = "Chat";
+            return;
+        }
+
+        _windowChrome.Title = _windowTitleHint;
     }
 
     private void DismissWindowLayerFromMap()
@@ -3383,6 +3416,7 @@ public sealed class MainShellForm : Form
         {
             case HudMenuCommand.Character:
             case HudMenuCommand.Inventory:
+                _windowTitleHint = command == HudMenuCommand.Character ? "Perso" : "Inventaire";
                 if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabGameplay)
                 {
                     SetWindowLayerVisible(false);
@@ -3391,8 +3425,10 @@ public sealed class MainShellForm : Form
 
                 SetWindowLayerVisible(true);
                 _gameplayTabs.SelectedTab = _tabGameplay;
+                RefreshWindowChromeTitle();
                 break;
             case HudMenuCommand.Quests:
+                _windowTitleHint = "Quêtes";
                 if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabPhase8)
                 {
                     SetWindowLayerVisible(false);
@@ -3401,6 +3437,7 @@ public sealed class MainShellForm : Form
 
                 SetWindowLayerVisible(true);
                 _gameplayTabs.SelectedTab = _tabPhase8;
+                RefreshWindowChromeTitle();
                 _tabPhase8.PerformLayout();
                 break;
             case HudMenuCommand.Map:
@@ -3855,6 +3892,8 @@ public sealed class MainShellForm : Form
     internal string LogTextForTest => _txtLog.Text;
 
     internal TabControl GameplayTabsForTest => _gameplayTabs;
+
+    internal HudWindowChrome WindowChromeForTest => _windowChrome;
 
     internal bool IsPhase8TabSelectedForTest => _gameplayTabs.SelectedTab == _tabPhase8;
 

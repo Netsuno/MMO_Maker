@@ -87,6 +87,100 @@ public static class UiTheme
         return false;
     }
 
+    /// <summary>DA v2 step 2 — red 20×20 close on window chrome (<c>state.error</c>).</summary>
+    public static void StyleWindowCloseButton(Button button)
+    {
+        ArgumentNullException.ThrowIfNull(button);
+        button.FlatStyle = FlatStyle.Flat;
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(0xE5, 0x39, 0x35);
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(0x8E, 0x00, 0x00);
+        button.BackColor = StateError;
+        button.ForeColor = TextPrimary;
+        button.UseVisualStyleBackColor = false;
+        button.Text = "×";
+        button.Size = new Size(HudWindowChrome.CloseButtonSize, HudWindowChrome.CloseButtonSize);
+        button.MinimumSize = new Size(HudWindowChrome.CloseButtonSize, HudWindowChrome.CloseButtonSize);
+        button.MaximumSize = new Size(HudWindowChrome.CloseButtonSize, HudWindowChrome.CloseButtonSize);
+        ReplacePixelFont(button);
+        button.Font = UiFont(10f, FontStyle.Bold);
+    }
+
+    public static bool IsWindowCloseButton(Control control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        return control is Button
+               && control.Parent is HudWindowChrome
+               && string.Equals(control.Name, HudWindowChrome.CloseButtonName, StringComparison.Ordinal);
+    }
+
+    public const string GoldTabsTag = "da-v2-gold-tabs";
+
+    private static readonly Font GoldTabFont = UiFont(8.5f);
+    private static readonly Font GoldTabFontBold = UiFont(8.5f, FontStyle.Bold);
+
+    /// <summary>
+    /// Owner-draw gold tabs for windows that already have a <see cref="TabControl"/>
+    /// (Inventaire / Perso / Quêtes overlay). Does not invent new tabs.
+    /// </summary>
+    public static void StyleGoldTabs(TabControl tabs)
+    {
+        ArgumentNullException.ThrowIfNull(tabs);
+        tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
+        tabs.SizeMode = TabSizeMode.Normal;
+        tabs.ItemSize = new Size(96, 24);
+        tabs.BackColor = BgPanel;
+        foreach (TabPage page in tabs.TabPages)
+        {
+            page.BackColor = BgPanel;
+            page.ForeColor = TextPrimary;
+        }
+
+        if (!Equals(tabs.Tag, GoldTabsTag))
+        {
+            tabs.Tag = GoldTabsTag;
+            tabs.DrawItem += PaintGoldTab;
+        }
+    }
+
+    public static bool IsGoldTabControl(Control control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        return control is TabControl tabs && Equals(tabs.Tag, GoldTabsTag);
+    }
+
+    private static void PaintGoldTab(object? sender, DrawItemEventArgs e)
+    {
+        if (sender is not TabControl tabs || e.Index < 0 || e.Index >= tabs.TabCount)
+        {
+            return;
+        }
+
+        var selected = (e.State & DrawItemState.Selected) != 0;
+        using var bg = new SolidBrush(selected ? BgRowSelected : BgPanelHeader);
+        e.Graphics.FillRectangle(bg, e.Bounds);
+        using var pen = new Pen(selected ? AccentGoldHi : AccentGold);
+        e.Graphics.DrawRectangle(pen, e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1);
+        if (selected)
+        {
+            using var underline = new Pen(AccentGold, 2f);
+            e.Graphics.DrawLine(
+                underline,
+                e.Bounds.Left + 2,
+                e.Bounds.Bottom - 2,
+                e.Bounds.Right - 3,
+                e.Bounds.Bottom - 2);
+        }
+
+        TextRenderer.DrawText(
+            e.Graphics,
+            tabs.TabPages[e.Index].Text,
+            selected ? GoldTabFontBold : GoldTabFont,
+            e.Bounds,
+            selected ? AccentGold : TextPrimary,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+    }
+
     private static void ReplacePixelFont(Button button)
     {
         if (button.Font.Name.Contains("Pixel", StringComparison.OrdinalIgnoreCase))
@@ -271,7 +365,11 @@ public static class UiTheme
         switch (control)
         {
             case Button button:
-                if (IsHudContrastButton(button))
+                if (IsWindowCloseButton(button))
+                {
+                    StyleWindowCloseButton(button);
+                }
+                else if (IsHudContrastButton(button))
                 {
                     StyleContrastHudButton(button, button.Enabled);
                 }
@@ -297,6 +395,12 @@ public static class UiTheme
                 list.BorderStyle = BorderStyle.FixedSingle;
                 break;
             case TabControl tabs:
+                if (IsGoldTabControl(tabs))
+                {
+                    StyleGoldTabs(tabs);
+                    break;
+                }
+
                 tabs.BackColor = BgPanel;
                 foreach (TabPage page in tabs.TabPages)
                 {
@@ -310,6 +414,13 @@ public static class UiTheme
                 page.ForeColor = TextPrimary;
                 break;
             case Label label:
+                if (label.Parent is HudWindowChrome)
+                {
+                    label.ForeColor = AccentGold;
+                    label.BackColor = BgPanelHeader;
+                    break;
+                }
+
                 label.ForeColor = label.Font.Bold && label.Font.SizeInPoints >= 13f
                     ? TextGold
                     : TextPrimary;
@@ -322,6 +433,9 @@ public static class UiTheme
             case Form form:
                 form.BackColor = BgApp;
                 form.ForeColor = TextPrimary;
+                break;
+            case HudWindowChrome chrome:
+                chrome.ApplyTheme();
                 break;
             case Panel or FlowLayoutPanel or TableLayoutPanel or UserControl:
                 if (control is HudMenuRing || control.Parent is HudMenuRing)
