@@ -38,6 +38,10 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.False(form.GameToolbarOnWorldForTest);
                 Assert.False(form.StatusHudForTest.TitleVisibleForTest);
                 Assert.False(form.StatusHudForTest.XpBarVisibleForTest);
+                Assert.Equal(280, form.StatusHudForTest.Width);
+                Assert.Equal(72, form.StatusHudForTest.Height);
+                Assert.InRange(form.StatusHudForTest.PortraitDiameterForTest, 40, 48);
+                Assert.True(form.StatusHudForTest.HasCircularPortraitPlaceholderForTest);
                 Assert.True(
                     form.MinimapForTest.TitleHeightForTest is >= 16 and <= 24,
                     $"minimap title height {form.MinimapForTest.TitleHeightForTest}");
@@ -130,6 +134,11 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.DoesNotContain("HP", form.StatusHudForTest.MetaTextForTest, StringComparison.Ordinal);
                 Assert.True(form.StatusHudForTest.IsDeadVisibleForTest, "dead flag from CombatState");
                 Assert.False(form.StatusHudForTest.XpBarVisibleForTest);
+                Assert.Equal("N", form.StatusHudForTest.PortraitInitialForTest);
+                Assert.True(
+                    form.StatusHudForTest.PortraitIsLeftOfNameForTest,
+                    "portrait stays left of name (" + form.StatusHudForTest.PortraitLayoutForTest + ")");
+                Assert.True(form.StatusHudForTest.UsesBarAssetsForTest, "Kenney HP/MP bars after combat apply");
 
                 form.QuestTrackerForTest.ApplySnapshot(new[]
                 {
