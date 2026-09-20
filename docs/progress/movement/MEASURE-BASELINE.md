@@ -5,9 +5,9 @@
 | **Work** | Measurement only — baseline tile / pixel movement before any fluidity work |
 | **Owner** | Netsun |
 | **Status** | Instrumentation shipped, **off by default**. Numbers below are placeholders until Windows capture |
-| **Base** | `main` (latest at branch cut) |
+| **Base** | `main` @ `60757c9` (merge PR #16 DA v2 contrast) |
 | **Branch** | `cursor/movement-measure-baseline-4576` |
-| **PR** | Draft toward `main` — **do not merge as a movement fix** |
+| **PR** | Draft [#18](https://github.com/Netsuno/MMO_Maker/pull/18) toward `main` — **do not merge as a movement fix** |
 | **Out of scope** | No prediction rewrite, no collision redesign, no camera overhaul, no animation system |
 
 This document is how **Orchestrator / Netsun** run the baseline on **Windows**. Linux CI can compile and unit-test the probe; it cannot capture WinForms key → sprite latency.
