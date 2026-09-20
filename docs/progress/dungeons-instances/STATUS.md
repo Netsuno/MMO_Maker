@@ -2,58 +2,56 @@
 
 | Champ | Valeur |
 | --- | --- |
-| **Chantier** | Donjons, instances, raids, génération procédurale stub — scaffolding MVP après auction / mail / guild bank |
+| **Chantier** | Donjons / instances / raids — **échafaudage** in-memory + onglet Social Instance |
 | **Propriétaire** | Netsun |
-| **Statut** | MVP in-memory + onglet Social Instance — **pas de merge** |
-| **Base** | `main` @ `c428c26` (merge PR #32 auction / mail / guild bank) |
-| **Branche** | `cursor/dungeons-instances-mvp-a9bc` |
-| **PR** | Draft [#33](https://github.com/Netsuno/MMO_Maker/pull/33) vers `main` — **pas de merge** |
-| **Tip** | `7f87d507b834237f9231130fe4533d53c0873643` |
-| **CI** | [35541768014](https://github.com/Netsuno/MMO_Maker/actions/runs/35541768014) **SUCCESS** (`build-and-test` + `postgres-integration`) |
-| **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcodes additifs **90–92** (`InstanceHubRequest` / `Result` / `Snapshot`). Gel social 80–86 et économie 87–89 inchangés. |
+| **Statut** | **Merged** sur `main` — scaffolding only (pas de gameplay donjon livré) |
+| **Merge** | [PR #33](https://github.com/Netsuno/MMO_Maker/pull/33) → `b778cdfeb70cdfa41f57ad2589e37d486a5c9080` |
+| **Tip miroir docs** | `d6e59759dada9ef24849b9b985838b459c7f55b1` (main tip courant) |
+| **Tip feature** | `7f87d507b834237f9231130fe4533d53c0873643` (CI green avant merge) |
+| **CI (feature tip)** | [35541768014](https://github.com/Netsuno/MMO_Maker/actions/runs/35541768014) **SUCCESS** |
+| **Protocole** | `FrogWireProtocol.Version` **11** — opcodes additifs **90–92**. Gel 80–89 inchangé. |
 
-Chrome DA v2 + overlay Social existant. Menu ring **reste 5 icônes**. Dock chat **Amis / Groupe / Guilde** inchangé. Ouverture : onglet **Instance** sous Social (Entrer / Quitter / Actualiser).
+Chrome DA v2 + overlay Social. Menu ring **reste 5**. Dock chat inchangé. Ouverture : onglet **Instance** (Entrer / Quitter / Actualiser).
+
+> **Honnêteté :** catalogue fixe **Ruines du Marais** / **Crypte du Roi** ; Enter/Leave in-memory (hook session `CurrentMapId`) ; **pas** de `map_instance` PG ; procgen = stub seedé 2–4 salles. Ne pas documenter comme donjons jouables.
 
 ---
 
-## Livré
+## Avant → après
 
-1. **Modèles** — `DungeonDefinition`, `InstanceId`, catalogue fixe (`Ruines du Marais` donjon / `Crypte du Roi` raid). Hooks enter/leave sur `Session` (sauvegarde overworld + `CurrentMapId` template).
-2. **Wire** — `Frog.Core/Protocol/InstanceHubWire.cs` : multiplex `kind` Dungeon=1 / Raid=2, actions `Query=1` / `Enter=2` / `Leave=3`. Entrées unifiées (définition, run, occupants, seed, titre).
-3. **Serveur** — `InstanceHubService` in-memory. Create/destroy run, gate groupe (membre requis ; raid min 2 ; chef crée, membres rejoignent), leave → overworld. `PartyRoster` partagé avec le social Phase 10. Pas de migration PostgreSQL.
-4. **Procgen** — stub seedé `ProceduralDungeonGenerator` (2–4 salles template). Pas un moteur procédural.
-5. **Client** — `ClientInstanceHub` (Linux sans WinForms) + `InstanceHubSurface` dans `SocialHubPanel` (tab or, boutons contraste). `FrogGameClient.SendInstanceHubAsync` / snapshots 92.
-6. **Persistance** — **in-memory stubs**. Pas de tables `map_instance` / journal de runs.
+| Surface | Avant | Après (#33) |
+| --- | --- | --- |
+| Opcodes 90–92 | — | `InstanceHubWire` Dungeon=1 / Raid=2 ; Query / Enter / Leave |
+| Catalogue | — | `DungeonCatalog` : Ruines du Marais (donjon) / Crypte du Roi (raid min 2) |
+| Serveur | — | `InstanceHubService.Execute` in-memory + gate groupe |
+| Client | — | `ClientInstanceHub` + `InstanceHubSurface` |
+| UI | Social + économie tabs | + onglet **Instance** |
+
+---
+
+## Ce qui marche (scaffolding)
+
+1. **Modèles** — `DungeonDefinition`, `InstanceId`, hooks enter/leave session.
+2. **Wire** — Build/TryParse 90–92 + `BuildDefinitionIdExtra`.
+3. **Serveur** — create/destroy run, gate groupe (raid min 2), leave → overworld. `PartyRoster` partagé.
+4. **Procgen** — `ProceduralDungeonGenerator.Generate(seed)` stub (2–4 salles).
+5. **Persistance** — **in-memory**. Pas de `map_instance`.
+
+Guide UI : [UI-CLIENT-SocialHub.md](../phase-10-beta-release/guides/UI-CLIENT-SocialHub.md) (section Instance).
 
 ---
 
 ## Hors scope (volontaire)
 
-- Moteur procgen (salles/couloirs/loot/rencontres), cartes instance dédiées publiées, sharding.
-- Persistence PostgreSQL `map_instance`, reprise après restart, idempotence `request_id`.
-- Bump `FrogWireProtocol.Version`, trailer Hello, opcodes 80–89.
-- Weather, movement (hors hook session CurrentMapId), audio, maintenance, auction/mail/coffre, login shell, panes Phase 8 exact-sha (`DialoguePanel` / `QuestJournalPanel` / `EnvironmentPanel`).
-- Nouveau chrome overlay / 6ᵉ icône menu ring / boutons dock extra (garde le smoke Social à 3 boutons).
+- Moteur procgen réel, cartes instance publiées, sharding, loot, lockout.
+- Persistence PostgreSQL `map_instance`, idempotence `request_id`.
+- Bump protocole.
 
 ---
 
-## TODO (prochaine passe)
+## Tests (feature tip)
 
-- Persistence PostgreSQL : `map_instance` / run ledger + seed + occupants.
-- Cartes template dédiées + `TryTeleportToTile` réel (blobs publiés) au lieu du hook session.
-- Loot / rencontres / lockout / reset + idempotence `request_id`.
-- Smoke Windows dédié `OpenInstancePanelForTest` (Linux this run = gates source seulement).
+- `InstanceHubWireTests` / `InstanceHubLogicTests` / `InstanceHubTcpTests`
+- Linux feature tip : filtre InstanceHub **16 passed** (rapport STATUS produit)
 
----
-
-## Tests
-
-- `Frog.Tests/InstanceHubWireTests.cs` — round-trip 90–92, protocole 11, hints, procgen déterministe, câblage shell/hub/client, ce STATUS.
-- `Frog.Tests/InstanceHubLogicTests.cs` — Query sans perso / action inconnue / catalogue / gate groupe / enter-leave overworld / join membre / raid min 2.
-- `Frog.Tests/InstanceHubTcpTests.cs` — TCP in-memory Query + gate + create/join/leave.
-
-Linux this run: `dotnet test Frog.Tests` **713 passed** (filtre InstanceHub **16 passed**).
-
-CI **green** on `7f87d50` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35541768014/job/106160604472) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35541768014/job/106160604334). Windows editor / gameplay / Phase 8 smokes included.
-
-Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
+Linux / agent docs : placeholders `instance-01` seulement.

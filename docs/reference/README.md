@@ -3,7 +3,7 @@
 Fonctions documentées : `nom(args)` · entrées/sorties typées.  
 Classement **par sous-projet**, puis **A–Z**.
 
-> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `d6e59759` (catch-up Social HUD #27). (catch-up Social HUD #27)..
+> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `d6e59759` (catch-up batch 3 : #32/#33 scaffolding · #29 fluidité Core-only).
 
 ## Sous-projets (assemblies)
 
@@ -12,7 +12,7 @@ Classement **par sous-projet**, puis **A–Z**.
 | Client | [Client](client/README.md) | `FrogGameClient` Send*/Connect* |
 | Server | [Server](server/README.md) | Auth, map, move, reconnect, moderation |
 | Editor | [Editor](editor/README.md) | Save/Publish carte (UI MainForm) |
-| Core | [Core](core/README.md) | Formules, codecs, `ClientSocialRoster` HUD |
+| Core | [Core](core/README.md) | Formules, codecs, Social / Economy / Instance hubs, MovementFluidity |
 | PostgreSQL | [PostgreSQL](postgresql/README.md) | Account, Character, Inventory, Map, Quest |
 
 ## Comment lire

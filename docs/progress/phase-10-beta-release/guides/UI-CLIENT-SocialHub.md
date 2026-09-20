@@ -2,11 +2,11 @@
 
 ← [Guides](README.md) · [MainShell](UI-CLIENT-MainShell.md) · [Référence Client](../../../reference/client/README.md) · [ClientSocialRoster](../../../reference/core/README.md)
 
-Tip miroir : `d6e59759`. Feature #27 merge `399ece9` (tip feature `9b83655`). Propriétaire : **Netsun**.
+Tip miroir : `d6e59759`. #27 Social (merge) · #32 économie scaffolding · #33 instances scaffolding. Propriétaire : **Netsun**.
 
 Panneau HUD social branché sur opcodes **80–83** (`SendSocialAsync` → `SocialRequest`). Slash `/friend` `/party` `/guild` restent disponibles ; ce guide documente **chaque bouton / panneau** visible.
 
-> Onglets **Courrier / HdV / Coffre / Instance** peuvent apparaître dans le même `SocialHubPanel` (échafaudage tip post-#32/#33). **Hors périmètre gameplay de ce lot** — ne pas les traiter comme features joueur livrées ici.
+> Onglets **Courrier / HdV / Coffre** (#32) et **Instance** (#33) : **échafaudage** sur tip `d6e59759`. Query-only / listes vides / Enter-Leave in-memory. **Pas** d’économie ni de donjon jouable livrés.
 
 ---
 
@@ -36,7 +36,8 @@ Menu ring : **pas** d’icône Social (figé à 5). Aide **F1** rappelle les bou
 | **Amis** | Liste + invitations + actions ami | Documenté |
 | **Groupe** | Membres / invites + actions party | Documenté |
 | **Guilde** | Membres / MOTD / invites + actions guild | Documenté |
-| **Courrier** / **HdV** / **Coffre** / **Instance** | Surfaces échafaudage | Mention seulement |
+| **Courrier** / **HdV** / **Coffre** | Listes Query-only vides (#32) | [Échafaudage économie](#échafaudage--courrier--hdv--coffre-32) |
+| **Instance** | Catalogue + Entrer/Quitter in-memory (#33) | [Échafaudage Instance](#échafaudage--instance-33) |
 
 Champ commun (bas de chaque surface Amis/Groupe/Guilde) :
 
@@ -115,6 +116,60 @@ Guildes / amis / blocages **survivent** au redémarrage (contrairement aux group
 Parse Guid : [tryparsetargetguid](../../../reference/core/clientsocialroster-tryparsetargetguid.md). Cible Accept/Decline : [accepttarget](../../../reference/core/clientsocialroster-accepttarget.md).
 
 ---
+
+
+---
+
+## Échafaudage — Courrier / HdV / Coffre (#32)
+
+**Statut :** scaffolding **Query-only**. Pas d’achat, pas d’envoi de courrier, pas de dépôt/retrait coffre. Pas de PostgreSQL.
+
+| Onglet | Kind | EmptyHint typique | Bouton |
+| --- | --- | --- | --- |
+| **Courrier** | `Mail=2` | « Boîte de courrier vide. » | **Actualiser** → Query |
+| **HdV** | `Auction=1` | « Aucune enchère — hôtel des ventes vide (MVP). » | **Actualiser** |
+| **Coffre** | `GuildBank=3` | sans guilde : « Pas de guilde — coffre indisponible. » ; avec guilde : « Coffre de guilde : emplacements vides. » (8 slots vides) | **Actualiser** |
+
+Flux : **Actualiser** → `SendEconomyHubAsync(kind, Query, requestId, [])` (opcode **87**) → result **88** / snapshot **89** → `ClientEconomyHub.ApplySnapshot` / `ApplyResult` → `EconomyHubSurface`.
+
+API : [sendeconomyhubasync](../../../reference/client/sendeconomyhubasync.md) · [clienteconomyhub](../../../reference/core/clienteconomyhub.md) · [economyhubwire](../../../reference/core/economyhubwire.md) · serveur [economyhubservice-executeasync](../../../reference/server/economyhubservice-executeasync.md).
+
+<!-- CAPTURE: assets/economy-01-courrier-vide.png -->
+*Capture à venir (placeholder) : onglet Courrier — hint boîte vide + Actualiser.*
+
+<!-- CAPTURE: assets/economy-02-hdv-vide.png -->
+*Capture à venir (placeholder) : onglet HdV — hint aucune enchère.*
+
+<!-- CAPTURE: assets/economy-03-coffre-vide.png -->
+*Capture à venir (placeholder) : onglet Coffre — slots vides ou pas de guilde.*
+
+---
+
+## Échafaudage — Instance (#33)
+
+**Statut :** scaffolding in-memory. Catalogue fixe ; **pas** de carte `map_instance` PG ; procgen = stub seedé.
+
+| Contrôle | Rôle | API |
+| --- | --- | --- |
+| Liste | Définitions + runs (si présents) | `ClientInstanceHub` |
+| **Actualiser** | Query Dungeon + Raid | `SendInstanceHubAsync` action Query (90) |
+| **Entrer** | Enter sur définition sélectionnée (gate groupe ; raid min 2) | action Enter + `definitionId` |
+| **Quitter** | Leave → overworld (hook session) | action Leave |
+
+Catalogue MVP :
+
+| Nom | Kind | Min party |
+| --- | --- | --- |
+| **Ruines du Marais** | Donjon | 1 |
+| **Crypte du Roi** | Raid | 2 |
+
+EmptyHint si catalogue/run vide côté client : « Aucun donjon — catalogue vide (MVP). » (le serveur Query renvoie en principe les 2 définitions).
+
+Opcodes **90–92**. API : [sendinstancehubasync](../../../reference/client/sendinstancehubasync.md) · [clientinstancehub](../../../reference/core/clientinstancehub.md) · [instancehubwire](../../../reference/core/instancehubwire.md) · [dungeoncatalog](../../../reference/core/dungeoncatalog.md) · [proceduraldungeongenerator](../../../reference/core/proceduraldungeongenerator.md) · serveur [instancehubservice-execute](../../../reference/server/instancehubservice-execute.md).
+
+<!-- CAPTURE: assets/instance-01-onglet.png -->
+*Capture à venir (placeholder) : onglet Instance — catalogue Ruines / Crypte + Entrer / Quitter / Actualiser.*
+
 
 ## Slash (secondaire)
 
