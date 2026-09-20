@@ -76,9 +76,14 @@ public static class UiTheme
     public static bool IsHudContrastButton(Control control)
     {
         ArgumentNullException.ThrowIfNull(control);
+        if (control.Tag is string tag && tag == SocialOpenContrastTag)
+        {
+            return true;
+        }
+
         for (var parent = control.Parent; parent is not null; parent = parent.Parent)
         {
-            if (parent is HudHotbar or HudMenuRing or LoginShell)
+            if (parent is HudHotbar or HudMenuRing or LoginShell or SocialHubPanel)
             {
                 return true;
             }
@@ -86,6 +91,8 @@ public static class UiTheme
 
         return false;
     }
+
+    internal const string SocialOpenContrastTag = "da-contrast-social-open";
 
     public static bool IsUnderLoginShell(Control control)
     {
