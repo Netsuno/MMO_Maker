@@ -5,7 +5,7 @@ using Frog.Client.UI;
 
 namespace Frog.Client.Forms;
 
-/// <summary>Fenêtre, volume, disposition clavier et rebind — enregistrement atomique JSON côté appelant.</summary>
+/// <summary>Fenêtre, volume / mute / musique, disposition clavier et rebind — enregistrement atomique JSON côté appelant.</summary>
 public sealed class OptionsForm : Form
 {
     private readonly ComboBox _cmbLayout = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
@@ -19,6 +19,8 @@ public sealed class OptionsForm : Form
         LargeChange = 10,
     };
     private readonly Label _lblVolume = new() { AutoSize = true };
+    private readonly CheckBox _chkMute = new() { Text = "Muet (SFX + musique)", AutoSize = true };
+    private readonly CheckBox _chkMusic = new() { Text = "Musique (boucle placeholder)", AutoSize = true };
     private readonly NumericUpDown _numWidth = new() { Minimum = 980, Maximum = 7680, Width = 80 };
     private readonly NumericUpDown _numHeight = new() { Minimum = 640, Maximum = 4320, Width = 80 };
     private readonly CheckBox _chkMaximized = new() { Text = "Fenêtre maximisée", AutoSize = true };
@@ -54,6 +56,8 @@ public sealed class OptionsForm : Form
         _cmbLayout.Items.AddRange(new object[] { "AZERTY (ZQSD)", "QWERTY (WASD)" });
         _cmbLayout.SelectedIndex = _draft.KeyboardPreset == KeyboardLayoutPreset.Qwerty ? 1 : 0;
         _volume.Value = _draft.VolumePercent;
+        _chkMute.Checked = _draft.AudioMuted;
+        _chkMusic.Checked = _draft.MusicEnabled;
         _numWidth.Value = _draft.Window.Width;
         _numHeight.Value = _draft.Window.Height;
         _chkMaximized.Checked = _draft.Window.Maximized;
@@ -76,7 +80,13 @@ public sealed class OptionsForm : Form
             Row(Lbl("Largeur"), _numWidth, Lbl("Hauteur"), _numHeight),
             _chkMaximized,
             _chkFullScreen);
-        var sound = Page(Heading("Son"), _volume, _lblVolume);
+        var sound = Page(
+            Heading("Son"),
+            _volume,
+            _lblVolume,
+            _chkMute,
+            _chkMusic,
+            Note("Clic UI : ui-click.wav. Musique : music-loop.wav (générés CC0, dans le dépôt)."));
         var controls = Page(
             Heading("Contrôles"),
             Row(Lbl("Disposition"), _cmbLayout),
@@ -145,6 +155,8 @@ public sealed class OptionsForm : Form
             _draft.VolumePercent = _volume.Value;
             RefreshVolumeLabel();
         };
+        _chkMute.CheckedChanged += (_, _) => _draft.AudioMuted = _chkMute.Checked;
+        _chkMusic.CheckedChanged += (_, _) => _draft.MusicEnabled = _chkMusic.Checked;
         _numWidth.ValueChanged += (_, _) => _draft.Window.Width = (int)_numWidth.Value;
         _numHeight.ValueChanged += (_, _) => _draft.Window.Height = (int)_numHeight.Value;
         _chkMaximized.CheckedChanged += (_, _) => _draft.Window.Maximized = _chkMaximized.Checked;
@@ -167,6 +179,10 @@ public sealed class OptionsForm : Form
     internal ComboBox LayoutComboForTest => _cmbLayout;
 
     internal TrackBar VolumeTrackForTest => _volume;
+
+    internal CheckBox MuteCheckBoxForTest => _chkMute;
+
+    internal CheckBox MusicCheckBoxForTest => _chkMusic;
 
     internal Button SaveButtonForTest => AcceptButton as Button ?? throw new InvalidOperationException("Save");
 
