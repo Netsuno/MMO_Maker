@@ -83,6 +83,13 @@ public sealed class MainShellForm : Form
 
     private bool _localVisualInitialized;
 
+    /// <summary>Focus caméra lissé (snap au premier paint / warp ; damp ensuite).</summary>
+    private float _camFocusX;
+
+    private float _camFocusY;
+
+    private bool _camFocusInitialized;
+
     /// <summary>Dernier échantillon UTC pour le lissage mouvement (client seulement).</summary>
     private DateTime _motionSmoothLastUtc;
 
@@ -569,6 +576,7 @@ public sealed class MainShellForm : Form
     private void ResetLocalMotionState()
     {
         _localVisualInitialized = false;
+        _camFocusInitialized = false;
         _motionSmoothLastUtc = default;
         _pendingIdlePositionSync = false;
         _localFacing = Direction.Down;
@@ -616,6 +624,42 @@ public sealed class MainShellForm : Form
         var maxY = _map.Height * tw - 1f;
         _visLocalCx = Math.Clamp(_visLocalCx, 0f, maxX);
         _visLocalCy = Math.Clamp(_visLocalCy, 0f, maxY);
+    }
+
+    private void SnapCameraToLocalVisual()
+    {
+        _camFocusX = _visLocalCx;
+        _camFocusY = _visLocalCy;
+        _camFocusInitialized = _localVisualInitialized;
+    }
+
+    private bool AdvanceCameraFocus(float visualDt)
+    {
+        if (!_localVisualInitialized)
+        {
+            return false;
+        }
+
+        if (!_camFocusInitialized)
+        {
+            SnapCameraToLocalVisual();
+            return false;
+        }
+
+        var (nx, ny) = MapViewportCamera.DampFocus(
+            _camFocusX,
+            _camFocusY,
+            _visLocalCx,
+            _visLocalCy,
+            visualDt);
+        if (MathF.Abs(nx - _camFocusX) <= 0.006f && MathF.Abs(ny - _camFocusY) <= 0.006f)
+        {
+            return false;
+        }
+
+        _camFocusX = nx;
+        _camFocusY = ny;
+        return true;
     }
 
     private bool IsPredictedCenterBlocked(float cx, float cy)
@@ -749,18 +793,14 @@ public sealed class MainShellForm : Form
             _motionSmoothLastUtc = now;
         }
 
-        var dt = (float)(now - _motionSmoothLastUtc).TotalSeconds;
+        var rawDt = MovementFluidity.SanitizeRawDt((float)(now - _motionSmoothLastUtc).TotalSeconds);
         _motionSmoothLastUtc = now;
-        if (dt <= 0 || dt > 0.25f)
-        {
-            dt = 1f / 60f;
-        }
+        var visualDt = MovementFluidity.ClampVisualDt(rawDt);
 
-        _movementMeasure.NoteFrameTime(dt * 1000f);
+        _movementMeasure.NoteFrameTime(rawDt * 1000f);
 
-        const float convergencePerSec = 17f;
-        var alpha = 1f - MathF.Exp(-convergencePerSec * dt);
-        const float snapEps = 0.18f;
+        var alpha = MovementFluidity.ExpAlpha(MovementFluidity.OtherConvergencePerSec, visualDt);
+        var otherMaxStep = MovementFluidity.OtherMaxStepPixels(visualDt, MoveNetworkPulseMs);
         const float moveEps = 0.006f;
 
         var dirty = false;
@@ -771,8 +811,9 @@ public sealed class MainShellForm : Form
             if (hasMove)
             {
                 _localFacing = PlayerWalkClock.FacingFromVector(pvx, pvy, _localFacing);
-                _localWalkElapsedMs += (int)(dt * 1000f);
-                TryApplyLocalPredictStep(pvx, pvy, dt);
+                // Walk sheet stays on raw dt (anim MVP unchanged). Predict uses capped visual dt.
+                _localWalkElapsedMs += (int)(rawDt * 1000f);
+                TryApplyLocalPredictStep(pvx, pvy, visualDt);
                 ClampLocalVisToMap();
                 dirty = true;
             }
@@ -782,15 +823,18 @@ public sealed class MainShellForm : Form
                 dirty = true;
             }
 
-            var ex = _visLocalCx - _srvPixelX;
-            var ey = _visLocalCy - _srvPixelY;
-            var errMag = MathF.Sqrt(ex * ex + ey * ey);
+            var errMag = MovementFluidity.Distance(_visLocalCx, _visLocalCy, _srvPixelX, _srvPixelY);
             // Référence serveur mise à jour par PositionUpdate ; ne pas tirer le joueur local vers elle (évite rollback).
-            const float snapDesyncPx = 256f;
-            if (errMag > snapDesyncPx)
+            if (errMag > MovementFluidity.SnapDesyncPx)
             {
                 _visLocalCx = _srvPixelX;
                 _visLocalCy = _srvPixelY;
+                SnapCameraToLocalVisual();
+                dirty = true;
+            }
+
+            if (AdvanceCameraFocus(visualDt))
+            {
                 dirty = true;
             }
         }
@@ -805,19 +849,18 @@ public sealed class MainShellForm : Form
 
             var tx = (float)o.ServerPixelX;
             var ty = (float)o.ServerPixelY;
-            var nx = o.VisCx + (tx - o.VisCx) * alpha;
-            var ny = o.VisCy + (ty - o.VisCy) * alpha;
-            if (MathF.Abs(tx - nx) <= snapEps && MathF.Abs(ty - ny) <= snapEps)
-            {
-                nx = tx;
-                ny = ty;
-            }
-
+            var (nx, ny) = MovementFluidity.StepToward(
+                o.VisCx,
+                o.VisCy,
+                tx,
+                ty,
+                alpha,
+                otherMaxStep);
             if (MathF.Abs(nx - o.VisCx) > moveEps || MathF.Abs(ny - o.VisCy) > moveEps)
             {
                 o.Facing = PlayerWalkClock.FacingFromVector(nx - o.VisCx, ny - o.VisCy, o.Facing);
                 o.Walking = true;
-                o.WalkElapsedMs += (int)(dt * 1000f);
+                o.WalkElapsedMs += (int)(rawDt * 1000f);
                 o.VisCx = nx;
                 o.VisCy = ny;
                 dirty = true;
@@ -2353,6 +2396,7 @@ public sealed class MainShellForm : Form
             _visLocalCx = _srvPixelX;
             _visLocalCy = _srvPixelY;
             ClampLocalVisToMap();
+            SnapCameraToLocalVisual();
         }
 
         ReloadTilesetBitmaps();
@@ -2713,12 +2757,22 @@ public sealed class MainShellForm : Form
                 _visLocalCy = y;
                 _motionSmoothLastUtc = DateTime.UtcNow;
                 _localVisualInitialized = true;
+                SnapCameraToLocalVisual();
                 needImmediateRedraw = true;
             }
             else if (x != _srvPixelX || y != _srvPixelY)
             {
-                _srvPixelX = x;
-                _srvPixelY = y;
+                var mapChanged = _sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId;
+                var (sx, sy) = MovementFluidity.ResolveLocalServerSample(
+                    _visLocalCx,
+                    _visLocalCy,
+                    _srvPixelX,
+                    _srvPixelY,
+                    x,
+                    y,
+                    mapChanged);
+                _srvPixelX = (int)MathF.Round(sx);
+                _srvPixelY = (int)MathF.Round(sy);
                 _movementMeasure.NoteLocalCorrection();
             }
         }
@@ -3074,6 +3128,9 @@ public sealed class MainShellForm : Form
         if (becameHeld)
         {
             _movementMeasure.NoteMoveIntent();
+            // First paint in the KeyDown stack — baseline intent→visible mean 20.3 ms waited on the 16 ms timer.
+            AdvanceMovementSmoothing();
+            RedrawMap();
             PrimeMoveNetworkPulse();
         }
 
@@ -3219,8 +3276,13 @@ public sealed class MainShellForm : Form
         float? focusY = null;
         if (_localVisualInitialized)
         {
-            focusX = _visLocalCx;
-            focusY = _visLocalCy;
+            if (!_camFocusInitialized)
+            {
+                SnapCameraToLocalVisual();
+            }
+
+            focusX = _camFocusX;
+            focusY = _camFocusY;
         }
 
         var (ox, oy) = MapViewportCamera.ComputeDrawOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
@@ -4091,10 +4153,12 @@ public sealed class MainShellForm : Form
             _visLocalCy = fy;
             _srvPixelX = (int)Math.Round(fx);
             _srvPixelY = (int)Math.Round(fy);
+            SnapCameraToLocalVisual();
         }
         else
         {
             _localVisualInitialized = false;
+            _camFocusInitialized = false;
         }
 
         SetPhase(ClientUiPhase.Playing);

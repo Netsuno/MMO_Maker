@@ -31,4 +31,30 @@ public static class MapViewportCamera
         var offsetY = (int)Math.Round(viewportHeight / 2d - focusY, MidpointRounding.AwayFromZero);
         return (offsetX, offsetY);
     }
+
+    /// <summary>
+    /// Exponential follow so a single large predict step does not yank the whole bitmap.
+    /// First paint / warp callers snap by passing current = target.
+    /// </summary>
+    public static (float FocusX, float FocusY) DampFocus(
+        float currentX,
+        float currentY,
+        float targetX,
+        float targetY,
+        float dtSeconds,
+        float convergencePerSec = MovementFluidity.CameraConvergencePerSec,
+        float snapEps = MovementFluidity.CameraSnapEpsilonPx)
+    {
+        var dt = MovementFluidity.ClampVisualDt(dtSeconds);
+        var alpha = MovementFluidity.ExpAlpha(convergencePerSec, dt);
+        var stepped = MovementFluidity.StepToward(
+            currentX,
+            currentY,
+            targetX,
+            targetY,
+            alpha,
+            maxStepPx: float.PositiveInfinity,
+            snapEps);
+        return stepped;
+    }
 }
