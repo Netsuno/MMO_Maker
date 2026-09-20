@@ -10,6 +10,8 @@ namespace Frog.Editor.Enums
         /// <summary>Rectangle plein entre deux cases (clic départ, clic fin).</summary>
         Rectangle = 4,
         /// <summary>Sélection rectangulaire (copier / coller tuiles sur la couche active).</summary>
-        Selection = 5
+        Selection = 5,
+        /// <summary>Clic = tuile de spawn playtest / départ (mémo locale, pas de peinture).</summary>
+        Spawn = 6
     }
 }

@@ -22,6 +22,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         }
 
         ComboTool.SelectedIndex = 0;
+        SetSpawnDisplay(null, null);
 
         foreach (var (type, label) in TileChoices)
         {
@@ -40,17 +41,19 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         (TileType.Script, "Script"),
     };
 
-    private static string ToolLabel(EditorTool t) =>
-        t switch
+    private static string ToolLabel(EditorTool t) => EditorToolHotkeys.DisplayWithShortcut(t);
+
+    public void SetSpawnDisplay(int? tileX, int? tileY)
+    {
+        if (SpawnStatus is null)
         {
-            EditorTool.Brush => "Pinceau",
-            EditorTool.Eraser => "Gomme",
-            EditorTool.Cursor => "Curseur",
-            EditorTool.Fill => "Pot (remplissage)",
-            EditorTool.Rectangle => "Rectangle",
-            EditorTool.Selection => "Sélection",
-            _ => t.ToString(),
-        };
+            return;
+        }
+
+        SpawnStatus.Text = tileX is int x && tileY is int y
+            ? $"Départ playtest : ({x}, {y})"
+            : "Départ playtest : non défini";
+    }
 
     public void SetSelectedTool(EditorTool tool)
     {
@@ -92,6 +95,12 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
                 return;
             }
         }
+    }
+
+    private void OnPlaceSpawnClick(object sender, RoutedEventArgs e)
+    {
+        SetSelectedTool(EditorTool.Spawn);
+        ToolChanged?.Invoke(EditorTool.Spawn);
     }
 
     private void ComboTool_OnSelectionChanged(object sender, SelectionChangedEventArgs e)

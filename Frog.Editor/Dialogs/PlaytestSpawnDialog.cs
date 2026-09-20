@@ -19,7 +19,7 @@ internal sealed class PlaytestSpawnDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(360, 160);
+        ClientSize = new Size(400, 200);
         var maxX = Math.Max(0, mapWidth - 1);
         var maxY = Math.Max(0, mapHeight - 1);
         initialX = Math.Clamp(initialX, 0, maxX);
@@ -55,8 +55,17 @@ internal sealed class PlaytestSpawnDialog : Form
         };
         Controls.Add(_numY);
 
-        var ok = new Button { Text = "Playtest", DialogResult = DialogResult.OK, Location = new Point(160, 110) };
-        var cancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, Location = new Point(250, 110) };
+        var tip = new Label
+        {
+            AutoSize = true,
+            Location = new Point(12, 84),
+            MaximumSize = new Size(370, 0),
+            Text = "Astuce : outil Départ (D) pour cliquer la tuile sur la carte. Cette valeur est mémorisée à la réouverture.",
+        };
+        Controls.Add(tip);
+
+        var ok = new Button { Text = "Playtest", DialogResult = DialogResult.OK, Location = new Point(200, 150) };
+        var cancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, Location = new Point(290, 150) };
         Controls.Add(ok);
         Controls.Add(cancel);
         AcceptButton = ok;

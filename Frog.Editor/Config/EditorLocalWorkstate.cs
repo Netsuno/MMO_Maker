@@ -21,6 +21,18 @@ public static class EditorLocalWorkstate
 
         /// <summary>Largeur colonne droite WPF, 0 = défaut.</summary>
         public double ShellRightColumnWidth { get; set; }
+
+        /// <summary>
+        /// Spawn playtest / départ par carte. Clé <c>id:{guidN}</c> ou <c>local:{nom}|WxH</c>.
+        /// Mémo éditeur uniquement — pas de bump <c>.fmap</c> ni protocole fil.
+        /// </summary>
+        public Dictionary<string, MapPlaytestSpawnDto>? MapPlaytestSpawns { get; set; }
+    }
+
+    public sealed class MapPlaytestSpawnDto
+    {
+        public int TileX { get; set; }
+        public int TileY { get; set; }
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -29,8 +41,13 @@ public static class EditorLocalWorkstate
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    /// <summary>Tests : redirige le JSON workstate vers un fichier temporaire.</summary>
+    public static string? OverrideFilePathForTest { get; set; }
+
     private static string FilePath =>
-        Path.Combine(AppContext.BaseDirectory, "editor-workstate.json");
+        !string.IsNullOrWhiteSpace(OverrideFilePathForTest)
+            ? OverrideFilePathForTest
+            : Path.Combine(AppContext.BaseDirectory, "editor-workstate.json");
 
     private static PersistedDto LoadOrDefault()
     {
@@ -149,6 +166,39 @@ public static class EditorLocalWorkstate
         var dto = LoadOrDefault();
         dto.ShellLeftColumnWidth = left;
         dto.ShellRightColumnWidth = right;
+        Save(dto);
+    }
+
+    public static bool TryReadMapPlaytestSpawn(string key, out int tileX, out int tileY)
+    {
+        tileX = 0;
+        tileY = 0;
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var map = LoadOrDefault().MapPlaytestSpawns;
+        if (map is null || !map.TryGetValue(key, out var entry) || entry is null)
+        {
+            return false;
+        }
+
+        tileX = entry.TileX;
+        tileY = entry.TileY;
+        return true;
+    }
+
+    public static void WriteMapPlaytestSpawn(string key, int tileX, int tileY)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var dto = LoadOrDefault();
+        dto.MapPlaytestSpawns ??= new Dictionary<string, MapPlaytestSpawnDto>(StringComparer.Ordinal);
+        dto.MapPlaytestSpawns[key] = new MapPlaytestSpawnDto { TileX = tileX, TileY = tileY };
         Save(dto);
     }
 }

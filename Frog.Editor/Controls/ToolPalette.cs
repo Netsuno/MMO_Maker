@@ -28,12 +28,14 @@ public sealed class ToolPalette : UserControl
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 4,
             BackColor = EditorChrome.SidebarBg,
             Padding = new Padding(2, 0, 2, 0),
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var title = EditorChrome.BuildSectionCaption("OUTIL");
         title.Margin = new Padding(0, 0, 0, 10);
@@ -68,7 +70,7 @@ public sealed class ToolPalette : UserControl
         EditorChrome.StyleSidebarComboBox(_combo);
         foreach (EditorTool t in Enum.GetValues<EditorTool>())
         {
-            _combo.Items.Add(new ToolChoice(t, ToolLabel(t)));
+            _combo.Items.Add(new ToolChoice(t, EditorToolHotkeys.DisplayWithShortcut(t)));
         }
 
         _combo.SelectedIndex = 0;
@@ -77,23 +79,33 @@ public sealed class ToolPalette : UserControl
         row.Controls.Add(lbl, 0, 0);
         row.Controls.Add(_combo, 1, 0);
 
+        var hint = new Label
+        {
+            Text = EditorToolHotkeys.PaletteHint,
+            AutoSize = true,
+            ForeColor = EditorChrome.LabelMuted,
+            Font = EditorChrome.BodyFont,
+            Margin = new Padding(6, 8, 4, 4),
+            MaximumSize = new Size(280, 0),
+        };
+
+        var spawnHint = new Label
+        {
+            Text = "Clic outil Départ (D) pour poser le spawn playtest.",
+            AutoSize = true,
+            ForeColor = EditorChrome.RibbonAccent,
+            Font = EditorChrome.BodyFont,
+            Margin = new Padding(6, 0, 4, 4),
+            MaximumSize = new Size(280, 0),
+        };
+
         root.Controls.Add(title, 0, 0);
         root.Controls.Add(row, 0, 1);
+        root.Controls.Add(hint, 0, 2);
+        root.Controls.Add(spawnHint, 0, 3);
 
         Controls.Add(root);
     }
-
-    private static string ToolLabel(EditorTool t) =>
-        t switch
-        {
-            EditorTool.Brush => "Pinceau",
-            EditorTool.Eraser => "Gomme",
-            EditorTool.Cursor => "Curseur",
-            EditorTool.Fill => "Pot (remplissage)",
-            EditorTool.Rectangle => "Rectangle",
-            EditorTool.Selection => "Sélection",
-            _ => t.ToString(),
-        };
 
     private void OnComboSelectedIndexChanged(object? sender, EventArgs e)
     {

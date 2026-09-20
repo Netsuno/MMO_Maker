@@ -5,6 +5,7 @@ using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using Frog.Application.Maps;
+using Frog.Application.Playtest;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -109,6 +110,12 @@ public sealed class MapCanvas : Control
     }
 
     public EditorTool ActiveTool { get; set; } = EditorTool.Brush;
+
+    /// <summary>Tuile de spawn playtest / départ affichée sur le canevas (mémo éditeur).</summary>
+    public Point? PlaytestSpawnTile { get; private set; }
+
+    /// <summary>Le spawn a été posé ou restauré (UI / workstate).</summary>
+    public event Action<Point>? PlaytestSpawnChanged;
 
     private bool _panning;
     private Point _lastMouse;
@@ -338,6 +345,12 @@ public sealed class MapCanvas : Control
 
                 DrawTileTypeOverlay(g, tx0, ty0, tx1, ty1);
                 DrawMapEventMarkerOverlay(g, tx0, ty0, tx1, ty1);
+                DrawPlaytestSpawnMarker(g, tx0, ty0, tx1, ty1);
+            }
+
+            if (Map is not null && ActiveTool == EditorTool.Spawn)
+            {
+                DrawTileRectPixels(g, _hoverTile.X, _hoverTile.Y, _hoverTile.X, _hoverTile.Y, Color.DeepSkyBlue, dash: true);
             }
 
             if (ActiveTool == EditorTool.Selection && Map is not null && _selectionMarqueeAnchor is { } sa)
@@ -686,6 +699,112 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private void DrawPlaytestSpawnMarker(Graphics g, int tx0, int ty0, int tx1, int ty1)
+    {
+        if (Map is null || PlaytestSpawnTile is not { } sp)
+        {
+            return;
+        }
+
+        if (sp.X < tx0 || sp.X > tx1 || sp.Y < ty0 || sp.Y > ty1)
+        {
+            return;
+        }
+
+        if (sp.X < 0 || sp.X >= Map.Width || sp.Y < 0 || sp.Y >= Map.Height)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var rect = new Rectangle(sp.X * ts, sp.Y * ts, ts, ts);
+        var accent = Color.FromArgb(255, 80, 200, 255);
+        using (var fill = new SolidBrush(Color.FromArgb(70, accent)))
+        using (var pen = new Pen(accent, Math.Max(1.5f, ts / 16f)) { DashStyle = DashStyle.Dash })
+        {
+            g.FillRectangle(fill, rect);
+            g.DrawRectangle(pen, rect);
+        }
+
+        var inset = Math.Max(3, ts / 6);
+        var diamond = Rectangle.Inflate(rect, -inset, -inset);
+        var prev = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            using (var brush = new SolidBrush(Color.FromArgb(210, accent)))
+            {
+                FillDiamond(g, brush, diamond);
+            }
+
+            using var edge = new Pen(Color.White, Math.Max(1f, ts / 20f));
+            DrawDiamond(g, edge, diamond);
+        }
+        finally
+        {
+            g.SmoothingMode = prev;
+        }
+    }
+
+    public bool TrySetPlaytestSpawn(int tileX, int tileY)
+    {
+        if (Map is null || !MapPlaytestSpawn.TryClamp(Map, tileX, tileY, out var x, out var y))
+        {
+            return false;
+        }
+
+        var next = new Point(x, y);
+        if (PlaytestSpawnTile == next)
+        {
+            return true;
+        }
+
+        PlaytestSpawnTile = next;
+        PlaytestSpawnChanged?.Invoke(next);
+        Invalidate();
+        return true;
+    }
+
+    public void ClearPlaytestSpawn()
+    {
+        if (PlaytestSpawnTile is null)
+        {
+            return;
+        }
+
+        PlaytestSpawnTile = null;
+        Invalidate();
+    }
+
+    internal bool TryHandleSpawnToolRightClickForTest(int tileX, int tileY, bool control)
+    {
+        if (Map is null || tileX < 0 || tileY < 0 || tileX >= Map.Width || tileY >= Map.Height)
+        {
+            return false;
+        }
+
+        ActiveTool = EditorTool.Spawn;
+        if (control)
+        {
+            _suppressRightButtonErase = true;
+            TileContextMenuRequested?.Invoke(new Point(tileX, tileY));
+            return true;
+        }
+
+        return false;
+    }
+
+    internal bool TryApplySpawnToolAtTileForTest(int tileX, int tileY)
+    {
+        if (Map is null)
+        {
+            return false;
+        }
+
+        ActiveTool = EditorTool.Spawn;
+        return TrySetPlaytestSpawn(tileX, tileY);
+    }
+
     private void DrawTileRectPixels(Graphics g, int ax, int ay, int bx, int by, Color color, bool dash)
     {
         var x0 = Math.Min(ax, bx);
@@ -822,6 +941,17 @@ public sealed class MapCanvas : Control
 
         if (e.Button == MouseButtons.Right)
         {
+            if (ActiveTool == EditorTool.Spawn)
+            {
+                if ((ModifierKeys & Keys.Control) == Keys.Control)
+                {
+                    _suppressRightButtonErase = true;
+                    TileContextMenuRequested?.Invoke(new Point(tx, ty));
+                }
+
+                return;
+            }
+
             if (ActiveTool == EditorTool.Rectangle)
             {
                 _rectPaintOrigin = null;
@@ -919,6 +1049,11 @@ public sealed class MapCanvas : Control
                     Capture = true;
                     Invalidate();
                     break;
+
+                case EditorTool.Spawn:
+                    TrySetPlaytestSpawn(tx, ty);
+                    RaiseTileClicked(tx, ty);
+                    break;
             }
         }
     }
@@ -988,6 +1123,7 @@ public sealed class MapCanvas : Control
         }
 
         if (!_suppressRightButtonErase &&
+            ActiveTool != EditorTool.Spawn &&
             (e.Button & MouseButtons.Right) != 0 &&
             tx >= 0 &&
             ty >= 0 &&
@@ -1089,7 +1225,7 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection)
+        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection or EditorTool.Spawn)
         {
             Cursor = Cursors.Cross;
             return;
