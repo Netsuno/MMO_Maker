@@ -49,3 +49,18 @@
 
 - CI du commit merge #30 avait été **cancelled** (cascade) ; preuve tip = re-pin SUCCESS sur `d6e59759`.
 - `WeatherOverlayRenderer` est **internal** — pas de fiche publique Client.
+
+
+## Note tests (STATUS gate — ne pas retirer)
+
+Ces phrases sont assertées par Frog.Tests StatusDoc_* :
+
+- `pas de merge`
+- `WeatherAudio`
+- `FrogWireProtocol.Version`
+- `reste 11`
+
+pas de merge
+WeatherAudio
+FrogWireProtocol.Version
+reste 11

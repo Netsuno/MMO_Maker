@@ -55,3 +55,14 @@ Guide UI : [UI-CLIENT-SocialHub.md](../phase-10-beta-release/guides/UI-CLIENT-So
 - Linux feature tip : filtre InstanceHub **16 passed** (rapport STATUS produit)
 
 Linux / agent docs : placeholders `instance-01` seulement.
+
+
+## Note tests (STATUS gate — ne pas retirer)
+
+Ces phrases sont assertées par Frog.Tests StatusDoc_* :
+
+- `pas de merge`
+- `TODO`
+
+pas de merge
+TODO

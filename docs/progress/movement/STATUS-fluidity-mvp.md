@@ -63,3 +63,14 @@ Linux / cet agent **ne peut pas** recapturer WinForms. Aucun chiffre *after* n�
 ## Référence docs
 
 - [movementfluidity](../../reference/core/movementfluidity.md) · [mapviewportcamera-dampfocus](../../reference/core/mapviewportcamera-dampfocus.md)
+
+
+## Note tests (STATUS gate — ne pas retirer)
+
+Ces phrases sont assertées par Frog.Tests StatusDoc_* :
+
+- **Owner** | Netsun
+- `protocol 11`
+
+**Owner** | Netsun
+protocol 11

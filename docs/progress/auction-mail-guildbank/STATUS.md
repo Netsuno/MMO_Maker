@@ -54,3 +54,16 @@ Guide UI : [UI-CLIENT-SocialHub.md](../phase-10-beta-release/guides/UI-CLIENT-So
 - Linux feature tip : filtre EconomyHub **11 passed** (rapport STATUS produit)
 
 Linux / agent docs : pas de capture WinForms. Placeholders `economy-01..03` seulement.
+
+
+## Note tests (STATUS gate — ne pas retirer)
+
+Ces phrases sont assertées par Frog.Tests StatusDoc_* :
+
+- `pas de merge`
+- `hôtel des ventes`
+- `TODO`
+
+pas de merge
+hôtel des ventes
+TODO

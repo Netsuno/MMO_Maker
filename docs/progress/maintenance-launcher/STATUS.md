@@ -52,3 +52,12 @@ Ops : [OPERATIONS.md](../phase-10-beta-release/guides/OPERATIONS.md).
 - Label **launcher stub** uniquement (compare fichiers) — ne pas présenter comme auto-update produit.
 - Drain maintenance reste **incomplet** ; le *drapeau* de refus login est livré.
 - CI merge #31 cancelled puis re-pin tip SUCCESS.
+
+
+## Note tests (STATUS gate — ne pas retirer)
+
+Ces phrases sont assertées par Frog.Tests StatusDoc_* :
+
+- `reste 11`
+
+reste 11
