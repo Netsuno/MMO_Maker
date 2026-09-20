@@ -39,7 +39,8 @@ public sealed class MainShellForm : Form
     private bool _awaitingPlayingPhase;
 
     private readonly Panel _hostPages = new() { Dock = DockStyle.Fill };
-    private readonly Panel _panelLogin = new() { Dock = DockStyle.Fill, Padding = new Padding(32), AutoScroll = true };
+    private readonly Panel _panelLogin = new() { Dock = DockStyle.Fill, Padding = new Padding(0), AutoScroll = true };
+    private readonly LoginShell _loginShell = new();
     private readonly Panel _panelCharacter = new() { Dock = DockStyle.Fill, Padding = new Padding(32), AutoScroll = true, Visible = false };
     private readonly Panel _panelGame = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly Button _btnSwitchCharacter = new() { Text = "Changer de personnage", AutoSize = true };
@@ -131,11 +132,11 @@ public sealed class MainShellForm : Form
     private readonly List<MapEventWireEntry> _mapEvents = new();
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
     private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Value = 6000, Width = 70 };
-    private readonly TextBox _txtUser = new() { Text = "demo", Width = 100 };
-    private readonly TextBox _txtPass = new() { Text = "demo", Width = 100, UseSystemPasswordChar = true };
+    private readonly TextBox _txtUser = new() { Text = "demo", Width = LoginShell.FieldWidth };
+    private readonly TextBox _txtPass = new() { Text = "demo", Width = LoginShell.FieldWidth, UseSystemPasswordChar = true };
     private readonly Button _btnConnect = new() { Text = "Connecter" };
     private readonly Button _btnDisconnect = new() { Text = "Déconnecter", Enabled = false };
-    private readonly Button _btnLogin = new() { Text = "Login", Enabled = false };
+    private readonly Button _btnLogin = new() { Text = "Connexion", Enabled = false };
     private readonly Button _btnRegister = new() { Text = "Inscription", Enabled = false };
     private readonly Button _btnReconnect = new() { Text = "Reconnecter (jeton)", Enabled = false };
     private readonly Label _lblAuthStatus = new() { AutoSize = true, Text = "Jeton: aucun", Margin = new Padding(4, 12, 4, 4) };
@@ -274,6 +275,7 @@ public sealed class MainShellForm : Form
         }
 
         BuildLayout();
+        ApplyRememberedAccount();
         _movementMeasure.Log = AppendLog;
         if (_movementMeasure.Enabled)
         {
@@ -830,46 +832,6 @@ public sealed class MainShellForm : Form
             Margin = new Padding(4, topPad, 4, 4),
         };
 
-    /// <summary>Empile des contrôles en colonne dans un panneau (écran login / perso).</summary>
-    private static void AddStackToPanel(Panel panel, params Control[] sections)
-    {
-        var outer = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 1,
-            BackColor = panel.BackColor,
-        };
-        outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
-        outer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 560));
-        outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
-
-        var flow = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Padding = new Padding(12),
-            BackColor = panel.BackColor,
-        };
-        foreach (var section in sections)
-        {
-            section.Margin = new Padding(0, 0, 0, 12);
-            flow.Controls.Add(section);
-        }
-
-        var host = new Panel { Dock = DockStyle.Fill, AutoSize = false, BackColor = panel.BackColor };
-        host.Controls.Add(flow);
-        outer.Controls.Add(new Panel { Dock = DockStyle.Fill }, 0, 0);
-        outer.Controls.Add(host, 1, 0);
-        outer.Controls.Add(new Panel { Dock = DockStyle.Fill }, 2, 0);
-
-        panel.Controls.Clear();
-        panel.Controls.Add(outer);
-    }
-
     private void BuildLayout()
     {
         StyleToolbarButton(_btnConnect);
@@ -911,36 +873,7 @@ public sealed class MainShellForm : Form
         _cmbCharacters.Width = Math.Max(_cmbCharacters.Width, 320);
         _txtNewCharName.MinimumSize = new Size(120, 0);
         _txtNewCharName.Width = Math.Max(_txtNewCharName.Width, 140);
-        foreach (Control c in new Control[] { _txtHost, _txtUser, _txtPass })
-        {
-            c.Margin = new Padding(2, 4, 12, 4);
-        }
-
-        _numPort.Margin = new Padding(2, 4, 12, 4);
         _cmbMeleeTarget.Margin = new Padding(2, 4, 8, 4);
-
-        var loginFields = CreateToolbarRow();
-        loginFields.FlowDirection = FlowDirection.LeftToRight;
-        loginFields.WrapContents = true;
-        loginFields.AutoSize = true;
-        loginFields.Controls.Add(Lbl("Hôte", topPad: 16));
-        loginFields.Controls.Add(_txtHost);
-        loginFields.Controls.Add(Lbl("Port", topPad: 16));
-        loginFields.Controls.Add(_numPort);
-        loginFields.Controls.Add(Lbl("Compte", topPad: 16));
-        loginFields.Controls.Add(_txtUser);
-        loginFields.Controls.Add(Lbl("Mot de passe", topPad: 16));
-        loginFields.Controls.Add(_txtPass);
-
-        var loginBtns = CreateToolbarRow();
-        loginBtns.WrapContents = true;
-        loginBtns.Controls.Add(_btnConnect);
-        loginBtns.Controls.Add(_btnDisconnect);
-        loginBtns.Controls.Add(_btnLogin);
-        loginBtns.Controls.Add(_btnRegister);
-        loginBtns.Controls.Add(_btnReconnect);
-
-        AddStackToPanel(_panelLogin, TitleLbl("Connexion"), loginFields, loginBtns, _lblAuthStatus);
 
         var rowCharPick = CreateToolbarRow();
         rowCharPick.WrapContents = true;
@@ -986,7 +919,13 @@ public sealed class MainShellForm : Form
         rowCharNav.WrapContents = true;
         rowCharNav.Controls.Add(_btnBackDisconnect);
 
-        AddStackToPanel(_panelCharacter, TitleLbl("Choisir votre personnage"), rowCharPick, rowCreate, rowStats, rowCharNav);
+        LoginShell.HostCenteredCard(
+            _panelCharacter,
+            TitleLbl("Choisir votre personnage"),
+            rowCharPick,
+            rowCreate,
+            rowStats,
+            rowCharNav);
 
         _mapScroll.Controls.Add(_picMap);
 
@@ -1129,6 +1068,27 @@ public sealed class MainShellForm : Form
         _hostPages.Controls.Add(_panelGame);
         _hostPages.Controls.Add(_panelCharacter);
         _hostPages.Controls.Add(_panelLogin);
+
+        _loginShell.Dock = DockStyle.Fill;
+        _loginShell.Attach(
+            _txtUser,
+            _txtPass,
+            _btnLogin,
+            _btnRegister,
+            _btnReconnect,
+            _btnConnect,
+            _btnDisconnect,
+            _txtHost,
+            _numPort,
+            _lblAuthStatus);
+        _btnLogin.EnabledChanged += (_, _) => LoginShell.StylePrimaryCta(_btnLogin);
+        _btnRegister.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnRegister);
+        _btnReconnect.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnReconnect);
+        _btnConnect.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnConnect);
+        _btnDisconnect.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnDisconnect);
+        _loginShell.RememberCheckBoxForTest.CheckedChanged += (_, _) => PersistRememberedAccount();
+        _panelLogin.Controls.Clear();
+        _panelLogin.Controls.Add(_loginShell);
 
         _txtLog.Dock = DockStyle.Bottom;
         _txtLog.MinimumSize = new Size(120, 88);
@@ -2180,6 +2140,15 @@ public sealed class MainShellForm : Form
 
         AppendLog("Login OK");
         ShowPlayerStatus(PlayerFacingMessages.LoggedIn);
+        PersistRememberedAccount();
+        try
+        {
+            _settingsStore.Save(_settings);
+        }
+        catch
+        {
+            // persistance optionnelle
+        }
 
         UpdateAuthTokenUi();
         _username = _playtestOptions is { IsPlaytest: true }
@@ -2943,6 +2912,14 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (e.KeyCode == Keys.F9 && _phase == ClientUiPhase.Login)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            _loginShell.ToggleOps();
+            return;
+        }
+
         if (_phase != ClientUiPhase.Playing)
         {
             return;
@@ -3265,6 +3242,7 @@ public sealed class MainShellForm : Form
             _settings.VolumePercent = _sound.VolumePercent;
             _settings.LastHost = _txtHost.Text.Trim();
             _settings.LastPort = (int)_numPort.Value;
+            PersistRememberedAccount();
             _settingsStore.Save(_settings);
         }
         catch
@@ -3286,7 +3264,29 @@ public sealed class MainShellForm : Form
         }
 
         RefreshMoveHint();
+        ApplyRememberedAccount();
         _settingsStore.Save(_settings);
+    }
+
+    private void ApplyRememberedAccount()
+    {
+        var box = _loginShell.RememberCheckBoxForTest;
+        box.Checked = _settings.RememberAccount;
+        if (_playtestOptions is { IsPlaytest: true })
+        {
+            return;
+        }
+
+        if (_settings.RememberAccount && !string.IsNullOrWhiteSpace(_settings.LastUsername))
+        {
+            _txtUser.Text = _settings.LastUsername;
+        }
+    }
+
+    private void PersistRememberedAccount()
+    {
+        _settings.RememberAccount = _loginShell.RememberCheckBoxForTest.Checked;
+        _settings.LastUsername = _settings.RememberAccount ? _txtUser.Text.Trim() : string.Empty;
     }
 
     private void RefreshMoveHint()
@@ -3307,6 +3307,12 @@ public sealed class MainShellForm : Form
         UiTheme.Apply(this);
         UiTheme.StyleGoldTabs(_gameplayTabs);
         _windowChrome.ApplyTheme();
+        _loginShell.ApplyTheme();
+        LoginShell.StylePrimaryCta(_btnLogin);
+        LoginShell.StyleSecondaryCta(_btnRegister);
+        LoginShell.StyleSecondaryCta(_btnReconnect);
+        LoginShell.StyleSecondaryCta(_btnConnect);
+        LoginShell.StyleSecondaryCta(_btnDisconnect);
         _mapScroll.BackColor = MapSurfaceBackColor;
         _picMap.BackColor = MapSurfaceBackColor;
         _worldHost.BackColor = MapSurfaceBackColor;
@@ -3668,6 +3674,14 @@ public sealed class MainShellForm : Form
 
         public override string ToString() => $"{Name} ×{Quantity}";
     }
+
+    internal LoginShell LoginShellForTest => _loginShell;
+
+    internal void ToggleLoginOpsForTest() => _loginShell.ToggleOps();
+
+    internal void PressF9ForTest() => MainShell_KeyDown(this, new KeyEventArgs(Keys.F9));
+
+    internal CheckBox RememberAccountCheckBoxForTest => _loginShell.RememberCheckBoxForTest;
 
     internal TextBox HostTextBoxForTest => _txtHost;
 

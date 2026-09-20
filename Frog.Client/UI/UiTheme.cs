@@ -78,13 +78,27 @@ public static class UiTheme
         ArgumentNullException.ThrowIfNull(control);
         for (var parent = control.Parent; parent is not null; parent = parent.Parent)
         {
-            if (parent is HudHotbar or HudMenuRing)
+            if (parent is HudHotbar or HudMenuRing or LoginShell)
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    public static bool IsUnderLoginShell(Control control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        for (var parent = control.Parent; parent is not null; parent = parent.Parent)
+        {
+            if (parent is LoginShell)
+            {
+                return true;
+            }
+        }
+
+        return control is LoginShell;
     }
 
     /// <summary>DA v2 step 2 — red 20×20 close on window chrome (<c>state.error</c>).</summary>
@@ -374,7 +388,7 @@ public static class UiTheme
                     StyleContrastHudButton(button, button.Enabled);
                     button.FlatAppearance.BorderSize = 0;
                 }
-                else if (IsHudContrastButton(button))
+                else if (IsHudContrastButton(button) || IsUnderLoginShell(button))
                 {
                     StyleContrastHudButton(button, button.Enabled);
                 }
@@ -426,6 +440,22 @@ public static class UiTheme
                     break;
                 }
 
+                if (IsUnderLoginShell(label))
+                {
+                    label.BackColor = Color.Transparent;
+                    if (label.Font.SizeInPoints >= 18f)
+                    {
+                        label.ForeColor = TextPrimary;
+                    }
+                    else if (label.ForeColor.ToArgb() != TextMuted.ToArgb()
+                             && label.ForeColor.ToArgb() != TextSecondary.ToArgb())
+                    {
+                        label.ForeColor = TextPrimary;
+                    }
+
+                    break;
+                }
+
                 label.ForeColor = label.Font.Bold && label.Font.SizeInPoints >= 13f
                     ? TextGold
                     : TextPrimary;
@@ -442,8 +472,21 @@ public static class UiTheme
             case HudWindowChrome chrome:
                 chrome.ApplyTheme();
                 break;
+            case LoginShell login:
+                login.ApplyTheme();
+                break;
+            case LoginShell.LoginCard card:
+                card.ApplyTheme();
+                break;
             case Panel or FlowLayoutPanel or TableLayoutPanel or UserControl:
                 if (control is HudMenuRing || control.Parent is HudMenuRing || IsHudContrastButton(control))
+                {
+                    control.BackColor = Color.Transparent;
+                    control.ForeColor = TextPrimary;
+                    break;
+                }
+
+                if (IsUnderLoginShell(control) && control is not LoginShell.LoginCard)
                 {
                     control.BackColor = Color.Transparent;
                     control.ForeColor = TextPrimary;
