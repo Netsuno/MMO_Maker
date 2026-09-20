@@ -1,8 +1,8 @@
 # Frog.Client — UI (`MainShellForm`) inventaire
 
-← [Guides](README.md) · [SocialHub](UI-CLIENT-SocialHub.md) · [Référence Client](../../../reference/client/README.md)
+← [Guides](README.md) · [SocialHub](UI-CLIENT-SocialHub.md) · [Options](UI-CLIENT-Options.md) · [Référence Client](../../../reference/client/README.md)
 
-Tip miroir : `d6e59759` (Social #27). Inventaire des **contrôles** pour les guides UI (chaque bouton/panneau). Enrichir avec captures + DA.
+Tip miroir : `d6e59759` (#27 Social · #28 Options Son). Inventaire des **contrôles** pour les guides UI (chaque bouton/panneau). Enrichir avec captures + DA.
 
 ## Connexion
 
@@ -77,3 +77,11 @@ Canaux filtres dock : **Général** / **Local** / **Whisper** / **Groupe** / **G
 `SocialHubPanel` — guide dédié : [UI-CLIENT-SocialHub.md](UI-CLIENT-SocialHub.md).
 
 Autres : `ChatPanel`, `CraftPanel`, `DialoguePanel`, `EnvironmentPanel`, `EquipmentPanel`, `InventoryPanel`, `QuestJournalPanel`, `MiniMap`, `StatusBar`, `TradeForm` (slash `/trade`) — fiches à enrichir.
+
+## Options
+
+| Contrôle | Libellé | Rôle |
+| --- | --- | --- |
+| Bouton / pill Options | **Options** | Ouvre `OptionsForm` (+ `PlayUiClick` si audible) |
+
+Guide Son : [UI-CLIENT-Options.md](UI-CLIENT-Options.md).

@@ -19,6 +19,36 @@ Fonctions Core, A–Z. Style `nom(args)`. Tip miroir : `d6e59759`.
 
 
 
+## AudioMixer (#28)
+
+Mute / volume / musique. Tip : `d6e59759`.
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [apply](audiomixer-apply.md) | `apply(volumePercent, muted, musicEnabled)` | Applique settings Son |
+| [play](audiomixer-play.md) | `play(cue)` | Lecture cue |
+| [shouldplay](audiomixer-shouldplay.md) | `shouldplay(cue)` | Audible ? |
+| [setvolume](audiomixer-setvolume.md) | `setvolume(percent)` | Volume |
+| [setmuted](audiomixer-setmuted.md) | `setmuted(muted)` | Mute |
+| [setmusicenabled](audiomixer-setmusicenabled.md) | `setmusicenabled(enabled)` | Musique opt-in |
+
+## Weather (#30)
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [resolve](weatherresolver-resolve.md) | `resolve(…)` | Plan overlay |
+| [cycle](weatherresolver-cycle.md) | `cycle(current)` | F8 |
+| [forkind](weathercatalog-forkind.md) | `forkind(kind?)` | Catalogue |
+| [shouldplayambience](weatheraudio-shouldplayambience.md) | `shouldplayambience(plan, mixer)` | Mute gate |
+
+## Maintenance / launcher stub (#31)
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [parse](clientversionmanifest-parse.md) | `parse(text)` | VERSION fichier |
+| [compare](clientversionmanifest-compare.md) | `compare(local, remote)` | Compare stub |
+| [toplayerfacing](maintenancemessages-toplayerfacing.md) | `toplayerfacing(raw?)` | Message joueur |
+
 ## ClientSocialRoster (HUD social #27)
 
 État client opcodes 80–83. Une fiche / méthode (pattern Server). Tip miroir : `d6e59759`.
@@ -45,6 +75,32 @@ Fonctions Core, A–Z. Style `nom(args)`. Tip miroir : `d6e59759`.
 | [tryparsetargetguid](clientsocialroster-tryparsetargetguid.md) | `tryparsetargetguid(text, …)` | Parse Guid HUD |
 
 Guide UI : [UI-CLIENT-SocialHub.md](../../progress/phase-10-beta-release/guides/UI-CLIENT-SocialHub.md).
+
+## EconomyHub (#32 scaffolding)
+
+| Groupe | Fiche | Une ligne |
+| --- | --- | --- |
+| EconomyHubWire | [economyhubwire](economyhubwire.md) | Codec 87–89 Query-only |
+| ClientEconomyHub | [clienteconomyhub](clienteconomyhub.md) | État client listes vides |
+
+## InstanceHub (#33 scaffolding)
+
+| Groupe | Fiche | Une ligne |
+| --- | --- | --- |
+| InstanceHubWire | [instancehubwire](instancehubwire.md) | Codec 90–92 |
+| ClientInstanceHub | [clientinstancehub](clientinstancehub.md) | État client |
+| DungeonCatalog | [dungeoncatalog](dungeoncatalog.md) | Ruines du Marais / Crypte du Roi |
+| ProceduralDungeonGenerator | [proceduraldungeongenerator](proceduraldungeongenerator.md) | Stub 2–4 salles |
+
+## MovementFluidity (#29) — Référence only
+
+| Fonction | Fiche | Une ligne |
+| --- | --- | --- |
+| MovementFluidity.* | [movementfluidity](movementfluidity.md) | Cap visual dt / stale ack — **before-only metrics** |
+| MapViewportCamera.DampFocus | [mapviewportcamera-dampfocus](mapviewportcamera-dampfocus.md) | Camera expo 16/s |
+
+Pas de page guide joueur pour #29.
+
 
 
 ### meleedamage
@@ -185,4 +241,4 @@ Version incompatible du contrat TCP (champ Hello).
 **Sorties :**
 - (`ushort`) — `11` sur le tip actuel
 
-*Source : `FrogWireProtocol.Version`. Wire v11 ; social 80–83 livrés ; HUD #27 sur tip.*
+*Source : `FrogWireProtocol.Version`. Wire v11 ; social 80–83 ; #28 audio ; #30 weather trailer 74 ; #31 maintenance (pas de bump).*
