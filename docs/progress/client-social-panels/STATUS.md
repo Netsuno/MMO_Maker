@@ -53,3 +53,8 @@ Guide UI : [UI-CLIENT-SocialHub.md](../phase-10-beta-release/guides/UI-CLIENT-So
 - Windows smoke : open from chat dock + apply snapshot.
 
 Linux / agent docs : pas de capture WinForms HUD. Placeholders HTML + *Capture à venir* dans le guide.
+
+
+## Note tests (STATUS gate)
+
+Historique MVP : **pas de merge** tant que CI rouge ; chrome **HudWindowChrome** (#19).
