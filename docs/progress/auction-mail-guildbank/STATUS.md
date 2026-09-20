@@ -8,8 +8,8 @@
 | **Base** | `main` @ `91eaa12` (merge PR #31 maintenance) |
 | **Branche** | `cursor/auction-mail-guildbank-mvp-61f1` |
 | **PR** | Draft [#32](https://github.com/Netsuno/MMO_Maker/pull/32) vers `main` — **pas de merge** |
-| **Tip** | (à pinner après CI du tip exact) |
-| **CI** | Linux local : `Frog.Tests` **697 passed**. GitHub CI à pinner après le run du tip exact |
+| **Tip** | `ec24f0462bf3bc0e4afc9b736cfe3ba686a35fe9` |
+| **CI** | [35540509057](https://github.com/Netsuno/MMO_Maker/actions/runs/35540509057) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcodes additifs **87–89** (`EconomyHubRequest` / `Result` / `Snapshot`). Gel social 80–86 inchangé. |
 
 Chrome DA v2 + overlay Social existant. Menu ring **reste 5 icônes**. Dock chat **Amis / Groupe / Guilde** inchangé (smoke `#27`). Ouverture : onglets **Courrier / HdV / Coffre** sous Social.
@@ -50,5 +50,7 @@ Chrome DA v2 + overlay Social existant. Menu ring **reste 5 icônes**. Dock chat
 - `Frog.Tests/EconomyHubTcpTests.cs` — TCP in-memory Query + create guild + coffre.
 
 Linux this run: `dotnet test Frog.Tests` **697 passed** (filtre EconomyHub **11 passed**).
+
+CI **green** on `ec24f04` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35540509057/job/106157221884) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35540509057/job/106157221791). Windows editor / gameplay / Phase 8 smokes included.
 
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
