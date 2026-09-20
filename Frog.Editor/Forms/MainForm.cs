@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using System.Windows.Interop;
+using Frog.Application.Assets;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Core.Enums;
@@ -344,6 +345,7 @@ public sealed class MainForm : Form
 
             var mResources = new ToolStripMenuItem("Ressources");
             mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
+            mResources.DropDownItems.Add("Importer un asset projet…", null, (_, _) => ImportProjectAsset());
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
@@ -1359,15 +1361,79 @@ public sealed class MainForm : Form
 
     internal void OpenTileset()
     {
-        using var ofd = new OpenFileDialog { Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp" };
-        if (ofd.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+        string? picked = null;
+        if (!string.IsNullOrWhiteSpace(EditorTestHooks.OverrideImportSourcePath))
         {
+            picked = EditorTestHooks.OverrideImportSourcePath;
+        }
+        else
+        {
+            using var ofd = new OpenFileDialog { Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp" };
+            if (ofd.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+            {
+                return;
+            }
+
+            picked = ofd.FileName;
+        }
+
+        LoadTilesetFromPath(picked);
+    }
+
+    internal void ImportProjectAsset()
+    {
+        if (!GameDataAssetImport.TryPickAndImport(GetDialogOwner(), ProjectAssetKind.Tiles, out var imported))
+        {
+            if (!string.IsNullOrWhiteSpace(imported.Error) && imported.Error != "Annulé.")
+            {
+                _dialogService.ShowWarning(imported.Error, "Import asset");
+            }
+
             return;
         }
 
-        var id = TilesetCache.LoadFromFile(ofd.FileName);
+        if (!string.IsNullOrWhiteSpace(imported.AbsolutePath))
+        {
+            LoadTilesetFromPath(imported.AbsolutePath);
+        }
+    }
+
+    internal int LoadTilesetFromPath(string path)
+    {
+        var toLoad = path;
+        if (!IsUnderProjectAssetRoot(path))
+        {
+            var imported = GameDataAssetImport.ImportFromPath(path, ProjectAssetKind.Tiles);
+            if (imported.Success && !string.IsNullOrWhiteSpace(imported.AbsolutePath))
+            {
+                toLoad = imported.AbsolutePath;
+            }
+        }
+
+        var id = TilesetCache.LoadFromFile(toLoad);
         _canvas.ActiveTilesetId = id;
         RefreshTilesetList();
+        return id;
+    }
+
+    private static bool IsUnderProjectAssetRoot(string path)
+    {
+        try
+        {
+            var root = EditorTestHooks.OverrideProjectAssetRoot ?? ProjectAssetRoot.Resolve();
+            var full = Path.GetFullPath(path);
+            var rootFull = Path.GetFullPath(root);
+            if (!rootFull.EndsWith(Path.DirectorySeparatorChar))
+            {
+                rootFull += Path.DirectorySeparatorChar;
+            }
+
+            return full.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async System.Threading.Tasks.Task RunSaveOperationAsync(Func<System.Threading.Tasks.Task> operation)
@@ -1426,7 +1492,12 @@ public sealed class MainForm : Form
         var bytes = serializer.Serialize(_canvas.Map);
         File.WriteAllBytes(sfd.FileName, bytes);
         SaveTilesetManifestNextToMap(sfd.FileName);
-        MessageBox.Show(GetDialogOwner(), "Carte et manifeste tilesets (.tilesets.json) exportés.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(
+            GetDialogOwner(),
+            "Carte, PNG tileset et manifeste (.tilesets.json) exportés.",
+            "Export",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     private async System.Threading.Tasks.Task SaveMapCoreAsync()
@@ -1722,7 +1793,7 @@ public sealed class MainForm : Form
             }
 
             var preparer = new PlaytestMapPreparer(_mapRepository);
-            _playtestOrchestrator = new PlaytestOrchestrator(preparer, launcher);
+            _playtestOrchestrator = new PlaytestOrchestrator(preparer, launcher, new EditorPlaytestTilesetSidecar());
 
             if (_workspace.CurrentMap is null)
             {
@@ -2020,14 +2091,14 @@ public sealed class MainForm : Form
             return;
         }
 
-        var manifest = new TilesetManifest();
-        foreach (var (id, label) in TilesetCache.ListRegistered())
+        var files = TilesetCache.SnapshotPngFiles();
+        MapTilesetPackage.WriteSidecars(dir, [stem], files);
+        var manifest = MapTilesetPackage.BuildManifest(files);
+        File.WriteAllBytes(Path.Combine(dir, stem + ".tilesets.json"), TilesetManifestJson.Serialize(manifest));
+        foreach (var file in files)
         {
-            manifest.Entries.Add(new TilesetManifestEntry { Id = id, FileName = label });
+            File.WriteAllBytes(Path.Combine(dir, MapTilesetPackage.FileNameFor(file.Id)), file.PngBytes);
         }
-
-        var manifestPath = Path.Combine(dir, stem + ".tilesets.json");
-        File.WriteAllBytes(manifestPath, TilesetManifestJson.Serialize(manifest));
     }
 
     internal void LoadMap() => _ = LoadMapCoreAsync();

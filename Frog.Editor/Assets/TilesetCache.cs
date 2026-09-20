@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using Frog.Application.Assets;
 
 namespace Frog.Editor.Assets;
 
@@ -11,6 +13,7 @@ internal static class TilesetCache
 {
     private static readonly Dictionary<int, Bitmap> _byId = new();
     private static readonly Dictionary<int, string> _labelById = new();
+    private static readonly Dictionary<int, string> _sourcePathById = new();
     private static int _nextId = 1;
 
     public static int LoadFromFile(string path)
@@ -25,6 +28,7 @@ internal static class TilesetCache
         var id = _nextId++;
         _byId[id] = bmp;
         _labelById[id] = Path.GetFileName(path);
+        _sourcePathById[id] = Path.GetFullPath(path);
         return id;
     }
 
@@ -52,7 +56,24 @@ internal static class TilesetCache
         using var tmp = new Bitmap(path);
         _byId[id] = new Bitmap(tmp);
         _labelById[id] = Path.GetFileName(path);
+        _sourcePathById[id] = Path.GetFullPath(path);
         _nextId = Math.Max(_nextId, id + 1);
+    }
+
+    public static string? TryGetSourcePath(int id)
+        => _sourcePathById.TryGetValue(id, out var path) ? path : null;
+
+    public static IReadOnlyList<MapTilesetFile> SnapshotPngFiles()
+    {
+        var list = new List<MapTilesetFile>();
+        foreach (var id in _byId.Keys.OrderBy(k => k))
+        {
+            using var ms = new MemoryStream();
+            _byId[id].Save(ms, ImageFormat.Png);
+            list.Add(new MapTilesetFile(id, ms.ToArray()));
+        }
+
+        return list;
     }
 
     public static bool TryGet(int tilesetId, out Bitmap? bmp)
@@ -76,6 +97,7 @@ internal static class TilesetCache
 
         _byId.Clear();
         _labelById.Clear();
+        _sourcePathById.Clear();
         _nextId = 1;
     }
 }

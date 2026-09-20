@@ -1,3 +1,4 @@
+using Frog.Application.Assets;
 using Frog.Application.Content;
 using Frog.Application.Maps;
 using Frog.Core.Models;
@@ -141,6 +142,7 @@ public sealed class ResourceEditorPanel : UserControl
     private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
     private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
     private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
+    private readonly Button _btnImport = new() { Text = "Importer…", AutoSize = true };
     private bool _suppressList;
     private bool _binding;
 
@@ -235,7 +237,7 @@ public sealed class ResourceEditorPanel : UserControl
 
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 40 };
         buttons.Controls.AddRange(
-            new Control[] { _btnNew, _btnDup, _btnSave, _btnPublish, _btnDelete });
+            new Control[] { _btnNew, _btnDup, _btnImport, _btnSave, _btnPublish, _btnDelete });
         Controls.Add(form);
         Controls.Add(buttons);
         Controls.Add(left);
@@ -324,10 +326,27 @@ public sealed class ResourceEditorPanel : UserControl
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
         _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnImport.Click += (_, _) => ImportSprite();
 
         _btnSave.Enabled = capabilities.AllowsSave;
         _btnPublish.Enabled = capabilities.AllowsSave;
         _btnDelete.Enabled = capabilities.AllowsSave;
+    }
+
+    private void ImportSprite()
+    {
+        if (!GameDataAssetImport.TryPickAndImport(this, ProjectAssetKind.Sprites, out var imported))
+        {
+            if (!string.IsNullOrWhiteSpace(imported.Error) && imported.Error != "Annulé.")
+            {
+                GameDataUiMessageBox.Show(this, imported.Error, "Import", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            return;
+        }
+
+        GameDataAssetImport.ApplyToPathField(_spritePath, _preview, imported);
+        StatusChanged?.Invoke("Sprite ressource importé (non enregistré)");
     }
 
     public event Action<string>? StatusChanged;

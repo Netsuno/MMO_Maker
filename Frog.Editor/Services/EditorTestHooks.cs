@@ -61,6 +61,9 @@ internal static class EditorTestHooks
     /// <summary>Smoke : racine assets injectée pour les aperçus.</summary>
     public static string? OverrideProjectAssetRoot { get; set; }
 
+    /// <summary>Tests : fichier source pour « Importer… » (évite OpenFileDialog).</summary>
+    public static string? OverrideImportSourcePath { get; set; }
+
     /// <summary>Smoke : réponse injectée pour MessageBox Données de jeu.</summary>
     public static DialogResult? OverrideMessageBoxResult { get; set; }
 

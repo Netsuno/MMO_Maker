@@ -1,3 +1,4 @@
+using Frog.Application.Assets;
 using Frog.Application.Content;
 using Frog.Core.Enums;
 using Frog.Core.Models;
@@ -618,6 +619,7 @@ public sealed class TilesetEditorPanel : UserControl
     private readonly Button _btnSave = new() { Text = "Enregistrer brouillon", AutoSize = true };
     private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
     private readonly Button _btnDelete = new() { Text = "Supprimer", AutoSize = true };
+    private readonly Button _btnImport = new() { Text = "Importer…", AutoSize = true };
     private readonly AssetPreviewControl _preview = new() { Width = 128, Height = 128 };
     private bool _suppressList;
     private bool _binding;
@@ -651,6 +653,8 @@ public sealed class TilesetEditorPanel : UserControl
     internal Button BtnPublishForTest => _btnPublish;
 
     internal Button BtnDeleteForTest => _btnDelete;
+
+    internal Button BtnImportForTest => _btnImport;
 
     internal TextBox NameForTest => _name;
 
@@ -708,7 +712,7 @@ public sealed class TilesetEditorPanel : UserControl
         Row("", _validation);
 
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 40, FlowDirection = FlowDirection.LeftToRight };
-        buttons.Controls.AddRange(new Control[] { _btnNew, _btnDup, _btnSave, _btnPublish, _btnDelete });
+        buttons.Controls.AddRange(new Control[] { _btnNew, _btnDup, _btnImport, _btnSave, _btnPublish, _btnDelete });
 
         Controls.Add(form);
         Controls.Add(buttons);
@@ -805,11 +809,102 @@ public sealed class TilesetEditorPanel : UserControl
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
         _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnImport.Click += (_, _) => ImportAsset();
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
         _btnPublish.Enabled = canWrite;
         _btnDelete.Enabled = canWrite;
+    }
+
+    internal void ImportAssetFromPathForTest(string sourcePath)
+    {
+        EditorTestHooks.OverrideImportSourcePath = sourcePath;
+        try
+        {
+            ImportAsset();
+        }
+        finally
+        {
+            EditorTestHooks.OverrideImportSourcePath = null;
+        }
+    }
+
+    private void ImportAsset()
+    {
+        if (_session.Current is null)
+        {
+            var def = new TilesetDefinition
+            {
+                Id = Guid.NewGuid(),
+                Name = "Nouveau tileset",
+                LogicalPath = $"tiles/new_{Guid.NewGuid():N}.png",
+                TileSizePixels = 32,
+                WidthPixels = 32,
+                HeightPixels = 32,
+                Sha256Hex = new string('0', 64),
+            };
+            _session.AdoptNewDraft(def);
+            BindForm();
+        }
+
+        if (!GameDataAssetImport.TryPickAndImport(this, ProjectAssetKind.Tiles, out var imported))
+        {
+            if (!string.IsNullOrWhiteSpace(imported.Error) && imported.Error != "Annulé.")
+            {
+                GameDataUiMessageBox.Show(this, imported.Error, "Import", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            return;
+        }
+
+        _path.Text = imported.LogicalPath ?? _path.Text;
+        if (!string.IsNullOrWhiteSpace(imported.Sha256Hex))
+        {
+            _sha.Text = imported.Sha256Hex;
+        }
+
+        if (imported.WidthPixels > 0)
+        {
+            _width.Value = Math.Clamp(imported.WidthPixels, _width.Minimum, _width.Maximum);
+        }
+
+        if (imported.HeightPixels > 0)
+        {
+            _height.Value = Math.Clamp(imported.HeightPixels, _height.Minimum, _height.Maximum);
+        }
+
+        _preview.LogicalPath = _path.Text.Trim();
+        ApplyFormToSession();
+        if (_session.Current is { } current)
+        {
+            var palette = current.EditorPaletteId is > 0
+                ? current.EditorPaletteId.Value
+                : 0;
+            if (palette <= 0)
+            {
+                var registered = TilesetCache.ListRegistered();
+                palette = registered.Count == 0 ? 1 : registered.Max(e => e.Id) + 1;
+                _palette.Value = palette;
+                current.EditorPaletteId = palette;
+            }
+
+            if (!string.IsNullOrWhiteSpace(imported.AbsolutePath))
+            {
+                try
+                {
+                    TilesetCache.LoadFromFileAtId(imported.AbsolutePath, palette);
+                }
+                catch
+                {
+                    // aperçu carte optionnel — le fichier projet reste importé
+                }
+            }
+        }
+
+        _session.MarkDirty();
+        LiveValidate();
+        StatusChanged?.Invoke("Asset importé (non enregistré)");
     }
 
     public async Task InitializeAsync()
@@ -968,6 +1063,7 @@ public sealed class NpcEditorPanel : UserControl
     private readonly TextBox _name = new() { Width = 280 };
     private readonly ComboBox _kind = new() { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _spritePath = new() { Width = 280 };
+    private readonly Button _btnImport = new() { Text = "Importer…", AutoSize = true };
     private readonly NumericUpDown _level = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 80 };
     private readonly TextBox _notes = new() { Width = 360, Height = 90, Multiline = true, ScrollBars = ScrollBars.Vertical };
     private readonly NumericUpDown _alias = new() { Minimum = 0, Maximum = 99999, Value = 0, Width = 80 };
@@ -1072,7 +1168,7 @@ public sealed class NpcEditorPanel : UserControl
             Height = 40,
             FlowDirection = FlowDirection.LeftToRight,
         };
-        buttons.Controls.AddRange(new Control[] { _btnNew, _btnDup, _btnSave, _btnPublish, _btnDelete });
+        buttons.Controls.AddRange(new Control[] { _btnNew, _btnDup, _btnImport, _btnSave, _btnPublish, _btnDelete });
 
         Controls.Add(form);
         Controls.Add(buttons);
@@ -1165,11 +1261,28 @@ public sealed class NpcEditorPanel : UserControl
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
         _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnImport.Click += (_, _) => ImportSprite();
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
         _btnPublish.Enabled = canWrite;
         _btnDelete.Enabled = canWrite;
+    }
+
+    private void ImportSprite()
+    {
+        if (!GameDataAssetImport.TryPickAndImport(this, ProjectAssetKind.Sprites, out var imported))
+        {
+            if (!string.IsNullOrWhiteSpace(imported.Error) && imported.Error != "Annulé.")
+            {
+                GameDataUiMessageBox.Show(this, imported.Error, "Import", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            return;
+        }
+
+        GameDataAssetImport.ApplyToPathField(_spritePath, _preview, imported);
+        StatusChanged?.Invoke("Sprite importé (non enregistré)");
     }
 
     public async Task InitializeAsync()
@@ -1336,6 +1449,7 @@ public sealed class ItemEditorPanel : UserControl
     private readonly TextBox _name = new() { Width = 280 };
     private readonly ComboBox _kind = new() { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _iconPath = new() { Width = 280 };
+    private readonly Button _btnImport = new() { Text = "Importer…", AutoSize = true };
     private readonly NumericUpDown _maxStack = new() { Minimum = 1, Maximum = 999, Value = 1, Width = 80 };
     private readonly NumericUpDown _buyPrice = new() { Minimum = 0, Maximum = 999999999, Width = 120 };
     private readonly NumericUpDown _sellPrice = new() { Minimum = 0, Maximum = 999999999, Width = 120 };
@@ -1452,7 +1566,7 @@ public sealed class ItemEditorPanel : UserControl
             Height = 40,
             FlowDirection = FlowDirection.LeftToRight,
         };
-        buttons.Controls.AddRange(new Control[] { _btnNew, _btnDup, _btnSave, _btnPublish, _btnDelete });
+        buttons.Controls.AddRange(new Control[] { _btnNew, _btnDup, _btnImport, _btnSave, _btnPublish, _btnDelete });
 
         Controls.Add(form);
         Controls.Add(buttons);
@@ -1546,11 +1660,28 @@ public sealed class ItemEditorPanel : UserControl
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
         _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnImport.Click += (_, _) => ImportIcon();
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
         _btnPublish.Enabled = canWrite;
         _btnDelete.Enabled = canWrite;
+    }
+
+    private void ImportIcon()
+    {
+        if (!GameDataAssetImport.TryPickAndImport(this, ProjectAssetKind.Icons, out var imported))
+        {
+            if (!string.IsNullOrWhiteSpace(imported.Error) && imported.Error != "Annulé.")
+            {
+                GameDataUiMessageBox.Show(this, imported.Error, "Import", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            return;
+        }
+
+        GameDataAssetImport.ApplyToPathField(_iconPath, _preview, imported);
+        StatusChanged?.Invoke("Icône importée (non enregistrée)");
     }
 
     public async Task InitializeAsync()
@@ -1718,6 +1849,7 @@ public sealed class SpellEditorPanel : UserControl
     private readonly NumericUpDown _cooldown = new() { Minimum = 0, Maximum = int.MaxValue, Width = 120 };
     private readonly ComboBox _targetType = new() { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _iconPath = new() { Width = 280 };
+    private readonly Button _btnImport = new() { Text = "Importer…", AutoSize = true };
     private readonly TextBox _description = new()
     {
         Width = 360,
@@ -1835,7 +1967,7 @@ public sealed class SpellEditorPanel : UserControl
             FlowDirection = FlowDirection.LeftToRight,
         };
         buttons.Controls.AddRange(
-            new Control[] { _btnNew, _btnDup, _btnSave, _btnPublish, _btnDelete });
+            new Control[] { _btnNew, _btnDup, _btnImport, _btnSave, _btnPublish, _btnDelete });
 
         Controls.Add(form);
         Controls.Add(buttons);
@@ -1929,11 +2061,28 @@ public sealed class SpellEditorPanel : UserControl
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(async _ => await SaveAsync(SaveContentIntent.Publish).ConfigureAwait(true), "publish");
         _btnDelete.Click += (_, _) => _ = _lifecycle.RunAsync(async _ => await DeleteAsync().ConfigureAwait(true), "delete");
+        _btnImport.Click += (_, _) => ImportIcon();
 
         var canWrite = _capabilities.AllowsSave;
         _btnSave.Enabled = canWrite;
         _btnPublish.Enabled = canWrite;
         _btnDelete.Enabled = canWrite;
+    }
+
+    private void ImportIcon()
+    {
+        if (!GameDataAssetImport.TryPickAndImport(this, ProjectAssetKind.Icons, out var imported))
+        {
+            if (!string.IsNullOrWhiteSpace(imported.Error) && imported.Error != "Annulé.")
+            {
+                GameDataUiMessageBox.Show(this, imported.Error, "Import", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            return;
+        }
+
+        GameDataAssetImport.ApplyToPathField(_iconPath, _preview, imported);
+        StatusChanged?.Invoke("Icône importée (non enregistrée)");
     }
 
     public async Task InitializeAsync()

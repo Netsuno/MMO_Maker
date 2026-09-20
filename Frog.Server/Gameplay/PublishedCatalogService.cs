@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Frog.Application.Assets;
 using Frog.Application.Content;
 using Frog.Core.Protocol;
 
@@ -10,7 +11,9 @@ public sealed class PublishedCatalogService(
     IPublishedSpellCatalog spells,
     IPublishedShopCatalog shops,
     IPublishedNpcCatalog npcs,
-    IPublishedRecipeCatalog recipes)
+    IPublishedRecipeCatalog recipes,
+    IPublishedTilesetCatalog? tilesets = null,
+    IPublishedTilesetImageSource? tilesetImages = null)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -25,6 +28,12 @@ public sealed class PublishedCatalogService(
         var shopList = await shops.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
         var npcList = await npcs.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
         var recipeList = await recipes.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
+        var tilesetList = tilesets is null
+            ? Array.Empty<PublishedTilesetWireEntry>()
+            : (await tilesets.ListPublishedAsync(cancellationToken).ConfigureAwait(false))
+            .Where(t => t.EditorPaletteId is > 0)
+            .Select(t => ToTilesetWire(t, tilesetImages))
+            .ToArray();
 
         return new PublishedCatalogWire
         {
@@ -63,6 +72,31 @@ public sealed class PublishedCatalogService(
                 Id = r.Id.ToString("D"),
                 Name = r.Name,
             }).ToArray(),
+            Tilesets = tilesetList,
+        };
+    }
+
+    private static PublishedTilesetWireEntry ToTilesetWire(
+        Frog.Core.Models.TilesetDefinition definition,
+        IPublishedTilesetImageSource? images)
+    {
+        string? png = null;
+        if (images is not null && images.TryReadPng(definition, out var bytes) && bytes.Length > 0)
+        {
+            png = Convert.ToBase64String(bytes);
+        }
+
+        return new PublishedTilesetWireEntry
+        {
+            Id = definition.Id.ToString("D"),
+            Name = definition.Name,
+            PaletteId = definition.EditorPaletteId ?? 0,
+            LogicalPath = definition.LogicalPath,
+            Sha256Hex = definition.Sha256Hex,
+            TileSizePixels = definition.TileSizePixels,
+            WidthPixels = definition.WidthPixels,
+            HeightPixels = definition.HeightPixels,
+            PngBase64 = png,
         };
     }
 
