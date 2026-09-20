@@ -25,3 +25,10 @@ Available at https://game-icons.net/ under CC BY 3.0.
 
 Full license notes: [THIRD_PARTY.md](THIRD_PARTY.md) and
 `Frog.Client/Assets/Ui/THIRD_PARTY.md`.
+
+## Eldiran — 32×32 RPG Character Sprites
+
+The world player sprite `Frog.Client/Assets/World/player.png` is one CC0 32×32
+cell from [Eldiran](https://opengameart.org/users/eldiran)
+([32×32 RPG Character Sprites](https://opengameart.org/content/32x32-rpg-character-sprites)).
+See [docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).

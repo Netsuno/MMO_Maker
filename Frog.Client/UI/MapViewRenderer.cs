@@ -279,7 +279,7 @@ internal static class MapViewRenderer
         g.DrawPolygon(pen, pts);
     }
 
-    /// <summary>Centre du sprite en coordonnées pixel (arrondi pour nearest-neighbor ×2).</summary>
+    /// <summary>Pieds / centre bas du sprite sur (Cx, Cy) ; nearest, scale from native 32 (tileSize stays 32).</summary>
     private static void DrawPlayerSpriteAtPixelCenter(Graphics g, float centerXPx, float centerYPx, bool other)
-        => PlayerWorldAssets.DrawCentered(g, centerXPx, centerYPx, other);
+        => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other);
 }
