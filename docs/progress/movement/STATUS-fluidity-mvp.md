@@ -7,8 +7,8 @@
 | **Status** | Draft MVP — do not merge |
 | **Base** | `main` @ `bc60186` (merge PR #26 prefabs; includes #25 walk anim + #24 MEASURE-BASELINE fill) |
 | **Branch** | `cursor/movement-fluidity-mvp` |
-| **PR** | Draft toward `main` — **do not merge** |
-| **Tip** | `4676901539d38933b7c304f72ab461a228d5c54d` |
+| **PR** | Draft [#29](https://github.com/Netsuno/MMO_Maker/pull/29) toward `main` — **do not merge** |
+| **Tip** | `0e7dca9` (STATUS pin + Linux 631 unit tests) |
 | **Baseline** | Windows session tip `2faa511` — numbers in [MEASURE-BASELINE.md](MEASURE-BASELINE.md) |
 | **Protocol** | `FrogWireProtocol.Version` **stays 11** |
 
