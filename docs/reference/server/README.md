@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Fonctions Server, A–Z (1 fichier / fonction). Tip : `6fe5bd97`.
+Fonctions Server, A–Z (1 fichier / fonction). Tip miroir : `d6e59759` (#31 · #32 EconomyHub · #33 InstanceHub).
 
 ## Index
 
@@ -20,3 +20,12 @@ Fonctions Server, A–Z (1 fichier / fonction). Tip : `6fe5bd97`.
 | [tryauthenticateasync](tryauthenticateasync.md) | `tryauthenticateasync(username, password, rateLimitKey)` | Auth compte |
 | [trygetwarpdestination](trygetwarpdestination.md) | `trygetwarpdestination(mapId, tileX, tileY)` | Destination warp |
 | [tryteleporttotile](tryteleporttotile.md) | `tryteleporttotile(session, targetMapId, tileX, tileY)` | Téléporte sur tuile |
+| [setenabledoverride](setenabledoverride.md) | `setenabledoverride(enabled?)` | Override maintenance |
+| [shouldrejectloginasync](shouldrejectloginasync.md) | `shouldrejectloginasync(accountId?)` | Refus login maintenance |
+
+## EconomyHub / InstanceHub (scaffolding)
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [economyhubservice-executeasync](economyhubservice-executeasync.md) | `executeasync(session, kind, action, requestId, extra, ct)` | Query-only in-memory |
+| [instancehubservice-execute](instancehubservice-execute.md) | `execute(session, kind, action, requestId, extra)` | Query/Enter/Leave in-memory |

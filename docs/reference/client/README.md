@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip : `6fe5bd97`.
+Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip miroir : `d6e59759`.
 
 ## Index
 
@@ -20,10 +20,39 @@ Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip : `6fe5bd97`.
 | [sendmeleeattackasync](#sendmeleeattackasync) | `sendmeleeattackasync(targetUsername)` | Attaque mêlée |
 | [sendpositionsyncasync](#sendpositionsyncasync) | `sendpositionsyncasync(pixelCenterX, pixelCenterY)` | Sync position pixel |
 | [sendquestturninasync](#sendquestturninasync) | `sendquestturninasync(questId)` | Rend une quête |
-| [sendsocialasync](#sendsocialasync) | `sendsocialasync(…)` | Enveloppe sociale 80 |
+| [sendsocialasync](#sendsocialasync) | `sendsocialasync(kind, action, requestId, extra)` | Enveloppe sociale 80 |
+| [sendeconomyhubasync](sendeconomyhubasync.md) | `sendeconomyhubasync(kind, action, requestId, extra)` | Enveloppe économie 87 (Query-only) |
+| [sendinstancehubasync](sendinstancehubasync.md) | `sendinstancehubasync(kind, action, requestId, extra)` | Enveloppe instance 90 |
 | [sendspellcastasync](#sendspellcastasync) | `sendspellcastasync(spellId, targetName)` | Lance un sort |
+| [soundservice-apply](soundservice-apply.md) | `apply(settings)` | Applique Son |
+| [soundservice-applyweather](soundservice-applyweather.md) | `applyweather(plan)` | Gate météo mute |
+| [soundservice-playuiclick](soundservice-playuiclick.md) | `playuiclick()` | SFX clic UI |
+| [soundservice-syncmusic](soundservice-syncmusic.md) | `syncmusic()` | Boucle musique stub |
 
-UI boutons : [guides/UI-CLIENT-MainShell.md](../../progress/phase-10-beta-release/guides/UI-CLIENT-MainShell.md).
+UI boutons : [MainShell](../../progress/phase-10-beta-release/guides/UI-CLIENT-MainShell.md) · [SocialHub](../../progress/phase-10-beta-release/guides/UI-CLIENT-SocialHub.md) (incl. échafaudage Courrier/HdV/Coffre/Instance) · [Options](../../progress/phase-10-beta-release/guides/UI-CLIENT-Options.md).
+
+`WeatherOverlayRenderer` est **internal** (teinte + traits) — pas de fiche publique.
+
+---
+
+
+## EconomyHub / InstanceHub (#32 / #33 scaffolding)
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [sendeconomyhubasync](sendeconomyhubasync.md) | `sendeconomyhubasync(kind, action, requestId, extra)` | Opcode 87 Query-only |
+| [sendinstancehubasync](sendinstancehubasync.md) | `sendinstancehubasync(kind, action, requestId, extra)` | Opcode 90 Query/Enter/Leave |
+
+**Honnêteté :** pas d’économie ni de donjon gameplay livrés — onglets vides / in-memory.
+
+## SoundService (#28 / #30)
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [apply](soundservice-apply.md) | `apply(settings)` | Settings → mixer |
+| [playuiclick](soundservice-playuiclick.md) | `playuiclick()` | SFX clic |
+| [syncmusic](soundservice-syncmusic.md) | `syncmusic()` | Boucle stub |
+| [applyweather](soundservice-applyweather.md) | `applyweather(plan)` | Ambiance mute-friendly |
 
 ---
 
@@ -224,7 +253,7 @@ Rend une quête (idempotent côté serveur).
 
 Envoie une enveloppe sociale (opcode 80).
 
-*Statut : présent tip P10-1* · *Source : `SendSocialAsync`*
+*Statut : livré (P10-1 + HUD #27)* · *Source : `SendSocialAsync`*
 
 **Signature :** `sendsocialasync(kind, action, requestId, extra)`
 

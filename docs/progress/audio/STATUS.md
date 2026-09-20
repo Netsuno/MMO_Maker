@@ -4,47 +4,52 @@
 | --- | --- |
 | **Chantier** | Couche audio minimale : SFX clic + musique stub, mute / volume |
 | **Propriétaire** | Netsun |
-| **Statut** | Scaffolding client (playtest éditeur = même EXE) — **pas de merge** |
-| **Base** | `main` @ `bc60186` (merge PR #26 prefab objects) |
-| **Branche** | `cursor/audio-mvp` |
-| **PR** | Draft [#28](https://github.com/Netsuno/MMO_Maker/pull/28) vers `main` — **pas de merge** |
-| **Tip** | `c677462` |
-| **CI** | [35533142555](https://github.com/Netsuno/MMO_Maker/actions/runs/35533142555) **SUCCESS** (`build-and-test` + `postgres-integration`) |
-| **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump |
+| **Statut** | **Merged** sur `main` — MVP Options Son + `SoundService` |
+| **Merge** | [PR #28](https://github.com/Netsuno/MMO_Maker/pull/28) → `58884268d8b644e0f6bb0bb47e75101478eeb812` |
+| **Tip miroir docs** | `d6e59759dada9ef24849b9b985838b459c7f55b1` (main tip courant) |
+| **Tip feature** | `c677462` (pin STATUS audio avant merge) |
+| **CI (tip miroir)** | [35542485239](https://github.com/Netsuno/MMO_Maker/actions/runs/35542485239) **SUCCESS** |
+| **Protocole** | `FrogWireProtocol.Version` **11** — pas de bump |
 
 ---
 
-## Livré
+## Avant → après
 
-1. **Abstraction mute / volume** — `Frog.Core.Audio.AudioMixer` (gain linéaire 0–1, mute explicite **ou** slider à 0, musique derrière `MusicEnabled`). Backend optionnel `IAudioPlayback` ; tests = `RecordingAudioPlayback` (aucun device).
-2. **Placeholders originaux CC0** — `Frog.Client/Assets/Audio/ui-click.wav` + `music-loop.wav` générés par `tools/generate-audio-placeholders.py` (PCM 16-bit mono 22.05 kHz). Pas de téléchargement, pas d’assets arrachés.
-3. **Client** — `SoundService` applique `UserSettings.VolumePercent` / `AudioMuted` / `MusicEnabled`. Lecture Windows via `System.Media.SoundPlayer` + gain PCM (`WavPcm.ScaleAmplitude`). **Zéro NuGet audio.**
-4. **Clic UI** — `MainShellForm.OpenOptions` appelle `PlayUiClick()` (bouton Options + pill HUD Options).
-5. **Musique stub** — boucle `PlayLooping` uniquement si Options → Son → « Musique (boucle placeholder) » est cochée **et** non muet. Défaut **off** (playtest / smoke silencieux).
-6. **Options** — slider volume existant + cases Muet / Musique, persistés dans `client-settings.json` (champs additifs, schéma 1).
+| Surface | Avant | Après |
+| --- | --- | --- |
+| Volume Options | slider sans effet audible clair | `AudioMixer` gain linéaire 0–1 + mute |
+| SFX | — | `ui-click.wav` via `PlayUiClick` (Options / HUD) |
+| Musique | — | boucle stub opt-in (`MusicEnabled`, défaut **off**) |
+| Persistance | volume seul | + `AudioMuted` / `MusicEnabled` dans `client-settings.json` |
 
-Playtest éditeur : le client lancé reprend le même JSON LocalAppData ; pas de second moteur son dans `Frog.Editor`.
+---
+
+## Ce qui marche (MVP)
+
+1. **Core** — `Frog.Core.Audio.AudioMixer` : mute explicite **ou** slider 0 ; musique derrière `MusicEnabled`.
+2. **Client** — `SoundService.Apply` / `PlayUiClick` / `SyncMusic` ; backend Windows `System.Media.SoundPlayer` + gain PCM. **Zéro NuGet audio.**
+3. **Options → Son** — slider volume, cases **Muet (SFX + musique)** / **Musique (boucle placeholder)**.
+4. Placeholders CC0 in-repo : `Frog.Client/Assets/Audio/ui-click.wav`, `music-loop.wav`.
+
+Guide UI : [UI-CLIENT-Options.md](../phase-10-beta-release/guides/UI-CLIENT-Options.md).
 
 ---
 
 ## Hors scope (volontaire)
 
-- Soundtrack complète, couches météo, pas, combat, chat, social.
-- Fluidité de déplacement, protocole, panneaux sociaux.
+- Soundtrack complète, couches météo mixées, pas, combat, chat.
 - Mixage multi-voix, 3D, streaming MP3/OGG.
+- Installateur / CDN (voir #31 launcher stub).
 
 ---
 
 ## Tests
 
-- Unitaires Linux / Windows : `Frog.Tests/AudioMixerTests.cs` — mute, clamp volume, toggle musique, `WavPcm` gain, WAV in-repo, hooks client, ce STATUS.
-- Smoke Windows : Options mute / musique persistés ; `PlayUiClick` vrai puis faux après mute (`Phase10ClientSettingsSmokeTests`).
-- CI **SUCCESS** on `c677462` : `build-and-test` + `postgres-integration`.
+- Unitaires : `Frog.Tests/AudioMixerTests.cs`.
+- Smoke Windows : mute / musique persistés (`Phase10ClientSettingsSmokeTests`).
+- Linux / agent docs : pas de capture WinForms Options. Placeholders HTML + *Capture à venir*.
 
----
+## Honnêteté
 
-## Preuve manuelle (Windows)
-
-1. Lancer `Frog.Client`, Options → Son : un clic `ui-click.wav` à l’ouverture.
-2. Cocher **Musique** + Enregistrer : pad 2 s en boucle.
-3. Cocher **Muet** ou slider 0 : silence (SFX + musique).
+- Mergé ; tip docs = tip `main` courant (inclut #29–#33 après #28).
+- Pas de métriques inventées ; pas de phrase READY / gate.

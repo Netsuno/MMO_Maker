@@ -1,9 +1,9 @@
 # Référence
 
-Fonctions documentées : `nom(args)` · entrées/sorties typées.
+Fonctions documentées : `nom(args)` · entrées/sorties typées.  
 Classement **par sous-projet**, puis **A–Z**.
 
-> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire historique : `ea116afa`. Alignement P10-9 (2026-09-19) : protocole **v11**, TLS `SslStream` (P10-5), social/trade 80–86. Pas une réécriture API. Guides : [`../progress/phase-10-beta-release/guides/`](../progress/phase-10-beta-release/guides/).
+> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `d6e59759` (catch-up batch 3 : #32/#33 scaffolding · #29 fluidité Core-only).
 
 ## Sous-projets (assemblies)
 
@@ -12,13 +12,13 @@ Classement **par sous-projet**, puis **A–Z**.
 | Client | [Client](client/README.md) | `FrogGameClient` Send*/Connect* |
 | Server | [Server](server/README.md) | Auth, map, move, reconnect, moderation |
 | Editor | [Editor](editor/README.md) | Save/Publish carte (UI MainForm) |
-| Core | [Core](core/README.md) | Formules, limites, codecs partagés |
+| Core | [Core](core/README.md) | Formules, codecs, Social / Economy / Instance hubs, MovementFluidity |
 | PostgreSQL | [PostgreSQL](postgresql/README.md) | Account, Character, Inventory, Map, Quest |
 
 ## Comment lire
 
-1. Ouvrir le sous-projet
-2. Lire la **Signature**
+1. Ouvrir le sous-projet  
+2. Lire la **Signature**  
 3. Parcourir **Entrées** / **Sorties**
 
 Gabarit DA : `_gabarit-api.md`. UI boutons → Guides (`guides/UI-CLIENT-MainShell.md`), pas ici.

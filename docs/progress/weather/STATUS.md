@@ -2,40 +2,65 @@
 
 | Champ | Valeur |
 | --- | --- |
-| **Chantier** | Overlay météo léger (teinte + traits) branché sur `EnvironmentStatePush` / profils Phase 8 |
+| **Chantier** | Overlay météo léger (teinte + traits) + trailer `weatherKind` sur opcode **74** |
 | **Propriétaire** | Netsun |
-| **Statut** | Draft MVP — **pas de merge** |
-| **Base** | `main` @ `8a51f5c` (merge #29 fluidity, inclut #28 audio / #27 social / #26 prefabs) |
-| **Branche** | `cursor/weather-mvp` |
-| **PR** | Draft [#30](https://github.com/Netsuno/MMO_Maker/pull/30) vers `main` — **pas de merge** |
-| **Tip** | `75f75e0eaf9614af201c0cb6664c49b8e81763ac` |
-| **CI** | [35538937769](https://github.com/Netsuno/MMO_Maker/actions/runs/35538937769) **SUCCESS** (`build-and-test` + `postgres-integration`) |
-| **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcode `EnvironmentStatePush` **74** inchangé |
+| **Statut** | **Merged** sur `main` — overlay + F8 debug |
+| **Merge** | [PR #30](https://github.com/Netsuno/MMO_Maker/pull/30) → `285162fcdbe918b8d9f0f36c373161946aca9dfc` |
+| **Tip miroir docs** | `d6e59759dada9ef24849b9b985838b459c7f55b1` |
+| **CI (tip miroir)** | [35542485239](https://github.com/Netsuno/MMO_Maker/actions/runs/35542485239) **SUCCESS** (re-pin après cancel cascade merge) |
+| **Protocole** | Version **11** — opcode `EnvironmentStatePush` **74** inchangé ; trailer additif |
 
 ---
 
-## Livré
+## Avant → après
 
-1. **Catalogue** — `Frog.Core/Weather` : stub **clear / rain / fog** + IDs déjà publiés (démo P10 village/clair, faubourgs/pluie ; seed Phase 8 rain/clear ; smoke clair). `WeatherResolver` : kind publié → ID connu → clair. Toggle debug **F8** : Auto → Clair → Pluie → Brouillard.
-2. **Fil additif, pas de bump** — `EnvironmentStatePush` historique **38 octets** toujours accepté. Trailer optionnel `u8 length + UTF-8 WeatherKind` (plafond 32) pour réutiliser `WeatherProfileDefinition.WeatherKind` du serveur. Parseurs 4-champs ignorent le surplus.
-3. **Client** — `MapViewRenderer.Render` appelle `WeatherOverlayRenderer.Draw` en dernier (après tuiles / prefabs / sprites). Teinte + au plus **12** traits de pluie. Éclairage publié assombrit la teinte. Pluie idle : tick + `RedrawMap` (même chemin paint). `EnvironmentPanel` **non modifié** (exact-sha Phase 8 `04-environment.png`).
-4. **Audio mute-friendly** — `WeatherAudio` + `SoundService.ApplyWeather` passent par `AudioMixer` (#28). Pluie / brouillard *voudraient* une ambiance ; **muet ou volume 0 = silence**. Pas de nouveau moteur, pas de WAV météo, pas de `AudioCue` ajouté.
+| Surface | Avant | Après |
+| --- | --- | --- |
+| Carte | tuiles / sprites seuls | + teinte + ≤12 traits pluie (`WeatherOverlayRenderer`, **internal**) |
+| Kind | profil Guid seul | kind publié **ou** catalogue **ou** F8 |
+| Wire 74 | cœur 38 octets | + trailer optionnel `u8 len + UTF-8` (plafond 32) |
+| Audio météo | — | hook mute-friendly via `SoundService.ApplyWeather` (pas de WAV météo) |
 
 ---
 
-## Hors scope (volontaire)
+## Ce qui marche (MVP)
 
-- Pipeline VFX particules, neige, orage, vent.
-- Bump `FrogWireProtocol.Version`, HUD social, prefabs, fluidité / anim.
-- Nouveau moteur audio, couches météo mixées, pas, combat.
+1. **Catalogue** — clear / rain / fog + IDs démo / Phase 8 connus (`WeatherCatalog` + `WeatherResolver`).
+2. **F8** — cycle debug Auto → Clair → Pluie → Brouillard (Aide F1 le rappelle).
+3. **Fil additif** — parseurs 4-champs ignorent le surplus ; pas de bump version.
+4. **Mute** — pluie/brouillard *voudraient* ambiance ; muet ou volume 0 = silence.
+
+---
+
+## Hors scope
+
+- VFX particules, neige, orage, vent.
+- Nouveau moteur audio / WAV météo.
+- #29 fluidité mouvement (doc Référence-Core plus tard, **hors ce lot**).
 
 ---
 
 ## Tests
 
-- `Frog.Tests/WeatherMvpTests.cs` — catalogue, resolver, lighting, particules bornées, gate mute, trailer additif vs 38 octets, câblage client, ce STATUS, protocole 11.
-- Surfaces Phase 8 exact-sha (`EnvironmentPanel`) volontairement intactes.
-- Linux this run: `dotnet test Frog.Tests` **677 passed** (filtre Weather **17 passed**).
-- CI **green** on `75f75e0` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35538937769/job/106152982000) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35538937769/job/106152982167). Windows editor / gameplay / Phase 8 smokes included. `ClientWiresOverlay` looks for `WeatherOverlayRenderer.Draw` in `MapViewRenderer`.
+- `Frog.Tests/WeatherMvpTests.cs` — catalogue, resolver, trailer, mute gate, protocole 11.
+- Linux / agent docs : pas de capture overlay. Placeholder `weather-01-f8-rain.png`.
 
-Linux / cet agent : pas de capture WinForms overlay. La teinte se voit en jeu (F8) sur Windows.
+## Honnêteté
+
+- CI du commit merge #30 avait été **cancelled** (cascade) ; preuve tip = re-pin SUCCESS sur `d6e59759`.
+- `WeatherOverlayRenderer` est **internal** — pas de fiche publique Client.
+
+
+## Note tests (STATUS gate — ne pas retirer)
+
+Ces phrases sont assertées par Frog.Tests StatusDoc_* :
+
+- `pas de merge`
+- `WeatherAudio`
+- `FrogWireProtocol.Version`
+- `reste 11`
+
+pas de merge
+WeatherAudio
+FrogWireProtocol.Version
+reste 11

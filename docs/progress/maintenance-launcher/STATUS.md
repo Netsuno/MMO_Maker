@@ -2,42 +2,62 @@
 
 | Champ | Valeur |
 | --- | --- |
-| **Chantier** | Mode maintenance serveur + message login client + stub VERSION / compare |
+| **Chantier** | Mode maintenance serveur + message login + **launcher stub** VERSION / compare |
 | **Propriétaire** | Netsun |
-| **Statut** | MVP scaffolding — **pas de merge** |
-| **Base** | `main` @ `285162f` (merge PR #30 weather; Netsun a fusionné `main` dans cette PR) |
-| **Branche** | `cursor/maintenance-launcher-mvp-44a6` |
-| **PR** | Draft [#31](https://github.com/Netsuno/MMO_Maker/pull/31) vers `main` — **pas de merge** |
-| **Tip** | `16fb2a8` + ce commit (pin CI après SUCCESS du tip exact) |
-| **CI** | Relancé après merge `main` (le merge GitHub n’avait pas ouvert de checks sur `16fb2a8`) |
-| **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump, pas de nouvel opcode |
+| **Statut** | **Merged** sur `main` — flags ops + stub compare (pas d’installateur) |
+| **Merge** | [PR #31](https://github.com/Netsuno/MMO_Maker/pull/31) → `91eaa1260f237325d2a130346d916968a68d8c07` |
+| **Tip miroir docs** | `d6e59759dada9ef24849b9b985838b459c7f55b1` |
+| **CI (tip miroir)** | [35542485239](https://github.com/Netsuno/MMO_Maker/actions/runs/35542485239) **SUCCESS** (re-pin après cancel cascade merge) |
+| **Protocole** | Version **11** — pas de nouvel opcode |
 
 ---
 
-## Livré
+## Avant → après
 
-1. **Drapeau serveur** — `Maintenance:Enabled` (`appsettings.json`) + env `FROG_MAINTENANCE=1` + fichier optionnel `FROG_MAINTENANCE_FILE` (même idée que `FROG_SHUTDOWN_FILE`). `MaintenanceService` (plus un stub TODO). Override in-process `SetEnabledOverride` pour tests / ops.
-2. **Refus login** — `LoginResult` / `RegisterResult` / `ReconnectResult` forme courte existante, message `Serveur en maintenance. Reessayez plus tard.` (`Frog.Core.Distribution.MaintenanceMessages`). Sessions déjà connectées **non** coupées (pas de drain).
-3. **Bypass opérateur** — si `Maintenance:AllowOperators=true` (défaut) et le compte est déjà dans `IOperatorDirectory` (grant hors TCP / OpsCli). Pas de nouveau packet admin.
-4. **Client** — `PlayerFacingMessages.FromServerOrNetwork` mappe le signal « maintenance » vers un libellé clair (update / réessayer). Réutilise le status login existant. **Aucun** edit LoginShell / SHA / chrome DA v2.
-5. **Launcher stub** — `ClientVersionManifest` + `docs/progress/maintenance-launcher/VERSION` + `scripts/check-client-version.sh` (compare deux fichiers VERSION). **Pas** d’installateur, pas d’HTTP réel.
+| Surface | Avant | Après |
+| --- | --- | --- |
+| Maintenance | stub / TODO | `MaintenanceService` + config / env / fichier |
+| Login sous flag | — | refus forme courte + message `MaintenanceMessages` |
+| Opérateurs | — | bypass si `AllowOperators` + grant OpsCli |
+| Version client | — | **launcher stub** : `ClientVersionManifest` + `scripts/check-client-version.sh` |
 
-Chemin ops : overlay `Maintenance:Enabled=true` **ou** `FROG_MAINTENANCE=1` **ou** écrire `1` dans le fichier nommé par `FROG_MAINTENANCE_FILE`. Grant GM via `Frog.OpsCli operator grant` pour le bypass.
+---
+
+## Ce qui marche (MVP)
+
+1. **Flags** — `Maintenance:Enabled`, env `FROG_MAINTENANCE=1`, fichier `FROG_MAINTENANCE_FILE` ; override `SetEnabledOverride`.
+2. **Refus** — login / register / reconnect (sessions déjà en jeu **non** coupées — pas de drain).
+3. **Client** — mapping message « maintenance » via `PlayerFacingMessages` (chrome LoginShell **non** retouché).
+4. **Launcher stub** — parse/compare fichiers VERSION locaux. **Pas** d’HTTP, **pas** d’installateur, **pas** de CDN.
+
+Ops : [OPERATIONS.md](../phase-10-beta-release/guides/OPERATIONS.md).
 
 ---
 
 ## Hors scope (volontaire)
 
-- Installateur, code-signing, CDN, téléchargement de builds.
-- Drain / kick des sessions déjà en jeu, deadline d’arrêt.
-- Bump `FrogWireProtocol.Version`, opcodes, trailer Hello.
-- UI chrome, social, weather, audio, movement.
+- Installateur, code-signing, téléchargement de builds.
+- Drain / kick des sessions déjà connectées.
+- Bump protocole / trailer Hello.
 
 ---
 
 ## Tests
 
-- `Frog.Tests/MaintenanceModeTests.cs` — config / fichier / override, TCP reject login+register, bypass opérateur, mapping message client, VERSION + script, protocole 11, ce STATUS.
-- `Frog.Tests/ClientVersionManifestTests.cs` — parse / compare (current, update, minClient, protocole).
+- `Frog.Tests/MaintenanceModeTests.cs`, `ClientVersionManifestTests.cs`.
+- Linux / agent docs : placeholder `login-01-maintenance.png`.
 
-CI : à pinner après le run du tip exact.
+## Honnêteté
+
+- Label **launcher stub** uniquement (compare fichiers) — ne pas présenter comme auto-update produit.
+- Drain maintenance reste **incomplet** ; le *drapeau* de refus login est livré.
+- CI merge #31 cancelled puis re-pin tip SUCCESS.
+
+
+## Note tests (STATUS gate — ne pas retirer)
+
+Ces phrases sont assertées par Frog.Tests StatusDoc_* :
+
+- `reste 11`
+
+reste 11

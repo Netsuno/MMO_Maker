@@ -1,8 +1,8 @@
 # Frog.Client — UI (`MainShellForm`) inventaire
 
-← [Guides](README.md) · [Référence Client](../../../reference/client/README.md)
+← [Guides](README.md) · [SocialHub](UI-CLIENT-SocialHub.md) · [Options](UI-CLIENT-Options.md) · [Référence Client](../../../reference/client/README.md)
 
-Tip : `6fe5bd97`. Inventaire des **contrôles** pour les guides UI (chaque bouton/panneau). Enrichir avec captures + DA.
+Tip miroir : `d6e59759` (#27 Social · #28 Options Son). Inventaire des **contrôles** pour les guides UI (chaque bouton/panneau). Enrichir avec captures + DA.
 
 ## Connexion
 
@@ -37,6 +37,7 @@ Tip : `6fe5bd97`. Inventaire des **contrôles** pour les guides UI (chaque bouto
 | `_tabChat` | **Chat** | Chat + whisper |
 | `_tabGameplay` | **Gameplay** | Combat, boutique, banque, ramasser, stats |
 | `_tabPhase8` | **Quêtes** | Panneaux Phase 8 (dialogue, journal, craft, environnement) |
+| `_tabSocial` | **Social** | `SocialHubPanel` — Amis / Groupe / Guilde (+ échafaudage Courrier/HdV/Coffre/Instance hors lot) |
 
 ## Chat / combat
 
@@ -61,6 +62,26 @@ Tip : `6fe5bd97`. Inventaire des **contrôles** pour les guides UI (chaque bouto
 | `_btnPickup` | **Ramasser** | Sol |
 | `_btnStatsApply` | **Appliquer stats** | Stats |
 
+## Dock chat — ouverture Social
+
+| Contrôle | Libellé UI | Rôle |
+| --- | --- | --- |
+| bouton dock | **Amis** | Ouvre overlay Social → onglet Amis |
+| bouton dock | **Groupe** | Ouvre overlay Social → onglet Groupe |
+| bouton dock | **Guilde** | Ouvre overlay Social → onglet Guilde |
+
+Canaux filtres dock : **Général** / **Local** / **Whisper** / **Groupe** / **Guilde** (≠ boutons Social).
+
 ## Panneaux (Controls/)
 
-`ChatPanel`, `CraftPanel`, `DialoguePanel`, `EnvironmentPanel`, `EquipmentPanel`, `InventoryPanel`, `QuestJournalPanel`, `MiniMap`, `StatusBar`, … — fiches détaillées à ajouter (bindings événements + captures).
+`SocialHubPanel` — guide dédié : [UI-CLIENT-SocialHub.md](UI-CLIENT-SocialHub.md).
+
+Autres : `ChatPanel`, `CraftPanel`, `DialoguePanel`, `EnvironmentPanel`, `EquipmentPanel`, `InventoryPanel`, `QuestJournalPanel`, `MiniMap`, `StatusBar`, `TradeForm` (slash `/trade`) — fiches à enrichir.
+
+## Options
+
+| Contrôle | Libellé | Rôle |
+| --- | --- | --- |
+| Bouton / pill Options | **Options** | Ouvre `OptionsForm` (+ `PlayUiClick` si audible) |
+
+Guide Son : [UI-CLIENT-Options.md](UI-CLIENT-Options.md).
