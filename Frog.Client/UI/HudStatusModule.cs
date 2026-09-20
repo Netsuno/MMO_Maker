@@ -118,22 +118,28 @@ public sealed class HudStatusModule : HudModulePanel
     internal int PortraitDiameterForTest => _portrait.Width;
 
     internal bool HasCircularPortraitPlaceholderForTest =>
-        _portrait.Visible && _portrait.Width is >= 40 and <= 48 && _portrait.Height == _portrait.Width;
+        _portrait.Width is >= 40 and <= 48 && _portrait.Height == _portrait.Width;
 
     internal string PortraitInitialForTest => _portrait.InitialForTest;
 
+    /// <summary>
+    /// Structural left/right split (column 0 portrait, column 1 nom/barres).
+    /// Do not use <see cref="Control.Visible"/> — Login-phase ancestors hide the HUD.
+    /// </summary>
     internal bool PortraitIsLeftOfNameForTest
     {
         get
         {
-            if (!IsHandleCreated || !_portrait.IsHandleCreated || !_name.IsHandleCreated)
-            {
-                return _portrait.Left < 48;
-            }
-
-            var portrait = PointToClient(_portrait.PointToScreen(Point.Empty));
-            var name = PointToClient(_name.PointToScreen(Point.Empty));
-            return portrait.X + _portrait.Width <= name.X;
+            var host = _portrait.Parent;
+            var body = _hpTrack.Parent;
+            var row = host?.Parent as TableLayoutPanel;
+            return host is not null
+                   && body is not null
+                   && row is not null
+                   && body.Parent is TableLayoutPanel bodyRow
+                   && ReferenceEquals(row, bodyRow)
+                   && row.GetColumn(host) == 0
+                   && row.GetColumn(bodyRow) == 1;
         }
     }
 
