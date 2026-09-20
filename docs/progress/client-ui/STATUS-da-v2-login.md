@@ -8,7 +8,7 @@
 | **Base** | `main` @ `ee25ace` (merge PR #22 editor spawn ; includes #21 menu five) |
 | **Branche** | `cursor/client-ui-da-v2-login` |
 | **PR** | Draft — **pas de merge** |
-| **Tip** | *(pin after commit)* |
+| **Tip** | `050c422` |
 
 Protocole / gameplay / réseau / mouvement / skin / chrome fenêtres / portrait status / menu 5 icônes : **non touchés**.
 Présentation + layout login (et carte perso page 2) seulement. Contraste #16 inchangé : fill sombre `bg.slot` + texte crème ; or = filet / bordure seulement.
