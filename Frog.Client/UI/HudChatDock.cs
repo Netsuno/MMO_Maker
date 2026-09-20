@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using Frog.Core.Enums;
+using Frog.Core.Social;
 
 namespace Frog.Client.UI;
 
@@ -35,8 +36,12 @@ public sealed class HudChatDock : HudModulePanel
     };
     private readonly Panel _inputHost = new() { Dock = DockStyle.Bottom, Height = 72 };
     private readonly Button[] _tabButtons;
+    private readonly Button[] _socialButtons;
     private ComboBox? _channel;
     private int _filterIndex = 1;
+
+    /// <summary>Ouvre le panneau overlay Amis / Groupe / Guilde (menu ring figé à 5 icônes).</summary>
+    public event Action<SocialKind>? SocialPanelRequested;
 
     public HudChatDock()
         : base("Chat")
@@ -62,6 +67,37 @@ public sealed class HudChatDock : HudModulePanel
             _tabs.Controls.Add(btn);
         }
 
+        _tabs.Controls.Add(new Label
+        {
+            Width = 8,
+            Height = 1,
+            Margin = new Padding(4, 0, 0, 0),
+        });
+        var social = new (string Text, SocialKind Kind)[]
+        {
+            ("Amis", SocialKind.Friend),
+            ("Groupe", SocialKind.Party),
+            ("Guilde", SocialKind.Guild),
+        };
+        _socialButtons = new Button[social.Length];
+        for (var i = 0; i < social.Length; i++)
+        {
+            var item = social[i];
+            var btn = new Button
+            {
+                Text = item.Text,
+                AutoSize = true,
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(0, 0, 4, 2),
+                AccessibleName = "Ouvrir " + item.Text,
+                Tag = UiTheme.SocialOpenContrastTag,
+            };
+            UiTheme.StyleContrastHudButton(btn, enabled: true);
+            btn.Click += (_, _) => SocialPanelRequested?.Invoke(item.Kind);
+            _socialButtons[i] = btn;
+            _tabs.Controls.Add(btn);
+        }
+
         Controls.Add(_history);
         Controls.Add(_inputHost);
         Controls.Add(_tabs);
@@ -73,6 +109,22 @@ public sealed class HudChatDock : HudModulePanel
     internal ListBox HistoryForTest => _history;
 
     internal int VisibleChannelCountForTest => _tabButtons.Length;
+
+    internal int SocialOpenButtonCountForTest => _socialButtons.Length;
+
+    internal IReadOnlyList<string> SocialOpenButtonTextsForTest =>
+        _socialButtons.Select(b => b.Text).ToArray();
+
+    internal void ClickSocialOpenForTest(SocialKind kind)
+    {
+        var btn = kind switch
+        {
+            SocialKind.Party => _socialButtons[1],
+            SocialKind.Guild => _socialButtons[2],
+            _ => _socialButtons[0]
+        };
+        btn.PerformClick();
+    }
 
     internal int SelectedChannelIndexForTest => _filterIndex;
 
