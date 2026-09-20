@@ -7,9 +7,9 @@
 | **Statut** | MVP in-memory + hotbar / floats — **pas de merge** |
 | **Base** | `main` @ `d6e5975` (re-pin après merge PR #33 dungeons / instances) |
 | **Branche** | `cursor/combat-mvp-scaffolding-2d69` |
-| **PR** | Draft — **pas de merge** |
-| **Tip** | `b5b8c91ba19e7a81d0c950237714acaf0215bd5c` |
-| **CI** | en attente (`build-and-test` + `postgres-integration`) |
+| **PR** | Draft [#34](https://github.com/Netsuno/MMO_Maker/pull/34) vers `main` — **pas de merge** |
+| **Tip** | `387eefa` (STATUS pin) — feature `b5b8c91ba19e7a81d0c950237714acaf0215bd5c` |
+| **CI** | queued on Draft [#34](https://github.com/Netsuno/MMO_Maker/pull/34) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de nouvel opcode. Extension additive des paquets Phase 7 **17 / 18** (`MeleeAttackRequest` / `MeleeAttackResult`) + reuse **50** `CombatState` / **63** `DeathNotify`. Gel social 80–86, économie 87–89, instance 90–92. |
 
 Chrome DA v2 + overlay existant. Menu ring **reste 5 icônes**. Dock chat **Amis / Groupe / Guilde** inchangé. Ouverture : hotbar slot **1** / touche **Espace** (pas de 6ᵉ icône, pas de nouvel onglet Social).
@@ -50,6 +50,6 @@ Chrome DA v2 + overlay existant. Menu ring **reste 5 icônes**. Dock chat **Amis
 - `Frog.Tests/CombatMvpLogicTests.cs` — sans perso / mort / hit dummy / rate-limit / hors portée / facing / kill+respawn.
 - `Frog.Tests/CombatMvpTcpTests.cs` — TCP in-memory attaque Mannequin + trailer + recharge + broadcast.
 
-Linux this run: `dotnet test Frog.Tests` (filtre CombatMvp).
+Linux this run: `dotnet test Frog.Tests` **730 passed** (filtre CombatMvp **17 passed**). Existing Phase 7 combat filter **20 passed**.
 
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
