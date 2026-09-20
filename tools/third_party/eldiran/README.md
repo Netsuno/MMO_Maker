@@ -14,4 +14,5 @@ remapped to a dark 1px outline (`#1A120E`) so the world sprite has no gold
 chrome. No Graal sheets.
 
 Idle cell: **column 1, row 4** (0-based) — blue knight, second south walk frame
-(standing). Walk block: **cols 0–2 × rows 4–7** (down / left / right / up).
+(standing). Walk on the same row: **cols 0–2** down, **4–6** up, **8–10** right;
+left-facing frames are a horizontal flip of right.

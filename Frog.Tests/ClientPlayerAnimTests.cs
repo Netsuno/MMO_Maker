@@ -52,6 +52,8 @@ public sealed class ClientPlayerAnimTests
 
         Assert.Contains("WALK_COLS = 3", generator, StringComparison.Ordinal);
         Assert.Contains("WALK_ROWS = 4", generator, StringComparison.Ordinal);
+        Assert.Contains("WALK_SRC_ROW = 4", generator, StringComparison.Ordinal);
+        Assert.Contains("WALK_FLIP_ROWS", generator, StringComparison.Ordinal);
         Assert.Contains("Never embeds Graal", generator, StringComparison.Ordinal);
         Assert.DoesNotContain("urllib", generator, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("urlopen", generator, StringComparison.OrdinalIgnoreCase);

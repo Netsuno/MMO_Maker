@@ -38,5 +38,5 @@ See [CREDITS.md](CREDITS.md) and `Frog.Client/Assets/Ui/THIRD_PARTY.md`.
 is the CC0 32×32 south-idle cell (column 1, row 4, blue knight) from Eldiran’s
 [32×32 RPG Character Sprites](https://opengameart.org/content/32x32-rpg-character-sprites).
 Walk MVP sheets `player-walk.png` / `player-walk-body.png` / `player-walk-head.png`
-are the same character’s 3×4 block (cols 0–2, rows 4–7).
+are the same row-4 knight (down 0–2 / up 4–6 / right 8–10; left is a horizontal flip).
 See [docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).

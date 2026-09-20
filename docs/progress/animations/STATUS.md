@@ -7,15 +7,15 @@
 | **Statut** | MVP branché sur `MapViewRenderer` / GameWorldView — **pas de merge** |
 | **Base** | `main` @ `2faa511` (merge PR #23 DA v2 login) |
 | **Branche** | `cursor/player-npc-anim-mvp` |
-| **PR** | Draft vers `main` — **pas de merge** |
-| **Tip** | _(pin after first green CI)_ |
+| **PR** | Draft [#25](https://github.com/Netsuno/MMO_Maker/pull/25) vers `main` — **pas de merge** |
+| **Tip** | _(pin after this push; CI pending)_ |
 
 `WorldMetrics.DefaultTileSizePixels = 32` inchangé. Affichage nearest-neighbor ×1.
 Pas de bump protocole, pas de rewrite caméra / fluidité, pas de prefabs, pas d’IA monstre.
 
 ## Ce qui est livré
 
-1. **Frames CC0 in-repo** — `tools/generate-player-sprite.py` extrait le bloc Eldiran déjà vendorié (`cols 0–2 × rows 4–7`) : idle planté (colonne 1) + 2 pas par direction. Aucun téléchargement, aucune sheet Graal.
+1. **Frames CC0 in-repo** — `tools/generate-player-sprite.py` extrait le chevalier bleu Eldiran déjà vendorié (row 4) : south cols 0–2, north 4–6, right 8–10 ; left = flip horizontal. Idle planté = colonne du milieu. Aucun téléchargement, aucune sheet Graal.
 2. **Couches** — `player-walk-body.png` + `player-walk-head.png` (96×128). Draw order inchangé : **body → tunic → armor → head → weapon**. Tunique / armure / arme restent vides.
 3. **Compat** — `player.png` / `player-body.png` / `player-head.png` = idle sud (secours).
 4. **Horloge** — `PlayerWalkClock` (cycle 0→1→2→1, 140 ms). Facing local = vecteur des touches tenues. Autres joueurs = vecteur d’interpolation visuelle. **Aucun champ fil.**

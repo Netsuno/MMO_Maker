@@ -5,7 +5,7 @@ Source: tools/third_party/eldiran/RPGCharacterSprites32x32.png
 OpenGameArt: https://opengameart.org/content/32x32-rpg-character-sprites (CC0)
 
 South idle (compat): column 1, row 4 — blue knight stand.
-Walk MVP: cols 0–2 × rows 4–7 (down / left / right / up, 3-frame cycle).
+Walk MVP (same row 4): cols 0–2 down, 4–6 up, 8–10 right; left = horizontal flip of right.
 Each cell is split body (rows 14–31) + head (rows 0–13) so tunic/armor/weapon
 can overlay later. Magenta chroma → transparent. Sheet yellow → dark 1px.
 No downloads. Never embeds Graal sheets.
@@ -20,9 +20,16 @@ SHEET_REL = Path("tools") / "third_party" / "eldiran" / "RPGCharacterSprites32x3
 CELL = 32
 COL = 1
 ROW = 4
-# Blue knight block on the vendored sheet (RPG Maker-style 3×4).
-WALK_COL0 = 0
-WALK_ROW0 = 4
+# Blue knight on row 4: 3-frame walk per facing (Eldiran south / back / side).
+# Sheet columns → PlayerWalkClock rows: down, left, right (flip left), up.
+WALK_SRC_ROW = 4
+WALK_SRC = {
+    0: (0, 1, 2),    # down
+    1: (8, 9, 10),   # left (flipped right)
+    2: (8, 9, 10),   # right
+    3: (4, 5, 6),    # up
+}
+WALK_FLIP_ROWS = {1}
 WALK_COLS = 3
 WALK_ROWS = 4  # down, left, right, up — matches Frog.Core.Enums.Direction
 MAGENTA = (255, 0, 255)
@@ -191,6 +198,10 @@ def empty_sheet(cols: int, rows: int) -> list[list[tuple[int, int, int, int]]]:
     return [[clear] * (cols * CELL) for _ in range(rows * CELL)]
 
 
+def flip_h(cell: list[list[tuple[int, int, int, int]]]) -> list[list[tuple[int, int, int, int]]]:
+    return [list(reversed(row)) for row in cell]
+
+
 def extract_walk_sheets(
     sheet: list[list[tuple[int, int, int, int]]],
 ) -> tuple[
@@ -203,9 +214,11 @@ def extract_walk_sheets(
     body_sheet = empty_sheet(WALK_COLS, WALK_ROWS)
     head_sheet = empty_sheet(WALK_COLS, WALK_ROWS)
     idle_south = None
-    for row in range(WALK_ROWS):
-        for col in range(WALK_COLS):
-            cell = extract_cell(sheet, WALK_COL0 + col, WALK_ROW0 + row)
+    for row, src_cols in WALK_SRC.items():
+        for col, src_col in enumerate(src_cols):
+            cell = extract_cell(sheet, src_col, WALK_SRC_ROW)
+            if row in WALK_FLIP_ROWS:
+                cell = flip_h(cell)
             body, head = split_body_head(cell)
             blit(composed, cell, col * CELL, row * CELL)
             blit(body_sheet, body, col * CELL, row * CELL)
