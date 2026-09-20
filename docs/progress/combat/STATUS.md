@@ -8,8 +8,8 @@
 | **Base** | `main` @ `d6e5975` (re-pin après merge PR #33 dungeons / instances) |
 | **Branche** | `cursor/combat-mvp-scaffolding-2d69` |
 | **PR** | Draft — **pas de merge** |
-| **Tip** | *(à piner après le premier commit)* |
-| **CI** | en attente |
+| **Tip** | `b5b8c91ba19e7a81d0c950237714acaf0215bd5c` |
+| **CI** | en attente (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de nouvel opcode. Extension additive des paquets Phase 7 **17 / 18** (`MeleeAttackRequest` / `MeleeAttackResult`) + reuse **50** `CombatState` / **63** `DeathNotify`. Gel social 80–86, économie 87–89, instance 90–92. |
 
 Chrome DA v2 + overlay existant. Menu ring **reste 5 icônes**. Dock chat **Amis / Groupe / Guilde** inchangé. Ouverture : hotbar slot **1** / touche **Espace** (pas de 6ᵉ icône, pas de nouvel onglet Social).
