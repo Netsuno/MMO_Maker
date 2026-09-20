@@ -7,7 +7,8 @@
 | **Statut** | Step 2 only — overlay Inventaire / Perso / Quêtes |
 | **Base** | `main` @ `8eb980b` (merge PR #18 movement measure, includes #16 contrast + #17 skin v2) |
 | **Branche** | `cursor/client-ui-da-v2-chrome` |
-| **PR** | Draft vers `main` — **pas de merge** |
+| **PR** | Draft https://github.com/Netsuno/MMO_Maker/pull/19 vers `main` — **pas de merge** |
+| **Tip** | `a2f2e1f` (chrome) |
 
 Protocole / gameplay / réseau / mouvement / skin / hotbar contrast / login / portrait status : **non touchés**.
 Présentation + layout chrome seulement. TabControl overlay reste **360 px** (crops SHA Phase 8 324 px).
