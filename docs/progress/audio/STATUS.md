@@ -8,8 +8,8 @@
 | **Base** | `main` @ `bc60186` (merge PR #26 prefab objects) |
 | **Branche** | `cursor/audio-mvp` |
 | **PR** | Draft [#28](https://github.com/Netsuno/MMO_Maker/pull/28) vers `main` — **pas de merge** |
-| **Tip** | `4e0e753` |
-| **CI** | Intent green (`build-and-test` + `postgres-integration`) |
+| **Tip** | `c677462` |
+| **CI** | [35533142555](https://github.com/Netsuno/MMO_Maker/actions/runs/35533142555) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump |
 
 ---
@@ -39,6 +39,7 @@ Playtest éditeur : le client lancé reprend le même JSON LocalAppData ; pas de
 
 - Unitaires Linux / Windows : `Frog.Tests/AudioMixerTests.cs` — mute, clamp volume, toggle musique, `WavPcm` gain, WAV in-repo, hooks client, ce STATUS.
 - Smoke Windows : Options mute / musique persistés ; `PlayUiClick` vrai puis faux après mute (`Phase10ClientSettingsSmokeTests`).
+- CI **SUCCESS** on `c677462` : `build-and-test` + `postgres-integration`.
 
 ---
 
