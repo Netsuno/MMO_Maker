@@ -7,9 +7,9 @@
 | **Statut** | MVP branché sur `ProjectAssetImporter`, sidecar tilesets, `MapCanvas`, `MapViewRenderer` — **pas de merge** |
 | **Base** | `main` @ `b9bbaa7` (merge PR #25 walk anim) |
 | **Branche** | `cursor/editor-prefab-objects-mvp` |
-| **PR** | Draft (à lier) vers `main` — **pas de merge** |
-| **Tip** | *(commit après CI)* |
-| **CI** | *(run après push)* |
+| **PR** | Draft [#26](https://github.com/Netsuno/MMO_Maker/pull/26) vers `main` — **pas de merge** |
+| **Tip** | `feb9b67b5e8f406502476e3cd8880200e9fda340` |
+| **CI** | En cours après push (intent green) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** |
 
 Parallèle à #14 (pipeline assets) et #22 (spawn workstate). Animation joueur (#25) **non touchée**.
