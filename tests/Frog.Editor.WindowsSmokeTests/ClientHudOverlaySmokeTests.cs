@@ -105,16 +105,26 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal(5, form.ChatDockForTest.VisibleChannelCountForTest);
                 Assert.Equal(5, form.MenuRingForTest.PillCountForTest);
                 Assert.Equal(
-                    new[] { "Perso", "Inv", "Quêtes", "Carte", "Options" },
+                    new[] { "Perso", "Inventaire", "Quêtes", "Carte", "Options" },
                     form.MenuRingForTest.PillTextsForTest.ToArray());
                 Assert.True(form.MenuRingForTest.PillHasIconForTest(0), "Perso walk");
-                Assert.True(form.MenuRingForTest.PillHasIconForTest(1), "Inv backpack");
+                Assert.True(form.MenuRingForTest.PillHasIconForTest(1), "Inventaire backpack");
+                Assert.True(form.MenuRingForTest.PillHasIconForTest(2), "Quêtes scroll");
+                Assert.True(form.MenuRingForTest.PillHasIconForTest(3), "Carte map");
                 Assert.True(form.MenuRingForTest.PillHasIconForTest(4), "Options cog");
-                Assert.True(form.MenuRingForTest.PillHasChromeForTest(0), "menu pill chrome");
+                Assert.True(form.MenuRingForTest.PillHasChromeForTest(0), "menu round chrome");
+                Assert.True(form.MenuRingForTest.PillIsRoundForTest(0), "menu button is a circle");
+                Assert.InRange(form.MenuRingForTest.PillDiameterForTest(0), 36, 48);
                 Assert.Equal(UiTheme.BgSlot, form.MenuRingForTest.PillBackColorForTest(0));
                 Assert.Equal(UiTheme.TextPrimary, form.MenuRingForTest.PillForeColorForTest(0));
                 Assert.Equal(UiTheme.AccentGold, form.MenuRingForTest.PillBorderColorForTest(0));
                 AssertHudIconIsCreamNotGold(UiPackAssets.CloneMenuIcon(HudMenuCommand.Inventory), "menu inv");
+                AssertHudIconIsCreamNotGold(UiPackAssets.CloneMenuIcon(HudMenuCommand.Map), "menu carte");
+
+                form.SetWindowLayerVisibleForTest(true);
+                form.InvokeHudMenuCommandForTest(HudMenuCommand.Map);
+                Assert.False(form.WindowLayerVisibleForTest, "Carte dismisses window layer");
+                form.SetWindowLayerVisibleForTest(true);
 
                 form.StatusHudForTest.ApplyCombat(
                     new CombatStateWire
