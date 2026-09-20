@@ -8,8 +8,8 @@
 | **Base** | `main` @ `8a51f5c` (merge #29 fluidity, inclut #28 audio / #27 social / #26 prefabs) |
 | **Branche** | `cursor/weather-mvp` |
 | **PR** | Draft [#30](https://github.com/Netsuno/MMO_Maker/pull/30) vers `main` — **pas de merge** |
-| **Tip** | *(pin ce commit)* |
-| **CI** | `build-and-test` a échoué sur `1e40c8b` (assert câblage `WeatherOverlayRenderer.Draw` trop strict) — corrigé ici |
+| **Tip** | `ab27b03b33a378c136e2eb858a6a39256e6a187a` |
+| **CI** | relance sur `ab27b03` (fix assert câblage). Échec `1e40c8b` : [35538522335](https://github.com/Netsuno/MMO_Maker/actions/runs/35538522335) `WeatherMvpTests.ClientWiresOverlay` |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcode `EnvironmentStatePush` **74** inchangé |
 
 ---
