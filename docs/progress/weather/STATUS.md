@@ -8,8 +8,8 @@
 | **Base** | `main` @ `8a51f5c` (merge #29 fluidity, inclut #28 audio / #27 social / #26 prefabs) |
 | **Branche** | `cursor/weather-mvp` |
 | **PR** | Draft [#30](https://github.com/Netsuno/MMO_Maker/pull/30) vers `main` — **pas de merge** |
-| **Tip** | *(pin après CI)* |
-| **CI** | Fix `1e40c8b` : `WeatherOverlayRenderer.Draw` est dans `MapViewRenderer` (chemin paint monde). |
+| **Tip** | `75f75e0eaf9614af201c0cb6664c49b8e81763ac` |
+| **CI** | [35538937769](https://github.com/Netsuno/MMO_Maker/actions/runs/35538937769) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcode `EnvironmentStatePush` **74** inchangé |
 
 ---
@@ -36,6 +36,6 @@
 - `Frog.Tests/WeatherMvpTests.cs` — catalogue, resolver, lighting, particules bornées, gate mute, trailer additif vs 38 octets, câblage client, ce STATUS, protocole 11.
 - Surfaces Phase 8 exact-sha (`EnvironmentPanel`) volontairement intactes.
 - Linux this run: `dotnet test Frog.Tests` **677 passed** (filtre Weather **17 passed**).
-- CI `1e40c8b` : unitaire Weather 16/17 (câblage) — fix poussé ; Windows editor / gameplay / Phase 8 smokes non relancés ici.
+- CI **green** on `75f75e0` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35538937769/job/106152982000) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35538937769/job/106152982167). Windows editor / gameplay / Phase 8 smokes included. `ClientWiresOverlay` looks for `WeatherOverlayRenderer.Draw` in `MapViewRenderer`.
 
 Linux / cet agent : pas de capture WinForms overlay. La teinte se voit en jeu (F8) sur Windows.
