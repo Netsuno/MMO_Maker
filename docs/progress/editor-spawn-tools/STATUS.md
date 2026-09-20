@@ -8,7 +8,8 @@
 | **Base** | `main` @ `deadcac` (merge PR #20 DA v2 status portrait) |
 | **Branche** | `cursor/editor-spawn-and-tools-gap-a846` |
 | **PR** | Draft [#22](https://github.com/Netsuno/MMO_Maker/pull/22) vers `main` — **pas de merge** |
-| **Tip** | `d34c0f1` |
+| **Tip** | `0e1b951` |
+| **CI** | [35521557132](https://github.com/Netsuno/MMO_Maker/actions/runs/35521557132) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump `.fmap` |
 
 Parallèle à #21 (icônes menu client). **Aucun** changement Frog.Client HUD / `Hud*` / `MainShellForm`. Prefabs objets carte **hors scope**.
@@ -65,6 +66,6 @@ UI FR : palette « Placer le départ (D) », menu **Carte → Outil point de dé
 - Smoke Windows : raccourcis, workstate JSON isolé, clic spawn sans peinture, restore + hotkey sur `MainForm`.
 - Playtest existant : `OverrideSpawnTile` toujours honoré.
 
-CI-green intent : `build-and-test` + smokes Windows inchangés / enrichis, pas de job assoupli.
+CI **SUCCESS** sur `0e1b951` : `build-and-test` (smokes Windows inclus) + `postgres-integration`. Pas de job assoupli.
 
-Vérifié ici (Linux) : `dotnet test Frog.Tests` — **585 passed**, 0 skipped. Smokes WinForms/WPF non exécutables sur cet agent (job Windows CI).
+Vérifié aussi en local (Linux) : `dotnet test Frog.Tests` — **585 passed**, 0 skipped.
