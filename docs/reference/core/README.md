@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Fonctions Core, A–Z. Style `nom(args)`. Tip : `6fe5bd97`.
+Fonctions Core, A–Z. Style `nom(args)`. Tip miroir : `d6e59759`.
 
 ## Index
 
@@ -17,7 +17,35 @@ Fonctions Core, A–Z. Style `nom(args)`. Tip : `6fe5bd97`.
 | [spellpowerfrommanacost](#spellpowerfrommanacost) | `spellpowerfrommanacost(manaCost)` | Puissance depuis mana |
 | [wireprotocolversion](#wireprotocolversion) | `wireprotocolversion()` | Version TCP Hello |
 
----
+
+
+## ClientSocialRoster (HUD social #27)
+
+État client opcodes 80–83. Une fiche / méthode (pattern Server). Tip miroir : `d6e59759`.
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [accept](clientsocialroster-accept.md) | `accept(kind, subjectOrOther)` | Construit Accept |
+| [accepttarget](clientsocialroster-accepttarget.md) | `accepttarget(item)` | Guid Accept/Decline |
+| [applyevent](clientsocialroster-applyevent.md) | `applyevent(ev)` | Applique event 83 |
+| [applyresult](clientsocialroster-applyresult.md) | `applyresult(result)` | Applique result 81 |
+| [applysnapshot](clientsocialroster-applysnapshot.md) | `applysnapshot(snapshot)` | Applique snapshot 82 |
+| [buildrows](clientsocialroster-buildrows.md) | `buildrows(kind)` | Lignes UI invites+membres |
+| [decline](clientsocialroster-decline.md) | `decline(kind, subjectOrOther)` | Construit Decline |
+| [disband](clientsocialroster-disband.md) | `disband(kind)` | Dissout groupe/guilde |
+| [emptyhint](clientsocialroster-emptyhint.md) | `emptyhint(kind)` | Texte liste vide |
+| [friendremove](clientsocialroster-friendremove.md) | `friendremove(target)` | Retire un ami |
+| [invite](clientsocialroster-invite.md) | `invite(kind, target)` | Invite / demande ami |
+| [kick](clientsocialroster-kick.md) | `kick(kind, target)` | Expulse un membre |
+| [leave](clientsocialroster-leave.md) | `leave(kind)` | Quitte groupe/guilde |
+| [motdtext](clientsocialroster-motdtext.md) | `motdtext(kind)` | Lit MOTD |
+| [transferleader](clientsocialroster-transferleader.md) | `transferleader(kind, target)` | Transfert chef |
+| [tryguildcreate](clientsocialroster-tryguildcreate.md) | `tryguildcreate(name, …)` | Create guilde |
+| [tryguildsetmotd](clientsocialroster-tryguildsetmotd.md) | `tryguildsetmotd(motd, …)` | Set MOTD guilde |
+| [tryparsetargetguid](clientsocialroster-tryparsetargetguid.md) | `tryparsetargetguid(text, …)` | Parse Guid HUD |
+
+Guide UI : [UI-CLIENT-SocialHub.md](../../progress/phase-10-beta-release/guides/UI-CLIENT-SocialHub.md).
+
 
 ### meleedamage
 
@@ -155,6 +183,6 @@ Version incompatible du contrat TCP (champ Hello).
 *(constante)*
 
 **Sorties :**
-- (`ushort`) — `10` sur le tip actuel
+- (`ushort`) — `11` sur le tip actuel
 
-*Source : `FrogWireProtocol.Version`. Social 80–83 peut exiger 11 (gel).*
+*Source : `FrogWireProtocol.Version`. Wire v11 ; social 80–83 livrés ; HUD #27 sur tip.*
