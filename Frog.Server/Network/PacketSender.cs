@@ -560,9 +560,26 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         Guid? regionId,
         Guid? weatherProfileId,
         byte lightingLevel,
+        CancellationToken cancellationToken) =>
+        SendEnvironmentStatePushAsync(
+            session,
+            mapId,
+            regionId,
+            weatherProfileId,
+            lightingLevel,
+            weatherKind: null,
+            cancellationToken);
+
+    public Task SendEnvironmentStatePushAsync(
+        ClientSession session,
+        int mapId,
+        Guid? regionId,
+        Guid? weatherProfileId,
+        byte lightingLevel,
+        string? weatherKind,
         CancellationToken cancellationToken)
     {
-        var body = Phase8Wire.BuildEnvironmentState(mapId, regionId, weatherProfileId, lightingLevel);
+        var body = Phase8Wire.BuildEnvironmentState(mapId, regionId, weatherProfileId, lightingLevel, weatherKind);
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.EnvironmentStatePush;
         body.CopyTo(payload.AsSpan(1));

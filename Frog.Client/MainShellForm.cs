@@ -24,6 +24,7 @@ using Frog.Core.Observability;
 using Frog.Core.Protocol;
 using Frog.Core.Security;
 using Frog.Core.Social;
+using Frog.Core.Weather;
 
 namespace Frog.Client;
 
@@ -152,6 +153,14 @@ public sealed class MainShellForm : Form
     private HashSet<(int X, int Y)>? _mapBlockedTiles;
 
     private readonly List<MapEventWireEntry> _mapEvents = new();
+
+    private WeatherOverlayPlan _weatherPlan = WeatherCatalog.Clear;
+
+    private WeatherDebugOverride _weatherDebug;
+
+    private int _weatherTickMs;
+
+    private EnvironmentStateWire? _lastEnvironment;
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
     private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Value = 6000, Width = 70 };
     private readonly TextBox _txtUser = new() { Text = "demo", Width = LoginShell.FieldWidth };
@@ -572,6 +581,11 @@ public sealed class MainShellForm : Form
 
         if (AdvanceMovementSmoothing())
         {
+            RedrawMap();
+        }
+        else if (_weatherPlan.ParticleCount > 0)
+        {
+            _weatherTickMs += _smoothTimer.Interval;
             RedrawMap();
         }
 
@@ -1685,8 +1699,36 @@ public sealed class MainShellForm : Form
 
     private void OnEnvironmentStatePush(EnvironmentStateWire state)
     {
+        _lastEnvironment = state;
         _environmentPanel.ApplyState(state);
+        ApplyPublishedWeather();
         AppendLog($"Environnement map={state.MapId} éclairage={state.LightingLevel}");
+    }
+
+    private void ApplyPublishedWeather()
+    {
+        var env = _lastEnvironment;
+        _weatherPlan = WeatherResolver.Resolve(
+            env?.WeatherProfileId,
+            env?.LightingLevel ?? 255,
+            env?.WeatherKind,
+            _weatherDebug);
+        _sound.ApplyWeather(_weatherPlan);
+        if (_map is not null)
+        {
+            RedrawMap();
+        }
+    }
+
+    private void CycleWeatherDebug()
+    {
+        _weatherDebug = WeatherResolver.Cycle(_weatherDebug);
+        ApplyPublishedWeather();
+        var label = _weatherDebug == WeatherDebugOverride.Auto
+            ? $"auto ({_weatherPlan.DisplayName})"
+            : _weatherPlan.DisplayName;
+        AppendLog("Météo debug: " + label);
+        ShowPlayerStatus("Météo: " + label);
     }
 
     private async Task SendDialogueChoiceAsync(byte[] sessionToken, string choiceId)
@@ -3014,6 +3056,14 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (e.KeyCode == Keys.F8)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            CycleWeatherDebug();
+            return;
+        }
+
         if (_client is null || !_client.IsConnected || string.IsNullOrEmpty(_username))
         {
             return;
@@ -3173,7 +3223,9 @@ public sealed class MainShellForm : Form
             otherPoses: otherPoses,
             prefabPlacements: _prefabPlacements,
             prefabCatalog: _prefabCatalog,
-            prefabBitmaps: _prefabBitmaps);
+            prefabBitmaps: _prefabBitmaps,
+            weatherPlan: _weatherPlan,
+            weatherTickMs: _weatherTickMs);
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
@@ -4236,6 +4288,17 @@ public sealed class MainShellForm : Form
     {
         MainShell_KeyDown(this, new KeyEventArgs(Keys.F1));
     }
+
+    internal void ProcessF8ForTest()
+    {
+        MainShell_KeyDown(this, new KeyEventArgs(Keys.F8));
+    }
+
+    internal WeatherOverlayPlan WeatherPlanForTest => _weatherPlan;
+
+    internal WeatherDebugOverride WeatherDebugForTest => _weatherDebug;
+
+    internal void ApplyEnvironmentStateForTest(EnvironmentStateWire state) => OnEnvironmentStatePush(state);
 
     internal Panel WorldHostForTest => _worldHost;
 

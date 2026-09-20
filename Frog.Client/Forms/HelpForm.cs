@@ -47,6 +47,7 @@ public sealed class HelpForm : Form
 
         Aide, options, diagnostics
         • F1 ou le bouton Aide ouvre cette fenêtre.
+        • F8 (en jeu) : cycle météo debug Auto → Clair → Pluie → Brouillard (teinte overlay, pas de bump protocole).
         • Options : volume, muet, musique (boucle de test), disposition clavier, rebind, taille de fenêtre, plein écran.
         • Le numéro de version est visible en permanence.
         • « Copier diagnostics » prépare un rapport sans mot de passe ni jeton, pour signaler un problème.
