@@ -193,7 +193,7 @@ public static class UiPackAssets
             HudMenuCommand.Options => _iconCog,
             _ => null,
         };
-        return CloneTinted(source, new Size(18, 18), gold: true);
+        return CloneTintedPrimary(source, new Size(18, 18));
     }
 
     public static Image? CloneHotbarIcon(int slotIndex)
@@ -206,7 +206,7 @@ public static class UiPackAssets
             2 => _iconHand,
             _ => null,
         };
-        return CloneTinted(source, new Size(18, 18), gold: true);
+        return CloneTintedPrimary(source, new Size(18, 18));
     }
 
     public static bool TryResolveRoot(out string root)
@@ -346,14 +346,14 @@ public static class UiPackAssets
         return new Bitmap(source);
     }
 
-    private static Image? CloneTinted(Image? source, Size size, bool gold)
+    private static Image? CloneTintedPrimary(Image? source, Size size)
     {
         if (source is null || size.Width <= 0 || size.Height <= 0)
         {
             return null;
         }
 
-        using var attrs = gold ? UiTheme.CreateGoldTintAttributes() : UiTheme.CreatePanelTintAttributes();
+        using var attrs = UiTheme.CreatePrimaryTintAttributes();
         return UiTheme.TintCopy(source, size, attrs);
     }
 

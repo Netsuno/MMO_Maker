@@ -69,10 +69,17 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.True(form.StatusHudForTest.UsesFrameAssetForTest, "Kenney frame on HUD panels");
                 Assert.True(form.StatusHudForTest.UsesBarAssetsForTest, "Kenney HP/MP bars");
                 Assert.True(form.HotbarForTest.SlotHasChromeForTest(0), "slot chrome");
+                Assert.Equal(UiTheme.BgSlot, form.HotbarForTest.SlotBackColorForTest(0));
+                Assert.Equal(UiTheme.TextPrimary, form.HotbarForTest.SlotForeColorForTest(0));
+                Assert.Equal(UiTheme.AccentGold, form.HotbarForTest.SlotBorderColorForTest(0));
+                Assert.Equal(UiTheme.BgSlot, form.HotbarForTest.SlotBackColorForTest(3));
+                Assert.Equal(UiTheme.TextMuted, form.HotbarForTest.SlotForeColorForTest(3));
+                Assert.Equal(UiTheme.AccentGoldDim, form.HotbarForTest.SlotBorderColorForTest(3));
                 Assert.True(form.HotbarForTest.SlotHasIconForTest(0), "melee icon");
                 Assert.True(form.HotbarForTest.SlotHasIconForTest(1), "spell icon");
                 Assert.True(form.HotbarForTest.SlotHasIconForTest(2), "interact icon");
                 Assert.False(form.HotbarForTest.SlotHasIconForTest(3), "unwired slots stay digit-only");
+                AssertHudIconIsCreamNotGold(UiPackAssets.CloneHotbarIcon(0), "hotbar melee");
                 Assert.True(form.ChatDockForTest.SendUsesCtaChromeForTest, "chat send CTA");
 
                 Assert.Equal(5, form.ChatDockForTest.VisibleChannelCountForTest);
@@ -84,6 +91,10 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.True(form.MenuRingForTest.PillHasIconForTest(1), "Inv backpack");
                 Assert.True(form.MenuRingForTest.PillHasIconForTest(4), "Options cog");
                 Assert.True(form.MenuRingForTest.PillHasChromeForTest(0), "menu pill chrome");
+                Assert.Equal(UiTheme.BgSlot, form.MenuRingForTest.PillBackColorForTest(0));
+                Assert.Equal(UiTheme.TextPrimary, form.MenuRingForTest.PillForeColorForTest(0));
+                Assert.Equal(UiTheme.AccentGold, form.MenuRingForTest.PillBorderColorForTest(0));
+                AssertHudIconIsCreamNotGold(UiPackAssets.CloneMenuIcon(HudMenuCommand.Inventory), "menu inv");
 
                 form.StatusHudForTest.ApplyCombat(
                     new CombatStateWire
@@ -181,6 +192,7 @@ public sealed class ClientHudOverlaySmokeTests
     {
         Assert.Equal(Color.FromArgb(0x0E, 0x12, 0x18), UiTheme.BgApp);
         Assert.Equal(Color.FromArgb(0x16, 0x1C, 0x28), UiTheme.BgPanel);
+        Assert.Equal(Color.FromArgb(0x0C, 0x10, 0x18), UiTheme.BgSlot);
         Assert.Equal(Color.FromArgb(0xC6, 0x28, 0x28), UiTheme.BarHp);
     }
 
@@ -250,5 +262,53 @@ public sealed class ClientHudOverlaySmokeTests
                 }
             }
         });
+    }
+
+    private static void AssertHudIconIsCreamNotGold(Image? icon, string label)
+    {
+        Assert.NotNull(icon);
+        var owned = icon!;
+        using (owned)
+        {
+            var bmp = owned as Bitmap ?? new Bitmap(owned);
+            try
+            {
+                Color? sample = null;
+                for (var y = 0; y < bmp.Height && sample is null; y++)
+                {
+                    for (var x = 0; x < bmp.Width; x++)
+                    {
+                        var pixel = bmp.GetPixel(x, y);
+                        if (pixel.A < 200)
+                        {
+                            continue;
+                        }
+
+                        sample = pixel;
+                        break;
+                    }
+                }
+
+                Assert.True(sample.HasValue, label + " has an opaque pixel");
+                var cream = DistanceSq(sample.Value, UiTheme.TextPrimary);
+                var gold = DistanceSq(sample.Value, UiTheme.AccentGold);
+                Assert.True(cream < gold, $"{label} should be cream/white, not gold ({sample.Value})");
+            }
+            finally
+            {
+                if (!ReferenceEquals(bmp, owned))
+                {
+                    bmp.Dispose();
+                }
+            }
+        }
+    }
+
+    private static int DistanceSq(Color a, Color b)
+    {
+        var dr = a.R - b.R;
+        var dg = a.G - b.G;
+        var db = a.B - b.B;
+        return (dr * dr) + (dg * dg) + (db * db);
     }
 }

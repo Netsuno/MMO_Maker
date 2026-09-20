@@ -18,6 +18,8 @@ public static class UiTheme
     public static readonly Color BgPanelHeader = Color.FromArgb(0x1A, 0x22, 0x30);
     public static readonly Color BgInput = Color.FromArgb(0x0A, 0x0E, 0x14);
     public static readonly Color BgRowSelected = Color.FromArgb(0x24, 0x34, 0x4A);
+    /// <summary>DA <c>bg.slot</c> — fill only (hotbar / menu ring). Gold stays on the border.</summary>
+    public static readonly Color BgSlot = Color.FromArgb(0x0C, 0x10, 0x18);
     public static readonly Color AccentGold = Color.FromArgb(0xC9, 0xA2, 0x27);
     public static readonly Color AccentGoldHi = Color.FromArgb(0xE8, 0xC5, 0x47);
     public static readonly Color AccentGoldDim = Color.FromArgb(0x8A, 0x70, 0x18);
@@ -50,6 +52,43 @@ public static class UiTheme
         button.BackColor = BgPanelHeader;
         button.ForeColor = TextPrimary;
         button.UseVisualStyleBackColor = false;
+        ReplacePixelFont(button);
+    }
+
+    /// <summary>
+    /// Hotbar slots / menu ring: dark <see cref="BgSlot"/> fill, gold border only,
+    /// cream <see cref="TextPrimary"/> labels. No Kenney brown chrome (closes or-sur-or).
+    /// </summary>
+    public static void StyleContrastHudButton(Button button, bool enabled)
+    {
+        ArgumentNullException.ThrowIfNull(button);
+        button.FlatStyle = FlatStyle.Flat;
+        button.FlatAppearance.BorderSize = 1;
+        button.FlatAppearance.BorderColor = enabled ? AccentGold : AccentGoldDim;
+        button.FlatAppearance.MouseOverBackColor = BgRowSelected;
+        button.BackColor = BgSlot;
+        button.ForeColor = enabled ? TextPrimary : TextMuted;
+        button.UseVisualStyleBackColor = false;
+        button.BackgroundImage = null;
+        ReplacePixelFont(button);
+    }
+
+    public static bool IsHudContrastButton(Control control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        for (var parent = control.Parent; parent is not null; parent = parent.Parent)
+        {
+            if (parent is HudHotbar or HudMenuRing)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ReplacePixelFont(Button button)
+    {
         if (button.Font.Name.Contains("Pixel", StringComparison.OrdinalIgnoreCase))
         {
             button.Font = UiFont(button.Font.SizeInPoints, button.Font.Style);
@@ -77,11 +116,35 @@ public static class UiTheme
     /// <summary>
     /// ColorMatrix or <see cref="AccentGold"/> (#C9A227) pour icônes blanches game-icons.
     /// </summary>
-    public static ImageAttributes CreateGoldTintAttributes()
+    public static ImageAttributes CreateGoldTintAttributes() => CreateMultiplyTintAttributes(AccentGold);
+
+    /// <summary>
+    /// Recolor opaque pixels to <see cref="TextPrimary"/> (#F2F4F8), keep alpha.
+    /// Use on hotbar / menu icons so gold PNG sources cannot stay or-sur-or.
+    /// </summary>
+    public static ImageAttributes CreatePrimaryTintAttributes()
     {
-        var r = AccentGold.R / 255f;
-        var g = AccentGold.G / 255f;
-        var b = AccentGold.B / 255f;
+        var r = TextPrimary.R / 255f;
+        var g = TextPrimary.G / 255f;
+        var b = TextPrimary.B / 255f;
+        var matrix = new ColorMatrix(new float[][]
+        {
+            new float[] { 0f, 0f, 0f, 0f, 0f },
+            new float[] { 0f, 0f, 0f, 0f, 0f },
+            new float[] { 0f, 0f, 0f, 0f, 0f },
+            new float[] { 0f, 0f, 0f, 1f, 0f },
+            new float[] { r, g, b, 0f, 1f },
+        });
+        var attrs = new ImageAttributes();
+        attrs.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+        return attrs;
+    }
+
+    private static ImageAttributes CreateMultiplyTintAttributes(Color color)
+    {
+        var r = color.R / 255f;
+        var g = color.G / 255f;
+        var b = color.B / 255f;
         var matrix = new ColorMatrix(new float[][]
         {
             new float[] { r, 0f, 0f, 0f, 0f },
@@ -208,7 +271,15 @@ public static class UiTheme
         switch (control)
         {
             case Button button:
-                StyleButton(button);
+                if (IsHudContrastButton(button))
+                {
+                    StyleContrastHudButton(button, button.Enabled);
+                }
+                else
+                {
+                    StyleButton(button);
+                }
+
                 break;
             case TextBoxBase:
             case NumericUpDown:
@@ -253,6 +324,13 @@ public static class UiTheme
                 form.ForeColor = TextPrimary;
                 break;
             case Panel or FlowLayoutPanel or TableLayoutPanel or UserControl:
+                if (control is HudMenuRing || control.Parent is HudMenuRing)
+                {
+                    control.BackColor = Color.Transparent;
+                    control.ForeColor = TextPrimary;
+                    break;
+                }
+
                 control.BackColor = control.Parent is Form ? BgApp : BgPanel;
                 control.ForeColor = TextPrimary;
                 break;
