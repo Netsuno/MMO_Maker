@@ -183,7 +183,10 @@ public sealed class AudioPlaceholderAssetTests
         Assert.Equal(22050 * 2, musicSamples.Length);
         Assert.Contains(clickSamples, s => s != 0);
         Assert.Contains(musicSamples, s => s != 0);
-        Assert.InRange(Math.Abs(musicSamples[0] - musicSamples[^1]), 0, 400);
+        Assert.Equal(0, musicSamples[0]);
+        var wrap = Math.Abs(musicSamples[0] - musicSamples[^1]);
+        var step = Math.Abs(musicSamples[1] - musicSamples[0]);
+        Assert.InRange(wrap, 0, step + 8);
     }
 
     [Fact]

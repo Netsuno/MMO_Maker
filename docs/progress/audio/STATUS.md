@@ -7,8 +7,8 @@
 | **Statut** | Scaffolding client (playtest éditeur = même EXE) — **pas de merge** |
 | **Base** | `main` @ `bc60186` (merge PR #26 prefab objects) |
 | **Branche** | `cursor/audio-mvp` |
-| **PR** | Draft vers `main` — **pas de merge** |
-| **Tip** | *(pinned after first push)* |
+| **PR** | Draft [#28](https://github.com/Netsuno/MMO_Maker/pull/28) vers `main` — **pas de merge** |
+| **Tip** | `19154a8` |
 | **CI** | Intent green (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump |
 

@@ -69,7 +69,7 @@ def music_loop() -> list[int]:
     seconds = 2
     n = SAMPLE_RATE * seconds
     a = tone(220.0, n, 0.18)
-    b = tone(330.0, n, 0.10, phase=math.pi / 5)
+    b = tone(330.0, n, 0.10)
     mixed = [a[i] + b[i] for i in range(n)]
     return [int(round(x * 32767)) for x in mixed]
 
