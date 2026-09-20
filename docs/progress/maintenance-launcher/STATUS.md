@@ -5,11 +5,11 @@
 | **Chantier** | Mode maintenance serveur + message login client + stub VERSION / compare |
 | **Propriétaire** | Netsun |
 | **Statut** | MVP scaffolding — **pas de merge** |
-| **Base** | `main` @ `8a51f5c` (merge PR #29 movement fluidity) |
+| **Base** | `main` @ `285162f` (merge PR #30 weather; Netsun a fusionné `main` dans cette PR) |
 | **Branche** | `cursor/maintenance-launcher-mvp-44a6` |
 | **PR** | Draft [#31](https://github.com/Netsuno/MMO_Maker/pull/31) vers `main` — **pas de merge** |
-| **Tip** | `48d8854` (Linux `Frog.Tests` 669/669 PASS; pin CI après SUCCESS) |
-| **CI** | [PR #31](https://github.com/Netsuno/MMO_Maker/pull/31) — en cours |
+| **Tip** | `16fb2a8` + ce commit (pin CI après SUCCESS du tip exact) |
+| **CI** | Relancé après merge `main` (le merge GitHub n’avait pas ouvert de checks sur `16fb2a8`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump, pas de nouvel opcode |
 
 ---
