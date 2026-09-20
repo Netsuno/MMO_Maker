@@ -23,6 +23,7 @@ using Frog.Core.Models;
 using Frog.Core.Observability;
 using Frog.Core.Protocol;
 using Frog.Core.Security;
+using Frog.Core.Social;
 
 namespace Frog.Client;
 
@@ -213,6 +214,9 @@ public sealed class MainShellForm : Form
     private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
     private readonly TabPage _tabGameplay = new("Inventaire") { Padding = new Padding(4) };
     private readonly TabPage _tabPhase8 = new("Quêtes") { Padding = new Padding(4) };
+    private readonly TabPage _tabSocial = new("Social") { Padding = new Padding(4) };
+    private readonly ClientSocialRoster _socialRoster = new();
+    private readonly SocialHubPanel _socialHub = new() { Dock = DockStyle.Fill };
     private readonly HudWindowChrome _windowChrome = new("Inventaire");
     private string _windowTitleHint = "Inventaire";
     private readonly Panel _worldHost = new() { Dock = DockStyle.Fill };
@@ -1062,6 +1066,9 @@ public sealed class MainShellForm : Form
         tabRight.TabPages.Add(_tabChat);
         tabRight.TabPages.Add(_tabGameplay);
         tabRight.TabPages.Add(_tabPhase8);
+        tabRight.TabPages.Add(_tabSocial);
+        _tabSocial.Controls.Add(_socialHub);
+        _socialHub.ActionRequested += OnSocialHubAction;
         _tabChat.Controls.Add(new Label
         {
             Text = "Saisie chat : dock bas-gauche (canaux réels Global / Map / Whisper / Party / Guild).",
@@ -1132,6 +1139,7 @@ public sealed class MainShellForm : Form
         _mapScroll.Click += (_, _) => DismissWindowLayerFromMap();
         _worldHost.Resize += (_, _) => LayoutGameHud();
         _hudChat.AttachInputs(_cmbChannel, _txtWhisperTo, _txtChat, _btnSendChat);
+        _hudChat.SocialPanelRequested += OpenSocialPanel;
         _hudHotbar.SlotActivated += OnHotbarSlotActivated;
         _hudMenu.Command += OnHudMenuCommand;
         _panelGame.Controls.Clear();
@@ -1266,22 +1274,9 @@ public sealed class MainShellForm : Form
         _client.ChatMessageReceived += OnChatMessage;
         _client.ModerateResultReceived += (ok, msg) =>
             AppendLog(ok ? "Modération: " + msg : "Modération refusée: " + msg);
-        _client.SocialResultReceived += r =>
-            AppendLog(r.Success ? "Social: " + r.Message : "Social refusé: " + r.Message);
-        _client.SocialEventReceived += ev => AppendLog("Social: " + ev.Message);
-        _client.SocialSnapshotReceived += snap =>
-        {
-            var label = snap.Kind switch
-            {
-                SocialKind.Party => "Groupe",
-                SocialKind.Guild => "Guilde",
-                SocialKind.Friend => "Amis",
-                SocialKind.Block => "Blocage",
-                _ => "Social"
-            };
-            AppendLog($"{label}: {snap.Members.Count} entrée(s)"
-                      + (string.IsNullOrEmpty(snap.Motd) ? string.Empty : " — " + snap.Motd));
-        };
+        _client.SocialResultReceived += OnSocialResult;
+        _client.SocialEventReceived += OnSocialEvent;
+        _client.SocialSnapshotReceived += OnSocialSnapshot;
         _client.TradeResultReceived += r =>
             AppendLog(r.Success ? "Échange: " + r.Message : "Échange refusé: " + r.Message);
         _client.TradeSnapshotReceived += OnTradeSnapshot;
@@ -3551,6 +3546,12 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (_gameplayTabs.SelectedTab == _tabSocial)
+        {
+            _windowChrome.Title = _socialHub.ChromeTitle;
+            return;
+        }
+
         _windowChrome.Title = _windowTitleHint;
     }
 
@@ -3598,6 +3599,92 @@ public sealed class MainShellForm : Form
             case HudMenuCommand.Options:
                 OpenOptions();
                 break;
+        }
+    }
+
+    private void OpenSocialPanel(SocialKind kind)
+    {
+        var title = ClientSocialRoster.KindLabel(kind);
+        _windowTitleHint = title;
+        if (_windowLayerVisible
+            && _gameplayTabs.SelectedTab == _tabSocial
+            && _socialHub.SelectedKind == kind)
+        {
+            SetWindowLayerVisible(false);
+            return;
+        }
+
+        SetWindowLayerVisible(true);
+        _gameplayTabs.SelectedTab = _tabSocial;
+        _socialHub.SelectKind(kind);
+        RefreshWindowChromeTitle();
+    }
+
+    private void OnSocialSnapshot(SocialSnapshotWire snap)
+    {
+        _socialRoster.ApplySnapshot(snap);
+        _socialHub.ApplyRoster(_socialRoster);
+        var label = ClientSocialRoster.KindLabel(snap.Kind);
+        AppendLog($"{label}: {snap.Members.Count} entrée(s)"
+                  + (string.IsNullOrEmpty(snap.Motd) ? string.Empty : " — " + snap.Motd));
+        if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabSocial)
+        {
+            RefreshWindowChromeTitle();
+        }
+    }
+
+    private void OnSocialEvent(SocialEventWire ev)
+    {
+        _socialRoster.ApplyEvent(ev);
+        _socialHub.ApplyRoster(_socialRoster);
+        AppendLog("Social: " + ev.Message);
+        if (!string.IsNullOrWhiteSpace(ev.Message))
+        {
+            _hudChat.AppendSystem(ev.Message);
+        }
+    }
+
+    private void OnSocialResult(SocialResultWire result)
+    {
+        _socialRoster.ApplyResult(result);
+        _socialHub.ApplyRoster(_socialRoster);
+        AppendLog(result.Success ? "Social: " + result.Message : "Social refusé: " + result.Message);
+    }
+
+    private void OnSocialHubAction(SocialClientRequest request)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            _socialRoster.ApplyResult(new SocialResultWire(
+                request.Kind,
+                request.Action,
+                Guid.Empty,
+                false,
+                "Non connecté.",
+                Guid.Empty,
+                Guid.Empty));
+            _socialHub.ApplyRoster(_socialRoster);
+            return;
+        }
+
+        _ = SendSocialRequestAsync(request);
+    }
+
+    private async Task SendSocialRequestAsync(SocialClientRequest request)
+    {
+        if (_client is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendSocialAsync(request.Kind, request.Action, Guid.NewGuid(), request.Extra)
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Social: " + ex.Message);
         }
     }
 
@@ -4065,6 +4152,20 @@ public sealed class MainShellForm : Form
         LayoutGameHud();
         Update();
     }
+
+    internal SocialHubPanel SocialHubForTest => _socialHub;
+
+    internal ClientSocialRoster SocialRosterForTest => _socialRoster;
+
+    internal bool IsSocialTabSelectedForTest => _gameplayTabs.SelectedTab == _tabSocial;
+
+    internal void OpenSocialPanelForTest(SocialKind kind) => OpenSocialPanel(kind);
+
+    internal void OnSocialSnapshotForTest(SocialSnapshotWire snap) => OnSocialSnapshot(snap);
+
+    internal void OnSocialEventForTest(SocialEventWire ev) => OnSocialEvent(ev);
+
+    internal void OnSocialResultForTest(SocialResultWire result) => OnSocialResult(result);
 
     internal DialoguePanel DialoguePanelForTest => _dialoguePanel;
 
