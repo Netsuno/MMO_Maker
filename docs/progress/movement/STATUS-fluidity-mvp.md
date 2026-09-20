@@ -5,11 +5,11 @@
 | **Work** | Cheap feel wins on the existing predict / camera / smoothing path (priority #1 after baseline) |
 | **Owner** | Netsun |
 | **Status** | Draft MVP — do not merge |
-| **Base** | `main` @ `bc60186` (merge PR #26 prefabs; includes #25 walk anim + #24 MEASURE-BASELINE fill) |
+| **Base** | `main` after Netsun merged #27 social + #28 audio into this branch (`968cd77`) |
 | **Branch** | `cursor/movement-fluidity-mvp` |
 | **PR** | Draft [#29](https://github.com/Netsuno/MMO_Maker/pull/29) toward `main` — **do not merge** |
-| **Tip** | `9b30b3cc746bb0eaec497f142f9d96dd9a7f9235` (CI green) |
-| **CI** | [35533232516](https://github.com/Netsuno/MMO_Maker/actions/runs/35533232516) **SUCCESS** (`build-and-test` + `postgres-integration`) |
+| **Tip** | `968cd77ee3f7c748151551ada8dc8abe7e4972ca` (CI green after Phase 8 live-refresh flake fix) |
+| **CI** | [35536775088](https://github.com/Netsuno/MMO_Maker/actions/runs/35536775088) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Baseline** | Windows session tip `2faa511` — numbers in [MEASURE-BASELINE.md](MEASURE-BASELINE.md) |
 | **Protocol** | `FrogWireProtocol.Version` **stays 11** |
 
@@ -66,6 +66,7 @@ Linux / this agent cannot recapture WinForms key → sprite latency. Re-run the 
 - Linux this run: `dotnet test Frog.Tests` **631 passed** (includes the movement filter **72 passed**)
 - CI **green** on `9b30b3c` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35533232516/job/106137594306) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35533232516/job/106137594402). Windows editor / gameplay / Phase 8 smokes included.
 - After Netsun merged `main` (#27 social) into this branch, `postgres-integration` flaked on `FullPhase8Flow` step 22: live refresh grabbed a mid-burst `MapEventsResult` still named `Phase8 Gate` (catalog 8101). Not a fluidity filter bug — the 500 ms stamp poll can fire between dialogue republish and gate rename. Helper now waits until `Republished Gate` is present.
+- CI **green** on `968cd77` (includes #28 audio merge + flake fix): [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35536775088/job/106147152853) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35536775088/job/106147152698).
 
 ---
 
