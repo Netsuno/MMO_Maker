@@ -7,9 +7,9 @@
 | **Statut** | Draft MVP branché sur `MapViewRenderer` / `WorldEntityAssets` — **pas de merge** |
 | **Base** | `main` @ `d6e5975` (re-pin after #33) |
 | **Branche** | `cursor/npc-monster-walk-anim-4237` |
-| **PR** | Draft (this branch) vers `main` — **pas de merge** |
-| **Tip** | *(pin after first push)* |
-| **CI** | pending |
+| **PR** | Draft [#35](https://github.com/Netsuno/MMO_Maker/pull/35) vers `main` — **pas de merge** |
+| **Tip** | `d943316fe78a674a7b54604b416b28406d6f6389` |
+| **CI** | pending (GitHub Actions on #35) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — aucun champ fil facing / anim |
 
 `WorldMetrics.DefaultTileSizePixels = 32` inchangé. Affichage nearest-neighbor ×1.
