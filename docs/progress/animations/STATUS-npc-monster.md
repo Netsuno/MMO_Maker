@@ -8,8 +8,8 @@
 | **Base** | `main` @ `d6e5975` (re-pin after #33) |
 | **Branche** | `cursor/npc-monster-walk-anim-4237` |
 | **PR** | Draft [#35](https://github.com/Netsuno/MMO_Maker/pull/35) vers `main` — **pas de merge** |
-| **Tip** | `d943316fe78a674a7b54604b416b28406d6f6389` |
-| **CI** | pending (GitHub Actions on #35) |
+| **Tip** | `be9595818e761a07c6c0cc354a8186f2c0500517` |
+| **CI** | [35543479398](https://github.com/Netsuno/MMO_Maker/actions/runs/35543479398) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — aucun champ fil facing / anim |
 
 `WorldMetrics.DefaultTileSizePixels = 32` inchangé. Affichage nearest-neighbor ×1.
@@ -40,3 +40,5 @@ Aucun edit de panneau Phase 8 **exact-sha** (`EnvironmentPanel` / `02`–`04`).
 - Windows smoke : `MapViewRendererSmokeTests.NpcAndMonsterWalkPose_DrawFeetAnchored_StayThirtyTwoAndNotGold`.
 
 Linux / cet agent : pas de capture WinForms live. Revue pixel = strips générés + smokes Windows CI.
+
+CI **green** on `be95958` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35543479398/job/106165223737) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35543479398/job/106165223885). Windows editor / gameplay / Phase 8 smokes included.
