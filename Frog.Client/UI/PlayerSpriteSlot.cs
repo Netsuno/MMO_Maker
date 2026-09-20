@@ -4,8 +4,8 @@ namespace Frog.Client.UI;
 
 /// <summary>
 /// World-player composite slots. v1 fills <see cref="Body"/> + <see cref="Head"/>
-/// (Eldiran south idle). Tunic / armor / weapon stay empty until equipment
-/// overlays land. Draw order: body → tunic → armor → head → weapon.
+/// from the Eldiran idle + 4-dir walk sheet. Tunic / armor / weapon stay empty
+/// until equipment overlays land. Draw order: body → tunic → armor → head → weapon.
 /// Original or Eldiran CC0 only — never Graal sheets.
 /// </summary>
 internal enum PlayerSpriteSlot

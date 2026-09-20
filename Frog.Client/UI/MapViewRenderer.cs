@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 
@@ -19,6 +20,8 @@ internal static class MapViewRenderer
     /// <param name="mapEvents">Tuiles avec événements serveur (léger surlignage).</param>
     /// <param name="tilesetBitmaps">Id tileset → image ; peut être vide (rendu couleur de secours).</param>
     /// <param name="showTileGrid">Contour de tuile debug. Défaut <c>false</c> — pas de grille visible en jeu.</param>
+    /// <param name="localPose">Facing + walk frame for the local player (default south idle).</param>
+    /// <param name="otherPoses">Optional facing + walk frame per other username.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -27,7 +30,9 @@ internal static class MapViewRenderer
         float localCenterYPx,
         IReadOnlyDictionary<int, Bitmap>? tilesetBitmaps,
         IReadOnlyList<MapEventWireEntry>? mapEvents = null,
-        bool showTileGrid = false)
+        bool showTileGrid = false,
+        PlayerSpritePose localPose = default,
+        IReadOnlyDictionary<string, PlayerSpritePose>? otherPoses = null)
     {
         var tw = WorldMetrics.DefaultTileSizePixels;
         var w = map.Width * tw;
@@ -156,10 +161,16 @@ internal static class MapViewRenderer
                 continue;
             }
 
-            DrawPlayerSpriteAtPixelCenter(g, kv.Value.CxPx, kv.Value.CyPx, other: true);
+            var otherPose = PlayerSpritePose.IdleDown;
+            if (otherPoses is not null && otherPoses.TryGetValue(kv.Key, out var posed))
+            {
+                otherPose = posed;
+            }
+
+            DrawPlayerSpriteAtPixelCenter(g, kv.Value.CxPx, kv.Value.CyPx, other: true, otherPose);
         }
 
-        DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false);
+        DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false, localPose);
         return bmp;
     }
 
@@ -280,6 +291,6 @@ internal static class MapViewRenderer
     }
 
     /// <summary>Pieds / centre bas du sprite sur (Cx, Cy) ; nearest, scale from native 32 (tileSize stays 32).</summary>
-    private static void DrawPlayerSpriteAtPixelCenter(Graphics g, float centerXPx, float centerYPx, bool other)
-        => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other);
+    private static void DrawPlayerSpriteAtPixelCenter(Graphics g, float centerXPx, float centerYPx, bool other, PlayerSpritePose pose)
+        => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other, pose);
 }

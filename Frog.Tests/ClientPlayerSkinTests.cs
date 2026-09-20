@@ -54,6 +54,9 @@ public sealed class ClientPlayerSkinTests
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player.png\"", csproj, StringComparison.Ordinal);
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-body.png\"", csproj, StringComparison.Ordinal);
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-head.png\"", csproj, StringComparison.Ordinal);
+        Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-walk.png\"", csproj, StringComparison.Ordinal);
+        Assert.Contains("player-walk-body.png", assets, StringComparison.Ordinal);
+        Assert.Contains("FrameFor", assets, StringComparison.Ordinal);
     }
 
     [Fact]

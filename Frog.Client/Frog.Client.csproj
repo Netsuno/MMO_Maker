@@ -43,6 +43,9 @@
     <EmbeddedResource Include="Assets\World\player.png" />
     <EmbeddedResource Include="Assets\World\player-body.png" />
     <EmbeddedResource Include="Assets\World\player-head.png" />
+    <EmbeddedResource Include="Assets\World\player-walk.png" />
+    <EmbeddedResource Include="Assets\World\player-walk-body.png" />
+    <EmbeddedResource Include="Assets\World\player-walk-head.png" />
   </ItemGroup>
 
 </Project>

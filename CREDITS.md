@@ -31,4 +31,6 @@ Full license notes: [THIRD_PARTY.md](THIRD_PARTY.md) and
 The world player sprite `Frog.Client/Assets/World/player.png` is one CC0 32×32
 cell from [Eldiran](https://opengameart.org/users/eldiran)
 ([32×32 RPG Character Sprites](https://opengameart.org/content/32x32-rpg-character-sprites)).
+Walk frames (`player-walk*.png`) are the same sheet’s row-4 blue-knight cycle
+(down / up / right; left is flipped).
 See [docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Extract the FRoG v2 player PNG from Eldiran's CC0 32×32 sheet.
+"""Extract FRoG player PNGs from Eldiran's CC0 32×32 sheet (already vendored).
 
 Source: tools/third_party/eldiran/RPGCharacterSprites32x32.png
 OpenGameArt: https://opengameart.org/content/32x32-rpg-character-sprites (CC0)
 
-v1 cell: column 1, row 4 (0-based) — blue knight, south stand.
-Split into body (rows 14–31) + head (rows 0–13) for equipment-layer follow-up.
-Magenta chroma → transparent. Sheet yellow outline → dark 1px (DA).
-Never embeds Graal sheets.
+South idle (compat): column 1, row 4 — blue knight stand.
+Walk MVP (same row 4): cols 0–2 down, 4–6 up, 8–10 right; left = horizontal flip of right.
+Each cell is split body (rows 14–31) + head (rows 0–13) so tunic/armor/weapon
+can overlay later. Magenta chroma → transparent. Sheet yellow → dark 1px.
+No downloads. Never embeds Graal sheets.
 """
 from __future__ import annotations
 
@@ -19,6 +20,18 @@ SHEET_REL = Path("tools") / "third_party" / "eldiran" / "RPGCharacterSprites32x3
 CELL = 32
 COL = 1
 ROW = 4
+# Blue knight on row 4: 3-frame walk per facing (Eldiran south / back / side).
+# Sheet columns → PlayerWalkClock rows: down, left, right (flip left), up.
+WALK_SRC_ROW = 4
+WALK_SRC = {
+    0: (0, 1, 2),    # down
+    1: (8, 9, 10),   # left (flipped right)
+    2: (8, 9, 10),   # right
+    3: (4, 5, 6),    # up
+}
+WALK_FLIP_ROWS = {1}
+WALK_COLS = 3
+WALK_ROWS = 4  # down, left, right, up — matches Frog.Core.Enums.Direction
 MAGENTA = (255, 0, 255)
 SHEET_YELLOW = (255, 216, 0)
 DARK_OUTLINE = (26, 18, 14)
@@ -180,6 +193,42 @@ def blit(
             dst[sy][sx] = px
 
 
+def empty_sheet(cols: int, rows: int) -> list[list[tuple[int, int, int, int]]]:
+    clear = (0, 0, 0, 0)
+    return [[clear] * (cols * CELL) for _ in range(rows * CELL)]
+
+
+def flip_h(cell: list[list[tuple[int, int, int, int]]]) -> list[list[tuple[int, int, int, int]]]:
+    return [list(reversed(row)) for row in cell]
+
+
+def extract_walk_sheets(
+    sheet: list[list[tuple[int, int, int, int]]],
+) -> tuple[
+    list[list[tuple[int, int, int, int]]],
+    list[list[tuple[int, int, int, int]]],
+    list[list[tuple[int, int, int, int]]],
+    list[list[tuple[int, int, int, int]]],
+]:
+    composed = empty_sheet(WALK_COLS, WALK_ROWS)
+    body_sheet = empty_sheet(WALK_COLS, WALK_ROWS)
+    head_sheet = empty_sheet(WALK_COLS, WALK_ROWS)
+    idle_south = None
+    for row, src_cols in WALK_SRC.items():
+        for col, src_col in enumerate(src_cols):
+            cell = extract_cell(sheet, src_col, WALK_SRC_ROW)
+            if row in WALK_FLIP_ROWS:
+                cell = flip_h(cell)
+            body, head = split_body_head(cell)
+            blit(composed, cell, col * CELL, row * CELL)
+            blit(body_sheet, body, col * CELL, row * CELL)
+            blit(head_sheet, head, col * CELL, row * CELL)
+            if row == 0 and col == 1:
+                idle_south = cell
+    assert idle_south is not None
+    return composed, body_sheet, head_sheet, idle_south
+
+
 def main() -> None:
     repo = Path(__file__).resolve().parents[1]
     sheet_path = repo / SHEET_REL
@@ -188,36 +237,58 @@ def main() -> None:
     width, height, sheet = read_png_rgba(sheet_path)
     if width != 384 or height != 672:
         raise ValueError(f"unexpected sheet size {width}×{height}")
-    cell = extract_cell(sheet, COL, ROW)
-    body, head = split_body_head(cell)
-    write_png(dest, cell)
+    walk, walk_body, walk_head, idle = extract_walk_sheets(sheet)
+    body, head = split_body_head(idle)
+    write_png(dest, idle)
     write_png(world / "player-body.png", body)
     write_png(world / "player-head.png", head)
-    print(f"wrote {dest} + body/head layers ({dest.stat().st_size} bytes) cell col={COL} row={ROW}")
+    write_png(world / "player-walk.png", walk)
+    write_png(world / "player-walk-body.png", walk_body)
+    write_png(world / "player-walk-head.png", walk_head)
+    print(
+        f"wrote {dest} + body/head + walk 96×128 sheets "
+        f"({dest.stat().st_size} bytes) idle col={COL} row={ROW}"
+    )
 
     grass = (120, 160, 100, 255)
     preview_h, preview_w = 64, 64
     preview = [[grass for _ in range(preview_w)] for _ in range(preview_h)]
     # Feet / bottom-center on tile centers (16,48) and (48,48); destY = cy - 32 + 1.
-    blit(preview, cell, 16 - 16, 48 - CELL + 1)
-    other = [[tint_other(px) for px in row] for row in cell]
+    blit(preview, idle, 16 - 16, 48 - CELL + 1)
+    other = [[tint_other(px) for px in row] for row in idle]
     blit(preview, other, 48 - 16, 48 - CELL + 1)
     shot_dir = Path("/opt/cursor/artifacts/screenshots")
-    if shot_dir.is_dir():
-        write_png(shot_dir / "player-skin-v2-local-and-other-on-grass.png", preview)
-        write_png(shot_dir / "player-skin-v2-native-32-nearest-x8.png", nearest_scale(cell, 8))
-        strip_w, strip_h = CELL * 3 + 8, CELL
-        checker_a, checker_b = (40, 44, 52, 255), (28, 32, 40, 255)
-        strip = [
-            [checker_a if ((x // 4) + (y // 4)) % 2 == 0 else checker_b for x in range(strip_w)]
-            for y in range(strip_h)
-        ]
-        blit(strip, body, 0, 0)
-        blit(strip, head, CELL + 4, 0)
-        blit(strip, body, (CELL + 4) * 2, 0)
-        blit(strip, head, (CELL + 4) * 2, 0)
-        write_png(shot_dir / "player-skin-v2-body-head-layers.png", nearest_scale(strip, 4))
-        print(f"wrote previews in {shot_dir}")
+    shot_dir.mkdir(parents=True, exist_ok=True)
+    write_png(shot_dir / "player-skin-v2-local-and-other-on-grass.png", preview)
+    write_png(shot_dir / "player-skin-v2-native-32-nearest-x8.png", nearest_scale(idle, 8))
+    strip_w, strip_h = CELL * 3 + 8, CELL
+    checker_a, checker_b = (40, 44, 52, 255), (28, 32, 40, 255)
+    strip = [
+        [checker_a if ((x // 4) + (y // 4)) % 2 == 0 else checker_b for x in range(strip_w)]
+        for y in range(strip_h)
+    ]
+    blit(strip, body, 0, 0)
+    blit(strip, head, CELL + 4, 0)
+    blit(strip, body, (CELL + 4) * 2, 0)
+    blit(strip, head, (CELL + 4) * 2, 0)
+    write_png(shot_dir / "player-skin-v2-body-head-layers.png", nearest_scale(strip, 4))
+
+    pad = 4
+    cycle_w = WALK_COLS * CELL + (WALK_COLS + 1) * pad
+    cycle_h = WALK_ROWS * CELL + (WALK_ROWS + 1) * pad
+    cycle = [
+        [checker_a if ((x // 4) + (y // 4)) % 2 == 0 else checker_b for x in range(cycle_w)]
+        for y in range(cycle_h)
+    ]
+    for row in range(WALK_ROWS):
+        for col in range(WALK_COLS):
+            cell = [
+                walk[row * CELL + y][col * CELL : col * CELL + CELL]
+                for y in range(CELL)
+            ]
+            blit(cycle, cell, pad + col * (CELL + pad), pad + row * (CELL + pad))
+    write_png(shot_dir / "player-walk-mvp-4dir-3frame.png", nearest_scale(cycle, 4))
+    print(f"wrote previews in {shot_dir}")
 
 
 if __name__ == "__main__":
