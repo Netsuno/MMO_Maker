@@ -53,4 +53,23 @@ public sealed class PlayerWalkClockTests
         Assert.Equal(4, PlayerWalkClock.SheetRows);
         Assert.Equal(32, Frog.Core.Constants.WorldMetrics.DefaultTileSizePixels);
     }
+
+    [Fact]
+    public void WalkClock_MatchesPlayerWalkClock()
+    {
+        Assert.Equal(PlayerWalkClock.FrameDurationMs, WalkClock.FrameDurationMs);
+        Assert.Equal(PlayerWalkClock.IdleColumn, WalkClock.IdleColumn);
+        Assert.Equal(PlayerWalkClock.SheetColumns, WalkClock.SheetColumns);
+        Assert.Equal(PlayerWalkClock.SheetRows, WalkClock.SheetRows);
+        Assert.Equal(PlayerWalkClock.NativeCellPixels, WalkClock.NativeCellPixels);
+        Assert.Equal(PlayerWalkClock.Column(false, 10_000), WalkClock.Column(false, 10_000));
+        Assert.Equal(PlayerWalkClock.Column(true, 420), WalkClock.Column(true, 420));
+        Assert.Equal(PlayerWalkClock.Row(Direction.Up), WalkClock.Row(Direction.Up));
+        Assert.Equal(
+            PlayerWalkClock.FacingFromVector(-1, 0, Direction.Down),
+            WalkClock.FacingFromVector(-1, 0, Direction.Down));
+        Assert.Equal(1, WorldSpritePose.IdleDown.SheetColumn);
+        Assert.Equal(WorldEntityKind.Npc, (WorldEntityKind)1);
+        Assert.Equal(WorldEntityKind.Monster, (WorldEntityKind)2);
+    }
 }

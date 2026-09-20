@@ -4,7 +4,7 @@ namespace Frog.Core.Gameplay;
 
 /// <summary>
 /// Client-only walk-sheet index (3 columns × 4 rows). No protocol field —
-/// facing is inferred from the last move vector.
+/// facing is inferred from the last move vector. Thin wrapper over <see cref="WalkClock"/>.
 /// </summary>
 public static class PlayerWalkClock
 {
@@ -15,45 +15,12 @@ public static class PlayerWalkClock
     public const int NativeCellPixels = 32;
 
     /// <summary>Walk cycle columns 0 → 1 → 2 → 1 (idle is the planted middle frame).</summary>
-    public static int Column(bool walking, int elapsedMs)
-    {
-        if (!walking)
-        {
-            return IdleColumn;
-        }
+    public static int Column(bool walking, int elapsedMs) => WalkClock.Column(walking, elapsedMs);
 
-        var safe = elapsedMs < 0 ? 0 : elapsedMs;
-        return ((safe / FrameDurationMs) % 4) switch
-        {
-            0 => 0,
-            1 => 1,
-            2 => 2,
-            _ => 1,
-        };
-    }
-
-    public static int Row(Direction facing) => facing switch
-    {
-        Direction.Left => 1,
-        Direction.Right => 2,
-        Direction.Up => 3,
-        _ => 0,
-    };
+    public static int Row(Direction facing) => WalkClock.Row(facing);
 
     public static Direction FacingFromVector(float vx, float vy, Direction fallback)
-    {
-        if (MathF.Abs(vx) < 0.0001f && MathF.Abs(vy) < 0.0001f)
-        {
-            return fallback;
-        }
-
-        if (MathF.Abs(vx) >= MathF.Abs(vy))
-        {
-            return vx < 0 ? Direction.Left : Direction.Right;
-        }
-
-        return vy < 0 ? Direction.Up : Direction.Down;
-    }
+        => WalkClock.FacingFromVector(vx, vy, fallback);
 }
 
 /// <summary>World-sprite pose passed into <c>MapViewRenderer</c>. Default = south idle.</summary>

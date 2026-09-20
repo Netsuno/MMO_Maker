@@ -28,6 +28,10 @@ internal static class MapViewRenderer
     /// <param name="prefabPlacements">Instances prefab (sidecar), dessinées après les tuiles.</param>
     /// <param name="prefabCatalog">Catalogue pour résoudre empreinte / sprite.</param>
     /// <param name="prefabBitmaps">Nom de fichier sprite → image.</param>
+    /// <param name="npcCentersPx">Centres PNJ en pixels monde (pieds). Optionnel.</param>
+    /// <param name="npcPoses">Facing + walk frame par id PNJ.</param>
+    /// <param name="monsterCentersPx">Centres monstre en pixels monde (pieds). Optionnel.</param>
+    /// <param name="monsterPoses">Facing + walk frame par id monstre.</param>
     /// <param name="weatherPlan">Overlay teinte / traits (MVP). Défaut = pas de dessin.</param>
     /// <param name="weatherTickMs">Horloge cheap pour les traits de pluie.</param>
     public static Bitmap Render(
@@ -44,6 +48,10 @@ internal static class MapViewRenderer
         IReadOnlyList<PrefabPlacement>? prefabPlacements = null,
         PrefabCatalog? prefabCatalog = null,
         IReadOnlyDictionary<string, Bitmap>? prefabBitmaps = null,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)>? npcCentersPx = null,
+        IReadOnlyDictionary<string, WorldSpritePose>? npcPoses = null,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)>? monsterCentersPx = null,
+        IReadOnlyDictionary<string, WorldSpritePose>? monsterPoses = null,
         WeatherOverlayPlan weatherPlan = default,
         int weatherTickMs = 0)
     {
@@ -168,6 +176,9 @@ internal static class MapViewRenderer
                 g.SmoothingMode = prevEvSmooth;
             }
         }
+
+        DrawWorldEntities(g, monsterCentersPx, monsterPoses, WorldEntityKind.Monster);
+        DrawWorldEntities(g, npcCentersPx, npcPoses, WorldEntityKind.Npc);
 
         foreach (var kv in otherPlayerCentersPx)
         {
@@ -356,4 +367,27 @@ internal static class MapViewRenderer
     /// <summary>Pieds / centre bas du sprite sur (Cx, Cy) ; nearest, scale from native 32 (tileSize stays 32).</summary>
     private static void DrawPlayerSpriteAtPixelCenter(Graphics g, float centerXPx, float centerYPx, bool other, PlayerSpritePose pose)
         => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other, pose);
+
+    private static void DrawWorldEntities(
+        Graphics g,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)>? centers,
+        IReadOnlyDictionary<string, WorldSpritePose>? poses,
+        WorldEntityKind kind)
+    {
+        if (centers is not { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var kv in centers)
+        {
+            var pose = WorldSpritePose.IdleDown;
+            if (poses is not null && poses.TryGetValue(kv.Key, out var posed))
+            {
+                pose = posed;
+            }
+
+            WorldEntityAssets.DrawFeetAnchored(g, kv.Value.CxPx, kv.Value.CyPx, kind, pose);
+        }
+    }
 }

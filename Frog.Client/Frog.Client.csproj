@@ -53,6 +53,10 @@
     <EmbeddedResource Include="Assets\World\player-walk.png" />
     <EmbeddedResource Include="Assets\World\player-walk-body.png" />
     <EmbeddedResource Include="Assets\World\player-walk-head.png" />
+    <EmbeddedResource Include="Assets\World\npc.png" />
+    <EmbeddedResource Include="Assets\World\npc-walk.png" />
+    <EmbeddedResource Include="Assets\World\monster.png" />
+    <EmbeddedResource Include="Assets\World\monster-walk.png" />
   </ItemGroup>
 
 </Project>
