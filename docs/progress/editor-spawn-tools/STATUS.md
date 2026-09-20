@@ -7,8 +7,8 @@
 | **Statut** | Spawn cliquable + mémo workstate + raccourcis / marqueur — **pas de merge** |
 | **Base** | `main` @ `deadcac` (merge PR #20 DA v2 status portrait) |
 | **Branche** | `cursor/editor-spawn-and-tools-gap-a846` |
-| **PR** | Draft vers `main` — **pas de merge** (lien à jour après ouverture) |
-| **Tip** | *(SHA après push)* |
+| **PR** | Draft [#22](https://github.com/Netsuno/MMO_Maker/pull/22) vers `main` — **pas de merge** |
+| **Tip** | `550d283` |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump `.fmap` |
 
 Parallèle à #21 (icônes menu client). **Aucun** changement Frog.Client HUD / `Hud*` / `MainShellForm`. Prefabs objets carte **hors scope**.
@@ -66,3 +66,5 @@ UI FR : palette « Placer le départ (D) », menu **Carte → Outil point de dé
 - Playtest existant : `OverrideSpawnTile` toujours honoré.
 
 CI-green intent : `build-and-test` + smokes Windows inchangés / enrichis, pas de job assoupli.
+
+Vérifié ici (Linux) : `dotnet test Frog.Tests` — **585 passed**, 0 skipped. Smokes WinForms/WPF non exécutables sur cet agent (job Windows CI).
