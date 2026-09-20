@@ -12,6 +12,18 @@
 Protocole / gameplay / `WorldMetrics.DefaultTileSizePixels = 32` inchangés.
 Affichage nearest-neighbor seulement (pas de bicubique / ColorMatrix or).
 
+## Couches (équipement plus tard)
+
+Draw order : **body → tunic → armor → head → weapon** (`PlayerSpriteSlot`).
+
+| Slot | v1 | Fichier |
+| --- | --- | --- |
+| Body | Eldiran torso/jambes (rows 14–31) | `player-body.png` |
+| Head | Eldiran casque/visage (rows 0–13) | `player-head.png` |
+| Tunic / Armor / Weapon | vides — overlay équipement plus tard | — |
+
+`player.png` = idle sud déjà composé (secours). Pas de sheet Graal embarquée.
+
 ---
 
 ## Avant → après

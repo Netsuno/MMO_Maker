@@ -10,12 +10,13 @@ to a dark 1px outline so the world sprite has no gold chrome.
 
 | Champ | Valeur |
 | --- | --- |
-| **File** | `Frog.Client/Assets/World/player.png` |
+| **File** | `Frog.Client/Assets/World/player.png` (composite idle) plus `player-body.png` + `player-head.png` |
 | **Size** | 32×32 RGBA, nearest-neighbor ×1 in `MapViewRenderer` (world `tileSize` stays 32) |
 | **Author** | Eldiran |
 | **License** | [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) |
 | **Source** | OpenGameArt sheet (no itch.io). Vendored at `tools/third_party/eldiran/RPGCharacterSprites32x32.png` |
 | **Frame** | column 1, row 4 (0-based) — blue knight, south stand (2nd south walk frame) |
+| **Layers** | Body = rows 14–31; Head = rows 0–13. Reserved empty slots: tunic, armor, weapon. |
 
 Re-extract the PNG:
 

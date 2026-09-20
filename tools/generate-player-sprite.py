@@ -5,7 +5,9 @@ Source: tools/third_party/eldiran/RPGCharacterSprites32x32.png
 OpenGameArt: https://opengameart.org/content/32x32-rpg-character-sprites (CC0)
 
 v1 cell: column 1, row 4 (0-based) — blue knight, south stand.
+Split into body (rows 14–31) + head (rows 0–13) for equipment-layer follow-up.
 Magenta chroma → transparent. Sheet yellow outline → dark 1px (DA).
+Never embeds Graal sheets.
 """
 from __future__ import annotations
 
@@ -20,6 +22,8 @@ ROW = 4
 MAGENTA = (255, 0, 255)
 SHEET_YELLOW = (255, 216, 0)
 DARK_OUTLINE = (26, 18, 14)
+# Rows 0–13 = helmet/face; 14–31 = torso/legs. Equipment slots overlay between later.
+HEAD_ROWS = 14
 
 
 def _chunk(tag: bytes, data: bytes) -> bytes:
@@ -111,6 +115,21 @@ def write_png(path: Path, pixels: list[list[tuple[int, int, int, int]]]) -> None
     path.write_bytes(png)
 
 
+def split_body_head(
+    cell: list[list[tuple[int, int, int, int]]],
+) -> tuple[list[list[tuple[int, int, int, int]]], list[list[tuple[int, int, int, int]]]]:
+    clear = (0, 0, 0, 0)
+    body = [[clear] * CELL for _ in range(CELL)]
+    head = [[clear] * CELL for _ in range(CELL)]
+    for y in range(CELL):
+        for x in range(CELL):
+            if y < HEAD_ROWS:
+                head[y][x] = cell[y][x]
+            else:
+                body[y][x] = cell[y][x]
+    return body, head
+
+
 def extract_cell(sheet: list[list[tuple[int, int, int, int]]], col: int, row: int) -> list[list[tuple[int, int, int, int]]]:
     x0, y0 = col * CELL, row * CELL
     out: list[list[tuple[int, int, int, int]]] = []
@@ -164,13 +183,17 @@ def blit(
 def main() -> None:
     repo = Path(__file__).resolve().parents[1]
     sheet_path = repo / SHEET_REL
-    dest = repo / "Frog.Client" / "Assets" / "World" / "player.png"
+    world = repo / "Frog.Client" / "Assets" / "World"
+    dest = world / "player.png"
     width, height, sheet = read_png_rgba(sheet_path)
     if width != 384 or height != 672:
         raise ValueError(f"unexpected sheet size {width}×{height}")
     cell = extract_cell(sheet, COL, ROW)
+    body, head = split_body_head(cell)
     write_png(dest, cell)
-    print(f"wrote {dest} ({dest.stat().st_size} bytes) cell col={COL} row={ROW}")
+    write_png(world / "player-body.png", body)
+    write_png(world / "player-head.png", head)
+    print(f"wrote {dest} + body/head layers ({dest.stat().st_size} bytes) cell col={COL} row={ROW}")
 
     grass = (120, 160, 100, 255)
     preview_h, preview_w = 64, 64
@@ -183,6 +206,17 @@ def main() -> None:
     if shot_dir.is_dir():
         write_png(shot_dir / "player-skin-v2-local-and-other-on-grass.png", preview)
         write_png(shot_dir / "player-skin-v2-native-32-nearest-x8.png", nearest_scale(cell, 8))
+        strip_w, strip_h = CELL * 3 + 8, CELL
+        checker_a, checker_b = (40, 44, 52, 255), (28, 32, 40, 255)
+        strip = [
+            [checker_a if ((x // 4) + (y // 4)) % 2 == 0 else checker_b for x in range(strip_w)]
+            for y in range(strip_h)
+        ]
+        blit(strip, body, 0, 0)
+        blit(strip, head, CELL + 4, 0)
+        blit(strip, body, (CELL + 4) * 2, 0)
+        blit(strip, head, (CELL + 4) * 2, 0)
+        write_png(shot_dir / "player-skin-v2-body-head-layers.png", nearest_scale(strip, 4))
         print(f"wrote previews in {shot_dir}")
 
 

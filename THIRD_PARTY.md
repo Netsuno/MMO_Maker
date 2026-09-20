@@ -34,7 +34,7 @@ See [CREDITS.md](CREDITS.md) and `Frog.Client/Assets/Ui/THIRD_PARTY.md`.
 
 ## Eldiran — 32×32 RPG Character Sprites (player world sprite)
 
-`Frog.Client/Assets/World/player.png` is one CC0 32×32 cell (column 1, row 4,
-blue knight, south stand) from Eldiran’s
+`Frog.Client/Assets/World/player.png` (plus `player-body.png` / `player-head.png`)
+is one CC0 32×32 cell (column 1, row 4, blue knight, south stand) from Eldiran’s
 [32×32 RPG Character Sprites](https://opengameart.org/content/32x32-rpg-character-sprites).
 See [docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).
