@@ -22,11 +22,11 @@ Pas de bump protocole, pas de rewrite caméra / fluidité, pas de prefabs, pas d
 4. **Horloge** — `PlayerWalkClock` (cycle 0→1→2→1, 140 ms). Facing local = vecteur des touches tenues. Autres joueurs = vecteur d’interpolation visuelle. **Aucun champ fil.**
 5. **Draw path** — `MainShellForm.RedrawMap` passe `PlayerSpritePose` à `MapViewRenderer.Render` → `PlayerWorldAssets.DrawFeetAnchored` / `FrameFor`.
 
-Remote players reuse the same sprite path (the only “NPC” draw on GameWorldView today). Monster / event-NPC AI anim is out of scope.
+Remote players reuse the same sprite path on GameWorldView. NPC / monster **draw-path** walk (shared `WalkClock`, `npc-walk.png` / `monster-walk.png`) is the follow-up MVP in [STATUS-npc-monster.md](STATUS-npc-monster.md). Full monster AI remains out of scope here.
 
 ## Hors scope
 
-- Full monster AI anim
+- Full monster AI anim (see STATUS-npc-monster.md for the separate draw-path MVP)
 - Fluidity / prediction rewrite
 - Camera rewrite
 - Protocol bump / facing on the wire

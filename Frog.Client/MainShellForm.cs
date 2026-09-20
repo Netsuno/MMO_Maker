@@ -120,6 +120,27 @@ public sealed class MainShellForm : Form
 
         public int WalkElapsedMs;
     }
+
+    /// <summary>Client-only NPC / monster visual (walk clock). Combat / fil inchangés.</summary>
+    private sealed class WorldEntityView
+    {
+        public int ServerPixelX = 0;
+
+        public int ServerPixelY = 0;
+
+        public float VisCx;
+
+        public float VisCy;
+
+        public Direction Facing = Direction.Down;
+
+        public bool Walking;
+
+        public int WalkElapsedMs;
+    }
+
+    private readonly ConcurrentDictionary<string, WorldEntityView> _worldNpcs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, WorldEntityView> _worldMonsters = new(StringComparer.OrdinalIgnoreCase);
     private int _sessionDisplayedMapId;
     private DateTime _lastAutoMapRequestUtc = DateTime.MinValue;
     private static readonly TimeSpan AutoMapRequestDebounce = TimeSpan.FromMilliseconds(300);
@@ -892,6 +913,56 @@ public sealed class MainShellForm : Form
             {
                 o.Walking = false;
                 o.WalkElapsedMs = 0;
+                dirty = true;
+            }
+        }
+
+        if (AdvanceWorldEntitySmoothing(_worldNpcs, rawDt, alpha, otherMaxStep, moveEps))
+        {
+            dirty = true;
+        }
+
+        if (AdvanceWorldEntitySmoothing(_worldMonsters, rawDt, alpha, otherMaxStep, moveEps))
+        {
+            dirty = true;
+        }
+
+        return dirty;
+    }
+
+    private static bool AdvanceWorldEntitySmoothing(
+        ConcurrentDictionary<string, WorldEntityView> entities,
+        float rawDt,
+        float alpha,
+        float otherMaxStep,
+        float moveEps)
+    {
+        var dirty = false;
+        foreach (var kv in entities.ToArray())
+        {
+            var e = kv.Value;
+            var tx = (float)e.ServerPixelX;
+            var ty = (float)e.ServerPixelY;
+            var (nx, ny) = MovementFluidity.StepToward(
+                e.VisCx,
+                e.VisCy,
+                tx,
+                ty,
+                alpha,
+                otherMaxStep);
+            if (MathF.Abs(nx - e.VisCx) > moveEps || MathF.Abs(ny - e.VisCy) > moveEps)
+            {
+                e.Facing = WalkClock.FacingFromVector(nx - e.VisCx, ny - e.VisCy, e.Facing);
+                e.Walking = true;
+                e.WalkElapsedMs += (int)(rawDt * 1000f);
+                e.VisCx = nx;
+                e.VisCy = ny;
+                dirty = true;
+            }
+            else if (e.Walking)
+            {
+                e.Walking = false;
+                e.WalkElapsedMs = 0;
                 dirty = true;
             }
         }
@@ -3222,6 +3293,22 @@ public sealed class MainShellForm : Form
             otherPoses[kv.Key] = new PlayerSpritePose(kv.Value.Facing, kv.Value.Walking, kv.Value.WalkElapsedMs);
         }
 
+        var npcPx = new Dictionary<string, (float CxPx, float CyPx)>(_worldNpcs.Count, StringComparer.OrdinalIgnoreCase);
+        var npcPoses = new Dictionary<string, WorldSpritePose>(_worldNpcs.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in _worldNpcs)
+        {
+            npcPx[kv.Key] = (kv.Value.VisCx, kv.Value.VisCy);
+            npcPoses[kv.Key] = new WorldSpritePose(kv.Value.Facing, kv.Value.Walking, kv.Value.WalkElapsedMs);
+        }
+
+        var monsterPx = new Dictionary<string, (float CxPx, float CyPx)>(_worldMonsters.Count, StringComparer.OrdinalIgnoreCase);
+        var monsterPoses = new Dictionary<string, WorldSpritePose>(_worldMonsters.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in _worldMonsters)
+        {
+            monsterPx[kv.Key] = (kv.Value.VisCx, kv.Value.VisCy);
+            monsterPoses[kv.Key] = new WorldSpritePose(kv.Value.Facing, kv.Value.Walking, kv.Value.WalkElapsedMs);
+        }
+
         var localWalking = TryGetHeldMoveDiscrete(out _, out _);
         var localPose = new PlayerSpritePose(_localFacing, localWalking, _localWalkElapsedMs);
         var bmp = MapViewRenderer.Render(
@@ -3237,6 +3324,10 @@ public sealed class MainShellForm : Form
             prefabPlacements: _prefabPlacements,
             prefabCatalog: _prefabCatalog,
             prefabBitmaps: _prefabBitmaps,
+            npcCentersPx: npcPx,
+            npcPoses: npcPoses,
+            monsterCentersPx: monsterPx,
+            monsterPoses: monsterPoses,
             weatherPlan: _weatherPlan,
             weatherTickMs: _weatherTickMs);
         var previous = _picMap.Image;

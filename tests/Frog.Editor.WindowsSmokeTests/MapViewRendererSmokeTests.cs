@@ -169,6 +169,76 @@ public sealed class MapViewRendererSmokeTests
         Assert.True(selfPixel.B > selfPixel.R, $"walk pose must still draw blue armor, got {selfPixel}");
     }
 
+    [Fact]
+    public void NpcAndMonsterWalkPose_DrawFeetAnchored_StayThirtyTwoAndNotGold()
+    {
+        Assert.Equal(96, WorldEntityAssets.WalkSheetWidth);
+        Assert.Equal(128, WorldEntityAssets.WalkSheetHeight);
+        Assert.Equal(32, WorldEntityAssets.NativeSize);
+        Assert.Equal(1, WorldEntityAssets.DrawScale);
+
+        var npcIdle = WorldEntityAssets.FrameFor(WorldEntityKind.Npc, WorldSpritePose.IdleDown);
+        var npcWalk = WorldEntityAssets.FrameFor(
+            WorldEntityKind.Npc,
+            new WorldSpritePose(Direction.Right, Walking: true, ElapsedMs: 0));
+        var monsterIdle = WorldEntityAssets.FrameFor(WorldEntityKind.Monster, WorldSpritePose.IdleDown);
+        var monsterWalk = WorldEntityAssets.FrameFor(
+            WorldEntityKind.Monster,
+            new WorldSpritePose(Direction.Left, Walking: true, ElapsedMs: 280));
+        Assert.Equal(32, npcIdle.Width);
+        Assert.Equal(32, monsterIdle.Height);
+        Assert.True(FramesDiffer(npcIdle, npcWalk), "NPC walk frame must differ from south idle");
+        Assert.True(FramesDiffer(monsterIdle, monsterWalk), "monster walk frame must differ from south idle");
+
+        var map = CreateTwoByTwoGround();
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var npcCx = tw / 2f;
+        var monsterCx = tw + tw / 2f;
+        var feetCy = tw + tw / 2f;
+        var npcs = new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["villager"] = (npcCx, feetCy),
+        };
+        var monsters = new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["slime"] = (monsterCx, feetCy),
+        };
+        var npcPoses = new Dictionary<string, WorldSpritePose>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["villager"] = new WorldSpritePose(Direction.Down, Walking: true, ElapsedMs: 0),
+        };
+        var monsterPoses = new Dictionary<string, WorldSpritePose>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["slime"] = new WorldSpritePose(Direction.Right, Walking: true, ElapsedMs: 140),
+        };
+
+        using var play = MapViewRenderer.Render(
+            map,
+            new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase),
+            localUsername: "self",
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            npcCentersPx: npcs,
+            npcPoses: npcPoses,
+            monsterCentersPx: monsters,
+            monsterPoses: monsterPoses);
+
+        var groundArgb = GroundFill.ToArgb();
+        var oldGoldArgb = Color.FromArgb(240, 200, 60).ToArgb();
+        var bodyY = (int)feetCy - 14;
+        var npcPixel = play.GetPixel((int)npcCx, bodyY);
+        var monsterPixel = play.GetPixel((int)monsterCx, bodyY);
+        Assert.NotEqual(groundArgb, npcPixel.ToArgb());
+        Assert.NotEqual(groundArgb, monsterPixel.ToArgb());
+        Assert.NotEqual(oldGoldArgb, npcPixel.ToArgb());
+        Assert.NotEqual(oldGoldArgb, monsterPixel.ToArgb());
+        Assert.NotEqual(npcPixel.ToArgb(), monsterPixel.ToArgb());
+        Assert.True(
+            monsterPixel.G > monsterPixel.R && monsterPixel.G > monsterPixel.B,
+            $"monster slime should read green, got {monsterPixel}");
+    }
+
     private static Map CreateTwoByTwoGround()
     {
         var map = new Map { Name = "GridOff", Width = 2, Height = 2 };

@@ -10,7 +10,7 @@ to a dark 1px outline so the world sprite has no gold chrome.
 
 | Champ | Valeur |
 | --- | --- |
-| **File** | `Frog.Client/Assets/World/player.png` (south idle) plus `player-body.png` + `player-head.png`; walk MVP sheets `player-walk.png` / `player-walk-body.png` / `player-walk-head.png` (96×128 = 3×4 cells) |
+| **File** | `Frog.Client/Assets/World/player.png` (south idle) plus `player-body.png` + `player-head.png`; walk MVP sheets `player-walk.png` / `player-walk-body.png` / `player-walk-head.png` (96×128 = 3×4 cells). NPC: `npc.png` + `npc-walk.png` (Eldiran row 9). Monster slime is original procedural (`monster.png` / `monster-walk.png`), not this sheet. |
 | **Size** | 32×32 RGBA cells, nearest-neighbor ×1 in `MapViewRenderer` (world `tileSize` stays 32) |
 | **Author** | Eldiran |
 | **License** | [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) |
@@ -22,6 +22,7 @@ Re-extract the PNG:
 
 ```bash
 python3 tools/generate-player-sprite.py
+python3 tools/generate-npc-monster-sprites.py
 ```
 
 The client also embeds the PNG and keeps a matching fallback raster so the

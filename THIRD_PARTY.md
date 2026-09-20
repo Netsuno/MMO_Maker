@@ -39,7 +39,15 @@ is the CC0 32×32 south-idle cell (column 1, row 4, blue knight) from Eldiran’
 [32×32 RPG Character Sprites](https://opengameart.org/content/32x32-rpg-character-sprites).
 Walk MVP sheets `player-walk.png` / `player-walk-body.png` / `player-walk-head.png`
 are the same row-4 knight (down 0–2 / up 4–6 / right 8–10; left is a horizontal flip).
+`npc-walk.png` / `npc.png` are the same sheet’s row-9 brown villager (same layout).
 See [docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).
+
+## Monster walk placeholders (original, not third-party)
+
+`Frog.Client/Assets/World/monster-walk.png` and `monster.png` are generated
+in-repo (`tools/generate-npc-monster-sprites.py`) and dedicated to the public
+domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+No itch pack. No ripped FRoG / Graal sprites.
 
 ## Audio placeholders (original, not third-party)
 
