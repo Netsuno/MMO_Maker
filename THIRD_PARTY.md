@@ -40,3 +40,10 @@ is the CC0 32×32 south-idle cell (column 1, row 4, blue knight) from Eldiran’
 Walk MVP sheets `player-walk.png` / `player-walk-body.png` / `player-walk-head.png`
 are the same row-4 knight (down 0–2 / up 4–6 / right 8–10; left is a horizontal flip).
 See [docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).
+
+## Audio placeholders (original, not third-party)
+
+`Frog.Client/Assets/Audio/*.wav` are generated in-repo
+(`tools/generate-audio-placeholders.py`) and dedicated to the public domain
+under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). No
+external pack. No ripped FRoG / Graal audio.

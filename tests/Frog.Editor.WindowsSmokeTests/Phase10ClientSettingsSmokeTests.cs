@@ -145,6 +145,8 @@ public sealed class Phase10ClientSettingsSmokeTests
                 {
                     options.LayoutComboForTest.SelectedIndex = 1;
                     options.VolumeTrackForTest.Value = 12;
+                    options.MuteCheckBoxForTest.Checked = true;
+                    options.MusicCheckBoxForTest.Checked = true;
                     options.SaveButtonForTest.PerformClick();
                     if (options.DialogResult != DialogResult.OK)
                     {
@@ -154,7 +156,15 @@ public sealed class Phase10ClientSettingsSmokeTests
                     Assert.Equal(DialogResult.OK, options.DialogResult);
                     Assert.Equal(KeyboardLayoutPreset.Qwerty, options.Settings.KeyboardPreset);
                     Assert.Equal(12, options.Settings.VolumePercent);
+                    Assert.True(options.Settings.AudioMuted);
+                    Assert.True(options.Settings.MusicEnabled);
                     Assert.Equal("W", options.Settings.Bindings.MoveUp);
+
+                    var sound = form.SoundServiceForTest;
+                    Assert.True(sound.PlayUiClick());
+                    sound.SetMuted(true);
+                    Assert.False(sound.PlayUiClick());
+                    sound.SetMuted(false);
                 }
                 finally
                 {
