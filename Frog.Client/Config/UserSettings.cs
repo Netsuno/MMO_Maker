@@ -20,6 +20,11 @@ public sealed class UserSettings
 
     public int LastPort { get; set; } = 6000;
 
+    /// <summary>Compte mémorisé (login souvenir). Jamais le mot de passe.</summary>
+    public string LastUsername { get; set; } = string.Empty;
+
+    public bool RememberAccount { get; set; }
+
     public void Normalize()
     {
         if (SchemaVersion < 1)
@@ -34,6 +39,7 @@ public sealed class UserSettings
         Window.Normalize();
         LastHost = string.IsNullOrWhiteSpace(LastHost) ? "127.0.0.1" : LastHost.Trim();
         LastPort = Math.Clamp(LastPort, 1, 65535);
+        LastUsername = RememberAccount ? (LastUsername ?? string.Empty).Trim() : string.Empty;
     }
 
     public void ApplyPreset(KeyboardLayoutPreset preset)
@@ -53,6 +59,8 @@ public sealed class UserSettings
             Window = Window.Clone(),
             LastHost = LastHost,
             LastPort = LastPort,
+            LastUsername = LastUsername,
+            RememberAccount = RememberAccount,
         };
         copy.Normalize();
         return copy;

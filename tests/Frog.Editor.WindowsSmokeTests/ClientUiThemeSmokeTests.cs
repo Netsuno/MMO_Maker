@@ -63,10 +63,23 @@ public sealed class ClientUiThemeSmokeTests
             {
                 form = ClientSmokeTestAccess.CreateAndShowMainShell();
                 Assert.Equal(UiTheme.BgApp, form.BackColor);
-                Assert.True(form.HostTextBoxForTest.Visible);
-                Assert.True(form.PortNumericForTest.Visible);
+                Assert.True(form.LoginShellForTest.Visible);
+                Assert.Equal(400, form.LoginShellForTest.CardWidthForTest);
+                Assert.Equal(12, form.LoginShellForTest.CardPaddingForTest);
+                Assert.True(form.LoginShellForTest.HasGoldRingEmblemForTest);
+                Assert.Equal("FRoG", form.LoginShellForTest.LogoWordmarkForTest.Text);
                 Assert.True(form.LoginButtonForTest.Visible);
-                Assert.Equal("Login", form.LoginButtonForTest.Text);
+                Assert.Equal("Connexion", form.LoginButtonForTest.Text);
+                Assert.Equal(UiTheme.BgSlot, form.LoginButtonForTest.BackColor);
+                Assert.Equal(UiTheme.AccentGold, form.LoginButtonForTest.FlatAppearance.BorderColor);
+                Assert.Equal(UiTheme.TextPrimary, form.LoginButtonForTest.ForeColor);
+                Assert.True(form.RememberAccountCheckBoxForTest.Visible);
+                Assert.Equal("Souvenir", form.RememberAccountCheckBoxForTest.Text);
+                Assert.False(form.HostTextBoxForTest.Visible, "host leaves the player card");
+                Assert.False(form.PortNumericForTest.Visible, "port leaves the player card");
+                form.ToggleLoginOpsForTest();
+                Assert.True(form.HostTextBoxForTest.Visible, "F9 ops strip reveals host");
+                Assert.True(form.PortNumericForTest.Visible, "F9 ops strip reveals port");
                 Assert.Equal("Options", form.OptionsButtonForTest.Text);
 
                 Assert.False(UiTheme.IsPhase8ExactShaSurface(form.LoginButtonForTest));
