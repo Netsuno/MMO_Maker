@@ -14,8 +14,6 @@ internal static class MapViewRenderer
     private static readonly Color GroundTile = Color.FromArgb(120, 160, 100);
     private static readonly Color BlockTile = Color.FromArgb(45, 45, 55);
     private static readonly Color WarpTile = Color.FromArgb(180, 100, 200);
-    private static readonly Color OtherPlayer = Color.FromArgb(80, 140, 220);
-    private static readonly Color SelfPlayer = Color.FromArgb(240, 200, 60);
 
     /// <param name="otherPlayerCentersPx">Centre joueur autres en pixels monde (coins carte = grille × taille tuile).</param>
     /// <param name="mapEvents">Tuiles avec événements serveur (léger surlignage).</param>
@@ -151,8 +149,6 @@ internal static class MapViewRenderer
             }
         }
 
-        var prevSmooth = g.SmoothingMode;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
         foreach (var kv in otherPlayerCentersPx)
         {
             if (localUsername is not null && string.Equals(kv.Key, localUsername, StringComparison.OrdinalIgnoreCase))
@@ -160,11 +156,10 @@ internal static class MapViewRenderer
                 continue;
             }
 
-            DrawPlayerDotAtPixelCenter(g, kv.Value.CxPx, kv.Value.CyPx, tw, OtherPlayer);
+            DrawPlayerSpriteAtPixelCenter(g, kv.Value.CxPx, kv.Value.CyPx, other: true);
         }
 
-        DrawPlayerDotAtPixelCenter(g, localCenterXPx, localCenterYPx, tw, SelfPlayer);
-        g.SmoothingMode = prevSmooth;
+        DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false);
         return bmp;
     }
 
@@ -284,13 +279,7 @@ internal static class MapViewRenderer
         g.DrawPolygon(pen, pts);
     }
 
-    /// <summary>Centre du sprite en coordonnées pixel (fractionnaire autorisé pour interpolation).</summary>
-    private static void DrawPlayerDotAtPixelCenter(Graphics g, float centerXPx, float centerYPx, float tw, Color fill)
-    {
-        var r = tw * 0.35f;
-        using var brush = new SolidBrush(fill);
-        g.FillEllipse(brush, centerXPx - r, centerYPx - r, r * 2, r * 2);
-        using var edge = new Pen(Color.FromArgb(200, 255, 255, 255), 1f);
-        g.DrawEllipse(edge, centerXPx - r, centerYPx - r, r * 2, r * 2);
-    }
+    /// <summary>Centre du sprite en coordonnées pixel (arrondi pour nearest-neighbor ×2).</summary>
+    private static void DrawPlayerSpriteAtPixelCenter(Graphics g, float centerXPx, float centerYPx, bool other)
+        => PlayerWorldAssets.DrawCentered(g, centerXPx, centerYPx, other);
 }

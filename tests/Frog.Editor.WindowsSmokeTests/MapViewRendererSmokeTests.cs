@@ -59,13 +59,18 @@ public sealed class MapViewRendererSmokeTests
         var seamAwayFromPlayers = play.GetPixel(tw, tw + tw / 2);
         Assert.Equal(groundArgb, seamAwayFromPlayers.ToArgb());
 
+        var oldGoldArgb = Color.FromArgb(240, 200, 60).ToArgb();
         var selfPixel = play.GetPixel(tw / 2, tw / 2);
         Assert.NotEqual(groundArgb, selfPixel.ToArgb());
-        Assert.True(selfPixel.R > selfPixel.B, $"local player should stay gold-ish, got {selfPixel}");
+        Assert.NotEqual(oldGoldArgb, selfPixel.ToArgb());
+        Assert.True(
+            selfPixel.G > selfPixel.R && selfPixel.G > selfPixel.B,
+            $"local player center should be olive tunic, not a gold ellipse, got {selfPixel}");
 
         var otherPixel = play.GetPixel(tw + tw / 2, tw / 2);
         Assert.NotEqual(groundArgb, otherPixel.ToArgb());
-        Assert.True(otherPixel.B > otherPixel.R, $"other player should stay blue-ish, got {otherPixel}");
+        Assert.NotEqual(selfPixel.ToArgb(), otherPixel.ToArgb());
+        Assert.True(otherPixel.B > otherPixel.R, $"other player should stay blue-tinted, got {otherPixel}");
 
         using var debug = MapViewRenderer.Render(
             map,
@@ -104,6 +109,18 @@ public sealed class MapViewRendererSmokeTests
         }
 
         Assert.True(gridPixels > 0, "showTileGrid:true must paint at least one tile-seam pixel");
+    }
+
+    [Fact]
+    public void PlayerWorldSprite_IsSixteenSquare_NotGold()
+    {
+        var sprite = PlayerWorldAssets.Sprite;
+        Assert.Equal(16, sprite.Width);
+        Assert.Equal(16, sprite.Height);
+        Assert.Equal(2, PlayerWorldAssets.DrawScale);
+        var center = sprite.GetPixel(8, 8);
+        Assert.NotEqual(Color.FromArgb(240, 200, 60).ToArgb(), center.ToArgb());
+        Assert.True(center.A == 255 && center.G > center.R, $"expected olive tunic center, got {center}");
     }
 
     private static Map CreateTwoByTwoGround()
