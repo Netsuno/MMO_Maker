@@ -58,7 +58,8 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.True(
                     tabs.Width >= 300 && tabs.Width <= 400 && tabs.Height >= 250 && tabs.Height <= 700,
                     $"TabControl crop {tabs.Width}×{tabs.Height}");
-                Assert.True(chrome.Visible, "window chrome wraps overlay tabs");
+                Assert.Same(chrome, tabs.Parent);
+                Assert.Equal(form.WorldHostForTest, chrome.Parent);
                 Assert.True(
                     chrome.TitleBarHeightForTest is >= 28 and <= 32,
                     $"titlebar height {chrome.TitleBarHeightForTest}");
@@ -258,6 +259,10 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal(centered.OffsetY, form.MapPictureLocationForTest.Y);
 
                 Assert.True(form.StatusHudForTest.UsesFrameAssetForTest, "Kenney frame after camera layout");
+                form.SetWindowLayerVisibleForTest(true);
+                form.LayoutGameHudForTest();
+                Assert.True(form.WindowChromeForTest.Visible, "chrome visible once Playing ancestors are shown");
+                Assert.Equal(360, form.GameplayTabsForTest.Width);
                 Assert.True(
                     InputService.IsTextInputFocus(form.ChatTextBoxForTest),
                     "chat input still counts as text focus");

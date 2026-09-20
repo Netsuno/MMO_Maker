@@ -37,3 +37,5 @@ Présentation + layout chrome seulement. TabControl overlay reste **360 px** (cr
 - Split contenu Inventaire ≠ Perso (même onglet Gameplay aujourd’hui)
 
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
+
+Smoke : `Control.Visible` sur le chrome est faux en phase Login (ancêtres `_panelGame` masqués) — le test HUD assert parentage + crop 360 ; `Visible` est vérifié en Playing (`ShowOfflineMapViewportForTest`).
