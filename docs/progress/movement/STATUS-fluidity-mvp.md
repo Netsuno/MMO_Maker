@@ -8,7 +8,7 @@
 | **Base** | `main` @ `bc60186` (merge PR #26 prefabs; includes #25 walk anim + #24 MEASURE-BASELINE fill) |
 | **Branch** | `cursor/movement-fluidity-mvp` |
 | **PR** | Draft toward `main` — **do not merge** |
-| **Tip** | _(pinned after push)_ |
+| **Tip** | `4676901539d38933b7c304f72ab461a228d5c54d` |
 | **Baseline** | Windows session tip `2faa511` — numbers in [MEASURE-BASELINE.md](MEASURE-BASELINE.md) |
 | **Protocol** | `FrogWireProtocol.Version` **stays 11** |
 
@@ -62,6 +62,7 @@ Linux / this agent cannot recapture WinForms key → sprite latency. Re-run the 
 - `Frog.Tests/MovementFluidityTests.cs` — dt cap, 181 ms predict size, stale-ack reject, other-player cap, camera damp, `ComputeDrawOffset` unchanged
 - `Frog.Tests/MovementFluidityMvpTests.cs` — STATUS + wiring + protocol 11 + walk 140 ms
 - Existing movement tests (`MovementMeasureBaselineTests`, `MovementPacketRateGateTests`, `MapEventMovement*`, `MapViewportCameraTests`, `PlayerWalkClockTests`) must stay green
+- Linux this run: `dotnet test Frog.Tests` **631 passed** (includes the movement filter **72 passed**)
 
 ---
 
