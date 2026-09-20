@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Frog.Editor.Config;
+using Frog.Editor.Enums;
 using Frog.Editor.Forms;
 using Frog.Editor.Services;
 
@@ -95,6 +96,11 @@ public partial class MainWindow : Window
         nameof(CmdValidateMap),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdSpawnTool = new(
+        "Outil point de départ",
+        nameof(CmdSpawnTool),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdBrowseMapEvents = new(
         "Événements carte (MariaDB, héritage)…",
         nameof(CmdBrowseMapEvents),
@@ -171,6 +177,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
+        CommandBindings.Add(new CommandBinding(CmdSpawnTool, (_, _) => _editor.SelectEditorTool(EditorTool.Spawn)));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEvents()));
         CommandBindings.Add(new CommandBinding(CmdBrowsePhase8Content, (_, _) => _editor.BrowsePhase8Content()));
         CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkers()));
@@ -179,6 +186,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdZoomIn, (_, _) => _editor.EditorZoomIn()));
         CommandBindings.Add(new CommandBinding(CmdZoomOut, (_, _) => _editor.EditorZoomOut()));
 
+        PreviewKeyDown += OnPreviewToolHotkey;
         Loaded += OnMainWindowLoaded;
         SizeChanged += (_, _) => _editor.NotifyWpfShellLayout();
         Closing += OnMainWindowClosing;
@@ -332,6 +340,25 @@ public partial class MainWindow : Window
         if (sender is System.Windows.Controls.MenuItem mi)
         {
             _editor.MapEventMarkersVisible = mi.IsChecked == true;
+        }
+    }
+
+    private void OnPreviewToolHotkey(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (Keyboard.FocusedElement is System.Windows.Controls.TextBox)
+        {
+            return;
+        }
+
+        if (_editor.ContainsFocus && _editor.ActiveControl is System.Windows.Forms.TextBoxBase)
+        {
+            return;
+        }
+
+        if (EditorToolHotkeys.TryResolveWpf(e.Key, Keyboard.Modifiers, out var tool))
+        {
+            _editor.SelectEditorTool(tool);
+            e.Handled = true;
         }
     }
 

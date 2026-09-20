@@ -9,6 +9,7 @@ using Frog.Application.Maps;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Editor.Assets;
+using Frog.Editor.Config;
 using Frog.Editor.Services;
 
 namespace Frog.Editor;
@@ -89,6 +90,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.GameDataInitBarrierForTest = null;
         EditorTestHooks.MainWorkspaceInitBarrierForTest = null;
         EditorTestHooks.MainFormSaveBarrierForTest = null;
+        EditorLocalWorkstate.OverrideFilePathForTest = null;
         _pumpUntil = null;
         TilesetCache.Clear();
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");

@@ -15,6 +15,7 @@ using Frog.Core.Models;
 using Frog.Editor.Assets;
 using Frog.Editor.Controls;
 using Frog.Editor.Dialogs;
+using Frog.Editor.Enums;
 using Frog.Editor.Panels;
 using Frog.Editor.Ui;
 
@@ -94,6 +95,25 @@ public sealed class MainForm : Form
     internal Control RightShellForWpf => _splitRightTileset;
 
     internal Map? GetCanvasMapForTest() => _canvas.Map;
+
+    internal MapCanvas GetCanvasForTest() => _canvas;
+
+    internal EditorTool GetActiveToolForTest() => _canvas.ActiveTool;
+
+    internal Point? GetPlaytestSpawnForTest() => _canvas.PlaytestSpawnTile;
+
+    internal bool TrySetPlaytestSpawnForTest(int tileX, int tileY) =>
+        PersistPlaytestSpawnFromUser(tileX, tileY);
+
+    internal void SelectEditorToolForTest(EditorTool tool) => SelectEditorTool(tool);
+
+    internal bool TryProcessCmdKeyForTest(Keys keyData)
+    {
+        Message msg = default;
+        return ProcessCmdKey(ref msg, keyData);
+    }
+
+    internal void RestorePlaytestSpawnFromWorkstateForTest() => RestorePlaytestSpawnFromWorkstate();
 
     internal MapWorkspaceSession? GetWorkspaceSessionForTest() => _workspace;
 
@@ -349,6 +369,7 @@ public sealed class MainForm : Form
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
+            mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
             mMap.DropDownItems.Add("Contenu Phase 8…", null, (_, _) => BrowsePhase8Content());
@@ -441,6 +462,7 @@ public sealed class MainForm : Form
         _canvas = new MapCanvas { Dock = DockStyle.Fill };
         _canvas.HoveredTileChanged += OnHoveredTileChanged;
         _canvas.ViewTransformChanged += OnCanvasViewTransformChanged;
+        _canvas.PlaytestSpawnChanged += OnPlaytestSpawnChanged;
         _canvas.TileClicked += OnTileClicked;
         _canvas.TileContextMenuRequested += OnTileContextMenuRequested;
         _canvas.MapReplaced += OnMapReplaced;
@@ -463,11 +485,7 @@ public sealed class MainForm : Form
         _minimap.Attach(_canvas);
 
         _leftToolsWpf = new EditorLeftToolsWpf();
-        _leftToolsWpf.ToolChanged += tool =>
-        {
-            _canvas.ActiveTool = tool;
-            _canvas.Invalidate();
-        };
+        _leftToolsWpf.ToolChanged += tool => SelectEditorTool(tool);
         _leftToolsWpf.TileTypeChanged += type => _canvas.SelectedTileType = type;
         _leftToolsElementHost = new ElementHost
         {
@@ -937,6 +955,7 @@ public sealed class MainForm : Form
             SyncMapsTree();
             UpdateMapChromeLabels();
             RefreshMapEventMarkers();
+            RestorePlaytestSpawnFromWorkstate();
         }
         finally
         {
@@ -944,6 +963,69 @@ public sealed class MainForm : Form
         }
 
         PushEditorStatusLine();
+    }
+
+    private bool _suppressSpawnPersist;
+
+    internal void SelectEditorTool(EditorTool tool)
+    {
+        _leftToolsWpf.SetSelectedTool(tool);
+        _canvas.ActiveTool = tool;
+        _canvas.Invalidate();
+    }
+
+    private void OnPlaytestSpawnChanged(Point tile)
+    {
+        if (!_suppressSpawnPersist && _canvas.Map is { } map)
+        {
+            EditorMapSpawnWorkstate.Write(_workspace?.CurrentMapId, map, tile.X, tile.Y);
+        }
+
+        _leftToolsWpf.SetSpawnDisplay(tile.X, tile.Y);
+        PushEditorStatusLine();
+    }
+
+    private void RestorePlaytestSpawnFromWorkstate()
+    {
+        if (_canvas.Map is not { } map)
+        {
+            return;
+        }
+
+        _suppressSpawnPersist = true;
+        try
+        {
+            if (EditorMapSpawnWorkstate.TryRead(_workspace?.CurrentMapId, map, out var x, out var y))
+            {
+                _canvas.TrySetPlaytestSpawn(x, y);
+            }
+            else
+            {
+                _canvas.TrySetPlaytestSpawn(0, 0);
+            }
+
+            var spawn = _canvas.PlaytestSpawnTile;
+            _leftToolsWpf.SetSpawnDisplay(spawn?.X, spawn?.Y);
+        }
+        finally
+        {
+            _suppressSpawnPersist = false;
+        }
+    }
+
+    private bool PersistPlaytestSpawnFromUser(int tileX, int tileY)
+    {
+        if (!_canvas.TrySetPlaytestSpawn(tileX, tileY))
+        {
+            return false;
+        }
+
+        if (_canvas.Map is { } map)
+        {
+            EditorMapSpawnWorkstate.Write(_workspace?.CurrentMapId, map, tileX, tileY);
+        }
+
+        return true;
     }
 
     private void OnPaletteStampChanged(Rectangle stampPixels)
@@ -977,8 +1059,11 @@ public sealed class MainForm : Form
                 ? $"    ·    carte {id.ToString("N")[..8]} r{_workspace.CurrentRevision}{FormatStatusSuffix()}"
                 : "    ·    brouillon local";
         var dirty = _workspace?.IsDirty == true ? "    ·    modifié" : "";
+        var spawn = _canvas.PlaytestSpawnTile is { } sp
+            ? $"    ·    départ ({sp.X},{sp.Y})"
+            : "";
         var text =
-            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}    ·    catalogue {backend}";
+            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -1051,6 +1136,12 @@ public sealed class MainForm : Form
         if (!ctrl && code == Keys.Escape)
         {
             _canvas.ClearSelection();
+            return true;
+        }
+
+        if (EditorToolHotkeys.TryResolve(keyData, out var tool))
+        {
+            SelectEditorTool(tool);
             return true;
         }
 
@@ -1356,6 +1447,7 @@ public sealed class MainForm : Form
         SyncMapsTree();
         UpdateMapChromeLabels();
         RefreshMapEventMarkers();
+        RestorePlaytestSpawnFromWorkstate();
         PushEditorStatusLine();
     }
 
@@ -1567,6 +1659,11 @@ public sealed class MainForm : Form
         {
             case SaveMapResult.Success success:
                 _canvas.DefaultWarpTargetMapId = _workspace!.CurrentMapId;
+                if (_canvas.PlaytestSpawnTile is { } savedSpawn && _canvas.Map is { } savedMap)
+                {
+                    EditorMapSpawnWorkstate.Write(success.MapId, savedMap, savedSpawn.X, savedSpawn.Y);
+                }
+
                 SyncMapsTree();
                 PushEditorStatusLine();
                 UpdateMapChromeLabels();
@@ -1803,8 +1900,22 @@ public sealed class MainForm : Form
             }
 
             var map = _workspace.CurrentMap;
-            var defaultX = Math.Clamp(_lastHoverTile.X, 0, Math.Max(0, map.Width - 1));
-            var defaultY = Math.Clamp(_lastHoverTile.Y, 0, Math.Max(0, map.Height - 1));
+            int? storedX = _canvas.PlaytestSpawnTile?.X;
+            int? storedY = _canvas.PlaytestSpawnTile?.Y;
+            if (EditorMapSpawnWorkstate.TryRead(_workspace.CurrentMapId, map, out var memoX, out var memoY))
+            {
+                storedX = memoX;
+                storedY = memoY;
+            }
+
+            var preferred = MapPlaytestSpawn.ResolvePreferred(
+                map,
+                storedX,
+                storedY,
+                _lastHoverTile.X,
+                _lastHoverTile.Y);
+            var defaultX = preferred.X;
+            var defaultY = preferred.Y;
             int spawnX;
             int spawnY;
             if (EditorTestHooks.OverrideSpawnTile is { } forcedSpawn)
@@ -1824,6 +1935,8 @@ public sealed class MainForm : Form
                 spawnX = spawnDlg.TileX;
                 spawnY = spawnDlg.TileY;
             }
+
+            PersistPlaytestSpawnFromUser(spawnX, spawnY);
 
             var port = EditorFrogServerLauncher.FindFreeTcpPort();
             var prepare = new PlaytestPrepareRequest
@@ -2141,6 +2254,7 @@ public sealed class MainForm : Form
         SyncMapsTree();
         UpdateMapChromeLabels();
         RefreshMapEventMarkers();
+        RestorePlaytestSpawnFromWorkstate();
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
         {
