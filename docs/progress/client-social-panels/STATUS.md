@@ -8,8 +8,8 @@
 | **Base** | `main` @ `bc60186` (merge PR #26 prefabs) |
 | **Branche** | `cursor/client-social-panels-mvp-4176` |
 | **PR** | Draft [#27](https://github.com/Netsuno/MMO_Maker/pull/27) vers `main` — **pas de merge** |
-| **Tip** | `fcfb4b4e4a145df79531ed88dfed04c65358ca77` |
-| **CI** | *(pin after green)* |
+| **Tip** | `9b836559f13385b30242299c81894fd447d6f9f0` |
+| **CI** | [35533368787](https://github.com/Netsuno/MMO_Maker/actions/runs/35533368787) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcodes **80–83** inchangés |
 
 Chrome DA v2 (#19) + contraste Kenney (#16). Menu ring **reste 5 icônes** (step 4 figé). Ouverture : boutons Amis / Groupe / Guilde du dock chat, onglet overlay **Social**.
@@ -52,5 +52,7 @@ Rôles amis (déjà poussés par le serveur) : **1** accepté, **2** sortant, **
 
 - Linux : `Frog.Tests/ClientSocialPanelsTests.cs` — empty states, snapshot amis, invite groupe + Accept=`party_id`, builders `SocialWire`, gates source shell/dock/chrome, STATUS.
 - Windows smoke : `ClientHudOverlaySmokeTests.SocialPanels_OpenFromChatDock_AndApplySnapshot`.
+
+CI **green** on `9b83655` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35533368787/job/106137935570) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35533368787/job/106137935471). Windows editor / gameplay / Phase 8 smokes included.
 
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
