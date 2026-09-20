@@ -9,8 +9,10 @@ using Frog.Client.Forms;
 using Frog.Client.Services;
 using Frog.Client.UI;
 using Frog.Core.Constants;
+using Frog.Core.Enums;
 using Frog.Core.Maps;
 using Frog.Core.Protocol;
+using Frog.Core.Social;
 using Xunit;
 
 namespace Frog.Editor.WindowsSmokeTests;
@@ -179,6 +181,69 @@ public sealed class ClientHudOverlaySmokeTests
                 form.SelectPhase8TabForTest();
                 Assert.True(form.WindowLayerVisibleForTest, "SelectPhase8Tab reopens window layer");
                 Assert.True(form.IsPhase8TabSelectedForTest, "phase 8 tab selected");
+            }
+            finally
+            {
+                if (form is not null)
+                {
+                    ClientSmokeTestAccess.CloseMainShell(form);
+                }
+
+                Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, previous);
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public void SocialPanels_OpenFromChatDock_AndApplySnapshot()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "frog-social-hud-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "client-settings.json");
+            var previous = Environment.GetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable);
+            Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, path);
+            MainShellForm? form = null;
+            try
+            {
+                form = ClientSmokeTestAccess.CreateAndShowMainShell();
+                form.LayoutGameHudForTest();
+                var tabs = form.GameplayTabsForTest;
+                Assert.Contains("Social", tabs.TabPages.Cast<TabPage>().Select(p => p.Text));
+                Assert.Equal(3, form.ChatDockForTest.SocialOpenButtonCountForTest);
+                Assert.Equal(
+                    new[] { "Amis", "Groupe", "Guilde" },
+                    form.ChatDockForTest.SocialOpenButtonTextsForTest.ToArray());
+
+                form.OpenSocialPanelForTest(SocialKind.Friend);
+                Assert.True(form.WindowLayerVisibleForTest, "Amis opens overlay");
+                Assert.True(form.IsSocialTabSelectedForTest);
+                Assert.Equal(SocialKind.Friend, form.SocialHubForTest.SelectedKind);
+                Assert.Equal("Amis", form.WindowChromeForTest.Title);
+                Assert.Contains("Aucun ami", form.SocialHubForTest.EmptyHintForTest(SocialKind.Friend), StringComparison.Ordinal);
+
+                var friendId = Guid.NewGuid();
+                form.OnSocialSnapshotForTest(new SocialSnapshotWire(
+                    SocialKind.Friend,
+                    Guid.Empty,
+                    Guid.Empty,
+                    string.Empty,
+                    [new SocialMemberWire(friendId, ClientSocialRoster.FriendRoleAccepted, true, "Aline")]));
+                Assert.Equal(1, form.SocialHubForTest.VisibleRowCountForTest(SocialKind.Friend));
+                Assert.Equal(string.Empty, form.SocialHubForTest.EmptyHintForTest(SocialKind.Friend));
+
+                form.OpenSocialPanelForTest(SocialKind.Party);
+                Assert.Equal("Groupe", form.WindowChromeForTest.Title);
+                Assert.Contains("Aucun groupe", form.SocialHubForTest.EmptyHintForTest(SocialKind.Party), StringComparison.Ordinal);
             }
             finally
             {

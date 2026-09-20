@@ -41,6 +41,10 @@ public sealed class HelpForm : Form
         • Canaux Map, Global, Whisper, Party et Guild.
         • Whisper demande le nom du destinataire.
 
+        Amis, Groupe, Guilde
+        • Boutons Amis / Groupe / Guilde dans le dock chat ouvrent les panneaux (même chrome que Inventaire).
+        • Les listes viennent des paquets sociaux existants (80–83). Slash /friend /party /guild restent valides.
+
         Aide, options, diagnostics
         • F1 ou le bouton Aide ouvre cette fenêtre.
         • Options : volume, muet, musique (boucle de test), disposition clavier, rebind, taille de fenêtre, plein écran.
