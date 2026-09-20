@@ -369,6 +369,11 @@ public static class UiTheme
                 {
                     StyleWindowCloseButton(button);
                 }
+                else if (button is HudMenuRing.RoundButton)
+                {
+                    StyleContrastHudButton(button, button.Enabled);
+                    button.FlatAppearance.BorderSize = 0;
+                }
                 else if (IsHudContrastButton(button))
                 {
                     StyleContrastHudButton(button, button.Enabled);
@@ -438,7 +443,7 @@ public static class UiTheme
                 chrome.ApplyTheme();
                 break;
             case Panel or FlowLayoutPanel or TableLayoutPanel or UserControl:
-                if (control is HudMenuRing || control.Parent is HudMenuRing)
+                if (control is HudMenuRing || control.Parent is HudMenuRing || IsHudContrastButton(control))
                 {
                     control.BackColor = Color.Transparent;
                     control.ForeColor = TextPrimary;
