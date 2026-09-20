@@ -149,6 +149,29 @@ public static class FrogServerHostFactory
                 services
                     .AddOptions<RegistrationOptions>()
                     .Bind(ctx.Configuration.GetSection(RegistrationOptions.SectionName));
+                services
+                    .AddOptions<MaintenanceOptions>()
+                    .Bind(ctx.Configuration.GetSection(MaintenanceOptions.SectionName))
+                    .PostConfigure(o =>
+                    {
+                        if (!o.Enabled
+                            && MaintenanceOptions.IsTruthyEnv(
+                                Environment.GetEnvironmentVariable(MaintenanceOptions.EnabledEnvironmentVariable)))
+                        {
+                            o.Enabled = true;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(o.FlagFile))
+                        {
+                            o.FlagFile = Environment.GetEnvironmentVariable(
+                                MaintenanceOptions.FlagFileEnvironmentVariable);
+                        }
+
+                        if (string.IsNullOrWhiteSpace(o.Message))
+                        {
+                            o.Message = Frog.Core.Distribution.MaintenanceMessages.LoginRejected;
+                        }
+                    });
 
                 var pg = ctx.Configuration.GetSection("PostgreSql").Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
                 if (string.IsNullOrWhiteSpace(pg.ConnectionString))
@@ -402,6 +425,7 @@ public static class FrogServerHostFactory
                     return NullMapEventStore.Instance;
                 });
                 services.AddSingleton<AuthService>();
+                services.AddSingleton<MaintenanceService>();
                 services.AddSingleton<ModerationService>();
                 services.AddSingleton<ConnectionManager>();
                 services.AddSingleton<ClientRegistry>();

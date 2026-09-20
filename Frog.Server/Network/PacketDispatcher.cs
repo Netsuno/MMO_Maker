@@ -63,6 +63,7 @@ public sealed partial class PacketDispatcher(
     SocialService socialService,
     TradeService tradeService,
     IOptions<RegistrationOptions> registrationOptions,
+    MaintenanceService maintenance,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -96,6 +97,7 @@ public sealed partial class PacketDispatcher(
     private readonly SocialService _social = socialService;
     private readonly TradeService _trade = tradeService;
     private readonly RegistrationOptions _registration = registrationOptions.Value;
+    private readonly MaintenanceService _maintenance = maintenance;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     /// <summary>Test barrier: runs at the start of <see cref="TryGetActiveSession"/>.</summary>
@@ -301,6 +303,12 @@ public sealed partial class PacketDispatcher(
         var isPlaytestUser = PlaytestAuthToken.IsReservedUsername(username);
         if (isPlaytestUser)
         {
+            if (await TryRejectMaintenanceLoginAsync(clientSession, accountId: null, cancellationToken)
+                    .ConfigureAwait(false))
+            {
+                return;
+            }
+
             await HandlePlaytestLoginAsync(clientSession, password, cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -312,6 +320,12 @@ public sealed partial class PacketDispatcher(
             cancellationToken).ConfigureAwait(false);
         if (!authResult.Success || authResult.Account is null)
         {
+            if (_maintenance.IsEnabled)
+            {
+                await SendMaintenanceLoginResultAsync(clientSession, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
             ServerNetworkLogs.LoginFailed(_logger, authResult.RateLimited ? "rate_limited" : "invalid_credentials");
             await _packetSender.SendLoginResultAsync(clientSession, false, "Identifiants invalides.", cancellationToken);
             return;
@@ -325,6 +339,12 @@ public sealed partial class PacketDispatcher(
                 false,
                 ModerationMessages.Banned,
                 cancellationToken);
+            return;
+        }
+
+        if (await TryRejectMaintenanceLoginAsync(clientSession, authResult.Account.Id, cancellationToken)
+                .ConfigureAwait(false))
+        {
             return;
         }
 
@@ -380,6 +400,30 @@ public sealed partial class PacketDispatcher(
                 sendReconnectResult: false,
                 ct).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<bool> TryRejectMaintenanceLoginAsync(
+        ClientSession clientSession,
+        Guid? accountId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _maintenance.ShouldRejectLoginAsync(accountId, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        await SendMaintenanceLoginResultAsync(clientSession, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    private Task SendMaintenanceLoginResultAsync(ClientSession clientSession, CancellationToken cancellationToken)
+    {
+        ServerNetworkLogs.LoginFailed(_logger, "maintenance");
+        return _packetSender.SendLoginResultAsync(
+            clientSession,
+            false,
+            _maintenance.WireMessage,
+            cancellationToken);
     }
 
     private async Task HandleReconnectRequestAsync(
@@ -465,6 +509,17 @@ public sealed partial class PacketDispatcher(
                 clientSession,
                 false,
                 ModerationMessages.Banned,
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (await _maintenance.ShouldRejectLoginAsync(account.Id, cancellationToken).ConfigureAwait(false))
+        {
+            ServerNetworkLogs.LoginFailed(_logger, "maintenance");
+            await _packetSender.SendReconnectResultAsync(
+                clientSession,
+                false,
+                _maintenance.WireMessage,
                 cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -765,6 +820,17 @@ public sealed partial class PacketDispatcher(
         {
             ServerNetworkLogs.RegisterFailed(_logger, "invalid_payload");
             await _packetSender.SendRegisterResultAsync(clientSession, false, "Payload inscription invalide.", cancellationToken);
+            return;
+        }
+
+        if (_maintenance.IsEnabled)
+        {
+            ServerNetworkLogs.RegisterFailed(_logger, "maintenance");
+            await _packetSender.SendRegisterResultAsync(
+                clientSession,
+                false,
+                _maintenance.WireMessage,
+                cancellationToken);
             return;
         }
 

@@ -23,6 +23,12 @@
   "Registration": {
     "mode": "ProvisionedOnly"
   },
+  "Maintenance": {
+    "enabled": false,
+    "allowOperators": true,
+    "message": "Serveur en maintenance. Reessayez plus tard.",
+    "flagFile": ""
+  },
   "Maps": {
     "worldMapPath": "",
     "databaseFallbackMapId": 1

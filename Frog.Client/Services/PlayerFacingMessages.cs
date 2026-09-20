@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Text;
 using System.Text.RegularExpressions;
+using Frog.Core.Distribution;
 
 namespace Frog.Client.Services;
 
@@ -16,6 +17,7 @@ internal static class PlayerFacingMessages
     public const string BadCredentials = "Identifiants incorrects.";
     public const string AlreadyConnected = "Ce compte est déjà connecté.";
     public const string RegistrationsClosed = "Les inscriptions sont fermées pour cette bêta.";
+    public const string Maintenance = MaintenanceMessages.PlayerFacing;
     public const string SessionExpired = "Session expirée. Reconnectez-vous.";
     public const string LoggedIn = "Connexion acceptée.";
     public const string DiagnosticsCopied = "Diagnostics copiés (jeton et mot de passe exclus).";
@@ -91,6 +93,11 @@ internal static class PlayerFacingMessages
             || raw.Contains("Inscriptions fermées", StringComparison.OrdinalIgnoreCase))
         {
             return RegistrationsClosed;
+        }
+
+        if (MaintenanceMessages.IsMaintenanceSignal(raw))
+        {
+            return Maintenance;
         }
 
         if (raw.Contains("Session invalide", StringComparison.OrdinalIgnoreCase))

@@ -208,6 +208,10 @@ internal static class Program
 
             Create n'accorde jamais GM. Bêta: Registration:Mode=ProvisionedOnly.
             InviteOnly: jalon (pas de jetons) — TCP register refusé.
+
+            Maintenance (hors TCP, pas de bump protocole):
+              Maintenance:Enabled=true  ou  FROG_MAINTENANCE=1  ou  FROG_MAINTENANCE_FILE
+              AllowOperators=true : un compte déjà grant via `operator grant` peut encore se logger.
             """);
     }
 }
