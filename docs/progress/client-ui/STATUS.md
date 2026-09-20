@@ -18,9 +18,9 @@ Kenney `bars/*` HP/MP, chrome fenêtres, portrait status, login : **non touchés
 
 | Surface | Avant (Kenney + tint or) | Après (tokens DA) |
 | --- | --- | --- |
-| Hotbar slots | Case Kenney brune + icône/chiffre or (`CreateGoldTintAttributes`) | Fill `bg.slot` `#0C1018` ; bordure seule `accent.gold` `#C9A227` ; icônes/chiffres `text.primary` `#F2F4F8` |
+| `HudHotbar` slots | Case Kenney brune + icône/chiffre or (`CreateGoldTintAttributes`) | Fill `bg.slot` `#0C1018` ; bordure seule `accent.gold` `#C9A227` ; icônes/chiffres `text.primary` `#F2F4F8` |
 | Slots 4–10 | Même chrome, texte muted | Même fill sombre ; bordure `accent.gold.dim` ; chiffre `text.muted` |
-| Menu ring | Pill Kenney brune + icône or | Cercle/chip sombre `bg.slot` + filet or ; icône + label crème. **5 boutons déjà branchés** conservés (Perso / Inv / Quêtes / Carte / Options) — pas d’expansion step 4 |
+| `HudMenuRing` | Pill Kenney brune + icône or | Cercle/chip sombre `bg.slot` + filet or ; icône + label crème. **5 boutons déjà branchés** conservés (Perso / Inv / Quêtes / Carte / Options) — pas d’expansion step 4 |
 
 `UiTheme.Apply` repose `StyleContrastHudButton` sur ces contrôles pour ne pas les ramener à `BgPanelHeader`.
 
