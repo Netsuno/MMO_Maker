@@ -81,6 +81,9 @@
                 <MenuItem Header="Outil point de départ"
                           Command="{x:Static local:MainWindow.CmdSpawnTool}"
                           InputGestureText="D" />
+                <MenuItem Header="Outil prefab / objet"
+                          Command="{x:Static local:MainWindow.CmdPrefabTool}"
+                          InputGestureText="P" />
                 <MenuItem Header="Configurer warp sélectionné…" Command="{x:Static local:MainWindow.CmdEditWarp}" />
                 <MenuItem Header="Actualiser le catalogue (PostgreSQL / mémoire)"
                           Command="{x:Static local:MainWindow.CmdRefreshCatalog}"
@@ -127,6 +130,7 @@
                 <Button Content="Catalogue" Command="{x:Static local:MainWindow.CmdRefreshCatalog}" Padding="10,4" />
                 <Separator />
                 <Button Content="Départ" Command="{x:Static local:MainWindow.CmdSpawnTool}" Padding="10,4" ToolTip="Outil point de départ playtest (D)" />
+                <Button Content="Prefab" Command="{x:Static local:MainWindow.CmdPrefabTool}" Padding="10,4" ToolTip="Poser un objet prefab (P)" />
             </ToolBar>
         </ToolBarTray>
         <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">

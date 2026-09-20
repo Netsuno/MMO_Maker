@@ -113,6 +113,9 @@ public sealed class MainShellForm : Form
     private DateTime _lastAutoMapRequestUtc = DateTime.MinValue;
     private static readonly TimeSpan AutoMapRequestDebounce = TimeSpan.FromMilliseconds(300);
     private readonly Dictionary<int, Bitmap> _tilesetBitmaps = new();
+    private readonly List<PrefabPlacement> _prefabPlacements = new();
+    private readonly Dictionary<string, Bitmap> _prefabBitmaps = new(StringComparer.OrdinalIgnoreCase);
+    private PrefabCatalog? _prefabCatalog;
     /// <summary>Envoi périodique <see cref="FrogGameClient.SendPositionSyncAsync"/> (protocole ≥ 8) : centre prédit en pixels.</summary>
     private DateTime _lastMoveSendUtc = DateTime.MinValue;
     private bool _pendingIdlePositionSync;
@@ -2093,6 +2096,9 @@ public sealed class MainShellForm : Form
         ResetLocalMotionState();
         ClearMapImage();
         DisposeTilesetBitmaps();
+        DisposePrefabBitmaps();
+        _prefabPlacements.Clear();
+        _prefabCatalog = null;
         _mapEvents.Clear();
         _awaitingPlayingPhase = false;
         _btnBackDisconnect.Enabled = false;
@@ -2297,6 +2303,9 @@ public sealed class MainShellForm : Form
         ResetLocalMotionState();
         ClearMapImage();
         DisposeTilesetBitmaps();
+        DisposePrefabBitmaps();
+        _prefabPlacements.Clear();
+        _prefabCatalog = null;
         _mapEvents.Clear();
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
@@ -2347,6 +2356,7 @@ public sealed class MainShellForm : Form
         }
 
         ReloadTilesetBitmaps();
+        ReloadPrefabOverlays();
         RedrawMap();
         _hudMinimap.RebuildCache(map);
         if (_localVisualInitialized)
@@ -3098,7 +3108,19 @@ public sealed class MainShellForm : Form
 
         var localWalking = TryGetHeldMoveDiscrete(out _, out _);
         var localPose = new PlayerSpritePose(_localFacing, localWalking, _localWalkElapsedMs);
-        var bmp = MapViewRenderer.Render(_map, otherPx, _username, lcx, lcy, _tilesetBitmaps, _mapEvents, localPose: localPose, otherPoses: otherPoses);
+        var bmp = MapViewRenderer.Render(
+            _map,
+            otherPx,
+            _username,
+            lcx,
+            lcy,
+            _tilesetBitmaps,
+            _mapEvents,
+            localPose: localPose,
+            otherPoses: otherPoses,
+            prefabPlacements: _prefabPlacements,
+            prefabCatalog: _prefabCatalog,
+            prefabBitmaps: _prefabBitmaps);
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
@@ -3126,6 +3148,30 @@ public sealed class MainShellForm : Form
         }
     }
 
+    private void ReloadPrefabOverlays()
+    {
+        DisposePrefabBitmaps();
+        _prefabPlacements.Clear();
+        _prefabCatalog = null;
+        if (_map is null)
+        {
+            return;
+        }
+
+        var loaded = ClientPrefabLoader.LoadForMap(_map, AppContext.BaseDirectory);
+        _prefabCatalog = loaded.Catalog;
+        _prefabPlacements.AddRange(loaded.Placements);
+        foreach (var kv in loaded.Bitmaps)
+        {
+            _prefabBitmaps[kv.Key] = kv.Value;
+        }
+
+        if (_prefabPlacements.Count > 0)
+        {
+            AppendLog($"Prefabs posés : {_prefabPlacements.Count} (sidecar Maps/*.prefabs.json).");
+        }
+    }
+
     private void DisposeTilesetBitmaps()
     {
         foreach (var b in _tilesetBitmaps.Values)
@@ -3134,6 +3180,11 @@ public sealed class MainShellForm : Form
         }
 
         _tilesetBitmaps.Clear();
+    }
+
+    private void DisposePrefabBitmaps()
+    {
+        ClientPrefabLoader.DisposeBitmaps(_prefabBitmaps);
     }
 
     private void ClearMapImage()

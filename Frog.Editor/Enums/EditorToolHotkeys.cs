@@ -34,6 +34,7 @@ public static class EditorToolHotkeys
             Key.R => Keys.R,
             Key.M => Keys.M,
             Key.D => Keys.D,
+            Key.P => Keys.P,
             _ => Keys.None,
         };
 
@@ -65,6 +66,9 @@ public static class EditorToolHotkeys
             case Keys.D:
                 tool = EditorTool.Spawn;
                 return true;
+            case Keys.P:
+                tool = EditorTool.Prefab;
+                return true;
             default:
                 tool = default;
                 return false;
@@ -81,6 +85,7 @@ public static class EditorToolHotkeys
             EditorTool.Rectangle => "R",
             EditorTool.Selection => "M",
             EditorTool.Spawn => "D",
+            EditorTool.Prefab => "P",
             _ => string.Empty,
         };
 
@@ -94,6 +99,7 @@ public static class EditorToolHotkeys
             EditorTool.Rectangle => "Rectangle",
             EditorTool.Selection => "Sélection",
             EditorTool.Spawn => "Départ (spawn)",
+            EditorTool.Prefab => "Prefab (objet)",
             _ => tool.ToString(),
         };
 
@@ -106,5 +112,5 @@ public static class EditorToolHotkeys
     }
 
     public const string PaletteHint =
-        "B pinceau · E gomme · C curseur · F pot · R rectangle · M sélection · D départ";
+        "B pinceau · E gomme · C curseur · F pot · R rectangle · M sélection · D départ · P prefab";
 }

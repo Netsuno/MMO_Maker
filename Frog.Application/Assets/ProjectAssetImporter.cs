@@ -38,7 +38,7 @@ public static class ProjectAssetImporter
         kind = (kind ?? string.Empty).Trim().ToLowerInvariant();
         if (!ProjectAssetKind.IsKnown(kind))
         {
-            return Fail("Catégorie d’asset inconnue (tiles, sprites, icons, other).");
+            return Fail("Catégorie d’asset inconnue (tiles, sprites, icons, other, prefabs).");
         }
 
         var ext = Path.GetExtension(sourcePath);

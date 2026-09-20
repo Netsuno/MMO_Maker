@@ -101,6 +101,11 @@ public partial class MainWindow : Window
         nameof(CmdSpawnTool),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdPrefabTool = new(
+        "Outil prefab / objet",
+        nameof(CmdPrefabTool),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdBrowseMapEvents = new(
         "Événements carte (MariaDB, héritage)…",
         nameof(CmdBrowseMapEvents),
@@ -178,6 +183,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdSpawnTool, (_, _) => _editor.SelectEditorTool(EditorTool.Spawn)));
+        CommandBindings.Add(new CommandBinding(CmdPrefabTool, (_, _) => _editor.SelectEditorTool(EditorTool.Prefab)));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEvents()));
         CommandBindings.Add(new CommandBinding(CmdBrowsePhase8Content, (_, _) => _editor.BrowsePhase8Content()));
         CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkers()));
@@ -358,6 +364,13 @@ public partial class MainWindow : Window
         if (EditorToolHotkeys.TryResolveWpf(e.Key, Keyboard.Modifiers, out var tool))
         {
             _editor.SelectEditorTool(tool);
+            e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.None && e.Key is Key.OemOpenBrackets or Key.Oem6)
+        {
+            _editor.CycleSelectedPrefabFacingForTest(next: e.Key == Key.Oem6);
             e.Handled = true;
         }
     }

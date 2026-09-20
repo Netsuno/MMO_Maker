@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows.Forms;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
+using Frog.Application.Prefabs;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -116,6 +117,20 @@ public sealed class MapCanvas : Control
 
     /// <summary>Le spawn a été posé ou restauré (UI / workstate).</summary>
     public event Action<Point>? PlaytestSpawnChanged;
+
+    /// <summary>Catalogue utilisé pour poser / dessiner les prefabs.</summary>
+    public PrefabCatalog PrefabCatalog { get; set; } = BuiltInPrefabCatalog.Create();
+
+    public string SelectedPrefabId { get; set; } = BuiltInPrefabCatalog.SofaId;
+
+    public PrefabFacing SelectedPrefabFacing { get; set; } = PrefabFacing.South;
+
+    private readonly List<PrefabPlacement> _prefabPlacements = new();
+
+    public IReadOnlyList<PrefabPlacement> PrefabPlacements => _prefabPlacements;
+
+    /// <summary>Placements prefab ajoutés, retirés ou remplacés.</summary>
+    public event Action? PrefabPlacementsChanged;
 
     private bool _panning;
     private Point _lastMouse;
@@ -343,6 +358,7 @@ public sealed class MapCanvas : Control
                     DrawLayer(g, layer, tx0, ty0, tx1, ty1);
                 }
 
+                DrawPlacedPrefabs(g);
                 DrawTileTypeOverlay(g, tx0, ty0, tx1, ty1);
                 DrawMapEventMarkerOverlay(g, tx0, ty0, tx1, ty1);
                 DrawPlaytestSpawnMarker(g, tx0, ty0, tx1, ty1);
@@ -351,6 +367,11 @@ public sealed class MapCanvas : Control
             if (Map is not null && ActiveTool == EditorTool.Spawn)
             {
                 DrawTileRectPixels(g, _hoverTile.X, _hoverTile.Y, _hoverTile.X, _hoverTile.Y, Color.DeepSkyBlue, dash: true);
+            }
+
+            if (Map is not null && ActiveTool == EditorTool.Prefab)
+            {
+                DrawPrefabGhost(g, mw, mh);
             }
 
             if (ActiveTool == EditorTool.Selection && Map is not null && _selectionMarqueeAnchor is { } sa)
@@ -805,6 +826,130 @@ public sealed class MapCanvas : Control
         return TrySetPlaytestSpawn(tileX, tileY);
     }
 
+    public void ReplacePrefabPlacements(IEnumerable<PrefabPlacement>? placements)
+    {
+        _prefabPlacements.Clear();
+        _prefabPlacements.AddRange(PrefabPlacementService.ClonePlacements(placements));
+        PrefabPlacementsChanged?.Invoke();
+        Invalidate();
+    }
+
+    public bool TryPlaceSelectedPrefab(int tileX, int tileY)
+    {
+        if (Map is null)
+        {
+            return false;
+        }
+
+        var before = _prefabPlacements.Count;
+        var ok = PrefabPlacementService.TryPlace(
+            _prefabPlacements,
+            PrefabCatalog,
+            SelectedPrefabId,
+            SelectedPrefabFacing,
+            tileX,
+            tileY,
+            Map.Width,
+            Map.Height,
+            out _,
+            out _);
+        if (ok)
+        {
+            PrefabPlacementsChanged?.Invoke();
+            Invalidate();
+        }
+
+        return ok || _prefabPlacements.Count != before;
+    }
+
+    public int TryErasePrefabAt(int tileX, int tileY)
+    {
+        var removed = PrefabPlacementService.EraseAt(_prefabPlacements, PrefabCatalog, tileX, tileY);
+        if (removed > 0)
+        {
+            PrefabPlacementsChanged?.Invoke();
+            Invalidate();
+        }
+
+        return removed;
+    }
+
+    internal bool TryApplyPrefabToolAtTileForTest(int tileX, int tileY)
+    {
+        if (Map is null)
+        {
+            return false;
+        }
+
+        ActiveTool = EditorTool.Prefab;
+        return TryPlaceSelectedPrefab(tileX, tileY);
+    }
+
+    internal int TryErasePrefabAtForTest(int tileX, int tileY)
+    {
+        ActiveTool = EditorTool.Prefab;
+        return TryErasePrefabAt(tileX, tileY);
+    }
+
+    private void DrawPlacedPrefabs(Graphics g)
+    {
+        if (Map is null || _prefabPlacements.Count == 0)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        foreach (var placement in _prefabPlacements)
+        {
+            if (!PrefabPlacementService.TryGetDefinition(PrefabCatalog, placement.PrefabId, out var definition)
+                || !PrefabPlacementService.TryResolveVariant(definition, placement.Facing, out var variant)
+                || !PrefabPlacementService.TryResolveFootprint(definition, variant, out var w, out var h))
+            {
+                continue;
+            }
+
+            var dest = new Rectangle(placement.TileX * ts, placement.TileY * ts, w * ts, h * ts);
+            if (PrefabSpriteCache.TryGet(variant.SpriteFileName, out var bmp) && bmp is not null)
+            {
+                g.DrawImage(bmp, dest, new Rectangle(0, 0, bmp.Width, bmp.Height), GraphicsUnit.Pixel);
+            }
+            else
+            {
+                using var fill = new SolidBrush(Color.FromArgb(170, 168, 92, 58));
+                using var pen = new Pen(Color.FromArgb(230, 80, 48, 28), 2f);
+                g.FillRectangle(fill, dest);
+                g.DrawRectangle(pen, dest);
+            }
+        }
+    }
+
+    private void DrawPrefabGhost(Graphics g, int mapW, int mapH)
+    {
+        if (!PrefabPlacementService.TryGetDefinition(PrefabCatalog, SelectedPrefabId, out var definition)
+            || !PrefabPlacementService.TryResolveVariant(definition, SelectedPrefabFacing, out var variant)
+            || !PrefabPlacementService.TryResolveFootprint(definition, variant, out var w, out var h))
+        {
+            DrawTileRectPixels(g, _hoverTile.X, _hoverTile.Y, _hoverTile.X, _hoverTile.Y, Color.SandyBrown, dash: true);
+            return;
+        }
+
+        var x1 = Math.Min(mapW - 1, _hoverTile.X + w - 1);
+        var y1 = Math.Min(mapH - 1, _hoverTile.Y + h - 1);
+        DrawTileRectPixels(g, _hoverTile.X, _hoverTile.Y, x1, y1, Color.SandyBrown, dash: true);
+
+        if (PrefabSpriteCache.TryGet(variant.SpriteFileName, out var bmp) && bmp is not null)
+        {
+            var ts = TileSize;
+            var dest = new Rectangle(_hoverTile.X * ts, _hoverTile.Y * ts, w * ts, h * ts);
+            using var attrs = new System.Drawing.Imaging.ImageAttributes();
+            attrs.SetColorMatrix(
+                new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.45f },
+                System.Drawing.Imaging.ColorMatrixFlag.Default,
+                System.Drawing.Imaging.ColorAdjustType.Bitmap);
+            g.DrawImage(bmp, dest, 0, 0, bmp.Width, bmp.Height, GraphicsUnit.Pixel, attrs);
+        }
+    }
+
     private void DrawTileRectPixels(Graphics g, int ax, int ay, int bx, int by, Color color, bool dash)
     {
         var x0 = Math.Min(ax, bx);
@@ -952,6 +1097,22 @@ public sealed class MapCanvas : Control
                 return;
             }
 
+            if (ActiveTool == EditorTool.Prefab)
+            {
+                if ((ModifierKeys & Keys.Control) == Keys.Control)
+                {
+                    _suppressRightButtonErase = true;
+                    TileContextMenuRequested?.Invoke(new Point(tx, ty));
+                    return;
+                }
+
+                TryErasePrefabAt(tx, ty);
+                Capture = true;
+                Invalidate();
+                RaiseTileClicked(tx, ty);
+                return;
+            }
+
             if (ActiveTool == EditorTool.Rectangle)
             {
                 _rectPaintOrigin = null;
@@ -1054,6 +1215,13 @@ public sealed class MapCanvas : Control
                     TrySetPlaytestSpawn(tx, ty);
                     RaiseTileClicked(tx, ty);
                     break;
+
+                case EditorTool.Prefab:
+                    TryPlaceSelectedPrefab(tx, ty);
+                    Capture = true;
+                    Invalidate();
+                    RaiseTileClicked(tx, ty);
+                    break;
             }
         }
     }
@@ -1116,6 +1284,11 @@ public sealed class MapCanvas : Control
                 ApplyBrush(tx, ty);
                 Invalidate();
             }
+            else if (ActiveTool == EditorTool.Prefab && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
+            {
+                TryPlaceSelectedPrefab(tx, ty);
+                Invalidate();
+            }
             else if (ActiveTool is EditorTool.Rectangle or EditorTool.Selection && (_rectPaintOrigin is not null || _selectionMarqueeAnchor is not null))
             {
                 Invalidate();
@@ -1123,7 +1296,20 @@ public sealed class MapCanvas : Control
         }
 
         if (!_suppressRightButtonErase &&
+            ActiveTool == EditorTool.Prefab &&
+            (e.Button & MouseButtons.Right) != 0 &&
+            tx >= 0 &&
+            ty >= 0 &&
+            tx < Map.Width &&
+            ty < Map.Height)
+        {
+            TryErasePrefabAt(tx, ty);
+            Invalidate();
+        }
+
+        if (!_suppressRightButtonErase &&
             ActiveTool != EditorTool.Spawn &&
+            ActiveTool != EditorTool.Prefab &&
             (e.Button & MouseButtons.Right) != 0 &&
             tx >= 0 &&
             ty >= 0 &&
@@ -1225,7 +1411,7 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection or EditorTool.Spawn)
+        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection or EditorTool.Spawn or EditorTool.Prefab)
         {
             Cursor = Cursors.Cross;
             return;

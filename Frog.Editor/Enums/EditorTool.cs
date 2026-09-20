@@ -12,6 +12,8 @@ namespace Frog.Editor.Enums
         /// <summary>Sélection rectangulaire (copier / coller tuiles sur la couche active).</summary>
         Selection = 5,
         /// <summary>Clic = tuile de spawn playtest / départ (mémo locale, pas de peinture).</summary>
-        Spawn = 6
+        Spawn = 6,
+        /// <summary>Clic = poser un prefab (sidecar / workstate, pas de peinture tuile).</summary>
+        Prefab = 7
     }
 }
