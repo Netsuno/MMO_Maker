@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using Frog.Client.UI;
 using Frog.Core.Economy;
 using Frog.Core.Enums;
+using Frog.Core.Instances;
 using Frog.Core.Social;
 
 namespace Frog.Client.Controls;
@@ -20,18 +21,27 @@ public sealed class SocialHubPanel : UserControl
     private readonly TabPage _tabMail = new("Courrier") { Padding = new Padding(4) };
     private readonly TabPage _tabAuction = new("HdV") { Padding = new Padding(4) };
     private readonly TabPage _tabGuildBank = new("Coffre") { Padding = new Padding(4) };
+    private readonly TabPage _tabInstance = new("Instance") { Padding = new Padding(4) };
     private readonly SocialKindSurface _friends;
     private readonly SocialKindSurface _party;
     private readonly SocialKindSurface _guild;
     private readonly EconomyHubSurface _mail = new(EconomyHubKind.Mail);
     private readonly EconomyHubSurface _auction = new(EconomyHubKind.Auction);
     private readonly EconomyHubSurface _guildBank = new(EconomyHubKind.GuildBank);
+    private readonly InstanceHubSurface _instance = new();
     private ClientSocialRoster _roster = new();
     private ClientEconomyHub _economy = new();
+    private ClientInstanceHub _instanceHub = new();
 
     public event Action<SocialClientRequest>? ActionRequested;
 
     public event Action<EconomyHubKind>? EconomyQueryRequested;
+
+    public event Action<InstanceHubKind>? InstanceQueryRequested;
+
+    public event Action<InstanceHubKind, Guid>? InstanceEnterRequested;
+
+    public event Action<InstanceHubKind>? InstanceLeaveRequested;
 
     public event Action? SurfaceChanged;
 
@@ -49,15 +59,20 @@ public sealed class SocialHubPanel : UserControl
         _tabMail.Controls.Add(_mail);
         _tabAuction.Controls.Add(_auction);
         _tabGuildBank.Controls.Add(_guildBank);
+        _tabInstance.Controls.Add(_instance);
         _mail.QueryRequested += kind => EconomyQueryRequested?.Invoke(kind);
         _auction.QueryRequested += kind => EconomyQueryRequested?.Invoke(kind);
         _guildBank.QueryRequested += kind => EconomyQueryRequested?.Invoke(kind);
+        _instance.QueryRequested += kind => InstanceQueryRequested?.Invoke(kind);
+        _instance.EnterRequested += (kind, id) => InstanceEnterRequested?.Invoke(kind, id);
+        _instance.LeaveRequested += kind => InstanceLeaveRequested?.Invoke(kind);
         _tabs.TabPages.Add(_tabFriends);
         _tabs.TabPages.Add(_tabParty);
         _tabs.TabPages.Add(_tabGuild);
         _tabs.TabPages.Add(_tabMail);
         _tabs.TabPages.Add(_tabAuction);
         _tabs.TabPages.Add(_tabGuildBank);
+        _tabs.TabPages.Add(_tabInstance);
         UiTheme.StyleGoldTabs(_tabs);
         Controls.Add(_tabs);
         Paint += (s, e) => UiTheme.PaintDoubleGoldFrame(this, e);
@@ -69,9 +84,15 @@ public sealed class SocialHubPanel : UserControl
             {
                 EconomyQueryRequested?.Invoke(economyKind);
             }
+            else if (IsInstanceTabSelected)
+            {
+                InstanceQueryRequested?.Invoke(InstanceHubKind.Dungeon);
+                InstanceQueryRequested?.Invoke(InstanceHubKind.Raid);
+            }
         };
         ApplyRoster(_roster);
         ApplyEconomy(_economy);
+        ApplyInstance(_instanceHub);
     }
 
     public SocialKind SelectedKind
@@ -141,6 +162,17 @@ public sealed class SocialHubPanel : UserControl
         return false;
     }
 
+    public bool IsInstanceTabSelected => _tabs.SelectedTab == _tabInstance;
+
+    public void SelectInstance()
+    {
+        _tabs.SelectedTab = _tabInstance;
+        SyncActions();
+        SurfaceChanged?.Invoke();
+        InstanceQueryRequested?.Invoke(InstanceHubKind.Dungeon);
+        InstanceQueryRequested?.Invoke(InstanceHubKind.Raid);
+    }
+
     public void ApplyRoster(ClientSocialRoster roster)
     {
         _roster = roster ?? new ClientSocialRoster();
@@ -158,9 +190,17 @@ public sealed class SocialHubPanel : UserControl
         _guildBank.Bind(_economy);
     }
 
-    public string ChromeTitle => TryGetSelectedEconomy(out var economy)
-        ? ClientEconomyHub.KindLabel(economy)
-        : ClientSocialRoster.KindLabel(SelectedKind);
+    public void ApplyInstance(ClientInstanceHub state)
+    {
+        _instanceHub = state ?? new ClientInstanceHub();
+        _instance.Bind(_instanceHub);
+    }
+
+    public string ChromeTitle => IsInstanceTabSelected
+        ? (string.IsNullOrEmpty(_instanceHub.CurrentInstanceName) ? "Instance" : _instanceHub.CurrentInstanceName)
+        : TryGetSelectedEconomy(out var economy)
+            ? ClientEconomyHub.KindLabel(economy)
+            : ClientSocialRoster.KindLabel(SelectedKind);
 
     internal TabControl TabsForTest => _tabs;
 
@@ -191,6 +231,20 @@ public sealed class SocialHubPanel : UserControl
     internal string EconomyEmptyHintForTest(EconomyHubKind kind) => EconomySurface(kind).EmptyHintForTest;
 
     internal void ClickEconomyRefreshForTest(EconomyHubKind kind) => EconomySurface(kind).ClickRefreshForTest();
+
+    internal ClientInstanceHub InstanceForTest => _instanceHub;
+
+    internal int InstanceRowCountForTest => _instance.RowCountForTest;
+
+    internal string InstanceEmptyHintForTest => _instance.EmptyHintForTest;
+
+    internal string InstanceNameForTest => _instance.InstanceNameForTest;
+
+    internal void ClickInstanceRefreshForTest() => _instance.ClickRefreshForTest();
+
+    internal void ClickInstanceEnterForTest() => _instance.ClickEnterForTest();
+
+    internal void ClickInstanceLeaveForTest() => _instance.ClickLeaveForTest();
 
     private EconomyHubSurface EconomySurface(EconomyHubKind kind) => kind switch
     {

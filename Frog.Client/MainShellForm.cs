@@ -24,6 +24,7 @@ using Frog.Core.Observability;
 using Frog.Core.Protocol;
 using Frog.Core.Security;
 using Frog.Core.Economy;
+using Frog.Core.Instances;
 using Frog.Core.Social;
 using Frog.Core.Weather;
 
@@ -227,6 +228,7 @@ public sealed class MainShellForm : Form
     private readonly TabPage _tabSocial = new("Social") { Padding = new Padding(4) };
     private readonly ClientSocialRoster _socialRoster = new();
     private readonly ClientEconomyHub _economyHub = new();
+    private readonly ClientInstanceHub _instanceHub = new();
     private readonly SocialHubPanel _socialHub = new() { Dock = DockStyle.Fill };
     private readonly HudWindowChrome _windowChrome = new("Inventaire");
     private string _windowTitleHint = "Inventaire";
@@ -1087,6 +1089,9 @@ public sealed class MainShellForm : Form
         _tabSocial.Controls.Add(_socialHub);
         _socialHub.ActionRequested += OnSocialHubAction;
         _socialHub.EconomyQueryRequested += OnEconomyHubQuery;
+        _socialHub.InstanceQueryRequested += OnInstanceHubQuery;
+        _socialHub.InstanceEnterRequested += OnInstanceHubEnter;
+        _socialHub.InstanceLeaveRequested += OnInstanceHubLeave;
         _socialHub.SurfaceChanged += RefreshWindowChromeTitle;
         _tabChat.Controls.Add(new Label
         {
@@ -1298,6 +1303,8 @@ public sealed class MainShellForm : Form
         _client.SocialSnapshotReceived += OnSocialSnapshot;
         _client.EconomyHubResultReceived += OnEconomyHubResult;
         _client.EconomyHubSnapshotReceived += OnEconomyHubSnapshot;
+        _client.InstanceHubResultReceived += OnInstanceHubResult;
+        _client.InstanceHubSnapshotReceived += OnInstanceHubSnapshot;
         _client.TradeResultReceived += r =>
             AppendLog(r.Success ? "Échange: " + r.Message : "Échange refusé: " + r.Message);
         _client.TradeSnapshotReceived += OnTradeSnapshot;
@@ -3750,6 +3757,97 @@ public sealed class MainShellForm : Form
         AppendLog(result.Success ? "Économie: " + result.Message : "Économie refusée: " + result.Message);
     }
 
+    private void OpenInstancePanel()
+    {
+        _windowTitleHint = string.IsNullOrEmpty(_instanceHub.CurrentInstanceName)
+            ? "Instance"
+            : _instanceHub.CurrentInstanceName;
+        if (_windowLayerVisible
+            && _gameplayTabs.SelectedTab == _tabSocial
+            && _socialHub.IsInstanceTabSelected)
+        {
+            SetWindowLayerVisible(false);
+            return;
+        }
+
+        SetWindowLayerVisible(true);
+        _gameplayTabs.SelectedTab = _tabSocial;
+        _socialHub.SelectInstance();
+        RefreshWindowChromeTitle();
+    }
+
+    private void OnInstanceHubQuery(InstanceHubKind kind)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        _ = SendInstanceHubAsync(kind, (byte)InstanceHubAction.Query, ClientInstanceHub.QueryExtra());
+    }
+
+    private void OnInstanceHubEnter(InstanceHubKind kind, Guid definitionId)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        _ = SendInstanceHubAsync(kind, (byte)InstanceHubAction.Enter, ClientInstanceHub.EnterExtra(definitionId));
+    }
+
+    private void OnInstanceHubLeave(InstanceHubKind kind)
+    {
+        if (_client is null || !_client.IsConnected)
+        {
+            return;
+        }
+
+        _ = SendInstanceHubAsync(kind, (byte)InstanceHubAction.Leave, ClientInstanceHub.LeaveExtra());
+    }
+
+    private async Task SendInstanceHubAsync(InstanceHubKind kind, byte action, byte[] extra)
+    {
+        if (_client is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendInstanceHubAsync(kind, action, Guid.NewGuid(), extra).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Instance: " + ex.Message);
+        }
+    }
+
+    private void OnInstanceHubSnapshot(InstanceHubSnapshotWire snap)
+    {
+        _instanceHub.ApplySnapshot(snap);
+        _socialHub.ApplyInstance(_instanceHub);
+        AppendLog($"{ClientInstanceHub.KindLabel(snap.Kind)}: {snap.Entries.Count} entrée(s)"
+                  + (string.IsNullOrEmpty(_instanceHub.CurrentInstanceName)
+                      ? string.Empty
+                      : " — " + _instanceHub.CurrentInstanceName));
+        if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabSocial)
+        {
+            RefreshWindowChromeTitle();
+        }
+    }
+
+    private void OnInstanceHubResult(InstanceHubResultWire result)
+    {
+        _instanceHub.ApplyResult(result);
+        _socialHub.ApplyInstance(_instanceHub);
+        AppendLog(result.Success ? "Instance: " + result.Message : "Instance refusée: " + result.Message);
+        if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabSocial)
+        {
+            RefreshWindowChromeTitle();
+        }
+    }
+
     private void OnSocialSnapshot(SocialSnapshotWire snap)
     {
         _socialRoster.ApplySnapshot(snap);
@@ -4297,6 +4395,12 @@ public sealed class MainShellForm : Form
     internal ClientEconomyHub EconomyHubForTest => _economyHub;
 
     internal void OnEconomyHubSnapshotForTest(EconomyHubSnapshotWire snap) => OnEconomyHubSnapshot(snap);
+
+    internal void OpenInstancePanelForTest() => OpenInstancePanel();
+
+    internal ClientInstanceHub InstanceHubForTest => _instanceHub;
+
+    internal void OnInstanceHubSnapshotForTest(InstanceHubSnapshotWire snap) => OnInstanceHubSnapshot(snap);
 
     internal void OnSocialSnapshotForTest(SocialSnapshotWire snap) => OnSocialSnapshot(snap);
 

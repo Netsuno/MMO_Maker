@@ -436,6 +436,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton<Frog.Server.Trade.TradeHoldRegistry>();
                 services.AddSingleton<Frog.Application.Gameplay.ITradeHoldQuery>(sp =>
                     sp.GetRequiredService<Frog.Server.Trade.TradeHoldRegistry>());
+                services.AddSingleton<Frog.Server.Social.PartyRoster>();
                 services.AddSingleton<Frog.Server.Social.SocialService>();
                 services.AddSingleton<Frog.Server.Social.ISocialPresenceSink>(sp =>
                     sp.GetRequiredService<Frog.Server.Social.SocialService>());
@@ -443,6 +444,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton<Frog.Server.Trade.ITradePresenceSink>(sp =>
                     sp.GetRequiredService<Frog.Server.Trade.TradeService>());
                 services.AddSingleton<Frog.Server.Economy.EconomyHubService>();
+                services.AddSingleton<Frog.Server.Instances.InstanceHubService>();
                 services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
                 services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();

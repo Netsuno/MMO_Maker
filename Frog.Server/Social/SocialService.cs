@@ -20,7 +20,7 @@ public sealed class SocialService : ISocialPresenceSink
     private readonly ClientRegistry _clients;
     private readonly SocialOptions _options;
     private readonly TimeProvider _clock;
-    private readonly PartyRoster _parties = new();
+    private readonly PartyRoster _parties;
     private readonly CrossInviteCounters _inviteCounters;
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, SocialResultWire>> _replays = new();
     private readonly object _partyGate = new();
@@ -32,6 +32,7 @@ public sealed class SocialService : ISocialPresenceSink
         ClientRegistry clients,
         IOptions<SocialOptions> options,
         CrossInviteCounters inviteCounters,
+        PartyRoster parties,
         TimeProvider? clock = null)
     {
         _store = store;
@@ -40,6 +41,7 @@ public sealed class SocialService : ISocialPresenceSink
         _clients = clients;
         _options = options.Value;
         _inviteCounters = inviteCounters;
+        _parties = parties;
         _clock = clock ?? TimeProvider.System;
         _inviteCounters.Register(
             "party",

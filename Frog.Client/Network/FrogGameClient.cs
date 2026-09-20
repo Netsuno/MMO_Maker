@@ -99,6 +99,8 @@ public sealed class FrogGameClient : IDisposable
     public event Action<TradeSnapshotWire>? TradeSnapshotReceived;
     public event Action<EconomyHubResultWire>? EconomyHubResultReceived;
     public event Action<EconomyHubSnapshotWire>? EconomyHubSnapshotReceived;
+    public event Action<InstanceHubResultWire>? InstanceHubResultReceived;
+    public event Action<InstanceHubSnapshotWire>? InstanceHubSnapshotReceived;
     public event Action? ConnectionClosed;
 
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
@@ -814,6 +816,22 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.InstanceHubResult:
+                if (InstanceHubWire.TryParseResult(body.Span, out var instanceResult))
+                {
+                    Post(() => InstanceHubResultReceived?.Invoke(instanceResult));
+                }
+
+                break;
+
+            case PacketId.InstanceHubSnapshot:
+                if (InstanceHubWire.TryParseSnapshot(body.Span, out var instanceSnap))
+                {
+                    Post(() => InstanceHubSnapshotReceived?.Invoke(instanceSnap));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -1191,6 +1209,20 @@ public sealed class FrogGameClient : IDisposable
         var body = EconomyHubWire.BuildRequest(kind, action, requestId, extra);
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.EconomyHubRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendInstanceHubAsync(
+        InstanceHubKind kind,
+        byte action,
+        Guid requestId,
+        ReadOnlySpan<byte> extra,
+        CancellationToken cancellationToken = default)
+    {
+        var body = InstanceHubWire.BuildRequest(kind, action, requestId, extra);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.InstanceHubRequest;
         body.CopyTo(payload.AsSpan(1));
         return SendRawAsync(payload, cancellationToken);
     }
