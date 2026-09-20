@@ -8,7 +8,7 @@
 | **Base** | `main` @ `2faa511` (merge PR #23 DA v2 login) |
 | **Branche** | `cursor/player-npc-anim-mvp` |
 | **PR** | Draft [#25](https://github.com/Netsuno/MMO_Maker/pull/25) vers `main` — **pas de merge** |
-| **Tip** | _(pin after this push; CI pending)_ |
+| **Tip** | `a3cbf812273fd30d5ecea2e7dd51889dd5aafbe1` (walk-sheet mapping; CI pending) |
 
 `WorldMetrics.DefaultTileSizePixels = 32` inchangé. Affichage nearest-neighbor ×1.
 Pas de bump protocole, pas de rewrite caméra / fluidité, pas de prefabs, pas d’IA monstre.
