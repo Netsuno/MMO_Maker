@@ -52,11 +52,26 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal(16, form.SmoothTimerIntervalForTest);
 
                 var tabs = form.GameplayTabsForTest;
+                var chrome = form.WindowChromeForTest;
                 Assert.True(form.WindowLayerVisibleForTest, "window layer flag after show");
                 Assert.Equal(360, tabs.Width);
                 Assert.True(
                     tabs.Width >= 300 && tabs.Width <= 400 && tabs.Height >= 250 && tabs.Height <= 700,
                     $"TabControl crop {tabs.Width}×{tabs.Height}");
+                Assert.True(chrome.Visible, "window chrome wraps overlay tabs");
+                Assert.True(
+                    chrome.TitleBarHeightForTest is >= 28 and <= 32,
+                    $"titlebar height {chrome.TitleBarHeightForTest}");
+                Assert.Equal(new Size(20, 20), chrome.CloseButtonSizeForTest);
+                Assert.True(
+                    chrome.ContentPaddingForTest is >= 10 and <= 12,
+                    $"chrome padding {chrome.ContentPaddingForTest}");
+                Assert.Equal(UiTheme.AccentGold, chrome.TitleForeColorForTest);
+                Assert.Equal(UiTheme.StateError, chrome.CloseBackColorForTest);
+                Assert.Equal(UiTheme.TextPrimary, chrome.CloseForeColorForTest);
+                Assert.Equal(TabDrawMode.OwnerDrawFixed, tabs.DrawMode);
+                Assert.Contains("Inventaire", tabs.TabPages.Cast<TabPage>().Select(p => p.Text));
+                Assert.Contains("Quêtes", tabs.TabPages.Cast<TabPage>().Select(p => p.Text));
 
                 Assert.Equal(10, form.HotbarForTest.SlotCountForTest);
                 Assert.Equal("1", form.HotbarForTest.SlotTextForTest(0));
@@ -138,6 +153,9 @@ public sealed class ClientHudOverlaySmokeTests
 
                 form.SetWindowLayerVisibleForTest(false);
                 Assert.False(form.WindowLayerVisibleForTest);
+                form.SetWindowLayerVisibleForTest(true);
+                form.WindowChromeForTest.CloseButtonForTest.PerformClick();
+                Assert.False(form.WindowLayerVisibleForTest, "red X dismisses window layer");
                 form.SelectPhase8TabForTest();
                 Assert.True(form.WindowLayerVisibleForTest, "SelectPhase8Tab reopens window layer");
                 Assert.True(form.IsPhase8TabSelectedForTest, "phase 8 tab selected");

@@ -30,7 +30,7 @@ Kenney `bars/*` HP/MP, chrome fenêtres, portrait status, login : **non touchés
 
 ## Hors scope (PR suivantes)
 
-- Step 2 : chrome fenêtres (titlebar / X rouge / tabs)
+- Step 2 : chrome fenêtres (titlebar / X rouge / tabs) — [STATUS-da-v2-chrome.md](STATUS-da-v2-chrome.md)
 - Step 3 : portrait status HG
 - Step 4 : layout 5 icônes menu (les 5 fils existent déjà)
 - Step 5 : login immersif
