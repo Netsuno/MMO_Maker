@@ -8,7 +8,7 @@
 | **Base** | `main` @ `deadcac` (merge PR #20 DA v2 status portrait) |
 | **Branche** | `cursor/editor-spawn-and-tools-gap-a846` |
 | **PR** | Draft [#22](https://github.com/Netsuno/MMO_Maker/pull/22) vers `main` — **pas de merge** |
-| **Tip** | `ccb05ec` |
+| **Tip** | `d34c0f1` |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump `.fmap` |
 
 Parallèle à #21 (icônes menu client). **Aucun** changement Frog.Client HUD / `Hud*` / `MainShellForm`. Prefabs objets carte **hors scope**.
