@@ -8,7 +8,7 @@
 | **Base** | `main` @ `bc60186` (merge PR #26 prefab objects) |
 | **Branche** | `cursor/audio-mvp` |
 | **PR** | Draft [#28](https://github.com/Netsuno/MMO_Maker/pull/28) vers `main` — **pas de merge** |
-| **Tip** | `19154a8` |
+| **Tip** | `4e0e753` |
 | **CI** | Intent green (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump |
 
