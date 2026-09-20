@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -1030,6 +1031,7 @@ public sealed partial class PacketDispatcher(
 
         var cellBefore = (session.CurrentMapId, session.PositionX, session.PositionY);
 
+        var applyWatch = MovementMeasureServerSink.IsEnabled ? Stopwatch.StartNew() : null;
         if (!_movementService.TryApplyMove(session, deltaX, deltaY, out var error))
         {
             await _packetSender.SendErrorAsync(clientSession, error, cancellationToken);
@@ -1043,6 +1045,15 @@ public sealed partial class PacketDispatcher(
             await _trade.NotifyMovementAsync(movedCharacterId, cancellationToken).ConfigureAwait(false);
         }
         ServerNetworkLogs.MoveApplied(_logger, session.Username, session.PixelX, session.PixelY);
+        if (applyWatch is not null && MovementMeasureServerSink.ShouldLogApply())
+        {
+            ServerNetworkLogs.MovementMeasureApply(
+                _logger,
+                session.Username,
+                session.PixelX,
+                session.PixelY,
+                MovementMeasureServerSink.FormatApplyMs(applyWatch.Elapsed.TotalMilliseconds));
+        }
         var clients = _clientRegistry.GetAllAuthenticatedClients();
         foreach (var targetClient in clients)
         {
@@ -1111,6 +1122,7 @@ public sealed partial class PacketDispatcher(
 
         var cellBefore = (session.CurrentMapId, session.PositionX, session.PositionY);
 
+        var applyWatch = MovementMeasureServerSink.IsEnabled ? Stopwatch.StartNew() : null;
         if (!_movementService.TryApplyReportedPixelPosition(session, px, py, out var error))
         {
             await _packetSender.SendErrorAsync(clientSession, error, cancellationToken);
@@ -1124,6 +1136,15 @@ public sealed partial class PacketDispatcher(
             await _trade.NotifyMovementAsync(movedCharacterId, cancellationToken).ConfigureAwait(false);
         }
         ServerNetworkLogs.MoveApplied(_logger, session.Username, session.PixelX, session.PixelY);
+        if (applyWatch is not null && MovementMeasureServerSink.ShouldLogApply())
+        {
+            ServerNetworkLogs.MovementMeasureApply(
+                _logger,
+                session.Username,
+                session.PixelX,
+                session.PixelY,
+                MovementMeasureServerSink.FormatApplyMs(applyWatch.Elapsed.TotalMilliseconds));
+        }
         foreach (var targetClient in _clientRegistry.GetAllAuthenticatedClients())
         {
             await _packetSender.SendPositionUpdateAsync(

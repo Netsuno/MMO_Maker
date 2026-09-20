@@ -20,6 +20,7 @@ using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Maps;
 using Frog.Core.Models;
+using Frog.Core.Observability;
 using Frog.Core.Protocol;
 using Frog.Core.Security;
 
@@ -234,6 +235,9 @@ public sealed class MainShellForm : Form
     /// <summary>Fréquence d’envoi position au serveur (aligné prédiction locale ~52 ms).</summary>
     private const int MoveNetworkPulseMs = 52;
 
+    /// <summary>Opt-in movement baseline (off unless <c>FROG_MOVEMENT_MEASURE=1</c>).</summary>
+    private readonly MovementMeasureProbe _movementMeasure = new(MovementMeasureOptions.IsEnabledFromEnvironment());
+
     private readonly ClientPlaytestOptions? _playtestOptions;
     private readonly PlaytestClientReadyState _playtestReady = new();
     private bool _playtestLoginOk;
@@ -268,6 +272,12 @@ public sealed class MainShellForm : Form
         }
 
         BuildLayout();
+        _movementMeasure.Log = AppendLog;
+        if (_movementMeasure.Enabled)
+        {
+            AppendLog("[measure] FROG_MOVEMENT_MEASURE=1 — baseline on (docs/progress/movement/MEASURE-BASELINE.md)");
+        }
+
         ApplyDaTheme();
         ApplyVersionChrome();
         ApplyPlayerStatusLayout();
@@ -664,6 +674,7 @@ public sealed class MainShellForm : Form
 
         var px = (int)Math.Round(_visLocalCx);
         var py = (int)Math.Round(_visLocalCy);
+        _movementMeasure.NoteNetworkSend();
         _ = SendPositionSyncBurstAsync(px, py);
     }
 
@@ -724,6 +735,8 @@ public sealed class MainShellForm : Form
         {
             dt = 1f / 60f;
         }
+
+        _movementMeasure.NoteFrameTime(dt * 1000f);
 
         const float convergencePerSec = 17f;
         var alpha = 1f - MathF.Exp(-convergencePerSec * dt);
@@ -2691,6 +2704,7 @@ public sealed class MainShellForm : Form
             {
                 _srvPixelX = x;
                 _srvPixelY = y;
+                _movementMeasure.NoteLocalCorrection();
             }
         }
         else
@@ -2709,6 +2723,7 @@ public sealed class MainShellForm : Form
             {
                 ov.ServerPixelX = x;
                 ov.ServerPixelY = y;
+                _movementMeasure.NoteOtherPlayerUpdate();
             }
         }
 
@@ -2976,7 +2991,12 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        _keysDown.Add(e.KeyCode);
+        var isNewEdge = _keysDown.Add(e.KeyCode);
+        if (isNewEdge)
+        {
+            _movementMeasure.NoteKeyPress();
+        }
+
         RecomputeHeldMoveKeys();
         e.Handled = true;
     }
@@ -3030,6 +3050,7 @@ public sealed class MainShellForm : Form
         _holdDown = down;
         if (becameHeld)
         {
+            _movementMeasure.NoteMoveIntent();
             PrimeMoveNetworkPulse();
         }
 
@@ -3065,6 +3086,7 @@ public sealed class MainShellForm : Form
         _picMap.Image = bmp;
         previous?.Dispose();
         ApplyMapViewportCamera();
+        _movementMeasure.NoteVisibleUpdate();
     }
 
     private void ReloadTilesetBitmaps()
@@ -3523,6 +3545,11 @@ public sealed class MainShellForm : Form
             _phase.ToString(),
             _client is { IsConnected: true },
             string.IsNullOrWhiteSpace(_username) ? _txtUser.Text.Trim() : _username);
+        if (_movementMeasure.Enabled)
+        {
+            raw += Environment.NewLine + _movementMeasure.FormatSummary();
+        }
+
         return ClientDiagnostics.RedactSecrets(
             raw,
             _storedAuthToken,
@@ -3953,6 +3980,8 @@ public sealed class MainShellForm : Form
     internal bool GameToolbarOnWorldForTest => _gameToolbar.Parent == _worldHost;
 
     internal int SmoothTimerIntervalForTest => _smoothTimer.Interval;
+
+    internal MovementMeasureProbe MovementMeasureForTest => _movementMeasure;
 
     internal void SetWindowLayerVisibleForTest(bool visible) => SetWindowLayerVisible(visible);
 

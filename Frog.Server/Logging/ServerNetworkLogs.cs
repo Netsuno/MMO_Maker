@@ -99,6 +99,9 @@ internal static partial class ServerNetworkLogs
     [LoggerMessage(EventId = 5029, Level = LogLevel.Error, Message = "PostgreSQL error connection={ConnectionId} remote={RemoteEndPoint}")]
     public static partial void PostgresError(ILogger logger, Exception exception, Guid connectionId, string remoteEndPoint);
 
+    [LoggerMessage(EventId = 5031, Level = LogLevel.Information, Message = "movement_measure apply username={Username} pixel=({Px},{Py}) apply_ms={ApplyMs}")]
+    public static partial void MovementMeasureApply(ILogger logger, string username, int px, int py, string applyMs);
+
     [LoggerMessage(
         EventId = 5030,
         Level = LogLevel.Information,
