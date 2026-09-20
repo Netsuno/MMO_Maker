@@ -9,6 +9,7 @@ using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.IO;
 using Frog.Core.Models;
+using Frog.Core.Combat;
 using Frog.Core.Protocol;
 using Frog.Core.Security;
 
@@ -54,6 +55,7 @@ public sealed class FrogGameClient : IDisposable
     public event Action? LogoutAckReceived;
     public event Action<ChatChannel, string, string, string>? ChatMessageReceived;
     public event Action<bool, string, string>? MeleeAttackResultReceived;
+    public event Action<DamageEvent>? DamageEventReceived;
     /// <summary>JSON : tableau d’objets { id, name } (protocole wire ≥ 4).</summary>
     public event Action<string>? CharacterListReceived;
     public event Action<bool, string>? CharacterSelectResultReceived;
@@ -404,9 +406,17 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.MeleeAttackResult:
-                if (TryReadMeleeResult(body.Span, out var hit, out var tgt, out var meleeMsg))
+                if (CombatMvpWire.TryParseMeleeResult(body.Span, out var hit, out var tgt, out var meleeMsg, out var damageEv)
+                    || TryReadMeleeResult(body.Span, out hit, out tgt, out meleeMsg))
                 {
-                    Post(() => MeleeAttackResultReceived?.Invoke(hit, tgt, meleeMsg));
+                    Post(() =>
+                    {
+                        MeleeAttackResultReceived?.Invoke(hit, tgt, meleeMsg);
+                        if (damageEv is { } ev)
+                        {
+                            DamageEventReceived?.Invoke(ev);
+                        }
+                    });
                 }
 
                 break;
@@ -1240,18 +1250,23 @@ public sealed class FrogGameClient : IDisposable
         return SendRawAsync(payload, cancellationToken);
     }
 
-    public async Task SendMeleeAttackAsync(string targetUsername, CancellationToken cancellationToken = default)
-    {
-        var t = Encoding.UTF8.GetBytes(targetUsername);
-        if (t.Length is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes)
-        {
-            throw new ArgumentException("Cible invalide.");
-        }
+    public async Task SendMeleeAttackAsync(
+        string targetUsername,
+        CancellationToken cancellationToken = default)
+        => await SendMeleeAttackAsync(targetUsername, CombatTargetKind.None, Direction.Down, Guid.Empty, cancellationToken)
+            .ConfigureAwait(false);
 
-        var payload = new byte[1 + 1 + t.Length];
+    public async Task SendMeleeAttackAsync(
+        string targetUsername,
+        CombatTargetKind kind,
+        Direction facing,
+        Guid targetId,
+        CancellationToken cancellationToken = default)
+    {
+        var body = CombatMvpWire.BuildAttackRequest(new AttackRequest(targetUsername, kind, facing, targetId));
+        var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.MeleeAttackRequest;
-        payload[1] = (byte)t.Length;
-        t.CopyTo(payload.AsSpan(2));
+        body.CopyTo(payload.AsSpan(1));
         await SendRawAsync(payload, cancellationToken).ConfigureAwait(false);
     }
 

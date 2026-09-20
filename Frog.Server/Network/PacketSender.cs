@@ -340,7 +340,8 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         bool hit,
         string targetUsername,
         string message,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Frog.Core.Combat.DamageEvent? damage = null)
     {
         var targetBytes = Encoding.UTF8.GetBytes(targetUsername);
         var messageBytes = Encoding.UTF8.GetBytes(message);
@@ -350,7 +351,8 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
             throw new ArgumentOutOfRangeException(nameof(message), "Taille melee result invalide.");
         }
 
-        var payload = new byte[1 + 1 + 1 + targetBytes.Length + sizeof(ushort) + messageBytes.Length];
+        var trailer = damage is { } ev ? CombatMvpWire.BuildDamageEventTrailer(ev) : [];
+        var payload = new byte[1 + 1 + 1 + targetBytes.Length + sizeof(ushort) + messageBytes.Length + trailer.Length];
         var o = 0;
         payload[o++] = (byte)PacketId.MeleeAttackResult;
         payload[o++] = hit ? (byte)1 : (byte)0;
@@ -360,6 +362,12 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         BitConverter.GetBytes((ushort)messageBytes.Length).CopyTo(payload.AsSpan(o));
         o += sizeof(ushort);
         messageBytes.CopyTo(payload.AsSpan(o));
+        o += messageBytes.Length;
+        if (trailer.Length > 0)
+        {
+            trailer.CopyTo(payload.AsSpan(o));
+        }
+
         return session.SendFrameAsync(payload, cancellationToken);
     }
 

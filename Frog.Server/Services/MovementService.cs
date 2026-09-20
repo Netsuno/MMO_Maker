@@ -1,4 +1,5 @@
 using Frog.Core.Constants;
+using Frog.Core.Gameplay;
 using Frog.Server.Gameplay;
 using Frog.Server.Models;
 
@@ -166,6 +167,13 @@ public sealed class MovementService(
                     return false;
                 }
             }
+        }
+
+        var dx = newPx - session.PixelX;
+        var dy = newPy - session.PixelY;
+        if (dx != 0 || dy != 0)
+        {
+            session.Facing = PlayerWalkClock.FacingFromVector(dx, dy, session.Facing);
         }
 
         session.PixelX = newPx;
