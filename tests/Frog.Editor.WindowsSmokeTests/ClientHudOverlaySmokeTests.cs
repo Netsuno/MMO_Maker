@@ -8,6 +8,8 @@ using Frog.Client.Config;
 using Frog.Client.Forms;
 using Frog.Client.Services;
 using Frog.Client.UI;
+using Frog.Core.Constants;
+using Frog.Core.Maps;
 using Frog.Core.Protocol;
 using Xunit;
 
@@ -46,6 +48,7 @@ public sealed class ClientHudOverlaySmokeTests
 
                 Assert.Equal(DockStyle.Fill, form.MapScrollForTest.Dock);
                 Assert.Equal(form.WorldHostForTest, form.MapScrollForTest.Parent);
+                Assert.False(form.MapScrollUsesAutoScrollForTest, "camera owns _picMap offset; AutoScroll would pin 0,0");
                 Assert.Equal(16, form.SmoothTimerIntervalForTest);
 
                 var tabs = form.GameplayTabsForTest;
@@ -179,5 +182,73 @@ public sealed class ClientHudOverlaySmokeTests
         Assert.Equal(Color.FromArgb(0x0E, 0x12, 0x18), UiTheme.BgApp);
         Assert.Equal(Color.FromArgb(0x16, 0x1C, 0x28), UiTheme.BgPanel);
         Assert.Equal(Color.FromArgb(0xC6, 0x28, 0x28), UiTheme.BarHp);
+    }
+
+    [Fact]
+    public void GameWorldView_CentersOnPlayer_NotCornerAligned()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "frog-map-cam-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "client-settings.json");
+            var previous = Environment.GetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable);
+            Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, path);
+            MainShellForm? form = null;
+            try
+            {
+                form = ClientSmokeTestAccess.CreateAndShowMainShell();
+                var map = MapSamples.StarterMeadow(Guid.Empty);
+                var tw = WorldMetrics.DefaultTileSizePixels;
+                var (focusX, focusY) = WorldMetrics.TileCenterToPixels(2, 3);
+                form.ShowOfflineMapViewportForTest(map, focusX, focusY);
+
+                var view = form.MapScrollForTest.ClientSize;
+                Assert.True(view.Width >= 32 && view.Height >= 32, $"viewport {view.Width}×{view.Height}");
+                var expected = MapViewportCamera.ComputeDrawOffset(
+                    view.Width,
+                    view.Height,
+                    map.Width * tw,
+                    map.Height * tw,
+                    focusX,
+                    focusY);
+                Assert.Equal(expected.OffsetX, form.MapPictureLocationForTest.X);
+                Assert.Equal(expected.OffsetY, form.MapPictureLocationForTest.Y);
+                Assert.NotEqual(new Point(0, 0), form.MapPictureLocationForTest);
+
+                form.ShowOfflineMapViewportForTest(map, null, null);
+                var centered = MapViewportCamera.ComputeDrawOffset(
+                    form.MapScrollForTest.ClientSize.Width,
+                    form.MapScrollForTest.ClientSize.Height,
+                    map.Width * tw,
+                    map.Height * tw,
+                    null,
+                    null);
+                Assert.Equal(centered.OffsetX, form.MapPictureLocationForTest.X);
+                Assert.Equal(centered.OffsetY, form.MapPictureLocationForTest.Y);
+
+                Assert.True(form.StatusHudForTest.UsesFrameAssetForTest, "Kenney frame after camera layout");
+                Assert.True(
+                    InputService.IsTextInputFocus(form.ChatTextBoxForTest),
+                    "chat input still counts as text focus");
+            }
+            finally
+            {
+                if (form is not null)
+                {
+                    ClientSmokeTestAccess.CloseMainShell(form);
+                }
+
+                Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, previous);
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
+        });
     }
 }
