@@ -8,7 +8,8 @@
 | **Base** | `main` @ `bc60186` (merge PR #26 prefabs; includes #25 walk anim + #24 MEASURE-BASELINE fill) |
 | **Branch** | `cursor/movement-fluidity-mvp` |
 | **PR** | Draft [#29](https://github.com/Netsuno/MMO_Maker/pull/29) toward `main` — **do not merge** |
-| **Tip** | `0e7dca9` (STATUS pin + Linux 631 unit tests) |
+| **Tip** | `9b30b3cc746bb0eaec497f142f9d96dd9a7f9235` (CI green) |
+| **CI** | [35533232516](https://github.com/Netsuno/MMO_Maker/actions/runs/35533232516) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Baseline** | Windows session tip `2faa511` — numbers in [MEASURE-BASELINE.md](MEASURE-BASELINE.md) |
 | **Protocol** | `FrogWireProtocol.Version` **stays 11** |
 
@@ -63,6 +64,7 @@ Linux / this agent cannot recapture WinForms key → sprite latency. Re-run the 
 - `Frog.Tests/MovementFluidityMvpTests.cs` — STATUS + wiring + protocol 11 + walk 140 ms
 - Existing movement tests (`MovementMeasureBaselineTests`, `MovementPacketRateGateTests`, `MapEventMovement*`, `MapViewportCameraTests`, `PlayerWalkClockTests`) must stay green
 - Linux this run: `dotnet test Frog.Tests` **631 passed** (includes the movement filter **72 passed**)
+- CI **green** on `9b30b3c` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35533232516/job/106137594306) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35533232516/job/106137594402). Windows editor / gameplay / Phase 8 smokes included.
 
 ---
 
