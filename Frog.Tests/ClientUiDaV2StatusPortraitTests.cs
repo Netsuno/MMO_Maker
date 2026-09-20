@@ -36,6 +36,9 @@ public sealed class ClientUiDaV2StatusPortraitTests
         Assert.Contains("TryGetBarFill", status, StringComparison.Ordinal);
         Assert.Contains("XpBarVisibleForTest => false", status, StringComparison.Ordinal);
         Assert.Contains("ApplyCombat", status, StringComparison.Ordinal);
+        Assert.Contains("GetColumn(_body) != 1", status, StringComparison.Ordinal);
+        Assert.Contains("GetColumn(host) != 0", status, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetColumn(bodyRow)", status, StringComparison.Ordinal);
         Assert.DoesNotContain("PlayerWorldAssets", status, StringComparison.Ordinal);
         Assert.DoesNotContain("FROG_MOVEMENT_MEASURE", status, StringComparison.Ordinal);
         Assert.DoesNotContain("HudMenuCommand", status, StringComparison.Ordinal);

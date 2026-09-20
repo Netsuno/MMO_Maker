@@ -37,3 +37,5 @@ Présentation + layout status HG seulement.
 - Portrait = vraie tête / skin monde (ici placeholder GDI seulement)
 
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
+
+Smoke Login-phase : ne pas utiliser `Control.Visible` / `PointToScreen` (ancêtres `_panelGame` masqués). Le split HG est colonne 0 portrait / colonne 1 nom+barres (`GetColumn(_body) == 1`, pas la table elle-même).

@@ -24,6 +24,8 @@ public sealed class HudStatusModule : HudModulePanel
     private readonly Panel _hpFill = new() { Height = 10, BackColor = UiTheme.BarHp };
     private readonly Panel _mpTrack = new() { Height = 10, BackColor = UiTheme.BgInput, Margin = new Padding(0, 3, 0, 0) };
     private readonly Panel _mpFill = new() { Height = 10, BackColor = UiTheme.BarMp };
+    private readonly TableLayoutPanel _row;
+    private readonly FlowLayoutPanel _body;
     private readonly Label _dead = new()
     {
         AutoSize = true,
@@ -52,7 +54,7 @@ public sealed class HudStatusModule : HudModulePanel
         header.Controls.Add(_name);
         header.Controls.Add(_meta);
 
-        var body = new FlowLayoutPanel
+        _body = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
@@ -60,10 +62,10 @@ public sealed class HudStatusModule : HudModulePanel
             Padding = new Padding(0),
             Margin = new Padding(0),
         };
-        body.Controls.Add(header);
-        body.Controls.Add(_hpTrack);
-        body.Controls.Add(_mpTrack);
-        body.Controls.Add(_dead);
+        _body.Controls.Add(header);
+        _body.Controls.Add(_hpTrack);
+        _body.Controls.Add(_mpTrack);
+        _body.Controls.Add(_dead);
 
         var portraitHost = new Panel
         {
@@ -74,7 +76,7 @@ public sealed class HudStatusModule : HudModulePanel
         portraitHost.Controls.Add(_portrait);
         portraitHost.Resize += (_, _) => CenterPortrait(portraitHost);
 
-        var row = new TableLayoutPanel
+        _row = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
@@ -82,18 +84,19 @@ public sealed class HudStatusModule : HudModulePanel
             Padding = new Padding(0),
             Margin = new Padding(0),
         };
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, PortraitDiameter + 8));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        row.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        row.Controls.Add(portraitHost, 0, 0);
-        row.Controls.Add(body, 1, 0);
+        _row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, PortraitDiameter + 8));
+        _row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        _row.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        _row.Controls.Add(portraitHost, 0, 0);
+        _row.Controls.Add(_body, 1, 0);
 
-        Controls.Add(row);
-        row.BringToFront();
+        Controls.Add(_row);
+        _row.BringToFront();
         ApplyCombat(null, null);
-        body.Resize += (_, _) => LayoutBars(body);
-        _hpTrack.Resize += (_, _) => LayoutBars(body);
-        _mpTrack.Resize += (_, _) => LayoutBars(body);
+        _body.Resize += (_, _) => LayoutBars(_body);
+        _hpTrack.Resize += (_, _) => LayoutBars(_body);
+        _mpTrack.Resize += (_, _) => LayoutBars(_body);
+        PerformLayout();
         if (UiPackAssets.HasBarBack || UiPackAssets.HasBarHp || UiPackAssets.HasBarMp)
         {
             _hpTrack.Paint += (_, e) => PaintBarTrack(e, _hpTrack);
@@ -123,24 +126,70 @@ public sealed class HudStatusModule : HudModulePanel
     internal string PortraitInitialForTest => _portrait.InitialForTest;
 
     /// <summary>
-    /// Structural left/right split (column 0 portrait, column 1 nom/barres).
-    /// Do not use <see cref="Control.Visible"/> — Login-phase ancestors hide the HUD.
+    /// Portrait column 0, nom/barres column 1, and mapped X: portrait right ≤ name left.
+    /// Walks parent locations (no <see cref="Control.Visible"/> / PointToScreen — Login-phase HUD is hidden).
     /// </summary>
     internal bool PortraitIsLeftOfNameForTest
     {
         get
         {
             var host = _portrait.Parent;
-            var body = _hpTrack.Parent;
-            var row = host?.Parent as TableLayoutPanel;
-            return host is not null
-                   && body is not null
-                   && row is not null
-                   && body.Parent is TableLayoutPanel bodyRow
-                   && ReferenceEquals(row, bodyRow)
-                   && row.GetColumn(host) == 0
-                   && row.GetColumn(bodyRow) == 1;
+            if (host is null
+                || _row.GetColumn(host) != 0
+                || _row.GetColumn(_body) != 1
+                || _row.ColumnStyles.Count < 2
+                || _row.ColumnStyles[0].SizeType != SizeType.Absolute
+                || _row.ColumnStyles[0].Width < 40)
+            {
+                return false;
+            }
+
+            if (_name.Parent?.Parent is not FlowLayoutPanel nameBody || !ReferenceEquals(nameBody, _body))
+            {
+                return false;
+            }
+
+            if (Width > 0 && Height > 0)
+            {
+                PerformLayout();
+            }
+
+            var portrait = MapLocationToModule(_portrait);
+            var name = MapLocationToModule(_name);
+            if (_body.Left >= 40 || name.X >= portrait.X + _portrait.Width)
+            {
+                return portrait.X + _portrait.Width <= name.X;
+            }
+
+            // Hidden Login-phase ancestors may skip pixel layout; column 0/1 still pin the HG split.
+            return true;
         }
+    }
+
+    internal string PortraitLayoutForTest
+    {
+        get
+        {
+            var host = _portrait.Parent;
+            var portrait = MapLocationToModule(_portrait);
+            var name = MapLocationToModule(_name);
+            return
+                $"colHost={(host is null ? -1 : _row.GetColumn(host))} colBody={_row.GetColumn(_body)} " +
+                $"portrait={portrait.X}+{_portrait.Width} name={name.X}";
+        }
+    }
+
+    private static Point MapLocationToModule(Control child)
+    {
+        var x = 0;
+        var y = 0;
+        for (var c = child; c is not null && c is not HudStatusModule; c = c.Parent)
+        {
+            x += c.Left;
+            y += c.Top;
+        }
+
+        return new Point(x, y);
     }
 
     public void ApplyCombat(CombatStateWire? state, string? playerName)
@@ -154,7 +203,7 @@ public sealed class HudStatusModule : HudModulePanel
             _dead.Visible = false;
             _tips.SetToolTip(_hpTrack, "HP —");
             _tips.SetToolTip(_mpTrack, "MP —");
-            LayoutBars(_hpTrack.Parent as FlowLayoutPanel);
+            LayoutBars(_body);
             return;
         }
 
@@ -163,7 +212,7 @@ public sealed class HudStatusModule : HudModulePanel
         _tips.SetToolTip(_hpTrack, $"HP {state.Hp}/{state.MaxHp}");
         _tips.SetToolTip(_mpTrack, $"MP {state.Mp}/{state.MaxMp}");
         _tips.SetToolTip(_name, state.Experience > 0 ? $"XP {state.Experience} (max inconnu)" : "XP —");
-        LayoutBars(_hpTrack.Parent as FlowLayoutPanel);
+        LayoutBars(_body);
     }
 
     private void CenterPortrait(Panel host)

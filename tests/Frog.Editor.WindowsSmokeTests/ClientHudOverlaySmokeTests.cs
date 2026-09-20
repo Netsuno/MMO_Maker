@@ -135,7 +135,9 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.True(form.StatusHudForTest.IsDeadVisibleForTest, "dead flag from CombatState");
                 Assert.False(form.StatusHudForTest.XpBarVisibleForTest);
                 Assert.Equal("N", form.StatusHudForTest.PortraitInitialForTest);
-                Assert.True(form.StatusHudForTest.PortraitIsLeftOfNameForTest, "portrait stays left of name");
+                Assert.True(
+                    form.StatusHudForTest.PortraitIsLeftOfNameForTest,
+                    "portrait stays left of name (" + form.StatusHudForTest.PortraitLayoutForTest + ")");
                 Assert.True(form.StatusHudForTest.UsesBarAssetsForTest, "Kenney HP/MP bars after combat apply");
 
                 form.QuestTrackerForTest.ApplySnapshot(new[]
