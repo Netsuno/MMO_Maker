@@ -65,6 +65,7 @@ Linux / this agent cannot recapture WinForms key → sprite latency. Re-run the 
 - Existing movement tests (`MovementMeasureBaselineTests`, `MovementPacketRateGateTests`, `MapEventMovement*`, `MapViewportCameraTests`, `PlayerWalkClockTests`) must stay green
 - Linux this run: `dotnet test Frog.Tests` **631 passed** (includes the movement filter **72 passed**)
 - CI **green** on `9b30b3c` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35533232516/job/106137594306) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35533232516/job/106137594402). Windows editor / gameplay / Phase 8 smokes included.
+- After Netsun merged `main` (#27 social) into this branch, `postgres-integration` flaked on `FullPhase8Flow` step 22: live refresh grabbed a mid-burst `MapEventsResult` still named `Phase8 Gate` (catalog 8101). Not a fluidity filter bug — the 500 ms stamp poll can fire between dialogue republish and gate rename. Helper now waits until `Republished Gate` is present.
 
 ---
 

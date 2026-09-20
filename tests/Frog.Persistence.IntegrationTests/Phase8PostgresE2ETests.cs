@@ -453,7 +453,13 @@ public sealed class Phase8PostgresE2ETests
             }
 
             var (catalogFrame, mapEventsFrame, envFrame) =
-                await Phase8TcpTestHelpers.ReadLiveRefreshPacketsAsync(client3);
+                await Phase8TcpTestHelpers.ReadLiveRefreshPacketsAsync(
+                    client3,
+                    acceptMapEvents: placements => placements.Any(p =>
+                        string.Equals(
+                            p.DisplayName,
+                            Phase8PostgresContentSeed.RepublishedGateEventName,
+                            StringComparison.Ordinal)));
             Assert.True(Phase8WireDecoders.TryDecodePublishedCatalog(catalogFrame, out var liveCatalog));
             Assert.NotEmpty(liveCatalog.Classes);
             Assert.True(Phase8WireDecoders.TryDecodeMapEventsResult(mapEventsFrame, out var liveMapId, out var livePlacements));

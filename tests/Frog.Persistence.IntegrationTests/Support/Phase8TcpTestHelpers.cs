@@ -1,4 +1,5 @@
 using Frog.Core.Enums;
+using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Xunit;
 
@@ -199,9 +200,14 @@ internal static class Phase8TcpTestHelpers
     /// Unsolicited catalog / map-events / environment after editor republish.
     /// The already-connected client must not send CatalogRequest, MapEventsRequest, or reselect.
     /// </summary>
+    /// <param name="acceptMapEvents">
+    /// When set, ignore leftover / mid-burst <see cref="PacketId.MapEventsResult"/> frames
+    /// (the 500 ms live-refresh poll can fire after dialogue republish and before the gate rename).
+    /// </param>
     public static async Task<(byte[] Catalog, byte[] MapEvents, byte[] Environment)> ReadLiveRefreshPacketsAsync(
         Phase7TcpTestClient client,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null,
+        Func<IReadOnlyList<MapEventWireEntry>, bool>? acceptMapEvents = null)
     {
         byte[]? catalog = null;
         byte[]? mapEvents = null;
@@ -230,7 +236,18 @@ internal static class Phase8TcpTestHelpers
                     catalog = frame;
                     break;
                 case PacketId.MapEventsResult:
-                    mapEvents = frame;
+                    if (acceptMapEvents is null)
+                    {
+                        mapEvents = frame;
+                        break;
+                    }
+
+                    if (Phase8WireDecoders.TryDecodeMapEventsResult(frame, out _, out var placements)
+                        && acceptMapEvents(placements))
+                    {
+                        mapEvents = frame;
+                    }
+
                     break;
                 case PacketId.EnvironmentStatePush:
                     environment = frame;
