@@ -7,9 +7,9 @@
 | **Statut** | MVP scaffolding — **pas de merge** |
 | **Base** | `main` @ `8a51f5c` (merge PR #29 movement fluidity) |
 | **Branche** | `cursor/maintenance-launcher-mvp-44a6` |
-| **PR** | Draft — voir GitHub (à lier après ouverture) |
-| **Tip** | *(pin après CI du tip exact)* |
-| **CI** | *(pin après SUCCESS `build-and-test` + `postgres-integration`)* |
+| **PR** | Draft [#31](https://github.com/Netsuno/MMO_Maker/pull/31) vers `main` — **pas de merge** |
+| **Tip** | `48d8854` (Linux `Frog.Tests` 669/669 PASS; pin CI après SUCCESS) |
+| **CI** | [PR #31](https://github.com/Netsuno/MMO_Maker/pull/31) — en cours |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de bump, pas de nouvel opcode |
 
 ---
