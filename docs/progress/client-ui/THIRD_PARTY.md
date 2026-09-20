@@ -3,8 +3,8 @@
 **Chantier :** Netsun.
 
 `Frog.Client/Assets/World/player.png` is an **original** 16×16 top-down humanoid
-drawn in-repo (`tools/generate-player-sprite.py`, raw PNG bytes). It is **not**
-a third-party pack, not Kenney, and not a Graal Online (or other commercial MMO)
+drawn in-repo (`tools/generate-player-sprite.py`, raw PNG bytes). It is
+**not a third-party pack**, not Kenney, and not a Graal Online (or other commercial MMO)
 asset. The look is a generic chunky classic top-down 2D MMO silhouette
 (cloak / hair / tunic) inspired only in the broad sense.
 
