@@ -24,8 +24,18 @@ public sealed class Session
     /// <summary>Vérif absolue verticale : centre joueur en pixels monde.</summary>
     public int PixelY { get; set; }
 
-    /// <summary>Carte monde courante (monde unique au debut ; instances plus tard).</summary>
+    /// <summary>Carte monde courante (overworld ou template instance).</summary>
     public int CurrentMapId { get; set; } = 1;
+
+    /// <summary>Run donjon/raid courant ; <see cref="Guid.Empty"/> = overworld.</summary>
+    public Guid InstanceId { get; set; }
+
+    /// <summary>Carte overworld à restaurer au leave (hook transfert).</summary>
+    public int OverworldReturnMapId { get; set; } = 1;
+
+    public int OverworldReturnTileX { get; set; }
+
+    public int OverworldReturnTileY { get; set; }
 
     /// <summary>Dernière acceptation <see cref="Frog.Server.Services.MovementService.TryApplyReportedPixelPosition"/> (anti-triche vitesse).</summary>
     public DateTime LastPositionSyncUtc { get; set; }

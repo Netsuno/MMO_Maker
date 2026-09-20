@@ -91,6 +91,24 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendInstanceHubResultAsync(ClientSession session, InstanceHubResultWire result, CancellationToken cancellationToken)
+    {
+        var body = InstanceHubWire.BuildResult(result);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.InstanceHubResult;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendInstanceHubSnapshotAsync(ClientSession session, InstanceHubSnapshotWire snapshot, CancellationToken cancellationToken)
+    {
+        var body = InstanceHubWire.BuildSnapshot(snapshot);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.InstanceHubSnapshot;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
     public Task SendMapDataAsync(
         ClientSession session,
         int mapId,

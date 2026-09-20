@@ -177,5 +177,14 @@ public enum PacketId : byte
     /// <summary>Liste enchères / inbox / emplacements coffre.</summary>
     EconomyHubSnapshot = 89,
 
+    /// <summary>Enveloppe instance MVP (donjon / raid). Corps : <see cref="Frog.Core.Protocol.InstanceHubWire"/>.</summary>
+    InstanceHubRequest = 90,
+
+    /// <summary>Résultat d'une <see cref="InstanceHubRequest"/>.</summary>
+    InstanceHubResult = 91,
+
+    /// <summary>Catalogue donjons / raids + instance courante.</summary>
+    InstanceHubSnapshot = 92,
+
     Error = 255
 }

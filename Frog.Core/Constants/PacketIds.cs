@@ -94,5 +94,8 @@ public static class PacketIds
     public const byte EconomyHubRequest = 87;
     public const byte EconomyHubResult = 88;
     public const byte EconomyHubSnapshot = 89;
+    public const byte InstanceHubRequest = 90;
+    public const byte InstanceHubResult = 91;
+    public const byte InstanceHubSnapshot = 92;
     public const byte Error = 255;
 }
