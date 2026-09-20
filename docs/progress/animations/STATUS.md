@@ -8,7 +8,8 @@
 | **Base** | `main` @ `2faa511` (merge PR #23 DA v2 login) |
 | **Branche** | `cursor/player-npc-anim-mvp` |
 | **PR** | Draft [#25](https://github.com/Netsuno/MMO_Maker/pull/25) vers `main` — **pas de merge** |
-| **Tip** | `a3cbf812273fd30d5ecea2e7dd51889dd5aafbe1` (walk-sheet mapping; CI pending) |
+| **Tip** | `e36b65a2ec2ef65312652f0c75bc7020ec1d379e` |
+| **CI** | [35528209901](https://github.com/Netsuno/MMO_Maker/actions/runs/35528209901) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 
 `WorldMetrics.DefaultTileSizePixels = 32` inchangé. Affichage nearest-neighbor ×1.
 Pas de bump protocole, pas de rewrite caméra / fluidité, pas de prefabs, pas d’IA monstre.
@@ -38,3 +39,5 @@ Remote players reuse the same sprite path (the only “NPC” draw on GameWorldV
 - Windows smoke : `MapViewRendererSmokeTests.WalkPose_ComposesBodyAndHead_FourDirsStayThirtyTwo` — composition + pose walk toujours bleu, pas ellipse or.
 
 Linux / cet agent : pas de capture WinForms live. Revue pixel = strip généré + smokes Windows CI.
+
+CI **green** on `e36b65a` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35528209901/job/106124036221) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35528209901/job/106124036399). Windows editor / gameplay / Phase 8 smokes included.
