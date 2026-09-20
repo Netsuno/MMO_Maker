@@ -4,12 +4,12 @@
 | --- | --- |
 | **Work** | Measurement only — baseline tile / pixel movement before any fluidity work |
 | **Owner** | Netsun |
-| **Status** | Instrumentation shipped, **off by default**. Numbers below are placeholders until Windows capture |
-| **Base** | `main` @ `60757c9` (merge PR #16 DA v2 contrast) |
-| **Branch** | `cursor/movement-measure-baseline-4576` |
-| **PR** | Draft [#18](https://github.com/Netsuno/MMO_Maker/pull/18) toward `main` — **do not merge as a movement fix** |
-| **Tip** | `2f41ebb89646d5f312d3bce0c9c34895b7a593da` |
-| **CI** | [35515532160](https://github.com/Netsuno/MMO_Maker/actions/runs/35515532160) **SUCCESS** (`build-and-test` + `postgres-integration`) |
+| **Status** | Windows numbers filled — Orchestrator session **2026-09-20** ~17:55 UTC; measured client tip `2faa511` (main after #23) |
+| **Base** | `main` @ `2faa51152446a00d027d007416268ab73d92eae3` (merge PR #23 DA v2 login) |
+| **Branch** | `cursor/movement-measure-win-numbers` |
+| **PR** | Draft toward `main` — **do not merge as a movement fix** |
+| **Tip** | `2faa51152446a00d027d007416268ab73d92eae3` (measured Release win-x64; STATUS pin after this docs commit) |
+| **CI** | Docs-only fill. Instrumentation CI [35515532160](https://github.com/Netsuno/MMO_Maker/actions/runs/35515532160) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Out of scope** | No prediction rewrite, no collision redesign, no camera overhaul, no animation system |
 
 This document is how **Orchestrator / Netsun** run the baseline on **Windows**. Linux CI can compile and unit-test the probe; it cannot capture WinForms key → sprite latency.
@@ -92,47 +92,53 @@ No `[measure]` banner, no measure lines in the client log, diagnostics have no s
 
 ## What to record
 
-Copy last / min / mean / max from `[measure] summary` (or the one-shot lines). Leave `_` until a Windows session fills them.
+Copy last / min / mean / max from `[measure] summary` (or the one-shot lines). Windows session **2026-09-20** filled the tables below. `_` remains only where n=0 (other-player, server apply) or the session did not record the field.
 
 ### Session metadata
 
 | Item | Value |
 | --- | --- |
-| Date (UTC) | _ |
-| Machine / GPU | _ |
+| Date (UTC) | 2026-09-20 ~17:55 UTC (1:55 PM ET) |
+| Machine / GPU | DESKTOP-A1T9AIS (Windows); GPU not recorded |
 | Windows build / DPI | _ |
-| Client config (Debug / Release) | _ |
-| Tip SHA | _ |
-| Map / spawn | _ |
-| Localhost or remote host | _ |
-| Second client used? | _ |
+| Client config (Debug / Release) | Release self-contained win-x64; `FROG_MOVEMENT_MEASURE=1` |
+| Tip SHA | `2faa51152446a00d027d007416268ab73d92eae3` (main after #23) |
+| Map / spawn | _ — account **Netsun**, phase **Playing**, character **Netsun** |
+| Localhost or remote host | `127.0.0.1:6000` localhost |
+| Second client used? | no |
+
+Captured `[measure] summary` (exact):
+
+```
+[measure] summary input_press_to_intent_ms: n=33 last=0.0 min=0.0 mean=0.0 max=0.4 | render_intent_to_visible_ms: n=33 last=3.3 min=3.3 mean=20.3 max=40.4 | net_send_to_local_correction_ms: n=87 last=1.0 min=0.0 mean=2.9 max=181.1 | net_other_player_update_interval_ms: n=0 | frame_dt_ms: n=1158 last=18.3 min=1.8 mean=25.2 max=46.7 | server_apply_ms: n=0 | fps_note last_dt=18.3ms vs timer=16ms (predict step is dt-scaled)
+```
 
 ### Input
 
 | Sample | last | min | mean | max | n | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `input_press_to_intent_ms` | _ | _ | _ | _ | _ | expect ~0 if same KeyDown stack |
+| `input_press_to_intent_ms` | 0.0 | 0.0 | 0.0 | 0.4 | 33 | expect ~0 if same KeyDown stack |
 
 ### Render (first visible sprite + camera after intent)
 
 | Sample | last | min | mean | max | n | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `render_intent_to_visible_ms` | _ | _ | _ | _ | _ | vs 16 ms timer |
+| `render_intent_to_visible_ms` | 3.3 | 3.3 | 20.3 | 40.4 | 33 | vs 16 ms timer |
 
 ### Network
 
 | Sample | last | min | mean | max | n | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `net_send_to_local_correction_ms` | _ | _ | _ | _ | _ | last send → next local `PositionUpdate` |
-| `net_other_player_update_interval_ms` | _ | _ | _ | _ | _ | two clients; n=0 if solo |
-| `server apply_ms` (throttled) | _ | _ | _ | _ | _ | from server console if flag on |
+| `net_send_to_local_correction_ms` | 1.0 | 0.0 | 2.9 | 181.1 | 87 | last send → next local `PositionUpdate` |
+| `net_other_player_update_interval_ms` | _ | _ | _ | _ | 0 | single client; two-client lane not run |
+| `server apply_ms` (throttled) | _ | _ | _ | _ | 0 | server `FROG_MOVEMENT_MEASURE` was not set |
 
 ### FPS independence
 
 | Sample | last | min | mean | max | n | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `frame_dt_ms` | _ | _ | _ | _ | _ | compare to 16 ms; clamp in code if `dt` ≤0 or >250 ms → 1/60 s |
-| Visible stutter vs frame time? | _ | | | | | qualitative: none / mild / obvious |
+| `frame_dt_ms` | 18.3 | 1.8 | 25.2 | 46.7 | 1158 | compare to 16 ms; clamp in code if `dt` ≤0 or >250 ms → 1/60 s |
+| Visible stutter vs frame time? | _ | | | | | qualitative not recorded; fps_note `last_dt=18.3ms` vs timer=16ms |
 | Predict step dt-scaled? | yes (`speedPxPerSec * dt`) | | | | | do **not** change this in a follow-up “fix” without a new mandate |
 
 ---
