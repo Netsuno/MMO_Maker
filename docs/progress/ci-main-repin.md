@@ -1,5 +1,5 @@
 # Main tip CI re-pin
 
-Tip `c428c26673a8567f766c26e9afba2e7fd028417e` — forced push 2026-09-20T22:28Z after #32 merge cancel-in-progress.
+Tip `b778cdfeb70cdfa41f57ad2589e37d486a5c9080` — forced push 2026-09-20T22:42Z after #33 dungeons merge.
 
-Prior green: `8d63c3f` (docs pin after #30/#31). Pre-merge #32 green: `ec24f04`.
+Prior greens: main `a025fa9` (#32 re-pin), #33 feature `7f87d507`.
