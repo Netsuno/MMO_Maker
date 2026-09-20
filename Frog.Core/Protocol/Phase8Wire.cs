@@ -296,9 +296,29 @@ public static class Phase8Wire
         return true;
     }
 
-    public static byte[] BuildEnvironmentState(int mapId, Guid? regionId, Guid? weatherProfileId, byte lightingLevel)
+    /// <summary>Longueur fixe historique (map + region + weather + lighting + flag). Version protocole inchangée.</summary>
+    public const int EnvironmentStateCoreBytes = 4 + 16 + 16 + 1 + 1;
+
+    /// <summary>Plafond UTF-8 du kind additif optionnel (clear / rain / fog…).</summary>
+    public const int MaxWeatherKindBytes = 32;
+
+    public static byte[] BuildEnvironmentState(int mapId, Guid? regionId, Guid? weatherProfileId, byte lightingLevel) =>
+        BuildEnvironmentState(mapId, regionId, weatherProfileId, lightingLevel, weatherKind: null);
+
+    /// <summary>
+    /// Corps <see cref="PacketId.EnvironmentStatePush"/>. Le kind est un trailer additif
+    /// (u8 length + UTF-8) ; les parseurs historiques ignorent les octets au-delà de
+    /// <see cref="EnvironmentStateCoreBytes"/>. <see cref="Frog.Core.Constants.FrogWireProtocol.Version"/> reste 11.
+    /// </summary>
+    public static byte[] BuildEnvironmentState(
+        int mapId,
+        Guid? regionId,
+        Guid? weatherProfileId,
+        byte lightingLevel,
+        string? weatherKind)
     {
-        var payload = new byte[4 + 16 + 16 + 1 + 1];
+        var kindBytes = EncodeWeatherKind(weatherKind);
+        var payload = new byte[EnvironmentStateCoreBytes + (kindBytes.Length > 0 ? 1 + kindBytes.Length : 0)];
         BinaryPrimitives.WriteInt32LittleEndian(payload, mapId);
         var o = 4;
         (regionId ?? Guid.Empty).TryWriteBytes(payload.AsSpan(o));
@@ -307,6 +327,12 @@ public static class Phase8Wire
         o += 16;
         payload[o] = lightingLevel;
         payload[o + 1] = (byte)(regionId.HasValue ? 1 : 0);
+        if (kindBytes.Length > 0)
+        {
+            payload[EnvironmentStateCoreBytes] = (byte)kindBytes.Length;
+            kindBytes.CopyTo(payload.AsSpan(EnvironmentStateCoreBytes + 1));
+        }
+
         return payload;
     }
 
@@ -315,13 +341,23 @@ public static class Phase8Wire
         out int mapId,
         out Guid? regionId,
         out Guid? weatherProfileId,
-        out byte lightingLevel)
+        out byte lightingLevel) =>
+        TryParseEnvironmentState(payload, out mapId, out regionId, out weatherProfileId, out lightingLevel, out _);
+
+    public static bool TryParseEnvironmentState(
+        ReadOnlySpan<byte> payload,
+        out int mapId,
+        out Guid? regionId,
+        out Guid? weatherProfileId,
+        out byte lightingLevel,
+        out string weatherKind)
     {
         mapId = 0;
         regionId = null;
         weatherProfileId = null;
         lightingLevel = 0;
-        if (payload.Length < 4 + 16 + 16 + 2)
+        weatherKind = string.Empty;
+        if (payload.Length < EnvironmentStateCoreBytes)
         {
             return false;
         }
@@ -340,7 +376,34 @@ public static class Phase8Wire
             weatherProfileId = wid;
         }
 
+        if (payload.Length > EnvironmentStateCoreBytes)
+        {
+            var kindLen = payload[EnvironmentStateCoreBytes];
+            if (kindLen > 0
+                && kindLen <= MaxWeatherKindBytes
+                && payload.Length >= EnvironmentStateCoreBytes + 1 + kindLen)
+            {
+                weatherKind = Encoding.UTF8.GetString(payload.Slice(EnvironmentStateCoreBytes + 1, kindLen));
+            }
+        }
+
         return true;
+    }
+
+    private static byte[] EncodeWeatherKind(string? weatherKind)
+    {
+        if (string.IsNullOrWhiteSpace(weatherKind))
+        {
+            return [];
+        }
+
+        var raw = Encoding.UTF8.GetBytes(weatherKind.Trim());
+        if (raw.Length > MaxWeatherKindBytes)
+        {
+            return raw.AsSpan(0, MaxWeatherKindBytes).ToArray();
+        }
+
+        return raw;
     }
 
     public static bool TryParseAcquireProfessionRequest(ReadOnlySpan<byte> payload, out Guid professionId)
@@ -484,6 +547,9 @@ public sealed class EnvironmentStateWire
     public Guid? WeatherProfileId { get; init; }
 
     public byte LightingLevel { get; init; }
+
+    /// <summary>Kind additif optionnel (trailer UTF-8). Vide si le serveur n'a pas envoyé le champ.</summary>
+    public string WeatherKind { get; init; } = string.Empty;
 }
 
 /// <summary>Interrupteur perso poussé après SetSwitch (<see cref="Frog.Core.Enums.PacketId.WorldSwitchSnapshot"/>).</summary>

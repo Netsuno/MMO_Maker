@@ -716,7 +716,8 @@ public sealed class FrogGameClient : IDisposable
                         out var envMapId,
                         out var envRegionId,
                         out var envWeatherId,
-                        out var envLighting))
+                        out var envLighting,
+                        out var envWeatherKind))
                 {
                     var envState = new EnvironmentStateWire
                     {
@@ -724,6 +725,7 @@ public sealed class FrogGameClient : IDisposable
                         RegionId = envRegionId,
                         WeatherProfileId = envWeatherId,
                         LightingLevel = envLighting,
+                        WeatherKind = envWeatherKind,
                     };
                     Post(() => EnvironmentStatePushReceived?.Invoke(envState));
                 }

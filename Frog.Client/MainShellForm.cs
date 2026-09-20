@@ -24,6 +24,7 @@ using Frog.Core.Observability;
 using Frog.Core.Protocol;
 using Frog.Core.Security;
 using Frog.Core.Social;
+using Frog.Core.Weather;
 
 namespace Frog.Client;
 
@@ -152,6 +153,17 @@ public sealed class MainShellForm : Form
     private HashSet<(int X, int Y)>? _mapBlockedTiles;
 
     private readonly List<MapEventWireEntry> _mapEvents = new();
+
+    /// <summary>Dernier rendu carte sans overlay météo (blit idle pluie).</summary>
+    private Bitmap? _mapCleanBmp;
+
+    private WeatherOverlayPlan _weatherPlan = WeatherCatalog.Clear;
+
+    private WeatherDebugOverride _weatherDebug;
+
+    private int _weatherTickMs;
+
+    private EnvironmentStateWire? _lastEnvironment;
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
     private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Value = 6000, Width = 70 };
     private readonly TextBox _txtUser = new() { Text = "demo", Width = LoginShell.FieldWidth };
@@ -573,6 +585,11 @@ public sealed class MainShellForm : Form
         if (AdvanceMovementSmoothing())
         {
             RedrawMap();
+        }
+        else if (_weatherPlan.ParticleCount > 0 && _mapCleanBmp is not null)
+        {
+            _weatherTickMs += _smoothTimer.Interval;
+            PresentMapWithWeather(_mapCleanBmp);
         }
 
         TrySendHeldMoveNetwork();
@@ -1685,8 +1702,36 @@ public sealed class MainShellForm : Form
 
     private void OnEnvironmentStatePush(EnvironmentStateWire state)
     {
+        _lastEnvironment = state;
         _environmentPanel.ApplyState(state);
+        ApplyPublishedWeather();
         AppendLog($"Environnement map={state.MapId} éclairage={state.LightingLevel}");
+    }
+
+    private void ApplyPublishedWeather()
+    {
+        var env = _lastEnvironment;
+        _weatherPlan = WeatherResolver.Resolve(
+            env?.WeatherProfileId,
+            env?.LightingLevel ?? 255,
+            env?.WeatherKind,
+            _weatherDebug);
+        _sound.ApplyWeather(_weatherPlan);
+        if (_mapCleanBmp is not null)
+        {
+            PresentMapWithWeather(_mapCleanBmp);
+        }
+    }
+
+    private void CycleWeatherDebug()
+    {
+        _weatherDebug = WeatherResolver.Cycle(_weatherDebug);
+        ApplyPublishedWeather();
+        var label = _weatherDebug == WeatherDebugOverride.Auto
+            ? $"auto ({_weatherPlan.DisplayName})"
+            : _weatherPlan.DisplayName;
+        AppendLog("Météo debug: " + label);
+        ShowPlayerStatus("Météo: " + label);
     }
 
     private async Task SendDialogueChoiceAsync(byte[] sessionToken, string choiceId)
@@ -3014,6 +3059,14 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (e.KeyCode == Keys.F8)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            CycleWeatherDebug();
+            return;
+        }
+
         if (_client is null || !_client.IsConnected || string.IsNullOrEmpty(_username))
         {
             return;
@@ -3174,11 +3227,56 @@ public sealed class MainShellForm : Form
             prefabPlacements: _prefabPlacements,
             prefabCatalog: _prefabCatalog,
             prefabBitmaps: _prefabBitmaps);
-        var previous = _picMap.Image;
-        _picMap.Image = bmp;
-        previous?.Dispose();
+        ReplaceCleanMapBitmap(bmp);
+        PresentMapWithWeather(bmp);
         ApplyMapViewportCamera();
         _movementMeasure.NoteVisibleUpdate();
+    }
+
+    private void ReplaceCleanMapBitmap(Bitmap clean)
+    {
+        if (ReferenceEquals(_mapCleanBmp, clean))
+        {
+            return;
+        }
+
+        var previousClean = _mapCleanBmp;
+        _mapCleanBmp = clean;
+        if (previousClean is not null
+            && !ReferenceEquals(previousClean, _picMap.Image))
+        {
+            previousClean.Dispose();
+        }
+    }
+
+    private void PresentMapWithWeather(Bitmap clean)
+    {
+        if (!WeatherOverlayRenderer.NeedsDraw(_weatherPlan))
+        {
+            SwapMapImage(clean);
+            return;
+        }
+
+        var shown = new Bitmap(clean.Width, clean.Height);
+        using (var g = Graphics.FromImage(shown))
+        {
+            g.DrawImageUnscaled(clean, 0, 0);
+            WeatherOverlayRenderer.Draw(g, shown.Size, _weatherPlan, _weatherTickMs);
+        }
+
+        SwapMapImage(shown);
+    }
+
+    private void SwapMapImage(Bitmap next)
+    {
+        var previous = _picMap.Image;
+        _picMap.Image = next;
+        if (previous is not null
+            && !ReferenceEquals(previous, next)
+            && !ReferenceEquals(previous, _mapCleanBmp))
+        {
+            previous.Dispose();
+        }
     }
 
     private void ReloadTilesetBitmaps()
@@ -3245,6 +3343,12 @@ public sealed class MainShellForm : Form
         var old = _picMap.Image;
         _picMap.Image = null;
         old?.Dispose();
+        if (_mapCleanBmp is not null && !ReferenceEquals(_mapCleanBmp, old))
+        {
+            _mapCleanBmp.Dispose();
+        }
+
+        _mapCleanBmp = null;
         _picMap.Location = Point.Empty;
     }
 
@@ -4236,6 +4340,17 @@ public sealed class MainShellForm : Form
     {
         MainShell_KeyDown(this, new KeyEventArgs(Keys.F1));
     }
+
+    internal void ProcessF8ForTest()
+    {
+        MainShell_KeyDown(this, new KeyEventArgs(Keys.F8));
+    }
+
+    internal WeatherOverlayPlan WeatherPlanForTest => _weatherPlan;
+
+    internal WeatherDebugOverride WeatherDebugForTest => _weatherDebug;
+
+    internal void ApplyEnvironmentStateForTest(EnvironmentStateWire state) => OnEnvironmentStatePush(state);
 
     internal Panel WorldHostForTest => _worldHost;
 

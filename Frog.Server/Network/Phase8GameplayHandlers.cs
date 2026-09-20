@@ -301,6 +301,7 @@ public sealed class Phase8GameplayHandlers(
                 snapshot.RegionId,
                 snapshot.WeatherProfileId,
                 (byte)Math.Clamp((int)(snapshot.LightingFactor * 255), 0, 255),
+                snapshot.WeatherKind,
                 cancellationToken)
             .ConfigureAwait(false);
         session.LastEnvironmentRegionId = snapshot.RegionId;
