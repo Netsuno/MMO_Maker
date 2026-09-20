@@ -181,7 +181,8 @@ public sealed class WeatherMvpTests
     public void ClientWiresOverlay_WithoutProtocolBumpOrExactShaPanelEdits()
     {
         var shell = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "MainShellForm.cs"));
-        var renderer = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "UI", "WeatherOverlayRenderer.cs"));
+        var mapRenderer = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "UI", "MapViewRenderer.cs"));
+        var overlay = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "UI", "WeatherOverlayRenderer.cs"));
         var sound = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Services", "SoundService.cs"));
         var help = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Forms", "HelpForm.cs"));
         var envPanel = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Controls", "EnvironmentPanel.cs"));
@@ -190,12 +191,14 @@ public sealed class WeatherMvpTests
         var client = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Network", "FrogGameClient.cs"));
 
         Assert.Contains("WeatherResolver.Resolve", shell, StringComparison.Ordinal);
-        Assert.Contains("PresentMapWithWeather", shell, StringComparison.Ordinal);
+        Assert.Contains("weatherPlan: _weatherPlan", shell, StringComparison.Ordinal);
+        Assert.Contains("weatherTickMs: _weatherTickMs", shell, StringComparison.Ordinal);
         Assert.Contains("CycleWeatherDebug", shell, StringComparison.Ordinal);
         Assert.Contains("Keys.F8", shell, StringComparison.Ordinal);
         Assert.Contains("_sound.ApplyWeather(_weatherPlan)", shell, StringComparison.Ordinal);
-        Assert.Contains("WeatherOverlayRenderer.Draw(g, shown.Size, _weatherPlan, _weatherTickMs)", shell, StringComparison.Ordinal);
-        Assert.Contains("public static void Draw(", renderer, StringComparison.Ordinal);
+        Assert.Contains("WeatherOverlayRenderer.Draw", mapRenderer, StringComparison.Ordinal);
+        Assert.Contains("WeatherOverlayRenderer.Draw(g, bmp.Size, weatherPlan, weatherTickMs)", mapRenderer, StringComparison.Ordinal);
+        Assert.Contains("public static void Draw(", overlay, StringComparison.Ordinal);
         Assert.Contains("WeatherAudio.ShouldPlayAmbience", sound, StringComparison.Ordinal);
         Assert.Contains("F8 (en jeu)", help, StringComparison.Ordinal);
         Assert.Contains("snapshot.WeatherKind", handlers, StringComparison.Ordinal);

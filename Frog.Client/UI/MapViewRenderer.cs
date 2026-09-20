@@ -8,6 +8,7 @@ using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Weather;
 
 namespace Frog.Client.UI;
 
@@ -27,6 +28,8 @@ internal static class MapViewRenderer
     /// <param name="prefabPlacements">Instances prefab (sidecar), dessinées après les tuiles.</param>
     /// <param name="prefabCatalog">Catalogue pour résoudre empreinte / sprite.</param>
     /// <param name="prefabBitmaps">Nom de fichier sprite → image.</param>
+    /// <param name="weatherPlan">Overlay teinte / traits (MVP). Défaut = pas de dessin.</param>
+    /// <param name="weatherTickMs">Horloge cheap pour les traits de pluie.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -40,7 +43,9 @@ internal static class MapViewRenderer
         IReadOnlyDictionary<string, PlayerSpritePose>? otherPoses = null,
         IReadOnlyList<PrefabPlacement>? prefabPlacements = null,
         PrefabCatalog? prefabCatalog = null,
-        IReadOnlyDictionary<string, Bitmap>? prefabBitmaps = null)
+        IReadOnlyDictionary<string, Bitmap>? prefabBitmaps = null,
+        WeatherOverlayPlan weatherPlan = default,
+        int weatherTickMs = 0)
     {
         var tw = WorldMetrics.DefaultTileSizePixels;
         var w = map.Width * tw;
@@ -181,6 +186,7 @@ internal static class MapViewRenderer
         }
 
         DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false, localPose);
+        WeatherOverlayRenderer.Draw(g, bmp.Size, weatherPlan, weatherTickMs);
         return bmp;
     }
 

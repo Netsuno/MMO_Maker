@@ -154,9 +154,6 @@ public sealed class MainShellForm : Form
 
     private readonly List<MapEventWireEntry> _mapEvents = new();
 
-    /// <summary>Dernier rendu carte sans overlay météo (blit idle pluie).</summary>
-    private Bitmap? _mapCleanBmp;
-
     private WeatherOverlayPlan _weatherPlan = WeatherCatalog.Clear;
 
     private WeatherDebugOverride _weatherDebug;
@@ -586,10 +583,10 @@ public sealed class MainShellForm : Form
         {
             RedrawMap();
         }
-        else if (_weatherPlan.ParticleCount > 0 && _mapCleanBmp is not null)
+        else if (_weatherPlan.ParticleCount > 0)
         {
             _weatherTickMs += _smoothTimer.Interval;
-            PresentMapWithWeather(_mapCleanBmp);
+            RedrawMap();
         }
 
         TrySendHeldMoveNetwork();
@@ -1717,9 +1714,9 @@ public sealed class MainShellForm : Form
             env?.WeatherKind,
             _weatherDebug);
         _sound.ApplyWeather(_weatherPlan);
-        if (_mapCleanBmp is not null)
+        if (_map is not null)
         {
-            PresentMapWithWeather(_mapCleanBmp);
+            RedrawMap();
         }
     }
 
@@ -3226,57 +3223,14 @@ public sealed class MainShellForm : Form
             otherPoses: otherPoses,
             prefabPlacements: _prefabPlacements,
             prefabCatalog: _prefabCatalog,
-            prefabBitmaps: _prefabBitmaps);
-        ReplaceCleanMapBitmap(bmp);
-        PresentMapWithWeather(bmp);
+            prefabBitmaps: _prefabBitmaps,
+            weatherPlan: _weatherPlan,
+            weatherTickMs: _weatherTickMs);
+        var previous = _picMap.Image;
+        _picMap.Image = bmp;
+        previous?.Dispose();
         ApplyMapViewportCamera();
         _movementMeasure.NoteVisibleUpdate();
-    }
-
-    private void ReplaceCleanMapBitmap(Bitmap clean)
-    {
-        if (ReferenceEquals(_mapCleanBmp, clean))
-        {
-            return;
-        }
-
-        var previousClean = _mapCleanBmp;
-        _mapCleanBmp = clean;
-        if (previousClean is not null
-            && !ReferenceEquals(previousClean, _picMap.Image))
-        {
-            previousClean.Dispose();
-        }
-    }
-
-    private void PresentMapWithWeather(Bitmap clean)
-    {
-        if (!WeatherOverlayRenderer.NeedsDraw(_weatherPlan))
-        {
-            SwapMapImage(clean);
-            return;
-        }
-
-        var shown = new Bitmap(clean.Width, clean.Height);
-        using (var g = Graphics.FromImage(shown))
-        {
-            g.DrawImageUnscaled(clean, 0, 0);
-            WeatherOverlayRenderer.Draw(g, shown.Size, _weatherPlan, _weatherTickMs);
-        }
-
-        SwapMapImage(shown);
-    }
-
-    private void SwapMapImage(Bitmap next)
-    {
-        var previous = _picMap.Image;
-        _picMap.Image = next;
-        if (previous is not null
-            && !ReferenceEquals(previous, next)
-            && !ReferenceEquals(previous, _mapCleanBmp))
-        {
-            previous.Dispose();
-        }
     }
 
     private void ReloadTilesetBitmaps()
@@ -3343,12 +3297,6 @@ public sealed class MainShellForm : Form
         var old = _picMap.Image;
         _picMap.Image = null;
         old?.Dispose();
-        if (_mapCleanBmp is not null && !ReferenceEquals(_mapCleanBmp, old))
-        {
-            _mapCleanBmp.Dispose();
-        }
-
-        _mapCleanBmp = null;
         _picMap.Location = Point.Empty;
     }
 
