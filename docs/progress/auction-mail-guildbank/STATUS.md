@@ -7,9 +7,9 @@
 | **Statut** | MVP in-memory + onglets Social — **pas de merge** |
 | **Base** | `main` @ `91eaa12` (merge PR #31 maintenance) |
 | **Branche** | `cursor/auction-mail-guildbank-mvp-61f1` |
-| **PR** | Draft (à lier) vers `main` — **pas de merge** |
-| **Tip** | (à pinner après CI) |
-| **CI** | à pinner après le run du tip exact |
+| **PR** | Draft [#32](https://github.com/Netsuno/MMO_Maker/pull/32) vers `main` — **pas de merge** |
+| **Tip** | (à pinner après CI du tip exact) |
+| **CI** | Linux local : `Frog.Tests` **697 passed**. GitHub CI à pinner après le run du tip exact |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcodes additifs **87–89** (`EconomyHubRequest` / `Result` / `Snapshot`). Gel social 80–86 inchangé. |
 
 Chrome DA v2 + overlay Social existant. Menu ring **reste 5 icônes**. Dock chat **Amis / Groupe / Guilde** inchangé (smoke `#27`). Ouverture : onglets **Courrier / HdV / Coffre** sous Social.
@@ -48,5 +48,7 @@ Chrome DA v2 + overlay Social existant. Menu ring **reste 5 icônes**. Dock chat
 - `Frog.Tests/EconomyHubWireTests.cs` — round-trip 87–89, protocole 11, hints vides, câblage shell/hub/client, ce STATUS.
 - `Frog.Tests/EconomyHubLogicTests.cs` — Query sans perso / action inconnue / listes vides / coffre 8 slots si guilde.
 - `Frog.Tests/EconomyHubTcpTests.cs` — TCP in-memory Query + create guild + coffre.
+
+Linux this run: `dotnet test Frog.Tests` **697 passed** (filtre EconomyHub **11 passed**).
 
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
