@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Frog.Application.Gameplay;
+using Frog.Core.Enums;
 using Frog.Server.Services;
 
 namespace Frog.Server.Models;
@@ -66,6 +67,9 @@ public sealed class Session
     public Dictionary<Guid, DateTime> SpellCooldownsUtc { get; } = new();
 
     public DateTime LastMeleeUtc { get; set; }
+
+    /// <summary>Facing serveur, tamponné au mouvement (combat MVP, pas un champ protocole).</summary>
+    public Direction Facing { get; set; } = Direction.Down;
 
     /// <summary>
     /// Verrou pour les mutations HP joueur (melee PvP) : plusieurs attaquants peuvent

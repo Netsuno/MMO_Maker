@@ -445,6 +445,7 @@ public static class FrogServerHostFactory
                     sp.GetRequiredService<Frog.Server.Trade.TradeService>());
                 services.AddSingleton<Frog.Server.Economy.EconomyHubService>();
                 services.AddSingleton<Frog.Server.Instances.InstanceHubService>();
+                services.AddSingleton<Frog.Server.Combat.CombatMvpService>();
                 services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
                 services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();

@@ -10,6 +10,7 @@ using Frog.Client.Assets;
 using Frog.Client.Config;
 using Frog.Client.Controls;
 using Frog.Client.Forms;
+using Frog.Client.Models;
 using Frog.Client.Network;
 using Frog.Client.Services;
 using Frog.Client.UI;
@@ -23,6 +24,7 @@ using Frog.Core.Models;
 using Frog.Core.Observability;
 using Frog.Core.Protocol;
 using Frog.Core.Security;
+using Frog.Core.Combat;
 using Frog.Core.Economy;
 using Frog.Core.Instances;
 using Frog.Core.Social;
@@ -229,6 +231,7 @@ public sealed class MainShellForm : Form
     private readonly ClientSocialRoster _socialRoster = new();
     private readonly ClientEconomyHub _economyHub = new();
     private readonly ClientInstanceHub _instanceHub = new();
+    private readonly ClientCombatHud _combatHud = new();
     private readonly SocialHubPanel _socialHub = new() { Dock = DockStyle.Fill };
     private readonly HudWindowChrome _windowChrome = new("Inventaire");
     private string _windowTitleHint = "Inventaire";
@@ -1310,6 +1313,7 @@ public sealed class MainShellForm : Form
         _client.TradeSnapshotReceived += OnTradeSnapshot;
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
             AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "rate")} — {msg}");
+        _client.DamageEventReceived += OnDamageEvent;
         _client.CharacterListReceived += OnCharacterListJson;
         _client.CharacterSelectResultReceived += OnCharacterSelectResult;
         _client.CharacterCreateResultReceived += OnCharacterCreateResult;
@@ -1442,6 +1446,7 @@ public sealed class MainShellForm : Form
         }
 
         _cmbMeleeTarget.Items.Clear();
+        _cmbMeleeTarget.Items.Add(CombatMvpLimits.DummyName);
         foreach (var npc in catalog.Npcs)
         {
             if (!string.IsNullOrWhiteSpace(npc.Name) && !_cmbMeleeTarget.Items.Contains(npc.Name))
@@ -1454,11 +1459,8 @@ public sealed class MainShellForm : Form
         {
             var defaultTarget = catalog.Npcs.FirstOrDefault(n =>
                     string.Equals(n.Name, "Slime", StringComparison.OrdinalIgnoreCase))?.Name
-                ?? catalog.Npcs.FirstOrDefault()?.Name;
-            if (!string.IsNullOrWhiteSpace(defaultTarget))
-            {
-                _cmbMeleeTarget.Text = defaultTarget;
-            }
+                ?? CombatMvpLimits.DummyName;
+            _cmbMeleeTarget.Text = defaultTarget;
         }
 
         if (_btnCharCreate.Enabled)
@@ -1586,6 +1588,24 @@ public sealed class MainShellForm : Form
     {
         var enabled = _client is { IsConnected: true };
         _btnBankWithdrawItem.Enabled = enabled && _lstBank.SelectedItem is BankRow;
+    }
+
+    private void OnDamageEvent(DamageEvent ev)
+    {
+        _combatHud.Apply(ev, DateTime.UtcNow);
+        if (CombatEffect.ShouldFlash(_combatHud))
+        {
+            _hudHotbar.FlashMeleeSlot();
+            _combatHud.ClearFlash();
+        }
+
+        AppendLog(ev.Killed
+            ? $"Dégâts {ev.Damage} → {ev.TargetName} (vaincu)"
+            : $"Dégâts {ev.Damage} → {ev.TargetName} ({ev.RemainingHp}/{ev.MaxHp})");
+        if (_phase == ClientUiPhase.Playing)
+        {
+            RedrawMap();
+        }
     }
 
     private void OnCombatState(CombatStateWire state)
@@ -3016,12 +3036,15 @@ public sealed class MainShellForm : Form
         var t = _cmbMeleeTarget.Text.Trim();
         if (string.IsNullOrEmpty(t))
         {
-            return;
+            t = CombatMvpLimits.DummyName;
         }
 
+        var kind = string.Equals(t, CombatMvpLimits.DummyName, StringComparison.OrdinalIgnoreCase)
+            ? CombatTargetKind.Dummy
+            : CombatTargetKind.None;
         try
         {
-            await _client.SendMeleeAttackAsync(t).ConfigureAwait(true);
+            await _client.SendMeleeAttackAsync(t, kind, _localFacing, Guid.Empty).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -3091,6 +3114,14 @@ public sealed class MainShellForm : Form
         {
             SetWindowLayerVisible(false);
             e.Handled = true;
+            return;
+        }
+
+        if (e.KeyCode == Keys.Space)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            _ = MeleeAsync();
             return;
         }
 
@@ -3239,6 +3270,8 @@ public sealed class MainShellForm : Form
             prefabBitmaps: _prefabBitmaps,
             weatherPlan: _weatherPlan,
             weatherTickMs: _weatherTickMs);
+        _combatHud.Tick(DateTime.UtcNow);
+        CombatEffect.Draw(bmp, _combatHud.Floats, DateTime.UtcNow);
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
@@ -4399,6 +4432,10 @@ public sealed class MainShellForm : Form
     internal void OpenInstancePanelForTest() => OpenInstancePanel();
 
     internal ClientInstanceHub InstanceHubForTest => _instanceHub;
+
+    internal ClientCombatHud CombatHudForTest => _combatHud;
+
+    internal void OnDamageEventForTest(DamageEvent ev) => OnDamageEvent(ev);
 
     internal void OnInstanceHubSnapshotForTest(InstanceHubSnapshotWire snap) => OnInstanceHubSnapshot(snap);
 

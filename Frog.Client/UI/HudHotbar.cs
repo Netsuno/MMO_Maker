@@ -133,6 +133,25 @@ public sealed class HudHotbar : Panel
         SlotActivated?.Invoke(index);
     }
 
+    /// <summary>Flash court du slot mêlée (0) — restaure le chrome DA v2 ensuite.</summary>
+    public void FlashMeleeSlot()
+    {
+        var btn = _slots[0];
+        var restoreBack = btn.BackColor;
+        var restoreFore = btn.ForeColor;
+        btn.BackColor = Color.FromArgb(180, 70, 40);
+        btn.ForeColor = UiTheme.TextPrimary;
+        var timer = new System.Windows.Forms.Timer { Interval = 120 };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            timer.Dispose();
+            btn.BackColor = restoreBack;
+            btn.ForeColor = restoreFore;
+        };
+        timer.Start();
+    }
+
     private void DrawChrome(object? sender, PaintEventArgs e)
     {
         if (Width < 4 || Height < 4)

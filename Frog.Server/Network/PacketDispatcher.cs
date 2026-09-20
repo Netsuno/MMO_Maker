@@ -14,6 +14,7 @@ using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
+using Frog.Core.Combat;
 using Frog.Core.Protocol;
 using Frog.Server.Models;
 using Frog.Server.Database;
@@ -25,6 +26,7 @@ using Frog.Server.Services;
 using Frog.Server.Config;
 using Frog.Server.Observability;
 using Frog.Server.Economy;
+using Frog.Server.Combat;
 using Frog.Server.Instances;
 using Frog.Server.Social;
 using Frog.Server.Trade;
@@ -66,6 +68,7 @@ public sealed partial class PacketDispatcher(
     TradeService tradeService,
     EconomyHubService economyHubService,
     InstanceHubService instanceHubService,
+    CombatMvpService combatMvpService,
     IOptions<RegistrationOptions> registrationOptions,
     MaintenanceService maintenance,
     ILogger<PacketDispatcher> logger)
@@ -102,6 +105,7 @@ public sealed partial class PacketDispatcher(
     private readonly TradeService _trade = tradeService;
     private readonly EconomyHubService _economyHub = economyHubService;
     private readonly InstanceHubService _instanceHub = instanceHubService;
+    private readonly CombatMvpService _combatMvp = combatMvpService;
     private readonly RegistrationOptions _registration = registrationOptions.Value;
     private readonly MaintenanceService _maintenance = maintenance;
     private readonly ILogger<PacketDispatcher> _logger = logger;
@@ -1563,22 +1567,62 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
-        if (!TryParseMeleeTargetPayload(payload.Span, out var targetName))
+        AttackRequest attack;
+        if (CombatMvpWire.TryParseAttackRequest(payload.Span, out var parsedAttack))
+        {
+            attack = parsedAttack;
+        }
+        else if (TryParseMeleeTargetPayload(payload.Span, out var legacyName))
+        {
+            attack = new AttackRequest(legacyName, CombatTargetKind.None, attacker.Facing, Guid.Empty);
+        }
+        else
         {
             await _packetSender.SendErrorAsync(clientSession, "Payload attaque melee invalide.", cancellationToken);
             return;
         }
 
+        if (_combatMvp.IsDummyRequest(attack))
+        {
+            var dummy = _combatMvp.TryMelee(attacker, attack);
+            await _packetSender.SendMeleeAttackResultAsync(
+                clientSession,
+                dummy.Success,
+                attack.TargetName,
+                dummy.Message,
+                cancellationToken,
+                dummy.Damage);
+            if (dummy.Success && dummy.Damage is { } dummyEv)
+            {
+                await BroadcastDamageEventAsync(attacker, dummyEv, attack.TargetName, dummy.Message, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        var targetName = attack.TargetName;
         var monsterResult = await _combatGameplay.TryMeleeAttackMonsterAsync(attacker, targetName, cancellationToken)
             .ConfigureAwait(false);
         if (monsterResult.Success)
         {
+            var monsterEv = new DamageEvent(
+                attacker.CharacterGuid ?? attacker.Id,
+                monsterResult.NpcDefinitionId ?? Guid.Empty,
+                CombatTargetKind.Monster,
+                monsterResult.TargetName,
+                monsterResult.Damage,
+                monsterResult.TargetHp,
+                monsterResult.TargetMaxHp,
+                Hit: true,
+                monsterResult.MonsterKilled);
             await _packetSender.SendMeleeAttackResultAsync(
                 clientSession,
                 true,
                 monsterResult.TargetName,
                 monsterResult.Message,
-                cancellationToken);
+                cancellationToken,
+                monsterEv);
             if (monsterResult.MonsterKilled && monsterResult.ExperienceGained > 0)
             {
                 await _packetSender.SendExperienceGainAsync(
@@ -1656,7 +1700,23 @@ public sealed partial class PacketDispatcher(
         }
 
         _connectionManager.TryTouchSession(attacker.Id);
-        await _packetSender.SendMeleeAttackResultAsync(clientSession, true, targetName, pvp.Message, cancellationToken);
+        var pvpEv = new DamageEvent(
+            attacker.CharacterGuid ?? attacker.Id,
+            defender.CharacterGuid ?? defender.Id,
+            CombatTargetKind.Player,
+            targetName,
+            pvp.Damage,
+            defender.Hp,
+            defender.MaxHp,
+            Hit: true,
+            pvp.TargetKilled);
+        await _packetSender.SendMeleeAttackResultAsync(
+            clientSession,
+            true,
+            targetName,
+            pvp.Message,
+            cancellationToken,
+            pvpEv);
         if (_clientRegistry.TryGet(defender.Id, out var defenderClient) && defenderClient is not null)
         {
             await _packetSender.SendMeleeAttackResultAsync(
@@ -1664,7 +1724,8 @@ public sealed partial class PacketDispatcher(
                 true,
                 attacker.Username,
                 "Subi une attaque melee.",
-                cancellationToken);
+                cancellationToken,
+                pvpEv);
             await SendCombatStateAsync(defenderClient, defender, cancellationToken);
             if (pvp.TargetKilled)
             {
@@ -1689,13 +1750,44 @@ public sealed partial class PacketDispatcher(
             return false;
         }
 
-        if (payload.Length != 1 + len)
+        if (payload.Length < 1 + len)
         {
             return false;
         }
 
         targetUsername = Encoding.UTF8.GetString(payload.Slice(1, len));
         return !string.IsNullOrWhiteSpace(targetUsername);
+    }
+
+    private async Task BroadcastDamageEventAsync(
+        Session attacker,
+        DamageEvent ev,
+        string targetName,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        foreach (var other in _connectionManager.GetActiveSessions())
+        {
+            if (other.Id == attacker.Id || other.CurrentMapId != attacker.CurrentMapId)
+            {
+                continue;
+            }
+
+            if (_clientRegistry.TryGet(other.Id, out var otherClient) && otherClient is not null)
+            {
+                await _packetSender.SendMeleeAttackResultAsync(
+                    otherClient,
+                    ev.Hit,
+                    targetName,
+                    message,
+                    cancellationToken,
+                    ev).ConfigureAwait(false);
+                if (ev.Killed && ev.TargetKind == CombatTargetKind.Player)
+                {
+                    await _packetSender.SendDeathNotifyAsync(otherClient, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
     }
 
     private async Task HandleChatSendAsync(ClientSession clientSession, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
