@@ -19,7 +19,7 @@ Présentation + layout status HG seulement.
 
 | Surface | Avant | Après (tokens DA) |
 | --- | --- | --- |
-| Status HG | Nom + `Lv N` + barres, pas de portrait | Portrait circulaire placeholder **ø44** (plage 40–48) à gauche ; nom `text.primary` `#F2F4F8` + Lv + HP/MP |
+| Status HG | Nom + `Lv N` + barres, pas de portrait | Panneau `bg.panel` `#161C28` ; portrait circulaire placeholder **ø44** (plage 40–48) à gauche ; nom `text.primary` `#F2F4F8` + Lv + HP/MP |
 | Emprise | 280×72 déjà | **280×72** conservée (`gap.hud` interne 8) |
 | Portrait | — | Fill `bg.slot` `#0C1018` + filet or 1 px `accent.gold` `#C9A227` ; initiale ou buste placeholder (pas le skin monde) |
 | Barres | Kenney `bars/*` HP/MP | **Inchangées** (couleurs natives + fallback `bar.hp` / `bar.mp`) |
