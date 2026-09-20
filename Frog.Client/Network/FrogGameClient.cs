@@ -97,6 +97,8 @@ public sealed class FrogGameClient : IDisposable
     public event Action<SocialEventWire>? SocialEventReceived;
     public event Action<TradeResultWire>? TradeResultReceived;
     public event Action<TradeSnapshotWire>? TradeSnapshotReceived;
+    public event Action<EconomyHubResultWire>? EconomyHubResultReceived;
+    public event Action<EconomyHubSnapshotWire>? EconomyHubSnapshotReceived;
     public event Action? ConnectionClosed;
 
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
@@ -796,6 +798,22 @@ public sealed class FrogGameClient : IDisposable
 
                 break;
 
+            case PacketId.EconomyHubResult:
+                if (EconomyHubWire.TryParseResult(body.Span, out var economyResult))
+                {
+                    Post(() => EconomyHubResultReceived?.Invoke(economyResult));
+                }
+
+                break;
+
+            case PacketId.EconomyHubSnapshot:
+                if (EconomyHubWire.TryParseSnapshot(body.Span, out var economySnap))
+                {
+                    Post(() => EconomyHubSnapshotReceived?.Invoke(economySnap));
+                }
+
+                break;
+
             default:
                 Post(() => ErrorReceived?.Invoke($"Paquet serveur inconnu: {(byte)id}"));
                 break;
@@ -1159,6 +1177,20 @@ public sealed class FrogGameClient : IDisposable
         var body = TradeWire.BuildRequest(action, tradeId, requestId, extra);
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.TradeRequest;
+        body.CopyTo(payload.AsSpan(1));
+        return SendRawAsync(payload, cancellationToken);
+    }
+
+    public Task SendEconomyHubAsync(
+        EconomyHubKind kind,
+        byte action,
+        Guid requestId,
+        ReadOnlySpan<byte> extra,
+        CancellationToken cancellationToken = default)
+    {
+        var body = EconomyHubWire.BuildRequest(kind, action, requestId, extra);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.EconomyHubRequest;
         body.CopyTo(payload.AsSpan(1));
         return SendRawAsync(payload, cancellationToken);
     }

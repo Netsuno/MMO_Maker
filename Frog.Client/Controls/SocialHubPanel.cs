@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using Frog.Client.UI;
+using Frog.Core.Economy;
 using Frog.Core.Enums;
 using Frog.Core.Social;
 
@@ -16,12 +17,23 @@ public sealed class SocialHubPanel : UserControl
     private readonly TabPage _tabFriends = new("Amis") { Padding = new Padding(4) };
     private readonly TabPage _tabParty = new("Groupe") { Padding = new Padding(4) };
     private readonly TabPage _tabGuild = new("Guilde") { Padding = new Padding(4) };
+    private readonly TabPage _tabMail = new("Courrier") { Padding = new Padding(4) };
+    private readonly TabPage _tabAuction = new("HdV") { Padding = new Padding(4) };
+    private readonly TabPage _tabGuildBank = new("Coffre") { Padding = new Padding(4) };
     private readonly SocialKindSurface _friends;
     private readonly SocialKindSurface _party;
     private readonly SocialKindSurface _guild;
+    private readonly EconomyHubSurface _mail = new(EconomyHubKind.Mail);
+    private readonly EconomyHubSurface _auction = new(EconomyHubKind.Auction);
+    private readonly EconomyHubSurface _guildBank = new(EconomyHubKind.GuildBank);
     private ClientSocialRoster _roster = new();
+    private ClientEconomyHub _economy = new();
 
     public event Action<SocialClientRequest>? ActionRequested;
+
+    public event Action<EconomyHubKind>? EconomyQueryRequested;
+
+    public event Action? SurfaceChanged;
 
     public SocialHubPanel()
     {
@@ -34,14 +46,32 @@ public sealed class SocialHubPanel : UserControl
         _tabFriends.Controls.Add(_friends);
         _tabParty.Controls.Add(_party);
         _tabGuild.Controls.Add(_guild);
+        _tabMail.Controls.Add(_mail);
+        _tabAuction.Controls.Add(_auction);
+        _tabGuildBank.Controls.Add(_guildBank);
+        _mail.QueryRequested += kind => EconomyQueryRequested?.Invoke(kind);
+        _auction.QueryRequested += kind => EconomyQueryRequested?.Invoke(kind);
+        _guildBank.QueryRequested += kind => EconomyQueryRequested?.Invoke(kind);
         _tabs.TabPages.Add(_tabFriends);
         _tabs.TabPages.Add(_tabParty);
         _tabs.TabPages.Add(_tabGuild);
+        _tabs.TabPages.Add(_tabMail);
+        _tabs.TabPages.Add(_tabAuction);
+        _tabs.TabPages.Add(_tabGuildBank);
         UiTheme.StyleGoldTabs(_tabs);
         Controls.Add(_tabs);
         Paint += (s, e) => UiTheme.PaintDoubleGoldFrame(this, e);
-        _tabs.SelectedIndexChanged += (_, _) => SyncActions();
+        _tabs.SelectedIndexChanged += (_, _) =>
+        {
+            SyncActions();
+            SurfaceChanged?.Invoke();
+            if (TryGetSelectedEconomy(out var economyKind))
+            {
+                EconomyQueryRequested?.Invoke(economyKind);
+            }
+        };
         ApplyRoster(_roster);
+        ApplyEconomy(_economy);
     }
 
     public SocialKind SelectedKind
@@ -71,6 +101,44 @@ public sealed class SocialHubPanel : UserControl
             _ => _tabFriends
         };
         SyncActions();
+        SurfaceChanged?.Invoke();
+    }
+
+    public void SelectEconomy(EconomyHubKind kind)
+    {
+        _tabs.SelectedTab = kind switch
+        {
+            EconomyHubKind.Auction => _tabAuction,
+            EconomyHubKind.GuildBank => _tabGuildBank,
+            _ => _tabMail
+        };
+        SyncActions();
+        SurfaceChanged?.Invoke();
+        EconomyQueryRequested?.Invoke(kind);
+    }
+
+    public bool TryGetSelectedEconomy(out EconomyHubKind kind)
+    {
+        if (_tabs.SelectedTab == _tabAuction)
+        {
+            kind = EconomyHubKind.Auction;
+            return true;
+        }
+
+        if (_tabs.SelectedTab == _tabMail)
+        {
+            kind = EconomyHubKind.Mail;
+            return true;
+        }
+
+        if (_tabs.SelectedTab == _tabGuildBank)
+        {
+            kind = EconomyHubKind.GuildBank;
+            return true;
+        }
+
+        kind = default;
+        return false;
     }
 
     public void ApplyRoster(ClientSocialRoster roster)
@@ -82,7 +150,17 @@ public sealed class SocialHubPanel : UserControl
         SyncActions();
     }
 
-    public string ChromeTitle => ClientSocialRoster.KindLabel(SelectedKind);
+    public void ApplyEconomy(ClientEconomyHub state)
+    {
+        _economy = state ?? new ClientEconomyHub();
+        _mail.Bind(_economy);
+        _auction.Bind(_economy);
+        _guildBank.Bind(_economy);
+    }
+
+    public string ChromeTitle => TryGetSelectedEconomy(out var economy)
+        ? ClientEconomyHub.KindLabel(economy)
+        : ClientSocialRoster.KindLabel(SelectedKind);
 
     internal TabControl TabsForTest => _tabs;
 
@@ -105,6 +183,21 @@ public sealed class SocialHubPanel : UserControl
     internal void Raise(SocialClientRequest request) => ActionRequested?.Invoke(request);
 
     internal ClientSocialRoster RosterForTest => _roster;
+
+    internal ClientEconomyHub EconomyForTest => _economy;
+
+    internal int EconomyRowCountForTest(EconomyHubKind kind) => EconomySurface(kind).RowCountForTest;
+
+    internal string EconomyEmptyHintForTest(EconomyHubKind kind) => EconomySurface(kind).EmptyHintForTest;
+
+    internal void ClickEconomyRefreshForTest(EconomyHubKind kind) => EconomySurface(kind).ClickRefreshForTest();
+
+    private EconomyHubSurface EconomySurface(EconomyHubKind kind) => kind switch
+    {
+        EconomyHubKind.Auction => _auction,
+        EconomyHubKind.GuildBank => _guildBank,
+        _ => _mail
+    };
 
     private SocialKindSurface Surface(SocialKind kind) => kind switch
     {

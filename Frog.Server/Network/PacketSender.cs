@@ -73,6 +73,24 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return session.SendFrameAsync(payload, cancellationToken);
     }
 
+    public Task SendEconomyHubResultAsync(ClientSession session, EconomyHubResultWire result, CancellationToken cancellationToken)
+    {
+        var body = EconomyHubWire.BuildResult(result);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.EconomyHubResult;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
+    public Task SendEconomyHubSnapshotAsync(ClientSession session, EconomyHubSnapshotWire snapshot, CancellationToken cancellationToken)
+    {
+        var body = EconomyHubWire.BuildSnapshot(snapshot);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.EconomyHubSnapshot;
+        body.CopyTo(payload.AsSpan(1));
+        return session.SendFrameAsync(payload, cancellationToken);
+    }
+
     public Task SendMapDataAsync(
         ClientSession session,
         int mapId,

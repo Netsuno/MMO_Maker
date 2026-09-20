@@ -91,5 +91,8 @@ public static class PacketIds
     public const byte TradeRequest = 84;
     public const byte TradeResult = 85;
     public const byte TradeSnapshot = 86;
+    public const byte EconomyHubRequest = 87;
+    public const byte EconomyHubResult = 88;
+    public const byte EconomyHubSnapshot = 89;
     public const byte Error = 255;
 }
