@@ -7,7 +7,7 @@
 | **Statut** | Step 5 only — layout planche, tokens DA inchangés |
 | **Base** | `main` @ `ee25ace` (merge PR #22 editor spawn ; includes #21 menu five) |
 | **Branche** | `cursor/client-ui-da-v2-login` |
-| **PR** | Draft — **pas de merge** |
+| **PR** | Draft https://github.com/Netsuno/MMO_Maker/pull/23 vers `main` — **pas de merge** |
 | **Tip** | `050c422` |
 
 Protocole / gameplay / réseau / mouvement / skin / chrome fenêtres / portrait status / menu 5 icônes : **non touchés**.
