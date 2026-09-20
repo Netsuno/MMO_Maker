@@ -194,7 +194,8 @@ public sealed class WeatherMvpTests
         Assert.Contains("CycleWeatherDebug", shell, StringComparison.Ordinal);
         Assert.Contains("Keys.F8", shell, StringComparison.Ordinal);
         Assert.Contains("_sound.ApplyWeather(_weatherPlan)", shell, StringComparison.Ordinal);
-        Assert.Contains("WeatherOverlayRenderer.Draw", renderer, StringComparison.Ordinal);
+        Assert.Contains("WeatherOverlayRenderer.Draw(g, shown.Size, _weatherPlan, _weatherTickMs)", shell, StringComparison.Ordinal);
+        Assert.Contains("public static void Draw(", renderer, StringComparison.Ordinal);
         Assert.Contains("WeatherAudio.ShouldPlayAmbience", sound, StringComparison.Ordinal);
         Assert.Contains("F8 (en jeu)", help, StringComparison.Ordinal);
         Assert.Contains("snapshot.WeatherKind", handlers, StringComparison.Ordinal);
