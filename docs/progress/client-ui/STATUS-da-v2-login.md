@@ -8,7 +8,7 @@
 | **Base** | `main` @ `ee25ace` (merge PR #22 editor spawn ; includes #21 menu five) |
 | **Branche** | `cursor/client-ui-da-v2-login` |
 | **PR** | Draft https://github.com/Netsuno/MMO_Maker/pull/23 vers `main` — **pas de merge** |
-| **Tip** | `050c422` |
+| **Tip** | `fc102c6` (CI green) |
 
 Protocole / gameplay / réseau / mouvement / skin / chrome fenêtres / portrait status / menu 5 icônes : **non touchés**.
 Présentation + layout login (et carte perso page 2) seulement. Contraste #16 inchangé : fill sombre `bg.slot` + texte crème ; or = filet / bordure seulement.
@@ -39,3 +39,5 @@ Présentation + layout login (et carte perso page 2) seulement. Contraste #16 in
 - Combiner Connecter+Connexion en un seul clic (changerait le contrat smoke Connect → Login)
 
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
+
+CI **green** on `fc102c6` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35524168069/job/106113326376) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35524168069/job/106113326518).
