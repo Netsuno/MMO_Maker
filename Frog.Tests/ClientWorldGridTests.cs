@@ -21,7 +21,7 @@ public sealed class ClientWorldGridTests
         Assert.Contains("bool showTileGrid = false", rendererText, StringComparison.Ordinal);
         Assert.Contains("if (showTileGrid)", rendererText, StringComparison.Ordinal);
         Assert.DoesNotContain("showTileGrid: true", shellText, StringComparison.Ordinal);
-        Assert.Contains("MapViewRenderer.Render(_map, otherPx, _username, lcx, lcy, _tilesetBitmaps, _mapEvents)", shellText, StringComparison.Ordinal);
+        Assert.Contains("MapViewRenderer.Render(_map, otherPx, _username, lcx, lcy, _tilesetBitmaps, _mapEvents, localPose: localPose, otherPoses: otherPoses)", shellText, StringComparison.Ordinal);
     }
 
     [Fact]

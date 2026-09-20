@@ -40,7 +40,7 @@ Draw order : **body → tunic → armor → head → weapon** (`PlayerSpriteSlot
 
 ## Hors scope
 
-- Walk 4 dirs (sheet dispo en v2 suivi)
+- Walk 4 dirs — see [../animations/STATUS.md](../animations/STATUS.md)
 - Remonter `tileSize` / résolution monde
 - Rip moodboard / Graal
 - Re-ship Kenney 16×16

@@ -102,6 +102,12 @@ public sealed class MainShellForm : Form
         public float VisCy;
 
         public bool Initialized;
+
+        public Direction Facing = Direction.Down;
+
+        public bool Walking;
+
+        public int WalkElapsedMs;
     }
     private int _sessionDisplayedMapId;
     private DateTime _lastAutoMapRequestUtc = DateTime.MinValue;
@@ -117,6 +123,11 @@ public sealed class MainShellForm : Form
     private readonly InputService _input = new();
     private readonly SoundService _sound = new();
     private readonly HashSet<Keys> _keysDown = new();
+
+    /// <summary>Facing + walk clock for the local world sprite (client-only, no protocol field).</summary>
+    private Direction _localFacing = Direction.Down;
+
+    private int _localWalkElapsedMs;
 
     /// <summary>Touches direction maintenues (prédiction client + boucle réseau).</summary>
     private bool _holdLeft;
@@ -557,6 +568,8 @@ public sealed class MainShellForm : Form
         _localVisualInitialized = false;
         _motionSmoothLastUtc = default;
         _pendingIdlePositionSync = false;
+        _localFacing = Direction.Down;
+        _localWalkElapsedMs = 0;
         ReleaseAllMoveKeys();
     }
 
@@ -754,8 +767,15 @@ public sealed class MainShellForm : Form
             var hasMove = TryGetHeldMoveNormalized(out var pvx, out var pvy);
             if (hasMove)
             {
+                _localFacing = PlayerWalkClock.FacingFromVector(pvx, pvy, _localFacing);
+                _localWalkElapsedMs += (int)(dt * 1000f);
                 TryApplyLocalPredictStep(pvx, pvy, dt);
                 ClampLocalVisToMap();
+                dirty = true;
+            }
+            else if (_localWalkElapsedMs != 0)
+            {
+                _localWalkElapsedMs = 0;
                 dirty = true;
             }
 
@@ -792,8 +812,17 @@ public sealed class MainShellForm : Form
 
             if (MathF.Abs(nx - o.VisCx) > moveEps || MathF.Abs(ny - o.VisCy) > moveEps)
             {
+                o.Facing = PlayerWalkClock.FacingFromVector(nx - o.VisCx, ny - o.VisCy, o.Facing);
+                o.Walking = true;
+                o.WalkElapsedMs += (int)(dt * 1000f);
                 o.VisCx = nx;
                 o.VisCy = ny;
+                dirty = true;
+            }
+            else if (o.Walking)
+            {
+                o.Walking = false;
+                o.WalkElapsedMs = 0;
                 dirty = true;
             }
         }
@@ -3060,12 +3089,16 @@ public sealed class MainShellForm : Form
         }
 
         var otherPx = new Dictionary<string, (float CxPx, float CyPx)>(_others.Count, StringComparer.OrdinalIgnoreCase);
+        var otherPoses = new Dictionary<string, PlayerSpritePose>(_others.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var kv in _others)
         {
             otherPx[kv.Key] = (kv.Value.VisCx, kv.Value.VisCy);
+            otherPoses[kv.Key] = new PlayerSpritePose(kv.Value.Facing, kv.Value.Walking, kv.Value.WalkElapsedMs);
         }
 
-        var bmp = MapViewRenderer.Render(_map, otherPx, _username, lcx, lcy, _tilesetBitmaps, _mapEvents);
+        var localWalking = TryGetHeldMoveDiscrete(out _, out _);
+        var localPose = new PlayerSpritePose(_localFacing, localWalking, _localWalkElapsedMs);
+        var bmp = MapViewRenderer.Render(_map, otherPx, _username, lcx, lcy, _tilesetBitmaps, _mapEvents, localPose: localPose, otherPoses: otherPoses);
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();

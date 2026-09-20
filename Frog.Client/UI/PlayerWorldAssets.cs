@@ -3,22 +3,28 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Reflection;
+using Frog.Core.Gameplay;
 
 namespace Frog.Client.UI;
 
 /// <summary>
-/// Eldiran CC0 32×32 top-down player (blue knight, south idle). v1 composites
-/// <c>player-body.png</c> then <c>player-head.png</c> (tunic/armor/weapon empty).
-/// Combined <c>player.png</c> is the same idle for fallback. Never Graal sheets.
+/// Eldiran CC0 32×32 top-down player (blue knight). Idle + 4-dir walk composite
+/// <c>player-walk-body.png</c> then <c>player-walk-head.png</c> (tunic/armor/weapon empty).
+/// Combined <c>player.png</c> is south idle for fallback. Never Graal sheets.
 /// </summary>
 internal static class PlayerWorldAssets
 {
     public const string RelativePath = "Assets/World/player.png";
     public const string BodyRelativePath = "Assets/World/player-body.png";
     public const string HeadRelativePath = "Assets/World/player-head.png";
+    public const string WalkRelativePath = "Assets/World/player-walk.png";
+    public const string WalkBodyRelativePath = "Assets/World/player-walk-body.png";
+    public const string WalkHeadRelativePath = "Assets/World/player-walk-head.png";
     public const int NativeSize = 32;
     public const int DrawScale = 1;
     public const int HeadRows = 14;
+    public const int WalkSheetWidth = PlayerWalkClock.SheetColumns * NativeSize;
+    public const int WalkSheetHeight = PlayerWalkClock.SheetRows * NativeSize;
 
     internal static readonly PlayerSpriteSlot[] CompositeDrawOrder =
     [
@@ -32,9 +38,13 @@ internal static class PlayerWorldAssets
     private const string EmbeddedName = "Frog.Client.Assets.World.player.png";
     private const string EmbeddedBodyName = "Frog.Client.Assets.World.player-body.png";
     private const string EmbeddedHeadName = "Frog.Client.Assets.World.player-head.png";
+    private const string EmbeddedWalkName = "Frog.Client.Assets.World.player-walk.png";
+    private const string EmbeddedWalkBodyName = "Frog.Client.Assets.World.player-walk-body.png";
+    private const string EmbeddedWalkHeadName = "Frog.Client.Assets.World.player-walk-head.png";
 
     private static readonly object Gate = new();
     private static Bitmap? _sprite;
+    private static Bitmap?[,] _frames = new Bitmap?[PlayerWalkClock.SheetRows, PlayerWalkClock.SheetColumns];
     private static bool _resolved;
 
     internal static int DrawnSizePixels => NativeSize * DrawScale;
@@ -76,11 +86,20 @@ internal static class PlayerWorldAssets
         return attrs;
     }
 
+    /// <summary>Composed 32×32 cell for a pose (south idle when the walk sheet is missing).</summary>
+    internal static Bitmap FrameFor(PlayerSpritePose pose)
+    {
+        EnsureLoaded();
+        var row = pose.SheetRow;
+        var col = pose.SheetColumn;
+        return _frames[row, col] ?? _sprite!;
+    }
+
     /// <summary>Feet / bottom-center of the sprite on <paramref name="centerXPx"/>, <paramref name="centerYPx"/>.</summary>
-    internal static void DrawFeetAnchored(Graphics g, float centerXPx, float centerYPx, bool other)
+    internal static void DrawFeetAnchored(Graphics g, float centerXPx, float centerYPx, bool other, PlayerSpritePose pose = default)
     {
         ArgumentNullException.ThrowIfNull(g);
-        var sprite = Sprite;
+        var sprite = FrameFor(pose);
         var dw = sprite.Width * DrawScale;
         var dh = sprite.Height * DrawScale;
         var dest = new Rectangle(
@@ -130,37 +149,105 @@ internal static class PlayerWorldAssets
                 return;
             }
 
-            _sprite = TryComposeBodyAndHead()
-                ?? TryLoadNamedPng(RelativePath, EmbeddedName)
-                ?? CreateFallbackRaster();
+            if (!TryLoadWalkFrames())
+            {
+                var idle = TryComposeBodyAndHead()
+                    ?? TryLoadNamedPng(RelativePath, EmbeddedName, NativeSize, NativeSize)
+                    ?? CreateFallbackRaster();
+                FillAllFrames(idle);
+            }
+
+            _sprite = _frames[0, PlayerWalkClock.IdleColumn] ?? CreateFallbackRaster();
             _resolved = true;
+        }
+    }
+
+    private static bool TryLoadWalkFrames()
+    {
+        using var bodySheet = TryLoadNamedPng(WalkBodyRelativePath, EmbeddedWalkBodyName, WalkSheetWidth, WalkSheetHeight);
+        using var headSheet = TryLoadNamedPng(WalkHeadRelativePath, EmbeddedWalkHeadName, WalkSheetWidth, WalkSheetHeight);
+        if (bodySheet is not null && headSheet is not null)
+        {
+            for (var row = 0; row < PlayerWalkClock.SheetRows; row++)
+            {
+                for (var col = 0; col < PlayerWalkClock.SheetColumns; col++)
+                {
+                    _frames[row, col] = ComposeCell(bodySheet, headSheet, col * NativeSize, row * NativeSize);
+                }
+            }
+
+            return true;
+        }
+
+        using var walk = TryLoadNamedPng(WalkRelativePath, EmbeddedWalkName, WalkSheetWidth, WalkSheetHeight);
+        if (walk is null)
+        {
+            return false;
+        }
+
+        for (var row = 0; row < PlayerWalkClock.SheetRows; row++)
+        {
+            for (var col = 0; col < PlayerWalkClock.SheetColumns; col++)
+            {
+                _frames[row, col] = CropCell(walk, col * NativeSize, row * NativeSize);
+            }
+        }
+
+        return true;
+    }
+
+    private static void FillAllFrames(Bitmap idle)
+    {
+        for (var row = 0; row < PlayerWalkClock.SheetRows; row++)
+        {
+            for (var col = 0; col < PlayerWalkClock.SheetColumns; col++)
+            {
+                _frames[row, col] = idle;
+            }
         }
     }
 
     private static Bitmap? TryComposeBodyAndHead()
     {
-        using var body = TryLoadNamedPng(BodyRelativePath, EmbeddedBodyName);
-        using var head = TryLoadNamedPng(HeadRelativePath, EmbeddedHeadName);
+        using var body = TryLoadNamedPng(BodyRelativePath, EmbeddedBodyName, NativeSize, NativeSize);
+        using var head = TryLoadNamedPng(HeadRelativePath, EmbeddedHeadName, NativeSize, NativeSize);
         if (body is null || head is null)
         {
             return null;
         }
 
+        return ComposeCell(body, head, 0, 0);
+    }
+
+    private static Bitmap ComposeCell(Bitmap body, Bitmap head, int srcX, int srcY)
+    {
         var composed = new Bitmap(NativeSize, NativeSize, PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(composed);
         g.SmoothingMode = SmoothingMode.None;
         g.InterpolationMode = InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = PixelOffsetMode.Half;
         g.Clear(Color.Transparent);
+        var src = new Rectangle(srcX, srcY, NativeSize, NativeSize);
+        var dst = new Rectangle(0, 0, NativeSize, NativeSize);
         // Draw order: Body → (Tunic/Armor empty) → Head → (Weapon empty).
-        g.DrawImage(body, new Rectangle(0, 0, NativeSize, NativeSize),
-            new Rectangle(0, 0, body.Width, body.Height), GraphicsUnit.Pixel);
-        g.DrawImage(head, new Rectangle(0, 0, NativeSize, NativeSize),
-            new Rectangle(0, 0, head.Width, head.Height), GraphicsUnit.Pixel);
+        g.DrawImage(body, dst, src, GraphicsUnit.Pixel);
+        g.DrawImage(head, dst, src, GraphicsUnit.Pixel);
         return composed;
     }
 
-    private static Bitmap? TryLoadNamedPng(string relativePath, string embeddedName)
+    private static Bitmap CropCell(Bitmap sheet, int srcX, int srcY)
+    {
+        var cell = new Bitmap(NativeSize, NativeSize, PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(cell);
+        g.SmoothingMode = SmoothingMode.None;
+        g.InterpolationMode = InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = PixelOffsetMode.Half;
+        g.DrawImage(sheet, new Rectangle(0, 0, NativeSize, NativeSize),
+            new Rectangle(srcX, srcY, NativeSize, NativeSize), GraphicsUnit.Pixel);
+        return cell;
+    }
+
+    private static Bitmap? TryLoadNamedPng(string relativePath, string embeddedName, int expectW, int expectH)
     {
         foreach (var path in FileCandidates(relativePath))
         {
@@ -172,7 +259,7 @@ internal static class PlayerWorldAssets
             try
             {
                 using var tmp = new Bitmap(path);
-                if (tmp.Width != NativeSize || tmp.Height != NativeSize)
+                if (tmp.Width != expectW || tmp.Height != expectH)
                 {
                     continue;
                 }
@@ -190,10 +277,10 @@ internal static class PlayerWorldAssets
             }
         }
 
-        return TryLoadEmbedded(embeddedName);
+        return TryLoadEmbedded(embeddedName, expectW, expectH);
     }
 
-    private static Bitmap? TryLoadEmbedded(string embeddedName)
+    private static Bitmap? TryLoadEmbedded(string embeddedName, int expectW, int expectH)
     {
         var asm = Assembly.GetExecutingAssembly();
         using var stream = asm.GetManifestResourceStream(embeddedName);
@@ -205,6 +292,11 @@ internal static class PlayerWorldAssets
         try
         {
             using var tmp = new Bitmap(stream);
+            if (tmp.Width != expectW || tmp.Height != expectH)
+            {
+                return null;
+            }
+
             return new Bitmap(tmp);
         }
         catch

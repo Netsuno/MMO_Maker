@@ -2,6 +2,7 @@ using System.Drawing;
 using Frog.Client.UI;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Xunit;
 
@@ -129,6 +130,45 @@ public sealed class MapViewRendererSmokeTests
         Assert.True(center.A == 255 && center.B > center.R, $"expected blue armor center, got {center}");
     }
 
+    [Fact]
+    public void WalkPose_ComposesBodyAndHead_FourDirsStayThirtyTwo()
+    {
+        Assert.Equal(96, PlayerWorldAssets.WalkSheetWidth);
+        Assert.Equal(128, PlayerWorldAssets.WalkSheetHeight);
+
+        var idle = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown);
+        Assert.Equal(32, idle.Width);
+        Assert.Equal(32, idle.Height);
+        var idleCenter = idle.GetPixel(16, 16);
+        Assert.True(idleCenter.A == 255 && idleCenter.B > idleCenter.R, $"idle south should stay blue, got {idleCenter}");
+
+        var leftWalk = PlayerWorldAssets.FrameFor(new PlayerSpritePose(Direction.Left, Walking: true, ElapsedMs: 0));
+        var upIdle = PlayerWorldAssets.FrameFor(new PlayerSpritePose(Direction.Up, Walking: false));
+        Assert.Equal(32, leftWalk.Width);
+        Assert.Equal(32, upIdle.Width);
+        Assert.True(FramesDiffer(idle, leftWalk), "left walk frame must differ from south idle");
+        Assert.True(FramesDiffer(idle, upIdle), "up idle frame must differ from south idle");
+
+        var map = CreateTwoByTwoGround();
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var localCx = tw / 2f;
+        var feetCy = tw + tw / 2f;
+        using var play = MapViewRenderer.Render(
+            map,
+            new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase),
+            localUsername: "self",
+            localCenterXPx: localCx,
+            localCenterYPx: feetCy,
+            tilesetBitmaps: null,
+            localPose: new PlayerSpritePose(Direction.Right, Walking: true, ElapsedMs: 280));
+
+        var bodyY = (int)feetCy - 14;
+        var selfPixel = play.GetPixel((int)localCx, bodyY);
+        Assert.NotEqual(Color.FromArgb(120, 160, 100).ToArgb(), selfPixel.ToArgb());
+        Assert.NotEqual(Color.FromArgb(240, 200, 60).ToArgb(), selfPixel.ToArgb());
+        Assert.True(selfPixel.B > selfPixel.R, $"walk pose must still draw blue armor, got {selfPixel}");
+    }
+
     private static Map CreateTwoByTwoGround()
     {
         var map = new Map { Name = "GridOff", Width = 2, Height = 2 };
@@ -143,5 +183,26 @@ public sealed class MapViewRendererSmokeTests
 
         map.Layers.Add(ground);
         return map;
+    }
+
+    private static bool FramesDiffer(Bitmap a, Bitmap b)
+    {
+        if (a.Width != b.Width || a.Height != b.Height)
+        {
+            return true;
+        }
+
+        for (var y = 0; y < a.Height; y++)
+        {
+            for (var x = 0; x < a.Width; x++)
+            {
+                if (a.GetPixel(x, y).ToArgb() != b.GetPixel(x, y).ToArgb())
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
