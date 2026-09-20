@@ -1,5 +1,7 @@
 # STATUS — Client UI DA v2 step 1 (contrast)
 
+Skin joueur v2 (32×32 Eldiran, nearest ×1) : voir [STATUS-player-skin-v2.md](STATUS-player-skin-v2.md).
+
 | Champ | Valeur |
 | --- | --- |
 | **Chantier** | Fermer or-sur-or sur hotbar + menu ring (planche DA v2) |

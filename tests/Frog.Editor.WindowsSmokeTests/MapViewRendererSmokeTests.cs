@@ -40,34 +40,39 @@ public sealed class MapViewRendererSmokeTests
             }
         }
 
+        // Feet-anchor a 32×32 sprite on the south row so the full body stays on the 2×2 bitmap.
+        var localCx = tw / 2f;
+        var otherCx = tw + tw / 2f;
+        var feetCy = tw + tw / 2f;
         var others = new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase)
         {
-            ["other"] = (tw + tw / 2f, tw / 2f),
+            ["other"] = (otherCx, feetCy),
         };
 
         using var play = MapViewRenderer.Render(
             map,
             others,
             localUsername: "self",
-            localCenterXPx: tw / 2f,
-            localCenterYPx: tw / 2f,
+            localCenterXPx: localCx,
+            localCenterYPx: feetCy,
             tilesetBitmaps: null);
 
-        var interior = play.GetPixel(tw + tw / 2, tw + tw / 2);
+        var interior = play.GetPixel(tw + tw / 2, 8);
         Assert.Equal(groundArgb, interior.ToArgb());
 
-        var seamAwayFromPlayers = play.GetPixel(tw, tw + tw / 2);
+        var seamAwayFromPlayers = play.GetPixel(tw, 8);
         Assert.Equal(groundArgb, seamAwayFromPlayers.ToArgb());
 
         var oldGoldArgb = Color.FromArgb(240, 200, 60).ToArgb();
-        var selfPixel = play.GetPixel(tw / 2, tw / 2);
+        var bodyY = (int)feetCy - 14;
+        var selfPixel = play.GetPixel((int)localCx, bodyY);
         Assert.NotEqual(groundArgb, selfPixel.ToArgb());
         Assert.NotEqual(oldGoldArgb, selfPixel.ToArgb());
         Assert.True(
-            selfPixel.G > selfPixel.R && selfPixel.G > selfPixel.B,
-            $"local player center should be olive tunic, not a gold ellipse, got {selfPixel}");
+            selfPixel.B > selfPixel.R && selfPixel.B > selfPixel.G,
+            $"local player body should be blue armor, not a gold ellipse, got {selfPixel}");
 
-        var otherPixel = play.GetPixel(tw + tw / 2, tw / 2);
+        var otherPixel = play.GetPixel((int)otherCx, bodyY);
         Assert.NotEqual(groundArgb, otherPixel.ToArgb());
         Assert.NotEqual(selfPixel.ToArgb(), otherPixel.ToArgb());
         Assert.True(otherPixel.B > otherPixel.R, $"other player should stay blue-tinted, got {otherPixel}");
@@ -112,15 +117,16 @@ public sealed class MapViewRendererSmokeTests
     }
 
     [Fact]
-    public void PlayerWorldSprite_IsSixteenSquare_NotGold()
+    public void PlayerWorldSprite_IsThirtyTwoSquare_NotGold()
     {
         var sprite = PlayerWorldAssets.Sprite;
-        Assert.Equal(16, sprite.Width);
-        Assert.Equal(16, sprite.Height);
-        Assert.Equal(2, PlayerWorldAssets.DrawScale);
-        var center = sprite.GetPixel(8, 8);
+        Assert.Equal(32, sprite.Width);
+        Assert.Equal(32, sprite.Height);
+        Assert.Equal(32, PlayerWorldAssets.NativeSize);
+        Assert.Equal(1, PlayerWorldAssets.DrawScale);
+        var center = sprite.GetPixel(16, 16);
         Assert.NotEqual(Color.FromArgb(240, 200, 60).ToArgb(), center.ToArgb());
-        Assert.True(center.A == 255 && center.G > center.R, $"expected olive tunic center, got {center}");
+        Assert.True(center.A == 255 && center.B > center.R, $"expected blue armor center, got {center}");
     }
 
     private static Map CreateTwoByTwoGround()

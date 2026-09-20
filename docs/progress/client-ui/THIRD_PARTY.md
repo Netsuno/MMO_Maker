@@ -2,21 +2,22 @@
 
 **Chantier :** Netsun.
 
-`Frog.Client/Assets/World/player.png` is an **original** 16×16 top-down humanoid
-drawn in-repo (`tools/generate-player-sprite.py`, raw PNG bytes). It is
-**not a third-party pack**, not Kenney, and not a Graal Online (or other commercial MMO)
-asset. The look is a generic chunky classic top-down 2D MMO silhouette
-(cloak / hair / tunic) inspired only in the broad sense.
+`Frog.Client/Assets/World/player.png` is **one 32×32 cell** from Eldiran’s
+[32×32 RPG Character Sprites](https://opengameart.org/content/32x32-rpg-character-sprites)
+(CC0), not Kenney 16×16, and not a Graal Online (or other commercial MMO) asset.
+Magenta `#FF00FF` is chroma-keyed to alpha. The sheet yellow `#FFD800` is remapped
+to a dark 1px outline so the world sprite has no gold chrome.
 
 | Champ | Valeur |
 | --- | --- |
 | **File** | `Frog.Client/Assets/World/player.png` |
-| **Size** | 16×16 RGBA, nearest-neighbor ×2 in `MapViewRenderer` |
-| **Author** | Original for FRoG (this repository) |
+| **Size** | 32×32 RGBA, nearest-neighbor ×1 in `MapViewRenderer` (world `tileSize` stays 32) |
+| **Author** | Eldiran |
 | **License** | [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) |
-| **Source** | Authored in code — no itch.io / Kenney / OpenGameArt download |
+| **Source** | OpenGameArt sheet (no itch.io). Vendored at `tools/third_party/eldiran/RPGCharacterSprites32x32.png` |
+| **Frame** | column 1, row 4 (0-based) — blue knight, south stand (2nd south walk frame) |
 
-Re-author the PNG (do not fetch an external sheet):
+Re-extract the PNG:
 
 ```bash
 python3 tools/generate-player-sprite.py

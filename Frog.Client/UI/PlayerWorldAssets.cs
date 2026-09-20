@@ -7,14 +7,14 @@ using System.Reflection;
 namespace Frog.Client.UI;
 
 /// <summary>
-/// Original CC0 16×16 top-down player (authored for FRoG, not a third-party pack).
-/// File: <c>Assets/World/player.png</c>. Fallback raster matches that drawing.
+/// Eldiran CC0 32×32 top-down player (blue knight, south idle). File:
+/// <c>Assets/World/player.png</c>. Fallback raster matches that drawing.
 /// </summary>
 internal static class PlayerWorldAssets
 {
     public const string RelativePath = "Assets/World/player.png";
-    public const int NativeSize = 16;
-    public const int DrawScale = 2;
+    public const int NativeSize = 32;
+    public const int DrawScale = 1;
 
     private const string EmbeddedName = "Frog.Client.Assets.World.player.png";
 
@@ -61,7 +61,8 @@ internal static class PlayerWorldAssets
         return attrs;
     }
 
-    internal static void DrawCentered(Graphics g, float centerXPx, float centerYPx, bool other)
+    /// <summary>Feet / bottom-center of the sprite on <paramref name="centerXPx"/>, <paramref name="centerYPx"/>.</summary>
+    internal static void DrawFeetAnchored(Graphics g, float centerXPx, float centerYPx, bool other)
     {
         ArgumentNullException.ThrowIfNull(g);
         var sprite = Sprite;
@@ -69,7 +70,7 @@ internal static class PlayerWorldAssets
         var dh = sprite.Height * DrawScale;
         var dest = new Rectangle(
             (int)MathF.Round(centerXPx - dw / 2f),
-            (int)MathF.Round(centerYPx - dh / 2f),
+            (int)MathF.Round(centerYPx - dh + 1f),
             dw,
             dh);
         var src = new Rectangle(0, 0, sprite.Width, sprite.Height);
@@ -180,43 +181,60 @@ internal static class PlayerWorldAssets
         }
     }
 
-    /// <summary>Same original drawing as <c>tools/generate-player-sprite.py</c> if the PNG is missing.</summary>
+    /// <summary>Same Eldiran cell as <c>tools/generate-player-sprite.py</c> if the PNG is missing.</summary>
     private static Bitmap CreateFallbackRaster()
     {
-        const string map =
-            "................" +
-            "....KKKKKKKK...." +
-            "...KHHHHHHHHK..." +
-            "..KHHLLLLLLHHK.." +
-            "..KHLLSSSSLLHK.." +
-            "..KHLSESSSELHK.." +
-            "...KHSSDDSSHK..." +
-            "..KNNCCPPCCNNK.." +
-            ".KNCCCTTTTCCCNK." +
-            "KNCCCTTTTTTCCCNK" +
-            "KNCCTTTAAATTCCNK" +
-            ".KNCCCTTTTTCCNK." +
-            "..KNNCCCTTCCNNK." +
-            "...KNBBKKBBNK..." +
-            "....KBFKKFBK...." +
-            ".....KK..KK.....";
+        string[] map =
+        [
+            "..........KKKABBBBAKKK..........",
+            ".........KABBBBBBBBBBAK.........",
+            "........KABBAAAAAAAABBAK........",
+            "........KBAACDDDDDDCAABK........",
+            ".......KBACDDBBBBBBDDCABK.......",
+            ".......KACDABBKBBKBBADCAK.......",
+            ".......KADCAKBKBBKBKACDAK.......",
+            ".......KDCABKBKBBKBKBACDK.......",
+            ".......KDCABKBKBBKBKBACDK.......",
+            ".......KCDCABBBBBBBBACDCK.......",
+            ".......KAKDDDDDDDDDDDDKAK.......",
+            ".......KAKEEEEEEEEEEEEKAK.......",
+            ".......KCKEEEEEEEEEEEEKCK.......",
+            "........KDKEEEEEEEEEEKDK........",
+            ".....KKKKDCKEEEEEEEEKCDKKKK.....",
+            "....KDBBACDCKKKKKKKKCDCABBDK....",
+            "....KCAAACDCAAACCAAACDCAAACK....",
+            "....KFCAADCABBAAAABBACDAACFK....",
+            "....KFGDCDCABBBBBBBBACDCDGFK....",
+            "...KCDFGKDCAABBAABBAACDKGFDCK...",
+            "...KACDDFKDCAAAAAAAACDKFDDCAK...",
+            "...KAAACKFKDCCACCACCDKFKCAAAK...",
+            "...KBAAAKFKHHJJLLJJHHKFKAAABK...",
+            "....KBAK.KCDGDCAACDGDCK.KABK....",
+            ".....KKK.KDFFFDCCDFFFDK.KKK.....",
+            ".........KGFFFGKKGFFFGK.........",
+            ".........KDDFGM..MGFDDK.........",
+            "........KAACDDD..DDDCAAK........",
+            "........KACCCCK..KCCCCAK........",
+            "........KCCCCDK..KDCCCCK........",
+            "........KDDDDDK..KDDDDDK........",
+            "........KKKKKKK..KKKKKKK........",
+        ];
 
         var colors = new Dictionary<char, Color>
         {
             ['.'] = Color.Transparent,
-            ['K'] = Color.FromArgb(26, 18, 14),
-            ['H'] = Color.FromArgb(92, 46, 20),
-            ['L'] = Color.FromArgb(138, 74, 34),
-            ['S'] = Color.FromArgb(232, 184, 136),
-            ['D'] = Color.FromArgb(196, 144, 104),
-            ['E'] = Color.FromArgb(42, 24, 16),
-            ['C'] = Color.FromArgb(48, 78, 122),
-            ['N'] = Color.FromArgb(32, 52, 84),
-            ['P'] = Color.FromArgb(78, 110, 150),
-            ['T'] = Color.FromArgb(90, 118, 52),
-            ['A'] = Color.FromArgb(122, 86, 42),
-            ['B'] = Color.FromArgb(58, 36, 24),
-            ['F'] = Color.FromArgb(107, 72, 48),
+            ['K'] = Color.FromArgb(0, 0, 0),
+            ['A'] = Color.FromArgb(127, 146, 255),
+            ['B'] = Color.FromArgb(175, 190, 255),
+            ['C'] = Color.FromArgb(102, 117, 204),
+            ['D'] = Color.FromArgb(76, 87, 153),
+            ['E'] = Color.FromArgb(255, 229, 229),
+            ['F'] = Color.FromArgb(255, 255, 255),
+            ['G'] = Color.FromArgb(204, 204, 204),
+            ['H'] = Color.FromArgb(127, 0, 0),
+            ['J'] = Color.FromArgb(175, 0, 0),
+            ['L'] = Color.FromArgb(26, 18, 14),
+            ['M'] = Color.FromArgb(153, 153, 153),
         };
 
         var bmp = new Bitmap(NativeSize, NativeSize, PixelFormat.Format32bppArgb);
@@ -224,7 +242,7 @@ internal static class PlayerWorldAssets
         {
             for (var x = 0; x < NativeSize; x++)
             {
-                bmp.SetPixel(x, y, colors[map[(y * NativeSize) + x]]);
+                bmp.SetPixel(x, y, colors[map[y][x]]);
             }
         }
 

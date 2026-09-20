@@ -32,8 +32,9 @@ Credit is not mandatory; FRoG still records the origin here.
 
 See [CREDITS.md](CREDITS.md) and `Frog.Client/Assets/Ui/THIRD_PARTY.md`.
 
-## Original FRoG world sprite (not a third-party pack)
+## Eldiran — 32×32 RPG Character Sprites (player world sprite)
 
-`Frog.Client/Assets/World/player.png` is an original CC0 16×16 top-down humanoid
-authored for FRoG in this repository. See
-[docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).
+`Frog.Client/Assets/World/player.png` is one CC0 32×32 cell (column 1, row 4,
+blue knight, south stand) from Eldiran’s
+[32×32 RPG Character Sprites](https://opengameart.org/content/32x32-rpg-character-sprites).
+See [docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).
