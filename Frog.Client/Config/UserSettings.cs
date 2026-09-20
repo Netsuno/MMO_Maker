@@ -13,6 +13,12 @@ public sealed class UserSettings
 
     public int VolumePercent { get; set; } = 80;
 
+    /// <summary>Mute explicite (SFX + musique), distinct du slider à 0.</summary>
+    public bool AudioMuted { get; set; }
+
+    /// <summary>Opt-in : boucle placeholder <c>music-loop.wav</c>. Défaut off.</summary>
+    public bool MusicEnabled { get; set; }
+
     public WindowSettings Window { get; set; } = new();
 
     /// <summary>Dernier hôte TCP (login + Options → Réseau). Une seule vérité JSON.</summary>
@@ -56,6 +62,8 @@ public sealed class UserSettings
             KeyboardPreset = KeyboardPreset,
             Bindings = Bindings.Clone(),
             VolumePercent = VolumePercent,
+            AudioMuted = AudioMuted,
+            MusicEnabled = MusicEnabled,
             Window = Window.Clone(),
             LastHost = LastHost,
             LastPort = LastPort,

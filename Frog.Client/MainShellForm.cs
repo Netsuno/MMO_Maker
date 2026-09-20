@@ -547,6 +547,7 @@ public sealed class MainShellForm : Form
         }
 
         _smoothTimer.Dispose();
+        _sound.Dispose();
     }
 
     private void SmoothTimer_OnTick(object? sender, EventArgs e)
@@ -3319,6 +3320,8 @@ public sealed class MainShellForm : Form
                 && FormBorderStyle != FormBorderStyle.None;
             _settings.Window.FullScreen = FormBorderStyle == FormBorderStyle.None;
             _settings.VolumePercent = _sound.VolumePercent;
+            _settings.AudioMuted = _sound.MuteRequested;
+            _settings.MusicEnabled = _sound.MusicEnabled;
             _settings.LastHost = _txtHost.Text.Trim();
             _settings.LastPort = (int)_numPort.Value;
             PersistRememberedAccount();
@@ -3720,6 +3723,7 @@ public sealed class MainShellForm : Form
 
     private void OpenOptions()
     {
+        _sound.PlayUiClick();
         ReleaseAllMoveKeys();
         _settings.LastHost = _txtHost.Text.Trim();
         _settings.LastPort = (int)_numPort.Value;
