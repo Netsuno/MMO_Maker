@@ -41,6 +41,10 @@ public sealed class EditorSpawnRestoreSmokeTests
                 var session = form.GetWorkspaceSessionForTest()!;
                 var map = form.GetCanvasMapForTest()!;
 
+                Assert.Null(form.GetPlaytestSpawnForTest());
+                form.SetHoverTileForTest(6, 7);
+                Assert.Equal((6, 7), form.ResolvePlaytestDialogDefaultsForTest());
+
                 Assert.True(form.TrySetPlaytestSpawnForTest(4, 5));
                 Assert.Equal(new System.Drawing.Point(4, 5), form.GetPlaytestSpawnForTest());
                 Assert.True(EditorMapSpawnWorkstate.TryRead(session.CurrentMapId, map, out var storedX, out var storedY));
@@ -54,6 +58,11 @@ public sealed class EditorSpawnRestoreSmokeTests
                 Assert.Equal(EditorTool.Spawn, form.GetActiveToolForTest());
                 Assert.True(form.TryProcessCmdKeyForTest(Keys.B));
                 Assert.Equal(EditorTool.Brush, form.GetActiveToolForTest());
+
+                var assignedId = Guid.Parse("bbbbbbbb-cccc-dddd-eeee-ffffffffffff");
+                form.PersistCurrentPlaytestSpawnUnderMapIdForTest(assignedId);
+                Assert.True(EditorMapSpawnWorkstate.TryRead(assignedId, map, out var migratedX, out var migratedY));
+                Assert.Equal((8, 2), (migratedX, migratedY));
             }
             finally
             {

@@ -22,7 +22,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         }
 
         ComboTool.SelectedIndex = 0;
-        SetSpawnDisplay(0, 0);
+        SetSpawnDisplay(null, null);
 
         foreach (var (type, label) in TileChoices)
         {

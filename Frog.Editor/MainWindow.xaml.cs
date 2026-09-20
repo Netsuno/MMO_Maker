@@ -350,7 +350,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_editor.ContainsFocus && _editor.ActiveControl is System.Windows.Forms.TextBoxBase)
+        if (_editor.ContainsFocus && EditorTextInputFocus.ShouldIgnoreToolHotkeys(_editor.ActiveControl))
         {
             return;
         }

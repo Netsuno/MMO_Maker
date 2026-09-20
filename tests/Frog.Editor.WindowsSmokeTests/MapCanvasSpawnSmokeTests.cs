@@ -27,6 +27,16 @@ public sealed class MapCanvasSpawnSmokeTests
 
             Assert.True(canvas.TrySetPlaytestSpawn(99, 99));
             Assert.Equal(new System.Drawing.Point(canvas.Map.Width - 1, canvas.Map.Height - 1), canvas.PlaytestSpawnTile);
+
+            canvas.ClearPlaytestSpawn();
+            Assert.Null(canvas.PlaytestSpawnTile);
+
+            var contextOpened = false;
+            canvas.TileContextMenuRequested += _ => contextOpened = true;
+            Assert.False(canvas.TryHandleSpawnToolRightClickForTest(2, 3, control: false));
+            Assert.False(contextOpened);
+            Assert.True(canvas.TryHandleSpawnToolRightClickForTest(2, 3, control: true));
+            Assert.True(contextOpened);
         });
     }
 }

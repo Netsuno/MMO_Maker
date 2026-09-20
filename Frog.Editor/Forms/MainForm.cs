@@ -1001,7 +1001,7 @@ public sealed class MainForm : Form
             }
             else
             {
-                _canvas.TrySetPlaytestSpawn(0, 0);
+                _canvas.ClearPlaytestSpawn();
             }
 
             var spawn = _canvas.PlaytestSpawnTile;
@@ -1027,6 +1027,44 @@ public sealed class MainForm : Form
 
         return true;
     }
+
+    private void PersistCurrentPlaytestSpawnUnderMapId(Guid? mapId)
+    {
+        if (_canvas.PlaytestSpawnTile is not { } spawn || _canvas.Map is not { } map)
+        {
+            return;
+        }
+
+        EditorMapSpawnWorkstate.Write(mapId ?? _workspace?.CurrentMapId, map, spawn.X, spawn.Y);
+    }
+
+    internal void PersistCurrentPlaytestSpawnUnderMapIdForTest(Guid mapId) =>
+        PersistCurrentPlaytestSpawnUnderMapId(mapId);
+
+    internal (int X, int Y) ResolvePlaytestDialogDefaultsForTest()
+    {
+        if (_canvas.Map is not { } map)
+        {
+            return (0, 0);
+        }
+
+        int? storedX = null;
+        int? storedY = null;
+        if (EditorMapSpawnWorkstate.TryRead(_workspace?.CurrentMapId, map, out var memoX, out var memoY))
+        {
+            storedX = memoX;
+            storedY = memoY;
+        }
+        else if (_canvas.PlaytestSpawnTile is { } canvasSpawn)
+        {
+            storedX = canvasSpawn.X;
+            storedY = canvasSpawn.Y;
+        }
+
+        return MapPlaytestSpawn.ResolvePreferred(map, storedX, storedY, _lastHoverTile.X, _lastHoverTile.Y);
+    }
+
+    internal void SetHoverTileForTest(int x, int y) => _lastHoverTile = new Point(x, y);
 
     private void OnPaletteStampChanged(Rectangle stampPixels)
     {
@@ -1128,7 +1166,7 @@ public sealed class MainForm : Form
         var code = keyData & Keys.KeyCode;
         var ctrl = (keyData & Keys.Control) == Keys.Control;
 
-        if (ActiveControl is TextBoxBase)
+        if (EditorTextInputFocus.ShouldIgnoreToolHotkeys(ActiveControl))
         {
             return base.ProcessCmdKey(ref msg, keyData);
         }
@@ -1900,12 +1938,17 @@ public sealed class MainForm : Form
             }
 
             var map = _workspace.CurrentMap;
-            int? storedX = _canvas.PlaytestSpawnTile?.X;
-            int? storedY = _canvas.PlaytestSpawnTile?.Y;
+            int? storedX = null;
+            int? storedY = null;
             if (EditorMapSpawnWorkstate.TryRead(_workspace.CurrentMapId, map, out var memoX, out var memoY))
             {
                 storedX = memoX;
                 storedY = memoY;
+            }
+            else if (_canvas.PlaytestSpawnTile is { } canvasSpawn)
+            {
+                storedX = canvasSpawn.X;
+                storedY = canvasSpawn.Y;
             }
 
             var preferred = MapPlaytestSpawn.ResolvePreferred(
@@ -1964,6 +2007,7 @@ public sealed class MainForm : Form
 
             if (result is PlaytestPreparationResult.Success success)
             {
+                PersistCurrentPlaytestSpawnUnderMapId(success.Plan.PrimaryCanonicalMapId);
                 var lines = new List<string>();
                 if (_playtestOrchestrator.ActiveSession?.LogLines is { } sessionLogs)
                 {

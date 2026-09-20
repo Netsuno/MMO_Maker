@@ -153,7 +153,7 @@
                 Cursor="Hand"
                 Click="OnPlaceSpawnClick" />
         <TextBlock x:Name="SpawnStatus"
-                   Text="Départ playtest : (0, 0)"
+                   Text="Départ playtest : non défini"
                    Foreground="#FF64BEFF"
                    FontFamily="Segoe UI"
                    FontSize="11"

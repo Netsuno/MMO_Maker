@@ -70,4 +70,15 @@ public sealed class EditorMapSpawnWorkstateTests : IDisposable
         Assert.Equal((2, 3), (x, y));
         Assert.False(EditorMapSpawnWorkstate.TryRead(Guid.NewGuid(), map, out _, out _));
     }
+
+    [Fact]
+    public void WriteUnderNewMapId_MigratesPlaytestSpawn()
+    {
+        var map = DemoMapFactory.CreateStarter();
+        var assignedId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        EditorMapSpawnWorkstate.Write(null, map, 3, 4);
+        EditorMapSpawnWorkstate.Write(assignedId, map, 3, 4);
+        Assert.True(EditorMapSpawnWorkstate.TryRead(assignedId, map, out var x, out var y));
+        Assert.Equal((3, 4), (x, y));
+    }
 }

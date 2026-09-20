@@ -765,6 +765,35 @@ public sealed class MapCanvas : Control
         return true;
     }
 
+    public void ClearPlaytestSpawn()
+    {
+        if (PlaytestSpawnTile is null)
+        {
+            return;
+        }
+
+        PlaytestSpawnTile = null;
+        Invalidate();
+    }
+
+    internal bool TryHandleSpawnToolRightClickForTest(int tileX, int tileY, bool control)
+    {
+        if (Map is null || tileX < 0 || tileY < 0 || tileX >= Map.Width || tileY >= Map.Height)
+        {
+            return false;
+        }
+
+        ActiveTool = EditorTool.Spawn;
+        if (control)
+        {
+            _suppressRightButtonErase = true;
+            TileContextMenuRequested?.Invoke(new Point(tileX, tileY));
+            return true;
+        }
+
+        return false;
+    }
+
     internal bool TryApplySpawnToolAtTileForTest(int tileX, int tileY)
     {
         if (Map is null)
@@ -914,6 +943,12 @@ public sealed class MapCanvas : Control
         {
             if (ActiveTool == EditorTool.Spawn)
             {
+                if ((ModifierKeys & Keys.Control) == Keys.Control)
+                {
+                    _suppressRightButtonErase = true;
+                    TileContextMenuRequested?.Invoke(new Point(tx, ty));
+                }
+
                 return;
             }
 

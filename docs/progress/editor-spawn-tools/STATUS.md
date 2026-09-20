@@ -26,7 +26,7 @@ Au-delà de `PlaytestSpawnDialog` (X/Y seuls) :
    - clé `id:{guidN}` si la carte a un `MapId` catalogue ;
    - sinon `local:{nom}|{W}x{H}` (brouillon / `.fmap` fichier).
    Réouverture de la même carte restaure la tuile. Enregistrement / publish recopie la clé sous le nouvel id.
-4. **Playtest** — le dialogue est prérempli avec le spawn mémorisé (repli : survol). `OverrideSpawnTile` inchangé. `PlaytestSpawnValidator` toujours appliqué au lancement.
+4. **Playtest** — le dialogue est prérempli avec le spawn **mémorisé** (workstate ou clic Départ). Sans entrée : repli **tuile survolée**, pas `(0,0)` implicite. `OverrideSpawnTile` inchangé. `PlaytestSpawnValidator` toujours appliqué au lancement. Après un playtest qui crée un `MapId`, le spawn est réécrit sous la clé `id:`.
 
 UI FR : palette « Placer le départ (D) », menu **Carte → Outil point de départ**, bouton barre **Départ**, statut `départ (x,y)`.
 
@@ -66,6 +66,6 @@ UI FR : palette « Placer le départ (D) », menu **Carte → Outil point de dé
 - Smoke Windows : raccourcis, workstate JSON isolé, clic spawn sans peinture, restore + hotkey sur `MainForm`.
 - Playtest existant : `OverrideSpawnTile` toujours honoré.
 
-CI **SUCCESS** sur `0e1b951` : `build-and-test` (smokes Windows inclus) + `postgres-integration`. Pas de job assoupli.
+Revue Codex (#22) : hover fallback si spawn non défini ; hotkeys ignorés dans PropertyGrid / TextBox imbriqués ; re-clé `id:` après playtest ; Ctrl+clic droit menu événements avec l’outil Départ.
 
-Vérifié aussi en local (Linux) : `dotnet test Frog.Tests` — **585 passed**, 0 skipped.
+CI **SUCCESS** sur `0e1b951` : `build-and-test` + `postgres-integration`. Relance attendue après le correctif revue.
