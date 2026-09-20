@@ -8,8 +8,8 @@
 | **Base** | `main` @ `b9bbaa7` (merge PR #25 walk anim) |
 | **Branche** | `cursor/editor-prefab-objects-mvp` |
 | **PR** | Draft [#26](https://github.com/Netsuno/MMO_Maker/pull/26) vers `main` — **pas de merge** |
-| **Tip** | `feb9b67b5e8f406502476e3cd8880200e9fda340` |
-| **CI** | En cours après push (intent green) |
+| **Tip** | `21097cc5e75e56d19f39d853bd01d653d20f1c3c` |
+| **CI** | [35530552118](https://github.com/Netsuno/MMO_Maker/actions/runs/35530552118) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** |
 
 Parallèle à #14 (pipeline assets) et #22 (spawn workstate). Animation joueur (#25) **non touchée**.
@@ -50,3 +50,5 @@ Import projet : `ProjectAssetKind.Prefabs` (`prefabs/`) étend #14.
 
 - Linux : `Frog.Tests/PrefabModelAndPlacementTests.cs` (modèle, placement, sidecar, protocole inchangé) + `ClientPrefabDrawTests.cs` (IHDR PNG, catalogue, chemin de dessin, STATUS).
 - Windows smoke : `MapCanvasPrefabSmokeTests` (pose sans peinture tuile) + raccourci **P**.
+
+CI **green** on `21097cc` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35530552118/job/106130289461) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35530552118/job/106130289323). Windows editor / gameplay / Phase 8 smokes included.
