@@ -4,7 +4,10 @@ using System.Windows.Forms;
 
 namespace Frog.Client.UI;
 
-/// <summary>Hotbar 10 slots (1–0). Chiffre dans la case ; libellé en tooltip. Slots 4–10 disabled.</summary>
+/// <summary>
+/// Hotbar 10 slots (1–0). Chiffre dans la case ; libellé en tooltip. Slots 4–10 disabled.
+/// DA v2 step 1: <c>bg.slot</c> fill + gold border; cream digits/icons (no or-sur-or).
+/// </summary>
 public sealed class HudHotbar : Panel
 {
     public const int SlotCount = 10;
@@ -59,13 +62,7 @@ public sealed class HudHotbar : Panel
                 Tag = i,
                 Font = UiTheme.UiFont(10f, FontStyle.Bold),
             };
-            UiTheme.StyleButton(btn);
-            var slotArt = UiPackAssets.CloneSlot();
-            if (slotArt is not null)
-            {
-                btn.BackgroundImage = slotArt;
-                btn.BackgroundImageLayout = ImageLayout.Stretch;
-            }
+            UiTheme.StyleContrastHudButton(btn, wired);
 
             var icon = UiPackAssets.CloneHotbarIcon(index);
             if (icon is not null)
@@ -75,12 +72,6 @@ public sealed class HudHotbar : Panel
                 btn.TextAlign = ContentAlignment.BottomRight;
                 btn.TextImageRelation = TextImageRelation.Overlay;
                 btn.Padding = new Padding(1);
-            }
-
-            if (!wired)
-            {
-                btn.ForeColor = UiTheme.TextMuted;
-                btn.FlatAppearance.BorderColor = UiTheme.AccentGoldDim;
             }
 
             _tips.SetToolTip(btn, _tooltips[i]);
@@ -107,10 +98,30 @@ public sealed class HudHotbar : Panel
     internal string SlotToolTipForTest(int index) => (uint)index < SlotCount ? _tooltips[index] : string.Empty;
 
     internal bool SlotHasChromeForTest(int index) =>
-        (uint)index < SlotCount && _slots[index].BackgroundImage is not null;
+        (uint)index < SlotCount && UsesContrastChrome(_slots[index]);
 
     internal bool SlotHasIconForTest(int index) =>
         (uint)index < SlotCount && _slots[index].Image is not null;
+
+    internal Color SlotBackColorForTest(int index) =>
+        (uint)index < SlotCount ? _slots[index].BackColor : Color.Empty;
+
+    internal Color SlotForeColorForTest(int index) =>
+        (uint)index < SlotCount ? _slots[index].ForeColor : Color.Empty;
+
+    internal Color SlotBorderColorForTest(int index) =>
+        (uint)index < SlotCount ? _slots[index].FlatAppearance.BorderColor : Color.Empty;
+
+    internal static bool UsesContrastChrome(Button button)
+    {
+        var border = button.Enabled ? UiTheme.AccentGold : UiTheme.AccentGoldDim;
+        var text = button.Enabled ? UiTheme.TextPrimary : UiTheme.TextMuted;
+        return button.BackColor.ToArgb() == UiTheme.BgSlot.ToArgb()
+            && button.FlatAppearance.BorderColor.ToArgb() == border.ToArgb()
+            && button.ForeColor.ToArgb() == text.ToArgb()
+            && button.FlatAppearance.BorderSize == 1
+            && button.BackgroundImage is null;
+    }
 
     public void ActivateSlot(int index)
     {

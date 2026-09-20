@@ -18,6 +18,7 @@ public sealed class ClientUiThemeSmokeTests
     {
         Assert.Equal(Color.FromArgb(0x0E, 0x12, 0x18), UiTheme.BgApp);
         Assert.Equal(Color.FromArgb(0x16, 0x1C, 0x28), UiTheme.BgPanel);
+        Assert.Equal(Color.FromArgb(0x0C, 0x10, 0x18), UiTheme.BgSlot);
         Assert.Equal(Color.FromArgb(0xC9, 0xA2, 0x27), UiTheme.AccentGold);
         Assert.Equal(Color.FromArgb(0xF2, 0xF4, 0xF8), UiTheme.TextPrimary);
         Assert.Equal(Color.FromArgb(0xC6, 0x28, 0x28), UiTheme.BarHp);
@@ -30,10 +31,14 @@ public sealed class ClientUiThemeSmokeTests
     {
         using var panel = UiTheme.CreatePanelTintAttributes();
         using var gold = UiTheme.CreateGoldTintAttributes();
+        using var cream = UiTheme.CreatePrimaryTintAttributes();
         Assert.NotNull(panel);
         Assert.NotNull(gold);
+        Assert.NotNull(cream);
         Assert.Equal(Color.FromArgb(0x16, 0x1C, 0x28), UiTheme.BgPanel);
+        Assert.Equal(Color.FromArgb(0x0C, 0x10, 0x18), UiTheme.BgSlot);
         Assert.Equal(Color.FromArgb(0xC9, 0xA2, 0x27), UiTheme.AccentGold);
+        Assert.Equal(Color.FromArgb(0xF2, 0xF4, 0xF8), UiTheme.TextPrimary);
         Assert.True(UiPackAssets.HasFramePanel, "Kenney frame resolves from output or repo");
         Assert.True(UiPackAssets.HasSlot);
         Assert.True(UiPackAssets.HasMenuPill);
