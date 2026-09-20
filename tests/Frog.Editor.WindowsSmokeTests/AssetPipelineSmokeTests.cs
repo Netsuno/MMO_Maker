@@ -109,7 +109,7 @@ public sealed class AssetPipelineSmokeTests
                     localCenterXPx: 48,
                     localCenterYPx: 16,
                     tilesetBitmaps: loaded);
-                // Corner of tile (0,0) — away from the local player ellipse on tile (1,0).
+                // Corner of tile (0,0) — away from the local player sprite on tile (1,0).
                 var pixel = rendered.GetPixel(2, 2);
                 Assert.True(
                     pixel.R > 150 && pixel.G < 80 && pixel.B < 80,

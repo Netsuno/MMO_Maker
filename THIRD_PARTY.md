@@ -31,3 +31,9 @@ Credit is not mandatory; FRoG still records the origin here.
 - **License:** [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)
 
 See [CREDITS.md](CREDITS.md) and `Frog.Client/Assets/Ui/THIRD_PARTY.md`.
+
+## Original FRoG world sprite (not a third-party pack)
+
+`Frog.Client/Assets/World/player.png` is an original CC0 16×16 top-down humanoid
+authored for FRoG in this repository. See
+[docs/progress/client-ui/THIRD_PARTY.md](docs/progress/client-ui/THIRD_PARTY.md).

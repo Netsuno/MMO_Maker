@@ -37,6 +37,10 @@
     <None Include="Assets\Ui\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="Assets\World\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <EmbeddedResource Include="Assets\World\player.png" />
   </ItemGroup>
 
 </Project>
