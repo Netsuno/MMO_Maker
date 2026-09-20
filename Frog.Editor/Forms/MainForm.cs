@@ -9,6 +9,7 @@ using System.Windows.Interop;
 using Frog.Application.Assets;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
+using Frog.Application.Prefabs;
 using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Models;
@@ -106,6 +107,10 @@ public sealed class MainForm : Form
         PersistPlaytestSpawnFromUser(tileX, tileY);
 
     internal void SelectEditorToolForTest(EditorTool tool) => SelectEditorTool(tool);
+
+    internal IReadOnlyList<PrefabPlacement> GetPrefabPlacementsForTest() => _canvas.PrefabPlacements;
+
+    internal bool TryPlacePrefabForTest(int tileX, int tileY) => _canvas.TryApplyPrefabToolAtTileForTest(tileX, tileY);
 
     internal bool TryProcessCmdKeyForTest(Keys keyData)
     {
@@ -370,6 +375,7 @@ public sealed class MainForm : Form
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
+            mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
             mMap.DropDownItems.Add("Contenu Phase 8…", null, (_, _) => BrowsePhase8Content());
@@ -463,6 +469,14 @@ public sealed class MainForm : Form
         _canvas.HoveredTileChanged += OnHoveredTileChanged;
         _canvas.ViewTransformChanged += OnCanvasViewTransformChanged;
         _canvas.PlaytestSpawnChanged += OnPlaytestSpawnChanged;
+        _canvas.PrefabPlacementsChanged += OnPrefabPlacementsChanged;
+        _canvas.PrefabCatalog = PrefabSpriteCache.LoadCatalog();
+        EditorLocalWorkstate.TryReadLastPrefabSelection(out var lastPrefabId, out var lastFacing);
+        if (!string.IsNullOrWhiteSpace(lastPrefabId))
+        {
+            _canvas.SelectedPrefabId = lastPrefabId;
+            _canvas.SelectedPrefabFacing = lastFacing;
+        }
         _canvas.TileClicked += OnTileClicked;
         _canvas.TileContextMenuRequested += OnTileContextMenuRequested;
         _canvas.MapReplaced += OnMapReplaced;
@@ -487,6 +501,8 @@ public sealed class MainForm : Form
         _leftToolsWpf = new EditorLeftToolsWpf();
         _leftToolsWpf.ToolChanged += tool => SelectEditorTool(tool);
         _leftToolsWpf.TileTypeChanged += type => _canvas.SelectedTileType = type;
+        _leftToolsWpf.PrefabSelectionChanged += OnPrefabPaletteChanged;
+        _leftToolsWpf.BindPrefabCatalog(_canvas.PrefabCatalog, _canvas.SelectedPrefabId, _canvas.SelectedPrefabFacing);
         _leftToolsElementHost = new ElementHost
         {
             Dock = DockStyle.Top,
@@ -956,6 +972,7 @@ public sealed class MainForm : Form
             UpdateMapChromeLabels();
             RefreshMapEventMarkers();
             RestorePlaytestSpawnFromWorkstate();
+            RestorePrefabPlacementsFromWorkstate();
         }
         finally
         {
@@ -966,6 +983,7 @@ public sealed class MainForm : Form
     }
 
     private bool _suppressSpawnPersist;
+    private bool _suppressPrefabPersist;
 
     internal void SelectEditorTool(EditorTool tool)
     {
@@ -1026,6 +1044,64 @@ public sealed class MainForm : Form
         }
 
         return true;
+    }
+
+    private void OnPrefabPaletteChanged(string prefabId, PrefabFacing facing)
+    {
+        _canvas.SelectedPrefabId = prefabId;
+        _canvas.SelectedPrefabFacing = facing;
+        EditorLocalWorkstate.WriteLastPrefabSelection(prefabId, facing);
+        _canvas.Invalidate();
+        PushEditorStatusLine();
+    }
+
+    private void OnPrefabPlacementsChanged()
+    {
+        if (!_suppressPrefabPersist && _canvas.Map is { } map)
+        {
+            EditorMapPrefabWorkstate.Write(_workspace?.CurrentMapId, map, _canvas.PrefabPlacements);
+        }
+
+        PushEditorStatusLine();
+    }
+
+    private void RestorePrefabPlacementsFromWorkstate()
+    {
+        if (_canvas.Map is not { } map)
+        {
+            return;
+        }
+
+        _suppressPrefabPersist = true;
+        try
+        {
+            if (EditorMapPrefabWorkstate.TryRead(_workspace?.CurrentMapId, map, out var placements))
+            {
+                _canvas.ReplacePrefabPlacements(placements);
+            }
+            else
+            {
+                _canvas.ReplacePrefabPlacements(Array.Empty<PrefabPlacement>());
+            }
+        }
+        finally
+        {
+            _suppressPrefabPersist = false;
+        }
+    }
+
+    internal void CycleSelectedPrefabFacingForTest(bool next) => CycleSelectedPrefabFacing(next);
+
+    private void CycleSelectedPrefabFacing(bool next)
+    {
+        var facing = next
+            ? PrefabPlacementService.NextFacing(_canvas.SelectedPrefabFacing)
+            : PrefabPlacementService.PreviousFacing(_canvas.SelectedPrefabFacing);
+        _canvas.SelectedPrefabFacing = facing;
+        _leftToolsWpf.SetPrefabSelection(_canvas.SelectedPrefabId, facing);
+        EditorLocalWorkstate.WriteLastPrefabSelection(_canvas.SelectedPrefabId, facing);
+        _canvas.Invalidate();
+        PushEditorStatusLine();
     }
 
     private void PersistCurrentPlaytestSpawnUnderMapId(Guid? mapId)
@@ -1100,8 +1176,11 @@ public sealed class MainForm : Form
         var spawn = _canvas.PlaytestSpawnTile is { } sp
             ? $"    ·    départ ({sp.X},{sp.Y})"
             : "";
+        var prefab = _canvas.PrefabPlacements.Count > 0
+            ? $"    ·    prefabs {_canvas.PrefabPlacements.Count}"
+            : "";
         var text =
-            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}    ·    catalogue {backend}";
+            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefab}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -1180,6 +1259,12 @@ public sealed class MainForm : Form
         if (EditorToolHotkeys.TryResolve(keyData, out var tool))
         {
             SelectEditorTool(tool);
+            return true;
+        }
+
+        if (!ctrl && code is Keys.OemOpenBrackets or Keys.Oem6)
+        {
+            CycleSelectedPrefabFacing(next: code == Keys.Oem6);
             return true;
         }
 
@@ -1486,6 +1571,7 @@ public sealed class MainForm : Form
         UpdateMapChromeLabels();
         RefreshMapEventMarkers();
         RestorePlaytestSpawnFromWorkstate();
+        RestorePrefabPlacementsFromWorkstate();
         PushEditorStatusLine();
     }
 
@@ -1622,9 +1708,10 @@ public sealed class MainForm : Form
         var bytes = serializer.Serialize(_canvas.Map);
         File.WriteAllBytes(sfd.FileName, bytes);
         SaveTilesetManifestNextToMap(sfd.FileName);
+        SavePrefabSidecarNextToMap(sfd.FileName);
         MessageBox.Show(
             GetDialogOwner(),
-            "Carte, PNG tileset et manifeste (.tilesets.json) exportés.",
+            "Carte, PNG tileset, manifeste (.tilesets.json) et sidecar prefabs (.prefabs.json) exportés.",
             "Export",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
@@ -1928,7 +2015,7 @@ public sealed class MainForm : Form
             }
 
             var preparer = new PlaytestMapPreparer(_mapRepository);
-            _playtestOrchestrator = new PlaytestOrchestrator(preparer, launcher, new EditorPlaytestTilesetSidecar());
+            _playtestOrchestrator = new PlaytestOrchestrator(preparer, launcher, new EditorPlaytestTilesetSidecar(() => _canvas.PrefabPlacements));
 
             if (_workspace.CurrentMap is null)
             {
@@ -2258,6 +2345,40 @@ public sealed class MainForm : Form
         }
     }
 
+    private void SavePrefabSidecarNextToMap(string mapFilePath)
+    {
+        MapPrefabPackage.WritePlacementSidecarNextToMap(mapFilePath, _canvas.PrefabPlacements);
+        if (_canvas.Map is { } map)
+        {
+            EditorMapPrefabWorkstate.Write(_workspace?.CurrentMapId, map, _canvas.PrefabPlacements);
+        }
+    }
+
+    private void TryApplyPrefabSidecarFromMapPath(string mapFilePath)
+    {
+        _suppressPrefabPersist = true;
+        try
+        {
+            var document = MapPrefabPackage.TryReadPlacementSidecarNextToMap(mapFilePath);
+            if (document?.Placements is { Count: > 0 })
+            {
+                _canvas.ReplacePrefabPlacements(document.Placements);
+                if (_canvas.Map is { } map)
+                {
+                    EditorMapPrefabWorkstate.Write(_workspace?.CurrentMapId, map, _canvas.PrefabPlacements);
+                }
+
+                return;
+            }
+
+            RestorePrefabPlacementsFromWorkstate();
+        }
+        finally
+        {
+            _suppressPrefabPersist = false;
+        }
+    }
+
     internal void LoadMap() => _ = LoadMapCoreAsync();
 
     private async System.Threading.Tasks.Task LoadMapCoreAsync()
@@ -2299,6 +2420,7 @@ public sealed class MainForm : Form
         UpdateMapChromeLabels();
         RefreshMapEventMarkers();
         RestorePlaytestSpawnFromWorkstate();
+        TryApplyPrefabSidecarFromMapPath(mapPath);
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
         {

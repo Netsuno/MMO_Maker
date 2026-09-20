@@ -15,6 +15,7 @@ public sealed class EditorToolHotkeysTests
     [InlineData(Keys.R, EditorTool.Rectangle)]
     [InlineData(Keys.M, EditorTool.Selection)]
     [InlineData(Keys.D, EditorTool.Spawn)]
+    [InlineData(Keys.P, EditorTool.Prefab)]
     public void LetterKeys_SelectExpectedTool(Keys key, EditorTool expected)
     {
         Assert.True(EditorToolHotkeys.TryResolve(key, out var tool));
@@ -39,6 +40,14 @@ public sealed class EditorToolHotkeysTests
     }
 
     [Fact]
+    public void WpfLetterP_SelectsPrefab()
+    {
+        Assert.True(EditorToolHotkeys.TryResolveWpf(Key.P, ModifierKeys.None, out var tool));
+        Assert.Equal(EditorTool.Prefab, tool);
+        Assert.False(EditorToolHotkeys.TryResolveWpf(Key.P, ModifierKeys.Control, out _));
+    }
+
+    [Fact]
     public void EveryEditorTool_HasLabelAndShortcutExceptUnknown()
     {
         foreach (EditorTool tool in Enum.GetValues<EditorTool>())
@@ -49,6 +58,8 @@ public sealed class EditorToolHotkeysTests
         }
 
         Assert.Contains("D", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
+        Assert.Contains("P", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Equal("D", EditorToolHotkeys.ShortcutGlyph(EditorTool.Spawn));
+        Assert.Equal("P", EditorToolHotkeys.ShortcutGlyph(EditorTool.Prefab));
     }
 }

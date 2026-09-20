@@ -158,6 +158,63 @@
                    FontFamily="Segoe UI"
                    FontSize="11"
                    Margin="8,0,2,12" />
+        <TextBlock Text="PREFAB"
+                   Foreground="#FF949BAA"
+                   FontFamily="Segoe UI"
+                   FontSize="10"
+                   FontWeight="SemiBold"
+                   Margin="2,0,0,8" />
+        <Grid Margin="2,0,2,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="86" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="Objet"
+                       VerticalAlignment="Center"
+                       Foreground="#FF949BAA"
+                       FontFamily="Segoe UI"
+                       FontSize="12"
+                       Margin="6,0,4,0" />
+            <ComboBox x:Name="ComboPrefab"
+                      Grid.Column="1"
+                      Style="{StaticResource EditorSidebarComboBox}"
+                      MinHeight="28"
+                      SelectionChanged="ComboPrefab_OnSelectionChanged" />
+        </Grid>
+        <Grid Margin="2,0,2,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="86" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="Facing"
+                       VerticalAlignment="Center"
+                       Foreground="#FF949BAA"
+                       FontFamily="Segoe UI"
+                       FontSize="12"
+                       Margin="6,0,4,0" />
+            <ComboBox x:Name="ComboPrefabFacing"
+                      Grid.Column="1"
+                      Style="{StaticResource EditorSidebarComboBox}"
+                      MinHeight="28"
+                      SelectionChanged="ComboPrefabFacing_OnSelectionChanged" />
+        </Grid>
+        <Button Content="Placer un objet (P)"
+                Margin="2,0,2,8"
+                Padding="8,5"
+                Background="#FF32353E"
+                Foreground="#FFE8B86D"
+                BorderBrush="#FF585C68"
+                BorderThickness="1"
+                Cursor="Hand"
+                Click="OnPlacePrefabClick" />
+        <TextBlock x:Name="PrefabStatus"
+                   Text="Prefab : —"
+                   Foreground="#FFE8B86D"
+                   FontFamily="Segoe UI"
+                   FontSize="11"
+                   Margin="8,0,2,12" />
         <TextBlock Text="TYPE DE TUILE"
                    Foreground="#FF949BAA"
                    FontFamily="Segoe UI"

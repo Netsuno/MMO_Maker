@@ -1,6 +1,8 @@
 #nullable enable
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
+using Frog.Application.Prefabs;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
@@ -22,6 +24,9 @@ internal static class MapViewRenderer
     /// <param name="showTileGrid">Contour de tuile debug. Défaut <c>false</c> — pas de grille visible en jeu.</param>
     /// <param name="localPose">Facing + walk frame for the local player (default south idle).</param>
     /// <param name="otherPoses">Optional facing + walk frame per other username.</param>
+    /// <param name="prefabPlacements">Instances prefab (sidecar), dessinées après les tuiles.</param>
+    /// <param name="prefabCatalog">Catalogue pour résoudre empreinte / sprite.</param>
+    /// <param name="prefabBitmaps">Nom de fichier sprite → image.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -32,7 +37,10 @@ internal static class MapViewRenderer
         IReadOnlyList<MapEventWireEntry>? mapEvents = null,
         bool showTileGrid = false,
         PlayerSpritePose localPose = default,
-        IReadOnlyDictionary<string, PlayerSpritePose>? otherPoses = null)
+        IReadOnlyDictionary<string, PlayerSpritePose>? otherPoses = null,
+        IReadOnlyList<PrefabPlacement>? prefabPlacements = null,
+        PrefabCatalog? prefabCatalog = null,
+        IReadOnlyDictionary<string, Bitmap>? prefabBitmaps = null)
     {
         var tw = WorldMetrics.DefaultTileSizePixels;
         var w = map.Width * tw;
@@ -109,6 +117,8 @@ internal static class MapViewRenderer
                 }
             }
         }
+
+        DrawPlacedPrefabs(g, map, tw, prefabPlacements, prefabCatalog, prefabBitmaps);
 
         if (mapEvents is { Count: > 0 })
         {
@@ -188,6 +198,53 @@ internal static class MapViewRenderer
         finally
         {
             g.PixelOffsetMode = previous;
+        }
+    }
+
+    internal static void DrawPlacedPrefabs(
+        Graphics g,
+        Map map,
+        int tileSize,
+        IReadOnlyList<PrefabPlacement>? placements,
+        PrefabCatalog? catalog,
+        IReadOnlyDictionary<string, Bitmap>? bitmaps)
+    {
+        if (g is null || map is null || placements is not { Count: > 0 } || catalog is null)
+        {
+            return;
+        }
+
+        foreach (var placement in placements)
+        {
+            if (placement is null
+                || !PrefabPlacementService.TryGetDefinition(catalog, placement.PrefabId, out var definition)
+                || !PrefabPlacementService.TryResolveVariant(definition, placement.Facing, out var variant)
+                || !PrefabPlacementService.TryResolveFootprint(definition, variant, out var wTiles, out var hTiles))
+            {
+                continue;
+            }
+
+            var dest = new Rectangle(
+                placement.TileX * tileSize,
+                placement.TileY * tileSize,
+                Math.Max(tileSize, wTiles * tileSize),
+                Math.Max(tileSize, hTiles * tileSize));
+
+            var fileName = Path.GetFileName(variant.SpriteFileName ?? string.Empty);
+            if (!string.IsNullOrEmpty(fileName)
+                && bitmaps is not null
+                && bitmaps.TryGetValue(fileName, out var bmp)
+                && bmp is not null)
+            {
+                var src = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                g.DrawImage(bmp, dest, src, GraphicsUnit.Pixel);
+                continue;
+            }
+
+            using var fill = new SolidBrush(Color.FromArgb(180, 132, 86, 48));
+            using var pen = new Pen(Color.FromArgb(220, 32, 20, 14), 2f);
+            g.FillRectangle(fill, dest);
+            g.DrawRectangle(pen, dest);
         }
     }
 

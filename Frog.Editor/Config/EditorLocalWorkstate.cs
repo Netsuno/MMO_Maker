@@ -1,5 +1,8 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using Frog.Application.Prefabs;
+using Frog.Core.Models;
 
 namespace Frog.Editor.Config;
 
@@ -27,6 +30,13 @@ public static class EditorLocalWorkstate
         /// Mémo éditeur uniquement — pas de bump <c>.fmap</c> ni protocole fil.
         /// </summary>
         public Dictionary<string, MapPlaytestSpawnDto>? MapPlaytestSpawns { get; set; }
+
+        /// <summary>Placements prefab par carte (même clé que le spawn). Additif, hors <c>.fmap</c>.</summary>
+        public Dictionary<string, MapPrefabPlacementsDto>? MapPrefabPlacements { get; set; }
+
+        public string? LastPrefabId { get; set; }
+
+        public PrefabFacing LastPrefabFacing { get; set; } = PrefabFacing.South;
     }
 
     public sealed class MapPlaytestSpawnDto
@@ -35,10 +45,16 @@ public static class EditorLocalWorkstate
         public int TileY { get; set; }
     }
 
+    public sealed class MapPrefabPlacementsDto
+    {
+        public List<PrefabPlacement> Placements { get; set; } = new();
+    }
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
     /// <summary>Tests : redirige le JSON workstate vers un fichier temporaire.</summary>
@@ -199,6 +215,60 @@ public static class EditorLocalWorkstate
         var dto = LoadOrDefault();
         dto.MapPlaytestSpawns ??= new Dictionary<string, MapPlaytestSpawnDto>(StringComparer.Ordinal);
         dto.MapPlaytestSpawns[key] = new MapPlaytestSpawnDto { TileX = tileX, TileY = tileY };
+        Save(dto);
+    }
+
+    public static bool TryReadMapPrefabPlacements(string key, out List<PrefabPlacement> placements)
+    {
+        placements = new List<PrefabPlacement>();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var map = LoadOrDefault().MapPrefabPlacements;
+        if (map is null || !map.TryGetValue(key, out var entry) || entry?.Placements is null)
+        {
+            return false;
+        }
+
+        placements = PrefabPlacementService.ClonePlacements(entry.Placements);
+        return true;
+    }
+
+    public static void WriteMapPrefabPlacements(string key, IReadOnlyList<PrefabPlacement> placements)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var dto = LoadOrDefault();
+        dto.MapPrefabPlacements ??= new Dictionary<string, MapPrefabPlacementsDto>(StringComparer.Ordinal);
+        dto.MapPrefabPlacements[key] = new MapPrefabPlacementsDto
+        {
+            Placements = PrefabPlacementService.ClonePlacements(placements),
+        };
+        Save(dto);
+    }
+
+    public static void TryReadLastPrefabSelection(out string? prefabId, out PrefabFacing facing)
+    {
+        var dto = LoadOrDefault();
+        prefabId = dto.LastPrefabId;
+        facing = dto.LastPrefabFacing;
+    }
+
+    public static void WriteLastPrefabSelection(string prefabId, PrefabFacing facing)
+    {
+        if (string.IsNullOrWhiteSpace(prefabId))
+        {
+            return;
+        }
+
+        var dto = LoadOrDefault();
+        dto.LastPrefabId = prefabId;
+        dto.LastPrefabFacing = facing;
         Save(dto);
     }
 }

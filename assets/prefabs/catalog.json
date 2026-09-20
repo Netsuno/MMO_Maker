@@ -1,0 +1,44 @@
+{
+  "catalogVersion": 1,
+  "prefabs": [
+    {
+      "id": "sofa",
+      "displayName": "Canapé",
+      "footprintWidthTiles": 2,
+      "footprintHeightTiles": 1,
+      "widthPixels": 64,
+      "heightPixels": 32,
+      "variants": [
+        { "facing": "south", "spriteFileName": "sofa-south.png", "footprintWidthTiles": 2, "footprintHeightTiles": 1, "widthPixels": 64, "heightPixels": 32 },
+        { "facing": "north", "spriteFileName": "sofa-north.png", "footprintWidthTiles": 2, "footprintHeightTiles": 1, "widthPixels": 64, "heightPixels": 32 },
+        { "facing": "east", "spriteFileName": "sofa-east.png", "footprintWidthTiles": 1, "footprintHeightTiles": 2, "widthPixels": 32, "heightPixels": 64 },
+        { "facing": "west", "spriteFileName": "sofa-west.png", "footprintWidthTiles": 1, "footprintHeightTiles": 2, "widthPixels": 32, "heightPixels": 64 }
+      ]
+    },
+    {
+      "id": "fence-post",
+      "displayName": "Poteau de clôture",
+      "footprintWidthTiles": 1,
+      "footprintHeightTiles": 1,
+      "widthPixels": 32,
+      "heightPixels": 32,
+      "variants": [
+        { "facing": "south", "spriteFileName": "fence-post.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 }
+      ]
+    },
+    {
+      "id": "fence-rail",
+      "displayName": "Barreau de clôture",
+      "footprintWidthTiles": 1,
+      "footprintHeightTiles": 1,
+      "widthPixels": 32,
+      "heightPixels": 32,
+      "variants": [
+        { "facing": "south", "spriteFileName": "fence-h.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 },
+        { "facing": "north", "spriteFileName": "fence-h.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 },
+        { "facing": "east", "spriteFileName": "fence-v.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 },
+        { "facing": "west", "spriteFileName": "fence-v.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 }
+      ]
+    }
+  ]
+}
