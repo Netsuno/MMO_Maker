@@ -8,7 +8,7 @@
 | **Base** | `main` @ `78925b0` (merge PR #19 window chrome) |
 | **Branche** | `cursor/client-ui-da-v2-status-portrait` |
 | **PR** | Draft https://github.com/Netsuno/MMO_Maker/pull/20 vers `main` — **pas de merge** |
-| **Tip** | `9e2f4ec` |
+| **Tip** | `96191dc` |
 
 Protocole / gameplay / réseau / mouvement / skin / hotbar contrast / chrome fenêtres / login / menu 5 icônes : **non touchés**.
 Présentation + layout status HG seulement.
