@@ -117,13 +117,8 @@ public sealed class HudChatDock : HudModulePanel
 
     internal void ClickSocialOpenForTest(SocialKind kind)
     {
-        var btn = kind switch
-        {
-            SocialKind.Party => _socialButtons[1],
-            SocialKind.Guild => _socialButtons[2],
-            _ => _socialButtons[0]
-        };
-        btn.PerformClick();
+        // PerformClick no-ops when an ancestor (login / _panelGame) is hidden.
+        SocialPanelRequested?.Invoke(kind);
     }
 
     internal int SelectedChannelIndexForTest => _filterIndex;

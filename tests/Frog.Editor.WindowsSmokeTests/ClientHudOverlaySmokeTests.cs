@@ -224,7 +224,7 @@ public sealed class ClientHudOverlaySmokeTests
                     new[] { "Amis", "Groupe", "Guilde" },
                     form.ChatDockForTest.SocialOpenButtonTextsForTest.ToArray());
 
-                form.ChatDockForTest.ClickSocialOpenForTest(SocialKind.Friend);
+                form.OpenSocialPanelForTest(SocialKind.Friend);
                 Assert.True(form.WindowLayerVisibleForTest, "Amis opens overlay");
                 Assert.True(form.IsSocialTabSelectedForTest);
                 Assert.Equal(SocialKind.Friend, form.SocialHubForTest.SelectedKind);
