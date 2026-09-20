@@ -1,5 +1,6 @@
 using Frog.Client.Config;
 using Frog.Core.Audio;
+using Frog.Core.Weather;
 
 namespace Frog.Client.Services;
 
@@ -69,6 +70,11 @@ public sealed class SoundService : IDisposable
     public bool PlayUiClick() => _mixer.Play(AudioCue.UiClick);
 
     public bool SyncMusic() => _mixer.Play(AudioCue.MusicLoop);
+
+    /// <summary>
+    /// Hook météo mute-friendly (#28). Pas de nouveau moteur / WAV : refuse si muet ou gain 0.
+    /// </summary>
+    public bool ApplyWeather(WeatherOverlayPlan plan) => WeatherAudio.ShouldPlayAmbience(plan, _mixer);
 
     public void Dispose()
     {
