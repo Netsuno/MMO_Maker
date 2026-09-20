@@ -8,7 +8,7 @@
 | **Base** | `main` @ `deadcac` (merge PR #20 status portrait) |
 | **Branche** | `cursor/client-ui-da-v2-menu-five` |
 | **PR** | Draft https://github.com/Netsuno/MMO_Maker/pull/21 vers `main` — **pas de merge** |
-| **Tip** | `b979917` |
+| **Tip** | `1fd9451` (CI green) |
 
 Protocole / gameplay / réseau / mouvement / skin / chrome fenêtres / portrait status / login : **non touchés**.
 Présentation + layout menu BD seulement. Contraste #16 inchangé : cercle sombre `bg.slot` + icônes/labels crème ; or = filet seulement.
