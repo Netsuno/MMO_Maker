@@ -3938,6 +3938,8 @@ public sealed class MainShellForm : Form
 
     internal void OpenOptionsForTest() => OpenOptions();
 
+    internal void InvokeHudMenuCommandForTest(HudMenuCommand command) => OnHudMenuCommand(command);
+
     internal string CopyDiagnosticsForTest()
     {
         var report = BuildDiagnosticsText();

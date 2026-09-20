@@ -35,6 +35,8 @@ public sealed class ClientUiDaV2ContrastTests
         Assert.Contains("HudMenuCommand.Character", menu, StringComparison.Ordinal);
         Assert.Contains("HudMenuCommand.Inventory", menu, StringComparison.Ordinal);
         Assert.Contains("HudMenuCommand.Quests", menu, StringComparison.Ordinal);
+        Assert.Contains("HudMenuCommand.Map", menu, StringComparison.Ordinal);
+        Assert.Contains("HudMenuCommand.Options", menu, StringComparison.Ordinal);
 
         Assert.Contains("CloneTintedPrimary", pack, StringComparison.Ordinal);
         Assert.Contains("CreatePrimaryTintAttributes", pack, StringComparison.Ordinal);
