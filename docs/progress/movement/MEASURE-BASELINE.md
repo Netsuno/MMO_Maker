@@ -7,8 +7,8 @@
 | **Status** | Windows numbers filled — Orchestrator session **2026-09-20** ~17:55 UTC; measured client tip `2faa511` (main after #23) |
 | **Base** | `main` @ `2faa51152446a00d027d007416268ab73d92eae3` (merge PR #23 DA v2 login) |
 | **Branch** | `cursor/movement-measure-win-numbers` |
-| **PR** | Draft toward `main` — **do not merge as a movement fix** |
-| **Tip** | `2faa51152446a00d027d007416268ab73d92eae3` (measured Release win-x64; STATUS pin after this docs commit) |
+| **PR** | Draft [#24](https://github.com/Netsuno/MMO_Maker/pull/24) toward `main` — **do not merge as a movement fix** |
+| **Tip** | `eb108f7d4ddb563685ef4d2f3ae9cba472ba6608` (Windows numbers fill) |
 | **CI** | Docs-only fill. Instrumentation CI [35515532160](https://github.com/Netsuno/MMO_Maker/actions/runs/35515532160) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Out of scope** | No prediction rewrite, no collision redesign, no camera overhaul, no animation system |
 
