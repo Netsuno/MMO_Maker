@@ -7,9 +7,9 @@
 | **Statut** | MVP in-memory + onglet Social Instance — **pas de merge** |
 | **Base** | `main` @ `c428c26` (merge PR #32 auction / mail / guild bank) |
 | **Branche** | `cursor/dungeons-instances-mvp-a9bc` |
-| **PR** | Draft — à lier |
-| **Tip** | à pinner après CI |
-| **CI** | à lier après le run |
+| **PR** | Draft [#33](https://github.com/Netsuno/MMO_Maker/pull/33) vers `main` — **pas de merge** |
+| **Tip** | `7f87d507b834237f9231130fe4533d53c0873643` |
+| **CI** | [35541768014](https://github.com/Netsuno/MMO_Maker/actions/runs/35541768014) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — opcodes additifs **90–92** (`InstanceHubRequest` / `Result` / `Snapshot`). Gel social 80–86 et économie 87–89 inchangés. |
 
 Chrome DA v2 + overlay Social existant. Menu ring **reste 5 icônes**. Dock chat **Amis / Groupe / Guilde** inchangé. Ouverture : onglet **Instance** sous Social (Entrer / Quitter / Actualiser).
@@ -52,6 +52,8 @@ Chrome DA v2 + overlay Social existant. Menu ring **reste 5 icônes**. Dock chat
 - `Frog.Tests/InstanceHubLogicTests.cs` — Query sans perso / action inconnue / catalogue / gate groupe / enter-leave overworld / join membre / raid min 2.
 - `Frog.Tests/InstanceHubTcpTests.cs` — TCP in-memory Query + gate + create/join/leave.
 
-Linux this run: à remplir après `dotnet test Frog.Tests`.
+Linux this run: `dotnet test Frog.Tests` **713 passed** (filtre InstanceHub **16 passed**).
+
+CI **green** on `7f87d50` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35541768014/job/106160604472) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35541768014/job/106160604334). Windows editor / gameplay / Phase 8 smokes included.
 
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
