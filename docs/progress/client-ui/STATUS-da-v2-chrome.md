@@ -39,3 +39,4 @@ Présentation + layout chrome seulement. TabControl overlay reste **360 px** (cr
 Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
 
 Smoke : `Control.Visible` sur le chrome est faux en phase Login (ancêtres `_panelGame` masqués) — le test HUD assert parentage + crop 360 ; `Visible` est vérifié en Playing (`ShowOfflineMapViewportForTest`).
+Le X rouge appelle `HudWindowChrome.Dismiss()` (même chemin que Esc). `WindowCloseButton.PerformClick` lève `Click` même si un ancêtre phase est masqué — `Button.PerformClick` natif no-op dans ce cas.

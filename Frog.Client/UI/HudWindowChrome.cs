@@ -18,7 +18,7 @@ public sealed class HudWindowChrome : Panel
     internal const string CloseButtonName = "DaWindowClose";
 
     private readonly Label _title;
-    private readonly Button _close;
+    private readonly WindowCloseButton _close;
     private Control? _content;
 
     public event EventHandler? CloseClicked;
@@ -46,7 +46,7 @@ public sealed class HudWindowChrome : Panel
             Font = UiTheme.UiFont(10f, FontStyle.Bold),
             Padding = new Padding(10, 0, 28, 0),
         };
-        _close = new Button
+        _close = new WindowCloseButton
         {
             Name = CloseButtonName,
             Text = "×",
@@ -59,15 +59,19 @@ public sealed class HudWindowChrome : Panel
             AccessibleName = "Fermer",
         };
         UiTheme.StyleWindowCloseButton(_close);
-        _close.Click += (_, e) => CloseClicked?.Invoke(this, e);
+        _close.Click += (_, _) => Dismiss();
 
         Controls.Add(_title);
         Controls.Add(_close);
         _close.BringToFront();
         Paint += DrawChrome;
+        MouseDown += OnChromeMouseDown;
         Resize += (_, _) => LayoutChrome();
         LayoutChrome();
     }
+
+    /// <summary>Hide the hosted window (red X, Esc, and programmatic close share this path).</summary>
+    public void Dismiss() => CloseClicked?.Invoke(this, EventArgs.Empty);
 
     public string Title
     {
@@ -132,15 +136,35 @@ public sealed class HudWindowChrome : Panel
 
     internal Label TitleLabelForTest => _title;
 
-    internal Button CloseButtonForTest => _close;
+    internal WindowCloseButton CloseButtonForTest => _close;
+
+    internal Rectangle CloseHitRectForTest => CloseHitRect;
+
+    private Rectangle CloseHitRect
+    {
+        get
+        {
+            var x = Math.Max(ContentPadding, Width - ContentPadding - CloseButtonSize);
+            var y = Math.Max(0, (TitleBarHeight - CloseButtonSize) / 2);
+            return new Rectangle(x, y, CloseButtonSize, CloseButtonSize);
+        }
+    }
+
+    private void OnChromeMouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Left && CloseHitRect.Contains(e.Location))
+        {
+            Dismiss();
+        }
+    }
 
     private void LayoutChrome()
     {
+        var close = CloseHitRect;
         _title.Location = new Point(1, 1);
-        _title.Size = new Size(Math.Max(0, Width - 2), TitleBarHeight);
-        _close.Location = new Point(
-            Math.Max(ContentPadding, Width - ContentPadding - CloseButtonSize),
-            Math.Max(0, (TitleBarHeight - CloseButtonSize) / 2));
+        _title.Size = new Size(Math.Max(0, close.X - 6), TitleBarHeight);
+        _close.Bounds = close;
+        _close.BringToFront();
         if (_content is not null)
         {
             _content.Location = new Point(ContentPadding, TitleBarHeight);
@@ -183,5 +207,23 @@ public sealed class HudWindowChrome : Panel
         g.DrawLine(hi, 1, bottom, 1, bottom - length);
         g.DrawLine(hi, last, bottom, last - length, bottom);
         g.DrawLine(hi, last, bottom, last, bottom - length);
+    }
+}
+
+/// <summary>
+/// Red titlebar close. WinForms <see cref="Button.PerformClick"/> no-ops when an
+/// ancestor is hidden (Login <c>_panelGame</c>); programmatic / test close must
+/// still dismiss the overlay.
+/// </summary>
+internal sealed class WindowCloseButton : Button
+{
+    public new void PerformClick()
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        OnClick(EventArgs.Empty);
     }
 }

@@ -32,6 +32,9 @@ public sealed class ClientUiDaV2ChromeTests
         Assert.Contains("ContentPadding = 12", chrome, StringComparison.Ordinal);
         Assert.Contains("AccentGold", chrome, StringComparison.Ordinal);
         Assert.Contains("StyleWindowCloseButton", chrome, StringComparison.Ordinal);
+        Assert.Contains("public void Dismiss()", chrome, StringComparison.Ordinal);
+        Assert.Contains("public new void PerformClick()", chrome, StringComparison.Ordinal);
+        Assert.Contains("class WindowCloseButton", chrome, StringComparison.Ordinal);
         Assert.DoesNotContain("HudHotbar", chrome, StringComparison.Ordinal);
         Assert.DoesNotContain("FROG_MOVEMENT_MEASURE", chrome, StringComparison.Ordinal);
 
