@@ -59,7 +59,22 @@ public sealed class EditorToolHotkeysTests
 
         Assert.Contains("D", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("P", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
+        Assert.Contains("I", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
+        Assert.Contains("Q", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
+        Assert.Contains("pipette", EditorToolHotkeys.SelectionHint, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("D", EditorToolHotkeys.ShortcutGlyph(EditorTool.Spawn));
         Assert.Equal("P", EditorToolHotkeys.ShortcutGlyph(EditorTool.Prefab));
+    }
+
+    [Fact]
+    public void PipetteAndSelectionKeys_AreNotToolHotkeys()
+    {
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.I, out _));
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.Q, out _));
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.H, out _));
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.V, out _));
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.Alt | Keys.I, out _));
+        Assert.False(EditorToolHotkeys.TryResolveWpf(Key.I, ModifierKeys.None, out _));
+        Assert.False(EditorToolHotkeys.TryResolveWpf(Key.Q, ModifierKeys.None, out _));
     }
 }

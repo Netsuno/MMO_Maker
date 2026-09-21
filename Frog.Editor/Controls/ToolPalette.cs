@@ -28,12 +28,13 @@ public sealed class ToolPalette : UserControl
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
             BackColor = EditorChrome.SidebarBg,
             Padding = new Padding(2, 0, 2, 0),
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -99,10 +100,21 @@ public sealed class ToolPalette : UserControl
             MaximumSize = new Size(280, 0),
         };
 
+        var selectionHint = new Label
+        {
+            Text = EditorToolHotkeys.SelectionHint,
+            AutoSize = true,
+            ForeColor = EditorChrome.LabelMuted,
+            Font = EditorChrome.BodyFont,
+            Margin = new Padding(6, 0, 4, 4),
+            MaximumSize = new Size(280, 0),
+        };
+
         root.Controls.Add(title, 0, 0);
         root.Controls.Add(row, 0, 1);
         root.Controls.Add(hint, 0, 2);
-        root.Controls.Add(spawnHint, 0, 3);
+        root.Controls.Add(selectionHint, 0, 3);
+        root.Controls.Add(spawnHint, 0, 4);
 
         Controls.Add(root);
     }

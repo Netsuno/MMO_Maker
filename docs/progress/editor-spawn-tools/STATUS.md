@@ -41,7 +41,7 @@ UI FR : palette « Placer le départ (D) », menu **Carte → Outil point de dé
 | Curseur | oui | inspecte un clic | **C** | pas de déplacement d’objets (pas de prefabs) |
 | Pot | oui | flood 4-dir | **F** | — |
 | Rectangle | oui | clic–clic | **R** | — |
-| Sélection | oui | copier/coller couche | **M** | pas de rotation / miroir |
+| Sélection | oui | copier/coller couche | **M** | rotation 90° + miroirs : voir `docs/progress/editor-selection-tools/STATUS.md` |
 | Départ | **ajouté** | clic spawn | **D** | — |
 
 `Form1` n’est qu’un stub designer : les raccourcis réels sont `MainForm.ProcessCmdKey` + `MapCanvas.HandleEditorShortcuts` + `MainWindow`.
@@ -52,7 +52,8 @@ UI FR : palette « Placer le départ (D) », menu **Carte → Outil point de dé
 
 ## Différé (volontaire)
 
-- Prefabs / objets carte posables, pipette, ligne, cercle, tampon multi-cartes.
+- Prefabs / objets carte posables, ligne, cercle, tampon multi-cartes.
+- Pipette tuile + rotation / miroir de sélection : chantier dédié `docs/progress/editor-selection-tools/STATUS.md`.
 - Spawn **dans** le blob `.fmap` / publish world (`world_spawn_settings`) — volontairement workstate local, pas de bump fichier ni fil.
 - Éditeur de spawn monde serveur (start/respawn globaux) : déjà une table PG singleton, pas ce chantier.
 - Phase 6–8 (Game Data, événements, quêtes) : **non touchés**.

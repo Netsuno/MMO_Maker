@@ -112,5 +112,8 @@ public static class EditorToolHotkeys
     }
 
     public const string PaletteHint =
-        "B pinceau · E gomme · C curseur · F pot · R rectangle · M sélection · D départ · P prefab";
+        "B pinceau · E gomme · C curseur · F pot · R rectangle · M sélection · D départ · P prefab · I pipette";
+
+    public const string SelectionHint =
+        "Sélection : Q rotation 90° · H miroir horizontal · V miroir vertical · I pipette (Alt+clic)";
 }
