@@ -74,6 +74,32 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
         RaiseStampChanged();
     }
 
+    /// <summary>Positionne le tampon palette (pipette) sans recharger le tileset.</summary>
+    public bool TrySetStampPixels(System.Drawing.Point origin, DSize size)
+    {
+        if (!TilesetCache.TryGet(TilesetId, out var bmp) || bmp is null)
+        {
+            return false;
+        }
+
+        var ts = Math.Max(1, TileSize);
+        var ox = Math.Clamp(origin.X - Math.Abs(origin.X % ts), 0, Math.Max(0, bmp.Width - ts));
+        var oy = Math.Clamp(origin.Y - Math.Abs(origin.Y % ts), 0, Math.Max(0, bmp.Height - ts));
+        var w = Math.Max(ts, size.Width);
+        var h = Math.Max(ts, size.Height);
+        w = Math.Min(w, bmp.Width - ox);
+        h = Math.Min(h, bmp.Height - oy);
+        w = Math.Max(ts, (w / ts) * ts);
+        h = Math.Max(ts, (h / ts) * ts);
+        _stampOrigin = new System.Drawing.Point(ox, oy);
+        _stampSizePixels = new DSize(w, h);
+        _dragSelect = false;
+        PositionOverlayRects(PixelsPerDip);
+        SelectionRect.Visibility = Visibility.Visible;
+        RaiseStampChanged();
+        return true;
+    }
+
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
         base.OnDpiChanged(oldDpi, newDpi);

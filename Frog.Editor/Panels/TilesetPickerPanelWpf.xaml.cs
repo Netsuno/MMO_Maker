@@ -23,6 +23,23 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
 
     public void SetPaletteTileset(int id) => Palette.SetTileset(id);
 
+    public bool TrySelectTilesetById(int id)
+    {
+        for (var i = 0; i < ListTilesets.Items.Count; i++)
+        {
+            if (ListTilesets.Items[i] is TilesetRow row && row.Id == id)
+            {
+                ListTilesets.SelectedIndex = i;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool TrySetStampPixels(System.Drawing.Point origin, System.Drawing.Size size)
+        => Palette.TrySetStampPixels(origin, size);
+
     public void SyncPaletteTileSize(int tileSizePixels)
     {
         Palette.TileSize = Math.Max(1, tileSizePixels);

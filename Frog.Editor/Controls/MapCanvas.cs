@@ -71,6 +71,11 @@ public sealed class MapCanvas : Control
     /// <summary>Carte modifiée par une action d’édition (peinture, undo, etc.).</summary>
     public event Action? MapEdited;
 
+    /// <summary>Pipette : le pinceau a échantillonné tileset + source depuis la carte.</summary>
+    public event Action<BrushSample>? BrushSampled;
+
+    public readonly record struct BrushSample(int TilesetId, int SrcX, int SrcY, TileType Type, bool SwitchToBrush);
+
     /// <summary>Carte cible par défaut pour les nouvelles tuiles warp (souvent la carte courante).</summary>
     public Guid? DefaultWarpTargetMapId { get; set; }
 
@@ -279,21 +284,90 @@ public sealed class MapCanvas : Control
     public bool HandleEditorShortcuts(Keys keyData)
     {
         var ctrl = (keyData & Keys.Control) == Keys.Control;
+        var alt = (keyData & Keys.Alt) == Keys.Alt;
+        var shift = (keyData & Keys.Shift) == Keys.Shift;
         var code = keyData & Keys.KeyCode;
 
         switch (code)
         {
-            case Keys.C when ctrl:
+            case Keys.C when ctrl && !alt:
                 return TryCopyTileSelection();
-            case Keys.X when ctrl:
+            case Keys.X when ctrl && !alt:
                 return TryCutTileSelection();
-            case Keys.V when ctrl:
+            case Keys.V when ctrl && !alt:
                 return TryPasteAtHover();
-            case Keys.Delete when !ctrl:
+            case Keys.V when !ctrl && !alt && !shift:
+                return TryTransformSelection(TileSelectionTransformKind.MirrorVertical);
+            case Keys.Delete when !ctrl && !alt:
                 return TryDeleteSelectedTiles();
+            case Keys.Q when !ctrl && !alt && !shift:
+                return TryTransformSelection(TileSelectionTransformKind.Rotate90Clockwise);
+            case Keys.H when !ctrl && !alt && !shift:
+                return TryTransformSelection(TileSelectionTransformKind.MirrorHorizontal);
+            case Keys.I when !ctrl && !alt && !shift:
+                return TryPipetteAtHover(switchToBrush: true);
             default:
                 return false;
         }
+    }
+
+    public bool TryTransformSelection(TileSelectionTransformKind kind)
+    {
+        if (Map is null)
+        {
+            return false;
+        }
+
+        if (TryGetCommittedSelectionNormalized(out var rect)
+            && IsActiveLayerEditable()
+            && MapEditOperations.CountTilesInRect(Map, ActiveLayerIndex, rect.X, rect.Y, rect.Width, rect.Height) > 0)
+        {
+            BeginEditTransaction();
+            if (!TileSelectionService.TryTransform(Map, ActiveLayerIndex, rect, kind, out var next))
+            {
+                return false;
+            }
+
+            _committedSelectionTiles = next;
+            Invalidate();
+            return true;
+        }
+
+        if (!EditorTileClipboard.TryTransform(kind))
+        {
+            return false;
+        }
+
+        Invalidate();
+        return true;
+    }
+
+    public bool TryPipetteAtHover(bool switchToBrush) => TryPipetteAt(_hoverTile.X, _hoverTile.Y, switchToBrush);
+
+    public bool TryPipetteAt(int tileX, int tileY, bool switchToBrush)
+    {
+        if (Map is null)
+        {
+            return false;
+        }
+
+        if (!MapTilePipette.TrySample(Map, tileX, tileY, ActiveLayerIndex, out var sample))
+        {
+            return false;
+        }
+
+        ActiveTilesetId = sample.TilesetId;
+        SelectedSrc = new Point(sample.SrcX, sample.SrcY);
+        SelectedStampInTiles = new Size(1, 1);
+        SelectedTileType = sample.Type;
+        if (switchToBrush)
+        {
+            ActiveTool = EditorTool.Brush;
+        }
+
+        BrushSampled?.Invoke(new BrushSample(sample.TilesetId, sample.SrcX, sample.SrcY, sample.Type, switchToBrush));
+        Invalidate();
+        return true;
     }
 
     public void PerformUndo()
@@ -1167,6 +1241,12 @@ public sealed class MapCanvas : Control
             return;
         }
 
+        if (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Alt) == Keys.Alt)
+        {
+            TryPipetteAt(tx, ty, switchToBrush: false);
+            return;
+        }
+
         if (e.Button == MouseButtons.Right)
         {
             if (ActiveTool == EditorTool.Spawn)
@@ -1374,6 +1454,11 @@ public sealed class MapCanvas : Control
         }
 
         UpdateEditCursorForHover();
+
+        if ((ModifierKeys & Keys.Alt) == Keys.Alt)
+        {
+            return;
+        }
 
         if ((e.Button & MouseButtons.Left) != 0)
         {
@@ -1700,6 +1785,25 @@ public sealed class MapCanvas : Control
         ApplyBrush(x, y);
         Invalidate();
         return Map.Layers[ActiveLayerIndex].Tiles.Any(t => t.X == x && t.Y == y);
+    }
+
+    internal void SetHoverTileForTest(int x, int y) => _hoverTile = new Point(x, y);
+
+    internal void CommitSelectionForTest(int x, int y, int width, int height)
+        => _committedSelectionTiles = new Rectangle(x, y, width, height);
+
+    internal Rectangle? GetCommittedSelectionForTest() => _committedSelectionTiles;
+
+    internal bool TryPipetteAtForTest(int x, int y, bool switchToBrush) => TryPipetteAt(x, y, switchToBrush);
+
+    internal bool TryHandleAltLeftClickForTest(int tileX, int tileY)
+    {
+        if (Map is null || tileX < 0 || tileY < 0 || tileX >= Map.Width || tileY >= Map.Height)
+        {
+            return false;
+        }
+
+        return TryPipetteAt(tileX, tileY, switchToBrush: false);
     }
 
     internal void SetBlockTileForTest(int x, int y)

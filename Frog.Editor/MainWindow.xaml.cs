@@ -106,6 +106,26 @@ public partial class MainWindow : Window
         nameof(CmdPrefabTool),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdRotateSelection = new(
+        "Rotation 90°",
+        nameof(CmdRotateSelection),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdMirrorHorizontal = new(
+        "Miroir horizontal",
+        nameof(CmdMirrorHorizontal),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdMirrorVertical = new(
+        "Miroir vertical",
+        nameof(CmdMirrorVertical),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdTilePipette = new(
+        "Pipette tuile",
+        nameof(CmdTilePipette),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdBrowseMapEvents = new(
         "Événements carte (MariaDB, héritage)…",
         nameof(CmdBrowseMapEvents),
@@ -184,6 +204,10 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdSpawnTool, (_, _) => _editor.SelectEditorTool(EditorTool.Spawn)));
         CommandBindings.Add(new CommandBinding(CmdPrefabTool, (_, _) => _editor.SelectEditorTool(EditorTool.Prefab)));
+        CommandBindings.Add(new CommandBinding(CmdRotateSelection, (_, _) => _editor.TryRotateSelection90()));
+        CommandBindings.Add(new CommandBinding(CmdMirrorHorizontal, (_, _) => _editor.TryMirrorSelectionHorizontal()));
+        CommandBindings.Add(new CommandBinding(CmdMirrorVertical, (_, _) => _editor.TryMirrorSelectionVertical()));
+        CommandBindings.Add(new CommandBinding(CmdTilePipette, (_, _) => _editor.TryPipetteAtHover()));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEvents()));
         CommandBindings.Add(new CommandBinding(CmdBrowsePhase8Content, (_, _) => _editor.BrowsePhase8Content()));
         CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkers()));
@@ -372,6 +396,23 @@ public partial class MainWindow : Window
         {
             _editor.CycleSelectedPrefabFacingForTest(next: e.Key == Key.Oem6);
             e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.None && e.Key is Key.Q or Key.H or Key.V or Key.I)
+        {
+            var mapped = e.Key switch
+            {
+                Key.Q => Keys.Q,
+                Key.H => Keys.H,
+                Key.V => Keys.V,
+                Key.I => Keys.I,
+                _ => Keys.None,
+            };
+            if (mapped != Keys.None && _editor.TryProcessCmdKeyForTest(mapped))
+            {
+                e.Handled = true;
+            }
         }
     }
 

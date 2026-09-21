@@ -367,6 +367,11 @@ public sealed class MainForm : Form
             var mEdit = new ToolStripMenuItem("Édition");
             mEdit.DropDownItems.Add(mnuUndo);
             mEdit.DropDownItems.Add(mnuRedo);
+            mEdit.DropDownItems.Add(new ToolStripSeparator());
+            mEdit.DropDownItems.Add("Rotation 90° (Q)", null, (_, _) => TryRotateSelection90());
+            mEdit.DropDownItems.Add("Miroir horizontal (H)", null, (_, _) => TryMirrorSelectionHorizontal());
+            mEdit.DropDownItems.Add("Miroir vertical (V)", null, (_, _) => TryMirrorSelectionVertical());
+            mEdit.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
 
             var mResources = new ToolStripMenuItem("Ressources");
             mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
@@ -376,6 +381,7 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
             mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
+            mMap.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
             mMap.DropDownItems.Add("Contenu Phase 8…", null, (_, _) => BrowsePhase8Content());
@@ -483,6 +489,7 @@ public sealed class MainForm : Form
         _canvas.MapReplaced += OnMapReplaced;
         _canvas.UndoHistoryChanged += UpdateUndoRedoButtons;
         _canvas.MapEdited += OnMapEdited;
+        _canvas.BrushSampled += OnBrushSampled;
 
         if (_mnuShowEventMarkers is not null)
         {
@@ -503,6 +510,7 @@ public sealed class MainForm : Form
         _leftToolsWpf.ToolChanged += tool => SelectEditorTool(tool);
         _leftToolsWpf.TileTypeChanged += type => _canvas.SelectedTileType = type;
         _leftToolsWpf.PrefabSelectionChanged += OnPrefabPaletteChanged;
+        _leftToolsWpf.PipetteRequested += () => TryPipetteAtHover();
         _leftToolsWpf.BindPrefabCatalog(_canvas.PrefabCatalog, _canvas.SelectedPrefabId, _canvas.SelectedPrefabFacing);
         _leftToolsElementHost = new ElementHost
         {
@@ -1069,6 +1077,18 @@ public sealed class MainForm : Form
         _canvas.Invalidate();
     }
 
+    internal bool TryRotateSelection90()
+        => _canvas.TryTransformSelection(TileSelectionTransformKind.Rotate90Clockwise);
+
+    internal bool TryMirrorSelectionHorizontal()
+        => _canvas.TryTransformSelection(TileSelectionTransformKind.MirrorHorizontal);
+
+    internal bool TryMirrorSelectionVertical()
+        => _canvas.TryTransformSelection(TileSelectionTransformKind.MirrorVertical);
+
+    internal bool TryPipetteAtHover()
+        => _canvas.TryPipetteAtHover(switchToBrush: true);
+
     private void OnPlaytestSpawnChanged(Point tile)
     {
         if (!_suppressSpawnPersist && _canvas.Map is { } map)
@@ -1294,6 +1314,25 @@ public sealed class MainForm : Form
         _canvas.SelectedStampInTiles = new Size(
             Math.Max(1, stampPixels.Width / ts),
             Math.Max(1, stampPixels.Height / ts));
+    }
+
+    private void OnBrushSampled(MapCanvas.BrushSample sample)
+    {
+        _leftToolsWpf.SetSelectedTileType(sample.Type);
+        if (sample.SwitchToBrush)
+        {
+            SelectEditorTool(EditorTool.Brush);
+        }
+
+        _canvas.ActiveTilesetId = sample.TilesetId;
+        if (!_tilesetPickerWpf.TrySelectTilesetById(sample.TilesetId))
+        {
+            _tilesetPickerWpf.SetPaletteTileset(sample.TilesetId);
+        }
+
+        var ts = Math.Max(1, _canvas.TileSize);
+        _tilesetPickerWpf.TrySetStampPixels(new Point(sample.SrcX, sample.SrcY), new Size(ts, ts));
+        PushEditorStatusLine();
     }
 
     private void OnHoveredTileChanged(Point p)

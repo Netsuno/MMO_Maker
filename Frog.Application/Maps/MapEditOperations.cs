@@ -182,6 +182,99 @@ public static class MapEditOperations
         }
     }
 
+    public static int CountTilesInRect(Map map, int layerIndex, int left, int top, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (layerIndex < 0 || layerIndex >= map.Layers.Count || width <= 0 || height <= 0)
+        {
+            return 0;
+        }
+
+        var layer = map.Layers[layerIndex];
+        var n = 0;
+        for (var y = top; y < top + height; y++)
+        {
+            for (var x = left; x < left + width; x++)
+            {
+                if (layer.Tiles.Any(t => t.X == x && t.Y == y))
+                {
+                    n++;
+                }
+            }
+        }
+
+        return n;
+    }
+
+    /// <summary>
+    /// Rotation / miroir in situ d’un rectangle de couche. Le nouveau rectangle est ancré en (left, top).
+    /// Ne mute pas si le rectangle ne contient aucune tuile.
+    /// </summary>
+    public static bool TryTransformLayerRect(
+        Map map,
+        int layerIndex,
+        int left,
+        int top,
+        int width,
+        int height,
+        TileSelectionTransformKind kind,
+        out int newWidth,
+        out int newHeight)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        newWidth = width;
+        newHeight = height;
+        if (!IsLayerEditable(map, layerIndex) || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        var layer = map.Layers[layerIndex];
+        var captured = new List<Tile>();
+        for (var y = top; y < top + height; y++)
+        {
+            for (var x = left; x < left + width; x++)
+            {
+                var t = layer.Tiles.FirstOrDefault(tile => tile.X == x && tile.Y == y);
+                if (t is null)
+                {
+                    continue;
+                }
+
+                captured.Add(CloneTile(t, x - left, y - top));
+            }
+        }
+
+        if (captured.Count == 0)
+        {
+            return false;
+        }
+
+        var transformed = TileSelectionTransform.Apply(captured, width, height, kind);
+        for (var y = top; y < top + height; y++)
+        {
+            for (var x = left; x < left + width; x++)
+            {
+                layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
+            }
+        }
+
+        foreach (var template in transformed.Tiles)
+        {
+            PaintTile(map, layerIndex, left + template.X, top + template.Y, template);
+        }
+
+        newWidth = transformed.Width;
+        newHeight = transformed.Height;
+        return true;
+    }
+
+    public static Tile CloneTileAt(Tile source, int x, int y)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return CloneTile(source, x, y);
+    }
+
     private static bool IsInBounds(Map map, int x, int y)
         => x >= 0 && y >= 0 && x < map.Width && y < map.Height;
 

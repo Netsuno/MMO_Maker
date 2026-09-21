@@ -71,6 +71,19 @@
                 <MenuItem Header="_Rétablir"
                           Command="{x:Static local:MainWindow.CmdRedo}"
                           InputGestureText="Ctrl+Y" />
+                <Separator />
+                <MenuItem Header="Rotation 90°"
+                          Command="{x:Static local:MainWindow.CmdRotateSelection}"
+                          InputGestureText="Q" />
+                <MenuItem Header="Miroir horizontal"
+                          Command="{x:Static local:MainWindow.CmdMirrorHorizontal}"
+                          InputGestureText="H" />
+                <MenuItem Header="Miroir vertical"
+                          Command="{x:Static local:MainWindow.CmdMirrorVertical}"
+                          InputGestureText="V" />
+                <MenuItem Header="Pipette tuile"
+                          Command="{x:Static local:MainWindow.CmdTilePipette}"
+                          InputGestureText="I" />
             </MenuItem>
             <MenuItem Header="_Ressources" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Données de jeu…" Command="{x:Static local:MainWindow.CmdGameData}" />
@@ -131,6 +144,7 @@
                 <Separator />
                 <Button Content="Départ" Command="{x:Static local:MainWindow.CmdSpawnTool}" Padding="10,4" ToolTip="Outil point de départ playtest (D)" />
                 <Button Content="Prefab" Command="{x:Static local:MainWindow.CmdPrefabTool}" Padding="10,4" ToolTip="Poser un objet prefab (P)" />
+                <Button Content="Pipette" Command="{x:Static local:MainWindow.CmdTilePipette}" Padding="10,4" ToolTip="Pipette tuile : I ou Alt+clic" />
             </ToolBar>
         </ToolBarTray>
         <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">

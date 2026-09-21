@@ -16,6 +16,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     public event Action<EditorTool>? ToolChanged;
     public event Action<TileType>? TileTypeChanged;
     public event Action<string, PrefabFacing>? PrefabSelectionChanged;
+    public event Action? PipetteRequested;
 
     public EditorLeftToolsWpf()
     {
@@ -107,6 +108,8 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         SetSelectedTool(EditorTool.Spawn);
         ToolChanged?.Invoke(EditorTool.Spawn);
     }
+
+    private void OnPipetteClick(object sender, RoutedEventArgs e) => PipetteRequested?.Invoke();
 
     public void BindPrefabCatalog(PrefabCatalog catalog, string? selectedId, PrefabFacing facing)
     {
