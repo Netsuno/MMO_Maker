@@ -75,6 +75,7 @@ public sealed class PostgresMapRepository : IMapRepository
 
                 var entity = MapPersistenceMapper.ToEntity(request.Map, now);
                 entity.Status = MapPublishStatus.Draft;
+                entity.PrefabsJson = MapPersistenceMapper.SerializePrefabs(request.Prefabs);
                 db.Maps.Add(entity);
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 newRevision = entity.Revision;
@@ -94,20 +95,43 @@ public sealed class PostgresMapRepository : IMapRepository
             }
             else
             {
-                var updatedRows = await db.Maps
-                    .Where(m => m.Id == mapId && m.Revision == request.ExpectedRevision)
-                    .ExecuteUpdateAsync(
-                        s => s
-                            .SetProperty(m => m.Revision, request.ExpectedRevision + 1)
-                            .SetProperty(m => m.Name, request.Map.Name)
-                            .SetProperty(m => m.Width, request.Map.Width)
-                            .SetProperty(m => m.Height, request.Map.Height)
-                            .SetProperty(m => m.AllowPlayerOverlap, request.Map.AllowPlayerOverlap)
-                            .SetProperty(m => m.Status, MapPublishStatus.Draft)
-                            .SetProperty(m => m.UpdatedAtUtc, now)
-                            .SetProperty(m => m.LayersCatalogJson, MapPersistenceMapper.SerializeLayersCatalog(request.Map)),
-                        cancellationToken)
-                    .ConfigureAwait(false);
+                var draftUpdate = db.Maps
+                    .Where(m => m.Id == mapId && m.Revision == request.ExpectedRevision);
+                int updatedRows;
+                if (request.Prefabs is not null)
+                {
+                    var prefabsJson = MapPersistenceMapper.SerializePrefabs(request.Prefabs);
+                    updatedRows = await draftUpdate
+                        .ExecuteUpdateAsync(
+                            s => s
+                                .SetProperty(m => m.Revision, request.ExpectedRevision + 1)
+                                .SetProperty(m => m.Name, request.Map.Name)
+                                .SetProperty(m => m.Width, request.Map.Width)
+                                .SetProperty(m => m.Height, request.Map.Height)
+                                .SetProperty(m => m.AllowPlayerOverlap, request.Map.AllowPlayerOverlap)
+                                .SetProperty(m => m.Status, MapPublishStatus.Draft)
+                                .SetProperty(m => m.UpdatedAtUtc, now)
+                                .SetProperty(m => m.LayersCatalogJson, MapPersistenceMapper.SerializeLayersCatalog(request.Map))
+                                .SetProperty(m => m.PrefabsJson, prefabsJson),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    updatedRows = await draftUpdate
+                        .ExecuteUpdateAsync(
+                            s => s
+                                .SetProperty(m => m.Revision, request.ExpectedRevision + 1)
+                                .SetProperty(m => m.Name, request.Map.Name)
+                                .SetProperty(m => m.Width, request.Map.Width)
+                                .SetProperty(m => m.Height, request.Map.Height)
+                                .SetProperty(m => m.AllowPlayerOverlap, request.Map.AllowPlayerOverlap)
+                                .SetProperty(m => m.Status, MapPublishStatus.Draft)
+                                .SetProperty(m => m.UpdatedAtUtc, now)
+                                .SetProperty(m => m.LayersCatalogJson, MapPersistenceMapper.SerializeLayersCatalog(request.Map)),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 if (updatedRows == 0)
                 {
@@ -495,5 +519,6 @@ public sealed class PostgresMapRepository : IMapRepository
             Revision = entity.Revision,
             Status = entity.PublishedRevision is not null ? MapPublishStatus.Published : MapPublishStatus.Draft,
             PublishedRevision = entity.PublishedRevision,
+            Prefabs = MapPersistenceMapper.DeserializePrefabs(entity.PrefabsJson),
         };
 }

@@ -31,7 +31,7 @@ dotnet run --project Frog.Editor/Frog.Editor.csproj
 ```
 
 - Crée une carte, **Importer un asset projet…** / **Charger une image tuiles…** (PNG), place les tuiles, puis **Enregistrer** au format `.fmap` (ex. `world.fmap`).
-- L’éditeur copie aussi les **PNG** (`{id}.png`) et écrit **`world.tilesets.json`** à côté (liste `id` → nom de fichier). Playtest écrit le même layout sous `Tilesets/` + `Maps/` du workspace et du répertoire client.
+- L’éditeur copie aussi les **PNG** (`{id}.png`) et écrit **`world.tilesets.json`** à côté (liste `id` → nom de fichier). Playtest écrit le même layout sous `Tilesets/` + `Maps/` du workspace et du répertoire client. Les **prefabs** (canapé, clôture, lit…) suivent `Prefabs/` + `Maps/{nom}.prefabs.json` ; **Publier (PostgreSQL)** envoie les PNG via le catalogue (`prefabs` / `prefabMaps`, `pngBase64`) pour que le client live les matérialise sans copie manuelle.
 
 ### Tilesets côté client (PNG)
 

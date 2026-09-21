@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Frog.Application.Maps;
+using Frog.Application.Prefabs;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
@@ -78,6 +79,7 @@ internal static class MapPersistenceMapper
             Height = map.Height,
             AllowPlayerOverlap = map.AllowPlayerOverlap,
             LayersCatalogJson = SerializeLayersCatalog(map),
+            PrefabsJson = draft.PrefabsJson,
         };
 
         var children = BuildChildren(draft.Id, map);
@@ -136,8 +138,15 @@ internal static class MapPersistenceMapper
             Revision = snapshot.Revision,
             Status = MapPublishStatus.Published,
             PublishedRevision = publishedRevision ?? snapshot.Revision,
+            Prefabs = DeserializePrefabs(snapshot.PrefabsJson),
         };
     }
+
+    public static string? SerializePrefabs(MapPrefabPersistDocument? document)
+        => document is null ? null : MapPrefabPersistJson.SerializeToString(document);
+
+    public static MapPrefabPersistDocument? DeserializePrefabs(string? json)
+        => MapPrefabPersistJson.TryDeserializeFromString(json);
 
     public static string SerializeLayersCatalog(Map map) =>
         JsonSerializer.Serialize(

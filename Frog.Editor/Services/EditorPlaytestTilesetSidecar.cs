@@ -36,6 +36,13 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
         var placements = _prefabPlacements?.Invoke() ?? Array.Empty<PrefabPlacement>();
         var sprites = PrefabSpriteCache.SnapshotPngFiles(catalog);
         MapPrefabPackage.WriteSidecars(plan.WorkDirectory, names, catalog, placements, sprites);
+        var persist = MapPrefabPersistDocument.Create(catalog, placements, sprites);
+        var primary = plan.Maps.FirstOrDefault();
+        SidecarPublishedPrefabCatalog.WriteFromDocument(
+            SidecarPublishedPrefabCatalog.PathBesideManifest(plan.ManifestPath),
+            primary?.CanonicalMapId ?? Guid.Empty,
+            primary?.Name ?? names.FirstOrDefault() ?? "world",
+            persist);
 
         if (string.IsNullOrWhiteSpace(clientExecutablePath))
         {

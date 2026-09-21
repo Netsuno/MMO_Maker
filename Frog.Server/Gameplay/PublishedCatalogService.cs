@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Frog.Application.Assets;
 using Frog.Application.Content;
+using Frog.Application.Prefabs;
 using Frog.Core.Protocol;
 
 namespace Frog.Server.Gameplay;
@@ -13,7 +14,8 @@ public sealed class PublishedCatalogService(
     IPublishedNpcCatalog npcs,
     IPublishedRecipeCatalog recipes,
     IPublishedTilesetCatalog? tilesets = null,
-    IPublishedTilesetImageSource? tilesetImages = null)
+    IPublishedTilesetImageSource? tilesetImages = null,
+    IPublishedPrefabCatalog? prefabs = null)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -34,6 +36,9 @@ public sealed class PublishedCatalogService(
             .Select(t => ToTilesetWire(t, tilesetImages))
             .Where(t => t.PaletteId > 0)
             .ToArray();
+        var prefabBundle = prefabs is null
+            ? new PublishedPrefabCatalogBundle()
+            : await prefabs.LoadPublishedAsync(cancellationToken).ConfigureAwait(false);
 
         return new PublishedCatalogWire
         {
@@ -73,6 +78,8 @@ public sealed class PublishedCatalogService(
                 Name = r.Name,
             }).ToArray(),
             Tilesets = tilesetList,
+            Prefabs = prefabBundle.Prefabs,
+            PrefabMaps = prefabBundle.PrefabMaps,
         };
     }
 

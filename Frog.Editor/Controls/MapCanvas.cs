@@ -132,11 +132,20 @@ public sealed class MapCanvas : Control
     /// <summary>Placements prefab ajoutés, retirés ou remplacés.</summary>
     public event Action? PrefabPlacementsChanged;
 
+    /// <summary>Pipette : l’outil prefab a copié id / facing depuis une instance.</summary>
+    public event Action<string, PrefabFacing>? PrefabSelectionPicked;
+
+    private PrefabPlacement? _draggingPrefab;
+    private bool _prefabDragMoved;
+
     private bool _panning;
     private Point _lastMouse;
     private bool _paintStroke;
     private Point? _rectPaintOrigin;
     private Point _hoverTile;
+
+    /// <summary>Dernière tuile sous le curseur (coordonnées carte).</summary>
+    public Point HoveredTile => _hoverTile;
     private Point? _selectionMarqueeAnchor;
     private Rectangle? _committedSelectionTiles;
 
@@ -841,6 +850,11 @@ public sealed class MapCanvas : Control
             return false;
         }
 
+        if (_draggingPrefab is not null)
+        {
+            return false;
+        }
+
         var before = _prefabPlacements.Count;
         var ok = PrefabPlacementService.TryPlace(
             _prefabPlacements,
@@ -872,6 +886,75 @@ public sealed class MapCanvas : Control
         }
 
         return removed;
+    }
+
+    public bool TryPipettePrefabAt(int tileX, int tileY)
+    {
+        var hit = PrefabPlacementService.TryFindAt(_prefabPlacements, PrefabCatalog, tileX, tileY);
+        if (hit is null)
+        {
+            return false;
+        }
+
+        SelectedPrefabId = hit.PrefabId;
+        SelectedPrefabFacing = hit.Facing;
+        PrefabSelectionPicked?.Invoke(hit.PrefabId, hit.Facing);
+        return true;
+    }
+
+    public bool TryBeginPrefabMoveAt(int tileX, int tileY)
+    {
+        var hit = PrefabPlacementService.TryFindAt(_prefabPlacements, PrefabCatalog, tileX, tileY);
+        if (hit is null)
+        {
+            return false;
+        }
+
+        _draggingPrefab = hit;
+        _prefabDragMoved = false;
+        return true;
+    }
+
+    public bool TryMoveDraggingPrefabTo(int tileX, int tileY)
+    {
+        if (Map is null || _draggingPrefab is null)
+        {
+            return false;
+        }
+
+        if (!PrefabPlacementService.TryMove(
+                _prefabPlacements,
+                PrefabCatalog,
+                _draggingPrefab,
+                tileX,
+                tileY,
+                Map.Width,
+                Map.Height,
+                out _))
+        {
+            return false;
+        }
+
+        _prefabDragMoved = true;
+        Invalidate();
+        return true;
+    }
+
+    public void EndPrefabMove()
+    {
+        if (_draggingPrefab is null)
+        {
+            return;
+        }
+
+        _draggingPrefab = null;
+        if (_prefabDragMoved)
+        {
+            PrefabPlacementsChanged?.Invoke();
+        }
+
+        _prefabDragMoved = false;
+        Invalidate();
     }
 
     internal bool TryApplyPrefabToolAtTileForTest(int tileX, int tileY)
@@ -1217,6 +1300,21 @@ public sealed class MapCanvas : Control
                     break;
 
                 case EditorTool.Prefab:
+                    if ((ModifierKeys & Keys.Alt) == Keys.Alt)
+                    {
+                        TryPipettePrefabAt(tx, ty);
+                        RaiseTileClicked(tx, ty);
+                        break;
+                    }
+
+                    if (TryBeginPrefabMoveAt(tx, ty))
+                    {
+                        Capture = true;
+                        Invalidate();
+                        RaiseTileClicked(tx, ty);
+                        break;
+                    }
+
                     TryPlaceSelectedPrefab(tx, ty);
                     Capture = true;
                     Invalidate();
@@ -1286,8 +1384,15 @@ public sealed class MapCanvas : Control
             }
             else if (ActiveTool == EditorTool.Prefab && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
             {
-                TryPlaceSelectedPrefab(tx, ty);
-                Invalidate();
+                if (_draggingPrefab is not null)
+                {
+                    TryMoveDraggingPrefabTo(tx, ty);
+                }
+                else
+                {
+                    TryPlaceSelectedPrefab(tx, ty);
+                    Invalidate();
+                }
             }
             else if (ActiveTool is EditorTool.Rectangle or EditorTool.Selection && (_rectPaintOrigin is not null || _selectionMarqueeAnchor is not null))
             {
@@ -1331,11 +1436,17 @@ public sealed class MapCanvas : Control
             NotifyViewTransformChanged();
         }
 
-        if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
-        {
+            if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
+            {
             if (_paintStroke)
             {
                 _paintStroke = false;
+                Capture = false;
+            }
+
+            if (_draggingPrefab is not null && e.Button == MouseButtons.Left)
+            {
+                EndPrefabMove();
                 Capture = false;
             }
 
@@ -1411,9 +1522,15 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection or EditorTool.Spawn or EditorTool.Prefab)
+        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection or EditorTool.Spawn)
         {
             Cursor = Cursors.Cross;
+            return;
+        }
+
+        if (ActiveTool == EditorTool.Prefab)
+        {
+            Cursor = _draggingPrefab is not null ? Cursors.SizeAll : Cursors.Cross;
             return;
         }
 

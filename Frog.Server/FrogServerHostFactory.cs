@@ -4,6 +4,7 @@ using Frog.Application.Content;
 using Frog.Application.Events;
 using Frog.Application.Gameplay;
 using Frog.Application.Playtest;
+using Frog.Application.Prefabs;
 using Frog.Server.Config;
 using Frog.Application.Identity;
 using Frog.Server.Database;
@@ -312,6 +313,16 @@ public static class FrogServerHostFactory
                         }
 
                         return EmptyPublishedTilesetCatalog.Instance;
+                    });
+                    services.AddSingleton<IPublishedPrefabCatalog>(sp =>
+                    {
+                        if (playtest.Enabled && !string.IsNullOrWhiteSpace(playtest.ManifestPath))
+                        {
+                            var sidecar = SidecarPublishedPrefabCatalog.PathBesideManifest(playtest.ManifestPath);
+                            return new SidecarPublishedPrefabCatalog(sidecar);
+                        }
+
+                        return EmptyPublishedPrefabCatalog.Instance;
                     });
                     services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
                     services.AddSingleton<IPublishedContentRevisionStamp>(_ =>

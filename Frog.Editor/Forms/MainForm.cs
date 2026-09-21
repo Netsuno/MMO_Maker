@@ -470,6 +470,7 @@ public sealed class MainForm : Form
         _canvas.ViewTransformChanged += OnCanvasViewTransformChanged;
         _canvas.PlaytestSpawnChanged += OnPlaytestSpawnChanged;
         _canvas.PrefabPlacementsChanged += OnPrefabPlacementsChanged;
+        _canvas.PrefabSelectionPicked += OnPrefabSelectionPicked;
         _canvas.PrefabCatalog = PrefabSpriteCache.LoadCatalog();
         EditorLocalWorkstate.TryReadLastPrefabSelection(out var lastPrefabId, out var lastFacing);
         if (!string.IsNullOrWhiteSpace(lastPrefabId))
@@ -1131,6 +1132,25 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
     }
 
+    private void OnPrefabSelectionPicked(string prefabId, PrefabFacing facing)
+    {
+        _leftToolsWpf.SetPrefabSelection(prefabId, facing);
+        EditorLocalWorkstate.WriteLastPrefabSelection(prefabId, facing);
+        PushEditorStatusLine();
+    }
+
+    private void AttachCurrentPrefabsToWorkspace()
+    {
+        if (_workspace is null)
+        {
+            return;
+        }
+
+        var catalog = _canvas.PrefabCatalog ?? PrefabSpriteCache.LoadCatalog();
+        var sprites = PrefabSpriteCache.SnapshotPngFiles(catalog);
+        _workspace.CurrentPrefabs = MapPrefabPersistDocument.Create(catalog, _canvas.PrefabPlacements, sprites);
+    }
+
     private void OnPrefabPlacementsChanged()
     {
         if (!_suppressPrefabPersist && _canvas.Map is { } map)
@@ -1151,6 +1171,13 @@ public sealed class MainForm : Form
         _suppressPrefabPersist = true;
         try
         {
+            if (_workspace?.CurrentPrefabs is not null)
+            {
+                _canvas.ReplacePrefabPlacements(_workspace.CurrentPrefabs.Placements);
+                EditorMapPrefabWorkstate.Write(_workspace.CurrentMapId, map, _canvas.PrefabPlacements);
+                return;
+            }
+
             if (EditorMapPrefabWorkstate.TryRead(_workspace?.CurrentMapId, map, out var placements))
             {
                 _canvas.ReplacePrefabPlacements(placements);
@@ -1341,6 +1368,12 @@ public sealed class MainForm : Form
         if (!ctrl && code is Keys.OemOpenBrackets or Keys.Oem6)
         {
             CycleSelectedPrefabFacing(next: code == Keys.Oem6);
+            return true;
+        }
+
+        if (!ctrl && code == Keys.I && _canvas.ActiveTool == EditorTool.Prefab)
+        {
+            _canvas.TryPipettePrefabAt(_canvas.HoveredTile.X, _canvas.HoveredTile.Y);
             return true;
         }
 
@@ -1815,6 +1848,7 @@ public sealed class MainForm : Form
             return;
         }
 
+        AttachCurrentPrefabsToWorkspace();
         var result = await _workspace.SaveCurrentAsync(SaveMapIntent.SaveDraft).ConfigureAwait(true);
         await HandleSaveResultAsync(result, published: false).ConfigureAwait(true);
     }
@@ -1850,6 +1884,7 @@ public sealed class MainForm : Form
         }
 
         await SyncPublishedTilesetsFromCacheAsync().ConfigureAwait(true);
+        AttachCurrentPrefabsToWorkspace();
         var result = await _workspace.SaveCurrentAsync(SaveMapIntent.Publish).ConfigureAwait(true);
         await HandleSaveResultAsync(result, published: true).ConfigureAwait(true);
     }
@@ -1864,6 +1899,11 @@ public sealed class MainForm : Form
                 if (_canvas.PlaytestSpawnTile is { } savedSpawn && _canvas.Map is { } savedMap)
                 {
                     EditorMapSpawnWorkstate.Write(success.MapId, savedMap, savedSpawn.X, savedSpawn.Y);
+                }
+
+                if (_canvas.Map is { } prefabMap)
+                {
+                    EditorMapPrefabWorkstate.Write(success.MapId, prefabMap, _canvas.PrefabPlacements);
                 }
 
                 SyncMapsTree();

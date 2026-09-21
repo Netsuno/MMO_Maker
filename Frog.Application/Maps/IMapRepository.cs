@@ -1,4 +1,5 @@
 using Frog.Core.Models;
+using Frog.Application.Prefabs;
 
 namespace Frog.Application.Maps;
 
@@ -16,6 +17,9 @@ public sealed class SaveMapRequest
     /// <summary>0 pour une création ; sinon la révision brouillon actuellement connue.</summary>
     public required long ExpectedRevision { get; init; }
     public SaveMapIntent Intent { get; init; } = SaveMapIntent.SaveDraft;
+    /// <summary>Paquet prefab additif (placements + PNG). Null = inchangé / absent.</summary>
+    public MapPrefabPersistDocument? Prefabs { get; init; }
+
     /// <summary>Obsolète — utiliser <see cref="Intent"/>.</summary>
     public MapPublishStatus Status
     {
@@ -40,6 +44,8 @@ public sealed class StoredMap
     public required long Revision { get; init; }
     public required MapPublishStatus Status { get; init; }
     public long? PublishedRevision { get; init; }
+    /// <summary>Paquet prefab persisté (brouillon ou snapshot publié).</summary>
+    public MapPrefabPersistDocument? Prefabs { get; init; }
 }
 
 /// <summary>Entrée légère pour l’arbre « monde » de l’éditeur (pas de cellules).</summary>

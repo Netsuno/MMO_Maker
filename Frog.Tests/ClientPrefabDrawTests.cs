@@ -19,6 +19,14 @@ public sealed class ClientPrefabDrawTests
         AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "fence-post.png"), 32, 32);
         AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "fence-h.png"), 32, 32);
         AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "fence-v.png"), 32, 32);
+        AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "bed-south.png"), 64, 32);
+        AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "bed-north.png"), 64, 32);
+        AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "bed-east.png"), 32, 64);
+        AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "bed-west.png"), 32, 64);
+        AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "table.png"), 64, 64);
+        AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "chair-south.png"), 32, 32);
+        AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "plant.png"), 32, 32);
+        AssertSheetPng(Path.Combine(RepoRoot(), "assets", "prefabs", "chest.png"), 32, 32);
     }
 
     [Fact]
@@ -31,6 +39,11 @@ public sealed class ClientPrefabDrawTests
         Assert.Contains(catalog!.Prefabs, p => p.Id == BuiltInPrefabCatalog.SofaId);
         Assert.Contains(catalog.Prefabs, p => p.Id == BuiltInPrefabCatalog.FencePostId);
         Assert.Contains(catalog.Prefabs, p => p.Id == BuiltInPrefabCatalog.FenceRailId);
+        Assert.Contains(catalog.Prefabs, p => p.Id == BuiltInPrefabCatalog.BedId);
+        Assert.Contains(catalog.Prefabs, p => p.Id == BuiltInPrefabCatalog.TableId);
+        Assert.Contains(catalog.Prefabs, p => p.Id == BuiltInPrefabCatalog.ChairId);
+        Assert.Contains(catalog.Prefabs, p => p.Id == BuiltInPrefabCatalog.PlantId);
+        Assert.Contains(catalog.Prefabs, p => p.Id == BuiltInPrefabCatalog.ChestId);
     }
 
     [Fact]
@@ -45,6 +58,8 @@ public sealed class ClientPrefabDrawTests
         Assert.Contains("DrawPlacedPrefabs", renderer, StringComparison.Ordinal);
         Assert.Contains("prefabPlacements", renderer, StringComparison.Ordinal);
         Assert.Contains("ClientTilesetLoader", loader, StringComparison.Ordinal);
+        Assert.Contains("ResolveSearchDirectories", loader, StringComparison.Ordinal);
+        Assert.Contains("ClientPublishedPrefabMaterializer", shell, StringComparison.Ordinal);
         Assert.Contains("\"Maps\"", loader, StringComparison.Ordinal);
         Assert.Contains("FolderName", loader, StringComparison.Ordinal);
         Assert.Contains("ReloadPrefabOverlays", shell, StringComparison.Ordinal);
@@ -62,15 +77,18 @@ public sealed class ClientPrefabDrawTests
         Assert.True(File.Exists(path), path);
         var text = File.ReadAllText(path);
         Assert.Contains("**Propriétaire** | Netsun", text, StringComparison.Ordinal);
-        Assert.Contains("pas de merge", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pngBase64", text, StringComparison.Ordinal);
+        Assert.Contains("prefabMaps", text, StringComparison.Ordinal);
         Assert.Contains("ProjectAssetImporter", text, StringComparison.Ordinal);
         Assert.Contains(".prefabs.json", text, StringComparison.Ordinal);
         Assert.Contains("MapCanvas", text, StringComparison.Ordinal);
         Assert.Contains("MapViewRenderer", text, StringComparison.Ordinal);
         Assert.Contains("CC0", text, StringComparison.Ordinal);
+        Assert.Contains("pipette", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Graal", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Marc", text, StringComparison.Ordinal);
         Assert.Contains("FrogWireProtocol.Version", text, StringComparison.Ordinal);
+        Assert.Contains("reste 11", text, StringComparison.Ordinal);
     }
 
     private static void AssertSheetPng(string path, int width, int height)

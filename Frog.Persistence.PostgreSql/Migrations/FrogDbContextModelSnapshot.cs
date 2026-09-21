@@ -638,6 +638,10 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<string>("PrefabsJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("prefabs_json");
+
                     b.Property<long?>("PublishedRevision")
                         .HasColumnType("bigint")
                         .HasColumnName("published_revision");
@@ -1087,6 +1091,10 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
+
+                    b.Property<string>("PrefabsJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("prefabs_json");
 
                     b.Property<DateTimeOffset>("PublishedAtUtc")
                         .HasColumnType("timestamp with time zone")

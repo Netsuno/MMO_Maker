@@ -1,4 +1,5 @@
 using Frog.Core.Models;
+using Frog.Application.Prefabs;
 
 namespace Frog.Application.Maps;
 
@@ -57,7 +58,7 @@ public sealed class InMemoryMapRepository : IMapRepository
 
             var mapId = Guid.NewGuid();
             var revision = 1L;
-            var draft = CreateStored(mapId, request.Map, revision, MapPublishStatus.Draft, null);
+            var draft = CreateStored(mapId, request.Map, revision, MapPublishStatus.Draft, null, request.Prefabs);
             _drafts[mapId] = draft;
 
             if (request.Intent == SaveMapIntent.Publish)
@@ -68,7 +69,8 @@ public sealed class InMemoryMapRepository : IMapRepository
                     request.Map,
                     revision,
                     MapPublishStatus.Published,
-                    revision);
+                    revision,
+                    request.Prefabs);
                 _drafts[mapId] = publishedDraft;
                 return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(revision, mapId, revision));
             }
@@ -85,7 +87,8 @@ public sealed class InMemoryMapRepository : IMapRepository
             request.Map,
             newRevision,
             MapPublishStatus.Draft,
-            existing.PublishedRevision);
+            existing.PublishedRevision,
+            request.Prefabs ?? existing.Prefabs);
         _drafts[mapId] = updatedDraft;
 
         if (request.Intent == SaveMapIntent.Publish)
@@ -96,7 +99,8 @@ public sealed class InMemoryMapRepository : IMapRepository
                 request.Map,
                 newRevision,
                 MapPublishStatus.Published,
-                newRevision);
+                newRevision,
+                request.Prefabs ?? existing.Prefabs);
             _drafts[mapId] = publishedDraft;
             return new SaveMapResult.Success(newRevision, mapId, newRevision);
         }
@@ -198,7 +202,7 @@ public sealed class InMemoryMapRepository : IMapRepository
 
     private void PublishSnapshotLocked(Guid mapId, StoredMap draft)
     {
-        var snapshot = CreateStored(mapId, draft.Map, draft.Revision, MapPublishStatus.Published, draft.Revision);
+        var snapshot = CreateStored(mapId, draft.Map, draft.Revision, MapPublishStatus.Published, draft.Revision, draft.Prefabs);
         _publishedSnapshots[(mapId, draft.Revision)] = snapshot;
         if (!_history.TryGetValue(mapId, out var records))
         {
@@ -230,7 +234,13 @@ public sealed class InMemoryMapRepository : IMapRepository
         }
     }
 
-    private static StoredMap CreateStored(Guid mapId, Map map, long revision, MapPublishStatus status, long? publishedRevision)
+    private static StoredMap CreateStored(
+        Guid mapId,
+        Map map,
+        long revision,
+        MapPublishStatus status,
+        long? publishedRevision,
+        MapPrefabPersistDocument? prefabs = null)
         => new()
         {
             MapId = mapId,
@@ -238,6 +248,7 @@ public sealed class InMemoryMapRepository : IMapRepository
             Revision = revision,
             Status = status,
             PublishedRevision = publishedRevision,
+            Prefabs = ClonePrefabs(prefabs),
         };
 
     private static StoredMap CloneStored(StoredMap stored)
@@ -248,7 +259,18 @@ public sealed class InMemoryMapRepository : IMapRepository
             Revision = stored.Revision,
             Status = stored.Status,
             PublishedRevision = stored.PublishedRevision,
+            Prefabs = ClonePrefabs(stored.Prefabs),
         };
+
+    private static MapPrefabPersistDocument? ClonePrefabs(MapPrefabPersistDocument? source)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        return MapPrefabPersistJson.TryDeserializeFromString(MapPrefabPersistJson.SerializeToString(source));
+    }
 
     internal static Map CloneMap(Map source)
     {

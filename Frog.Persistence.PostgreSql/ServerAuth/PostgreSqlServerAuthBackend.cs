@@ -3,6 +3,7 @@ using Frog.Application.Events;
 using Frog.Application.Gameplay;
 using Frog.Application.Identity;
 using Frog.Application.Maps;
+using Frog.Application.Prefabs;
 using Frog.Persistence.PostgreSql.Repositories.Auth;
 using Frog.Persistence.PostgreSql.Repositories.Ops;
 using Frog.Persistence.PostgreSql.Repositories.Player;
@@ -140,6 +141,9 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
             new PostgresTilesetRepository(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<ITilesetRepository>(sp => sp.GetRequiredService<PostgresTilesetRepository>());
         services.AddSingleton<IPublishedTilesetCatalog>(sp => sp.GetRequiredService<PostgresTilesetRepository>());
+        services.AddSingleton<PostgresPublishedPrefabCatalog>(sp =>
+            new PostgresPublishedPrefabCatalog(sp.GetRequiredService<FrogDbContextGate>()));
+        services.AddSingleton<IPublishedPrefabCatalog>(sp => sp.GetRequiredService<PostgresPublishedPrefabCatalog>());
     }
 }
 
