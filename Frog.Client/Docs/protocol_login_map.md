@@ -111,7 +111,7 @@ Guide utilisateur pas à pas : [`Docs/premier-monde.md`](../../Docs/premier-mond
 
 À l’enregistrement d’un fichier `MaCarte.fmap`, l’éditeur écrit **`MaCarte.tilesets.json`** (UTF‑8 JSON) listant les paires `{ id, fileName }` (`fileName` = `{id}.png`) **et copie les PNG** à côté du `.fmap` (plus `Tilesets/` + `Maps/` pour le layout client). Le client résout les chemins relativement au dossier du fichier manifest (voir guide `premier-monde.md`).
 
-`PublishedCatalogResult` JSON est **additif** : champ optionnel `tilesets` (`paletteId`, `logicalPath`, `sha256Hex`, `pngBase64` si le serveur a le fichier sous `FROG_PROJECT_ASSET_ROOT` / `Maps:AssetRoot`). Pas de bump `FrogWireProtocol`. Le client écrit `Tilesets/{paletteId}.png` puis recharge `ClientTilesetLoader`.
+`PublishedCatalogResult` JSON est **additif** : champ optionnel `tilesets` (`paletteId`, `logicalPath`, `sha256Hex`, `pngBase64` depuis le snapshot publié `png_bytes` **ou** le fichier sous `FROG_PROJECT_ASSET_ROOT` / `Maps:AssetRoot`). Playtest : sidecar `published-tilesets.json` à côté du manifeste (même JSON additif). Pas de bump `FrogWireProtocol`. Le client écrit `Tilesets/{paletteId}.png` (répertoire exe et cwd) puis recharge `ClientTilesetLoader`.
 
 ## Messages
 

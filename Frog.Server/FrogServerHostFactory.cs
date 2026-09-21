@@ -303,7 +303,16 @@ public static class FrogServerHostFactory
                     services.AddSingleton<IPublishedSpellCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                     services.AddSingleton<IPublishedNpcCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
                     services.AddSingleton<IPublishedShopCatalog>(sp => sp.GetRequiredService<Phase7PublishedContent>());
-                    services.AddSingleton<IPublishedTilesetCatalog>(_ => EmptyPublishedTilesetCatalog.Instance);
+                    services.AddSingleton<IPublishedTilesetCatalog>(sp =>
+                    {
+                        if (playtest.Enabled && !string.IsNullOrWhiteSpace(playtest.ManifestPath))
+                        {
+                            var sidecar = SidecarPublishedTilesetCatalog.PathBesideManifest(playtest.ManifestPath);
+                            return new SidecarPublishedTilesetCatalog(sidecar);
+                        }
+
+                        return EmptyPublishedTilesetCatalog.Instance;
+                    });
                     services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
                     services.AddSingleton<IPublishedContentRevisionStamp>(_ =>
                         NullPublishedContentRevisionStamp.Instance);
@@ -331,7 +340,16 @@ public static class FrogServerHostFactory
                 {
                     var config = sp.GetRequiredService<IConfiguration>();
                     var configured = config["Maps:AssetRoot"] ?? config["Editor:AssetRoot"];
-                    return new ProjectAssetTilesetImageSource(ProjectAssetRootResolver.Resolve(configured));
+                    var filesystem = new ProjectAssetTilesetImageSource(ProjectAssetRootResolver.Resolve(configured));
+                    IPublishedTilesetImageSource embedded = EmbeddedPublishedTilesetImageSource.Instance;
+                    if (playtest.Enabled && !string.IsNullOrWhiteSpace(playtest.ManifestPath))
+                    {
+                        var sidecar = new SidecarPublishedTilesetCatalog(
+                            SidecarPublishedTilesetCatalog.PathBesideManifest(playtest.ManifestPath));
+                        return new CompositePublishedTilesetImageSource(sidecar, embedded, filesystem);
+                    }
+
+                    return new CompositePublishedTilesetImageSource(embedded, filesystem);
                 });
                 services.AddSingleton<PublishedCatalogService>();
                 services.AddSingleton<MapEventCommandExecutor>();

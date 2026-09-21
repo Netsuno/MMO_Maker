@@ -197,6 +197,7 @@ public sealed class TilesetWorkspaceSession
         HeightPixels = src.HeightPixels,
         Sha256Hex = src.Sha256Hex,
         EditorPaletteId = src.EditorPaletteId,
+        PngBytes = src.PngBytes is { Length: > 0 } png ? png.ToArray() : src.PngBytes,
     };
 
     private static string DeriveCopyPath(string path)

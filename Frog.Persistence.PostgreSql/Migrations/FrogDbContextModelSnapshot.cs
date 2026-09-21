@@ -3216,6 +3216,10 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("name");
 
+                    b.Property<byte[]>("PngBytes")
+                        .HasColumnType("bytea")
+                        .HasColumnName("png_bytes");
+
                     b.Property<DateTimeOffset>("PublishedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("published_at_utc");

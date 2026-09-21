@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Frog.Application.Assets;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -69,5 +70,58 @@ public sealed class PublishedCatalogTilesetsTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task PublishedCatalogService_IncludesEmbeddedPng_WithoutFilesystem()
+    {
+        var repo = new Frog.Application.Content.InMemoryTilesetRepository();
+        var png = SamplePng.Solid32Coral;
+        var sha = TilesetDefinition.ComputeSha256Hex(png);
+        await repo.SaveAsync(new Frog.Application.Content.SaveTilesetRequest
+        {
+            Definition = new TilesetDefinition
+            {
+                Id = Guid.NewGuid(),
+                Name = "Embedded",
+                LogicalPath = "tiles/embedded.png",
+                TileSizePixels = 32,
+                WidthPixels = 32,
+                HeightPixels = 32,
+                Sha256Hex = sha,
+                EditorPaletteId = 21,
+                PngBytes = png,
+            },
+            ExpectedRevision = 0,
+            Intent = Frog.Application.Content.SaveContentIntent.Publish,
+        });
+
+        var phase7 = new Frog.Server.Gameplay.Phase7PublishedContent();
+        var phase8 = new Frog.Server.Gameplay.Phase8InMemoryPublishedContent();
+        // Filesystem vide : le PNG doit venir des octets publiés (pas d’une copie locale).
+        var composite = new CompositePublishedTilesetImageSource(
+            EmbeddedPublishedTilesetImageSource.Instance,
+            new EmptyPublishedTilesetImageSource());
+        var service = new Frog.Server.Gameplay.PublishedCatalogService(
+            phase7,
+            phase7,
+            phase7,
+            phase7,
+            phase7,
+            phase8,
+            repo,
+            composite);
+
+        var wire = await service.BuildAsync();
+        var entry = Assert.Single(wire.Tilesets);
+        Assert.Equal(21, entry.PaletteId);
+        Assert.False(string.IsNullOrWhiteSpace(entry.PngBase64));
+        Assert.Equal(png, Convert.FromBase64String(entry.PngBase64!));
+
+        var map = new Map { Width = 1, Height = 1, Name = "Wire" };
+        var layer = new Layer { LayerType = Frog.Core.Enums.LayerType.Ground };
+        layer.Tiles.Add(new Tile { X = 0, Y = 0, TilesetId = 21, Type = Frog.Core.Enums.TileType.Ground });
+        map.Layers.Add(layer);
+        Assert.Empty(PublishedTilesetClientCoverage.MissingTilesetIds(map, wire));
     }
 }

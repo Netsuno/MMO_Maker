@@ -830,6 +830,7 @@ public sealed class MainForm : Form
         _workspace = new MapWorkspaceSession(bundle.Repository);
         await _workspace.InitializeAsync().ConfigureAwait(true);
         ApplyWorkspaceMapToUi();
+        await HydrateTilesetCacheFromPublishedAsync().ConfigureAwait(true);
         UpdatePersistenceMenuState();
         PushEditorStatusLine();
     }
@@ -944,6 +945,7 @@ public sealed class MainForm : Form
             }
 
             ApplyWorkspaceMapToUi();
+            await HydrateTilesetCacheFromPublishedAsync().ConfigureAwait(true);
         }
         finally
         {
@@ -980,6 +982,80 @@ public sealed class MainForm : Form
         }
 
         PushEditorStatusLine();
+    }
+
+    private async System.Threading.Tasks.Task HydrateTilesetCacheFromPublishedAsync()
+    {
+        if (_canvas.Map is not { } map)
+        {
+            return;
+        }
+
+        try
+        {
+            var bundle = EditorTilesetRepositoryFactory.CreateBundle();
+            var images = new CompositePublishedTilesetImageSource(
+                EmbeddedPublishedTilesetImageSource.Instance,
+                new ProjectAssetTilesetImageSource(
+                    EditorTestHooks.OverrideProjectAssetRoot ?? ProjectAssetRoot.Resolve()));
+            var files = await PublishedTilesetCacheHydrator
+                .CollectPngFilesAsync(map, bundle.PublishedCatalog, images)
+                .ConfigureAwait(true);
+            foreach (var file in files)
+            {
+                try
+                {
+                    TilesetCache.LoadFromPngBytesAtId(file.PngBytes, file.Id);
+                }
+                catch
+                {
+                    // PNG illisible — le manifeste fichier peut encore compléter
+                }
+            }
+
+            if (TilesetCache.ListRegistered().Count > 0 && _canvas.ActiveTilesetId <= 0)
+            {
+                _canvas.ActiveTilesetId = TilesetCache.ListRegistered()[0].Id;
+            }
+
+            RefreshTilesetList();
+            _canvas.Invalidate();
+        }
+        catch
+        {
+            // hydrate optionnel — ne bloque pas l’ouverture de carte
+        }
+    }
+
+    private async System.Threading.Tasks.Task SyncPublishedTilesetsFromCacheAsync()
+    {
+        if (_canvas.Map is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var bundle = EditorTilesetRepositoryFactory.CreateBundle();
+            if (!bundle.Capabilities.AllowsSave)
+            {
+                return;
+            }
+
+            var files = TilesetCache.SnapshotPngFiles();
+            if (files.Count == 0)
+            {
+                return;
+            }
+
+            await MapPublishedTilesetSync
+                .PublishUsedAsync(bundle.Repository, _canvas.Map, files)
+                .ConfigureAwait(true);
+        }
+        catch
+        {
+            // publication tileset best-effort — la carte reste publiable
+        }
     }
 
     private bool _suppressSpawnPersist;
@@ -1773,6 +1849,7 @@ public sealed class MainForm : Form
             return;
         }
 
+        await SyncPublishedTilesetsFromCacheAsync().ConfigureAwait(true);
         var result = await _workspace.SaveCurrentAsync(SaveMapIntent.Publish).ConfigureAwait(true);
         await HandleSaveResultAsync(result, published: true).ConfigureAwait(true);
     }
@@ -1819,6 +1896,7 @@ public sealed class MainForm : Form
                 if (await _workspace.ReloadCurrentAsync().ConfigureAwait(true))
                 {
                     ApplyWorkspaceMapToUi();
+                    await HydrateTilesetCacheFromPublishedAsync().ConfigureAwait(true);
                 }
 
                 break;
@@ -2067,6 +2145,7 @@ public sealed class MainForm : Form
             }
 
             PersistPlaytestSpawnFromUser(spawnX, spawnY);
+            await SyncPublishedTilesetsFromCacheAsync().ConfigureAwait(true);
 
             var port = EditorFrogServerLauncher.FindFreeTcpPort();
             var prepare = new PlaytestPrepareRequest

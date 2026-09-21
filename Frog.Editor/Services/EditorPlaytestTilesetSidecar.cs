@@ -22,10 +22,14 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
     {
         ArgumentNullException.ThrowIfNull(plan);
         var names = plan.Maps.Select(m => m.Name).ToArray();
-        var files = TilesetCache.SnapshotPngFiles();
+        var files = CollectTilesetFiles(plan);
         if (files.Count > 0)
         {
             MapTilesetPackage.WriteSidecars(plan.WorkDirectory, names, files);
+            SidecarPublishedTilesetCatalog.WriteFromFiles(
+                SidecarPublishedTilesetCatalog.PathBesideManifest(plan.ManifestPath),
+                files,
+                published: TryListPublishedTilesets());
         }
 
         var catalog = PrefabSpriteCache.LoadCatalog();
@@ -50,5 +54,47 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
         }
 
         MapPrefabPackage.WriteSidecars(clientDir, names, catalog, placements, sprites);
+    }
+
+    private static IReadOnlyList<MapTilesetFile> CollectTilesetFiles(PlaytestLaunchPlan plan)
+    {
+        var files = TilesetCache.SnapshotPngFiles().ToList();
+        var have = files.Select(f => f.Id).ToHashSet();
+        var maps = plan.Maps.Select(m => m.Map).ToArray();
+        if (maps.Length == 0)
+        {
+            return files;
+        }
+
+        IReadOnlyList<TilesetDefinition> published = TryListPublishedTilesets();
+        var images = new CompositePublishedTilesetImageSource(
+            EmbeddedPublishedTilesetImageSource.Instance,
+            new ProjectAssetTilesetImageSource(ProjectAssetRoot.Resolve()));
+
+        foreach (var map in maps)
+        {
+            foreach (var file in PublishedTilesetCacheHydrator.CollectPngFiles(map, published, images))
+            {
+                if (have.Add(file.Id))
+                {
+                    files.Add(file);
+                }
+            }
+        }
+
+        return files;
+    }
+
+    private static IReadOnlyList<TilesetDefinition> TryListPublishedTilesets()
+    {
+        try
+        {
+            var bundle = EditorTilesetRepositoryFactory.CreateBundle();
+            return bundle.PublishedCatalog.ListPublishedAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
+            return Array.Empty<TilesetDefinition>();
+        }
     }
 }

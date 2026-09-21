@@ -34,6 +34,12 @@ public sealed class TilesetDefinition
     /// </summary>
     public int? EditorPaletteId { get; set; }
 
+    /// <summary>
+    /// PNG publié (octets). Optionnel — le catalogue fil le recopie en <c>pngBase64</c>
+    /// lorsque le serveur n’a pas le fichier sous la racine assets.
+    /// </summary>
+    public byte[]? PngBytes { get; set; }
+
     public bool Validate(out string? error)
     {
         if (Id == Guid.Empty)

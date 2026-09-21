@@ -1,3 +1,4 @@
+using System.IO;
 using Frog.Application.Assets;
 using Frog.Application.Content;
 using Frog.Core.Enums;
@@ -894,6 +895,7 @@ public sealed class TilesetEditorPanel : UserControl
                 try
                 {
                     TilesetCache.LoadFromFileAtId(imported.AbsolutePath, palette);
+                    TryAttachPngBytes(current, imported.AbsolutePath);
                 }
                 catch
                 {
@@ -983,6 +985,43 @@ public sealed class TilesetEditorPanel : UserControl
         _session.Current.EditorPaletteId = _palette.Value <= 0 ? null : (int)_palette.Value;
     }
 
+    private static void TryAttachPngBytesFromAssetRoot(TilesetDefinition? definition)
+    {
+        if (definition is null || string.IsNullOrWhiteSpace(definition.LogicalPath))
+        {
+            return;
+        }
+
+        var root = EditorTestHooks.OverrideProjectAssetRoot ?? ProjectAssetRoot.Resolve();
+        var resolved = ProjectAssetPathResolver.TryResolve(root, definition.LogicalPath);
+        if (resolved.Status != ProjectAssetPathResolver.ResolveStatus.Success
+            || string.IsNullOrWhiteSpace(resolved.AbsolutePath))
+        {
+            return;
+        }
+
+        TryAttachPngBytes(definition, resolved.AbsolutePath);
+    }
+
+    private static void TryAttachPngBytes(TilesetDefinition definition, string absolutePath)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(absolutePath);
+            if (bytes.Length == 0)
+            {
+                return;
+            }
+
+            definition.PngBytes = bytes;
+            definition.Sha256Hex = TilesetDefinition.ComputeSha256Hex(bytes);
+        }
+        catch
+        {
+            // fichier optionnel
+        }
+    }
+
     private void LiveValidate()
     {
         if (_session.Current is null)
@@ -998,6 +1037,7 @@ public sealed class TilesetEditorPanel : UserControl
     private async Task SaveAsync(SaveContentIntent intent)
     {
         ApplyFormToSession();
+        TryAttachPngBytesFromAssetRoot(_session.Current);
         var result = await _session.SaveCurrentAsync(intent).ConfigureAwait(true);
         switch (result)
         {

@@ -280,6 +280,7 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.Name).HasMaxLength(120).IsRequired();
             e.Property(x => x.LogicalPath).HasMaxLength(500).IsRequired();
             e.Property(x => x.Sha256Hex).HasMaxLength(64).IsRequired();
+            e.Property(x => x.PngBytes).HasColumnType("bytea");
             e.HasOne(x => x.Tileset).WithMany().HasForeignKey(x => x.TilesetId).OnDelete(DeleteBehavior.Cascade);
         });
 

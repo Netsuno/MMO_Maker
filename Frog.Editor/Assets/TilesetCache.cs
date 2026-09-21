@@ -48,15 +48,41 @@ internal static class TilesetCache
             throw new FileNotFoundException(path);
         }
 
+        using var tmp = new Bitmap(path);
+        ReplaceAtId(id, new Bitmap(tmp), Path.GetFileName(path), Path.GetFullPath(path));
+    }
+
+    public static void LoadFromPngBytesAtId(byte[] pngBytes, int id, string? label = null)
+    {
+        if (id < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(id), id, "TilesetId doit être >= 1.");
+        }
+
+        ArgumentNullException.ThrowIfNull(pngBytes);
+        using var ms = new MemoryStream(pngBytes, writable: false);
+        using var tmp = new Bitmap(ms);
+        ReplaceAtId(id, new Bitmap(tmp), label ?? $"{id}.png", sourcePath: null);
+    }
+
+    private static void ReplaceAtId(int id, Bitmap bmp, string label, string? sourcePath)
+    {
         if (_byId.TryGetValue(id, out var old))
         {
             old.Dispose();
         }
 
-        using var tmp = new Bitmap(path);
-        _byId[id] = new Bitmap(tmp);
-        _labelById[id] = Path.GetFileName(path);
-        _sourcePathById[id] = Path.GetFullPath(path);
+        _byId[id] = bmp;
+        _labelById[id] = label;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            _sourcePathById[id] = sourcePath;
+        }
+        else
+        {
+            _sourcePathById.Remove(id);
+        }
+
         _nextId = Math.Max(_nextId, id + 1);
     }
 

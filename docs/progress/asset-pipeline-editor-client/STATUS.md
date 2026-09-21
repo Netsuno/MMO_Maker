@@ -1,38 +1,34 @@
-# STATUS — Asset pipeline editor → client (MVP)
+# STATUS — Asset pipeline editor → client (tilesets on client maps)
 
 | Champ | Valeur |
 | --- | --- |
 | **Chantier** | Import projet + placement carte + sidecars / catalogue → rendu client |
 | **Propriétaire** | Netsun |
-| **Statut** | MVP branché sur les fils réels (`MainForm`, `TilesetCache`, `ClientTilesetLoader`, `MapViewRenderer`, `PublishedCatalogWire`) |
-| **Base** | `main` @ `eb731de` |
-| **Branche** | `cursor/asset-pipeline-editor-client` |
-| **PR** | Draft [#14](https://github.com/Netsuno/MMO_Maker/pull/14) vers `main` — **pas de merge** |
-| **Tip** | `e8ae65c` |
-| **CI** | [35473026295](https://github.com/Netsuno/MMO_Maker/actions/runs/35473026295) **SUCCESS** (`build-and-test` + `postgres-integration`) |
+| **Statut** | Tilesets éditeur visibles sur le client (publish PostgreSQL + playtest) |
+| **Base** | `main` |
+| **PR** | `fix(assets): editor tilesets appear on client maps` |
 
-Protocole fil **inchangé** (`FrogWireProtocol.Version = 11`). Champ JSON catalogue `tilesets` **additif** (même politique que `recipes`).
-
-Aucun claim de publication publique. Pas de second système de cartes / assets folklore.
+Protocole fil **inchangé** (`FrogWireProtocol.Version` inchangé). Champ JSON catalogue `tilesets` / `pngBase64` **additif**. Sidecar playtest `published-tilesets.json` (filesystem, à côté du manifeste).
 
 ---
 
-## Ce qui marche (MVP)
+## Ce qui marche maintenant
 
-1. **Import éditeur** — `ProjectAssetImporter` copie png/jpg/bmp/gif/webp sous `{racine}/tiles|sprites|icons|other/`, SHA-256, IHDR PNG. UI : Données de jeu **Importer…** (tilesets, NPC, objets, sorts, ressources) + menu **Importer un asset projet…** / **Charger une image tuiles…**.
-2. **Placement** — l’import tileset charge `TilesetCache` avec `EditorPaletteId` ; le pinceau `MapCanvas` existant pose `Tile.TilesetId`.
-3. **Publish / sync fichiers** — export `.fmap` copie `{id}.png` + `{stem}.tilesets.json` ; playtest (`EditorPlaytestTilesetSidecar`) écrit le layout `Tilesets/` + `Maps/` dans le workspace **et** le répertoire de `Frog.Client`.
-4. **Client reçoit + dessine** — `ClientTilesetLoader` inchangé (fichiers locaux). `PublishedCatalogResult.tilesets[].pngBase64` → `ClientPublishedTilesetMaterializer` → `Tilesets/{paletteId}.png` → `ReloadTilesetBitmaps` / `MapViewRenderer` (plus les couleurs de secours).
+1. **Import éditeur** — `ProjectAssetImporter` + `TilesetCache` (`EditorPaletteId` / id pinceau). Game Data **Publier** attache le PNG au snapshot.
+2. **Publication carte** — `MapPublishedTilesetSync` publie chaque `Tile.TilesetId` utilisé avec le PNG de session (`EditorPaletteId` = id carte). Snapshot PostgreSQL `content.tileset_published_snapshots.png_bytes`.
+3. **Ouverture carte catalogue** — `PublishedTilesetCacheHydrator` reconstruit `TilesetCache` depuis le Guid / palette publié + PNG (plus besoin de recharger les fichiers à la main).
+4. **Playtest** — sidecar `Tilesets/` (workspace + dir client) **et** `published-tilesets.json`. Le serveur playtest (sans PostgreSQL) charge ce JSON comme `IPublishedTilesetCatalog` et envoie `pngBase64`.
+5. **Client** — `PublishedCatalogResult.tilesets[].pngBase64` → matérialisation `Tilesets/{paletteId}.png` (exe **et** cwd) → `ClientTilesetLoader` / `MapViewRenderer`. Couverture : un id carte sans PNG matérialisable échoue les tests.
+
+Alignement Guid ↔ int : `TilesetPaletteAlignment` (palette d’abord, puis SHA, puis correspondance 1-1 sur la carte).
 
 ---
 
-## Différé (pas dans ce MVP)
+## Différé (toujours hors scope)
 
-- Sprites NPC / objets / joueurs **sur la carte** (le client dessine encore des ellipses joueur ; icônes Game Data = aperçu éditeur seulement).
-- Paquet fil dédié tileset (pas de bump v12) ; `MapData` reste le blob `.fmap` exact.
-- Stockage PNG en base (`frog_asset_blob` documenté, pas de consommateur).
-- Alignement automatique `TilesetDefinition.Id` (Guid) ↔ `Tile.TilesetId` (int) hors `EditorPaletteId`.
-- Ouverture d’une carte catalogue PostgreSQL **sans** recharger les PNG (le cache session n’est pas reconstruit depuis le Guid publié).
+- Sprites NPC / objets / joueurs **sur la carte** (ellipses joueur ; icônes Game Data = aperçu éditeur).
+- Paquet fil dédié tileset (pas de bump) ; `MapData` reste le blob `.fmap` exact.
+- Table `frog_asset_blob` MariaDB (le PNG publié vit sur le snapshot tileset PostgreSQL).
 - Animation / atlases multi-frames.
 
 ---

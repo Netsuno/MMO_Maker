@@ -171,9 +171,36 @@ public sealed class AssetPipelineSmokeTests
                     ],
                 };
 
+                var map = new Map { Width = 1, Height = 1, Name = "Green Field" };
+                var layer = new Layer { LayerType = LayerType.Ground, Visible = true };
+                layer.Tiles.Add(new Tile
+                {
+                    X = 0,
+                    Y = 0,
+                    TilesetId = 9,
+                    SrcX = 0,
+                    SrcY = 0,
+                    Type = TileType.Ground,
+                });
+                map.Layers.Add(layer);
+                Assert.Equal(new[] { 9 }, PublishedTilesetClientCoverage.MissingTilesetIds(map, catalog: null));
+
                 var n = ClientPublishedTilesetMaterializer.Materialize(catalog, dir);
                 Assert.Equal(1, n);
                 Assert.True(File.Exists(Path.Combine(dir, "Tilesets", "9.png")));
+                Assert.Empty(PublishedTilesetClientCoverage.MissingTilesetIds(map, catalog, dir));
+                var loaded = ClientTilesetLoader.LoadForMap(map, dir);
+                try
+                {
+                    Assert.True(loaded.ContainsKey(9));
+                }
+                finally
+                {
+                    foreach (var bmp in loaded.Values)
+                    {
+                        bmp.Dispose();
+                    }
+                }
             }
             finally
             {
