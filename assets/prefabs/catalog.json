@@ -39,6 +39,67 @@
         { "facing": "east", "spriteFileName": "fence-v.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 },
         { "facing": "west", "spriteFileName": "fence-v.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 }
       ]
+    },
+    {
+      "id": "bed",
+      "displayName": "Lit",
+      "footprintWidthTiles": 2,
+      "footprintHeightTiles": 1,
+      "widthPixels": 64,
+      "heightPixels": 32,
+      "variants": [
+        { "facing": "south", "spriteFileName": "bed-south.png", "footprintWidthTiles": 2, "footprintHeightTiles": 1, "widthPixels": 64, "heightPixels": 32 },
+        { "facing": "north", "spriteFileName": "bed-north.png", "footprintWidthTiles": 2, "footprintHeightTiles": 1, "widthPixels": 64, "heightPixels": 32 },
+        { "facing": "east", "spriteFileName": "bed-east.png", "footprintWidthTiles": 1, "footprintHeightTiles": 2, "widthPixels": 32, "heightPixels": 64 },
+        { "facing": "west", "spriteFileName": "bed-west.png", "footprintWidthTiles": 1, "footprintHeightTiles": 2, "widthPixels": 32, "heightPixels": 64 }
+      ]
+    },
+    {
+      "id": "table",
+      "displayName": "Table",
+      "footprintWidthTiles": 2,
+      "footprintHeightTiles": 2,
+      "widthPixels": 64,
+      "heightPixels": 64,
+      "variants": [
+        { "facing": "south", "spriteFileName": "table.png", "footprintWidthTiles": 2, "footprintHeightTiles": 2, "widthPixels": 64, "heightPixels": 64 }
+      ]
+    },
+    {
+      "id": "chair",
+      "displayName": "Chaise",
+      "footprintWidthTiles": 1,
+      "footprintHeightTiles": 1,
+      "widthPixels": 32,
+      "heightPixels": 32,
+      "variants": [
+        { "facing": "south", "spriteFileName": "chair-south.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 },
+        { "facing": "north", "spriteFileName": "chair-north.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 },
+        { "facing": "east", "spriteFileName": "chair-east.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 },
+        { "facing": "west", "spriteFileName": "chair-west.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 }
+      ]
+    },
+    {
+      "id": "plant",
+      "displayName": "Plante",
+      "footprintWidthTiles": 1,
+      "footprintHeightTiles": 1,
+      "widthPixels": 32,
+      "heightPixels": 32,
+      "variants": [
+        { "facing": "south", "spriteFileName": "plant.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 }
+      ]
+    },
+    {
+      "id": "chest",
+      "displayName": "Coffre",
+      "footprintWidthTiles": 1,
+      "footprintHeightTiles": 1,
+      "widthPixels": 32,
+      "heightPixels": 32,
+      "variants": [
+        { "facing": "south", "spriteFileName": "chest.png", "footprintWidthTiles": 1, "footprintHeightTiles": 1, "widthPixels": 32, "heightPixels": 32 }
+      ]
     }
   ]
 }

@@ -16,7 +16,7 @@ public sealed class PrefabModelAndPlacementTests
     {
         var catalog = BuiltInPrefabCatalog.Create();
         Assert.True(PrefabPlacementService.TryValidateCatalog(catalog, out var error), error);
-        Assert.Equal(3, catalog.Prefabs.Count);
+        Assert.Equal(8, catalog.Prefabs.Count);
 
         var bytes = PrefabCatalogJson.Serialize(catalog);
         var back = PrefabCatalogJson.TryDeserialize(bytes);
@@ -88,6 +88,22 @@ public sealed class PrefabModelAndPlacementTests
 
         Assert.Equal(1, PrefabPlacementService.EraseAt(list, catalog, 3, 3));
         Assert.Empty(list);
+    }
+
+    [Fact]
+    public void FindAt_AndMove_UpdatesInstanceWithoutPainting()
+    {
+        var catalog = BuiltInPrefabCatalog.Create();
+        var list = new System.Collections.Generic.List<PrefabPlacement>();
+        Assert.True(PrefabPlacementService.TryPlace(list, catalog, BuiltInPrefabCatalog.ChairId, PrefabFacing.East, 1, 1, 8, 8, out var placed, out var err), err);
+        Assert.NotNull(placed);
+        Assert.Same(placed, PrefabPlacementService.TryFindAt(list, catalog, 1, 1));
+
+        Assert.True(PrefabPlacementService.TryMove(list, catalog, placed!, 4, 5, 8, 8, out var moveErr), moveErr);
+        Assert.Equal(4, placed!.TileX);
+        Assert.Equal(5, placed.TileY);
+        Assert.Same(placed, PrefabPlacementService.TryFindAt(list, catalog, 4, 5));
+        Assert.Null(PrefabPlacementService.TryFindAt(list, catalog, 1, 1));
     }
 
     [Fact]

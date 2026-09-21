@@ -113,6 +113,8 @@ Guide utilisateur pas à pas : [`Docs/premier-monde.md`](../../Docs/premier-mond
 
 `PublishedCatalogResult` JSON est **additif** : champ optionnel `tilesets` (`paletteId`, `logicalPath`, `sha256Hex`, `pngBase64` depuis le snapshot publié `png_bytes` **ou** le fichier sous `FROG_PROJECT_ASSET_ROOT` / `Maps:AssetRoot`). Playtest : sidecar `published-tilesets.json` à côté du manifeste (même JSON additif). Pas de bump `FrogWireProtocol`. Le client écrit `Tilesets/{paletteId}.png` (répertoire exe et cwd) puis recharge `ClientTilesetLoader`.
 
+Champs optionnels **`prefabs`** / **`prefabMaps`** : définitions + `pngBase64` et placements par `mapId` / `mapName` (`runtimeMapId` additif), depuis le jsonb `prefabs_json` des snapshots cartes publiés (PostgreSQL) ou le sidecar playtest `published-prefabs.json`. Le client écrit `Prefabs/{sprite}.png`, `Prefabs/catalog.json` et `Maps/{nom}.{mapId}.prefabs.json` (alias `{nom}.prefabs.json` si le nom est unique ; exe + cwd) puis `ClientPrefabLoader` / `DrawPlacedPrefabs`.
+
 ## Messages
 
 ### Hello (Serveur -> Client)

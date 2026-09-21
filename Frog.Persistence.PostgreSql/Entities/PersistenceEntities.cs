@@ -19,6 +19,8 @@ public sealed class MapEntity
     public Guid? PublishedSnapshotId { get; set; }
     /// <summary>Métadonnées de couches (ordre, nom, visible/locked) même si aucune tuile.</summary>
     public string LayersCatalogJson { get; set; } = "[]";
+    /// <summary>Paquet prefab additif (catalogue + placements + PNG base64).</summary>
+    public string? PrefabsJson { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public List<MapCellEntity> Cells { get; set; } = new();
@@ -441,6 +443,8 @@ public sealed class MapPublishedSnapshotEntity
     public int Height { get; set; }
     public bool AllowPlayerOverlap { get; set; }
     public string LayersCatalogJson { get; set; } = "[]";
+    /// <summary>Paquet prefab additif (catalogue + placements + PNG base64).</summary>
+    public string? PrefabsJson { get; set; }
     public MapEntity Map { get; set; } = null!;
     public List<MapPublishedCellEntity> Cells { get; set; } = new();
     public List<MapPublishedWarpEntity> Warps { get; set; } = new();

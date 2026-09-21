@@ -10,7 +10,7 @@ namespace Frog.Core.IO;
 /// <summary>Sérialisation JSON du catalogue prefabs (UTF‑8, camelCase).</summary>
 public static class PrefabCatalogJson
 {
-    internal static readonly JsonSerializerOptions Options = new()
+    public static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
@@ -19,6 +19,21 @@ public static class PrefabCatalogJson
 
     public static byte[] Serialize(PrefabCatalog catalog)
         => JsonSerializer.SerializeToUtf8Bytes(catalog, Options);
+
+    public static byte[] SerializeObject<T>(T value)
+        => JsonSerializer.SerializeToUtf8Bytes(value, Options);
+
+    public static T? TryDeserializeObject<T>(ReadOnlySpan<byte> utf8)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<T>(utf8, Options);
+        }
+        catch
+        {
+            return default;
+        }
+    }
 
     public static PrefabCatalog? TryDeserialize(ReadOnlySpan<byte> utf8)
     {

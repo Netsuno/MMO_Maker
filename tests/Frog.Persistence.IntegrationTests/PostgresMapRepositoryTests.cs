@@ -1,5 +1,6 @@
 using Frog.Application.LegacyImport;
 using Frog.Application.Maps;
+using Frog.Application.Prefabs;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql;
@@ -77,6 +78,54 @@ public sealed class PostgresMapRepositoryTests
         Assert.NotNull(loaded);
         Assert.Equal(1, loaded.Revision);
         AssertMapsEqual(map, loaded.Map);
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task Publish_StoresPrefabPackage_CatalogCoversPlacements()
+    {
+        using var gate = CreateGate();
+        var repo = new PostgresMapRepository(gate);
+        var map = new Map { Name = "Salon", Width = 8, Height = 8, AllowPlayerOverlap = false };
+        map.Layers.Add(new Layer { LayerType = LayerType.Ground, DisplayName = "Ground", Visible = true });
+        var png = Convert.FromHexString(
+            "89504e470d0a1a0a0000000d4948445200000020000000200806000000737a7af40000002f4944415478daedce210100000803b0c779ff14b482189889f965dafd14010101010101010101010101010181efc00179385c7992f053410000000049454e44ae426082");
+        var document = MapPrefabPersistDocument.Create(
+            BuiltInPrefabCatalog.Create(),
+            [new PrefabPlacement { PrefabId = BuiltInPrefabCatalog.SofaId, Facing = PrefabFacing.South, TileX = 2, TileY = 3 }],
+            [new PrefabSpriteFile("sofa-south.png", png)]);
+
+        var saved = await repo.SaveAsync(new SaveMapRequest
+        {
+            Map = map,
+            ExpectedRevision = 0,
+            Intent = SaveMapIntent.Publish,
+            Prefabs = document,
+        });
+        var success = Assert.IsType<SaveMapResult.Success>(saved);
+
+        using var gate2 = CreateGate();
+        var published = await new PostgresMapRepository(gate2).LoadPublishedByIdAsync(success.MapId);
+        Assert.NotNull(published);
+        Assert.NotNull(published!.Prefabs);
+        var placed = Assert.Single(published.Prefabs!.Placements);
+        Assert.Equal(BuiltInPrefabCatalog.SofaId, placed.PrefabId);
+        Assert.Equal(2, placed.TileX);
+        Assert.Equal(3, placed.TileY);
+        Assert.Contains(published.Prefabs.ToSpriteFiles(), s => s.FileName == "sofa-south.png");
+
+        var prefabCatalog = new PostgresPublishedPrefabCatalog(gate2);
+        var bundle = await prefabCatalog.LoadPublishedAsync();
+        Assert.Contains(bundle.Prefabs, p => p.Id == BuiltInPrefabCatalog.SofaId);
+        var mapEntry = Assert.Single(bundle.PrefabMaps, m => m.MapName == "Salon");
+        Assert.Single(mapEntry.Placements);
+
+        var wire = new Frog.Core.Protocol.PublishedCatalogWire
+        {
+            Prefabs = bundle.Prefabs,
+            PrefabMaps = bundle.PrefabMaps,
+        };
+        Assert.Empty(PublishedPrefabClientCoverage.Missing(published.Map, wire));
     }
 
     [PostgresFact]

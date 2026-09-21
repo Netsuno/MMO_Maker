@@ -201,7 +201,7 @@
                       SelectionChanged="ComboPrefabFacing_OnSelectionChanged" />
         </Grid>
         <Button Content="Placer un objet (P)"
-                Margin="2,0,2,8"
+                Margin="2,0,2,4"
                 Padding="8,5"
                 Background="#FF32353E"
                 Foreground="#FFE8B86D"
@@ -209,6 +209,11 @@
                 BorderThickness="1"
                 Cursor="Hand"
                 Click="OnPlacePrefabClick" />
+        <TextBlock Text="Pipette I / Alt+clic · glisser pour déplacer"
+                   Foreground="#FF949BAA"
+                   FontFamily="Segoe UI"
+                   FontSize="10"
+                   Margin="8,0,2,8" />
         <TextBlock x:Name="PrefabStatus"
                    Text="Prefab : —"
                    Foreground="#FFE8B86D"

@@ -319,6 +319,185 @@ public static class PrefabPlacementService
             _ => PrefabFacing.East,
         };
 
+    public static PrefabPlacement? TryFindAt(
+        IReadOnlyList<PrefabPlacement> placements,
+        PrefabCatalog catalog,
+        int tileX,
+        int tileY)
+    {
+        ArgumentNullException.ThrowIfNull(placements);
+        ArgumentNullException.ThrowIfNull(catalog);
+        for (var i = placements.Count - 1; i >= 0; i--)
+        {
+            var item = placements[i];
+            if (item is null)
+            {
+                continue;
+            }
+
+            if (!TryGetDefinition(catalog, item.PrefabId, out var definition)
+                || !TryResolveVariant(definition, item.Facing, out var variant)
+                || !TryResolveFootprint(definition, variant, out var w, out var h))
+            {
+                continue;
+            }
+
+            if (Occupies(item, w, h, tileX, tileY))
+            {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    public static bool TryMove(
+        IList<PrefabPlacement> placements,
+        PrefabCatalog catalog,
+        PrefabPlacement target,
+        int tileX,
+        int tileY,
+        int mapWidth,
+        int mapHeight,
+        out string? error)
+    {
+        ArgumentNullException.ThrowIfNull(placements);
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(target);
+        error = null;
+        if (!TryGetDefinition(catalog, target.PrefabId, out var definition)
+            || !TryResolveVariant(definition, target.Facing, out var variant)
+            || !TryResolveFootprint(definition, variant, out var w, out var h))
+        {
+            error = "Prefab introuvable.";
+            return false;
+        }
+
+        if (!FitsOnMap(tileX, tileY, w, h, mapWidth, mapHeight))
+        {
+            error = "Empreinte hors carte.";
+            return false;
+        }
+
+        var index = -1;
+        for (var i = 0; i < placements.Count; i++)
+        {
+            if (ReferenceEquals(placements[i], target))
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0)
+        {
+            error = "Instance introuvable.";
+            return false;
+        }
+
+        for (var i = placements.Count - 1; i >= 0; i--)
+        {
+            if (i == index)
+            {
+                continue;
+            }
+
+            var item = placements[i];
+            if (item is null)
+            {
+                continue;
+            }
+
+            if (!TryGetDefinition(catalog, item.PrefabId, out var otherDef)
+                || !TryResolveVariant(otherDef, item.Facing, out var otherVariant)
+                || !TryResolveFootprint(otherDef, otherVariant, out var ow, out var oh))
+            {
+                continue;
+            }
+
+            if (Overlaps(tileX, tileY, w, h, item.TileX, item.TileY, ow, oh))
+            {
+                placements.RemoveAt(i);
+                if (i < index)
+                {
+                    index--;
+                }
+            }
+        }
+
+        placements[index].TileX = tileX;
+        placements[index].TileY = tileY;
+        return true;
+    }
+
+    public static HashSet<string> CollectRequiredSpriteFileNames(
+        PrefabCatalog catalog,
+        IEnumerable<PrefabPlacement>? placements)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var usedIds = new HashSet<string>(StringComparer.Ordinal);
+        if (placements is not null)
+        {
+            foreach (var placement in placements)
+            {
+                if (!string.IsNullOrWhiteSpace(placement?.PrefabId))
+                {
+                    usedIds.Add(placement.PrefabId);
+                }
+            }
+        }
+
+        foreach (var prefab in catalog.Prefabs)
+        {
+            if (prefab?.Variants is null)
+            {
+                continue;
+            }
+
+            if (usedIds.Count > 0 && !usedIds.Contains(prefab.Id))
+            {
+                continue;
+            }
+
+            foreach (var variant in prefab.Variants)
+            {
+                var name = Path.GetFileName(variant.SpriteFileName?.Trim() ?? string.Empty);
+                if (!string.IsNullOrEmpty(name) && !name.Contains("..", StringComparison.Ordinal))
+                {
+                    names.Add(name);
+                }
+            }
+        }
+
+        return names;
+    }
+
+    public static PrefabFacing ParseFacing(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return PrefabFacing.South;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "west" => PrefabFacing.West,
+            "east" => PrefabFacing.East,
+            "north" => PrefabFacing.North,
+            _ => PrefabFacing.South,
+        };
+    }
+
+    public static string FacingToWire(PrefabFacing facing)
+        => facing switch
+        {
+            PrefabFacing.West => "west",
+            PrefabFacing.East => "east",
+            PrefabFacing.North => "north",
+            _ => "south",
+        };
+
     public static List<PrefabPlacement> ClonePlacements(IEnumerable<PrefabPlacement>? source)
     {
         var list = new List<PrefabPlacement>();

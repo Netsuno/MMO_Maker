@@ -1471,14 +1471,16 @@ public sealed class MainShellForm : Form
         ApplyCatalogToUi(catalog);
         ApplyCatalogRecipesToCraft(catalog);
         var tilesetFiles = ClientPublishedTilesetMaterializer.Materialize(catalog, AppContext.BaseDirectory);
-        if (tilesetFiles > 0 || _map is not null)
+        var prefabFiles = ClientPublishedPrefabMaterializer.Materialize(catalog, AppContext.BaseDirectory);
+        if (tilesetFiles > 0 || prefabFiles > 0 || _map is not null)
         {
             ReloadTilesetBitmaps();
+            ReloadPrefabOverlays();
             RedrawMap();
         }
 
         AppendLog(
-            $"Catalogue: {catalog.Classes.Count} classe(s), {catalog.Items.Count} objet(s), {catalog.Spells.Count} sort(s), {catalog.Shops.Count} boutique(s), {catalog.Recipes.Count} recette(s), {catalog.Tilesets.Count} tileset(s).");
+            $"Catalogue: {catalog.Classes.Count} classe(s), {catalog.Items.Count} objet(s), {catalog.Spells.Count} sort(s), {catalog.Shops.Count} boutique(s), {catalog.Recipes.Count} recette(s), {catalog.Tilesets.Count} tileset(s), {catalog.Prefabs.Count} prefab(s), {catalog.PrefabMaps.Count} carte(s) prefab.");
     }
 
     private void ApplyCatalogToUi(PublishedCatalogWire catalog)
@@ -2561,6 +2563,7 @@ public sealed class MainShellForm : Form
         if (_publishedCatalog is not null)
         {
             ClientPublishedTilesetMaterializer.Materialize(_publishedCatalog, AppContext.BaseDirectory);
+            ClientPublishedPrefabMaterializer.Materialize(_publishedCatalog, AppContext.BaseDirectory);
         }
 
         ReloadTilesetBitmaps();
@@ -3422,7 +3425,11 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        var loaded = ClientPrefabLoader.LoadForMap(_map, AppContext.BaseDirectory);
+        var loaded = ClientPrefabLoader.LoadForMap(
+            _map,
+            AppContext.BaseDirectory,
+            _publishedCatalog,
+            runtimeMapId: _sessionDisplayedMapId);
         _prefabCatalog = loaded.Catalog;
         _prefabPlacements.AddRange(loaded.Placements);
         foreach (var kv in loaded.Bitmaps)
@@ -3432,7 +3439,7 @@ public sealed class MainShellForm : Form
 
         if (_prefabPlacements.Count > 0)
         {
-            AppendLog($"Prefabs posés : {_prefabPlacements.Count} (sidecar Maps/*.prefabs.json).");
+            AppendLog($"Prefabs posés : {_prefabPlacements.Count} (catalogue publié / sidecar Maps/*.prefabs.json).");
         }
     }
 

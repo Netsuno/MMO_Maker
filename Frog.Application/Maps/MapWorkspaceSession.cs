@@ -1,4 +1,5 @@
 using Frog.Core.Models;
+using Frog.Application.Prefabs;
 
 namespace Frog.Application.Maps;
 
@@ -32,6 +33,9 @@ public sealed class MapWorkspaceSession
     public MapPublishStatus CurrentStatus { get; private set; } = MapPublishStatus.Draft;
 
     public long? PublishedRevision { get; private set; }
+
+    /// <summary>Paquet prefab de la carte courante (persisté avec le brouillon / la publication).</summary>
+    public MapPrefabPersistDocument? CurrentPrefabs { get; set; }
 
     /// <summary>Modifications en mémoire non encore persistées.</summary>
     public bool IsDirty { get; private set; }
@@ -123,6 +127,7 @@ public sealed class MapWorkspaceSession
         CurrentRevision = revision;
         CurrentStatus = MapPublishStatus.Draft;
         PublishedRevision = null;
+        CurrentPrefabs = null;
         IsDirty = markDirty;
     }
 
@@ -167,6 +172,7 @@ public sealed class MapWorkspaceSession
                         Map = CurrentMap,
                         ExpectedRevision = CurrentRevision,
                         Intent = intent,
+                        Prefabs = CurrentPrefabs,
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -214,6 +220,7 @@ public sealed class MapWorkspaceSession
         CurrentRevision = stored.Revision;
         CurrentStatus = stored.Status;
         PublishedRevision = stored.PublishedRevision;
+        CurrentPrefabs = stored.Prefabs;
         IsDirty = false;
     }
 }

@@ -27,6 +27,14 @@ public sealed class PublishedCatalogWire
     /// <summary>Tilesets publiés avec palette éditeur (JSON additif, pas de bump de version fil).</summary>
     [JsonPropertyName("tilesets")]
     public IReadOnlyList<PublishedTilesetWireEntry> Tilesets { get; init; } = Array.Empty<PublishedTilesetWireEntry>();
+
+    /// <summary>Catalogue prefabs publié (JSON additif, pas de bump de version fil).</summary>
+    [JsonPropertyName("prefabs")]
+    public IReadOnlyList<PublishedPrefabWireEntry> Prefabs { get; init; } = Array.Empty<PublishedPrefabWireEntry>();
+
+    /// <summary>Placements prefab par carte publiée (JSON additif).</summary>
+    [JsonPropertyName("prefabMaps")]
+    public IReadOnlyList<PublishedPrefabMapWireEntry> PrefabMaps { get; init; } = Array.Empty<PublishedPrefabMapWireEntry>();
 }
 
 public sealed class PublishedTilesetWireEntry
@@ -58,6 +66,90 @@ public sealed class PublishedTilesetWireEntry
     /// <summary>PNG optionnel (base64). Absent si le serveur n’a pas le fichier sous la racine assets.</summary>
     [JsonPropertyName("pngBase64")]
     public string? PngBase64 { get; init; }
+}
+
+public sealed class PublishedPrefabWireEntry
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; init; } = string.Empty;
+
+    [JsonPropertyName("footprintWidthTiles")]
+    public int FootprintWidthTiles { get; init; }
+
+    [JsonPropertyName("footprintHeightTiles")]
+    public int FootprintHeightTiles { get; init; }
+
+    [JsonPropertyName("widthPixels")]
+    public int WidthPixels { get; init; }
+
+    [JsonPropertyName("heightPixels")]
+    public int HeightPixels { get; init; }
+
+    [JsonPropertyName("variants")]
+    public IReadOnlyList<PublishedPrefabVariantWire> Variants { get; init; } = Array.Empty<PublishedPrefabVariantWire>();
+}
+
+public sealed class PublishedPrefabVariantWire
+{
+    [JsonPropertyName("facing")]
+    public string Facing { get; init; } = "south";
+
+    [JsonPropertyName("spriteFileName")]
+    public string SpriteFileName { get; init; } = string.Empty;
+
+    [JsonPropertyName("footprintWidthTiles")]
+    public int FootprintWidthTiles { get; init; }
+
+    [JsonPropertyName("footprintHeightTiles")]
+    public int FootprintHeightTiles { get; init; }
+
+    [JsonPropertyName("widthPixels")]
+    public int WidthPixels { get; init; }
+
+    [JsonPropertyName("heightPixels")]
+    public int HeightPixels { get; init; }
+
+    [JsonPropertyName("sha256Hex")]
+    public string Sha256Hex { get; init; } = string.Empty;
+
+    /// <summary>PNG optionnel (base64). Absent si le serveur n’a pas les octets publiés.</summary>
+    [JsonPropertyName("pngBase64")]
+    public string? PngBase64 { get; init; }
+}
+
+public sealed class PublishedPrefabMapWireEntry
+{
+    [JsonPropertyName("mapId")]
+    public string MapId { get; init; } = string.Empty;
+
+    [JsonPropertyName("mapName")]
+    public string MapName { get; init; } = string.Empty;
+
+    /// <summary>Identifiant runtime serveur (additif). Sert au client quand deux cartes ont le même nom.</summary>
+    [JsonPropertyName("runtimeMapId")]
+    public int? RuntimeMapId { get; init; }
+
+    [JsonPropertyName("placements")]
+    public IReadOnlyList<PublishedPrefabPlacementWire> Placements { get; init; } =
+        Array.Empty<PublishedPrefabPlacementWire>();
+}
+
+public sealed class PublishedPrefabPlacementWire
+{
+    [JsonPropertyName("prefabId")]
+    public string PrefabId { get; init; } = string.Empty;
+
+    [JsonPropertyName("facing")]
+    public string Facing { get; init; } = "south";
+
+    [JsonPropertyName("tileX")]
+    public int TileX { get; init; }
+
+    [JsonPropertyName("tileY")]
+    public int TileY { get; init; }
 }
 
 public sealed class PublishedRecipeWireEntry

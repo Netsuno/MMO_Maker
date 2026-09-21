@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate original CC0-style procedural prefab PNGs (sofa + fence kit).
+"""Generate original CC0-style procedural prefab PNGs (house + world kit).
 
 No downloads. Never embeds Graal sheets. Output is deterministic RGBA PNG
 under assets/prefabs/. Pillow is not required — stdlib zlib only.
@@ -22,6 +22,15 @@ CUSHION_HI = (196, 104, 108, 255)
 SEAT = (148, 92, 58, 255)
 OUTLINE = (32, 20, 14, 255)
 METAL = (90, 96, 104, 255)
+LINEN = (214, 206, 186, 255)
+LINEN_HI = (236, 228, 210, 255)
+BLANKET = (72, 108, 148, 255)
+LEAF = (62, 132, 74, 255)
+LEAF_DK = (36, 92, 52, 255)
+POT = (148, 78, 52, 255)
+GOLD = (196, 148, 52, 255)
+GOLD_DK = (128, 92, 28, 255)
+CHAIR_SEAT = (176, 118, 64, 255)
 
 
 def _chunk(tag: bytes, data: bytes) -> bytes:
@@ -164,6 +173,130 @@ def fence_v() -> list[list[tuple[int, int, int, int]]]:
     return px
 
 
+def bed_south() -> list[list[tuple[int, int, int, int]]]:
+    w, h = 64, 32
+    px = blank(w, h)
+    fill_rect(px, 4, 6, 60, 30, WOOD_MID)
+    fill_rect(px, 6, 4, 58, 12, WOOD_DARK)  # headboard
+    fill_rect(px, 8, 12, 56, 28, LINEN)
+    fill_rect(px, 10, 14, 26, 22, LINEN_HI)
+    fill_rect(px, 28, 16, 54, 26, BLANKET)
+    rect_outline(px, 4, 4, 60, 30, OUTLINE)
+    return px
+
+
+def bed_north() -> list[list[tuple[int, int, int, int]]]:
+    w, h = 64, 32
+    px = blank(w, h)
+    fill_rect(px, 4, 4, 60, 28, WOOD_MID)
+    fill_rect(px, 8, 6, 56, 20, LINEN)
+    fill_rect(px, 10, 8, 54, 14, BLANKET)
+    fill_rect(px, 6, 20, 58, 30, WOOD_DARK)
+    rect_outline(px, 4, 4, 60, 30, OUTLINE)
+    return px
+
+
+def bed_east() -> list[list[tuple[int, int, int, int]]]:
+    w, h = 32, 64
+    px = blank(w, h)
+    fill_rect(px, 4, 4, 28, 60, WOOD_MID)
+    fill_rect(px, 16, 6, 28, 58, WOOD_DARK)
+    fill_rect(px, 6, 8, 18, 56, LINEN)
+    fill_rect(px, 8, 28, 16, 54, BLANKET)
+    rect_outline(px, 4, 4, 28, 60, OUTLINE)
+    return px
+
+
+def bed_west() -> list[list[tuple[int, int, int, int]]]:
+    w, h = 32, 64
+    px = blank(w, h)
+    fill_rect(px, 4, 4, 28, 60, WOOD_MID)
+    fill_rect(px, 4, 6, 16, 58, WOOD_DARK)
+    fill_rect(px, 14, 8, 26, 56, LINEN)
+    fill_rect(px, 16, 28, 24, 54, BLANKET)
+    rect_outline(px, 4, 4, 28, 60, OUTLINE)
+    return px
+
+
+def table() -> list[list[tuple[int, int, int, int]]]:
+    w = h = 64
+    px = blank(w, h)
+    fill_rect(px, 6, 10, 58, 48, WOOD_MID)
+    fill_rect(px, 8, 12, 56, 22, WOOD_LIGHT)
+    fill_rect(px, 10, 44, 18, 60, WOOD_DARK)
+    fill_rect(px, 46, 44, 54, 60, WOOD_DARK)
+    fill_rect(px, 10, 8, 18, 16, WOOD_DARK)
+    fill_rect(px, 46, 8, 54, 16, WOOD_DARK)
+    rect_outline(px, 6, 10, 58, 48, OUTLINE)
+    return px
+
+
+def chair_south() -> list[list[tuple[int, int, int, int]]]:
+    w = h = 32
+    px = blank(w, h)
+    fill_rect(px, 8, 6, 24, 16, WOOD_DARK)
+    fill_rect(px, 7, 16, 25, 26, CHAIR_SEAT)
+    fill_rect(px, 8, 26, 12, 31, WOOD_DARK)
+    fill_rect(px, 20, 26, 24, 31, WOOD_DARK)
+    rect_outline(px, 7, 6, 25, 26, OUTLINE)
+    return px
+
+
+def chair_north() -> list[list[tuple[int, int, int, int]]]:
+    w = h = 32
+    px = blank(w, h)
+    fill_rect(px, 7, 10, 25, 24, CHAIR_SEAT)
+    fill_rect(px, 8, 6, 12, 12, WOOD_DARK)
+    fill_rect(px, 20, 6, 24, 12, WOOD_DARK)
+    fill_rect(px, 8, 22, 24, 26, WOOD_MID)
+    rect_outline(px, 7, 10, 25, 26, OUTLINE)
+    return px
+
+
+def chair_east() -> list[list[tuple[int, int, int, int]]]:
+    w = h = 32
+    px = blank(w, h)
+    fill_rect(px, 16, 6, 24, 26, WOOD_DARK)
+    fill_rect(px, 8, 12, 20, 24, CHAIR_SEAT)
+    fill_rect(px, 8, 24, 12, 30, WOOD_DARK)
+    rect_outline(px, 8, 6, 24, 26, OUTLINE)
+    return px
+
+
+def chair_west() -> list[list[tuple[int, int, int, int]]]:
+    w = h = 32
+    px = blank(w, h)
+    fill_rect(px, 8, 6, 16, 26, WOOD_DARK)
+    fill_rect(px, 12, 12, 24, 24, CHAIR_SEAT)
+    fill_rect(px, 20, 24, 24, 30, WOOD_DARK)
+    rect_outline(px, 8, 6, 24, 26, OUTLINE)
+    return px
+
+
+def plant() -> list[list[tuple[int, int, int, int]]]:
+    w = h = 32
+    px = blank(w, h)
+    fill_rect(px, 10, 20, 22, 30, POT)
+    fill_rect(px, 12, 22, 20, 26, WOOD_DARK)
+    fill_rect(px, 14, 8, 18, 22, LEAF_DK)
+    fill_rect(px, 10, 10, 14, 18, LEAF)
+    fill_rect(px, 18, 10, 22, 18, LEAF)
+    fill_rect(px, 12, 6, 20, 12, LEAF)
+    rect_outline(px, 10, 20, 22, 30, OUTLINE)
+    return px
+
+
+def chest() -> list[list[tuple[int, int, int, int]]]:
+    w = h = 32
+    px = blank(w, h)
+    fill_rect(px, 4, 10, 28, 28, GOLD_DK)
+    fill_rect(px, 6, 12, 26, 20, GOLD)
+    fill_rect(px, 6, 20, 26, 26, WOOD_MID)
+    fill_rect(px, 14, 16, 18, 22, METAL)
+    rect_outline(px, 4, 10, 28, 28, OUTLINE)
+    return px
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     write_png(OUT / "sofa-south.png", 64, 32, sofa_south())
@@ -173,6 +306,17 @@ def main() -> None:
     write_png(OUT / "fence-post.png", 32, 32, fence_post())
     write_png(OUT / "fence-h.png", 32, 32, fence_h())
     write_png(OUT / "fence-v.png", 32, 32, fence_v())
+    write_png(OUT / "bed-south.png", 64, 32, bed_south())
+    write_png(OUT / "bed-north.png", 64, 32, bed_north())
+    write_png(OUT / "bed-east.png", 32, 64, bed_east())
+    write_png(OUT / "bed-west.png", 32, 64, bed_west())
+    write_png(OUT / "table.png", 64, 64, table())
+    write_png(OUT / "chair-south.png", 32, 32, chair_south())
+    write_png(OUT / "chair-north.png", 32, 32, chair_north())
+    write_png(OUT / "chair-east.png", 32, 32, chair_east())
+    write_png(OUT / "chair-west.png", 32, 32, chair_west())
+    write_png(OUT / "plant.png", 32, 32, plant())
+    write_png(OUT / "chest.png", 32, 32, chest())
     print(f"wrote prefab placeholders under {OUT}")
 
 

@@ -1,16 +1,16 @@
 #nullable enable
 using System.Drawing;
 using System.IO;
-using System.Text;
 using Frog.Application.Prefabs;
 using Frog.Core.IO;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 
 namespace Frog.Client.Assets;
 
 /// <summary>
 /// Charge le catalogue + sidecar <c>{nomCarte}.prefabs.json</c> et les PNG sous <c>Prefabs/</c>
-/// (même layout que <see cref="ClientTilesetLoader"/>).
+/// (même layout que <see cref="ClientTilesetLoader"/> : exe + cwd).
 /// </summary>
 public static class ClientPrefabLoader
 {
@@ -19,43 +19,76 @@ public static class ClientPrefabLoader
         IReadOnlyList<PrefabPlacement> Placements,
         Dictionary<string, Bitmap> Bitmaps);
 
-    public static LoadResult LoadForMap(Map map, string appBaseDirectory)
+    public static LoadResult LoadForMap(
+        Map map,
+        string appBaseDirectory,
+        PublishedCatalogWire? publishedCatalog = null,
+        Guid mapId = default,
+        int runtimeMapId = 0)
     {
         ArgumentNullException.ThrowIfNull(map);
-        var prefabsDir = Path.Combine(appBaseDirectory, MapPrefabPackage.FolderName);
-        var mapsDir = Path.Combine(appBaseDirectory, "Maps");
-        Directory.CreateDirectory(prefabsDir);
-        Directory.CreateDirectory(mapsDir);
-
-        var catalog = PrefabCatalogJson.TryDeserializeFromFile(Path.Combine(prefabsDir, MapPrefabPackage.CatalogFileName))
-                      ?? BuiltInPrefabCatalog.Create();
-
-        var stem = SanitizeFileStem(string.IsNullOrWhiteSpace(map.Name) ? "world" : map.Name);
-        var sidecar = PrefabPlacementDocumentJson.TryDeserializeFromFile(
-            Path.Combine(mapsDir, stem + MapPrefabPackage.PlacementSidecarSuffix));
-        var placements = PrefabPlacementService.ClonePlacements(sidecar?.Placements);
-
+        PrefabCatalog? catalog = null;
+        List<PrefabPlacement>? placements = null;
         var bitmaps = new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase);
-        foreach (var prefab in catalog.Prefabs)
+
+        if (PublishedPrefabClientCoverage.TryMatchPrefabMap(
+                publishedCatalog,
+                map.Name,
+                out var matched,
+                mapId,
+                runtimeMapId))
         {
-            if (prefab?.Variants is null)
+            placements = PrefabPlacementService.ClonePlacements(
+                PublishedPrefabClientCoverage.ToPlacements(matched.Placements));
+            if (MapPrefabPackage.TryParseMapId(matched.MapId, out var matchedId))
             {
-                continue;
+                mapId = matchedId;
+            }
+        }
+
+        foreach (var root in ClientTilesetLoader.ResolveSearchDirectories(appBaseDirectory))
+        {
+            var prefabsDir = Path.Combine(root, MapPrefabPackage.FolderName);
+            var mapsDir = Path.Combine(root, "Maps");
+            Directory.CreateDirectory(prefabsDir);
+            Directory.CreateDirectory(mapsDir);
+
+            catalog ??= PrefabCatalogJson.TryDeserializeFromFile(Path.Combine(prefabsDir, MapPrefabPackage.CatalogFileName));
+
+            if (placements is null)
+            {
+                var sidecar = MapPrefabPackage.TryReadPlacementSidecar(mapsDir, map.Name, mapId);
+                if (sidecar is not null)
+                {
+                    placements = PrefabPlacementService.ClonePlacements(sidecar.Placements);
+                }
             }
 
-            foreach (var variant in prefab.Variants)
+            var sourceCatalog = catalog ?? BuiltInPrefabCatalog.Create();
+            foreach (var prefab in sourceCatalog.Prefabs)
             {
-                var name = Path.GetFileName(variant.SpriteFileName?.Trim() ?? string.Empty);
-                if (string.IsNullOrEmpty(name) || bitmaps.ContainsKey(name))
+                if (prefab?.Variants is null)
                 {
                     continue;
                 }
 
-                TryAddBitmap(bitmaps, name, Path.Combine(prefabsDir, name));
+                foreach (var variant in prefab.Variants)
+                {
+                    var name = Path.GetFileName(variant.SpriteFileName?.Trim() ?? string.Empty);
+                    if (string.IsNullOrEmpty(name) || bitmaps.ContainsKey(name))
+                    {
+                        continue;
+                    }
+
+                    TryAddBitmap(bitmaps, name, Path.Combine(prefabsDir, name));
+                }
             }
         }
 
-        return new LoadResult(catalog, placements, bitmaps);
+        return new LoadResult(
+            catalog ?? BuiltInPrefabCatalog.Create(),
+            placements ?? new List<PrefabPlacement>(),
+            bitmaps);
     }
 
     public static void DisposeBitmaps(Dictionary<string, Bitmap>? bitmaps)
@@ -89,18 +122,5 @@ public static class ClientPrefabLoader
         {
             // ignore fichier illisible
         }
-    }
-
-    private static string SanitizeFileStem(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sb = new StringBuilder(name.Length);
-        foreach (var c in name.Trim())
-        {
-            sb.Append(Array.IndexOf(invalid, c) >= 0 ? '_' : c);
-        }
-
-        var stem = sb.ToString();
-        return string.IsNullOrEmpty(stem) ? "world" : stem;
     }
 }

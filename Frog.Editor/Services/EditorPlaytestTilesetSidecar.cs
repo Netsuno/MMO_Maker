@@ -36,6 +36,18 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
         var placements = _prefabPlacements?.Invoke() ?? Array.Empty<PrefabPlacement>();
         var sprites = PrefabSpriteCache.SnapshotPngFiles(catalog);
         MapPrefabPackage.WriteSidecars(plan.WorkDirectory, names, catalog, placements, sprites);
+        var persist = MapPrefabPersistDocument.Create(catalog, placements, sprites);
+        var primary = plan.Maps.FirstOrDefault();
+        SidecarPublishedPrefabCatalog.WriteFromDocument(
+            SidecarPublishedPrefabCatalog.PathBesideManifest(plan.ManifestPath),
+            primary?.CanonicalMapId ?? Guid.Empty,
+            primary?.Name ?? names.FirstOrDefault() ?? "world",
+            persist);
+        var mapsDir = Path.Combine(plan.WorkDirectory, "Maps");
+        foreach (var runtimeMap in plan.Maps)
+        {
+            MapPrefabPackage.WritePlacementSidecar(mapsDir, runtimeMap.Name, placements, runtimeMap.CanonicalMapId);
+        }
 
         if (string.IsNullOrWhiteSpace(clientExecutablePath))
         {
@@ -54,6 +66,11 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
         }
 
         MapPrefabPackage.WriteSidecars(clientDir, names, catalog, placements, sprites);
+        var clientMapsDir = Path.Combine(clientDir, "Maps");
+        foreach (var runtimeMap in plan.Maps)
+        {
+            MapPrefabPackage.WritePlacementSidecar(clientMapsDir, runtimeMap.Name, placements, runtimeMap.CanonicalMapId);
+        }
     }
 
     private static IReadOnlyList<MapTilesetFile> CollectTilesetFiles(PlaytestLaunchPlan plan)

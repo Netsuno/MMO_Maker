@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Frog.Application.Assets;
 using Frog.Application.Content;
+using Frog.Application.Prefabs;
 using Frog.Core.Protocol;
 
 namespace Frog.Server.Gameplay;
@@ -13,7 +14,9 @@ public sealed class PublishedCatalogService(
     IPublishedNpcCatalog npcs,
     IPublishedRecipeCatalog recipes,
     IPublishedTilesetCatalog? tilesets = null,
-    IPublishedTilesetImageSource? tilesetImages = null)
+    IPublishedTilesetImageSource? tilesetImages = null,
+    IPublishedPrefabCatalog? prefabs = null,
+    IPublishedWorldCatalog? world = null)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -34,6 +37,9 @@ public sealed class PublishedCatalogService(
             .Select(t => ToTilesetWire(t, tilesetImages))
             .Where(t => t.PaletteId > 0)
             .ToArray();
+        var prefabBundle = prefabs is null
+            ? new PublishedPrefabCatalogBundle()
+            : await prefabs.LoadPublishedAsync(cancellationToken).ConfigureAwait(false);
 
         return new PublishedCatalogWire
         {
@@ -73,7 +79,41 @@ public sealed class PublishedCatalogService(
                 Name = r.Name,
             }).ToArray(),
             Tilesets = tilesetList,
+            Prefabs = prefabBundle.Prefabs,
+            PrefabMaps = AnnotatePrefabMaps(prefabBundle.PrefabMaps, world),
         };
+    }
+
+    private static IReadOnlyList<PublishedPrefabMapWireEntry> AnnotatePrefabMaps(
+        IReadOnlyList<PublishedPrefabMapWireEntry> maps,
+        IPublishedWorldCatalog? world)
+    {
+        if (world is null || maps.Count == 0)
+        {
+            return maps;
+        }
+
+        var list = new List<PublishedPrefabMapWireEntry>(maps.Count);
+        foreach (var entry in maps)
+        {
+            int? runtime = null;
+            if (MapPrefabPackage.TryParseMapId(entry.MapId, out var guid)
+                && world.TryGetRuntimeMapId(guid, out var runtimeId)
+                && runtimeId != 0)
+            {
+                runtime = runtimeId;
+            }
+
+            list.Add(new PublishedPrefabMapWireEntry
+            {
+                MapId = entry.MapId,
+                MapName = entry.MapName,
+                RuntimeMapId = runtime,
+                Placements = entry.Placements,
+            });
+        }
+
+        return list;
     }
 
     private static PublishedTilesetWireEntry ToTilesetWire(
