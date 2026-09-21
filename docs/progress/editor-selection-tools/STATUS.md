@@ -8,7 +8,8 @@
 | **Base** | `main` @ `4d0e30f` |
 | **Branche** | `cursor/editor-selection-rotate-pipette-b4b5` |
 | **PR** | [#39](https://github.com/Netsuno/MMO_Maker/pull/39) vers `main` |
-| **Tip** | `f9ddddf` (feat) |
+| **Tip** | `ac936b9` |
+| **CI** | [35592864093](https://github.com/Netsuno/MMO_Maker/actions/runs/35592864093) **SUCCESS** (`build-and-test` + `postgres-integration`) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** |
 
 Parallèle au chantier spawn (#22) : **aucun** changement publish prefab / PostgreSQL / catalogue / matérialisation client. Pas de bump `.fmap`.
@@ -38,3 +39,5 @@ Raccourcis **sans** modificateur : ne volent pas `Ctrl+C` / `Ctrl+X` / `Ctrl+V` 
 
 - Linux / unitaires : `Frog.Tests/EditorSelectionToolsTests.cs` (maths rotation/miroir, presse-papiers, in situ, pipette couches, protocole inchangé).
 - Windows smoke : `MapCanvasSelectionPipetteSmokeTests` + raccourcis `EditorToolHotkeysTests` (I/Q/H/V ne sont pas des outils).
+
+CI **SUCCESS** sur `ac936b9` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35592864093/job/106311040598) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35592864093/job/106311040346). Windows editor smokes inclus dans `build-and-test`.
