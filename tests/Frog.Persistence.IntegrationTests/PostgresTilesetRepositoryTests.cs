@@ -134,8 +134,12 @@ public sealed class PostgresTilesetRepositoryTests
         var del = await tilesets.DeleteAsync(saved.TilesetId);
         Assert.IsType<DeleteTilesetResult.Referenced>(del);
 
+        var stillReferenced = await tilesets.ListSummariesAsync(search: "RefGrass");
+        Assert.Contains(stillReferenced, e => e.TilesetId == saved.TilesetId);
+        Assert.DoesNotContain(stillReferenced, e => e.Status == ContentPublishStatus.Published);
+
         var published = await tilesets.ListPublishedAsync();
-        Assert.Empty(published);
+        Assert.Empty(published.Where(p => p.Id == saved.TilesetId || p.Name == "RefGrass"));
         Assert.IsType<SaveTilesetResult.Success>(await tilesets.SaveAsync(new SaveTilesetRequest
         {
             TilesetId = saved.TilesetId,
@@ -144,7 +148,7 @@ public sealed class PostgresTilesetRepositoryTests
             Intent = SaveContentIntent.Publish,
         }));
         published = await tilesets.ListPublishedAsync();
-        Assert.Contains(published, p => p.Name == "RefGrass");
+        Assert.Contains(published, p => p.Id == saved.TilesetId && p.Name == "RefGrass");
     }
 
     [PostgresFact]
@@ -160,7 +164,7 @@ public sealed class PostgresTilesetRepositoryTests
         def.Sha256Hex = sha;
         def.PngBytes = png;
 
-        Assert.IsType<SaveTilesetResult.Success>(await tilesets.SaveAsync(new SaveTilesetRequest
+        var saved = Assert.IsType<SaveTilesetResult.Success>(await tilesets.SaveAsync(new SaveTilesetRequest
         {
             Definition = def,
             ExpectedRevision = 0,
@@ -170,7 +174,7 @@ public sealed class PostgresTilesetRepositoryTests
         using var gate2 = CreateGate();
         var reload = new PostgresTilesetRepository(gate2);
         var published = await reload.ListPublishedAsync();
-        var loaded = Assert.Single(published, p => p.EditorPaletteId == 17);
+        var loaded = Assert.Single(published, p => p.Id == saved.TilesetId);
         Assert.NotNull(loaded.PngBytes);
         Assert.Equal(png, loaded.PngBytes);
 
