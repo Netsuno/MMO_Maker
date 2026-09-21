@@ -26,7 +26,7 @@ Présentation + layout login (et carte perso page 2) seulement. Contraste #16 in
 | CTA | « Login » au milieu des boutons | **Connexion** primaire : fill `bg.slot` + filet or ; **Inscription** / **Reconnecter** secondaires |
 | Connecter / Déconnecter | Même rangée que Login | Rangée serveur secondaire (même tokens) — le TCP reste 2 étapes pour les smokes |
 | Hôte / port | Sur la carte joueur | **Hors carte** ; Options → Réseau (déjà là) + **F9** ops strip ; `HostTextBoxForTest` / `PortNumericForTest` suivent |
-| Page perso | Stack 560 px | Même carte DA (`LoginShell.HostCenteredCard`) |
+| Page perso | Stack 560 px / carte 520 px qui **clippait** « Créer perso » + « Entrer dans le jeu » | Même carte DA (`LoginShell.HostCenteredCard`) : rangées wrappées à la largeur interne, CTAs sur rangées dédiées, AutoScroll si la hauteur utile est trop basse |
 
 `UiTheme.Apply` reconnaît `LoginShell` / `LoginCard` pour ne pas ramener le fond `bg.panel` ni l’or-sur-or (wordmark reste crème).
 

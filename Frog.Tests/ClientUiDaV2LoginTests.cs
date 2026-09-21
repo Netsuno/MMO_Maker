@@ -27,6 +27,7 @@ public sealed class ClientUiDaV2LoginTests
         var login = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "UI", "LoginShell.cs"));
 
         Assert.Contains("CardWidth = 400", login, StringComparison.Ordinal);
+        Assert.Contains("CharacterCardWidth = 520", login, StringComparison.Ordinal);
         Assert.Contains("CardPadding = 12", login, StringComparison.Ordinal);
         Assert.Contains("FieldWidth = 280", login, StringComparison.Ordinal);
         Assert.Contains("PaintDoubleGoldFrame", login, StringComparison.Ordinal);
@@ -40,6 +41,9 @@ public sealed class ClientUiDaV2LoginTests
         Assert.Contains("StyleContrastHudButton", login, StringComparison.Ordinal);
         Assert.Contains("class LoginCard", login, StringComparison.Ordinal);
         Assert.Contains("class LogoEmblem", login, StringComparison.Ordinal);
+        Assert.Contains("HostCenteredCard", login, StringComparison.Ordinal);
+        Assert.Contains("card.AutoScroll = needsScroll", login, StringComparison.Ordinal);
+        Assert.Contains("row.MaximumSize = new Size(innerWidth, 0)", login, StringComparison.Ordinal);
         Assert.Contains("FillEllipse", login, StringComparison.Ordinal);
         Assert.Contains("DrawEllipse", login, StringComparison.Ordinal);
         Assert.DoesNotContain("CloneCta()", login, StringComparison.Ordinal);
@@ -65,6 +69,11 @@ public sealed class ClientUiDaV2LoginTests
         Assert.Contains("LoginButtonForTest", shell, StringComparison.Ordinal);
         Assert.Contains("ConnectButtonForTest", shell, StringComparison.Ordinal);
         Assert.DoesNotContain("AddStackToPanel(_panelLogin", shell, StringComparison.Ordinal);
+        Assert.Contains("ShowCharacterSelectForTest", shell, StringComparison.Ordinal);
+        Assert.Contains("rowEnter.Controls.Add(_btnEnterGame)", shell, StringComparison.Ordinal);
+        Assert.Contains("rowCreateAction.Controls.Add(_btnCharCreate)", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("rowCharPick.Controls.Add(_btnEnterGame)", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("rowCreate.Controls.Add(_btnCharCreate)", shell, StringComparison.Ordinal);
     }
 
     [Fact]

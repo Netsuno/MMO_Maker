@@ -12,6 +12,7 @@ namespace Frog.Client.UI;
 public sealed class LoginShell : Panel
 {
     public const int CardWidth = 400;
+    public const int CharacterCardWidth = 520;
     public const int CardPadding = 12;
     public const int FieldWidth = 280;
     public const int LogoEmblemSize = 48;
@@ -301,11 +302,19 @@ public sealed class LoginShell : Panel
         UiTheme.StyleInput(box);
     }
 
-    /// <summary>Page 2 (sélection perso) : même carte DA, pas un second thème.</summary>
+    /// <summary>
+    /// Page 2 (sélection perso) : même carte DA, pas un second thème.
+    /// Rangées contraintes à la largeur interne pour que <see cref="FlowLayoutPanel.WrapContents"/>
+    /// wrap réellement (sinon AutoSize élargit la rangée et « Créer perso » / « Entrer dans le jeu »
+    /// sortent du clip 520 px). AutoScroll vertical si la carte dépasse la hauteur utile.
+    /// </summary>
     public static void HostCenteredCard(Panel page, params Control[] sections)
     {
         ArgumentNullException.ThrowIfNull(page);
-        var card = new LoginCard { Width = 520 };
+        const int cardWidth = CharacterCardWidth;
+        var innerWidth = cardWidth - (CardPadding * 2);
+
+        var card = new LoginCard { Width = cardWidth, AutoScroll = true };
         var body = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.TopDown,
@@ -313,32 +322,84 @@ public sealed class LoginShell : Panel
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(CardPadding),
+            Margin = new Padding(0),
             BackColor = Color.Transparent,
-            Width = 520,
+            Width = cardWidth,
+            MaximumSize = new Size(cardWidth, 0),
         };
         foreach (var section in sections)
         {
+            ArgumentNullException.ThrowIfNull(section);
             section.Margin = new Padding(0, 0, 0, 10);
+            section.Dock = DockStyle.None;
+            if (section is FlowLayoutPanel row)
+            {
+                row.WrapContents = true;
+                row.AutoSize = true;
+                row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                row.Width = innerWidth;
+                row.MaximumSize = new Size(innerWidth, 0);
+            }
+
             body.Controls.Add(section);
         }
 
         card.Controls.Add(body);
-        card.Height = Math.Max(280, body.PreferredSize.Height + 16);
 
-        var host = new Panel { Dock = DockStyle.Fill, BackColor = UiTheme.BgApp };
-        host.Controls.Add(card);
-        void Center()
+        var host = new Panel
         {
-            card.Location = new Point(
-                Math.Max(12, (host.Width - card.Width) / 2),
-                Math.Max(24, (host.Height - card.Height) / 3));
+            Dock = DockStyle.Fill,
+            BackColor = UiTheme.BgApp,
+            AutoScroll = true,
+        };
+        host.Controls.Add(card);
+
+        var layingOut = false;
+        void LayoutCard()
+        {
+            if (layingOut || host.ClientSize.Width <= 0 || host.ClientSize.Height <= 0)
+            {
+                return;
+            }
+
+            layingOut = true;
+            try
+            {
+                body.Width = cardWidth;
+                body.MaximumSize = new Size(cardWidth, 0);
+                body.PerformLayout();
+
+                var contentH = Math.Max(8, body.PreferredSize.Height + 8);
+                var availH = Math.Max(80, host.ClientSize.Height - 16);
+                var needsScroll = contentH > availH;
+                var scrollPad = needsScroll ? SystemInformation.VerticalScrollBarWidth : 0;
+
+                card.AutoScroll = needsScroll;
+                card.Width = cardWidth + scrollPad;
+                card.Height = needsScroll ? availH : contentH;
+                card.AutoScrollMinSize = needsScroll ? new Size(0, contentH) : Size.Empty;
+                card.Location = new Point(
+                    Math.Max(8, (host.ClientSize.Width - card.Width) / 2),
+                    needsScroll ? 8 : Math.Max(12, (host.ClientSize.Height - card.Height) / 3));
+            }
+            finally
+            {
+                layingOut = false;
+            }
         }
 
-        host.Resize += (_, _) => Center();
+        host.Resize += (_, _) => LayoutCard();
+        page.VisibleChanged += (_, _) =>
+        {
+            if (page.Visible)
+            {
+                LayoutCard();
+            }
+        };
         page.Controls.Clear();
         page.BackColor = UiTheme.BgApp;
         page.Controls.Add(host);
-        Center();
+        LayoutCard();
     }
 
     private void CenterCard()
