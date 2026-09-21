@@ -3425,7 +3425,11 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        var loaded = ClientPrefabLoader.LoadForMap(_map, AppContext.BaseDirectory);
+        var loaded = ClientPrefabLoader.LoadForMap(
+            _map,
+            AppContext.BaseDirectory,
+            _publishedCatalog,
+            runtimeMapId: _sessionDisplayedMapId);
         _prefabCatalog = loaded.Catalog;
         _prefabPlacements.AddRange(loaded.Placements);
         foreach (var kv in loaded.Bitmaps)

@@ -15,10 +15,12 @@ public static class PublishedPrefabClientCoverage
     public static IReadOnlyList<MissingPrefab> Missing(
         Map map,
         PublishedCatalogWire? catalog,
-        string? clientBaseDirectory = null)
+        string? clientBaseDirectory = null,
+        Guid mapId = default,
+        int runtimeMapId = 0)
     {
         ArgumentNullException.ThrowIfNull(map);
-        var placements = CollectPlacements(map, catalog, clientBaseDirectory);
+        var placements = CollectPlacements(map, catalog, clientBaseDirectory, mapId, runtimeMapId);
         if (placements.Count == 0)
         {
             return Array.Empty<MissingPrefab>();
@@ -272,11 +274,13 @@ public static class PublishedPrefabClientCoverage
     public static PublishedPrefabMapWireEntry ToWireMap(
         Guid mapId,
         string mapName,
-        IReadOnlyList<PrefabPlacement> placements)
+        IReadOnlyList<PrefabPlacement> placements,
+        int? runtimeMapId = null)
         => new()
         {
             MapId = mapId == Guid.Empty ? string.Empty : mapId.ToString("D"),
             MapName = mapName ?? string.Empty,
+            RuntimeMapId = runtimeMapId is > 0 ? runtimeMapId : null,
             Placements = placements.Select(p => new PublishedPrefabPlacementWire
             {
                 PrefabId = p.PrefabId,
@@ -286,29 +290,93 @@ public static class PublishedPrefabClientCoverage
             }).ToArray(),
         };
 
+    public static bool TryMatchPrefabMap(
+        PublishedCatalogWire? catalog,
+        string? mapName,
+        out PublishedPrefabMapWireEntry entry,
+        Guid mapId = default,
+        int runtimeMapId = 0)
+    {
+        entry = null!;
+        if (catalog is null || catalog.PrefabMaps.Count == 0)
+        {
+            return false;
+        }
+
+        if (runtimeMapId != 0)
+        {
+            foreach (var item in catalog.PrefabMaps)
+            {
+                if (item?.RuntimeMapId == runtimeMapId)
+                {
+                    entry = item;
+                    return true;
+                }
+            }
+        }
+
+        if (mapId != Guid.Empty)
+        {
+            var expected = mapId.ToString("D");
+            foreach (var item in catalog.PrefabMaps)
+            {
+                if (item is not null
+                    && MapPrefabPackage.TryParseMapId(item.MapId, out var parsed)
+                    && parsed == mapId)
+                {
+                    entry = item;
+                    return true;
+                }
+
+                if (item is not null && string.Equals(item.MapId, expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    entry = item;
+                    return true;
+                }
+            }
+        }
+
+        var stem = MapPrefabPackage.SanitizeFileStem(string.IsNullOrWhiteSpace(mapName) ? "world" : mapName);
+        PublishedPrefabMapWireEntry? unique = null;
+        var matches = 0;
+        foreach (var item in catalog.PrefabMaps)
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            var entryStem = MapPrefabPackage.SanitizeFileStem(
+                string.IsNullOrWhiteSpace(item.MapName) ? "world" : item.MapName);
+            if (!string.Equals(entryStem, stem, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(item.MapName, mapName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            matches++;
+            unique = item;
+        }
+
+        if (matches == 1 && unique is not null)
+        {
+            entry = unique;
+            return true;
+        }
+
+        return false;
+    }
+
     private static IReadOnlyList<PrefabPlacement> CollectPlacements(
         Map map,
         PublishedCatalogWire? catalog,
-        string? clientBaseDirectory)
+        string? clientBaseDirectory,
+        Guid mapId,
+        int runtimeMapId)
     {
-        var stem = MapPrefabPackage.SanitizeFileStem(string.IsNullOrWhiteSpace(map.Name) ? "world" : map.Name);
-        if (catalog is not null)
+        if (TryMatchPrefabMap(catalog, map.Name, out var matched, mapId, runtimeMapId))
         {
-            foreach (var entry in catalog.PrefabMaps)
-            {
-                if (entry is null)
-                {
-                    continue;
-                }
-
-                var entryStem = MapPrefabPackage.SanitizeFileStem(
-                    string.IsNullOrWhiteSpace(entry.MapName) ? "world" : entry.MapName);
-                if (string.Equals(entryStem, stem, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(entry.MapName, map.Name, StringComparison.OrdinalIgnoreCase))
-                {
-                    return ToPlacements(entry.Placements);
-                }
-            }
+            return ToPlacements(matched.Placements);
         }
 
         if (string.IsNullOrWhiteSpace(clientBaseDirectory))
@@ -316,8 +384,10 @@ public static class PublishedPrefabClientCoverage
             return Array.Empty<PrefabPlacement>();
         }
 
-        var sidecar = PrefabPlacementDocumentJson.TryDeserializeFromFile(
-            Path.Combine(clientBaseDirectory, "Maps", stem + MapPrefabPackage.PlacementSidecarSuffix));
+        var sidecar = MapPrefabPackage.TryReadPlacementSidecar(
+            Path.Combine(clientBaseDirectory, "Maps"),
+            map.Name,
+            mapId);
         return PrefabPlacementService.ClonePlacements(sidecar?.Placements);
     }
 

@@ -1,4 +1,3 @@
-using Frog.Core.IO;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 
@@ -51,31 +50,30 @@ public static class PublishedPrefabCatalogMaterializer
         var written = 0;
         foreach (var dir in targets)
         {
-            var names = catalog.PrefabMaps
-                .Select(m => string.IsNullOrWhiteSpace(m.MapName) ? "world" : m.MapName)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            if (names.Length == 0)
-            {
-                names = ["world"];
-            }
-
-            // Catalogue + PNG une fois ; placements par carte ensuite.
-            MapPrefabPackage.WriteSidecars(dir, names, prefabCatalog, Array.Empty<PrefabPlacement>(), sprites);
+            // Catalogue + PNG une fois ; placements ensuite par identité (pas d’alias si homonymes).
+            MapPrefabPackage.WriteSidecars(dir, Array.Empty<string>(), prefabCatalog, Array.Empty<PrefabPlacement>(), sprites);
+            var mapsDir = Path.Combine(dir, "Maps");
+            Directory.CreateDirectory(mapsDir);
+            var stemCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var mapEntry in catalog.PrefabMaps)
             {
                 var stem = MapPrefabPackage.SanitizeFileStem(
                     string.IsNullOrWhiteSpace(mapEntry.MapName) ? "world" : mapEntry.MapName);
-                var mapsDir = Path.Combine(dir, "Maps");
-                Directory.CreateDirectory(mapsDir);
-                var document = new PrefabPlacementDocument
+                stemCounts[stem] = stemCounts.GetValueOrDefault(stem) + 1;
+            }
+
+            foreach (var mapEntry in catalog.PrefabMaps)
+            {
+                var placements = PublishedPrefabClientCoverage.ToPlacements(mapEntry.Placements);
+                var parsedId = MapPrefabPackage.TryParseMapId(mapEntry.MapId, out var mapId) ? mapId : Guid.Empty;
+                MapPrefabPackage.WritePlacementSidecar(mapsDir, mapEntry.MapName, placements, parsedId);
+
+                var stem = MapPrefabPackage.SanitizeFileStem(
+                    string.IsNullOrWhiteSpace(mapEntry.MapName) ? "world" : mapEntry.MapName);
+                if (parsedId != Guid.Empty && stemCounts.GetValueOrDefault(stem) == 1)
                 {
-                    DocumentVersion = 1,
-                    Placements = PublishedPrefabClientCoverage.ToPlacements(mapEntry.Placements).ToList(),
-                };
-                File.WriteAllBytes(
-                    Path.Combine(mapsDir, stem + MapPrefabPackage.PlacementSidecarSuffix),
-                    PrefabPlacementDocumentJson.Serialize(document));
+                    MapPrefabPackage.WritePlacementSidecar(mapsDir, mapEntry.MapName, placements);
+                }
             }
 
             written = Math.Max(written, sprites.Count + catalog.PrefabMaps.Count);

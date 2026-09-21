@@ -8,13 +8,75 @@ public sealed record PrefabSpriteFile(string FileName, byte[] PngBytes);
 
 /// <summary>
 /// Sidecars prefab (même layout que tilesets) :
-/// <c>Prefabs/catalog.json</c>, <c>Prefabs/{sprite}.png</c>, <c>Maps/{nom}.prefabs.json</c>.
+/// <c>Prefabs/catalog.json</c>, <c>Prefabs/{sprite}.png</c>,
+/// <c>Maps/{nom}.prefabs.json</c> et <c>Maps/{nom}.{mapId:N}.prefabs.json</c> si l’identité est connue.
 /// </summary>
 public static class MapPrefabPackage
 {
     public const string FolderName = "Prefabs";
     public const string CatalogFileName = "catalog.json";
     public const string PlacementSidecarSuffix = ".prefabs.json";
+
+    public static bool TryParseMapId(string? mapId, out Guid id)
+    {
+        id = Guid.Empty;
+        return Guid.TryParse(mapId, out id) && id != Guid.Empty;
+    }
+
+    /// <summary>
+    /// Nom de fichier sidecar : identité carte si <paramref name="mapId"/> est renseigné,
+    /// sinon le stem du nom (alias unique).
+    /// </summary>
+    public static string PlacementSidecarFileName(string? mapName, Guid mapId = default)
+    {
+        var stem = SanitizeFileStem(string.IsNullOrWhiteSpace(mapName) ? "world" : mapName);
+        if (mapId != Guid.Empty)
+        {
+            return stem + "." + mapId.ToString("N") + PlacementSidecarSuffix;
+        }
+
+        return stem + PlacementSidecarSuffix;
+    }
+
+    public static PrefabPlacementDocument? TryReadPlacementSidecar(string mapsDir, string? mapName, Guid mapId = default)
+    {
+        if (string.IsNullOrWhiteSpace(mapsDir))
+        {
+            return null;
+        }
+
+        if (mapId != Guid.Empty)
+        {
+            var identity = PrefabPlacementDocumentJson.TryDeserializeFromFile(
+                Path.Combine(mapsDir, PlacementSidecarFileName(mapName, mapId)));
+            if (identity is not null)
+            {
+                return identity;
+            }
+        }
+
+        return PrefabPlacementDocumentJson.TryDeserializeFromFile(
+            Path.Combine(mapsDir, PlacementSidecarFileName(mapName)));
+    }
+
+    public static void WritePlacementSidecar(
+        string mapsDir,
+        string? mapName,
+        IReadOnlyList<PrefabPlacement> placements,
+        Guid mapId = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapsDir);
+        ArgumentNullException.ThrowIfNull(placements);
+        Directory.CreateDirectory(mapsDir);
+        var document = new PrefabPlacementDocument
+        {
+            DocumentVersion = 1,
+            Placements = PrefabPlacementService.ClonePlacements(placements),
+        };
+        File.WriteAllBytes(
+            Path.Combine(mapsDir, PlacementSidecarFileName(mapName, mapId)),
+            PrefabPlacementDocumentJson.Serialize(document));
+    }
 
     public static void WriteSidecars(
         string appBaseDirectory,

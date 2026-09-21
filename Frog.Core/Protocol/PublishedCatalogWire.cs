@@ -128,6 +128,10 @@ public sealed class PublishedPrefabMapWireEntry
     [JsonPropertyName("mapName")]
     public string MapName { get; init; } = string.Empty;
 
+    /// <summary>Identifiant runtime serveur (additif). Sert au client quand deux cartes ont le même nom.</summary>
+    [JsonPropertyName("runtimeMapId")]
+    public int? RuntimeMapId { get; init; }
+
     [JsonPropertyName("placements")]
     public IReadOnlyList<PublishedPrefabPlacementWire> Placements { get; init; } =
         Array.Empty<PublishedPrefabPlacementWire>();

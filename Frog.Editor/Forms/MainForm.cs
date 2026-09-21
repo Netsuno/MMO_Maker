@@ -1148,12 +1148,28 @@ public sealed class MainForm : Form
 
         var catalog = _canvas.PrefabCatalog ?? PrefabSpriteCache.LoadCatalog();
         var sprites = PrefabSpriteCache.SnapshotPngFiles(catalog);
-        _workspace.CurrentPrefabs = MapPrefabPersistDocument.Create(catalog, _canvas.PrefabPlacements, sprites);
+        _workspace.CurrentPrefabs = MapPrefabPersistDocument.CreateMerged(
+            catalog,
+            _canvas.PrefabPlacements,
+            sprites,
+            _workspace.CurrentPrefabs);
     }
 
     private void OnPrefabPlacementsChanged()
     {
-        if (!_suppressPrefabPersist && _canvas.Map is { } map)
+        if (_suppressPrefabPersist)
+        {
+            PushEditorStatusLine();
+            return;
+        }
+
+        _workspace?.MarkDirty();
+        if (_workspace?.CurrentPrefabs is { } persisted)
+        {
+            persisted.Placements = PrefabPlacementService.ClonePlacements(_canvas.PrefabPlacements);
+        }
+
+        if (_canvas.Map is { } map)
         {
             EditorMapPrefabWorkstate.Write(_workspace?.CurrentMapId, map, _canvas.PrefabPlacements);
         }
@@ -1168,29 +1184,55 @@ public sealed class MainForm : Form
             return;
         }
 
+        var workstatePresent = EditorMapPrefabWorkstate.TryRead(_workspace?.CurrentMapId, map, out var workstatePlacements);
+        var persisted = _workspace?.CurrentPrefabs;
+        var source = PrefabEditorRestore.Choose(
+            _workspace?.IsDirty == true,
+            workstatePresent,
+            persisted is not null);
+
         _suppressPrefabPersist = true;
         try
         {
-            if (_workspace?.CurrentPrefabs is not null)
+            switch (source)
             {
-                _canvas.ReplacePrefabPlacements(_workspace.CurrentPrefabs.Placements);
-                EditorMapPrefabWorkstate.Write(_workspace.CurrentMapId, map, _canvas.PrefabPlacements);
-                return;
-            }
-
-            if (EditorMapPrefabWorkstate.TryRead(_workspace?.CurrentMapId, map, out var placements))
-            {
-                _canvas.ReplacePrefabPlacements(placements);
-            }
-            else
-            {
-                _canvas.ReplacePrefabPlacements(Array.Empty<PrefabPlacement>());
+                case PrefabEditorRestore.Source.UnsavedWorkstate:
+                    _canvas.ReplacePrefabPlacements(workstatePlacements);
+                    break;
+                case PrefabEditorRestore.Source.PersistedPackage:
+                    HydratePersistedPrefabCatalog(persisted!);
+                    _canvas.ReplacePrefabPlacements(persisted!.Placements);
+                    EditorMapPrefabWorkstate.Write(_workspace!.CurrentMapId, map, _canvas.PrefabPlacements);
+                    break;
+                case PrefabEditorRestore.Source.DiskWorkstate:
+                    _canvas.ReplacePrefabPlacements(workstatePlacements);
+                    break;
+                default:
+                    _canvas.ReplacePrefabPlacements(Array.Empty<PrefabPlacement>());
+                    break;
             }
         }
         finally
         {
             _suppressPrefabPersist = false;
         }
+    }
+
+    private void HydratePersistedPrefabCatalog(MapPrefabPersistDocument document)
+    {
+        _canvas.PrefabCatalog = MapPrefabPersistDocument.MergeCatalogs(document.Catalog, _canvas.PrefabCatalog);
+        var prefabsDir = PrefabSpriteCache.ResolvePrefabsDirectory();
+        Directory.CreateDirectory(prefabsDir);
+        foreach (var sprite in document.ToSpriteFiles())
+        {
+            var path = Path.Combine(prefabsDir, sprite.FileName);
+            if (!File.Exists(path) && sprite.PngBytes.Length > 0)
+            {
+                File.WriteAllBytes(path, sprite.PngBytes);
+            }
+        }
+
+        _leftToolsWpf.BindPrefabCatalog(_canvas.PrefabCatalog, _canvas.SelectedPrefabId, _canvas.SelectedPrefabFacing);
     }
 
     internal void CycleSelectedPrefabFacingForTest(bool next) => CycleSelectedPrefabFacing(next);

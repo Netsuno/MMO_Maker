@@ -15,7 +15,8 @@ public sealed class PublishedCatalogService(
     IPublishedRecipeCatalog recipes,
     IPublishedTilesetCatalog? tilesets = null,
     IPublishedTilesetImageSource? tilesetImages = null,
-    IPublishedPrefabCatalog? prefabs = null)
+    IPublishedPrefabCatalog? prefabs = null,
+    IPublishedWorldCatalog? world = null)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -79,8 +80,40 @@ public sealed class PublishedCatalogService(
             }).ToArray(),
             Tilesets = tilesetList,
             Prefabs = prefabBundle.Prefabs,
-            PrefabMaps = prefabBundle.PrefabMaps,
+            PrefabMaps = AnnotatePrefabMaps(prefabBundle.PrefabMaps, world),
         };
+    }
+
+    private static IReadOnlyList<PublishedPrefabMapWireEntry> AnnotatePrefabMaps(
+        IReadOnlyList<PublishedPrefabMapWireEntry> maps,
+        IPublishedWorldCatalog? world)
+    {
+        if (world is null || maps.Count == 0)
+        {
+            return maps;
+        }
+
+        var list = new List<PublishedPrefabMapWireEntry>(maps.Count);
+        foreach (var entry in maps)
+        {
+            int? runtime = null;
+            if (MapPrefabPackage.TryParseMapId(entry.MapId, out var guid)
+                && world.TryGetRuntimeMapId(guid, out var runtimeId)
+                && runtimeId != 0)
+            {
+                runtime = runtimeId;
+            }
+
+            list.Add(new PublishedPrefabMapWireEntry
+            {
+                MapId = entry.MapId,
+                MapName = entry.MapName,
+                RuntimeMapId = runtime,
+                Placements = entry.Placements,
+            });
+        }
+
+        return list;
     }
 
     private static PublishedTilesetWireEntry ToTilesetWire(

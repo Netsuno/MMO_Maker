@@ -107,6 +107,90 @@ public sealed class MapPrefabPersistDocument
         };
     }
 
+    /// <summary>
+    /// Reconstruit le paquet en fusionnant le catalogue / les PNG déjà persistés
+    /// (autre poste, PNG absents du <c>Prefabs/</c> local) avec le cache éditeur.
+    /// </summary>
+    public static MapPrefabPersistDocument CreateMerged(
+        PrefabCatalog localCatalog,
+        IReadOnlyList<PrefabPlacement> placements,
+        IReadOnlyList<PrefabSpriteFile>? localSprites,
+        MapPrefabPersistDocument? previous)
+    {
+        ArgumentNullException.ThrowIfNull(localCatalog);
+        ArgumentNullException.ThrowIfNull(placements);
+        var catalog = MergeCatalogs(previous?.Catalog, localCatalog);
+        var sprites = MergeSprites(previous?.ToSpriteFiles(), localSprites);
+        return Create(catalog, placements, sprites);
+    }
+
+    public static PrefabCatalog MergeCatalogs(PrefabCatalog? previous, PrefabCatalog incoming)
+    {
+        ArgumentNullException.ThrowIfNull(incoming);
+        if (previous is null || previous.Prefabs.Count == 0)
+        {
+            return incoming;
+        }
+
+        var merged = new PrefabCatalog
+        {
+            CatalogVersion = incoming.CatalogVersion != 0 ? incoming.CatalogVersion : previous.CatalogVersion,
+        };
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var prefab in incoming.Prefabs)
+        {
+            if (prefab is null || string.IsNullOrWhiteSpace(prefab.Id) || !seen.Add(prefab.Id))
+            {
+                continue;
+            }
+
+            merged.Prefabs.Add(prefab);
+        }
+
+        foreach (var prefab in previous.Prefabs)
+        {
+            if (prefab is null || string.IsNullOrWhiteSpace(prefab.Id) || !seen.Add(prefab.Id))
+            {
+                continue;
+            }
+
+            merged.Prefabs.Add(prefab);
+        }
+
+        return merged;
+    }
+
+    public static IReadOnlyList<PrefabSpriteFile> MergeSprites(
+        IReadOnlyList<PrefabSpriteFile>? previous,
+        IReadOnlyList<PrefabSpriteFile>? incoming)
+    {
+        var files = new List<PrefabSpriteFile>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sprite in incoming ?? Array.Empty<PrefabSpriteFile>())
+        {
+            var name = Path.GetFileName(sprite.FileName?.Trim() ?? string.Empty);
+            if (string.IsNullOrEmpty(name) || sprite.PngBytes.Length == 0 || !seen.Add(name))
+            {
+                continue;
+            }
+
+            files.Add(new PrefabSpriteFile(name, sprite.PngBytes));
+        }
+
+        foreach (var sprite in previous ?? Array.Empty<PrefabSpriteFile>())
+        {
+            var name = Path.GetFileName(sprite.FileName?.Trim() ?? string.Empty);
+            if (string.IsNullOrEmpty(name) || sprite.PngBytes.Length == 0 || !seen.Add(name))
+            {
+                continue;
+            }
+
+            files.Add(new PrefabSpriteFile(name, sprite.PngBytes));
+        }
+
+        return files;
+    }
+
     public IReadOnlyList<PrefabSpriteFile> ToSpriteFiles()
     {
         var files = new List<PrefabSpriteFile>();

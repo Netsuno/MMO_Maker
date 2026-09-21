@@ -4,6 +4,7 @@ using System.IO;
 using Frog.Application.Prefabs;
 using Frog.Core.IO;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 
 namespace Frog.Client.Assets;
 
@@ -18,12 +19,32 @@ public static class ClientPrefabLoader
         IReadOnlyList<PrefabPlacement> Placements,
         Dictionary<string, Bitmap> Bitmaps);
 
-    public static LoadResult LoadForMap(Map map, string appBaseDirectory)
+    public static LoadResult LoadForMap(
+        Map map,
+        string appBaseDirectory,
+        PublishedCatalogWire? publishedCatalog = null,
+        Guid mapId = default,
+        int runtimeMapId = 0)
     {
         ArgumentNullException.ThrowIfNull(map);
         PrefabCatalog? catalog = null;
         List<PrefabPlacement>? placements = null;
         var bitmaps = new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase);
+
+        if (PublishedPrefabClientCoverage.TryMatchPrefabMap(
+                publishedCatalog,
+                map.Name,
+                out var matched,
+                mapId,
+                runtimeMapId))
+        {
+            placements = PrefabPlacementService.ClonePlacements(
+                PublishedPrefabClientCoverage.ToPlacements(matched.Placements));
+            if (MapPrefabPackage.TryParseMapId(matched.MapId, out var matchedId))
+            {
+                mapId = matchedId;
+            }
+        }
 
         foreach (var root in ClientTilesetLoader.ResolveSearchDirectories(appBaseDirectory))
         {
@@ -36,9 +57,7 @@ public static class ClientPrefabLoader
 
             if (placements is null)
             {
-                var stem = MapPrefabPackage.SanitizeFileStem(string.IsNullOrWhiteSpace(map.Name) ? "world" : map.Name);
-                var sidecar = PrefabPlacementDocumentJson.TryDeserializeFromFile(
-                    Path.Combine(mapsDir, stem + MapPrefabPackage.PlacementSidecarSuffix));
+                var sidecar = MapPrefabPackage.TryReadPlacementSidecar(mapsDir, map.Name, mapId);
                 if (sidecar is not null)
                 {
                     placements = PrefabPlacementService.ClonePlacements(sidecar.Placements);
