@@ -1041,26 +1041,40 @@ public sealed class MainShellForm : Form
             p.AutoScroll = true;
         }
 
-        _cmbCharacters.MinimumSize = new Size(220, 0);
-        _cmbCharacters.Width = Math.Max(_cmbCharacters.Width, 320);
+        // Keep the combo + « Liste persos » on one 520 px card row; CTAs go on their own rows
+        // so they cannot overflow the gold frame (production clip: « on voit pas tout les boutons »).
+        _cmbCharacters.MinimumSize = new Size(180, 0);
+        _cmbCharacters.Width = 240;
         _txtNewCharName.MinimumSize = new Size(120, 0);
         _txtNewCharName.Width = Math.Max(_txtNewCharName.Width, 140);
         _cmbMeleeTarget.Margin = new Padding(2, 4, 8, 4);
 
         var rowCharPick = CreateToolbarRow();
         rowCharPick.WrapContents = true;
-        rowCharPick.Controls.Add(Lbl("Personnage", topPad: 16));
+        rowCharPick.Dock = DockStyle.None;
+        rowCharPick.Controls.Add(Lbl("Personnage", topPad: 8));
         rowCharPick.Controls.Add(_cmbCharacters);
         rowCharPick.Controls.Add(_btnCharRefresh);
-        rowCharPick.Controls.Add(_btnEnterGame);
+
+        var rowEnter = CreateToolbarRow();
+        rowEnter.WrapContents = true;
+        rowEnter.Dock = DockStyle.None;
+        _btnEnterGame.AutoSize = true;
+        _btnEnterGame.MinimumSize = new Size(220, 34);
+        rowEnter.Controls.Add(_btnEnterGame);
 
         var rowCreate = CreateToolbarRow();
         rowCreate.WrapContents = true;
-        rowCreate.Controls.Add(Lbl("Nouveau personnage", topPad: 16));
+        rowCreate.Dock = DockStyle.None;
+        rowCreate.Controls.Add(Lbl("Nouveau personnage", topPad: 8));
         rowCreate.Controls.Add(_txtNewCharName);
-        rowCreate.Controls.Add(Lbl("Classe", topPad: 16));
+        rowCreate.Controls.Add(Lbl("Classe", topPad: 8));
         rowCreate.Controls.Add(_cmbClass);
-        rowCreate.Controls.Add(_btnCharCreate);
+
+        var rowCreateAction = CreateToolbarRow();
+        rowCreateAction.WrapContents = true;
+        rowCreateAction.Dock = DockStyle.None;
+        rowCreateAction.Controls.Add(_btnCharCreate);
 
         var rowStats = CreateToolbarRow();
         var statLabels = new[] { "STR", "AGI", "DEX", "INT", "VIT", "LUCK" };
@@ -1089,13 +1103,16 @@ public sealed class MainShellForm : Form
 
         var rowCharNav = CreateToolbarRow();
         rowCharNav.WrapContents = true;
+        rowCharNav.Dock = DockStyle.None;
         rowCharNav.Controls.Add(_btnBackDisconnect);
 
         LoginShell.HostCenteredCard(
             _panelCharacter,
             TitleLbl("Choisir votre personnage"),
             rowCharPick,
+            rowEnter,
             rowCreate,
+            rowCreateAction,
             rowStats,
             rowCharNav);
 
@@ -4325,6 +4342,22 @@ public sealed class MainShellForm : Form
     internal Button CharCreateButtonForTest => _btnCharCreate;
 
     internal Button EnterGameButtonForTest => _btnEnterGame;
+
+    internal Button CharRefreshButtonForTest => _btnCharRefresh;
+
+    internal Panel CharacterPanelForTest => _panelCharacter;
+
+    /// <summary>Affiche la page perso sans TCP — smokes de layout uniquement.</summary>
+    internal void ShowCharacterSelectForTest()
+    {
+        SetPhase(ClientUiPhase.CharacterSelect);
+        PerformLayout();
+        _panelCharacter.PerformLayout();
+        foreach (Control child in _panelCharacter.Controls)
+        {
+            child.PerformLayout();
+        }
+    }
 
     internal TextBox NewCharNameTextBoxForTest => _txtNewCharName;
 
