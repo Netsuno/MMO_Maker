@@ -5,10 +5,10 @@
 | **Chantier** | Outil Sélection (M) : rotation 90° + miroirs ; pipette pinceau |
 | **Propriétaire** | Netsun |
 | **Statut** | Livré — PR ready-for-review |
-| **Base** | `main` |
+| **Base** | `main` @ `4d0e30f` |
 | **Branche** | `cursor/editor-selection-rotate-pipette-b4b5` |
-| **PR** | *(à renseigner)* |
-| **Tip** | *(à renseigner)* |
+| **PR** | [#39](https://github.com/Netsuno/MMO_Maker/pull/39) vers `main` |
+| **Tip** | `f9ddddf` (feat) |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** |
 
 Parallèle au chantier spawn (#22) : **aucun** changement publish prefab / PostgreSQL / catalogue / matérialisation client. Pas de bump `.fmap`.
