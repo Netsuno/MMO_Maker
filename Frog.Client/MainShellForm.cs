@@ -1471,7 +1471,7 @@ public sealed class MainShellForm : Form
         ApplyCatalogToUi(catalog);
         ApplyCatalogRecipesToCraft(catalog);
         var tilesetFiles = ClientPublishedTilesetMaterializer.Materialize(catalog, AppContext.BaseDirectory);
-        if (tilesetFiles > 0)
+        if (tilesetFiles > 0 || _map is not null)
         {
             ReloadTilesetBitmaps();
             RedrawMap();
@@ -2556,6 +2556,11 @@ public sealed class MainShellForm : Form
             _visLocalCy = _srvPixelY;
             ClampLocalVisToMap();
             SnapCameraToLocalVisual();
+        }
+
+        if (_publishedCatalog is not null)
+        {
+            ClientPublishedTilesetMaterializer.Materialize(_publishedCatalog, AppContext.BaseDirectory);
         }
 
         ReloadTilesetBitmaps();

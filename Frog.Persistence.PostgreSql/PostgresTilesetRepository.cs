@@ -94,7 +94,8 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
 
                 if (request.Intent == SaveContentIntent.Publish)
                 {
-                    publishedRevision = await PublishSnapshotAsync(db, entity, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(
+                            db, entity, now, request.Definition.PngBytes, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -147,7 +148,8 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
                     var entity = await db.Tilesets.AsNoTracking()
                         .FirstAsync(t => t.Id == tilesetId, cancellationToken)
                         .ConfigureAwait(false);
-                    publishedRevision = await PublishSnapshotAsync(db, entity, now, cancellationToken)
+                    publishedRevision = await PublishSnapshotAsync(
+                            db, entity, now, request.Definition.PngBytes, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -173,11 +175,26 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
         }
     }
 
-    private async Task<long> PublishSnapshotAsync(FrogDbContext db, TilesetEntity entity,
+    private async Task<long> PublishSnapshotAsync(
+        FrogDbContext db,
+        TilesetEntity entity,
         DateTimeOffset now,
+        byte[]? pngBytes,
         CancellationToken cancellationToken)
     {
         var snapshotId = Guid.NewGuid();
+        byte[]? persistPng = pngBytes is { Length: > 0 } ? pngBytes : null;
+        if (persistPng is null && entity.PublishedSnapshotId is Guid previousSnapId)
+        {
+            var previous = await db.TilesetPublishedSnapshots.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == previousSnapId, cancellationToken)
+                .ConfigureAwait(false);
+            if (previous?.PngBytes is { Length: > 0 } kept)
+            {
+                persistPng = kept;
+            }
+        }
+
         var snapshot = new TilesetPublishedSnapshotEntity
         {
             Id = snapshotId,
@@ -191,6 +208,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
             Height = entity.Height,
             Sha256Hex = entity.Sha256Hex,
             EditorPaletteId = entity.EditorPaletteId,
+            PngBytes = persistPng,
         };
         db.TilesetPublishedSnapshots.Add(snapshot);
         db.TilesetPublicationHistory.Add(new TilesetPublicationHistoryEntity
@@ -474,6 +492,7 @@ public sealed class PostgresTilesetRepository : ITilesetRepository, IPublishedTi
         HeightPixels = s.Height,
         Sha256Hex = s.Sha256Hex,
         EditorPaletteId = s.EditorPaletteId,
+        PngBytes = s.PngBytes,
     };
 
     private static string Sanitize(string message)

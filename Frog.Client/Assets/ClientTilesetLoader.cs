@@ -23,51 +23,87 @@ public static class ClientTilesetLoader
             return result;
         }
 
-        var mapsDir = Path.Combine(appBaseDirectory, "Maps");
-        var tilesetsDir = Path.Combine(appBaseDirectory, "Tilesets");
-        Directory.CreateDirectory(tilesetsDir);
-        Directory.CreateDirectory(mapsDir);
-
-        var safeName = SanitizeFileStem(string.IsNullOrWhiteSpace(map.Name) ? "world" : map.Name);
-        var manifestCandidates = new[]
+        foreach (var root in ResolveSearchDirectories(appBaseDirectory))
         {
-            Path.Combine(mapsDir, safeName + ".tilesets.json"),
-            Path.Combine(tilesetsDir, "manifest.json"),
-        };
+            var mapsDir = Path.Combine(root, "Maps");
+            var tilesetsDir = Path.Combine(root, "Tilesets");
+            Directory.CreateDirectory(tilesetsDir);
+            Directory.CreateDirectory(mapsDir);
 
-        foreach (var manifestPath in manifestCandidates)
-        {
-            var man = TilesetManifestJson.TryDeserializeFromFile(manifestPath);
-            if (man is null)
+            var safeName = SanitizeFileStem(string.IsNullOrWhiteSpace(map.Name) ? "world" : map.Name);
+            var manifestCandidates = new[]
             {
-                continue;
-            }
+                Path.Combine(mapsDir, safeName + ".tilesets.json"),
+                Path.Combine(tilesetsDir, "manifest.json"),
+            };
 
-            var manifestDir = Path.GetDirectoryName(manifestPath) ?? appBaseDirectory;
-            foreach (var e in man.Entries)
+            foreach (var manifestPath in manifestCandidates)
             {
-                if (e.Id <= 0 || string.IsNullOrWhiteSpace(e.FileName) || !wanted.Contains(e.Id) || result.ContainsKey(e.Id))
+                var man = TilesetManifestJson.TryDeserializeFromFile(manifestPath);
+                if (man is null)
                 {
                     continue;
                 }
 
-                var path = Path.Combine(manifestDir, e.FileName);
-                TryAddBitmap(result, e.Id, path);
-            }
-        }
+                var manifestDir = Path.GetDirectoryName(manifestPath) ?? root;
+                foreach (var e in man.Entries)
+                {
+                    if (e.Id <= 0 || string.IsNullOrWhiteSpace(e.FileName) || !wanted.Contains(e.Id) || result.ContainsKey(e.Id))
+                    {
+                        continue;
+                    }
 
-        foreach (var id in wanted)
-        {
-            if (result.ContainsKey(id))
+                    var path = Path.Combine(manifestDir, e.FileName);
+                    TryAddBitmap(result, e.Id, path);
+                }
+            }
+
+            foreach (var id in wanted)
             {
-                continue;
-            }
+                if (result.ContainsKey(id))
+                {
+                    continue;
+                }
 
-            var fallback = Path.Combine(tilesetsDir, $"{id}.png");
-            TryAddBitmap(result, id, fallback);
+                var fallback = Path.Combine(tilesetsDir, $"{id}.png");
+                TryAddBitmap(result, id, fallback);
+            }
         }
 
         return result;
+    }
+
+    /// <summary>Répertoire d’exécution + cwd (playtest / lancement hors dossier exe).</summary>
+    public static string[] ResolveSearchDirectories(string? appBaseDirectory)
+    {
+        var list = new List<string>();
+        void Add(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            try
+            {
+                var full = Path.GetFullPath(path);
+                if (list.Exists(existing => string.Equals(existing, full, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return;
+                }
+
+                list.Add(full);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        Add(appBaseDirectory);
+        Add(AppContext.BaseDirectory);
+        Add(Environment.CurrentDirectory);
+        return list.ToArray();
     }
 
     private static void TryAddBitmap(Dictionary<int, Bitmap> result, int id, string path)

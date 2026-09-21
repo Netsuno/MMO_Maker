@@ -134,8 +134,12 @@ public sealed class PostgresTilesetRepositoryTests
         var del = await tilesets.DeleteAsync(saved.TilesetId);
         Assert.IsType<DeleteTilesetResult.Referenced>(del);
 
+        var stillReferenced = await tilesets.ListSummariesAsync(search: "RefGrass");
+        Assert.Contains(stillReferenced, e => e.TilesetId == saved.TilesetId);
+        Assert.DoesNotContain(stillReferenced, e => e.Status == ContentPublishStatus.Published);
+
         var published = await tilesets.ListPublishedAsync();
-        Assert.Empty(published);
+        Assert.Empty(published.Where(p => p.Id == saved.TilesetId || p.Name == "RefGrass"));
         Assert.IsType<SaveTilesetResult.Success>(await tilesets.SaveAsync(new SaveTilesetRequest
         {
             TilesetId = saved.TilesetId,
@@ -144,7 +148,53 @@ public sealed class PostgresTilesetRepositoryTests
             Intent = SaveContentIntent.Publish,
         }));
         published = await tilesets.ListPublishedAsync();
-        Assert.Contains(published, p => p.Name == "RefGrass");
+        Assert.Contains(published, p => p.Id == saved.TilesetId && p.Name == "RefGrass");
+    }
+
+    [PostgresFact]
+    [Trait("Category", "PostgreSql")]
+    public async Task Publish_StoresPngBytes_CatalogCoversMapTilesetId()
+    {
+        using var gate = CreateGate();
+        var tilesets = new PostgresTilesetRepository(gate);
+        var png = Convert.FromHexString(
+            "89504e470d0a1a0a0000000d4948445200000020000000200806000000737a7af40000002f4944415478daedce210100000803b0c779ff14b482189889f965dafd14010101010101010101010101010181efc00179385c7992f053410000000049454e44ae426082");
+        var sha = TilesetDefinition.ComputeSha256Hex(png);
+        var def = CreateDef("BlobGrass", "tiles/blob-grass.png", palette: 17);
+        def.Sha256Hex = sha;
+        def.PngBytes = png;
+
+        var saved = Assert.IsType<SaveTilesetResult.Success>(await tilesets.SaveAsync(new SaveTilesetRequest
+        {
+            Definition = def,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }));
+
+        using var gate2 = CreateGate();
+        var reload = new PostgresTilesetRepository(gate2);
+        var published = await reload.ListPublishedAsync();
+        var loaded = Assert.Single(published, p => p.Id == saved.TilesetId);
+        Assert.NotNull(loaded.PngBytes);
+        Assert.Equal(png, loaded.PngBytes);
+
+        var map = DemoMapWithPalette(17);
+        var wire = new Frog.Core.Protocol.PublishedCatalogWire
+        {
+            Tilesets =
+            [
+                new Frog.Core.Protocol.PublishedTilesetWireEntry
+                {
+                    Id = loaded.Id.ToString("D"),
+                    Name = loaded.Name,
+                    PaletteId = loaded.EditorPaletteId ?? 0,
+                    LogicalPath = loaded.LogicalPath,
+                    Sha256Hex = loaded.Sha256Hex,
+                    PngBase64 = Convert.ToBase64String(loaded.PngBytes!),
+                },
+            ],
+        };
+        Assert.Empty(Frog.Application.Assets.PublishedTilesetClientCoverage.MissingTilesetIds(map, wire));
     }
 
     private FrogDbContextGate CreateGate()

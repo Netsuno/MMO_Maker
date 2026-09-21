@@ -96,6 +96,8 @@ public sealed class TilesetPublishedSnapshotEntity
     public int Height { get; set; }
     public string Sha256Hex { get; set; } = string.Empty;
     public int? EditorPaletteId { get; set; }
+    /// <summary>PNG publié (livré au client via catalogue <c>pngBase64</c>).</summary>
+    public byte[]? PngBytes { get; set; }
     public TilesetEntity Tileset { get; set; } = null!;
 }
 

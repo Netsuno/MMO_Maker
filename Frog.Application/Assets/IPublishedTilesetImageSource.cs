@@ -36,6 +36,11 @@ public sealed class ProjectAssetTilesetImageSource : IPublishedTilesetImageSourc
             return false;
         }
 
+        if (EmbeddedPublishedTilesetImageSource.Instance.TryReadPng(definition, out bytes))
+        {
+            return true;
+        }
+
         var resolved = ProjectAssetPathResolver.TryResolve(_assetRoot, definition.LogicalPath);
         if (resolved.Status != ProjectAssetPathResolver.ResolveStatus.Success
             || string.IsNullOrWhiteSpace(resolved.AbsolutePath))

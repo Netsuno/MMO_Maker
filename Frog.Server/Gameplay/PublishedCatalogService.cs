@@ -31,8 +31,8 @@ public sealed class PublishedCatalogService(
         var tilesetList = tilesets is null
             ? Array.Empty<PublishedTilesetWireEntry>()
             : (await tilesets.ListPublishedAsync(cancellationToken).ConfigureAwait(false))
-            .Where(t => t.EditorPaletteId is > 0)
             .Select(t => ToTilesetWire(t, tilesetImages))
+            .Where(t => t.PaletteId > 0)
             .ToArray();
 
         return new PublishedCatalogWire
@@ -86,11 +86,15 @@ public sealed class PublishedCatalogService(
             png = Convert.ToBase64String(bytes);
         }
 
+        var paletteId = definition.EditorPaletteId
+                        ?? TilesetPaletteAlignment.ResolveClientTilesetId(definition, Array.Empty<int>())
+                        ?? 0;
+
         return new PublishedTilesetWireEntry
         {
             Id = definition.Id.ToString("D"),
             Name = definition.Name,
-            PaletteId = definition.EditorPaletteId ?? 0,
+            PaletteId = paletteId,
             LogicalPath = definition.LogicalPath,
             Sha256Hex = definition.Sha256Hex,
             TileSizePixels = definition.TileSizePixels,
