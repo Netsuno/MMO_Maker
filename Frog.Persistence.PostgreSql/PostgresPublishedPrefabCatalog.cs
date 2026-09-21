@@ -26,6 +26,10 @@ public sealed class PostgresPublishedPrefabCatalog : IPublishedPrefabCatalog
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
+            var bindings = await db.RuntimeMapBindings.AsNoTracking()
+                .ToDictionaryAsync(b => b.MapId, b => b.RuntimeMapId, ct)
+                .ConfigureAwait(false);
+
             var prefabs = new Dictionary<string, PublishedPrefabWireEntry>(StringComparer.Ordinal);
             var maps = new List<PublishedPrefabMapWireEntry>();
             foreach (var row in rows)
@@ -42,7 +46,14 @@ public sealed class PostgresPublishedPrefabCatalog : IPublishedPrefabCatalog
                     prefabs[entry.Id] = entry;
                 }
 
-                maps.Add(PublishedPrefabClientCoverage.ToWireMap(row.Id, row.Name, document.Placements));
+                int? runtime = bindings.TryGetValue(row.Id, out var runtimeId) && runtimeId > 0
+                    ? runtimeId
+                    : null;
+                maps.Add(PublishedPrefabClientCoverage.ToWireMap(
+                    row.Id,
+                    row.Name,
+                    document.Placements,
+                    runtime));
             }
 
             return new PublishedPrefabCatalogBundle

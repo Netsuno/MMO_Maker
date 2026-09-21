@@ -11,9 +11,10 @@ namespace Frog.Client.Assets;
 /// </summary>
 public static class ClientPublishedTilesetMaterializer
 {
-    public static int Materialize(PublishedCatalogWire? catalog, string appBaseDirectory)
+    public static int Materialize(PublishedCatalogWire? catalog, string appBaseDirectory, string? mapName = null)
     {
         var dirs = ClientTilesetLoader.ResolveSearchDirectories(appBaseDirectory);
-        return PublishedTilesetCatalogMaterializer.Materialize(catalog, dirs);
+        IReadOnlyList<string>? names = string.IsNullOrWhiteSpace(mapName) ? null : [mapName];
+        return PublishedTilesetCatalogMaterializer.Materialize(catalog, dirs, names);
     }
 }

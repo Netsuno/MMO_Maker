@@ -119,6 +119,7 @@ public sealed class PostgresMapRepositoryTests
         Assert.Contains(bundle.Prefabs, p => p.Id == BuiltInPrefabCatalog.SofaId);
         var mapEntry = Assert.Single(bundle.PrefabMaps, m => m.MapName == "Salon");
         Assert.Single(mapEntry.Placements);
+        Assert.True(mapEntry.RuntimeMapId is > 0);
 
         var wire = new Frog.Core.Protocol.PublishedCatalogWire
         {

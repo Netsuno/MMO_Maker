@@ -196,13 +196,12 @@ public static class Phase8WireDecoders
             return false;
         }
 
-        var len = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(1));
-        if (payload.Length != 3 + len)
+        var assembler = new PublishedCatalogPacket.Assembler();
+        if (!assembler.TryAccept(payload.Slice(1), out var json) || string.IsNullOrEmpty(json))
         {
             return false;
         }
 
-        var json = System.Text.Encoding.UTF8.GetString(payload.Slice(3, len));
         var parsed = System.Text.Json.JsonSerializer.Deserialize<PublishedCatalogWire>(json);
         if (parsed is null)
         {

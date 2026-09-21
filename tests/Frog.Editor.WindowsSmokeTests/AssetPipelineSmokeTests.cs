@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.IO;
 using Frog.Application.Assets;
+using Frog.Application.Prefabs;
 using Frog.Client.Assets;
 using Frog.Client.UI;
 using Frog.Core.Enums;
@@ -151,6 +152,9 @@ public sealed class AssetPipelineSmokeTests
                 tile.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
                 var bytes = ms.ToArray();
                 var sha = TilesetDefinition.ComputeSha256Hex(bytes);
+                var pngBase64 = Convert.ToBase64String(bytes);
+                var mapId = Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+                const string mapName = "Green Field";
 
                 var catalog = new PublishedCatalogWire
                 {
@@ -163,15 +167,52 @@ public sealed class AssetPipelineSmokeTests
                             PaletteId = 9,
                             LogicalPath = "tiles/green.png",
                             Sha256Hex = sha,
-                            PngBase64 = Convert.ToBase64String(bytes),
+                            PngBase64 = pngBase64,
                             TileSizePixels = 32,
                             WidthPixels = 32,
                             HeightPixels = 32,
                         },
                     ],
+                    Prefabs =
+                    [
+                        new PublishedPrefabWireEntry
+                        {
+                            Id = "sofa",
+                            DisplayName = "Canapé",
+                            Variants =
+                            [
+                                new PublishedPrefabVariantWire
+                                {
+                                    Facing = "south",
+                                    SpriteFileName = "sofa-south.png",
+                                    Sha256Hex = sha,
+                                    PngBase64 = pngBase64,
+                                },
+                            ],
+                        },
+                    ],
+                    PrefabMaps =
+                    [
+                        new PublishedPrefabMapWireEntry
+                        {
+                            MapId = mapId.ToString("D"),
+                            MapName = mapName,
+                            RuntimeMapId = 1,
+                            Placements =
+                            [
+                                new PublishedPrefabPlacementWire
+                                {
+                                    PrefabId = "sofa",
+                                    Facing = "south",
+                                    TileX = 0,
+                                    TileY = 0,
+                                },
+                            ],
+                        },
+                    ],
                 };
 
-                var map = new Map { Width = 1, Height = 1, Name = "Green Field" };
+                var map = new Map { Width = 1, Height = 1, Name = mapName };
                 var layer = new Layer { LayerType = LayerType.Ground, Visible = true };
                 layer.Tiles.Add(new Tile
                 {
@@ -185,14 +226,24 @@ public sealed class AssetPipelineSmokeTests
                 map.Layers.Add(layer);
                 Assert.Equal(new[] { 9 }, PublishedTilesetClientCoverage.MissingTilesetIds(map, catalog: null));
 
-                var n = ClientPublishedTilesetMaterializer.Materialize(catalog, dir);
+                var n = ClientPublishedTilesetMaterializer.Materialize(catalog, dir, map.Name);
                 Assert.Equal(1, n);
+                Assert.True(ClientPublishedPrefabMaterializer.Materialize(catalog, dir) > 0);
                 Assert.True(File.Exists(Path.Combine(dir, "Tilesets", "9.png")));
+                Assert.True(File.Exists(Path.Combine(dir, "Tilesets", "manifest.json")));
+                Assert.True(File.Exists(Path.Combine(dir, "Maps", map.Name + ".tilesets.json")));
+                Assert.True(File.Exists(Path.Combine(dir, "Prefabs", "sofa-south.png")));
+                Assert.True(File.Exists(Path.Combine(dir, "Prefabs", "catalog.json")));
+                Assert.True(File.Exists(Path.Combine(dir, "Maps", map.Name + ".prefabs.json")));
+                Assert.True(File.Exists(Path.Combine(dir, "Maps", MapPrefabPackage.PlacementSidecarFileName(map.Name, mapId))));
                 Assert.Empty(PublishedTilesetClientCoverage.MissingTilesetIds(map, catalog, dir));
                 var loaded = ClientTilesetLoader.LoadForMap(map, dir);
+                var prefabs = ClientPrefabLoader.LoadForMap(map, dir, catalog, mapId, runtimeMapId: 1);
                 try
                 {
                     Assert.True(loaded.ContainsKey(9));
+                    Assert.Equal("sofa", Assert.Single(prefabs.Placements).PrefabId);
+                    Assert.True(prefabs.Bitmaps.ContainsKey("sofa-south.png"));
                 }
                 finally
                 {
@@ -200,6 +251,8 @@ public sealed class AssetPipelineSmokeTests
                     {
                         bmp.Dispose();
                     }
+
+                    ClientPrefabLoader.DisposeBitmaps(prefabs.Bitmaps);
                 }
             }
             finally

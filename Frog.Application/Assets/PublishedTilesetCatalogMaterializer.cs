@@ -8,6 +8,12 @@ namespace Frog.Application.Assets;
 public static class PublishedTilesetCatalogMaterializer
 {
     public static int Materialize(PublishedCatalogWire? catalog, params string[] directories)
+        => Materialize(catalog, directories, mapNames: null);
+
+    public static int Materialize(
+        PublishedCatalogWire? catalog,
+        string[] directories,
+        IReadOnlyList<string>? mapNames)
     {
         if (catalog is null || catalog.Tilesets.Count == 0)
         {
@@ -36,9 +42,10 @@ public static class PublishedTilesetCatalogMaterializer
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        var names = mapNames ?? Array.Empty<string>();
         foreach (var dir in targets)
         {
-            MapTilesetPackage.WriteSidecars(dir, Array.Empty<string>(), written);
+            MapTilesetPackage.WriteSidecars(dir, names, written);
         }
 
         return written.Count;

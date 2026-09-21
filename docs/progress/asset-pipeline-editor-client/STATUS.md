@@ -18,7 +18,7 @@ Protocole fil **inchangé** (`FrogWireProtocol.Version` inchangé). Champ JSON c
 2. **Publication carte** — `MapPublishedTilesetSync` publie chaque `Tile.TilesetId` utilisé avec le PNG de session (`EditorPaletteId` = id carte). Snapshot PostgreSQL `content.tileset_published_snapshots.png_bytes`.
 3. **Ouverture carte catalogue** — `PublishedTilesetCacheHydrator` reconstruit `TilesetCache` depuis le Guid / palette publié + PNG (plus besoin de recharger les fichiers à la main).
 4. **Playtest** — sidecar `Tilesets/` (workspace + dir client) **et** `published-tilesets.json`. Le serveur playtest (sans PostgreSQL) charge ce JSON comme `IPublishedTilesetCatalog` et envoie `pngBase64`.
-5. **Client** — `PublishedCatalogResult.tilesets[].pngBase64` → matérialisation `Tilesets/{paletteId}.png` (exe **et** cwd) → `ClientTilesetLoader` / `MapViewRenderer`. Couverture : un id carte sans PNG matérialisable échoue les tests.
+5. **Client** — `PublishedCatalogResult.tilesets[].pngBase64` → matérialisation `Tilesets/{paletteId}.png` + `Tilesets/manifest.json` + `Maps/{nom}.tilesets.json` (exe **et** cwd) → `ClientTilesetLoader` / `MapViewRenderer`. Le JSON catalogue avec un PNG publié (~centaines de Ko) dépasse l’ancien préfixe `UInt16` : envoi fragmenté (`0xFFFF`), `FrogWireProtocol.Version` inchangé. Couverture : un id carte sans PNG matérialisable échoue les tests.
 
 Alignement Guid ↔ int : `TilesetPaletteAlignment` (palette d’abord, puis SHA, puis correspondance 1-1 sur la carte).
 
