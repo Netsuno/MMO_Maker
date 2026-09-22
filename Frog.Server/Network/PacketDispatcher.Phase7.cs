@@ -6,6 +6,7 @@ using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Protocol;
 using Frog.Server.Gameplay;
+using Frog.Server.Logging;
 using Frog.Server.Models;
 
 namespace Frog.Server.Network;
@@ -22,9 +23,15 @@ public sealed partial class PacketDispatcher
             await _packetSender.SendPublishedCatalogResultAsync(clientSession, json, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
-            // Catalogue optionnel : ne bloque pas login/reconnect.
+            // Arrêt : ne bloque pas la fermeture.
+        }
+        catch (Exception ex)
+        {
+            // Catalogue optionnel : ne bloque pas login/reconnect, mais un PNG publié
+            // ne doit plus disparaître en silence (ancien plafond UInt16).
+            ServerNetworkLogs.PublishedCatalogSendFailed(_logger, ex, ex.Message);
         }
     }
 

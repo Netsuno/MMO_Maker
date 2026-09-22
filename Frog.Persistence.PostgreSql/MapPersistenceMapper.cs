@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Frog.Application.Maps;
 using Frog.Application.Prefabs;
 using Frog.Core.Enums;
@@ -171,31 +172,27 @@ internal static class MapPersistenceMapper
 
         var catalog = JsonSerializer.Deserialize<List<LayerCatalogEntry>>(entity.LayersCatalogJson, Json)
                       ?? new List<LayerCatalogEntry>();
-        var layersByType = new Dictionary<LayerType, Layer>();
+        // Ordre du catalogue : deux couches Ground (« Sol » et « Tombe ») restent distinctes.
+        var layers = new List<Layer>(catalog.Count);
         foreach (var entry in catalog)
         {
-            var layerType = (LayerType)entry.LayerType;
-            layersByType[layerType] = new Layer
+            layers.Add(new Layer
             {
-                LayerType = layerType,
+                LayerType = (LayerType)entry.LayerType,
                 DisplayName = entry.DisplayName,
                 Visible = entry.Visible,
                 Locked = entry.Locked,
-            };
+            });
         }
 
         foreach (var cell in entity.Cells)
         {
             var payloads = JsonSerializer.Deserialize<List<CellLayerPayload>>(cell.LayersJson, Json)
                            ?? new List<CellLayerPayload>();
+            var legacySlot = new Dictionary<LayerType, int>();
             foreach (var p in payloads)
             {
-                var layerType = (LayerType)p.LayerType;
-                if (!layersByType.TryGetValue(layerType, out var layer))
-                {
-                    layer = new Layer { LayerType = layerType, DisplayName = layerType.ToString() };
-                    layersByType[layerType] = layer;
-                }
+                var layer = ResolveLayer(layers, p, legacySlot);
 
                 var tile = new Tile
                 {
@@ -229,7 +226,7 @@ internal static class MapPersistenceMapper
             }
         }
 
-        foreach (var layer in layersByType.Values.OrderBy(l => (byte)l.LayerType))
+        foreach (var layer in layers)
         {
             map.Layers.Add(layer);
         }
@@ -248,8 +245,9 @@ internal static class MapPersistenceMapper
 
         var cells = new Dictionary<(int X, int Y), List<CellLayerPayload>>();
         var warpKeys = new HashSet<(int X, int Y)>();
-        foreach (var layer in map.Layers)
+        for (var layerIndex = 0; layerIndex < map.Layers.Count; layerIndex++)
         {
+            var layer = map.Layers[layerIndex];
             foreach (var tile in layer.Tiles)
             {
                 var key = (tile.X, tile.Y);
@@ -261,6 +259,7 @@ internal static class MapPersistenceMapper
 
                 list.Add(new CellLayerPayload
                 {
+                    LayerIndex = layerIndex,
                     LayerType = (byte)layer.LayerType,
                     TileType = (byte)tile.Type,
                     TilesetId = tile.TilesetId,
@@ -310,8 +309,51 @@ internal static class MapPersistenceMapper
         public bool Locked { get; set; }
     }
 
+    /// <summary>
+    /// Couche cible. <see cref="CellLayerPayload.LayerIndex"/> (additif) prime.
+    /// Les JSON anciens n’ont que <see cref="CellLayerPayload.LayerType"/> : la n-ième
+    /// charge utile de ce type sur la cellule va à la n-ième couche du catalogue de ce type.
+    /// </summary>
+    private static Layer ResolveLayer(
+        List<Layer> layers,
+        CellLayerPayload payload,
+        Dictionary<LayerType, int> legacySlot)
+    {
+        if (payload.LayerIndex is int index && (uint)index < (uint)layers.Count)
+        {
+            return layers[index];
+        }
+
+        var layerType = (LayerType)payload.LayerType;
+        var slot = legacySlot.GetValueOrDefault(layerType);
+        legacySlot[layerType] = slot + 1;
+        var seen = 0;
+        foreach (var layer in layers)
+        {
+            if (layer.LayerType != layerType)
+            {
+                continue;
+            }
+
+            if (seen == slot)
+            {
+                return layer;
+            }
+
+            seen++;
+        }
+
+        var created = new Layer { LayerType = layerType, DisplayName = layerType.ToString() };
+        layers.Add(created);
+        return created;
+    }
+
     private sealed class CellLayerPayload
     {
+        /// <summary>Index dans <c>layers_catalog_json</c>. Absent des snapshots publiés avant ce correctif.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? LayerIndex { get; set; }
+
         public byte LayerType { get; set; }
         public byte TileType { get; set; }
         public int TilesetId { get; set; }

@@ -1470,7 +1470,7 @@ public sealed class MainShellForm : Form
         _publishedCatalog = catalog;
         ApplyCatalogToUi(catalog);
         ApplyCatalogRecipesToCraft(catalog);
-        var tilesetFiles = ClientPublishedTilesetMaterializer.Materialize(catalog, AppContext.BaseDirectory);
+        var tilesetFiles = ClientPublishedTilesetMaterializer.Materialize(catalog, AppContext.BaseDirectory, _map?.Name);
         var prefabFiles = ClientPublishedPrefabMaterializer.Materialize(catalog, AppContext.BaseDirectory);
         if (tilesetFiles > 0 || prefabFiles > 0 || _map is not null)
         {
@@ -2562,7 +2562,7 @@ public sealed class MainShellForm : Form
 
         if (_publishedCatalog is not null)
         {
-            ClientPublishedTilesetMaterializer.Materialize(_publishedCatalog, AppContext.BaseDirectory);
+            ClientPublishedTilesetMaterializer.Materialize(_publishedCatalog, AppContext.BaseDirectory, map.Name);
             ClientPublishedPrefabMaterializer.Materialize(_publishedCatalog, AppContext.BaseDirectory);
         }
 

@@ -93,6 +93,9 @@ internal static partial class ServerNetworkLogs
     [LoggerMessage(EventId = 5027, Level = LogLevel.Warning, Message = "Chat rate limited username={Username}")]
     public static partial void ChatRateLimited(ILogger logger, string username);
 
+    [LoggerMessage(EventId = 5032, Level = LogLevel.Warning, Message = "Published catalog not sent: {Reason}")]
+    public static partial void PublishedCatalogSendFailed(ILogger logger, Exception exception, string reason);
+
     [LoggerMessage(EventId = 5028, Level = LogLevel.Warning, Message = "TCP frame rejected {ConnectionId} {RemoteEndPoint} reason={Reason}")]
     public static partial void ConnectionRejected(ILogger logger, Guid connectionId, string remoteEndPoint, string reason);
 

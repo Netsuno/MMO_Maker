@@ -96,7 +96,8 @@ public sealed class PublishedCatalogService(
         var list = new List<PublishedPrefabMapWireEntry>(maps.Count);
         foreach (var entry in maps)
         {
-            int? runtime = null;
+            // Garder l’id déjà porté par le catalogue (liaison PG) si le cache monde est encore froid.
+            int? runtime = entry.RuntimeMapId is > 0 ? entry.RuntimeMapId : null;
             if (MapPrefabPackage.TryParseMapId(entry.MapId, out var guid)
                 && world.TryGetRuntimeMapId(guid, out var runtimeId)
                 && runtimeId != 0)

@@ -115,6 +115,8 @@ Guide utilisateur pas à pas : [`Docs/premier-monde.md`](../../Docs/premier-mond
 
 Champs optionnels **`prefabs`** / **`prefabMaps`** : définitions + `pngBase64` et placements par `mapId` / `mapName` (`runtimeMapId` additif), depuis le jsonb `prefabs_json` des snapshots cartes publiés (PostgreSQL) ou le sidecar playtest `published-prefabs.json`. Le client écrit `Prefabs/{sprite}.png`, `Prefabs/catalog.json` et `Maps/{nom}.{mapId}.prefabs.json` (alias `{nom}.prefabs.json` si le nom est unique ; exe + cwd) puis `ClientPrefabLoader` / `DrawPlacedPrefabs`.
 
+`PublishedCatalogResult` : opcode `65`, puis JSON UTF-8. Tant que le JSON tient en **65534** octets, la longueur reste un **`UInt16` LE** (catalogues historiques). Au-delà (PNG `pngBase64` d’un tileset réel), la longueur `UInt16` vaut **`0xFFFF`** et le corps continue par `TotalLength` / `ChunkOffset` / `ChunkLength` (`Int32` LE chacun) puis les octets du fragment. Plusieurs frames se réassemblent ; chaque frame reste ≤ 1 MiB. `FrogWireProtocol.Version` **reste 11**.
+
 ## Messages
 
 ### Hello (Serveur -> Client)

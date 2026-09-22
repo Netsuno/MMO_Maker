@@ -108,6 +108,8 @@ public sealed class FrogGameClient : IDisposable
     /// <summary>Dernier catalogue publié reçu du serveur.</summary>
     public PublishedCatalogWire? LatestPublishedCatalog { get; private set; }
 
+    private readonly PublishedCatalogPacket.Assembler _catalogAssembler = new();
+
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
         => await ConnectAsync(host, port, ClientTlsOptions.Off, cancellationToken).ConfigureAwait(false);
 
@@ -199,6 +201,8 @@ public sealed class FrogGameClient : IDisposable
         }
         finally
         {
+            _catalogAssembler.Reset();
+            LatestPublishedCatalog = null;
             ClearWorldMapFingerprint();
             _intentionalDisconnect = false;
         }
@@ -639,13 +643,17 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.PublishedCatalogResult:
-                if (TryReadLengthPrefixedUtf8Json(body.Span, out var catalogJson)
-                    && TryDeserializePublishedCatalog(catalogJson, out var catalog))
+                if (!_catalogAssembler.TryAccept(body.Span, out var catalogJson))
+                {
+                    Post(() => ErrorReceived?.Invoke("PublishedCatalogResult: format invalide."));
+                }
+                else if (catalogJson is not null
+                         && TryDeserializePublishedCatalog(catalogJson, out var catalog))
                 {
                     LatestPublishedCatalog = catalog;
                     Post(() => PublishedCatalogReceived?.Invoke(catalog));
                 }
-                else
+                else if (catalogJson is not null)
                 {
                     Post(() => ErrorReceived?.Invoke("PublishedCatalogResult: format invalide."));
                 }

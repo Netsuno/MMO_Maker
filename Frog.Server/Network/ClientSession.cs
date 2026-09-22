@@ -114,9 +114,15 @@ public sealed class ClientSession : IAsyncDisposable
         return true;
     }
 
-    public async Task SendFrameAsync(byte[] payload, CancellationToken cancellationToken)
+    public Task SendFrameAsync(byte[] payload, CancellationToken cancellationToken)
+        => SendFramesAsync([payload], cancellationToken);
+
+    /// <summary>
+    /// Écrit plusieurs frames sous le même verrou d’envoi (fragments de catalogue contigus).
+    /// </summary>
+    public async Task SendFramesAsync(IReadOnlyList<byte[]> payloads, CancellationToken cancellationToken)
     {
-        if (IsClosed || Volatile.Read(ref _disposing) != 0)
+        if (payloads is null || payloads.Count == 0 || IsClosed || Volatile.Read(ref _disposing) != 0)
         {
             return;
         }
@@ -135,15 +141,18 @@ public sealed class ClientSession : IAsyncDisposable
         Interlocked.Increment(ref _activeSends);
         try
         {
-            if (IsClosed)
+            foreach (var payload in payloads)
             {
-                return;
-            }
+                if (IsClosed)
+                {
+                    return;
+                }
 
-            var frame = new byte[sizeof(int) + payload.Length];
-            BitConverter.GetBytes(payload.Length).CopyTo(frame, 0);
-            payload.CopyTo(frame, sizeof(int));
-            await _stream.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
+                var frame = new byte[sizeof(int) + payload.Length];
+                BitConverter.GetBytes(payload.Length).CopyTo(frame, 0);
+                payload.CopyTo(frame, sizeof(int));
+                await _stream.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (ObjectDisposedException)
         {
