@@ -84,7 +84,7 @@ public sealed class MapCanvas : Control
 
     private bool _showMapEventMarkers = true;
 
-    /// <summary>Affiche les pastilles d’événements MariaDB (<see cref="MapEventMarkers"/>) sur le canevas.</summary>
+    /// <summary>Affiche les losanges d’événements placés (<see cref="MapEventMarkers"/>) sur le canevas.</summary>
     public bool ShowMapEventMarkers
     {
         get => _showMapEventMarkers;
@@ -96,7 +96,31 @@ public sealed class MapCanvas : Control
             }
 
             _showMapEventMarkers = value;
+            if (!value)
+            {
+                _hoveredMapEventMarker = null;
+            }
+
             MapEventOverlayChanged?.Invoke();
+            MapEventMarkerInteractionChanged?.Invoke();
+            Invalidate();
+        }
+    }
+
+    private bool _showMapEventNames = true;
+
+    /// <summary>Affiche le nom du type d’événement (zoom suffisant, survol ou sélection). Défaut : oui.</summary>
+    public bool ShowMapEventNames
+    {
+        get => _showMapEventNames;
+        set
+        {
+            if (_showMapEventNames == value)
+            {
+                return;
+            }
+
+            _showMapEventNames = value;
             Invalidate();
         }
     }
@@ -110,9 +134,76 @@ public sealed class MapCanvas : Control
         set
         {
             _mapEventMarkers = value;
+            var interaction = false;
+            if (_hasSelectedMapEvent && !MarkerListContainsSelection(value))
+            {
+                _hasSelectedMapEvent = false;
+                _selectedMapEventPlacementKey = "";
+                interaction = true;
+            }
+
+            if (_hoveredMapEventMarker is { } hovered && !MarkerListContains(value, hovered))
+            {
+                _hoveredMapEventMarker = null;
+                interaction = true;
+            }
+
             MapEventOverlayChanged?.Invoke();
+            if (interaction)
+            {
+                MapEventMarkerInteractionChanged?.Invoke();
+            }
+
             Invalidate();
         }
+    }
+
+    /// <summary>Clic sur un losange ou son libellé (sélection canevas déjà appliquée).</summary>
+    public event Action<MapEventMarkerView>? MapEventMarkerPicked;
+
+    /// <summary>Survol, sélection ou visibilité des noms ont changé (barre d’état).</summary>
+    public event Action? MapEventMarkerInteractionChanged;
+
+    private MapEventMarkerView? _hoveredMapEventMarker;
+    private bool _hasSelectedMapEvent;
+    private int _selectedMapEventTileX;
+    private int _selectedMapEventTileY;
+    private string _selectedMapEventPlacementKey = "";
+    private bool _mapEventMarkerGesture;
+
+    /// <summary>Nom tronqué de l’événement survolé, sinon de l’événement sélectionné.</summary>
+    public string? ActiveMapEventCaption
+    {
+        get
+        {
+            if (!ShowMapEventMarkers)
+            {
+                return null;
+            }
+
+            if (_hoveredMapEventMarker is { } hovered)
+            {
+                return MapEventMarkerLayout.FormatLabel(hovered.PrimaryDisplayName, hovered.PrimarySlug, hovered.PlacementCount);
+            }
+
+            if (_hasSelectedMapEvent && TryFindSelectedMarker(out var selected))
+            {
+                return MapEventMarkerLayout.FormatLabel(selected.PrimaryDisplayName, selected.PrimarySlug, selected.PlacementCount);
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>Met en évidence un placement (liste événements) sans redéclencher <see cref="MapEventMarkerPicked"/>.</summary>
+    public void HighlightMapEventMarker(int tileX, int tileY, string? placementKey)
+    {
+        _hasSelectedMapEvent = true;
+        _selectedMapEventTileX = tileX;
+        _selectedMapEventTileY = tileY;
+        _selectedMapEventPlacementKey = placementKey ?? "";
+        Invalidate();
+        MapEventMarkerInteractionChanged?.Invoke();
     }
 
     public EditorTool ActiveTool { get; set; } = EditorTool.Brush;
@@ -169,6 +260,7 @@ public sealed class MapCanvas : Control
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
+        MouseLeave += (_, _) => ClearMapEventMarkerHover();
     }
 
     /// <summary>Coin haut-gauche et coin bas-droit visibles, en coordonnées « monde » (pixels carte avant zoom).</summary>
@@ -676,124 +768,46 @@ public sealed class MapCanvas : Control
         }
 
         var ts = TileSize;
+        var visible = new List<MapEventMarkerView>();
+        foreach (var m in _mapEventMarkers)
+        {
+            if (m.TileX < tx0 || m.TileX > tx1 || m.TileY < ty0 || m.TileY > ty1)
+            {
+                continue;
+            }
+
+            if (m.TileX < 0 || m.TileX >= Map.Width || m.TileY < 0 || m.TileY >= Map.Height)
+            {
+                continue;
+            }
+
+            visible.Add(m);
+        }
+
+        if (visible.Count == 0)
+        {
+            return;
+        }
+
         var prevSmooth = g.SmoothingMode;
         var prevText = g.TextRenderingHint;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         try
         {
-            foreach (var m in _mapEventMarkers)
+            foreach (var m in visible)
             {
-                if (m.TileX < tx0 || m.TileX > tx1 || m.TileY < ty0 || m.TileY > ty1)
+                DrawMapEventMarkerBody(g, m, ts);
+            }
+
+            foreach (var m in visible)
+            {
+                if (!ShouldDrawNameFor(m))
                 {
                     continue;
                 }
 
-                if (m.TileX < 0 || m.TileX >= Map.Width || m.TileY < 0 || m.TileY >= Map.Height)
-                {
-                    continue;
-                }
-
-                var rect = new Rectangle(m.TileX * ts, m.TileY * ts, ts, ts);
-                var fill = MapEventMarkerColors.TintFromSlug(m.PrimarySlug);
-                var badgeD = Math.Max(6, ts * 2 / 5);
-                var pad = Math.Max(1, ts / 14);
-                var badge = new Rectangle(rect.Right - badgeD - pad, rect.Y + pad, badgeD, badgeD);
-                var playerContact = MapEventMarkerColors.IsPlayerContactTrigger(m.PrimaryTriggerKind);
-                var legacyPage = MapEventMarkerColors.IsLegacyPageTrigger(m.PrimaryTriggerKind);
-                var autorun = MapEventMarkerColors.IsAutorunTrigger(m.PrimaryTriggerKind);
-                var parallel = MapEventMarkerColors.IsParallelTrigger(m.PrimaryTriggerKind);
-                if (legacyPage)
-                {
-                    var rDot = Math.Max(3f, ts * 0.17f);
-                    var cx = rect.Left + pad + rDot;
-                    var cy = rect.Bottom - pad - rDot;
-                    using (var brush = new SolidBrush(Color.FromArgb(155, fill)))
-                    {
-                        g.FillEllipse(brush, cx - rDot, cy - rDot, rDot * 2f, rDot * 2f);
-                    }
-
-                    using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
-                    {
-                        g.DrawEllipse(edge, cx - rDot, cy - rDot, rDot * 2f, rDot * 2f);
-                    }
-
-                    if (m.PlacementCount > 1)
-                    {
-                        var countRect = new RectangleF(cx - rDot, cy - rDot, rDot * 2f, rDot * 2f);
-                        var label = m.PlacementCount > 9 ? "9+" : m.PlacementCount.ToString();
-                        using var f = new Font(Font.FontFamily, Math.Max(5f, ts * 0.16f), FontStyle.Bold, GraphicsUnit.Pixel);
-                        using var tb = new SolidBrush(Color.White);
-                        using var sf = new StringFormat
-                        {
-                            Alignment = StringAlignment.Center,
-                            LineAlignment = StringAlignment.Center,
-                        };
-                        g.DrawString(label, f, tb, countRect, sf);
-                    }
-                }
-                else if (autorun)
-                {
-                    var inset = Math.Max(2, ts / 10);
-                    var dashRect = new Rectangle(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-                    using var dashPen = new Pen(Color.FromArgb(220, fill), Math.Max(1.5f, ts / 20f))
-                    {
-                        DashStyle = DashStyle.Dash,
-                    };
-                    g.DrawRectangle(dashPen, dashRect);
-                }
-                else if (parallel)
-                {
-                    var inset = Math.Max(2, ts / 10);
-                    var triRect = new Rectangle(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-                    var pts = new[]
-                    {
-                        new Point(triRect.X + triRect.Width / 2, triRect.Y),
-                        new Point(triRect.Right, triRect.Bottom),
-                        new Point(triRect.X, triRect.Bottom),
-                    };
-                    using var triPen = new Pen(Color.FromArgb(220, fill), Math.Max(1.5f, ts / 20f));
-                    g.DrawPolygon(triPen, pts);
-                }
-                else
-                {
-                    using (var brush = new SolidBrush(Color.FromArgb(150, fill)))
-                    {
-                        if (playerContact)
-                        {
-                            FillDiamond(g, brush, badge);
-                        }
-                        else
-                        {
-                            g.FillEllipse(brush, badge);
-                        }
-                    }
-
-                    using (var edge = new Pen(Color.FromArgb(210, Color.White), Math.Max(1f, ts / 18f)))
-                    {
-                        if (playerContact)
-                        {
-                            DrawDiamond(g, edge, badge);
-                        }
-                        else
-                        {
-                            g.DrawEllipse(edge, badge);
-                        }
-                    }
-
-                    if (m.PlacementCount > 1)
-                    {
-                        var label = m.PlacementCount > 9 ? "9+" : m.PlacementCount.ToString();
-                        using var f = new Font(Font.FontFamily, Math.Max(6f, ts * 0.21f), FontStyle.Bold, GraphicsUnit.Pixel);
-                        using var tb = new SolidBrush(Color.White);
-                        using var sf = new StringFormat
-                        {
-                            Alignment = StringAlignment.Center,
-                            LineAlignment = StringAlignment.Center,
-                        };
-                        g.DrawString(label, f, tb, badge, sf);
-                    }
-                }
+                DrawMapEventMarkerName(g, m, ts);
             }
         }
         finally
@@ -801,6 +815,117 @@ public sealed class MapCanvas : Control
             g.SmoothingMode = prevSmooth;
             g.TextRenderingHint = prevText;
         }
+    }
+
+    private void DrawMapEventMarkerBody(Graphics g, MapEventMarkerView marker, int ts)
+    {
+        var selected = MarkerMatchesSelection(marker);
+        var hovered = _hoveredMapEventMarker is { } h && h.Equals(marker);
+        var fill = MapEventMarkerColors.TintFromSlug(marker.PrimarySlug);
+        var tile = new Rectangle(marker.TileX * ts, marker.TileY * ts, ts, ts);
+        var washAlpha = selected ? 92 : hovered ? 68 : 42;
+        using (var wash = new SolidBrush(Color.FromArgb(washAlpha, fill)))
+        {
+            g.FillRectangle(wash, tile);
+        }
+
+        var diamond = MapEventMarkerLayout.DiamondBounds(marker.TileX, marker.TileY, ts);
+        var fillAlpha = selected || hovered ? 230 : 200;
+        using (var brush = new SolidBrush(Color.FromArgb(fillAlpha, fill)))
+        {
+            FillDiamond(g, brush, diamond);
+        }
+
+        var autorun = MapEventMarkerColors.IsAutorunTrigger(marker.PrimaryTriggerKind);
+        var parallel = MapEventMarkerColors.IsParallelTrigger(marker.PrimaryTriggerKind);
+        var legacyPage = MapEventMarkerColors.IsLegacyPageTrigger(marker.PrimaryTriggerKind);
+        var penWidth = selected ? Math.Max(2.2f, ts / 10f) : Math.Max(1.4f, ts / 16f);
+        var edgeColor = selected ? Color.Gold : Color.White;
+        using (var shadow = new Pen(Color.FromArgb(190, 16, 14, 22), penWidth + 1.6f))
+        {
+            DrawDiamond(g, shadow, diamond);
+        }
+
+        using (var edge = new Pen(Color.FromArgb(235, edgeColor), penWidth))
+        {
+            if (autorun)
+            {
+                edge.DashStyle = DashStyle.Dash;
+            }
+
+            DrawDiamond(g, edge, diamond);
+        }
+
+        if (parallel)
+        {
+            var inner = InsetRectangle(diamond, Math.Max(2, diamond.Width / 5));
+            using var innerPen = new Pen(Color.FromArgb(230, edgeColor), Math.Max(1f, penWidth * 0.65f));
+            DrawDiamond(g, innerPen, inner);
+        }
+        else if (legacyPage)
+        {
+            var r = Math.Max(2f, ts * 0.08f);
+            var cx = diamond.X + diamond.Width / 2f;
+            var cy = diamond.Y + diamond.Height / 2f;
+            using var dot = new SolidBrush(Color.FromArgb(230, Color.White));
+            g.FillEllipse(dot, cx - r, cy - r, r * 2f, r * 2f);
+        }
+
+        if (marker.PlacementCount > 1 && !ShouldDrawNameFor(marker))
+        {
+            var label = marker.PlacementCount > 9 ? "9+" : marker.PlacementCount.ToString();
+            using var f = new Font(Font.FontFamily, Math.Max(6f, ts * 0.28f), FontStyle.Bold, GraphicsUnit.Pixel);
+            using var tb = new SolidBrush(Color.White);
+            using var sf = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+            };
+            g.DrawString(label, f, tb, diamond, sf);
+        }
+    }
+
+    private void DrawMapEventMarkerName(Graphics g, MapEventMarkerView marker, int ts)
+    {
+        var label = MapEventMarkerLayout.FormatLabel(marker.PrimaryDisplayName, marker.PrimarySlug, marker.PlacementCount);
+        var bounds = MapEventMarkerLayout.NameLabelBounds(marker.TileX, marker.TileY, ts, label);
+        var fill = MapEventMarkerColors.TintFromSlug(marker.PrimarySlug);
+        using (var bg = new SolidBrush(Color.FromArgb(225, 16, 18, 24)))
+        {
+            g.FillRectangle(bg, bounds);
+        }
+
+        var accentW = Math.Max(2f, ts / 12f);
+        using (var accent = new SolidBrush(fill))
+        {
+            g.FillRectangle(accent, bounds.X, bounds.Y, accentW, bounds.Height);
+        }
+
+        if (MarkerMatchesSelection(marker))
+        {
+            using var gold = new Pen(Color.Gold, Math.Max(1f, ts / 18f));
+            g.DrawRectangle(gold, bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        }
+
+        var textBounds = new RectangleF(bounds.X + accentW + 1f, bounds.Y, Math.Max(1f, bounds.Width - accentW - 2f), bounds.Height);
+        using var font = new Font(Font.FontFamily, Math.Max(7f, bounds.Height * 0.62f), FontStyle.Bold, GraphicsUnit.Pixel);
+        using var tb = new SolidBrush(Color.White);
+        using var sf = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+            Trimming = StringTrimming.EllipsisCharacter,
+            FormatFlags = StringFormatFlags.NoWrap,
+        };
+        g.DrawString(label, font, tb, textBounds, sf);
+    }
+
+    private static Rectangle InsetRectangle(Rectangle r, int inset)
+    {
+        var side = Math.Max(4, Math.Min(r.Width, r.Height) - inset * 2);
+        var x = r.X + (r.Width - side) / 2;
+        var y = r.Y + (r.Height - side) / 2;
+        return new Rectangle(x, y, side, side);
     }
 
     private void DrawPlaytestSpawnMarker(Graphics g, int tx0, int ty0, int tx1, int ty1)
@@ -1236,14 +1361,23 @@ public sealed class MapCanvas : Control
         var world = ScreenToWorld(e.Location);
         var tx = (int)Math.Floor(world.X / TileSize);
         var ty = (int)Math.Floor(world.Y / TileSize);
-        if (tx < 0 || ty < 0 || tx >= Map.Width || ty >= Map.Height)
+        var inMap = tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height;
+
+        if (e.Button == MouseButtons.Left && inMap && (ModifierKeys & Keys.Alt) == Keys.Alt)
         {
+            TryPipetteAt(tx, ty, switchToBrush: false);
             return;
         }
 
-        if (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Alt) == Keys.Alt)
+        if (e.Button == MouseButtons.Left && TryPickMapEventMarker(world.X, world.Y))
         {
-            TryPipetteAt(tx, ty, switchToBrush: false);
+            _mapEventMarkerGesture = true;
+            Capture = true;
+            return;
+        }
+
+        if (!inMap)
+        {
             return;
         }
 
@@ -1445,6 +1579,7 @@ public sealed class MapCanvas : Control
         }
 
         var w = ScreenToWorld(e.Location);
+        UpdateMapEventMarkerHover(w.X, w.Y);
         var tx = (int)Math.Floor(w.X / TileSize);
         var ty = (int)Math.Floor(w.Y / TileSize);
         if (tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
@@ -1454,6 +1589,11 @@ public sealed class MapCanvas : Control
         }
 
         UpdateEditCursorForHover();
+
+        if (_mapEventMarkerGesture)
+        {
+            return;
+        }
 
         if ((ModifierKeys & Keys.Alt) == Keys.Alt)
         {
@@ -1520,6 +1660,13 @@ public sealed class MapCanvas : Control
             Cursor = Cursors.Cross;
             NotifyViewTransformChanged();
         }
+
+            if (e.Button == MouseButtons.Left && _mapEventMarkerGesture)
+            {
+                _mapEventMarkerGesture = false;
+                Capture = false;
+                return;
+            }
 
             if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
             {
@@ -1604,6 +1751,12 @@ public sealed class MapCanvas : Control
         if (Map is null)
         {
             Cursor = Cursors.Cross;
+            return;
+        }
+
+        if (ShowMapEventMarkers && _hoveredMapEventMarker is not null)
+        {
+            Cursor = Cursors.Hand;
             return;
         }
 
@@ -1914,6 +2067,190 @@ public sealed class MapCanvas : Control
         var tile = layer.Tiles.FirstOrDefault(t => t.X == tileX && t.Y == tileY);
         TileClicked?.Invoke(tile);
     }
+
+    private bool TryPickMapEventMarker(float worldX, float worldY)
+    {
+        if (!TryHitMapEventMarker(worldX, worldY, out var hit))
+        {
+            return false;
+        }
+
+        HighlightMapEventMarker(hit.TileX, hit.TileY, hit.PrimaryPlacementKey);
+        MapEventMarkerPicked?.Invoke(hit);
+        return true;
+    }
+
+    private bool TryHitMapEventMarker(float worldX, float worldY, out MapEventMarkerView hit)
+    {
+        hit = default;
+        if (!ShowMapEventMarkers || _mapEventMarkers is null || Map is null)
+        {
+            return false;
+        }
+
+        for (var i = _mapEventMarkers.Count - 1; i >= 0; i--)
+        {
+            var marker = _mapEventMarkers[i];
+            if (marker.TileX < 0 || marker.TileY < 0 || marker.TileX >= Map.Width || marker.TileY >= Map.Height)
+            {
+                continue;
+            }
+
+            var label = MapEventMarkerLayout.FormatLabel(marker.PrimaryDisplayName, marker.PrimarySlug, marker.PlacementCount);
+            if (MapEventMarkerLayout.HitTest(
+                    marker.TileX,
+                    marker.TileY,
+                    TileSize,
+                    worldX,
+                    worldY,
+                    ShouldDrawNameFor(marker),
+                    label))
+            {
+                hit = marker;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void UpdateMapEventMarkerHover(float worldX, float worldY)
+    {
+        MapEventMarkerView? next = null;
+        if (TryHitMapEventMarker(worldX, worldY, out var hit))
+        {
+            next = hit;
+        }
+
+        if (Nullable.Equals(_hoveredMapEventMarker, next))
+        {
+            return;
+        }
+
+        _hoveredMapEventMarker = next;
+        Invalidate();
+        MapEventMarkerInteractionChanged?.Invoke();
+    }
+
+    private void ClearMapEventMarkerHover()
+    {
+        if (_hoveredMapEventMarker is null)
+        {
+            return;
+        }
+
+        _hoveredMapEventMarker = null;
+        Invalidate();
+        MapEventMarkerInteractionChanged?.Invoke();
+        UpdateEditCursorForHover();
+    }
+
+    private bool ShouldDrawNameFor(MapEventMarkerView marker)
+    {
+        var hovered = _hoveredMapEventMarker is { } h && h.Equals(marker);
+        return ShowMapEventMarkers && MapEventMarkerLayout.ShouldDrawName(
+            ShowMapEventNames,
+            Zoom,
+            TileSize,
+            hovered,
+            MarkerMatchesSelection(marker));
+    }
+
+    private bool MarkerMatchesSelection(MapEventMarkerView marker)
+    {
+        if (!_hasSelectedMapEvent)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(_selectedMapEventPlacementKey))
+        {
+            return string.Equals(_selectedMapEventPlacementKey, marker.PrimaryPlacementKey, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return marker.TileX == _selectedMapEventTileX && marker.TileY == _selectedMapEventTileY;
+    }
+
+    private bool MarkerListContainsSelection(IReadOnlyList<MapEventMarkerView>? markers)
+    {
+        if (!_hasSelectedMapEvent || markers is null)
+        {
+            return false;
+        }
+
+        foreach (var marker in markers)
+        {
+            if (MarkerMatchesSelection(marker))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool MarkerListContains(IReadOnlyList<MapEventMarkerView>? markers, MapEventMarkerView marker)
+    {
+        if (markers is null)
+        {
+            return false;
+        }
+
+        foreach (var candidate in markers)
+        {
+            if (candidate.Equals(marker))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryFindSelectedMarker(out MapEventMarkerView marker)
+    {
+        marker = default;
+        if (!_hasSelectedMapEvent || _mapEventMarkers is null)
+        {
+            return false;
+        }
+
+        foreach (var candidate in _mapEventMarkers)
+        {
+            if (!MarkerMatchesSelection(candidate))
+            {
+                continue;
+            }
+
+            marker = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
+    internal string? SelectedMapEventPlacementKeyForTest =>
+        _hasSelectedMapEvent ? _selectedMapEventPlacementKey : null;
+
+    internal bool TryPickMapEventMarkerAtWorldForTest(float worldX, float worldY) =>
+        TryPickMapEventMarker(worldX, worldY);
+
+    internal void SetZoomForTest(float zoom)
+    {
+        Zoom = Math.Clamp(zoom, MinZoom, MaxZoom);
+        Invalidate();
+    }
+
+    internal bool ShouldDrawMapEventNameForTest(MapEventMarkerView marker) => ShouldDrawNameFor(marker);
+
+    internal void SetHoveredMapEventAtWorldForTest(float worldX, float worldY) =>
+        UpdateMapEventMarkerHover(worldX, worldY);
+
+    internal void RaiseMouseDownForTest(MouseButtons button, int x, int y) =>
+        OnMouseDown(this, new MouseEventArgs(button, 1, x, y, 0));
+
+    internal void RaiseMouseUpForTest(MouseButtons button, int x, int y) =>
+        OnMouseUp(this, new MouseEventArgs(button, 1, x, y, 0));
 
     private PointF ScreenToWorld(Point p)
     {

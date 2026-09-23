@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Frog.Core.Events;
 using Frog.Editor.Services;
+using Frog.Editor.Ui;
 
 namespace Frog.Editor.Forms;
 
@@ -27,7 +28,17 @@ internal sealed class MapEventsBrowseDialog : Form
     {
         View = View.Details,
         FullRowSelect = true,
+        MultiSelect = false,
+        HideSelection = false,
         Dock = DockStyle.Fill,
+    };
+
+    private readonly CheckBox _chkShowNames = new()
+    {
+        Text = "Afficher noms des événements",
+        AutoSize = true,
+        Checked = true,
+        Margin = new Padding(16, 2, 0, 0),
     };
 
     private readonly TextBox _txtNewSlug = new() { Width = 160, PlaceholderText = "ex. pnj_marchand" };
@@ -40,6 +51,17 @@ internal sealed class MapEventsBrowseDialog : Form
     private readonly List<PgEventCatalogRow> _catalogRows = new();
     private readonly List<PgMapEventPlacementRow> _placementRows = new();
     private Guid _mapId;
+    private bool _suppressHighlight;
+    private bool _suppressNamesEvent;
+
+    /// <summary>Placements rechargés (pose, suppression, déclencheur, changement de carte).</summary>
+    internal event Action? PlacementsChanged;
+
+    /// <summary>L’utilisateur a sélectionné une ligne de placement dans la liste.</summary>
+    internal event Action<PgMapEventPlacementRow>? PlacementHighlighted;
+
+    /// <summary>Case « Afficher noms des événements ».</summary>
+    internal event Action<bool>? ShowEventNamesChanged;
 
     public MapEventsBrowseDialog(MapEventsPostgreSqlService service, Guid mapId, int defaultTileX = 0, int defaultTileY = 0)
     {
@@ -161,6 +183,7 @@ internal sealed class MapEventsBrowseDialog : Form
         placeMid.Controls.Add(new Label { Text = "Placements carte · ", AutoSize = true, Margin = new Padding(0, 4, 4, 0) });
         placeMid.Controls.Add(new Label { Text = "Filtre", AutoSize = true, Margin = new Padding(8, 4, 4, 0) });
         placeMid.Controls.Add(_txtFilterPlacements);
+        placeMid.Controls.Add(_chkShowNames);
         placeOuter.Controls.Add(placeMid, 0, 1);
         placeOuter.Controls.Add(_lvPlacements, 0, 2);
         split.Panel2.Controls.Add(placeOuter);
@@ -189,7 +212,124 @@ internal sealed class MapEventsBrowseDialog : Form
         _btnDeleteCatalogRow.Click += (_, _) => DeleteCatalogRowSafe();
         _txtFilterCatalog.TextChanged += (_, _) => RefreshFilteredLists();
         _txtFilterPlacements.TextChanged += (_, _) => RefreshFilteredLists();
+        _lvPlacements.SelectedIndexChanged += (_, _) => NotifyPlacementHighlighted();
+        _chkShowNames.CheckedChanged += (_, _) =>
+        {
+            if (_suppressNamesEvent)
+            {
+                return;
+            }
+
+            ShowEventNamesChanged?.Invoke(_chkShowNames.Checked);
+        };
         Shown += (_, _) => ReloadSafe();
+    }
+
+    internal void SetShowEventNames(bool value)
+    {
+        if (_chkShowNames.Checked == value)
+        {
+            return;
+        }
+
+        _suppressNamesEvent = true;
+        try
+        {
+            _chkShowNames.Checked = value;
+        }
+        finally
+        {
+            _suppressNamesEvent = false;
+        }
+    }
+
+    /// <summary>Recharge la liste si la carte catalogue a changé.</summary>
+    internal void EnsureMap(Guid mapId)
+    {
+        if (_mapId == mapId)
+        {
+            return;
+        }
+
+        SetMapId(mapId);
+        ReloadSafe();
+    }
+
+    internal void SetMapContext(Guid mapId, int defaultTileX, int defaultTileY)
+    {
+        _numTileX.Value = defaultTileX;
+        _numTileY.Value = defaultTileY;
+        EnsureMap(mapId);
+    }
+
+    /// <summary>Sélectionne le placement correspondant au marqueur cliqué sur le canevas.</summary>
+    internal bool TrySelectPlacement(int tileX, int tileY, string? placementKey)
+    {
+        if (TrySelectVisiblePlacement(tileX, tileY, placementKey))
+        {
+            return true;
+        }
+
+        if (_txtFilterPlacements.TextLength == 0)
+        {
+            return false;
+        }
+
+        _txtFilterPlacements.Clear();
+        return TrySelectVisiblePlacement(tileX, tileY, placementKey);
+    }
+
+    private bool TrySelectVisiblePlacement(int tileX, int tileY, string? placementKey)
+    {
+        var keys = new List<MapEventMarkerLayout.MapEventPlacementListKey>(_lvPlacements.Items.Count);
+        foreach (ListViewItem item in _lvPlacements.Items)
+        {
+            var x = item.SubItems.Count > 3 && int.TryParse(item.SubItems[3].Text, out var tx) ? tx : int.MinValue;
+            var y = item.SubItems.Count > 4 && int.TryParse(item.SubItems[4].Text, out var ty) ? ty : int.MinValue;
+            keys.Add(new MapEventMarkerLayout.MapEventPlacementListKey(item.Text, x, y));
+        }
+
+        var index = MapEventMarkerLayout.FindPlacementIndex(keys, placementKey, tileX, tileY);
+        if (index < 0 || index >= _lvPlacements.Items.Count)
+        {
+            return false;
+        }
+
+        _suppressHighlight = true;
+        try
+        {
+            _lvPlacements.SelectedItems.Clear();
+            var item = _lvPlacements.Items[index];
+            item.Selected = true;
+            item.Focused = true;
+            item.EnsureVisible();
+            _lvPlacements.Select();
+        }
+        finally
+        {
+            _suppressHighlight = false;
+        }
+
+        return true;
+    }
+
+    private void NotifyPlacementHighlighted()
+    {
+        if (_suppressHighlight || !TryGetSingleSelectedGuid(_lvPlacements, out var id))
+        {
+            return;
+        }
+
+        foreach (var row in _placementRows)
+        {
+            if (row.Id != id)
+            {
+                continue;
+            }
+
+            PlacementHighlighted?.Invoke(row);
+            return;
+        }
     }
 
     public void SetMapId(Guid mapId)
@@ -421,6 +561,7 @@ internal sealed class MapEventsBrowseDialog : Form
         }
 
         RefreshFilteredLists();
+        PlacementsChanged?.Invoke();
     }
 
     private void RefreshFilteredLists()

@@ -17,7 +17,14 @@ public readonly record struct MapEventPlacementRow(
     string TriggerKind);
 
 /// <summary>Agrégat par tuile pour l’overlay marqueurs sur le canevas (plusieurs placements possibles sur une même case).</summary>
-public readonly record struct MapEventMarkerView(int TileX, int TileY, int PlacementCount, string PrimarySlug, string PrimaryTriggerKind);
+public readonly record struct MapEventMarkerView(
+    int TileX,
+    int TileY,
+    int PlacementCount,
+    string PrimarySlug,
+    string PrimaryTriggerKind,
+    string PrimaryDisplayName = "",
+    string PrimaryPlacementKey = "");
 
 /// <summary>Lecture <c>frog_event_catalog</c> et <c>frog_map_event</c> (aligné sur <c>MariaDbMigrationV4</c>).</summary>
 public static class MapEventsMariaDbReader
@@ -105,7 +112,9 @@ public static class MapEventsMariaDbReader
                     first.TileY,
                     ordered.Count,
                     first.Slug,
-                    MapEventTriggerNormalization.NormalizeTriggerKind(first.TriggerKind));
+                    MapEventTriggerNormalization.NormalizeTriggerKind(first.TriggerKind),
+                    first.DisplayName,
+                    first.Id.ToString());
             })
             .OrderBy(m => m.TileY)
             .ThenBy(m => m.TileX)
