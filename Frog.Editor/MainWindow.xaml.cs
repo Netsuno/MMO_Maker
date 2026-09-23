@@ -221,6 +221,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdResetView, (_, _) => _editor.ResetMapView()));
         CommandBindings.Add(new CommandBinding(CmdZoomIn, (_, _) => _editor.EditorZoomIn()));
         CommandBindings.Add(new CommandBinding(CmdZoomOut, (_, _) => _editor.EditorZoomOut()));
+        _editor.MapEventNamesVisibilityChanged += SyncMapEventNamesMenu;
 
         PreviewKeyDown += OnPreviewToolHotkey;
         Loaded += OnMainWindowLoaded;
@@ -339,6 +340,8 @@ public partial class MainWindow : Window
         {
             MnuShowEventMarkers.IsChecked = _editor.MapEventMarkersVisible;
         }
+
+        SyncMapEventNamesMenu();
     }
 
     private void OnMainWindowClosed(object? sender, System.EventArgs e)
@@ -376,6 +379,39 @@ public partial class MainWindow : Window
         if (sender is System.Windows.Controls.MenuItem mi)
         {
             _editor.MapEventMarkersVisible = mi.IsChecked == true;
+        }
+    }
+
+    private bool _syncingMapEventNamesMenu;
+
+    private void OnToggleMapEventNames(object sender, RoutedEventArgs e)
+    {
+        if (_syncingMapEventNamesMenu)
+        {
+            return;
+        }
+
+        if (sender is System.Windows.Controls.MenuItem mi)
+        {
+            _editor.MapEventNamesVisible = mi.IsChecked == true;
+        }
+    }
+
+    private void SyncMapEventNamesMenu()
+    {
+        if (MnuShowEventNames is null || MnuShowEventNames.IsChecked == _editor.MapEventNamesVisible)
+        {
+            return;
+        }
+
+        _syncingMapEventNamesMenu = true;
+        try
+        {
+            MnuShowEventNames.IsChecked = _editor.MapEventNamesVisible;
+        }
+        finally
+        {
+            _syncingMapEventNamesMenu = false;
         }
     }
 

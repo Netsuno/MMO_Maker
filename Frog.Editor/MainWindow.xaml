@@ -126,6 +126,11 @@
                           IsCheckable="True"
                           IsChecked="True"
                           Click="OnToggleMapEventMarkers" />
+                <MenuItem x:Name="MnuShowEventNames"
+                          Header="Afficher noms des événements"
+                          IsCheckable="True"
+                          IsChecked="True"
+                          Click="OnToggleMapEventNames" />
             </MenuItem>
         </Menu>
         <ToolBarTray DockPanel.Dock="Top" Background="#FF2A2E36">

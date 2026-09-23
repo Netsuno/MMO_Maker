@@ -33,6 +33,7 @@ public sealed class MainForm : Form
     private readonly ToolStripMenuItem? _mnuUndo;
     private readonly ToolStripMenuItem? _mnuRedo;
     private readonly ToolStripMenuItem? _mnuShowEventMarkers;
+    private readonly ToolStripMenuItem? _mnuShowEventNames;
     private readonly StatusStrip? _status;
     private readonly ToolStripStatusLabel? _lblPos;
     private readonly bool _embedAsWpfChild;
@@ -64,6 +65,8 @@ public sealed class MainForm : Form
     private MapWorkspaceSession? _workspace;
     private IMapRepository? _mapRepository;
     private MapEventsPostgreSqlService? _mapEventService;
+    private MapEventsBrowseDialog? _mapEventsDialog;
+    private bool _syncingMapEventOverlay;
     private Phase8ContentPostgreSqlService? _phase8ContentService;
     private PendingQuickNpc? _pendingQuickNpc;
     private string? _statusNotice;
@@ -299,6 +302,11 @@ public sealed class MainForm : Form
         FormClosed += (_, _) =>
         {
             TilesetCache.Clear();
+            if (_mapEventsDialog is { IsDisposed: false } eventsDialog)
+            {
+                _mapEventsDialog = null;
+                eventsDialog.Close();
+            }
         };
 
         if (!embedAsWpfChild)
@@ -407,6 +415,12 @@ public sealed class MainForm : Form
                 Checked = true,
             };
             mView.DropDownItems.Add(mnuShowEventMarkers);
+            var mnuShowEventNames = new ToolStripMenuItem("Afficher noms des événements")
+            {
+                CheckOnClick = true,
+                Checked = true,
+            };
+            mView.DropDownItems.Add(mnuShowEventNames);
 
             menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mEdit, mResources, mMap, mView });
             MainMenuStrip = menuStrip;
@@ -414,6 +428,7 @@ public sealed class MainForm : Form
             _mnuUndo = mnuUndo;
             _mnuRedo = mnuRedo;
             _mnuShowEventMarkers = mnuShowEventMarkers;
+            _mnuShowEventNames = mnuShowEventNames;
 
             var status = new StatusStrip { SizingGrip = false, GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Bottom };
             status.BackColor = EditorChrome.RibbonBg;
@@ -438,6 +453,7 @@ public sealed class MainForm : Form
             _mnuUndo = null;
             _mnuRedo = null;
             _mnuShowEventMarkers = null;
+            _mnuShowEventNames = null;
             _status = null;
             _lblPos = null;
         }
@@ -498,10 +514,20 @@ public sealed class MainForm : Form
         {
             _mnuShowEventMarkers.CheckedChanged += (_, _) =>
             {
-                _canvas.ShowMapEventMarkers = _mnuShowEventMarkers.Checked;
-                _canvas.Invalidate();
+                MapEventMarkersVisible = _mnuShowEventMarkers.Checked;
             };
         }
+
+        if (_mnuShowEventNames is not null)
+        {
+            _mnuShowEventNames.CheckedChanged += (_, _) =>
+            {
+                MapEventNamesVisible = _mnuShowEventNames.Checked;
+            };
+        }
+
+        _canvas.MapEventMarkerPicked += OnCanvasMapEventMarkerPicked;
+        _canvas.MapEventMarkerInteractionChanged += PushEditorStatusLine;
 
         _minimap = new MapMinimapControl
         {
@@ -1366,9 +1392,11 @@ public sealed class MainForm : Form
         var prefab = _canvas.PrefabPlacements.Count > 0
             ? $"    ·    prefabs {_canvas.PrefabPlacements.Count}"
             : "";
+        var eventCaption = _canvas.ActiveMapEventCaption;
+        var eventText = string.IsNullOrEmpty(eventCaption) ? "" : $"    ·    événement {eventCaption}";
         var notice = string.IsNullOrEmpty(_statusNotice) ? "" : _statusNotice + "    ·    ";
         var text =
-            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefab}    ·    catalogue {backend}";
+            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefab}{eventText}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -2582,17 +2610,63 @@ public sealed class MainForm : Form
         }
 
         var mapId = _workspace?.CurrentMapId ?? Guid.Empty;
-        using var dlg = new MapEventsBrowseDialog(
+        if (_mapEventsDialog is { IsDisposed: false })
+        {
+            _mapEventsDialog.SetMapContext(mapId, _lastHoverTile.X, _lastHoverTile.Y);
+            if (_mapEventsDialog.WindowState == FormWindowState.Minimized)
+            {
+                _mapEventsDialog.WindowState = FormWindowState.Normal;
+            }
+
+            _mapEventsDialog.Activate();
+            return;
+        }
+
+        var dlg = new MapEventsBrowseDialog(
             _mapEventService,
             mapId,
             defaultTileX: _lastHoverTile.X,
             defaultTileY: _lastHoverTile.Y);
-        dlg.ShowDialog(GetDialogOwner());
-        RefreshMapEventMarkers();
-        if (dlg.QuickNpcRequested)
+        dlg.ShowEventNamesChanged += visible => MapEventNamesVisible = visible;
+        dlg.PlacementHighlighted += OnMapEventPlacementHighlighted;
+        dlg.PlacementsChanged += RefreshMapEventMarkers;
+        dlg.SetShowEventNames(_canvas.ShowMapEventNames);
+        dlg.FormClosed += (_, _) =>
         {
-            OpenQuickTalkingNpc();
+            var openQuick = dlg.QuickNpcRequested;
+            if (ReferenceEquals(_mapEventsDialog, dlg))
+            {
+                _mapEventsDialog = null;
+            }
+
+            RefreshMapEventMarkers();
+            if (!dlg.IsDisposed)
+            {
+                dlg.Dispose();
+            }
+
+            if (openQuick)
+            {
+                OpenQuickTalkingNpc();
+            }
+        };
+        _mapEventsDialog = dlg;
+        dlg.Show(GetDialogOwner());
+    }
+
+    private void OnCanvasMapEventMarkerPicked(MapEventMarkerView marker)
+    {
+        if (_mapEventsDialog is not { IsDisposed: false })
+        {
+            return;
         }
+
+        _mapEventsDialog.TrySelectPlacement(marker.TileX, marker.TileY, marker.PrimaryPlacementKey);
+    }
+
+    private void OnMapEventPlacementHighlighted(PgMapEventPlacementRow row)
+    {
+        _canvas.HighlightMapEventMarker(row.TileX, row.TileY, row.Id.ToString("D"));
     }
 
     internal void BrowsePhase8Content()
@@ -2615,26 +2689,44 @@ public sealed class MainForm : Form
     /// <summary>Recharge les placements d'événements pour la carte catalogue courante et met à jour l'overlay canevas.</summary>
     internal void RefreshMapEventMarkers()
     {
-        if (_mapEventService is null || !_mapEventService.IsAvailable)
+        if (_syncingMapEventOverlay || IsDisposed || _canvas.IsDisposed)
         {
-            _canvas.MapEventMarkers = null;
             return;
         }
 
-        if (_workspace?.CurrentMapId is not Guid mapId || mapId == Guid.Empty)
-        {
-            _canvas.MapEventMarkers = null;
-            return;
-        }
-
+        _syncingMapEventOverlay = true;
         try
         {
-            var rows = _mapEventService.LoadPlacementsForMap(mapId);
-            _canvas.MapEventMarkers = MapEventsPostgreSqlService.ToMarkerViews(rows);
+            if (_mapEventService is null || !_mapEventService.IsAvailable)
+            {
+                _canvas.MapEventMarkers = null;
+            }
+            else if (_workspace?.CurrentMapId is not Guid mapId || mapId == Guid.Empty)
+            {
+                _canvas.MapEventMarkers = null;
+            }
+            else
+            {
+                try
+                {
+                    var rows = _mapEventService.LoadPlacementsForMap(mapId);
+                    _canvas.MapEventMarkers = MapEventsPostgreSqlService.ToMarkerViews(rows);
+                }
+                catch
+                {
+                    _canvas.MapEventMarkers = null;
+                }
+            }
+
+            var current = _workspace?.CurrentMapId ?? Guid.Empty;
+            if (_mapEventsDialog is { IsDisposed: false })
+            {
+                _mapEventsDialog.EnsureMap(current);
+            }
         }
-        catch
+        finally
         {
-            _canvas.MapEventMarkers = null;
+            _syncingMapEventOverlay = false;
         }
     }
 
@@ -2644,12 +2736,34 @@ public sealed class MainForm : Form
         set
         {
             _canvas.ShowMapEventMarkers = value;
-            if (_mnuShowEventMarkers is not null)
+            if (_mnuShowEventMarkers is not null && _mnuShowEventMarkers.Checked != value)
             {
                 _mnuShowEventMarkers.Checked = value;
             }
 
             _canvas.Invalidate();
+        }
+    }
+
+    internal event Action? MapEventNamesVisibilityChanged;
+
+    internal bool MapEventNamesVisible
+    {
+        get => _canvas.ShowMapEventNames;
+        set
+        {
+            var changed = _canvas.ShowMapEventNames != value;
+            _canvas.ShowMapEventNames = value;
+            if (_mnuShowEventNames is not null && _mnuShowEventNames.Checked != value)
+            {
+                _mnuShowEventNames.Checked = value;
+            }
+
+            _mapEventsDialog?.SetShowEventNames(value);
+            if (changed)
+            {
+                MapEventNamesVisibilityChanged?.Invoke();
+            }
         }
     }
 
