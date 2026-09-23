@@ -32,7 +32,7 @@ public readonly record struct PgMapEventPlacementRow(
 public sealed class MapEventsPostgreSqlService : IDisposable
 {
     private readonly IMapEventRepository _repository;
-    private readonly FrogDbContextGate _gate;
+    private readonly FrogDbContextGate? _gate;
     private readonly bool _ownsGate;
     private bool _disposed;
     private int _disposeCallCount;
@@ -42,6 +42,12 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _ownsGate = ownsGate;
+    }
+
+    /// <summary>Tests : catalogue et pages sans PostgreSQL. Les placements exigent un gate.</summary>
+    internal MapEventsPostgreSqlService(IMapEventRepository repository)
+    {
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
     }
 
     public ContentRepositoryCapabilities Capabilities => _repository.Capabilities;
@@ -82,7 +88,8 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         // ExecuteAsync(...).GetResult() on that thread: WaitAsync often
         // completes synchronously, EF then posts back to the UI context,
         // and GetResult deadlocks (editor infinite load).
-        return RunOffUiSyncContext(() => _gate.ExecuteAsync(async (db, ct) =>
+        var gate = _gate ?? throw new InvalidOperationException("Placements PostgreSQL indisponibles.");
+        return RunOffUiSyncContext(() => gate.ExecuteAsync(async (db, ct) =>
         {
             var rows = await (
                     from p in db.MapEventPlacements.AsNoTracking()
@@ -258,10 +265,17 @@ public sealed class MapEventsPostgreSqlService : IDisposable
             return false;
         }
 
+        if (_gate is null)
+        {
+            errorMessage = "Placements PostgreSQL indisponibles.";
+            return false;
+        }
+
         try
         {
             var failure = string.Empty;
-            var ok = RunOffUiSyncContext(() => _gate.ExecuteAsync(async (db, ct) =>
+            var gate = _gate;
+            var ok = RunOffUiSyncContext(() => gate.ExecuteAsync(async (db, ct) =>
             {
                 var mapExists = await db.Maps.AsNoTracking().AnyAsync(m => m.Id == mapId, ct).ConfigureAwait(false);
                 if (!mapExists)
@@ -347,10 +361,17 @@ public sealed class MapEventsPostgreSqlService : IDisposable
             return false;
         }
 
+        if (_gate is null)
+        {
+            errorMessage = "Placements PostgreSQL indisponibles.";
+            return false;
+        }
+
         try
         {
             var failure = string.Empty;
-            var ok = RunOffUiSyncContext(() => _gate.ExecuteAsync(async (db, ct) =>
+            var gate = _gate;
+            var ok = RunOffUiSyncContext(() => gate.ExecuteAsync(async (db, ct) =>
             {
                 var entity = await db.MapEventPlacements
                     .FirstOrDefaultAsync(p => p.Id == placementId && p.MapId == mapId, ct)
@@ -389,10 +410,17 @@ public sealed class MapEventsPostgreSqlService : IDisposable
             return false;
         }
 
+        if (_gate is null)
+        {
+            errorMessage = "Placements PostgreSQL indisponibles.";
+            return false;
+        }
+
         try
         {
             var failure = string.Empty;
-            var ok = RunOffUiSyncContext(() => _gate.ExecuteAsync(async (db, ct) =>
+            var gate = _gate;
+            var ok = RunOffUiSyncContext(() => gate.ExecuteAsync(async (db, ct) =>
             {
                 var n = await db.MapEventPlacements
                     .Where(p => p.Id == placementId && p.MapId == mapId)
@@ -484,7 +512,7 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         Interlocked.Exchange(ref _disposeCallCount, 1);
         if (_ownsGate)
         {
-            _gate.Dispose();
+            _gate?.Dispose();
         }
     }
 
