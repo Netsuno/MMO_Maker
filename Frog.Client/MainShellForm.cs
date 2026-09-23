@@ -271,6 +271,11 @@ public sealed class MainShellForm : Form
     private readonly HudChatDock _hudChat = new();
     private readonly HudHotbar _hudHotbar = new();
     private readonly HudMenuRing _hudMenu = new();
+    private readonly InteractHintBadge _interactHint = new();
+    /// <summary>Dialogue poussé tant que le joueur reste sur la tuile où il a commencé.</summary>
+    private bool _dialogueSessionOpen;
+    private int _dialogueAnchorTileX;
+    private int _dialogueAnchorTileY;
     private bool _windowLayerVisible;
     private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid (secours)", Visible = false };
     private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid (secours)", Visible = false };
@@ -419,6 +424,13 @@ public sealed class MainShellForm : Form
             _panelGame.BringToFront();
             LayoutGameHud();
         }
+
+        if (_phase != ClientUiPhase.Playing)
+        {
+            _dialogueSessionOpen = false;
+        }
+
+        RefreshInteractHint();
     }
 
     private void SetPhase(ClientUiPhase p)
@@ -618,6 +630,7 @@ public sealed class MainShellForm : Form
         }
 
         TrySendHeldMoveNetwork();
+        RefreshInteractHint();
     }
 
     private void ResetLocalMotionState()
@@ -1248,6 +1261,11 @@ public sealed class MainShellForm : Form
         _worldHost.Controls.Add(_hudChat);
         _worldHost.Controls.Add(_hudHotbar);
         _worldHost.Controls.Add(_hudMenu);
+        _worldHost.Controls.Add(_interactHint);
+        _txtChat.Enter += (_, _) => RefreshInteractHint();
+        _txtChat.Leave += (_, _) => RefreshInteractHint();
+        _txtWhisperTo.Enter += (_, _) => RefreshInteractHint();
+        _txtWhisperTo.Leave += (_, _) => RefreshInteractHint();
         _worldHost.Controls.Add(_btnRespawn);
         _worldHost.Controls.Add(_windowChrome);
         _picMap.Click += (_, _) => DismissWindowLayerFromMap();
@@ -1346,6 +1364,7 @@ public sealed class MainShellForm : Form
             (byte)TradeAction.Confirm, id, TradeWire.BuildRevisionPayload(rev));
         _tradeForm.UnconfirmRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Unconfirm, id, []);
         _tradeForm.CancelRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Cancel, id, []);
+        _tradeForm.VisibleChanged += (_, _) => RefreshInteractHint();
         _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
         _dialoguePanel.ChoiceRequested += (token, choiceId) => _ = SendDialogueChoiceAsync(token, choiceId);
         _questJournalPanel.TurnInRequested += questId => _ = QuestTurnInAsync(questId);
@@ -1434,6 +1453,8 @@ public sealed class MainShellForm : Form
             if (!ok)
             {
                 _dialoguePanel.ClearDialogue();
+                _dialogueSessionOpen = false;
+                RefreshInteractHint();
             }
         };
         _client.QuestJournalSnapshotReceived += OnQuestJournalSnapshot;
@@ -1810,6 +1831,11 @@ public sealed class MainShellForm : Form
     private void OnDialogueStatePush(DialogueStateWire state)
     {
         _dialoguePanel.ApplyState(state);
+        var tile = CurrentPlayerTile();
+        _dialogueAnchorTileX = tile.TileX;
+        _dialogueAnchorTileY = tile.TileY;
+        _dialogueSessionOpen = true;
+        RefreshInteractHint();
         AppendLog($"Dialogue: {state.Speaker} — {state.Choices.Count} choix");
     }
 
@@ -2304,6 +2330,7 @@ public sealed class MainShellForm : Form
         _prefabPlacements.Clear();
         _prefabCatalog = null;
         _mapEvents.Clear();
+        _dialogueSessionOpen = false;
         _awaitingPlayingPhase = false;
         _btnBackDisconnect.Enabled = false;
         SetPhase(ClientUiPhase.Login);
@@ -2511,6 +2538,7 @@ public sealed class MainShellForm : Form
         _prefabPlacements.Clear();
         _prefabCatalog = null;
         _mapEvents.Clear();
+        _dialogueSessionOpen = false;
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
         _btnLogout.Enabled = false;
@@ -2544,6 +2572,7 @@ public sealed class MainShellForm : Form
     {
         AppendLog($"Map reçue id={mapId} {map.Name} {map.Width}x{map.Height}");
         _mapEvents.Clear();
+        _dialogueSessionOpen = false;
         _sessionDisplayedMapId = mapId;
         _map = map;
         _mapBlockedTiles = MapCollision.IndexBlockedTiles(map);
@@ -2577,6 +2606,7 @@ public sealed class MainShellForm : Form
 
         _ = RequestMapEventsFromServerAsync();
         TryEnterPlayingPhaseAfterMapReady();
+        RefreshInteractHint();
         if (_playtestOptions is { IsPlaytest: true })
         {
             _playtestReady.ObserveLoadedMap(mapId);
@@ -2660,6 +2690,7 @@ public sealed class MainShellForm : Form
             }
 
             RedrawMap();
+            RefreshInteractHint();
         }
         catch
         {
@@ -3655,6 +3686,112 @@ public sealed class MainShellForm : Form
     {
         var layout = _input.Preset == KeyboardLayoutPreset.Qwerty ? "WASD" : "ZQSD";
         _lblMoveHint.Text = $"{layout} + flèches = déplacement · {InputService.KeyDisplayName(_input.Interact)} = interagir · F1 = aide";
+        RefreshInteractHint();
+    }
+
+    /// <summary>
+    /// Indice [touche] Parler/Interagir. Tuile = centre affiché (même division que le serveur).
+    /// Masqué hors jeu, hors de la tuile, pendant un dialogue sur cette tuile, ou quand
+    /// un panneau / une saisie bloque l'interaction (fenêtre HUD, chat, échange, aide).
+    /// </summary>
+    private void RefreshInteractHint()
+    {
+        if (!IsHandleCreated && !Visible)
+        {
+            return;
+        }
+
+        var tile = CurrentPlayerTile();
+        var cue = MapEventInteractHint.Resolve(
+            tile.TileX,
+            tile.TileY,
+            _mapEvents,
+            InputService.KeyDisplayName(_input.Interact),
+            playing: _phase == ClientUiPhase.Playing && _map is not null,
+            dialogueOpen: DialogueOpenForHint(tile.TileX, tile.TileY),
+            inputBlocked: InteractInputBlocked());
+        if (_interactHint.ApplyCue(cue))
+        {
+            PositionInteractHint();
+        }
+    }
+
+    private (int TileX, int TileY) CurrentPlayerTile()
+    {
+        int px;
+        int py;
+        if (_localVisualInitialized)
+        {
+            px = (int)MathF.Round(_visLocalCx);
+            py = (int)MathF.Round(_visLocalCy);
+        }
+        else
+        {
+            px = _srvPixelX;
+            py = _srvPixelY;
+        }
+
+        return MapEventInteractHint.TileOfCenter(px, py);
+    }
+
+    private bool DialogueOpenForHint(int tileX, int tileY)
+    {
+        if (!_dialogueSessionOpen)
+        {
+            return false;
+        }
+
+        if (tileX != _dialogueAnchorTileX || tileY != _dialogueAnchorTileY)
+        {
+            _dialogueSessionOpen = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool InteractInputBlocked()
+    {
+        if (_windowLayerVisible)
+        {
+            return true;
+        }
+
+        if (ActiveControl is { Visible: true } focused && InputService.IsTextInputFocus(focused))
+        {
+            return true;
+        }
+
+        if (_helpForm is { IsDisposed: false, Visible: true })
+        {
+            return true;
+        }
+
+        return _tradeForm.Visible;
+    }
+
+    private void PositionInteractHint()
+    {
+        if (!_interactHint.Visible || _interactHint.Parent != _worldHost)
+        {
+            return;
+        }
+
+        var host = _worldHost;
+        const int gap = 8;
+        var x = Math.Max(gap, (host.Width - _interactHint.Width) / 2);
+        var y = _hudHotbar.Top - _interactHint.Height - gap;
+        if (y < gap)
+        {
+            y = gap;
+        }
+
+        _interactHint.Location = new Point(x, y);
+        _interactHint.BringToFront();
+        if (_windowLayerVisible)
+        {
+            _windowChrome.BringToFront();
+        }
     }
 
     private void UpdateVersionBadge()
@@ -3726,12 +3863,14 @@ public sealed class MainShellForm : Form
         _hudChat.BringToFront();
         _hudHotbar.BringToFront();
         _hudMenu.BringToFront();
+        _interactHint.BringToFront();
         if (_windowLayerVisible)
         {
             _windowChrome.BringToFront();
         }
 
         ApplyMapViewportCamera();
+        PositionInteractHint();
     }
 
     private void SetWindowLayerVisible(bool visible)
@@ -3751,6 +3890,7 @@ public sealed class MainShellForm : Form
         }
 
         LayoutGameHud();
+        RefreshInteractHint();
     }
 
     private void RefreshWindowChromeTitle()
@@ -4153,12 +4293,18 @@ public sealed class MainShellForm : Form
         {
             _helpForm.BringToFront();
             _helpForm.Focus();
+            RefreshInteractHint();
             return;
         }
 
         _helpForm = new HelpForm();
-        _helpForm.FormClosed += (_, _) => _helpForm = null;
+        _helpForm.FormClosed += (_, _) =>
+        {
+            _helpForm = null;
+            RefreshInteractHint();
+        };
         _helpForm.Show(this);
+        RefreshInteractHint();
     }
 
     private void OpenOptions()
@@ -4715,4 +4861,40 @@ public sealed class MainShellForm : Form
     internal void SetWindowLayerVisibleForTest(bool visible) => SetWindowLayerVisible(visible);
 
     internal void LayoutGameHudForTest() => LayoutGameHud();
+
+    internal bool InteractHintVisibleForTest => _interactHint.Visible;
+
+    internal string InteractHintTextForTest => _interactHint.Visible ? _interactHint.Text : string.Empty;
+
+    internal Rectangle InteractHintBoundsForTest => _interactHint.Bounds;
+
+    internal void SetMapEventsForTest(IReadOnlyList<MapEventWireEntry> events)
+    {
+        _mapEvents.Clear();
+        if (events is { Count: > 0 })
+        {
+            _mapEvents.AddRange(events);
+        }
+
+        RefreshInteractHint();
+    }
+
+    internal void PushDialogueForTest(DialogueStateWire state) => OnDialogueStatePush(state);
+
+    internal void SetInteractBindingForTest(string keyName)
+    {
+        _settings.Bindings.Interact = keyName;
+        _settings.Bindings.Normalize(_settings.KeyboardPreset);
+        _input.Apply(_settings);
+        RefreshMoveHint();
+    }
+
+    internal void RefreshInteractHintForTest() => RefreshInteractHint();
+
+    internal void FocusMapSurfaceForTest()
+    {
+        _picMap.TabStop = true;
+        ActiveControl = _picMap;
+        RefreshInteractHint();
+    }
 }
