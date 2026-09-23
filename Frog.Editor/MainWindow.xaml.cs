@@ -126,6 +126,11 @@ public partial class MainWindow : Window
         nameof(CmdTilePipette),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdQuickTalkingNpc = new(
+        "PNJ rapide…",
+        nameof(CmdQuickTalkingNpc),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdBrowseMapEvents = new(
         "Événements carte (MariaDB, héritage)…",
         nameof(CmdBrowseMapEvents),
@@ -208,6 +213,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdMirrorHorizontal, (_, _) => _editor.TryMirrorSelectionHorizontal()));
         CommandBindings.Add(new CommandBinding(CmdMirrorVertical, (_, _) => _editor.TryMirrorSelectionVertical()));
         CommandBindings.Add(new CommandBinding(CmdTilePipette, (_, _) => _editor.TryPipetteAtHover()));
+        CommandBindings.Add(new CommandBinding(CmdQuickTalkingNpc, (_, _) => _editor.OpenQuickTalkingNpc()));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEvents()));
         CommandBindings.Add(new CommandBinding(CmdBrowsePhase8Content, (_, _) => _editor.BrowsePhase8Content()));
         CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkers()));
@@ -398,6 +404,12 @@ public partial class MainWindow : Window
 
         if (_editor.ContainsFocus && EditorTextInputFocus.ShouldIgnoreToolHotkeys(_editor.ActiveControl))
         {
+            return;
+        }
+
+        if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None && _editor.CancelQuickNpcPlacement(userInitiated: true))
+        {
+            e.Handled = true;
             return;
         }
 

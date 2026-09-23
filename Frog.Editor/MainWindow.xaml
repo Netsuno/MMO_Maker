@@ -102,6 +102,8 @@
                           Command="{x:Static local:MainWindow.CmdRefreshCatalog}"
                           InputGestureText="F5" />
                 <Separator />
+                <MenuItem Header="PNJ rapide…"
+                          Command="{x:Static local:MainWindow.CmdQuickTalkingNpc}" />
                 <MenuItem Header="Événements carte…"
                           Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
                 <MenuItem Header="Contenu Phase 8…"
@@ -145,6 +147,8 @@
                 <Button Content="Départ" Command="{x:Static local:MainWindow.CmdSpawnTool}" Padding="10,4" ToolTip="Outil point de départ playtest (D)" />
                 <Button Content="Prefab" Command="{x:Static local:MainWindow.CmdPrefabTool}" Padding="10,4" ToolTip="Poser un objet prefab (P)" />
                 <Button Content="Pipette" Command="{x:Static local:MainWindow.CmdTilePipette}" Padding="10,4" ToolTip="Pipette tuile : I ou Alt+clic" />
+                <Separator />
+                <Button Content="PNJ rapide" Command="{x:Static local:MainWindow.CmdQuickTalkingNpc}" Padding="10,4" ToolTip="Créer un PNJ qui parle et le placer sur la carte" />
             </ToolBar>
         </ToolBarTray>
         <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">

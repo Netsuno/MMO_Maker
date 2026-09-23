@@ -65,6 +65,8 @@ public sealed class MainForm : Form
     private IMapRepository? _mapRepository;
     private MapEventsPostgreSqlService? _mapEventService;
     private Phase8ContentPostgreSqlService? _phase8ContentService;
+    private PendingQuickNpc? _pendingQuickNpc;
+    private string? _statusNotice;
     private EditorPostgreSqlScope? _mapDatabaseScope;
     private EditorPostgreSqlScope? _mapEventDatabaseScope;
     private EditorPostgreSqlScope? _phase8DatabaseScope;
@@ -387,6 +389,7 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
             mMap.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
+            mMap.DropDownItems.Add("PNJ rapide…", null, (_, _) => OpenQuickTalkingNpc());
             mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
             mMap.DropDownItems.Add("Contenu Phase 8…", null, (_, _) => BrowsePhase8Content());
             mMap.DropDownItems.Add("Actualiser marqueurs événements", null, (_, _) => RefreshMapEventMarkers());
@@ -1435,8 +1438,9 @@ public sealed class MainForm : Form
         var prefabPlace = _canvas.ActiveTool == EditorTool.Prefab
             ? $"    ·    {_leftToolsWpf.SelectedPrefabSummary} — clic pour placer"
             : "";
+        var notice = string.IsNullOrEmpty(_statusNotice) ? "" : _statusNotice + "    ·    ";
         var text =
-            $"Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}    ·    catalogue {backend}";
+            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -1508,7 +1512,7 @@ public sealed class MainForm : Form
 
         if (!ctrl && code == Keys.Escape)
         {
-            if (TryHandlePrefabEscape())
+            if (TryHandlePrefabEscape() || CancelQuickNpcPlacement(userInitiated: true))
             {
                 return true;
             }
@@ -1639,6 +1643,7 @@ public sealed class MainForm : Form
 
     private void OnMapReplaced()
     {
+        CancelQuickNpcPlacement(userInitiated: false);
         RefreshLayersUi();
         _propGrid.SelectedObject = _canvas.Map;
         UpdateUndoRedoButtons();
@@ -2518,9 +2523,127 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
         var menu = new ContextMenuStrip();
         menu.Closed += (_, _) => menu.Dispose();
+        menu.Items.Add("PNJ rapide…", null, (_, _) => OpenQuickTalkingNpc());
         menu.Items.Add("Événements carte (cette tuile)…", null, (_, _) => BrowseMapEvents());
         menu.Show(Cursor.Position);
     }
+
+    internal void OpenQuickTalkingNpc()
+    {
+        if (_phase8ContentService is null || !_phase8ContentService.IsAvailable
+            || _mapEventService is null || !_mapEventService.IsAvailable)
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                QuickTalkingNpcMessages.PostgresRequired,
+                "PNJ rapide",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        CancelQuickNpcPlacement(userInitiated: false);
+        using var dlg = new QuickTalkingNpcDialog(_phase8ContentService, _mapEventService);
+        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK || dlg.Result is not { Success: true } created)
+        {
+            return;
+        }
+
+        var mapId = _workspace?.CurrentMapId ?? Guid.Empty;
+        if (_canvas.Map is null || mapId == Guid.Empty)
+        {
+            _statusNotice = $"PNJ « {created.DisplayName} » créé. Enregistrez la carte au catalogue avant de le placer.";
+            PushEditorStatusLine();
+            MessageBox.Show(
+                GetDialogOwner(),
+                QuickTalkingNpcMessages.NeedsCatalogMap(created.DisplayName),
+                "PNJ rapide",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        MessageBox.Show(
+            GetDialogOwner(),
+            QuickTalkingNpcMessages.CreatedPlacementPrompt(created.DisplayName),
+            "PNJ rapide",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+        ArmQuickNpcPlacement(created.EventId, created.TriggerKind, created.DisplayName);
+    }
+
+    internal bool IsQuickNpcPlacementArmedForTest => _pendingQuickNpc is not null;
+
+    internal string? StatusNoticeForTest => _statusNotice;
+
+    internal void ArmQuickNpcPlacementForTest(Guid eventId, string triggerKind, string displayName) =>
+        ArmQuickNpcPlacement(eventId, triggerKind, displayName);
+
+    internal bool TryPlaceArmedNpcForTest(int tileX, int tileY) =>
+        TryConsumeQuickNpcPlacement(new Point(tileX, tileY));
+
+    private void ArmQuickNpcPlacement(Guid eventId, string triggerKind, string displayName)
+    {
+        _pendingQuickNpc = new PendingQuickNpc(eventId, triggerKind, displayName);
+        _canvas.QuickNpcPlacementClick = TryConsumeQuickNpcPlacement;
+        _statusNotice = QuickTalkingNpcMessages.StatusPlacementPrompt(displayName);
+        PushEditorStatusLine();
+    }
+
+    internal bool CancelQuickNpcPlacement(bool userInitiated)
+    {
+        if (_pendingQuickNpc is null)
+        {
+            return false;
+        }
+
+        _pendingQuickNpc = null;
+        _canvas.QuickNpcPlacementClick = null;
+        _statusNotice = userInitiated ? QuickTalkingNpcMessages.PlacementCancelled : null;
+        PushEditorStatusLine();
+        return true;
+    }
+
+    private bool TryConsumeQuickNpcPlacement(Point tile)
+    {
+        var pending = _pendingQuickNpc;
+        if (pending is null || _mapEventService is null)
+        {
+            return false;
+        }
+
+        var mapId = _workspace?.CurrentMapId ?? Guid.Empty;
+        if (mapId == Guid.Empty)
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                QuickTalkingNpcMessages.NeedsCatalogMap(pending.DisplayName),
+                "PNJ rapide",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return true;
+        }
+
+        if (!_mapEventService.TryInsertPlacement(mapId, pending.EventId, tile.X, tile.Y, pending.TriggerKind, out var err))
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                string.IsNullOrWhiteSpace(err) ? "Placement impossible." : err,
+                "PNJ rapide",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return true;
+        }
+
+        _pendingQuickNpc = null;
+        _canvas.QuickNpcPlacementClick = null;
+        _statusNotice = QuickTalkingNpcMessages.Placed(pending.DisplayName, tile.X, tile.Y);
+        RefreshMapEventMarkers();
+        PushEditorStatusLine();
+        return true;
+    }
+
+    private sealed record PendingQuickNpc(Guid EventId, string TriggerKind, string DisplayName);
 
     internal void BrowseMapEvents()
     {
@@ -2543,6 +2666,10 @@ public sealed class MainForm : Form
             defaultTileY: _lastHoverTile.Y);
         dlg.ShowDialog(GetDialogOwner());
         RefreshMapEventMarkers();
+        if (dlg.QuickNpcRequested)
+        {
+            OpenQuickTalkingNpc();
+        }
     }
 
     internal void BrowsePhase8Content()

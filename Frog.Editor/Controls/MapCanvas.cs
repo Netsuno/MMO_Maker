@@ -66,6 +66,12 @@ public sealed class MapCanvas : Control
 
     /// <summary>Ctrl+clic droit sur une tuile (sans gommage) — menu contextuel éditeur.</summary>
     public event Action<Point>? TileContextMenuRequested;
+
+    /// <summary>
+    /// Si défini, le clic gauche sur une tuile place le PNJ rapide et n'applique pas l'outil courant.
+    /// Le rappel retourne true quand le clic est consommé.
+    /// </summary>
+    public Func<Point, bool>? QuickNpcPlacementClick { get; set; }
     public event Action? MapReplaced;
     public event Action? UndoHistoryChanged;
     /// <summary>Carte modifiée par une action d’édition (peinture, undo, etc.).</summary>
@@ -1299,6 +1305,19 @@ public sealed class MapCanvas : Control
             return;
         }
 
+        if (QuickNpcPlacementClick is { } placeNpc)
+        {
+            if (e.Button == MouseButtons.Left && placeNpc(new Point(tx, ty)))
+            {
+                return;
+            }
+
+            if (e.Button == MouseButtons.Right)
+            {
+                return;
+            }
+        }
+
         if (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Alt) == Keys.Alt)
         {
             TryPipetteAt(tx, ty, switchToBrush: false);
@@ -1512,6 +1531,11 @@ public sealed class MapCanvas : Control
         }
 
         UpdateEditCursorForHover();
+
+        if (QuickNpcPlacementClick is not null)
+        {
+            return;
+        }
 
         if ((ModifierKeys & Keys.Alt) == Keys.Alt)
         {
