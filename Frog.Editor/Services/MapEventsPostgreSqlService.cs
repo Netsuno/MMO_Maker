@@ -141,7 +141,9 @@ public sealed class MapEventsPostgreSqlService : IDisposable
                     first.TileY,
                     ordered.Count,
                     first.Slug,
-                    NormalizePhase8TriggerKind(first.TriggerKind));
+                    NormalizePhase8TriggerKind(first.TriggerKind),
+                    first.DisplayName,
+                    first.Id.ToString("D"));
             })
             .OrderBy(m => m.TileY)
             .ThenBy(m => m.TileX)
