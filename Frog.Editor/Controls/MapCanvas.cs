@@ -1031,6 +1031,31 @@ public sealed class MapCanvas : Control
         Invalidate();
     }
 
+    public bool TryDuplicateLastPrefab(out PrefabPlacement? placed, out string? error)
+    {
+        placed = null;
+        if (Map is null)
+        {
+            error = "Aucune carte.";
+            return false;
+        }
+
+        var ok = PrefabPlacementService.TryDuplicateLast(
+            _prefabPlacements,
+            PrefabCatalog,
+            Map.Width,
+            Map.Height,
+            out placed,
+            out error);
+        if (ok)
+        {
+            PrefabPlacementsChanged?.Invoke();
+            Invalidate();
+        }
+
+        return ok;
+    }
+
     internal bool TryApplyPrefabToolAtTileForTest(int tileX, int tileY)
     {
         if (Map is null)
@@ -1104,6 +1129,39 @@ public sealed class MapCanvas : Control
                 System.Drawing.Imaging.ColorMatrixFlag.Default,
                 System.Drawing.Imaging.ColorAdjustType.Bitmap);
             g.DrawImage(bmp, dest, 0, 0, bmp.Width, bmp.Height, GraphicsUnit.Pixel, attrs);
+        }
+
+        DrawPrefabNameTag(g, definition, _hoverTile.X, _hoverTile.Y);
+    }
+
+    private void DrawPrefabNameTag(Graphics g, PrefabDefinition definition, int tileX, int tileY)
+    {
+        var label = string.IsNullOrWhiteSpace(definition.DisplayName) ? definition.Id : definition.DisplayName.Trim();
+        if (string.IsNullOrEmpty(label))
+        {
+            return;
+        }
+
+        using var font = CreatePrefabTagFont();
+        var size = g.MeasureString(label, font);
+        var x = tileX * TileSize;
+        var y = Math.Max(0, tileY * TileSize - size.Height - 2f);
+        var rect = new RectangleF(x, y, size.Width + 8f, size.Height + 2f);
+        using var back = new SolidBrush(Color.FromArgb(220, 40, 32, 24));
+        using var fore = new SolidBrush(Color.FromArgb(255, 255, 228, 180));
+        g.FillRectangle(back, rect);
+        g.DrawString(label, font, fore, rect.X + 4f, rect.Y + 1f);
+    }
+
+    private static Font CreatePrefabTagFont()
+    {
+        try
+        {
+            return new Font("Segoe UI", 8f, FontStyle.Bold, GraphicsUnit.Point);
+        }
+        catch (ArgumentException)
+        {
+            return new Font(FontFamily.GenericSansSerif, 8f, FontStyle.Bold, GraphicsUnit.Point);
         }
     }
 

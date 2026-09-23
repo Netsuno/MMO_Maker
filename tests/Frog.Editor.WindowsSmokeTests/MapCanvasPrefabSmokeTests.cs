@@ -79,4 +79,27 @@ public sealed class MapCanvasPrefabSmokeTests
             Assert.Equal(5, moved.TileY);
         });
     }
+
+    [Fact]
+    public void PrefabTool_DuplicateLastPlacesCopyBesideSource()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            var canvas = new MapCanvas { TileSize = 32 };
+            canvas.Map = DemoMapFactory.CreateStarter();
+            canvas.SelectedPrefabId = BuiltInPrefabCatalog.SofaId;
+            canvas.SelectedPrefabFacing = PrefabFacing.South;
+            Assert.True(canvas.TryPlaceSelectedPrefab(2, 4));
+
+            Assert.True(canvas.TryDuplicateLastPrefab(out var copy, out var error), error);
+            Assert.Equal(2, canvas.PrefabPlacements.Count);
+            Assert.NotNull(copy);
+            Assert.Equal(BuiltInPrefabCatalog.SofaId, copy!.PrefabId);
+            Assert.Equal(PrefabFacing.South, copy.Facing);
+            Assert.Equal(4, copy.TileX);
+            Assert.Equal(4, copy.TileY);
+            Assert.Equal(2, canvas.PrefabPlacements[0].TileX);
+        });
+    }
 }

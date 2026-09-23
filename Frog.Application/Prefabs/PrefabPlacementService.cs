@@ -498,6 +498,79 @@ public static class PrefabPlacementService
             _ => "south",
         };
 
+    /// <summary>
+    /// Copie la dernière instance posée, décalée de son empreinte (droite, puis bas, gauche, haut).
+    /// Ne remplace pas les voisins : une case libre est requise.
+    /// </summary>
+    public static bool TryDuplicateLast(
+        IList<PrefabPlacement> placements,
+        PrefabCatalog catalog,
+        int mapWidth,
+        int mapHeight,
+        out PrefabPlacement? placed,
+        out string? error)
+    {
+        ArgumentNullException.ThrowIfNull(placements);
+        ArgumentNullException.ThrowIfNull(catalog);
+        placed = null;
+        if (placements.Count == 0)
+        {
+            error = "Aucun objet posé à dupliquer.";
+            return false;
+        }
+
+        var source = placements[placements.Count - 1];
+        if (source is null
+            || !TryGetDefinition(catalog, source.PrefabId, out var definition)
+            || !TryResolveVariant(definition, source.Facing, out var variant)
+            || !TryResolveFootprint(definition, variant, out var widthTiles, out var heightTiles))
+        {
+            error = "Prefab introuvable.";
+            return false;
+        }
+
+        var steps = new (int Dx, int Dy)[]
+        {
+            (widthTiles, 0),
+            (0, heightTiles),
+            (-widthTiles, 0),
+            (0, -heightTiles),
+            (widthTiles, heightTiles),
+            (-widthTiles, heightTiles),
+            (widthTiles, -heightTiles),
+            (-widthTiles, -heightTiles),
+        };
+
+        foreach (var (dx, dy) in steps)
+        {
+            var tileX = source.TileX + dx;
+            var tileY = source.TileY + dy;
+            if (!CanOccupy(placements, catalog, tileX, tileY, widthTiles, heightTiles, mapWidth, mapHeight))
+            {
+                continue;
+            }
+
+            if (TryPlace(
+                    placements,
+                    catalog,
+                    source.PrefabId,
+                    source.Facing,
+                    tileX,
+                    tileY,
+                    mapWidth,
+                    mapHeight,
+                    out placed,
+                    out error))
+            {
+                return true;
+            }
+        }
+
+        placed = null;
+        error = "Pas de place libre à côté du dernier objet.";
+        return false;
+    }
+
     public static List<PrefabPlacement> ClonePlacements(IEnumerable<PrefabPlacement>? source)
     {
         var list = new List<PrefabPlacement>();
@@ -523,6 +596,44 @@ public static class PrefabPlacementService
         }
 
         return list;
+    }
+
+    private static bool CanOccupy(
+        IList<PrefabPlacement> placements,
+        PrefabCatalog catalog,
+        int tileX,
+        int tileY,
+        int widthTiles,
+        int heightTiles,
+        int mapWidth,
+        int mapHeight)
+    {
+        if (!FitsOnMap(tileX, tileY, widthTiles, heightTiles, mapWidth, mapHeight))
+        {
+            return false;
+        }
+
+        foreach (var item in placements)
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            if (!TryGetDefinition(catalog, item.PrefabId, out var definition)
+                || !TryResolveVariant(definition, item.Facing, out var variant)
+                || !TryResolveFootprint(definition, variant, out var otherWidth, out var otherHeight))
+            {
+                continue;
+            }
+
+            if (Overlaps(tileX, tileY, widthTiles, heightTiles, item.TileX, item.TileY, otherWidth, otherHeight))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void RemoveOverlapping(

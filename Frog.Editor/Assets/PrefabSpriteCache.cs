@@ -1,5 +1,8 @@
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Frog.Application.Prefabs;
 using Frog.Core.IO;
 using Frog.Core.Models;
@@ -10,9 +13,29 @@ namespace Frog.Editor.Assets;
 internal static class PrefabSpriteCache
 {
     private static readonly Dictionary<string, Bitmap> Bitmaps = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, ImageSource> Previews = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Tests : force le dossier <c>Prefabs/</c> (sprites absents → pas d’aperçu).</summary>
+    internal static string? OverrideDirectoryForTest { get; set; }
+
+    internal static void ResetCacheForTest()
+    {
+        foreach (var bitmap in Bitmaps.Values)
+        {
+            bitmap.Dispose();
+        }
+
+        Bitmaps.Clear();
+        Previews.Clear();
+    }
 
     public static string ResolvePrefabsDirectory()
     {
+        if (!string.IsNullOrWhiteSpace(OverrideDirectoryForTest))
+        {
+            return OverrideDirectoryForTest;
+        }
+
         var nextToExe = Path.Combine(AppContext.BaseDirectory ?? ".", MapPrefabPackage.FolderName);
         if (Directory.Exists(nextToExe))
         {
@@ -106,5 +129,48 @@ internal static class PrefabSpriteCache
         }
 
         return files;
+    }
+
+    /// <summary>
+    /// Aperçu WPF figé à partir d’un sprite déjà en cache (ou chargé depuis le dossier prefab).
+    /// Retourne null si le fichier est absent ou illisible — l’UI n’affiche alors pas de vignette.
+    /// </summary>
+    public static ImageSource? TryCreatePreview(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        var key = Path.GetFileName(fileName.Trim());
+        if (Previews.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        if (!TryGet(key, out var bitmap) || bitmap is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var clone = new Bitmap(bitmap);
+            using var stream = new MemoryStream();
+            clone.Save(stream, ImageFormat.Png);
+            stream.Position = 0;
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+            image.EndInit();
+            image.Freeze();
+            Previews[key] = image;
+            return image;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

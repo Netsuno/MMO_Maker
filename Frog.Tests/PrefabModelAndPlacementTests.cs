@@ -107,6 +107,44 @@ public sealed class PrefabModelAndPlacementTests
     }
 
     [Fact]
+    public void DuplicateLast_OffsetsByFootprint_SkipsBlockedAndOffMap()
+    {
+        var catalog = BuiltInPrefabCatalog.Create();
+        var list = new System.Collections.Generic.List<PrefabPlacement>();
+
+        Assert.False(PrefabPlacementService.TryDuplicateLast(list, catalog, 8, 8, out _, out var empty));
+        Assert.Equal("Aucun objet posé à dupliquer.", empty);
+
+        Assert.True(PrefabPlacementService.TryPlace(list, catalog, BuiltInPrefabCatalog.SofaId, PrefabFacing.South, 1, 1, 8, 8, out _, out var err), err);
+        Assert.True(PrefabPlacementService.TryDuplicateLast(list, catalog, 8, 8, out var copy, out var dupErr), dupErr);
+        Assert.Equal(2, list.Count);
+        Assert.NotNull(copy);
+        Assert.Equal(BuiltInPrefabCatalog.SofaId, copy!.PrefabId);
+        Assert.Equal(PrefabFacing.South, copy.Facing);
+        Assert.Equal(3, copy.TileX);
+        Assert.Equal(1, copy.TileY);
+        Assert.Equal(1, list[0].TileX);
+        Assert.Equal(1, list[0].TileY);
+
+        list.Clear();
+        Assert.True(PrefabPlacementService.TryPlace(list, catalog, BuiltInPrefabCatalog.ChestId, PrefabFacing.South, 3, 1, 8, 8, out _, out var chestErr), chestErr);
+        Assert.True(PrefabPlacementService.TryPlace(list, catalog, BuiltInPrefabCatalog.SofaId, PrefabFacing.South, 1, 1, 8, 8, out _, out var again), again);
+        Assert.True(PrefabPlacementService.TryDuplicateLast(list, catalog, 8, 8, out var below, out var belowErr), belowErr);
+        Assert.Equal(BuiltInPrefabCatalog.SofaId, below!.PrefabId);
+        Assert.Equal(1, below.TileX);
+        Assert.Equal(2, below.TileY);
+        Assert.Equal(3, list.Count);
+        Assert.Equal(3, list[0].TileX);
+        Assert.Equal(1, list[1].TileX);
+
+        list.Clear();
+        Assert.True(PrefabPlacementService.TryPlace(list, catalog, BuiltInPrefabCatalog.SofaId, PrefabFacing.South, 6, 2, 8, 8, out _, out var edgeErr), edgeErr);
+        Assert.True(PrefabPlacementService.TryDuplicateLast(list, catalog, 8, 8, out var dropped, out var dropErr), dropErr);
+        Assert.Equal(6, dropped!.TileX);
+        Assert.Equal(3, dropped.TileY);
+    }
+
+    [Fact]
     public void FacingFallback_UsesFirstVariant()
     {
         var catalog = BuiltInPrefabCatalog.Create();
