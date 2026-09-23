@@ -35,6 +35,7 @@ internal sealed class MapEventsBrowseDialog : Form
     private readonly Button _btnAddCatalog = new() { Text = "Ajouter au catalogue", AutoSize = true };
     private readonly Button _btnDeleteCatalogRow = new() { Text = "Supprimer entrée catalogue", AutoSize = true };
     private readonly Button _btnEditPages = new() { Text = "Éditer pages…", AutoSize = true };
+    private readonly Button _btnQuickNpc = new() { Text = "PNJ rapide…", AutoSize = true };
     private readonly TextBox _txtFilterCatalog = new() { Width = 220, PlaceholderText = "Filtrer catalogue…" };
     private readonly TextBox _txtFilterPlacements = new() { Width = 220, PlaceholderText = "Filtrer placements…" };
     private readonly List<PgEventCatalogRow> _catalogRows = new();
@@ -125,6 +126,7 @@ internal sealed class MapEventsBrowseDialog : Form
         catNewRow.Controls.Add(new Label { Text = "Nom", AutoSize = true, Margin = new Padding(8, 10, 4, 0) });
         catNewRow.Controls.Add(_txtNewDisplay);
         catNewRow.Controls.Add(_btnAddCatalog);
+        catNewRow.Controls.Add(_btnQuickNpc);
         catNewRow.Controls.Add(_btnEditPages);
         catNewRow.Controls.Add(_btnDeleteCatalogRow);
         catPanel.Controls.Add(catNewRow, 0, 2);
@@ -185,12 +187,20 @@ internal sealed class MapEventsBrowseDialog : Form
         _btnDeleteSelected.Click += (_, _) => DeleteSelectedSafe();
         _btnApplyTrigger.Click += (_, _) => ApplyTriggerSafe();
         _btnAddCatalog.Click += (_, _) => AddCatalogSafe();
+        _btnQuickNpc.Click += (_, _) =>
+        {
+            QuickNpcRequested = true;
+            Close();
+        };
         _btnEditPages.Click += (_, _) => EditPagesSafe();
         _btnDeleteCatalogRow.Click += (_, _) => DeleteCatalogRowSafe();
         _txtFilterCatalog.TextChanged += (_, _) => RefreshFilteredLists();
         _txtFilterPlacements.TextChanged += (_, _) => RefreshFilteredLists();
         Shown += (_, _) => ReloadSafe();
     }
+
+    /// <summary>L'utilisateur a demandé le raccourci PNJ rapide (la boîte se ferme).</summary>
+    internal bool QuickNpcRequested { get; private set; }
 
     public void SetMapId(Guid mapId)
     {
