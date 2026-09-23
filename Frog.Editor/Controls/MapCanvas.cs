@@ -1369,6 +1369,19 @@ public sealed class MapCanvas : Control
         var ty = (int)Math.Floor(world.Y / TileSize);
         var inMap = tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height;
 
+        if (QuickNpcPlacementClick is { } placeNpc)
+        {
+            if (e.Button == MouseButtons.Left && inMap && placeNpc(new Point(tx, ty)))
+            {
+                return;
+            }
+
+            if (e.Button == MouseButtons.Right)
+            {
+                return;
+            }
+        }
+
         if (e.Button == MouseButtons.Left && inMap && (ModifierKeys & Keys.Alt) == Keys.Alt)
         {
             TryPipetteAt(tx, ty, switchToBrush: false);
@@ -1385,19 +1398,6 @@ public sealed class MapCanvas : Control
         if (!inMap)
         {
             return;
-        }
-
-        if (QuickNpcPlacementClick is { } placeNpc)
-        {
-            if (e.Button == MouseButtons.Left && placeNpc(new Point(tx, ty)))
-            {
-                return;
-            }
-
-            if (e.Button == MouseButtons.Right)
-            {
-                return;
-            }
         }
 
         if (e.Button == MouseButtons.Right)
