@@ -850,6 +850,7 @@ public sealed class MainForm : Form
         ApplyWorkspaceMapToUi();
         await HydrateTilesetCacheFromPublishedAsync().ConfigureAwait(true);
         UpdatePersistenceMenuState();
+        RestoreSavedPrefabSelection();
         PushEditorStatusLine();
     }
 
@@ -1209,6 +1210,41 @@ public sealed class MainForm : Form
         EditorLocalWorkstate.WriteLastPrefabSelection(prefabId, facing);
         _canvas.Invalidate();
         PushEditorStatusLine();
+    }
+
+    /// <summary>
+    /// Réapplique le dernier prefab mémorisé après le chargement de la carte.
+    /// La liste WPF peut sinon rester sur le premier objet (Canapé) alors que le canevas a déjà l’id restauré.
+    /// </summary>
+    private void RestoreSavedPrefabSelection()
+    {
+        EditorLocalWorkstate.TryReadLastPrefabSelection(out var id, out var facing);
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            id = _canvas.SelectedPrefabId;
+            facing = _canvas.SelectedPrefabFacing;
+        }
+
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        if (!PrefabPlacementService.TryGetDefinition(_canvas.PrefabCatalog, id, out _))
+        {
+            _canvas.PrefabCatalog = MapPrefabPersistDocument.MergeCatalogs(
+                _canvas.PrefabCatalog,
+                BuiltInPrefabCatalog.Create());
+        }
+
+        if (!PrefabPlacementService.TryGetDefinition(_canvas.PrefabCatalog, id, out _))
+        {
+            return;
+        }
+
+        _canvas.SelectedPrefabId = id;
+        _canvas.SelectedPrefabFacing = facing;
+        _leftToolsWpf.BindPrefabCatalog(_canvas.PrefabCatalog, id, facing);
     }
 
     private void OnPrefabSelectionPicked(string prefabId, PrefabFacing facing)

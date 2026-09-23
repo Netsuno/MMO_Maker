@@ -61,7 +61,14 @@ internal static class PrefabSpriteCache
     {
         var path = Path.Combine(ResolvePrefabsDirectory(), MapPrefabPackage.CatalogFileName);
         var fromDisk = PrefabCatalogJson.TryDeserializeFromFile(path);
-        return fromDisk ?? BuiltInPrefabCatalog.Create();
+        var builtin = BuiltInPrefabCatalog.Create();
+        if (fromDisk is null || fromDisk.Prefabs is null || fromDisk.Prefabs.Count == 0)
+        {
+            return builtin;
+        }
+
+        // Le fichier disque prime en cas d’id commun ; les prefabs intégrés absents du fichier restent sélectionnables.
+        return MapPrefabPersistDocument.MergeCatalogs(builtin, fromDisk);
     }
 
     public static bool TryGet(string? fileName, out Bitmap? bitmap)

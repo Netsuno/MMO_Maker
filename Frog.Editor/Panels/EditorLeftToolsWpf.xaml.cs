@@ -20,6 +20,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     private bool _suspendTool;
     private bool _suspendTileType;
     private bool _suspendPrefab;
+    private bool _restoringPrefabSelection;
     private bool _placeMode;
     private string? _selectedId;
     private PrefabFacing _selectedFacing = PrefabFacing.South;
@@ -46,6 +47,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         ComboTool.SelectedIndex = 0;
         SetSpawnDisplay(null, null);
         BindPrefabCatalog(BuiltInPrefabCatalog.Create(), BuiltInPrefabCatalog.SofaId, PrefabFacing.South);
+        Loaded += (_, _) => RestoreProgrammaticPrefabSelection();
 
         foreach (var (type, label) in TileChoices)
         {
@@ -495,7 +497,65 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
             return;
         }
 
+        if (string.Equals(entry.Id, _selectedId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        // Au chargement, la liste réalise souvent la première ligne (Canapé) et écrase
+        // la restauration. Seul un geste utilisateur change le prefab mémorisé.
+        if (!IsUserPrefabPick())
+        {
+            Dispatcher.BeginInvoke(new Action(RestoreProgrammaticPrefabSelection));
+            return;
+        }
+
         CommitPrefabChoice(entry.Id, enterPlaceMode: true);
+    }
+
+    private static bool IsUserPrefabPick()
+    {
+        if (Mouse.LeftButton == MouseButtonState.Pressed)
+        {
+            return true;
+        }
+
+        if (Keyboard.FocusedElement is not ListBoxItem)
+        {
+            return false;
+        }
+
+        return Keyboard.IsKeyDown(Key.Up)
+            || Keyboard.IsKeyDown(Key.Down)
+            || Keyboard.IsKeyDown(Key.Left)
+            || Keyboard.IsKeyDown(Key.Right)
+            || Keyboard.IsKeyDown(Key.Enter)
+            || Keyboard.IsKeyDown(Key.Space)
+            || Keyboard.IsKeyDown(Key.Home)
+            || Keyboard.IsKeyDown(Key.End)
+            || Keyboard.IsKeyDown(Key.PageUp)
+            || Keyboard.IsKeyDown(Key.PageDown);
+    }
+
+    /// <summary>Réaligne la liste et le libellé sur l’id restauré, sans écrire le workstate.</summary>
+    private void RestoreProgrammaticPrefabSelection()
+    {
+        if (_restoringPrefabSelection || _suspendPrefab || ListPrefabs is null)
+        {
+            return;
+        }
+
+        _restoringPrefabSelection = true;
+        _suspendPrefab = true;
+        try
+        {
+            ApplyPrefabFilter();
+        }
+        finally
+        {
+            _suspendPrefab = false;
+            _restoringPrefabSelection = false;
+        }
     }
 
     private void ListPrefabs_OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
