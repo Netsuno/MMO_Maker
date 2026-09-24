@@ -7,7 +7,7 @@
 | **Statut** | Paperdoll : corps + tête Eldiran, overlays originaux tunique / armure / casque / arme |
 | **Base** | `main` @ `3dbf63f` (paperdoll MVP déjà fusionné, PR #49) |
 | **Branche** | `cursor/paperdoll-tunic-overlay-53d8` |
-| **PR** | Draft vers `main` — **pas de merge** |
+| **PR** | Draft [#50](https://github.com/Netsuno/MMO_Maker/pull/50) vers `main` — **pas de merge** |
 
 Protocole / gameplay / `WorldMetrics.DefaultTileSizePixels = 32` inchangés.
 Affichage nearest-neighbor seulement (pas de bicubique / ColorMatrix or).
