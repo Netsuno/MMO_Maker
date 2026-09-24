@@ -395,6 +395,8 @@ public sealed class MainForm : Form
             var mResources = new ToolStripMenuItem("Ressources");
             mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
             mResources.DropDownItems.Add("Importer un asset projet…", null, (_, _) => ImportProjectAsset());
+            mResources.DropDownItems.Add("Animer la sélection de tuiles", null, (_, _) => MarkSelectedTilesAnimated());
+            mResources.DropDownItems.Add("Retirer l’animation de la sélection", null, (_, _) => ClearSelectedTilesAnimated());
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
@@ -432,6 +434,13 @@ public sealed class MainForm : Form
                 Checked = true,
             };
             mView.DropDownItems.Add(mnuShowEventNames);
+            var mnuAnimPreview = new ToolStripMenuItem("Aperçu des tuiles animées")
+            {
+                CheckOnClick = true,
+                Checked = true,
+            };
+            mnuAnimPreview.CheckedChanged += (_, _) => AnimatedTilePreviewVisible = mnuAnimPreview.Checked;
+            mView.DropDownItems.Add(mnuAnimPreview);
 
             menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mEdit, mResources, mMap, mView });
             MainMenuStrip = menuStrip;
@@ -578,6 +587,11 @@ public sealed class MainForm : Form
         _tilesetPickerWpf.SelectedTilesetChanged += id => _canvas.ActiveTilesetId = id;
         _tilesetPickerWpf.LoadTilesetsRequested += OpenTileset;
         _tilesetPickerWpf.StampSelectionChanged += OnPaletteStampChanged;
+        _tilesetPickerWpf.AnimStatusChanged += message =>
+        {
+            _statusNotice = message;
+            PushEditorStatusLine();
+        };
         _tilesetPickerWpf.SyncPaletteTileSize(_canvas.TileSize);
         _tilesetPickerElementHost = new ElementHost
         {
@@ -2000,6 +2014,12 @@ public sealed class MainForm : Form
         }
 
         var id = TilesetCache.LoadFromFile(toLoad);
+        TilesetAnimCatalog.TryAttachImageSidecar(id, path);
+        if (!string.Equals(path, toLoad, StringComparison.OrdinalIgnoreCase))
+        {
+            TilesetAnimCatalog.TryAttachImageSidecar(id, toLoad);
+        }
+
         _canvas.ActiveTilesetId = id;
         RefreshTilesetList();
         return id;
@@ -2082,9 +2102,13 @@ public sealed class MainForm : Form
         File.WriteAllBytes(sfd.FileName, bytes);
         SaveTilesetManifestNextToMap(sfd.FileName);
         SavePrefabSidecarNextToMap(sfd.FileName);
+        TilesetAnimCatalog.WriteMapSidecars(
+            sfd.FileName,
+            Path.GetDirectoryName(sfd.FileName),
+            TilesetCache.ListRegistered().Select(entry => entry.Id));
         MessageBox.Show(
             GetDialogOwner(),
-            "Carte, PNG tileset, manifeste (.tilesets.json) et sidecar prefabs (.prefabs.json) exportés.",
+            "Carte, PNG tileset, manifeste (.tilesets.json), animations (.anims.json) et sidecar prefabs (.prefabs.json) exportés.",
             "Export",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
@@ -3269,6 +3293,7 @@ public sealed class MainForm : Form
 
         TilesetCache.Clear();
         var manifestOutcome = TryApplyTilesetManifestFromMapPath(mapPath);
+        TryApplyAnimSidecarsFromMapPath(mapPath);
 
         _canvas.ClearHistory();
         _canvas.Map = map;
@@ -3357,6 +3382,45 @@ public sealed class MainForm : Form
         }
 
         return (true, missing);
+    }
+
+    private static void TryApplyAnimSidecarsFromMapPath(string mapFilePath)
+    {
+        foreach (var (id, _) in TilesetCache.ListRegistered())
+        {
+            var source = TilesetCache.TryGetSourcePath(id);
+            if (!string.IsNullOrWhiteSpace(source))
+            {
+                TilesetAnimCatalog.TryAttachImageSidecar(id, source);
+            }
+        }
+
+        TilesetAnimCatalog.TryReplaceFromMapSidecar(mapFilePath);
+    }
+
+    internal bool AnimatedTilePreviewVisible
+    {
+        get => TilesetAnimCatalog.PreviewEnabled;
+        set
+        {
+            TilesetAnimCatalog.PreviewEnabled = value;
+            _tilesetPickerWpf.SyncAnimPreview();
+            _canvas.Invalidate();
+        }
+    }
+
+    internal string MarkSelectedTilesAnimated()
+    {
+        var message = _tilesetPickerWpf.MarkSelectionAnimated();
+        _canvas.Invalidate();
+        return message;
+    }
+
+    internal string ClearSelectedTilesAnimated()
+    {
+        var message = _tilesetPickerWpf.ClearSelectionAnimated();
+        _canvas.Invalidate();
+        return message;
     }
 
     private void PositionMinimap()

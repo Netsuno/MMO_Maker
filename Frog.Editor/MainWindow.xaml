@@ -88,6 +88,9 @@
             <MenuItem Header="_Ressources" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Données de jeu…" Command="{x:Static local:MainWindow.CmdGameData}" />
                 <MenuItem Header="Charger une image tuiles…" Command="{x:Static local:MainWindow.CmdOpenTileset}" />
+                <Separator />
+                <MenuItem Header="Animer la sélection de tuiles" Command="{x:Static local:MainWindow.CmdMarkTilesAnimated}" />
+                <MenuItem Header="Retirer l’animation de la sélection" Command="{x:Static local:MainWindow.CmdClearTilesAnimated}" />
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
@@ -135,6 +138,12 @@
                           IsCheckable="True"
                           IsChecked="True"
                           Click="OnToggleMapEventNames" />
+                <MenuItem x:Name="MnuAnimPreview"
+                          Header="Aperçu des tuiles animées"
+                          IsCheckable="True"
+                          IsChecked="True"
+                          ToolTip="Fait défiler les tuiles animées sur la carte et dans la palette."
+                          Click="OnToggleAnimPreview" />
             </MenuItem>
         </Menu>
         <ToolBarTray DockPanel.Dock="Top" Background="#FF2A2E36">

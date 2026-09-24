@@ -82,6 +82,16 @@ public partial class MainWindow : Window
         typeof(MainWindow),
         new InputGestureCollection { new KeyGesture(Key.Y, ModifierKeys.Control) });
 
+    public static readonly RoutedUICommand CmdMarkTilesAnimated = new(
+        "Animer la sélection de tuiles",
+        nameof(CmdMarkTilesAnimated),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdClearTilesAnimated = new(
+        "Retirer l’animation de la sélection",
+        nameof(CmdClearTilesAnimated),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdOpenTileset = new(
         "Charger une image tuiles…",
         nameof(CmdOpenTileset),
@@ -216,6 +226,8 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdUndo, (_, _) => _editor.DoUndo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanUndo));
         CommandBindings.Add(new CommandBinding(CmdRedo, (_, _) => _editor.DoRedo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanRedo));
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
+        CommandBindings.Add(new CommandBinding(CmdMarkTilesAnimated, (_, _) => _editor.MarkSelectedTilesAnimated()));
+        CommandBindings.Add(new CommandBinding(CmdClearTilesAnimated, (_, _) => _editor.ClearSelectedTilesAnimated()));
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdShowTransferIssues, (_, _) => _editor.ShowTransferIssues()));
@@ -385,6 +397,14 @@ public partial class MainWindow : Window
         if (left > 0 && right > 0)
         {
             EditorLocalWorkstate.WriteShellColumnWidths(left, right);
+        }
+    }
+
+    private void OnToggleAnimPreview(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem mi)
+        {
+            _editor.AnimatedTilePreviewVisible = mi.IsChecked == true;
         }
     }
 

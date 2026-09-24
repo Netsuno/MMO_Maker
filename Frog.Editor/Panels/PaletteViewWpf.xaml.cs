@@ -3,7 +3,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using Frog.Core.Animation;
+using Frog.Core.Models;
 using Frog.Editor.Assets;
 using Frog.Editor.Utils;
 using DSize = System.Drawing.Size;
@@ -23,20 +26,53 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
     private bool _dragSelect;
     private System.Windows.Point _dragAnchorDip;
     private System.Windows.Point _dragCurrentDip;
+    private BitmapSource? _sheetSource;
+    private readonly List<AnimCell> _animCells = new();
+
+    public System.Drawing.Rectangle StampPixels => new(_stampOrigin, _stampSizePixels);
 
     public PaletteViewWpf()
     {
         InitializeComponent();
         Loaded += (_, _) =>
         {
+            TilesetAnimCatalog.Changed -= OnAnimCatalogChanged;
+            TilesetAnimCatalog.PreviewFrameChanged -= OnAnimFrame;
+            TilesetAnimCatalog.Changed += OnAnimCatalogChanged;
+            TilesetAnimCatalog.PreviewFrameChanged += OnAnimFrame;
             if (TilesetId != 0 && TilesetCache.TryGet(TilesetId, out var b) && b is not null)
             {
                 SetTileset(TilesetId);
             }
+            else
+            {
+                RebuildAnimOverlay();
+            }
+        };
+        Unloaded += (_, _) =>
+        {
+            TilesetAnimCatalog.Changed -= OnAnimCatalogChanged;
+            TilesetAnimCatalog.PreviewFrameChanged -= OnAnimFrame;
         };
     }
 
-    private double PixelsPerDip => VisualTreeHelper.GetDpi(this).PixelsPerDip;
+    public void SyncAnimPreview() => RebuildAnimOverlay();
+
+    private double PixelsPerDip
+    {
+        get
+        {
+            try
+            {
+                var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+                return dpi > 0 ? dpi : 1;
+            }
+            catch (InvalidOperationException)
+            {
+                return 1;
+            }
+        }
+    }
 
     public void SetTileset(int tilesetId)
     {
@@ -47,6 +83,9 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
         _dragSelect = false;
 
         GridOverlay.Children.Clear();
+        AnimOverlay.Children.Clear();
+        _animCells.Clear();
+        _sheetSource = null;
         if (!TilesetCache.TryGet(tilesetId, out var bmp) || bmp is null)
         {
             TilesetImg.Source = null;
@@ -61,7 +100,8 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
         var wDip = bmp.Width / ppd;
         var hDip = bmp.Height / ppd;
 
-        TilesetImg.Source = BitmapToWpf.ToFrozenPng(bmp);
+        _sheetSource = BitmapToWpf.ToFrozenPng(bmp);
+        TilesetImg.Source = _sheetSource;
         TilesetImg.Width = wDip;
         TilesetImg.Height = hDip;
         Canvas.SetLeft(TilesetImg, 0);
@@ -71,6 +111,7 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
         BuildGridLines(bmp.Width, bmp.Height, ts, ppd);
         PositionOverlayRects(ppd);
         SelectionRect.Visibility = Visibility.Visible;
+        RebuildAnimOverlay();
         RaiseStampChanged();
     }
 
@@ -259,5 +300,156 @@ public partial class PaletteViewWpf : System.Windows.Controls.UserControl
     {
         var r = new System.Drawing.Rectangle(_stampOrigin, _stampSizePixels);
         StampSelectionChanged?.Invoke(r);
+    }
+
+    private void OnAnimCatalogChanged()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(RebuildAnimOverlay);
+            return;
+        }
+
+        RebuildAnimOverlay();
+    }
+
+    private void OnAnimFrame()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(RefreshAnimFrames);
+            return;
+        }
+
+        RefreshAnimFrames();
+    }
+
+    private void RebuildAnimOverlay()
+    {
+        if (AnimOverlay is null)
+        {
+            return;
+        }
+
+        AnimOverlay.Children.Clear();
+        _animCells.Clear();
+        if (_sheetSource is null || TilesetId < 1 || !TilesetCache.TryGet(TilesetId, out var bmp) || bmp is null)
+        {
+            return;
+        }
+
+        if (!TilesetAnimCatalog.TryGetStrips(TilesetId, out var strips))
+        {
+            return;
+        }
+
+        var ppd = PixelsPerDip;
+        var ts = Math.Max(1, TileSize);
+        var shade = new SolidColorBrush(MediaColor.FromArgb(96, 8, 10, 16));
+        shade.Freeze();
+        foreach (var strip in strips)
+        {
+            var frames = Math.Min(Math.Max(strip.FrameCount, 1), AnimatedTileFrames.MaxFrameCount);
+            for (var i = 1; i < frames; i++)
+            {
+                AnimatedTileFrames.SourcePixel(strip, i, ts, out var fx, out var fy);
+                if (fx < 0 || fy < 0 || fx + ts > bmp.Width || fy + ts > bmp.Height)
+                {
+                    continue;
+                }
+
+                var dim = new System.Windows.Shapes.Rectangle
+                {
+                    Width = ts / ppd,
+                    Height = ts / ppd,
+                    Fill = shade,
+                    IsHitTestVisible = false,
+                };
+                Canvas.SetLeft(dim, fx / ppd);
+                Canvas.SetTop(dim, fy / ppd);
+                AnimOverlay.Children.Add(dim);
+            }
+
+            var image = new System.Windows.Controls.Image
+            {
+                Width = ts / ppd,
+                Height = ts / ppd,
+                Stretch = Stretch.Fill,
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = true,
+            };
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            Canvas.SetLeft(image, strip.OriginX / ppd);
+            Canvas.SetTop(image, strip.OriginY / ppd);
+            var cell = new AnimCell(image, strip);
+            _animCells.Add(cell);
+            AnimOverlay.Children.Add(image);
+            ApplyFrame(cell, bmp.Width, bmp.Height, ts);
+        }
+    }
+
+    private void RefreshAnimFrames()
+    {
+        if (_animCells.Count == 0 || _sheetSource is null || !TilesetCache.TryGet(TilesetId, out var bmp) || bmp is null)
+        {
+            return;
+        }
+
+        var ts = Math.Max(1, TileSize);
+        foreach (var cell in _animCells)
+        {
+            ApplyFrame(cell, bmp.Width, bmp.Height, ts);
+        }
+    }
+
+    private void ApplyFrame(AnimCell cell, int sheetW, int sheetH, int tileSize)
+    {
+        if (!TilesetAnimCatalog.PreviewEnabled || _sheetSource is null)
+        {
+            cell.Image.Source = null;
+            cell.LastFrame = int.MinValue;
+            return;
+        }
+
+        if (!TilesetAnimCatalog.TryResolveDrawSource(
+                TilesetId,
+                cell.Strip.OriginX,
+                cell.Strip.OriginY,
+                tileSize,
+                TilesetAnimCatalog.PreviewElapsedMs,
+                sheetW,
+                sheetH,
+                out var x,
+                out var y))
+        {
+            return;
+        }
+
+        var frameKey = (x * 8192) + y;
+        if (frameKey == cell.LastFrame)
+        {
+            return;
+        }
+
+        var crop = new CroppedBitmap(_sheetSource, new Int32Rect(x, y, tileSize, tileSize));
+        crop.Freeze();
+        cell.Image.Source = crop;
+        cell.LastFrame = frameKey;
+    }
+
+    private sealed class AnimCell
+    {
+        public AnimCell(System.Windows.Controls.Image image, AnimatedTileStrip strip)
+        {
+            Image = image;
+            Strip = strip;
+            LastFrame = int.MinValue;
+        }
+
+        public System.Windows.Controls.Image Image { get; }
+
+        public AnimatedTileStrip Strip { get; }
+
+        public int LastFrame { get; set; }
     }
 }
