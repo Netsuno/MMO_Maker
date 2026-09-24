@@ -32,5 +32,15 @@
   "Maps": {
     "worldMapPath": "",
     "databaseFallbackMapId": 1
+  },
+  "TilePack": {
+    "enabled": false,
+    "bindAddress": "127.0.0.1",
+    "port": 6080,
+    "allowNonLoopbackContentBind": false,
+    "publicKeyHex": "",
+    "privateSeedHex": "",
+    "adminToken": "",
+    "pngImportRoot": ""
   }
 }
