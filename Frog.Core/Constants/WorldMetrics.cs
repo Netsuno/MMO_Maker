@@ -5,7 +5,10 @@ namespace Frog.Core.Constants;
 /// </summary>
 public static class WorldMetrics
 {
-    /// <summary>Taille d'une tuile en pixels (carré). Alignée avec l’éditeur (<c>MapCanvas.TileSize</c> par défaut 32).</summary>
+    /// <summary>
+    /// Taille d'une tuile en pixels (carré) pour le monde actuel. Alignée avec l’éditeur (<c>MapCanvas.TileSize</c> par défaut 32).
+    /// Les tuiles adressées par contenu visent <see cref="TileAssetMetrics.TargetTileSizePixels"/> (48) ; ne pas modifier cette constante pour les y migrer.
+    /// </summary>
     public const int DefaultTileSizePixels = 32;
 
     /// <summary>Portée mêlée maximale en pixels (distance euclidienne centre → centre). Échelle ~1,75 tuile avec tuiles 32 px.</summary>

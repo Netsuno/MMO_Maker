@@ -4,8 +4,10 @@ namespace Frog.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Interfaces;
+using Frog.Core.Maps;
 
 /// <summary>
 /// Représente une carte (map) logique. Unité d’édition (Editor), d’affichage (Client)
@@ -34,6 +36,19 @@ public sealed class Map : IValidatable
     public bool AllowPlayerOverlap { get; set; }
 
     /// <summary>
+    /// Identité graphique écrite dans le <c>.fmap</c>.
+    /// <see cref="TileGraphicIdentity.SheetSource"/> (défaut) → v5, coordonnées de feuille.
+    /// <see cref="TileGraphicIdentity.TileAsset"/> → v6, <see cref="Tile.AssetId"/> uniquement.
+    /// </summary>
+    public TileGraphicIdentity GraphicIdentity { get; set; } = TileGraphicIdentity.SheetSource;
+
+    /// <summary>
+    /// Taille de tuile déclarée par l’en-tête v6. 0 pour les fichiers v3–v5 : le consommateur garde
+    /// <see cref="WorldMetrics.DefaultTileSizePixels"/> (32). Une carte TileAsset écrit 48, sans upscale implicite.
+    /// </summary>
+    public int TileSizePixels { get; set; }
+
+    /// <summary>
     /// Valide l’intégrité de la carte : dimensions, couches, tuiles dans les bornes, doublons par couche, warps.
     /// </summary>
     public bool Validate(out string? errorMessage)
@@ -53,6 +68,29 @@ public sealed class Map : IValidatable
         if (Layers.Count > 1024)
         {
             errorMessage = "Nombre de couches trop élevé (> 1024).";
+            return false;
+        }
+
+        if (GraphicIdentity == TileGraphicIdentity.TileAsset)
+        {
+            if (TileSizePixels != TileAssetMetrics.TargetTileSizePixels)
+            {
+                errorMessage =
+                    $"Carte TileAsset : tileSizePixels doit être {TileAssetMetrics.TargetTileSizePixels} (pas de mise à l’échelle silencieuse depuis {WorldMetrics.DefaultTileSizePixels}).";
+                return false;
+            }
+        }
+        else if (GraphicIdentity == TileGraphicIdentity.SheetSource)
+        {
+            if (TileSizePixels != 0)
+            {
+                errorMessage = "Carte feuille (v5) : tileSizePixels reste 0. La taille 48 se déclare seulement en identité TileAsset.";
+                return false;
+            }
+        }
+        else
+        {
+            errorMessage = "Identité graphique de carte inconnue.";
             return false;
         }
 
@@ -79,6 +117,22 @@ public sealed class Map : IValidatable
                 {
                     errorMessage =
                         $"Tuiles superposées sur la couche « {layer.GetDisplayLabel()} » ({li}) : ({t.X}, {t.Y}).";
+                    return false;
+                }
+
+                var hasSheetSource = t.TilesetId != 0 || t.SrcX != 0 || t.SrcY != 0;
+                var hasAssetId = !t.AssetId.IsNone;
+                if (GraphicIdentity == TileGraphicIdentity.TileAsset && hasSheetSource)
+                {
+                    errorMessage =
+                        $"Tuile ({t.X}, {t.Y}) / couche « {layer.GetDisplayLabel()} » : v6 stocke un TileAssetId, pas Src+Id.";
+                    return false;
+                }
+
+                if (GraphicIdentity == TileGraphicIdentity.SheetSource && hasAssetId)
+                {
+                    errorMessage =
+                        $"Tuile ({t.X}, {t.Y}) / couche « {layer.GetDisplayLabel()} » : TileAssetId présent sur une carte v5. Passer la carte en identité TileAsset pour écrire le format v6.";
                     return false;
                 }
 
