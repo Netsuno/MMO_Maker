@@ -16,7 +16,7 @@ to a dark 1px outline so the world sprite has no gold chrome.
 | **License** | [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) |
 | **Source** | OpenGameArt sheet (no itch.io). Vendored at `tools/third_party/eldiran/RPGCharacterSprites32x32.png` |
 | **Frame** | Idle: column 1, row 4 (0-based) — blue knight, south stand. Walk (same row): cols 0–2 down, 4–6 up, 8–10 right; left = flip of right |
-| **Layers** | Body = rows 14–31; Head = rows 0–13. Tunic slot stays empty. Armor, hat, and weapon overlays are original procedural placeholders (`player-armor.png`, `player-hat.png`, `player-weapon.png` and matching `player-walk-*.png`), not cells from this Eldiran sheet. |
+| **Layers** | Body = rows 14–31; Head = rows 0–13. Tunic, armor, hat, and weapon overlays are original procedural placeholders (`player-tunic.png`, `player-armor.png`, `player-hat.png`, `player-weapon.png` and matching `player-walk-*.png`), not cells from this Eldiran sheet. |
 
 Re-extract the PNG:
 

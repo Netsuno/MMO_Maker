@@ -53,9 +53,11 @@
     <EmbeddedResource Include="Assets\World\player-walk.png" />
     <EmbeddedResource Include="Assets\World\player-walk-body.png" />
     <EmbeddedResource Include="Assets\World\player-walk-head.png" />
+    <EmbeddedResource Include="Assets\World\player-tunic.png" />
     <EmbeddedResource Include="Assets\World\player-armor.png" />
     <EmbeddedResource Include="Assets\World\player-hat.png" />
     <EmbeddedResource Include="Assets\World\player-weapon.png" />
+    <EmbeddedResource Include="Assets\World\player-walk-tunic.png" />
     <EmbeddedResource Include="Assets\World\player-walk-armor.png" />
     <EmbeddedResource Include="Assets\World\player-walk-hat.png" />
     <EmbeddedResource Include="Assets\World\player-walk-weapon.png" />

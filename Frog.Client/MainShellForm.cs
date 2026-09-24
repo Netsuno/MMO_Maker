@@ -232,7 +232,7 @@ public sealed class MainShellForm : Form
     private readonly Button _btnRespawn = new() { Text = "Respawn", Enabled = false, Visible = false };
     private readonly Label _lblCombat = new() { AutoSize = true, Text = "Combat: —", Margin = new Padding(4, 8, 4, 4) };
     private readonly InventoryPanel _inventoryPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
-    private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 176) };
+    private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 240) };
     private Equipment _paperdoll = Equipment.Empty;
     /// <summary>
     /// Overlay TabControl is 360 (DA). Pre-overlay the tab filled a 360 TLP cell with
@@ -451,6 +451,7 @@ public sealed class MainShellForm : Form
     {
         _paperdoll = Equipment.Empty;
         _equipmentPanel.ResetLocalHeadwear();
+        _equipmentPanel.ResetLocalTunic();
         SyncStatusPortrait();
     }
 
@@ -1389,6 +1390,18 @@ public sealed class MainShellForm : Form
             _paperdoll = _paperdoll with
             {
                 HeadwearItemId = worn ? Equipment.LocalHeadwearItemId : null,
+            };
+            SyncStatusPortrait();
+            if (_phase == ClientUiPhase.Playing && _map is not null)
+            {
+                RedrawMap();
+            }
+        };
+        _equipmentPanel.LocalTunicChanged += worn =>
+        {
+            _paperdoll = _paperdoll with
+            {
+                TunicItemId = worn ? Equipment.LocalTunicItemId : null,
             };
             SyncStatusPortrait();
             if (_phase == ClientUiPhase.Playing && _map is not null)

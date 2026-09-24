@@ -4,13 +4,17 @@
 Not Eldiran cells and never a Graal sheet. No downloads.
 
 Layers (same grid as player-walk-*.png, 3 cols × 4 rows):
-  armor  — green chest on the torso (server Armor slot; tunic stays empty)
+  tunic  — ochre linen under the plate (local Tunic slot; no wire field)
+  armor  — green chest on the torso, drawn over the tunic (server Armor slot)
   hat    — crimson crown + brim drawn on top of the head
   weapon — short blade in the free pixels beside the body
 
-South idle PNGs are the walk sheet's row 0, column 1 (planted frame).
-Each walk cell is painted on that frame's silhouette, so the 3 columns already differ.
-Marker fills (tests): hat (196,48,72), armor (42,138,78), blade (214,224,232).
+The tunic is wider than the armor and keeps a hem the plate does not cover,
+so cloth still shows when both are worn. South idle PNGs are the walk sheet's
+row 0, column 1 (planted frame). Each walk cell is painted on that frame's
+silhouette, so the 3 columns already differ.
+Marker fills (tests): tunic (186,122,64), hat (196,48,72), armor (42,138,78),
+blade (214,224,232).
 """
 from __future__ import annotations
 
@@ -26,10 +30,13 @@ HAT = (196, 48, 72, 255)
 HAT_EDGE = (120, 24, 40, 255)
 ARMOR = (42, 138, 78, 255)
 ARMOR_EDGE = (16, 84, 44, 255)
+TUNIC = (186, 122, 64, 255)
+TUNIC_EDGE = (112, 64, 28, 255)
+TUNIC_HEM = (148, 84, 36, 255)
 BLADE = (214, 224, 232, 255)
 BLADE_EDGE = (48, 56, 68, 255)
 HILT = (122, 74, 36, 255)
-MARKERS = {HAT[:3], ARMOR[:3], BLADE[:3]}
+MARKERS = {HAT[:3], ARMOR[:3], BLADE[:3], TUNIC[:3]}
 
 
 def _chunk(tag: bytes, data: bytes) -> bytes:
@@ -176,6 +183,69 @@ def paint_hat(canvas: list[list[tuple[int, int, int, int]]], head: list[list[tup
         canvas[4][x] = HAT_EDGE if x <= left - 2 or x >= right + 2 else HAT
 
 
+def _opaque_runs(row: list[tuple[int, int, int, int]]) -> list[tuple[int, int]]:
+    runs: list[tuple[int, int]] = []
+    start: int | None = None
+    for x, px in enumerate(row):
+        if opaque(px):
+            if start is None:
+                start = x
+        elif start is not None:
+            runs.append((start, x - 1))
+            start = None
+    if start is not None:
+        runs.append((start, CELL - 1))
+    return runs
+
+
+def _torso_span(row: list[tuple[int, int, int, int]]) -> tuple[int, int] | None:
+    """Widest opaque run that still covers the cell center. Legs (a gap) are skipped."""
+    runs = _opaque_runs(row)
+    if not runs:
+        return None
+    center = (CELL - 1) / 2
+    covering = [run for run in runs if run[0] <= center <= run[1]]
+    if not covering:
+        return None
+    return max(covering, key=lambda run: run[1] - run[0])
+
+
+def paint_tunic(canvas: list[list[tuple[int, int, int, int]]], body: list[list[tuple[int, int, int, int]]]) -> None:
+    """Ochre linen under the plate: wider than the armor chest, plus a hem below it."""
+    spans: list[tuple[int, list[int]]] = []
+    for y in range(15, 26):
+        span = _torso_span(body[y])
+        if span is None:
+            continue
+        left, right = span
+        width = right - left + 1
+        if width < 6:
+            continue
+        # Armor inset is max(2, (right-left)//4). Two pixels less leaves a cloth border.
+        armor_inset = max(2, (right - left) // 4)
+        inset = max(0, armor_inset - 2)
+        if width <= 16:
+            inset = min(inset, 1)
+        inner = [x for x in range(left + inset, right - inset + 1) if opaque(body[y][x])]
+        if len(inner) < 4:
+            continue
+        spans.append((y, inner))
+        for x in inner:
+            canvas[y][x] = TUNIC
+    if not spans:
+        return
+    hem = {spans[-1][0]}
+    if len(spans) >= 2:
+        hem.add(spans[-2][0])
+    for y, inner in spans:
+        for x in inner:
+            side = x == inner[0] or x == inner[-1]
+            if side:
+                canvas[y][x] = TUNIC_EDGE
+            elif y in hem:
+                canvas[y][x] = TUNIC_HEM
+
+
 def paint_armor(canvas: list[list[tuple[int, int, int, int]]], body: list[list[tuple[int, int, int, int]]]) -> None:
     """Green chest on the inner torso. Arms and legs stay the base body."""
     for y in range(16, 21):
@@ -239,6 +309,7 @@ def count_color(cell: list[list[tuple[int, int, int, int]]], rgb: tuple[int, int
 
 def assert_cell(
     hat: list[list[tuple[int, int, int, int]]],
+    tunic: list[list[tuple[int, int, int, int]]],
     armor: list[list[tuple[int, int, int, int]]],
     weapon: list[list[tuple[int, int, int, int]]],
     body: list[list[tuple[int, int, int, int]]],
@@ -247,21 +318,37 @@ def assert_cell(
 ) -> None:
     if count_color(hat, HAT[:3]) < 12:
         raise SystemExit(f"{label}: hat fill too small")
+    if count_color(tunic, TUNIC[:3]) < 12:
+        raise SystemExit(f"{label}: tunic fill too small")
     if count_color(armor, ARMOR[:3]) < 8:
         raise SystemExit(f"{label}: armor fill too small")
     if count_color(weapon, BLADE[:3]) < 4:
         raise SystemExit(f"{label}: blade fill too small")
     covered = 0
+    cloth_around = 0
+    plate_on_cloth = 0
     for y in range(CELL):
         for x in range(CELL):
             if opaque(hat[y][x]) and opaque(head[y][x]):
                 covered += 1
+            if opaque(tunic[y][x]) and not opaque(body[y][x]):
+                raise SystemExit(f"{label}: tunic outside the body at {x},{y}")
+            if opaque(tunic[y][x]) and opaque(head[y][x]):
+                raise SystemExit(f"{label}: tunic covers the head at {x},{y}")
             if opaque(armor[y][x]) and not opaque(body[y][x]):
                 raise SystemExit(f"{label}: armor outside the body at {x},{y}")
             if opaque(weapon[y][x]) and (opaque(body[y][x]) or opaque(head[y][x])):
                 raise SystemExit(f"{label}: weapon covers the body at {x},{y}")
+            if opaque(tunic[y][x]) and not opaque(armor[y][x]):
+                cloth_around += 1
+            if opaque(tunic[y][x]) and opaque(armor[y][x]):
+                plate_on_cloth += 1
     if covered < 16:
         raise SystemExit(f"{label}: hat does not sit on the head ({covered} px)")
+    if cloth_around < 8:
+        raise SystemExit(f"{label}: tunic does not show around the armor ({cloth_around} px)")
+    if plate_on_cloth < 6:
+        raise SystemExit(f"{label}: armor does not sit on the tunic ({plate_on_cloth} px)")
 
 
 def blank_sheet() -> list[list[tuple[int, int, int, int]]]:
@@ -287,13 +374,16 @@ def base_has_marker(sheet: list[list[tuple[int, int, int, int]]], name: str) -> 
 def composite_idle(
     body: list[list[tuple[int, int, int, int]]],
     head: list[list[tuple[int, int, int, int]]],
+    tunic: list[list[tuple[int, int, int, int]]] | None,
     armor: list[list[tuple[int, int, int, int]]] | None,
     hat: list[list[tuple[int, int, int, int]]] | None,
     weapon: list[list[tuple[int, int, int, int]]] | None,
 ) -> list[list[tuple[int, int, int, int]]]:
-    """body → (tunic empty) → armor → head → hat → weapon."""
+    """body → tunic → armor → head → hat → weapon."""
     out = empty_cell()
     blit(out, body, 0, 0)
+    if tunic is not None:
+        blit(out, tunic, 0, 0)
     if armor is not None:
         blit(out, armor, 0, 0)
     blit(out, head, 0, 0)
@@ -315,36 +405,52 @@ def main() -> None:
     base_has_marker(head_sheet, "player-walk-head.png")
 
     hat_sheet = blank_sheet()
+    tunic_sheet = blank_sheet()
     armor_sheet = blank_sheet()
     weapon_sheet = blank_sheet()
     for row in range(WALK_ROWS):
         for col in range(WALK_COLS):
             body = crop(body_sheet, col, row)
             head = crop(head_sheet, col, row)
-            hat, armor, weapon = empty_cell(), empty_cell(), empty_cell()
+            hat, tunic, armor, weapon = empty_cell(), empty_cell(), empty_cell(), empty_cell()
             paint_hat(hat, head)
+            paint_tunic(tunic, body)
             paint_armor(armor, body)
             paint_weapon(weapon, body, head, facing_left=(row == 1))
-            assert_cell(hat, armor, weapon, body, head, f"r{row}c{col}")
+            assert_cell(hat, tunic, armor, weapon, body, head, f"r{row}c{col}")
             paste_cell(hat_sheet, hat, col, row)
+            paste_cell(tunic_sheet, tunic, col, row)
             paste_cell(armor_sheet, armor, col, row)
             paste_cell(weapon_sheet, weapon, col, row)
 
+    if crop(tunic_sheet, 0, 0) == crop(tunic_sheet, 1, 0):
+        raise SystemExit("south walk columns painted the same tunic")
+
     idle_hat = crop(hat_sheet, 1, 0)
+    idle_tunic = crop(tunic_sheet, 1, 0)
     idle_armor = crop(armor_sheet, 1, 0)
     idle_weapon = crop(weapon_sheet, 1, 0)
     write_png(world / "player-walk-hat.png", hat_sheet)
+    write_png(world / "player-walk-tunic.png", tunic_sheet)
     write_png(world / "player-walk-armor.png", armor_sheet)
     write_png(world / "player-walk-weapon.png", weapon_sheet)
     write_png(world / "player-hat.png", idle_hat)
+    write_png(world / "player-tunic.png", idle_tunic)
     write_png(world / "player-armor.png", idle_armor)
     write_png(world / "player-weapon.png", idle_weapon)
-    print("wrote original paperdoll overlays (hat, armor, weapon) idle 32 + walk 96×128")
+    print("wrote original paperdoll overlays (tunic, hat, armor, weapon) idle 32 + walk 96×128")
 
     body_idle = crop(body_sheet, 1, 0)
     head_idle = crop(head_sheet, 1, 0)
-    bare = composite_idle(body_idle, head_idle, None, None, None)
-    geared = composite_idle(body_idle, head_idle, idle_armor, idle_hat, idle_weapon)
+    bare = composite_idle(body_idle, head_idle, None, None, None, None)
+    cloth = composite_idle(body_idle, head_idle, idle_tunic, None, None, None)
+    geared = composite_idle(body_idle, head_idle, idle_tunic, idle_armor, idle_hat, idle_weapon)
+    cloth_left = count_color(cloth, TUNIC[:3])
+    cloth_under_plate = count_color(geared, TUNIC[:3])
+    if cloth_left < 12 or cloth_under_plate < 8 or cloth_under_plate >= cloth_left:
+        raise SystemExit(
+            f"tunic should stay visible under the armor ({cloth_under_plate} of {cloth_left} px)"
+        )
     # Hat must replace crown pixels (drawn after the head).
     replaced = sum(
         1
@@ -357,14 +463,15 @@ def main() -> None:
 
     grass = (120, 160, 100, 255)
     pad = 8
-    preview_w = CELL * 2 + pad * 3
+    preview_w = CELL * 3 + pad * 4
     preview_h = CELL + pad * 2
     preview = [[grass for _ in range(preview_w)] for _ in range(preview_h)]
     blit(preview, bare, pad, pad)
-    blit(preview, geared, pad * 2 + CELL, pad)
+    blit(preview, cloth, pad * 2 + CELL, pad)
+    blit(preview, geared, pad * 3 + CELL * 2, pad)
     shot = Path("/opt/cursor/artifacts/screenshots")
     shot.mkdir(parents=True, exist_ok=True)
-    write_png(shot / "paperdoll-mvp-bare-vs-equipped.png", nearest_scale(preview, 6))
+    write_png(shot / "paperdoll-tunic-bare-cloth-equipped.png", nearest_scale(preview, 6))
 
     strip_w = WALK_COLS * CELL + (WALK_COLS + 1) * 4
     strip_h = WALK_ROWS * CELL + (WALK_ROWS + 1) * 4
@@ -378,12 +485,13 @@ def main() -> None:
             cell = composite_idle(
                 crop(body_sheet, col, row),
                 crop(head_sheet, col, row),
+                crop(tunic_sheet, col, row),
                 crop(armor_sheet, col, row),
                 crop(hat_sheet, col, row),
                 crop(weapon_sheet, col, row),
             )
             blit(strip, cell, 4 + col * (CELL + 4), 4 + row * (CELL + 4))
-    write_png(shot / "paperdoll-mvp-4dir-equipped.png", nearest_scale(strip, 4))
+    write_png(shot / "paperdoll-tunic-4dir-equipped.png", nearest_scale(strip, 4))
     print(f"wrote previews in {shot}")
 
 

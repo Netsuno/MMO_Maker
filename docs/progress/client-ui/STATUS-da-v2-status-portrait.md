@@ -4,8 +4,8 @@
 | --- | --- |
 | **Chantier** | Status HG : portrait circulaire placeholder + nom + Lv + HP/MP (~280×72) |
 | **Propriétaire** | Netsun |
-| **Statut** | Planche jouable : cercle tête/corps existant, barres Kenney lisibles |
-| **Base** | `main` @ `3dbf63f` |
+| **Statut** | Planche jouable : cercle tête/corps (tunique incluse si portée), barres Kenney lisibles |
+| **Base** | `main` @ `173374e` (tunique paperdoll #50) |
 | **Branche** | `cursor/client-status-hud-planche-1243` |
 | **PR** | Draft [#51](https://github.com/Netsuno/MMO_Maker/pull/51) vers `main` — **pas de merge** |
 | **Protocole** | **v11** inchangé |
@@ -21,7 +21,7 @@ Panneaux sociaux et panneau équipement : mécaniques inchangées (le portrait r
 | --- | --- | --- |
 | Status HG | Nom + `Lv N` + barres, portrait = initiale | Panneau `bg.panel` `#161C28` ; portrait circulaire **ø44** (plage 40–48) à gauche ; nom `text.primary` `#F2F4F8` + Lv + HP/MP |
 | Emprise | 280×72 | **280×72** (`gap.hud` interne 8) |
-| Portrait | Initiale ou buste GDI | Fill `bg.slot` `#0C1018` + filet or 1 px `accent.gold` `#C9A227` ; région circulaire ; composite **tête/corps** sud idle déjà en jeu (nearest), overlays locaux (arme / armure / casque) si équipés ; buste GDI si le composite manque |
+| Portrait | Initiale ou buste GDI | Fill `bg.slot` `#0C1018` + filet or 1 px `accent.gold` `#C9A227` ; région circulaire ; composite **tête/corps** sud idle déjà en jeu (nearest), overlays locaux si portés, ordre **body → tunic → armor → head → hat → weapon** (la tunique locale est dans l'échantillon) ; buste GDI si le composite manque |
 | Barres | Kenney `bars/*` sans chiffre | **Kenney conservé** (couleurs natives + fallback `bar.hp` / `bar.mp`) + valeur `courant/max` en crème sur la piste |
 | XP | Pas de barre (max absent du fil) | **Inchangé** |
 | Mort | Ligne sous les barres | Libellé « Mort » sur la ligne du nom (les barres restent dans les 72 px) ; bouton Respawn inchangé |

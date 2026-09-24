@@ -16,6 +16,7 @@ namespace Frog.Editor.WindowsSmokeTests;
 [Collection(UiSmokeCollectionDefinition.Name)]
 public sealed class PaperdollOverlaySmokeTests
 {
+    private static readonly Color Tunic = Color.FromArgb(255, 186, 122, 64);
     private static readonly Color Hat = Color.FromArgb(255, 196, 48, 72);
     private static readonly Color Armor = Color.FromArgb(255, 42, 138, 78);
     private static readonly Color Blade = Color.FromArgb(255, 214, 224, 232);
@@ -24,6 +25,7 @@ public sealed class PaperdollOverlaySmokeTests
     public void Frame_UnequippedHidesOverlays_EquippedPaintsHatOnHead()
     {
         var bare = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown);
+        Assert.False(Contains(bare, Tunic));
         Assert.False(Contains(bare, Hat));
         Assert.False(Contains(bare, Armor));
         Assert.False(Contains(bare, Blade));
@@ -52,7 +54,37 @@ public sealed class PaperdollOverlaySmokeTests
 
         var cleared = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown, PaperdollOverlaySet.None);
         Assert.False(Contains(cleared, Hat));
+        Assert.False(Contains(cleared, Tunic));
         Assert.Equal(bare.GetPixel(16, 16).ToArgb(), cleared.GetPixel(16, 16).ToArgb());
+    }
+
+    [Fact]
+    public void Frame_TunicClothShowsUnderArmor_AndHidesWhenEmpty()
+    {
+        var bare = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown);
+        var tunicOnly = PlayerWorldAssets.FrameFor(
+            PlayerSpritePose.IdleDown,
+            PaperdollOverlaySet.FromItems(null, null, null, Guid.NewGuid()));
+        Assert.True(Contains(tunicOnly, Tunic));
+        Assert.False(Contains(tunicOnly, Armor));
+        Assert.False(Contains(tunicOnly, Hat));
+        Assert.True(CountReplaced(bare, tunicOnly, Tunic) >= 12, "tunic must cover the torso cloth");
+        Assert.Equal(bare.GetPixel(16, 4).ToArgb(), tunicOnly.GetPixel(16, 4).ToArgb());
+        Assert.Equal(bare.GetPixel(16, 30).ToArgb(), tunicOnly.GetPixel(16, 30).ToArgb());
+
+        var both = PlayerWorldAssets.FrameFor(
+            PlayerSpritePose.IdleDown,
+            PaperdollOverlaySet.FromItems(null, Guid.NewGuid(), null, Guid.NewGuid()));
+        Assert.True(Contains(both, Tunic), "cloth hem stays visible under the plate");
+        Assert.True(Contains(both, Armor));
+        Assert.True(CountReplaced(tunicOnly, both, Armor) >= 8, "armor is drawn after the tunic");
+
+        var walk = PlayerWorldAssets.FrameFor(
+            new PlayerSpritePose(Direction.Left, Walking: true),
+            PaperdollOverlaySet.FromItems(null, null, null, Guid.NewGuid()));
+        Assert.True(Contains(walk, Tunic));
+        Assert.Equal(32, walk.Width);
+        Assert.Equal(32, walk.Height);
     }
 
     [Fact]
@@ -73,6 +105,13 @@ public sealed class PaperdollOverlaySmokeTests
         Assert.False(hidden.Armor);
         Assert.True(hidden.Hat);
 
+        var withTunic = new Equipment(weapon, armor, Equipment.LocalHeadwearItemId, Equipment.LocalTunicItemId);
+        var shownTunic = EquipmentService.ToOverlaySet(withTunic);
+        Assert.True(shownTunic.Tunic && shownTunic.Hat && shownTunic.Weapon && shownTunic.Armor);
+        var tunicKept = EquipmentService.ToOverlaySet(withTunic.WithServerLoadout(new InventorySnapshotWire()));
+        Assert.True(tunicKept.Hat && tunicKept.Tunic);
+        Assert.False(tunicKept.Weapon || tunicKept.Armor);
+
         var offhandOnly = new Equipment(null, null, null, null, Guid.NewGuid());
         Assert.True(offhandOnly.IsOccupied(EquipmentSlot.Offhand));
         var offhandVisual = EquipmentService.ToOverlaySet(offhandOnly);
@@ -83,6 +122,7 @@ public sealed class PaperdollOverlaySmokeTests
         Assert.True(EquipmentSlotMapping.TryGetServerSlot(EquipmentSlot.Armor, out var armorSlot));
         Assert.Equal(EquipmentSlotKind.Armor, armorSlot);
         Assert.False(EquipmentSlotMapping.TryGetServerSlot(EquipmentSlot.Headwear, out _));
+        Assert.False(EquipmentSlotMapping.TryGetServerSlot(EquipmentSlot.Tunic, out _));
     }
 
     [Fact]
@@ -127,6 +167,28 @@ public sealed class PaperdollOverlaySmokeTests
             tilesetBitmaps: null,
             localAppearance: hat);
         Assert.False(Contains(othersOnly, Hat), "other players have no equipment on the wire");
+
+        var tunic = PaperdollOverlaySet.FromItems(null, null, null, Guid.NewGuid());
+        using var localTunic = MapViewRenderer.Render(
+            map,
+            new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase),
+            localUsername: "self",
+            localCenterXPx: localCx,
+            localCenterYPx: feetCy,
+            tilesetBitmaps: null,
+            localAppearance: tunic);
+        Assert.True(Contains(localTunic, Tunic), "local tunic overlay should be visible");
+        Assert.False(Contains(localTunic, Armor));
+
+        using var othersTunic = MapViewRenderer.Render(
+            map,
+            others,
+            localUsername: "self",
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            localAppearance: tunic);
+        Assert.False(Contains(othersTunic, Tunic), "other players have no tunic on the wire");
     }
 
     [Fact]
@@ -146,6 +208,27 @@ public sealed class PaperdollOverlaySmokeTests
             panel.ResetLocalHeadwear();
             Assert.Equal("Casque: —", panel.HeadwearLabelTextForTest);
             Assert.Equal("Porter le casque", panel.HeadwearButtonTextForTest);
+        });
+    }
+
+    [Fact]
+    public void EquipmentPanel_TuniqueLocale_UsesFrenchCopy()
+    {
+        StaTestRunner.Run(() =>
+        {
+            using var panel = new EquipmentPanel();
+            Assert.Equal("Tunique: —", panel.TunicLabelTextForTest);
+            Assert.Equal("Porter la tunique", panel.TunicButtonTextForTest);
+            var worn = false;
+            panel.LocalTunicChanged += value => worn = value;
+            panel.ClickToggleTunicForTest();
+            Assert.True(worn);
+            Assert.Equal("Tunique: portée (local)", panel.TunicLabelTextForTest);
+            Assert.Equal("Retirer la tunique", panel.TunicButtonTextForTest);
+            panel.ResetLocalTunic();
+            Assert.Equal("Tunique: —", panel.TunicLabelTextForTest);
+            Assert.Equal("Porter la tunique", panel.TunicButtonTextForTest);
+            Assert.Equal("Casque: —", panel.HeadwearLabelTextForTest);
         });
     }
 

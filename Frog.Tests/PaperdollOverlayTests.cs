@@ -11,6 +11,7 @@ namespace Frog.Tests;
 /// <summary>Paperdoll draw order and equip → overlay visibility (Netsun).</summary>
 public sealed class PaperdollOverlayTests
 {
+    private static readonly (int R, int G, int B) TunicFill = (186, 122, 64);
     private static readonly (int R, int G, int B) HatFill = (196, 48, 72);
     private static readonly (int R, int G, int B) ArmorFill = (42, 138, 78);
     private static readonly (int R, int G, int B) BladeFill = (214, 224, 232);
@@ -130,9 +131,21 @@ public sealed class PaperdollOverlayTests
         Assert.Contains("_hudStatus.ApplyPortrait(EquipmentService.ToOverlaySet(_paperdoll))", shell, StringComparison.Ordinal);
         Assert.Contains("_paperdoll.WithServerLoadout(snapshot)", shell, StringComparison.Ordinal);
         Assert.Contains("Equipment.LocalHeadwearItemId", shell, StringComparison.Ordinal);
+        Assert.Contains("Equipment.LocalTunicItemId", shell, StringComparison.Ordinal);
+        Assert.Contains("LocalTunicChanged", shell, StringComparison.Ordinal);
+        Assert.Contains("ResetLocalTunic", shell, StringComparison.Ordinal);
+        var tunicHandler = shell.IndexOf("_equipmentPanel.LocalTunicChanged", StringComparison.Ordinal);
+        var portraitRefresh = shell.IndexOf("SyncStatusPortrait()", tunicHandler, StringComparison.Ordinal);
+        var nextHandler = shell.IndexOf("_dialoguePanel.ChoiceRequested", tunicHandler, StringComparison.Ordinal);
+        Assert.True(
+            tunicHandler >= 0 && portraitRefresh > tunicHandler && portraitRefresh < nextHandler,
+            "local tunic refreshes the status portrait sample");
         Assert.Contains("Porter le casque", panel, StringComparison.Ordinal);
         Assert.Contains("Retirer le casque", panel, StringComparison.Ordinal);
         Assert.Contains("Casque: porté (local)", panel, StringComparison.Ordinal);
+        Assert.Contains("Porter la tunique", panel, StringComparison.Ordinal);
+        Assert.Contains("Retirer la tunique", panel, StringComparison.Ordinal);
+        Assert.Contains("Tunique: portée (local)", panel, StringComparison.Ordinal);
 
         Assert.Contains("PaperdollOverlaySet localAppearance", renderer, StringComparison.Ordinal);
         Assert.Contains("localPose, localAppearance", renderer, StringComparison.Ordinal);
@@ -142,34 +155,54 @@ public sealed class PaperdollOverlayTests
         Assert.Contains("EquippedWeaponItemId", wire, StringComparison.Ordinal);
         Assert.Contains("EquippedArmorItemId", wire, StringComparison.Ordinal);
         Assert.DoesNotContain("Headwear", wire, StringComparison.Ordinal);
+        Assert.DoesNotContain("Tunic", wire, StringComparison.Ordinal);
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
     }
 
     [Fact]
     public void OverlayPngs_AreOriginalMarkers_FourDirections()
     {
         var world = Path.Combine(RepoRoot(), "Frog.Client", "Assets", "World");
+        var tunic = ReadPng(Path.Combine(world, "player-tunic.png"));
         var hat = ReadPng(Path.Combine(world, "player-hat.png"));
         var armor = ReadPng(Path.Combine(world, "player-armor.png"));
         var weapon = ReadPng(Path.Combine(world, "player-weapon.png"));
+        Assert.Equal((32, 32), (tunic.Width, tunic.Height));
         Assert.Equal((32, 32), (hat.Width, hat.Height));
         Assert.Equal((32, 32), (armor.Width, armor.Height));
         Assert.Equal((32, 32), (weapon.Width, weapon.Height));
+        Assert.True(CountColor(tunic, TunicFill) >= 12, "tunic fill");
         Assert.True(CountColor(hat, HatFill) >= 12, "hat fill");
         Assert.True(CountColor(armor, ArmorFill) >= 8, "armor fill");
         Assert.True(CountColor(weapon, BladeFill) >= 4, "blade fill");
+        Assert.True(CountTransparent(tunic) > tunic.Width * tunic.Height / 2);
         Assert.True(CountTransparent(hat) > hat.Width * hat.Height / 2);
+        Assert.DoesNotContain(TunicFill, ColorsOf(ReadPng(Path.Combine(world, "player-body.png"))));
+        Assert.DoesNotContain(TunicFill, ColorsOf(ReadPng(Path.Combine(world, "player-head.png"))));
         Assert.DoesNotContain(HatFill, ColorsOf(ReadPng(Path.Combine(world, "player-head.png"))));
         Assert.DoesNotContain(ArmorFill, ColorsOf(ReadPng(Path.Combine(world, "player-body.png"))));
+        Assert.NotEqual(TunicFill, ArmorFill);
 
+        var walkTunic = ReadPng(Path.Combine(world, "player-walk-tunic.png"));
         var walkHat = ReadPng(Path.Combine(world, "player-walk-hat.png"));
         var walkArmor = ReadPng(Path.Combine(world, "player-walk-armor.png"));
         var walkWeapon = ReadPng(Path.Combine(world, "player-walk-weapon.png"));
+        Assert.Equal((96, 128), (walkTunic.Width, walkTunic.Height));
         Assert.Equal((96, 128), (walkHat.Width, walkHat.Height));
         Assert.Equal((96, 128), (walkArmor.Width, walkArmor.Height));
         Assert.Equal((96, 128), (walkWeapon.Width, walkWeapon.Height));
+        Assert.True(tunic.Pixels.SequenceEqual(Crop(walkTunic, col: 1, row: 0)));
         Assert.True(hat.Pixels.SequenceEqual(Crop(walkHat, col: 1, row: 0)));
         Assert.True(armor.Pixels.SequenceEqual(Crop(walkArmor, col: 1, row: 0)));
         Assert.True(weapon.Pixels.SequenceEqual(Crop(walkWeapon, col: 1, row: 0)));
+
+        var southCloth = XsOf(tunic, TunicFill);
+        var leftCloth = XsOf(CropCell(walkTunic, col: 1, row: 1), TunicFill);
+        var rightCloth = XsOf(CropCell(walkTunic, col: 1, row: 2), TunicFill);
+        Assert.NotEmpty(southCloth);
+        Assert.NotEmpty(leftCloth);
+        Assert.NotEmpty(rightCloth);
+        Assert.True(Average(leftCloth) > Average(rightCloth), "tunic follows the body: left-facing mass sits right of the right-facing mass");
 
         var southBlade = XsOf(weapon, BladeFill);
         var leftBlade = XsOf(CropCell(walkWeapon, col: 1, row: 1), BladeFill);
@@ -179,9 +212,11 @@ public sealed class PaperdollOverlayTests
         Assert.True(Average(leftBlade) < 16, "left blade sits on the left");
 
         var csproj = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Frog.Client.csproj"));
+        Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-tunic.png\"", csproj, StringComparison.Ordinal);
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-hat.png\"", csproj, StringComparison.Ordinal);
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-armor.png\"", csproj, StringComparison.Ordinal);
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-weapon.png\"", csproj, StringComparison.Ordinal);
+        Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-walk-tunic.png\"", csproj, StringComparison.Ordinal);
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-walk-hat.png\"", csproj, StringComparison.Ordinal);
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-walk-armor.png\"", csproj, StringComparison.Ordinal);
         Assert.Contains("EmbeddedResource Include=\"Assets\\World\\player-walk-weapon.png\"", csproj, StringComparison.Ordinal);
@@ -199,6 +234,9 @@ public sealed class PaperdollOverlayTests
         Assert.Contains("**Propriétaire** | Netsun", text, StringComparison.Ordinal);
         Assert.Contains("body → tunic → armor → head → hat → weapon", text, StringComparison.Ordinal);
         Assert.Contains("Porter le casque", text, StringComparison.Ordinal);
+        Assert.Contains("Porter la tunique", text, StringComparison.Ordinal);
+        Assert.Contains("player-tunic.png", text, StringComparison.Ordinal);
+        Assert.Contains("FrogWireProtocol.Version", text, StringComparison.Ordinal);
         Assert.Contains("PositionUpdate", text, StringComparison.Ordinal);
         Assert.Contains("Pas de bump protocole", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Marc", text, StringComparison.Ordinal);

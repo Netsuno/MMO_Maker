@@ -251,7 +251,8 @@ public sealed class HudStatusModule : HudModulePanel
     }
 
     /// <summary>
-    /// Portrait local : même overlay que la carte (arme / armure / casque déjà sur le client).
+    /// Portrait local : même composite que la carte
+    /// (body → tunic → armor → head → hat → weapon). La tunique locale est dans l'échantillon.
     /// Pas un champ de protocole.
     /// </summary>
     public void ApplyPortrait(PaperdollOverlaySet appearance) => _portrait.SetAppearance(appearance);

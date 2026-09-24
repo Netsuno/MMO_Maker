@@ -41,6 +41,8 @@ public sealed class ClientUiDaV2StatusPortraitTests
         Assert.Contains("ApplyPortrait", status, StringComparison.Ordinal);
         Assert.Contains("PlayerWorldAssets.FrameFor", status, StringComparison.Ordinal);
         Assert.Contains("PlayerSpritePose.IdleDown", status, StringComparison.Ordinal);
+        Assert.Contains("body → tunic → armor → head → hat → weapon", status, StringComparison.Ordinal);
+        Assert.Contains("La tunique locale est dans l'échantillon", status, StringComparison.Ordinal);
         Assert.Contains("InterpolationMode.NearestNeighbor", status, StringComparison.Ordinal);
         Assert.Contains("GetColumn(_body) != 1", status, StringComparison.Ordinal);
         Assert.Contains("GetColumn(host) != 0", status, StringComparison.Ordinal);
@@ -87,6 +89,8 @@ public sealed class ClientUiDaV2StatusPortraitTests
         Assert.Contains("#F2F4F8", text, StringComparison.Ordinal);
         Assert.Contains("Kenney", text, StringComparison.Ordinal);
         Assert.Contains("tête/corps", text, StringComparison.Ordinal);
+        Assert.Contains("body → tunic → armor → head → hat → weapon", text, StringComparison.Ordinal);
+        Assert.Contains("tunique", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("v11", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Marc", text, StringComparison.Ordinal);
         Assert.DoesNotContain("public beta", text, StringComparison.OrdinalIgnoreCase);

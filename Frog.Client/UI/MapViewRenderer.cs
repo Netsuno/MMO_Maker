@@ -34,7 +34,7 @@ internal static class MapViewRenderer
     /// <param name="monsterPoses">Facing + walk frame par id monstre.</param>
     /// <param name="weatherPlan">Overlay teinte / traits (MVP). Défaut = pas de dessin.</param>
     /// <param name="weatherTickMs">Horloge cheap pour les traits de pluie.</param>
-    /// <param name="localAppearance">Overlays du joueur local (arme, armure, casque). Les autres joueurs restent corps + tête : leur équipement n'est pas sur le fil.</param>
+    /// <param name="localAppearance">Overlays du joueur local (tunique, arme, armure, casque). Les autres joueurs restent corps + tête : leur équipement n'est pas sur le fil.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
