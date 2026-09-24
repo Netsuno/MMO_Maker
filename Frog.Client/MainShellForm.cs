@@ -233,6 +233,7 @@ public sealed class MainShellForm : Form
     private readonly Label _lblCombat = new() { AutoSize = true, Text = "Combat: —", Margin = new Padding(4, 8, 4, 4) };
     private readonly InventoryPanel _inventoryPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
     private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 240) };
+    private readonly CharacterSheetPanel _characterSheet = new() { Dock = DockStyle.Fill };
     private Equipment _paperdoll = Equipment.Empty;
     /// <summary>
     /// Overlay TabControl is 360 (DA). Pre-overlay the tab filled a 360 TLP cell with
@@ -248,6 +249,7 @@ public sealed class MainShellForm : Form
     private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.None, Width = 360, Height = 480, MinimumSize = new Size(300, 250), MaximumSize = new Size(360, 700) };
     private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
     private readonly TabPage _tabGameplay = new("Inventaire") { Padding = new Padding(4) };
+    private readonly TabPage _tabCharacter = new("Fiche") { Padding = new Padding(4) };
     private readonly TabPage _tabPhase8 = new("Quêtes") { Padding = new Padding(4) };
     private readonly TabPage _tabSocial = new("Social") { Padding = new Padding(4) };
     private readonly ClientSocialRoster _socialRoster = new();
@@ -458,6 +460,7 @@ public sealed class MainShellForm : Form
     private void SyncStatusPortrait()
     {
         _hudStatus.ApplyPortrait(EquipmentService.ToOverlaySet(_paperdoll));
+        _characterSheet.ApplyLoadout(_paperdoll, ResolveItemName, _username, _lastCombatState?.Level);
     }
 
     private void GoToCharacterSelectPhase()
@@ -483,6 +486,7 @@ public sealed class MainShellForm : Form
         SetGameplayControlsEnabled(true);
         _gameplayTabs.SelectedTab = _tabGameplay;
         SetPhase(ClientUiPhase.Playing);
+        SyncStatusPortrait();
     }
 
     private void MainShell_Load(object? sender, EventArgs e)
@@ -1207,8 +1211,10 @@ public sealed class MainShellForm : Form
         tabRight.TabPages.Clear();
         tabRight.TabPages.Add(_tabChat);
         tabRight.TabPages.Add(_tabGameplay);
+        tabRight.TabPages.Add(_tabCharacter);
         tabRight.TabPages.Add(_tabPhase8);
         tabRight.TabPages.Add(_tabSocial);
+        _tabCharacter.Controls.Add(_characterSheet);
         _tabSocial.Controls.Add(_socialHub);
         _socialHub.ActionRequested += OnSocialHubAction;
         _socialHub.EconomyQueryRequested += OnEconomyHubQuery;
@@ -1409,6 +1415,9 @@ public sealed class MainShellForm : Form
                 RedrawMap();
             }
         };
+        _characterSheet.ToggleTunicRequested += () => _equipmentPanel.RequestToggleTunic();
+        _characterSheet.ToggleHeadwearRequested += () => _equipmentPanel.RequestToggleHeadwear();
+        _characterSheet.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
         _dialoguePanel.ChoiceRequested += (token, choiceId) => _ = SendDialogueChoiceAsync(token, choiceId);
         _questJournalPanel.TurnInRequested += questId => _ = QuestTurnInAsync(questId);
         _craftPanel.CraftRequested += recipeId => _ = CraftAsync(recipeId);
@@ -1782,6 +1791,7 @@ public sealed class MainShellForm : Form
         _btnRespawn.Visible = state.IsDead;
         _btnRespawn.Enabled = state.IsDead;
         _hudStatus.ApplyCombat(state, _username);
+        SyncStatusPortrait();
         if (state.IsDead)
         {
             LayoutGameHud();
@@ -3290,6 +3300,16 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (e.KeyCode == Keys.C
+            && !_input.IsMovementOrInteract(e.KeyCode)
+            && !InputService.IsTextInputFocus(ActiveControl))
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            ToggleCharacterSheet();
+            return;
+        }
+
         if (_client is null || !_client.IsConnected || string.IsNullOrEmpty(_username))
         {
             return;
@@ -3960,6 +3980,12 @@ public sealed class MainShellForm : Form
 
     private void RefreshWindowChromeTitle()
     {
+        if (_gameplayTabs.SelectedTab == _tabCharacter)
+        {
+            _windowChrome.Title = "Fiche perso";
+            return;
+        }
+
         if (_gameplayTabs.SelectedTab == _tabPhase8)
         {
             _windowChrome.Title = "Quêtes";
@@ -3994,8 +4020,10 @@ public sealed class MainShellForm : Form
         switch (command)
         {
             case HudMenuCommand.Character:
+                ToggleCharacterSheet();
+                break;
             case HudMenuCommand.Inventory:
-                _windowTitleHint = command == HudMenuCommand.Character ? "Perso" : "Inventaire";
+                _windowTitleHint = "Inventaire";
                 if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabGameplay)
                 {
                     SetWindowLayerVisible(false);
@@ -4026,6 +4054,21 @@ public sealed class MainShellForm : Form
                 OpenOptions();
                 break;
         }
+    }
+
+    private void ToggleCharacterSheet()
+    {
+        _windowTitleHint = "Fiche perso";
+        if (_windowLayerVisible && _gameplayTabs.SelectedTab == _tabCharacter)
+        {
+            SetWindowLayerVisible(false);
+            return;
+        }
+
+        SetWindowLayerVisible(true);
+        _gameplayTabs.SelectedTab = _tabCharacter;
+        SyncStatusPortrait();
+        RefreshWindowChromeTitle();
     }
 
     private void OpenSocialPanel(SocialKind kind)
@@ -4591,6 +4634,22 @@ public sealed class MainShellForm : Form
     internal byte? SelectedInventorySlotForTest => _inventoryPanel.SelectedInventorySlotForTest;
 
     internal EquipmentPanel EquipmentPanelForTest => _equipmentPanel;
+
+    internal CharacterSheetPanel CharacterSheetForTest => _characterSheet;
+
+    internal bool IsCharacterSheetTabSelectedForTest => _gameplayTabs.SelectedTab == _tabCharacter;
+
+    internal void ShowPlayingHudForTest()
+    {
+        if (string.IsNullOrEmpty(_username))
+        {
+            _username = "Netsun";
+        }
+
+        SetPhase(ClientUiPhase.Playing);
+    }
+
+    internal void PressCharacterSheetKeyForTest() => MainShell_KeyDown(this, new KeyEventArgs(Keys.C));
 
     internal bool IsPlayingPhaseForTest => _phase == ClientUiPhase.Playing;
 
