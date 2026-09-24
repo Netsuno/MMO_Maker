@@ -232,7 +232,8 @@ public sealed class MainShellForm : Form
     private readonly Button _btnRespawn = new() { Text = "Respawn", Enabled = false, Visible = false };
     private readonly Label _lblCombat = new() { AutoSize = true, Text = "Combat: —", Margin = new Padding(4, 8, 4, 4) };
     private readonly InventoryPanel _inventoryPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
-    private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
+    private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 176) };
+    private Equipment _paperdoll = Equipment.Empty;
     /// <summary>
     /// Overlay TabControl is 360 (DA). Pre-overlay the tab filled a 360 TLP cell with
     /// default Margin 3+3, so Dialogue/Quest/Environment exact-sha crops stayed 324 wide.
@@ -446,8 +447,15 @@ public sealed class MainShellForm : Form
         Focus();
     }
 
+    private void ResetPaperdoll()
+    {
+        _paperdoll = Equipment.Empty;
+        _equipmentPanel.ResetLocalHeadwear();
+    }
+
     private void GoToCharacterSelectPhase()
     {
+        ResetPaperdoll();
         ReleaseAllMoveKeys();
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = false;
@@ -1366,6 +1374,17 @@ public sealed class MainShellForm : Form
         _tradeForm.CancelRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Cancel, id, []);
         _tradeForm.VisibleChanged += (_, _) => RefreshInteractHint();
         _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
+        _equipmentPanel.LocalHeadwearChanged += worn =>
+        {
+            _paperdoll = _paperdoll with
+            {
+                HeadwearItemId = worn ? Equipment.LocalHeadwearItemId : null,
+            };
+            if (_phase == ClientUiPhase.Playing && _map is not null)
+            {
+                RedrawMap();
+            }
+        };
         _dialoguePanel.ChoiceRequested += (token, choiceId) => _ = SendDialogueChoiceAsync(token, choiceId);
         _questJournalPanel.TurnInRequested += questId => _ = QuestTurnInAsync(questId);
         _craftPanel.CraftRequested += recipeId => _ = CraftAsync(recipeId);
@@ -1735,10 +1754,15 @@ public sealed class MainShellForm : Form
 
     private void OnInventorySnapshot(InventorySnapshotWire snapshot)
     {
+        _paperdoll = _paperdoll.WithServerLoadout(snapshot);
         _inventoryPanel.ApplySnapshot(snapshot);
         _equipmentPanel.ApplySnapshot(snapshot);
         UpdateInventoryActionButtons();
         AppendLog($"Inventaire: {snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0)} slot(s) rempli(s).");
+        if (_phase == ClientUiPhase.Playing && _map is not null)
+        {
+            RedrawMap();
+        }
     }
 
     private void OnTradeSnapshot(TradeSnapshotWire snapshot)
@@ -2324,6 +2348,7 @@ public sealed class MainShellForm : Form
         _sessionDisplayedMapId = 0;
         _others.Clear();
         ResetLocalMotionState();
+        ResetPaperdoll();
         ClearMapImage();
         DisposeTilesetBitmaps();
         DisposePrefabBitmaps();
@@ -2532,6 +2557,7 @@ public sealed class MainShellForm : Form
         _sessionDisplayedMapId = 0;
         _others.Clear();
         ResetLocalMotionState();
+        ResetPaperdoll();
         ClearMapImage();
         DisposeTilesetBitmaps();
         DisposePrefabBitmaps();
@@ -3416,7 +3442,8 @@ public sealed class MainShellForm : Form
             monsterCentersPx: monsterPx,
             monsterPoses: monsterPoses,
             weatherPlan: _weatherPlan,
-            weatherTickMs: _weatherTickMs);
+            weatherTickMs: _weatherTickMs,
+            localAppearance: EquipmentService.ToOverlaySet(_paperdoll));
         _combatHud.Tick(DateTime.UtcNow);
         CombatEffect.Draw(bmp, _combatHud.Floats, DateTime.UtcNow);
         var previous = _picMap.Image;
