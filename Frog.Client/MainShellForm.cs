@@ -157,6 +157,9 @@ public sealed class MainShellForm : Form
 
     private readonly ClientSettingsStore _settingsStore = new();
     private UserSettings _settings;
+    private readonly TilePackClientService _tilePacks;
+    private readonly Dictionary<TileAssetId, Bitmap> _tileAssetBitmaps = new();
+    private string? _tileAssetBitmapSha;
     private readonly InputService _input = new();
     private readonly SoundService _sound = new();
     private readonly HashSet<Keys> _keysDown = new();
@@ -327,6 +330,7 @@ public sealed class MainShellForm : Form
     {
         _playtestOptions = playtestOptions;
         _settings = _settingsStore.Load();
+        _tilePacks = new TilePackClientService(TilePackClientOptions.Resolve(_settings));
         _input.Apply(_settings);
         _sound.Apply(_settings);
         AutoScaleMode = AutoScaleMode.Font;
@@ -623,6 +627,8 @@ public sealed class MainShellForm : Form
 
         _smoothTimer.Dispose();
         _sound.Dispose();
+        DisposeTileAssetBitmaps();
+        _tilePacks.Dispose();
     }
 
     private void SmoothTimer_OnTick(object? sender, EventArgs e)
@@ -1551,6 +1557,7 @@ public sealed class MainShellForm : Form
         ApplyCatalogRecipesToCraft(catalog);
         var tilesetFiles = ClientPublishedTilesetMaterializer.Materialize(catalog, AppContext.BaseDirectory, _map?.Name);
         var prefabFiles = ClientPublishedPrefabMaterializer.Materialize(catalog, AppContext.BaseDirectory);
+        _ = SyncTilePackAsync(redrawIfReady: _map?.GraphicIdentity == TileGraphicIdentity.TileAsset);
         if (tilesetFiles > 0 || prefabFiles > 0 || _map is not null)
         {
             ReloadTilesetBitmaps();
@@ -2352,6 +2359,7 @@ public sealed class MainShellForm : Form
                 : $"TCP connecté {host}:{port}";
             AppendLog(connected);
             ShowPlayerStatus(PlayerFacingMessages.Connected);
+            _ = SyncTilePackAsync(redrawIfReady: false);
             _btnDisconnect.Enabled = true;
             _btnLogin.Enabled = true;
             _btnRegister.Enabled = true;
@@ -2398,6 +2406,8 @@ public sealed class MainShellForm : Form
         ResetPaperdoll();
         ClearMapImage();
         DisposeTilesetBitmaps();
+        DisposeTileAssetBitmaps();
+        _tileAssetBitmapSha = null;
         DisposePrefabBitmaps();
         _prefabPlacements.Clear();
         _prefabCatalog = null;
@@ -2607,6 +2617,8 @@ public sealed class MainShellForm : Form
         ResetPaperdoll();
         ClearMapImage();
         DisposeTilesetBitmaps();
+        DisposeTileAssetBitmaps();
+        _tileAssetBitmapSha = null;
         DisposePrefabBitmaps();
         _prefabPlacements.Clear();
         _prefabCatalog = null;
@@ -2670,7 +2682,16 @@ public sealed class MainShellForm : Form
 
         ReloadTilesetBitmaps();
         ReloadPrefabOverlays();
-        RedrawMap();
+        if (map.GraphicIdentity == TileGraphicIdentity.TileAsset && !_tilePacks.HasVerifiedPack)
+        {
+            ClearMapImage();
+            _ = SyncTilePackAsync(redrawIfReady: true);
+        }
+        else
+        {
+            RedrawMap();
+        }
+
         _hudMinimap.RebuildCache(map);
         if (_localVisualInitialized)
         {
@@ -3447,6 +3468,7 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        ResetTileAssetBitmapCache();
         var lcx = (float)_srvPixelX;
         var lcy = (float)_srvPixelY;
         if (_localVisualInitialized)
@@ -3500,7 +3522,9 @@ public sealed class MainShellForm : Form
             monsterPoses: monsterPoses,
             weatherPlan: _weatherPlan,
             weatherTickMs: _weatherTickMs,
-            localAppearance: EquipmentService.ToOverlaySet(_paperdoll));
+            localAppearance: EquipmentService.ToOverlaySet(_paperdoll),
+            tileAssets: _tilePacks.Lookup,
+            tileAssetBitmaps: _tileAssetBitmaps);
         _combatHud.Tick(DateTime.UtcNow);
         CombatEffect.Draw(bmp, _combatHud.Floats, DateTime.UtcNow, lcx, lcy, _localFacing);
         var previous = _picMap.Image;
@@ -3508,6 +3532,75 @@ public sealed class MainShellForm : Form
         previous?.Dispose();
         ApplyMapViewportCamera();
         _movementMeasure.NoteVisibleUpdate();
+    }
+
+    private async Task SyncTilePackAsync(bool redrawIfReady)
+    {
+        try
+        {
+            var result = await _tilePacks.SyncAsync().ConfigureAwait(true);
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            ResetTileAssetBitmapCache();
+            AppendLog(DescribeTilePack(result));
+            if (redrawIfReady && _map is not null)
+            {
+                RedrawMap();
+            }
+        }
+        catch (Exception ex)
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            try
+            {
+                AppendLog("Paquet de tuiles : " + ex.Message);
+            }
+            catch (Exception closed) when (closed is ObjectDisposedException or InvalidOperationException)
+            {
+                // Fermeture de la fenêtre pendant le sync.
+            }
+        }
+    }
+
+    private static string DescribeTilePack(TilePackSyncResult result)
+    {
+        return result.Kind switch
+        {
+            TilePackSyncKind.Cached =>
+                $"Paquet de tuiles en cache : {result.TileCount} tuile(s), version {result.Version}. {result.Detail}".Trim(),
+            TilePackSyncKind.Downloaded =>
+                $"Paquet de tuiles téléchargé : {result.TileCount} tuile(s), version {result.Version}.",
+            TilePackSyncKind.Rejected => "Paquet de tuiles refusé : " + result.Detail,
+            _ => "Paquet de tuiles indisponible : " + result.Detail,
+        };
+    }
+
+    private void ResetTileAssetBitmapCache()
+    {
+        if (string.Equals(_tileAssetBitmapSha, _tilePacks.VerifiedContentSha256, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        DisposeTileAssetBitmaps();
+        _tileAssetBitmapSha = _tilePacks.VerifiedContentSha256;
+    }
+
+    private void DisposeTileAssetBitmaps()
+    {
+        foreach (var bitmap in _tileAssetBitmaps.Values)
+        {
+            bitmap.Dispose();
+        }
+
+        _tileAssetBitmaps.Clear();
     }
 
     private void ReloadTilesetBitmaps()
@@ -3598,9 +3691,8 @@ public sealed class MainShellForm : Form
         }
 
         var view = _mapScroll.ClientSize;
-        var tw = WorldMetrics.DefaultTileSizePixels;
-        var mapW = _map.Width * tw;
-        var mapH = _map.Height * tw;
+        var mapW = _picMap.Image.Width;
+        var mapH = _picMap.Image.Height;
         float? focusX = null;
         float? focusY = null;
         if (_localVisualInitialized)

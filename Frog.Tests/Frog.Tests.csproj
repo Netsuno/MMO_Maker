@@ -23,6 +23,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Mêmes sources que Frog.Client (net8.0-windows) : la suite net8.0 vérifie fetch / pin / cache sans WindowsDesktop. -->
+        <Compile Include="..\Frog.Client\Assets\TilePackClientService.cs" Link="ClientTilePack\TilePackClientService.cs" />
+        <Compile Include="..\Frog.Client\Assets\TileAssetDisplayPixels.cs" Link="ClientTilePack\TileAssetDisplayPixels.cs" />
+        <Compile Include="..\Frog.Client\Config\TilePackClientOptions.cs" Link="ClientTilePack\TilePackClientOptions.cs" />
+        <Compile Include="..\Frog.Client\Config\UserSettings.cs" Link="ClientTilePack\UserSettings.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Frog.Core\Frog.Core.csproj" />
         <ProjectReference Include="..\Frog.Application\Frog.Application.csproj" />
         <ProjectReference Include="..\Frog.Server\Frog.Server.csproj" />
