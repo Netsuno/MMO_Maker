@@ -7,7 +7,7 @@
 | **Statut** | Paperdoll MVP : corps + tête Eldiran, overlays originaux armure / casque / arme |
 | **Base** | `main` @ `a75ca4c` |
 | **Branche** | `cursor/paperdoll-overlays-aa00` |
-| **PR** | Draft vers `main` — **pas de merge** |
+| **PR** | Draft [#49](https://github.com/Netsuno/MMO_Maker/pull/49) vers `main` — **pas de merge** |
 
 Protocole / gameplay / `WorldMetrics.DefaultTileSizePixels = 32` inchangés.
 Affichage nearest-neighbor seulement (pas de bicubique / ColorMatrix or).
