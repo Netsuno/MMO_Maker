@@ -107,6 +107,10 @@ public sealed class EquipmentPanel : UserControl
 
     internal void ClickToggleTunicForTest() => _btnToggleTunic.PerformClick();
 
+    internal void RequestToggleTunic() => ToggleLocalTunic();
+
+    internal void RequestToggleHeadwear() => ToggleLocalHeadwear();
+
     internal string WeaponLabelTextForTest => _lblWeapon.Text;
 
     internal string ArmorLabelTextForTest => _lblArmor.Text;

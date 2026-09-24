@@ -23,6 +23,7 @@ public sealed class HelpForm : Form
         • La saisie dans un champ texte (chat, mot de passe) n'envoie pas de déplacement.
 
         Combat, inventaire, boutique
+        • C ou le bouton Perso ouvre la fiche perso (aperçu paperdoll et emplacements Corps, Tunique, Armure, Tête, Casque, Arme).
         • Vie, or, inventaire, équipement, banque, quêtes et fabrication sont des panneaux nommés.
         • Les identifiants techniques (Guid) ne font pas partie de l'interface normale.
         • Mêlée et sorts : choisissez une cible par son nom.

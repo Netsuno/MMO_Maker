@@ -72,6 +72,7 @@ internal static class PlayerWorldAssets
     private static Bitmap? _armorSheet;
     private static Bitmap? _hatSheet;
     private static Bitmap? _weaponSheet;
+    private static Bitmap?[]? _layerIcons;
     private static bool _resolved;
     private static string? _resolvedPath;
 
@@ -151,6 +152,34 @@ internal static class PlayerWorldAssets
 
             cached = RenderCell(col, row, appearance);
             _overlayFrames[index, row, col] = cached;
+            return cached;
+        }
+    }
+
+    /// <summary>
+    /// South-idle cell of one paperdoll layer (body, tunic, armor, head, hat, weapon).
+    /// Same sheets as <see cref="FrameFor"/>. Empty bitmap when that overlay file is missing.
+    /// </summary>
+    internal static Bitmap LayerIcon(PlayerSpriteSlot slot)
+    {
+        EnsureLoaded();
+        var index = (int)slot;
+        if ((uint)index >= CompositeDrawOrder.Length)
+        {
+            return EmptyCell();
+        }
+
+        lock (Gate)
+        {
+            _layerIcons ??= new Bitmap?[CompositeDrawOrder.Length];
+            var cached = _layerIcons[index];
+            if (cached is not null)
+            {
+                return cached;
+            }
+
+            cached = CropIdleSouth(SheetFor(slot));
+            _layerIcons[index] = cached;
             return cached;
         }
     }
@@ -323,6 +352,34 @@ internal static class PlayerWorldAssets
         PlayerSpriteSlot.Weapon => _weaponSheet,
         _ => null,
     };
+
+    private static Bitmap CropIdleSouth(Bitmap? sheet)
+    {
+        var cell = EmptyCell();
+        if (sheet is null)
+        {
+            return cell;
+        }
+
+        using var g = Graphics.FromImage(cell);
+        g.SmoothingMode = SmoothingMode.None;
+        g.InterpolationMode = InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = PixelOffsetMode.Half;
+        g.Clear(Color.Transparent);
+        var col = sheet.Width >= NativeSize * (PlayerWalkClock.IdleColumn + 1)
+            ? PlayerWalkClock.IdleColumn
+            : 0;
+        var row = sheet.Height >= WalkSheetHeight ? PlayerSpritePose.IdleDown.SheetRow : 0;
+        var origin = CellOrigin(sheet, col, row);
+        g.DrawImage(
+            sheet,
+            new Rectangle(0, 0, NativeSize, NativeSize),
+            new Rectangle(origin.X, origin.Y, NativeSize, NativeSize),
+            GraphicsUnit.Pixel);
+        return cell;
+    }
+
+    private static Bitmap EmptyCell() => new(NativeSize, NativeSize, PixelFormat.Format32bppArgb);
 
     private static Point CellOrigin(Bitmap sheet, int col, int row)
     {

@@ -45,7 +45,7 @@ public sealed class ClientUiDaV2ChromeTests
         Assert.Contains("Phase8ExactShaPanelWidth = 324", shell, StringComparison.Ordinal);
         Assert.Contains("new(\"Inventaire\")", shell, StringComparison.Ordinal);
         Assert.Contains("new(\"Quêtes\")", shell, StringComparison.Ordinal);
-        Assert.Contains("\"Perso\"", shell, StringComparison.Ordinal);
+        Assert.Contains("\"Fiche perso\"", shell, StringComparison.Ordinal);
         Assert.DoesNotContain("HudStatusModule", chrome, StringComparison.Ordinal);
     }
 
