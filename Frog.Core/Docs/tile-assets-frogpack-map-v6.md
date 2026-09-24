@@ -73,7 +73,7 @@ signature Ed25519 64 sur ce sha256 (pas sur le fichier entier)
 ## Phases suivantes (pas dans ce PR)
 
 1. **Éditeur** — import de feuille via `TileSheetSlicer`, canevas `WorkingTileset`, enregistrement `MapFormat.Write` une fois les cellules en `TileAssetId`.
-2. **Serveur** — publication d’un `.frogpack` vérifié avec une clé Ed25519 épinglée. Pas d’endpoint HTTP ici.
+2. **Serveur** — publication d’un `.frogpack` vérifié avec une clé Ed25519 épinglée. Voir `Frog.Server/Docs/tile-pack-publish.md` (canal HTTP additif ; `FrogWireProtocol.Version` reste 11).
 3. **Client** — téléchargement et cache par `TileAssetId`. Pas d’UI ici.
 4. **PostgreSQL** — `world.map_cells.layers_json` reste `tilesetId` / `srcX` / `srcY`. Pas de DDL ici.
 5. **Contenu** — les cartes existantes restent v5 / 32 px jusqu’à ré-auteur ou upscale explicite.

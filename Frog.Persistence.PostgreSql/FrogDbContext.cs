@@ -31,6 +31,13 @@ public sealed class FrogDbContext : DbContext
     public DbSet<RuntimeMapBindingEntity> RuntimeMapBindings => Set<RuntimeMapBindingEntity>();
     public DbSet<WorldSpawnSettingsEntity> WorldSpawnSettings => Set<WorldSpawnSettingsEntity>();
     public DbSet<TilesetEntity> Tilesets => Set<TilesetEntity>();
+
+    /// <summary>Catalogue TileAsset. Les déblocages <c>player.player_tile_unlocks</c> ne sont pas mappés.</summary>
+    public DbSet<ContentTileEntity> ContentTiles => Set<ContentTileEntity>();
+
+    public DbSet<ContentTilePackEntity> ContentTilePacks => Set<ContentTilePackEntity>();
+
+    public DbSet<ContentTilePackEntryEntity> ContentTilePackEntries => Set<ContentTilePackEntryEntity>();
     public DbSet<TilesetPublishedSnapshotEntity> TilesetPublishedSnapshots => Set<TilesetPublishedSnapshotEntity>();
     public DbSet<TilesetPublicationHistoryEntity> TilesetPublicationHistory => Set<TilesetPublicationHistoryEntity>();
     public DbSet<NpcEntity> Npcs => Set<NpcEntity>();
@@ -1109,6 +1116,50 @@ public sealed class FrogDbContext : DbContext
             e.HasOne<CharacterEntity>()
                 .WithMany()
                 .HasForeignKey(x => x.PartnerCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Tables créées par 20260924214100_TileAssetCatalog (migration écrite à la main, hors snapshot).
+        // ExcludeFromMigrations évite un second CREATE TABLE au prochain `dotnet ef migrations add`.
+        modelBuilder.Entity<ContentTileEntity>(e =>
+        {
+            e.ToTable("tiles", "content", t => t.ExcludeFromMigrations());
+            e.HasKey(x => x.TileAssetId);
+            e.HasAlternateKey(x => x.Id);
+            e.Property(x => x.TileAssetId).HasColumnType("char(64)").HasMaxLength(64).IsFixedLength().IsRequired();
+            e.Property(x => x.PngBytes).HasColumnType("bytea").IsRequired();
+            e.Property(x => x.DisplayName).HasMaxLength(120);
+            e.Property(x => x.Tags).HasColumnType("text[]").IsRequired();
+            e.Property(x => x.MetaJson).HasColumnType("jsonb").IsRequired();
+        });
+
+        modelBuilder.Entity<ContentTilePackEntity>(e =>
+        {
+            e.ToTable("tile_packs", "content", t => t.ExcludeFromMigrations());
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.Slug, x.Version });
+            e.Property(x => x.Slug).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Version).HasMaxLength(64).IsRequired();
+            e.Property(x => x.FrogpackSha256).HasColumnType("char(64)").HasMaxLength(64).IsFixedLength();
+            e.Property(x => x.FrogpackBytes).HasColumnType("bytea");
+            e.Property(x => x.Ed25519Signature).HasColumnName("ed25519_signature").HasColumnType("bytea");
+            e.Property(x => x.Ed25519PublicKeyId).HasColumnName("ed25519_public_key_id").HasMaxLength(64);
+            e.Property(x => x.ManifestJson).HasColumnType("jsonb").IsRequired();
+        });
+
+        modelBuilder.Entity<ContentTilePackEntryEntity>(e =>
+        {
+            e.ToTable("tile_pack_entries", "content", t => t.ExcludeFromMigrations());
+            e.HasKey(x => new { x.PackId, x.TileAssetId });
+            e.Property(x => x.TileAssetId).HasColumnType("char(64)").HasMaxLength(64).IsFixedLength().IsRequired();
+            e.Property(x => x.EntryMetaJson).HasColumnType("jsonb").IsRequired();
+            e.HasOne<ContentTilePackEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.PackId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ContentTileEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.TileAssetId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

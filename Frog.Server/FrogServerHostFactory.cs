@@ -6,6 +6,7 @@ using Frog.Application.Gameplay;
 using Frog.Application.Playtest;
 using Frog.Application.Prefabs;
 using Frog.Server.Config;
+using Frog.Server.Content;
 using Frog.Application.Identity;
 using Frog.Server.Database;
 using Frog.Server.Gameplay;
@@ -150,6 +151,12 @@ public static class FrogServerHostFactory
                 services
                     .AddOptions<RegistrationOptions>()
                     .Bind(ctx.Configuration.GetSection(RegistrationOptions.SectionName));
+                services
+                    .AddOptions<TilePackOptions>()
+                    .Bind(ctx.Configuration.GetSection(TilePackOptions.SectionName))
+                    .PostConfigure(o => o.ApplyEnvironmentOverrides())
+                    .ValidateOnStart();
+                services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<TilePackOptions>, TilePackOptionsValidator>();
                 services
                     .AddOptions<MaintenanceOptions>()
                     .Bind(ctx.Configuration.GetSection(MaintenanceOptions.SectionName))
@@ -324,6 +331,7 @@ public static class FrogServerHostFactory
 
                         return EmptyPublishedPrefabCatalog.Instance;
                     });
+                    services.AddSingleton<ITilePackRepository, InMemoryTilePackRepository>();
                     services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
                     services.AddSingleton<IPublishedContentRevisionStamp>(_ =>
                         NullPublishedContentRevisionStamp.Instance);
@@ -362,6 +370,9 @@ public static class FrogServerHostFactory
 
                     return new CompositePublishedTilesetImageSource(embedded, filesystem);
                 });
+                services.AddSingleton<TilePackPublishService>();
+                services.AddSingleton<TilePackContentHttp>();
+                services.AddHostedService<TilePackContentHostedService>();
                 services.AddSingleton<PublishedCatalogService>();
                 services.AddSingleton<MapEventCommandExecutor>();
                 services.AddSingleton<MapEventExecutionTracker>();

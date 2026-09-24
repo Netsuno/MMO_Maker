@@ -144,6 +144,9 @@ public sealed class PostgreSqlServerAuthBackend : IServerAuthBackend
         services.AddSingleton<PostgresPublishedPrefabCatalog>(sp =>
             new PostgresPublishedPrefabCatalog(sp.GetRequiredService<FrogDbContextGate>()));
         services.AddSingleton<IPublishedPrefabCatalog>(sp => sp.GetRequiredService<PostgresPublishedPrefabCatalog>());
+
+        services.AddSingleton<ITilePackRepository>(sp =>
+            new PostgresTilePackRepository(sp.GetRequiredService<FrogDbContextGate>()));
     }
 }
 
