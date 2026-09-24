@@ -147,6 +147,14 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.True(form.StatusHudForTest.IsDeadVisibleForTest, "dead flag from CombatState");
                 Assert.False(form.StatusHudForTest.XpBarVisibleForTest);
                 Assert.Equal("N", form.StatusHudForTest.PortraitInitialForTest);
+                Assert.True(form.StatusHudForTest.PortraitIsCircularRegionForTest, "portrait region is a circle");
+                Assert.True(form.StatusHudForTest.PortraitUsesHeadBodyCompositeForTest, "portrait samples head/body composite");
+                Assert.Equal("8/20", form.StatusHudForTest.HpReadoutForTest);
+                Assert.Equal("4/10", form.StatusHudForTest.MpReadoutForTest);
+                Assert.True(form.StatusHudForTest.HpFillWidthForTest > 0, "HP fill tracks CombatState");
+                Assert.True(
+                    form.StatusHudForTest.HpFillWidthForTest < form.StatusHudForTest.HpTrackWidthForTest,
+                    "HP fill is a partial bar");
                 Assert.True(
                     form.StatusHudForTest.PortraitIsLeftOfNameForTest,
                     "portrait stays left of name (" + form.StatusHudForTest.PortraitLayoutForTest + ")");

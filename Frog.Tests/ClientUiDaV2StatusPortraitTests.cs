@@ -32,16 +32,23 @@ public sealed class ClientUiDaV2StatusPortraitTests
         Assert.Contains("DrawEllipse", status, StringComparison.Ordinal);
         Assert.Contains("UiTheme.BgSlot", status, StringComparison.Ordinal);
         Assert.Contains("UiTheme.AccentGold", status, StringComparison.Ordinal);
+        Assert.Contains("BarTrackHeight = 14", status, StringComparison.Ordinal);
         Assert.Contains("TryGetBarBack", status, StringComparison.Ordinal);
         Assert.Contains("TryGetBarFill", status, StringComparison.Ordinal);
+        Assert.Contains("FormatPool", status, StringComparison.Ordinal);
         Assert.Contains("XpBarVisibleForTest => false", status, StringComparison.Ordinal);
         Assert.Contains("ApplyCombat", status, StringComparison.Ordinal);
+        Assert.Contains("ApplyPortrait", status, StringComparison.Ordinal);
+        Assert.Contains("PlayerWorldAssets.FrameFor", status, StringComparison.Ordinal);
+        Assert.Contains("PlayerSpritePose.IdleDown", status, StringComparison.Ordinal);
+        Assert.Contains("InterpolationMode.NearestNeighbor", status, StringComparison.Ordinal);
         Assert.Contains("GetColumn(_body) != 1", status, StringComparison.Ordinal);
         Assert.Contains("GetColumn(host) != 0", status, StringComparison.Ordinal);
         Assert.DoesNotContain("GetColumn(bodyRow)", status, StringComparison.Ordinal);
-        Assert.DoesNotContain("PlayerWorldAssets", status, StringComparison.Ordinal);
+        Assert.DoesNotContain("generate-paperdoll", status, StringComparison.Ordinal);
         Assert.DoesNotContain("FROG_MOVEMENT_MEASURE", status, StringComparison.Ordinal);
         Assert.DoesNotContain("HudMenuCommand", status, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProtocolVersion", status, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -56,7 +63,13 @@ public sealed class ClientUiDaV2StatusPortraitTests
         Assert.Contains("HudMenuCommand.Character", menu, StringComparison.Ordinal);
         Assert.Contains("TitleBarHeight = 30", chrome, StringComparison.Ordinal);
         Assert.Contains("_hudStatus.ApplyCombat(state, _username)", shell, StringComparison.Ordinal);
+        Assert.Contains("_hudStatus.ApplyPortrait(EquipmentService.ToOverlaySet(_paperdoll))", shell, StringComparison.Ordinal);
+        Assert.Contains("OpenSocialPanel", shell, StringComparison.Ordinal);
+        Assert.Contains("_equipmentPanel.ApplySnapshot", shell, StringComparison.Ordinal);
         Assert.DoesNotContain("immersif", status, StringComparison.OrdinalIgnoreCase);
+
+        var protocol = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Core", "Constants", "FrogWireProtocol.cs"));
+        Assert.Contains("Version = 11", protocol, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -73,6 +86,8 @@ public sealed class ClientUiDaV2StatusPortraitTests
         Assert.Contains("#0C1018", text, StringComparison.Ordinal);
         Assert.Contains("#F2F4F8", text, StringComparison.Ordinal);
         Assert.Contains("Kenney", text, StringComparison.Ordinal);
+        Assert.Contains("tête/corps", text, StringComparison.Ordinal);
+        Assert.Contains("v11", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Marc", text, StringComparison.Ordinal);
         Assert.DoesNotContain("public beta", text, StringComparison.OrdinalIgnoreCase);
     }

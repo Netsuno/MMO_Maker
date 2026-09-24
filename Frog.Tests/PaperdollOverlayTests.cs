@@ -127,6 +127,7 @@ public sealed class PaperdollOverlayTests
         Assert.DoesNotContain("OffhandItemId", service, StringComparison.Ordinal);
 
         Assert.Contains("localAppearance: EquipmentService.ToOverlaySet(_paperdoll)", shell, StringComparison.Ordinal);
+        Assert.Contains("_hudStatus.ApplyPortrait(EquipmentService.ToOverlaySet(_paperdoll))", shell, StringComparison.Ordinal);
         Assert.Contains("_paperdoll.WithServerLoadout(snapshot)", shell, StringComparison.Ordinal);
         Assert.Contains("Equipment.LocalHeadwearItemId", shell, StringComparison.Ordinal);
         Assert.Contains("Porter le casque", panel, StringComparison.Ordinal);

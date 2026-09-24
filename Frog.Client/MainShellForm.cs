@@ -451,6 +451,12 @@ public sealed class MainShellForm : Form
     {
         _paperdoll = Equipment.Empty;
         _equipmentPanel.ResetLocalHeadwear();
+        SyncStatusPortrait();
+    }
+
+    private void SyncStatusPortrait()
+    {
+        _hudStatus.ApplyPortrait(EquipmentService.ToOverlaySet(_paperdoll));
     }
 
     private void GoToCharacterSelectPhase()
@@ -1384,6 +1390,7 @@ public sealed class MainShellForm : Form
             {
                 HeadwearItemId = worn ? Equipment.LocalHeadwearItemId : null,
             };
+            SyncStatusPortrait();
             if (_phase == ClientUiPhase.Playing && _map is not null)
             {
                 RedrawMap();
@@ -1771,6 +1778,7 @@ public sealed class MainShellForm : Form
     private void OnInventorySnapshot(InventorySnapshotWire snapshot)
     {
         _paperdoll = _paperdoll.WithServerLoadout(snapshot);
+        SyncStatusPortrait();
         _inventoryPanel.ApplySnapshot(snapshot);
         _equipmentPanel.ApplySnapshot(snapshot);
         UpdateInventoryActionButtons();
@@ -3847,6 +3855,7 @@ public sealed class MainShellForm : Form
     private void ApplyDaTheme()
     {
         UiTheme.Apply(this);
+        _hudStatus.ApplyDaColors();
         UiTheme.StyleGoldTabs(_gameplayTabs);
         _windowChrome.ApplyTheme();
         _loginShell.ApplyTheme();
