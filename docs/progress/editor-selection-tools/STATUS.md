@@ -4,9 +4,10 @@
 | --- | --- |
 | **Chantier** | Sélection (M) : copier / couper / coller le rectangle sur toutes les couches |
 | **Propriétaire** | Netsun |
-| **Statut** | Livré — PR ouverte |
+| **Statut** | Livré — PR ready-for-review |
 | **Base** | `main` @ `3dbf63f` |
 | **Branche** | `cursor/editor-multilayer-selection-copy-1081` |
+| **PR** | [#53](https://github.com/Netsuno/MMO_Maker/pull/53) vers `main` |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** |
 
 Parallèle aux chantiers déjà livrés (rotation / miroir / pipette, spawn, prefabs) : **aucun** bump `.fmap`, **aucun** changement protocole, client, ou publication prefab.
