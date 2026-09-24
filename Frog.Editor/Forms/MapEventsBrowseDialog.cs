@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Drawing;
+using Frog.Application.Content;
 using Frog.Core.Events;
 using Frog.Editor.Services;
 using Frog.Editor.Ui;
@@ -47,8 +49,14 @@ internal sealed class MapEventsBrowseDialog : Form
     private readonly Button _btnDeleteCatalogRow = new() { Text = "Supprimer entrée catalogue", AutoSize = true };
     private readonly Button _btnEditPages = new() { Text = "Éditer pages…", AutoSize = true };
     private readonly Button _btnQuickNpc = new() { Text = "PNJ rapide…", AutoSize = true };
-    private readonly TextBox _txtFilterCatalog = new() { Width = 220, PlaceholderText = "Filtrer catalogue…" };
-    private readonly TextBox _txtFilterPlacements = new() { Width = 220, PlaceholderText = "Filtrer placements…" };
+    private readonly TextBox _txtFilterCatalog = new() { Width = 220, PlaceholderText = "Filtrer le catalogue…" };
+    private readonly TextBox _txtFilterPlacements = new() { Width = 220, PlaceholderText = "Filtrer les événements…" };
+    private readonly Label _lblMarkerLegend = new()
+    {
+        Text = "Losanges : A action · C contact · ! automatique · P parallèle",
+        AutoSize = true,
+        Margin = new Padding(12, 4, 0, 0),
+    };
     private readonly List<PgEventCatalogRow> _catalogRows = new();
     private readonly List<PgMapEventPlacementRow> _placementRows = new();
     private Guid _mapId;
@@ -68,37 +76,38 @@ internal sealed class MapEventsBrowseDialog : Form
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _mapId = mapId;
-        Text = "Événements carte (PostgreSQL)";
+        Text = "Événements de la carte";
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(920, 600);
+        ClientSize = new Size(980, 640);
+        MinimumSize = new Size(760, 480);
         _lblMapId.Text = FormatMapId(mapId);
         _numTileX.Value = defaultTileX;
         _numTileY.Value = defaultTileY;
 
-        _lvCatalog.Columns.Add("event_id", 220);
-        _lvCatalog.Columns.Add("slug", 160);
-        _lvCatalog.Columns.Add("name", 220);
-        _lvCatalog.Columns.Add("status", 80);
-        _lvCatalog.Columns.Add("pages", 50);
+        _lvCatalog.ShowItemToolTips = true;
+        _lvCatalog.Columns.Add("Nom", 240);
+        _lvCatalog.Columns.Add("Identifiant", 180);
+        _lvCatalog.Columns.Add("Pages", 64);
+        _lvCatalog.Columns.Add("Statut", 90);
+        _lvCatalog.Columns.Add("Id", 90);
 
-        _lvPlacements.Columns.Add("placement_id", 220);
-        _lvPlacements.Columns.Add("map_id", 220);
-        _lvPlacements.Columns.Add("event_id", 220);
-        _lvPlacements.Columns.Add("tile_x", 60);
-        _lvPlacements.Columns.Add("tile_y", 60);
-        _lvPlacements.Columns.Add("slug", 140);
-        _lvPlacements.Columns.Add("name", 160);
-        _lvPlacements.Columns.Add("trigger_kind", 120);
+        _lvPlacements.ShowItemToolTips = true;
+        _lvPlacements.Columns.Add("Nom", 200);
+        _lvPlacements.Columns.Add("Déclencheur", 120);
+        _lvPlacements.Columns.Add("X", 48);
+        _lvPlacements.Columns.Add("Y", 48);
+        _lvPlacements.Columns.Add("Identifiant", 150);
+        _lvPlacements.Columns.Add("Id", 88);
 
         _cbTrigger.Items.AddRange(new object[]
         {
-            "action — interaction joueur (touche E)",
-            "player_contact — contact sur la tuile (marche)",
-            "autorun — exécution automatique à l'activation",
-            "parallel — exécution parallèle tant que la page est active",
+            "A · Action — interaction (touche)",
+            "C · Contact — marche sur la tuile",
+            "! · Automatique — une fois à l'activation",
+            "P · Parallèle — tant que la page est active",
         });
         _cbTrigger.SelectedIndex = 0;
 
@@ -125,7 +134,7 @@ internal sealed class MapEventsBrowseDialog : Form
         catPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         catPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         catPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        catPanel.Controls.Add(new Label { Text = "Catalogue événements (sélection = type à placer sur la carte)", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
+        catPanel.Controls.Add(new Label { Text = "Catalogue — choisissez le type, puis placez-le sur une tuile", Dock = DockStyle.Fill, AutoSize = true }, 0, 0);
         var catFilterRow = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -182,10 +191,11 @@ internal sealed class MapEventsBrowseDialog : Form
             WrapContents = true,
             Padding = new Padding(0, 0, 0, 4),
         };
-        placeMid.Controls.Add(new Label { Text = "Placements carte · ", AutoSize = true, Margin = new Padding(0, 4, 4, 0) });
+        placeMid.Controls.Add(new Label { Text = "Sur la carte", AutoSize = true, Margin = new Padding(0, 4, 4, 0) });
         placeMid.Controls.Add(new Label { Text = "Filtre", AutoSize = true, Margin = new Padding(8, 4, 4, 0) });
         placeMid.Controls.Add(_txtFilterPlacements);
         placeMid.Controls.Add(_chkShowNames);
+        placeMid.Controls.Add(_lblMarkerLegend);
         placeOuter.Controls.Add(placeMid, 0, 1);
         placeOuter.Controls.Add(_lvPlacements, 0, 2);
         split.Panel2.Controls.Add(placeOuter);
@@ -230,6 +240,68 @@ internal sealed class MapEventsBrowseDialog : Form
             ShowEventNamesChanged?.Invoke(_chkShowNames.Checked);
         };
         Shown += (_, _) => ReloadSafe();
+        ApplyEditorChrome();
+    }
+
+    private void ApplyEditorChrome()
+    {
+        EditorChrome.ApplyFormChrome(this);
+        StyleChromeTree(this);
+        _lblMarkerLegend.ForeColor = EditorChrome.LabelMuted;
+    }
+
+    private void StyleChromeTree(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            switch (child)
+            {
+                case ListView list:
+                    EditorChrome.StyleSidebarListView(list);
+                    list.Font = EditorChrome.BodyFont;
+                    break;
+                case Button button:
+                    EditorChrome.StyleDialogButton(button, primary: ReferenceEquals(button, _btnPlace));
+                    break;
+                case CheckBox check:
+                    check.ForeColor = EditorChrome.LabelPrimary;
+                    check.BackColor = EditorChrome.SidebarBg;
+                    break;
+                case Label label:
+                    label.ForeColor = EditorChrome.LabelPrimary;
+                    if (label.BackColor == SystemColors.Control)
+                    {
+                        label.BackColor = Color.Transparent;
+                    }
+
+                    break;
+                case TextBox textBox:
+                    textBox.BackColor = EditorChrome.SidebarElevated;
+                    textBox.ForeColor = EditorChrome.LabelPrimary;
+                    textBox.BorderStyle = BorderStyle.FixedSingle;
+                    break;
+                case ComboBox combo:
+                    EditorChrome.StyleSidebarComboBox(combo);
+                    break;
+                case NumericUpDown numeric:
+                    numeric.BackColor = EditorChrome.SidebarElevated;
+                    numeric.ForeColor = EditorChrome.LabelPrimary;
+                    break;
+                case SplitContainer split:
+                    split.BackColor = EditorChrome.CanvasInset;
+                    split.Panel1.BackColor = EditorChrome.SidebarBg;
+                    split.Panel2.BackColor = EditorChrome.SidebarBg;
+                    break;
+                case Panel panel:
+                    panel.BackColor = EditorChrome.SidebarBg;
+                    break;
+            }
+
+            if (child.HasChildren)
+            {
+                StyleChromeTree(child);
+            }
+        }
     }
 
     internal void SetShowEventNames(bool value)
@@ -291,8 +363,14 @@ internal sealed class MapEventsBrowseDialog : Form
         var keys = new List<MapEventMarkerLayout.MapEventPlacementListKey>(_lvPlacements.Items.Count);
         foreach (ListViewItem item in _lvPlacements.Items)
         {
-            var x = item.SubItems.Count > 3 && int.TryParse(item.SubItems[3].Text, out var tx) ? tx : int.MinValue;
-            var y = item.SubItems.Count > 4 && int.TryParse(item.SubItems[4].Text, out var ty) ? ty : int.MinValue;
+            if (item.Tag is PlacementTag tag)
+            {
+                keys.Add(new MapEventMarkerLayout.MapEventPlacementListKey(tag.Key, tag.TileX, tag.TileY));
+                continue;
+            }
+
+            var x = item.SubItems.Count > 2 && int.TryParse(item.SubItems[2].Text, out var tx) ? tx : int.MinValue;
+            var y = item.SubItems.Count > 3 && int.TryParse(item.SubItems[3].Text, out var ty) ? ty : int.MinValue;
             keys.Add(new MapEventMarkerLayout.MapEventPlacementListKey(item.Text, x, y));
         }
 
@@ -400,7 +478,7 @@ internal sealed class MapEventsBrowseDialog : Form
         {
             if (!TryGetSingleSelectedGuid(_lvCatalog, out var eventId))
             {
-                MessageBox.Show(this, "Sélectionnez une ligne du catalogue (colonne event_id).", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "Sélectionnez une entrée du catalogue.", "Catalogue", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -594,35 +672,48 @@ internal sealed class MapEventsBrowseDialog : Form
                     }
                 }
 
-                var item = new ListViewItem(row.EventId.ToString("D"));
+                var title = MapEventMarkerLayout.FormatListTitle(row.DisplayName, row.Slug);
+                var item = new ListViewItem(title)
+                {
+                    Tag = row.EventId,
+                    ToolTipText = row.EventId.ToString("D"),
+                };
                 item.SubItems.Add(row.Slug);
-                item.SubItems.Add(row.DisplayName);
-                item.SubItems.Add(row.Status.ToString());
                 item.SubItems.Add(row.PageCount.ToString());
+                item.SubItems.Add(FormatPublishStatus(row.Status));
+                item.SubItems.Add(row.EventId.ToString("N")[..8]);
                 _lvCatalog.Items.Add(item);
             }
 
             _lvPlacements.Items.Clear();
-            foreach (var row in _placementRows)
+            foreach (var row in _placementRows
+                         .OrderBy(r => r.TileY)
+                         .ThenBy(r => r.TileX)
+                         .ThenBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase))
             {
+                var trigger = MapEventMarkerLayout.TriggerLabel(row.TriggerKind);
                 if (pf.Length > 0)
                 {
                     var blob =
-                        $"{row.Id} {row.MapId} {row.EventDefinitionId} {row.TileX} {row.TileY} {row.Slug} {row.DisplayName} {row.TriggerKind}";
+                        $"{row.Id} {row.MapId} {row.EventDefinitionId} {row.TileX} {row.TileY} {row.Slug} {row.DisplayName} {row.TriggerKind} {trigger}";
                     if (!blob.Contains(pf, o))
                     {
                         continue;
                     }
                 }
 
-                var item = new ListViewItem(row.Id.ToString("D"));
-                item.SubItems.Add(row.MapId.ToString("D"));
-                item.SubItems.Add(row.EventDefinitionId.ToString("D"));
+                var title = MapEventMarkerLayout.FormatListTitle(row.DisplayName, row.Slug);
+                var item = new ListViewItem(title)
+                {
+                    Tag = new PlacementTag(row.Id, row.Id.ToString("D"), row.TileX, row.TileY),
+                    ToolTipText = $"{title} · {trigger} ({row.TileX}, {row.TileY}){Environment.NewLine}{row.Id:D}",
+                    ForeColor = MapEventMarkerColors.TriggerAccent(row.TriggerKind),
+                };
+                item.SubItems.Add(MapEventMarkerLayout.TriggerGlyph(row.TriggerKind) + "  " + trigger);
                 item.SubItems.Add(row.TileX.ToString());
                 item.SubItems.Add(row.TileY.ToString());
                 item.SubItems.Add(row.Slug);
-                item.SubItems.Add(row.DisplayName);
-                item.SubItems.Add(row.TriggerKind);
+                item.SubItems.Add(row.Id.ToString("N")[..8]);
                 _lvPlacements.Items.Add(item);
             }
         }
@@ -641,6 +732,41 @@ internal sealed class MapEventsBrowseDialog : Form
             return false;
         }
 
-        return Guid.TryParse(lv.SelectedItems[0].Text, out value) && value != Guid.Empty;
+        var item = lv.SelectedItems[0];
+        if (item.Tag is Guid id)
+        {
+            value = id;
+            return id != Guid.Empty;
+        }
+
+        if (item.Tag is PlacementTag placement)
+        {
+            value = placement.Id;
+            return value != Guid.Empty;
+        }
+
+        return Guid.TryParse(item.Text, out value) && value != Guid.Empty;
+    }
+
+    private static string FormatPublishStatus(ContentPublishStatus status) =>
+        status == ContentPublishStatus.Published ? "Publié" : "Brouillon";
+
+    private sealed class PlacementTag
+    {
+        public PlacementTag(Guid id, string key, int tileX, int tileY)
+        {
+            Id = id;
+            Key = key;
+            TileX = tileX;
+            TileY = tileY;
+        }
+
+        public Guid Id { get; }
+
+        public string Key { get; }
+
+        public int TileX { get; }
+
+        public int TileY { get; }
     }
 }

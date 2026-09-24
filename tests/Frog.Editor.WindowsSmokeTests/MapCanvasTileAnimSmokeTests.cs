@@ -55,7 +55,13 @@ public sealed class MapCanvasTileAnimSmokeTests
                 Assert.True(canvas.TryResolveAnimDrawSourceForTest(tilesetId, 0, 0, 200, 64, 64, out var x1, out _));
                 Assert.Equal(32, x1);
 
+                var animHint = canvas.GetPaintStatusHint();
+                Assert.Contains("aperçu animé", animHint, StringComparison.Ordinal);
+                Assert.Contains("2 images", animHint, StringComparison.Ordinal);
+                Assert.DoesNotContain("frame", animHint, StringComparison.OrdinalIgnoreCase);
+
                 TilesetAnimCatalog.PreviewEnabled = false;
+                Assert.Contains("aperçu arrêté", canvas.GetPaintStatusHint(), StringComparison.Ordinal);
                 Assert.False(canvas.TryResolveAnimDrawSourceForTest(tilesetId, 0, 0, 200, 64, 64, out _, out _));
                 TilesetAnimCatalog.PreviewEnabled = true;
 

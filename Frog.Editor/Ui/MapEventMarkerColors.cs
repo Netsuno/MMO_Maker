@@ -47,4 +47,30 @@ internal static class MapEventMarkerColors
 
     public static bool IsLegacyPageTrigger(string? kind) =>
         string.Equals(kind, MapEventTriggerKinds.Page, StringComparison.Ordinal);
+
+    /// <summary>Couleur de ligne dans la liste d’événements, selon le déclencheur.</summary>
+    public static Color TriggerAccent(string? kind)
+    {
+        if (IsAutorunTrigger(kind))
+        {
+            return Color.Gold;
+        }
+
+        if (IsParallelTrigger(kind))
+        {
+            return Color.Turquoise;
+        }
+
+        if (IsPlayerContactTrigger(kind))
+        {
+            return Color.LightSkyBlue;
+        }
+
+        if (IsLegacyPageTrigger(kind))
+        {
+            return Color.Silver;
+        }
+
+        return Color.FromArgb(235, 238, 245);
+    }
 }

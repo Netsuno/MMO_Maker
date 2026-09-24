@@ -459,9 +459,17 @@ public sealed class MainForm : Form
 
             var status = new StatusStrip { SizingGrip = false, GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Bottom };
             status.BackColor = EditorChrome.RibbonBg;
+            status.Font = EditorChrome.BodyFont;
             status.Padding = new Padding(8, 4, 8, 4);
-            var lblPos = new ToolStripStatusLabel("Tuile · x = 0, y = 0") { BorderSides = ToolStripStatusLabelBorderSides.None };
-            lblPos.ForeColor = EditorChrome.LabelMuted;
+            var lblPos = new ToolStripStatusLabel("Tuile · x = 0, y = 0")
+            {
+                BorderSides = ToolStripStatusLabelBorderSides.None,
+                Spring = true,
+                AutoToolTip = true,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = EditorChrome.BodyFont,
+            };
+            lblPos.ForeColor = EditorChrome.LabelPrimary;
             status.Items.Add(lblPos);
             _status = status;
             _lblPos = lblPos;
@@ -699,6 +707,7 @@ public sealed class MainForm : Form
 
             _canvas.ActiveLayerIndex = ix;
             _canvas.Invalidate();
+            PushEditorStatusLine();
         };
         _layersProjectPanel.LayerVisibilityChanged += (_, t) =>
         {
@@ -724,6 +733,7 @@ public sealed class MainForm : Form
                 _canvas.Map.Layers[t.index].Visible = t.visible;
             }
             _canvas.Invalidate();
+            PushEditorStatusLine();
         };
         _layersProjectPanel.RenameLayerRequested += (_, _) => RenameLayerDisplay();
         _layersProjectPanel.AddLayerRequested = AddLayer;
@@ -768,6 +778,8 @@ public sealed class MainForm : Form
 
             OnMapEdited();
             UpdateUndoRedoButtons();
+            RefreshLayersUi();
+            PushEditorStatusLine();
             _propGridUndoCaptured = false;
         };
         _mapsProjectPanel.CurrentMapNodeSelected += (_, _) =>
@@ -1545,10 +1557,21 @@ public sealed class MainForm : Form
             ? $"    ·    {_leftToolsWpf.SelectedPrefabSummary} — clic pour placer"
             : "";
         var eventCaption = _canvas.ActiveMapEventCaption;
-        var eventText = string.IsNullOrEmpty(eventCaption) ? "" : $"    ·    événement {eventCaption}";
+        var eventKind = _canvas.ActiveMapEventTriggerLabel;
+        var eventText = string.IsNullOrEmpty(eventCaption)
+            ? ""
+            : string.IsNullOrEmpty(eventKind)
+                ? $"    ·    événement {eventCaption}"
+                : $"    ·    événement {eventCaption} · {eventKind}";
+        var paintHint = _canvas.GetPaintStatusHint();
+        _leftToolsWpf?.SetLiveToolHint(paintHint);
         var toolHint = _canvas.ActiveTool == EditorTool.Prefab
             ? ""
-            : $"    ·    {_canvas.GetPaintStatusHint()}";
+            : $"    ·    {paintHint}";
+        var animToggle = !TilesetAnimCatalog.PreviewEnabled
+                         && paintHint.IndexOf("aperçu", StringComparison.OrdinalIgnoreCase) < 0
+            ? "    ·    aperçu des tuiles animées : arrêté"
+            : "";
         var transferCount = _transferIssues.Count;
         var transferText = transferCount == 0
             ? ""
@@ -1557,14 +1580,29 @@ public sealed class MainForm : Form
                 : $"    ·    {transferCount} transferts à corriger";
         var notice = string.IsNullOrEmpty(_statusNotice) ? "" : _statusNotice + "    ·    ";
         var text =
-            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}{toolHint}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{eventText}{transferText}    ·    catalogue {backend}";
+            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}{FormatActiveLayerStatus()}{toolHint}{animToggle}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{eventText}{transferText}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
-            _lblPos.ForeColor = transferCount > 0 ? EditorChrome.WarningAmber : EditorChrome.LabelMuted;
+            _lblPos.ToolTipText = text;
+            _lblPos.ForeColor = transferCount > 0 ? EditorChrome.WarningAmber : EditorChrome.LabelPrimary;
         }
 
         TileHoverStatusChanged?.Invoke(text);
+    }
+
+    private string FormatActiveLayerStatus()
+    {
+        if (_canvas.Map is not { Layers.Count: > 0 } map)
+        {
+            return "";
+        }
+
+        var index = Math.Clamp(_canvas.ActiveLayerIndex, 0, map.Layers.Count - 1);
+        var layer = map.Layers[index];
+        var hidden = layer.Visible ? "" : " · masquée";
+        var locked = layer.Locked ? " · verrouillée" : "";
+        return $"    ·    couche {layer.GetDisplayLabel()}{hidden}{locked}";
     }
 
     internal void ResetMapView() => _canvas.ResetViewTransform();
@@ -1777,13 +1815,19 @@ public sealed class MainForm : Form
     internal void DoUndo()
     {
         _canvas.PerformUndo();
+        RefreshLayersUi();
+        _propGrid.Refresh();
         UpdateUndoRedoButtons();
+        PushEditorStatusLine();
     }
 
     internal void DoRedo()
     {
         _canvas.PerformRedo();
+        RefreshLayersUi();
+        _propGrid.Refresh();
         UpdateUndoRedoButtons();
+        PushEditorStatusLine();
     }
 
     private void UpdateUndoRedoButtons()
@@ -1821,8 +1865,8 @@ public sealed class MainForm : Form
                     Index = i,
                     Visible = l.Visible,
                     Display = l.GetDisplayLabel(),
-                    EngineType = l.LayerType.ToString(),
-                    LockLabel = l.Locked ? "Oui" : "—",
+                    EngineType = LayerTypeLabels.French(l.LayerType),
+                    LockLabel = l.Locked ? "Verrouillé" : "Libre",
                 });
             }
 
@@ -1904,17 +1948,17 @@ public sealed class MainForm : Form
         var layer = _canvas.Map.Layers[ix];
         var input = SimpleInputDialog.Show(
             GetDialogOwner(),
-            "Type moteur",
-            "LayerType (Ground, Mask, Mask2, Fringe, Fringe2, Attributes) :",
-            layer.LayerType.ToString());
+            "Type de couche",
+            "Sol, Masque, Masque 2, Frange, Frange 2 ou Attributs :",
+            LayerTypeLabels.French(layer.LayerType));
         if (string.IsNullOrWhiteSpace(input))
         {
             return;
         }
 
-        if (!Enum.TryParse(input, true, out LayerType type))
+        if (!LayerTypeLabels.TryParse(input, out var type))
         {
-            MessageBox.Show(GetDialogOwner(), "Valeur d’énumération non reconnue.", "Type moteur", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(GetDialogOwner(), "Type de couche non reconnu.", "Type de couche", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -3419,6 +3463,7 @@ public sealed class MainForm : Form
             TilesetAnimCatalog.PreviewEnabled = value;
             _tilesetPickerWpf.SyncAnimPreview();
             _canvas.Invalidate();
+            PushEditorStatusLine();
         }
     }
 

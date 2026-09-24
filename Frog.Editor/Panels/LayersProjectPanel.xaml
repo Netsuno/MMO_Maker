@@ -21,23 +21,92 @@
             <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="12" />
         </Style>
+        <Style x:Key="LayerEyeCheck" TargetType="{x:Type CheckBox}">
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ToolTip" Value="Afficher ou masquer cette couche" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type CheckBox}">
+                        <Border x:Name="Box"
+                                Width="16"
+                                Height="16"
+                                CornerRadius="2"
+                                Background="#FF202228"
+                                BorderBrush="#FF949BAA"
+                                BorderThickness="1"
+                                SnapsToDevicePixels="True"
+                                ToolTip="{TemplateBinding ToolTip}">
+                            <Ellipse x:Name="Pupil"
+                                     Width="8"
+                                     Height="8"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center"
+                                     Fill="#FF64BEFF"
+                                     Visibility="Collapsed" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Pupil" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="#FF64BEFF" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="Box" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style TargetType="{x:Type ListViewItem}">
-            <Setter Property="Background" Value="#FF32353E" />
+            <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="#FFEBEEF5" />
-            <Setter Property="Padding" Value="4,6" />
+            <Setter Property="Padding" Value="0,1" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListViewItem}">
+                        <Border x:Name="Row"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <GridViewRowPresenter VerticalAlignment="Center"
+                                                      Content="{TemplateBinding Content}"
+                                                      Columns="{TemplateBinding GridView.ColumnCollection}" />
+                                <Border x:Name="Accent"
+                                        Width="4"
+                                        HorizontalAlignment="Left"
+                                        Background="Transparent" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="#FF3A3F4A" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="#FF1A3D58" />
+                                <Setter TargetName="Accent" Property="Background" Value="#FF64BEFF" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True" />
+                                    <Condition Property="Selector.IsSelectionActive" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Row" Property="Background" Value="#FF163044" />
+                                <Setter TargetName="Accent" Property="Background" Value="#FF64BEFF" />
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#FF465058" />
-                    <Setter Property="Foreground" Value="#FFEBEEF5" />
-                </Trigger>
-                <MultiTrigger>
-                    <MultiTrigger.Conditions>
-                        <Condition Property="IsSelected" Value="True" />
-                        <Condition Property="Selector.IsSelectionActive" Value="False" />
-                    </MultiTrigger.Conditions>
-                    <Setter Property="Background" Value="#FF3A3F4A" />
-                </MultiTrigger>
+                <DataTrigger Binding="{Binding Visible}" Value="False">
+                    <Setter Property="Opacity" Value="0.62" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="{x:Type GridViewColumnHeader}">
@@ -64,7 +133,7 @@
                            FontSize="11"
                            FontWeight="SemiBold"
                            Foreground="#FFEBEEF5"
-                           Text="COUCHES — ordre de dessin" />
+                           Text="COUCHES · bas → haut" />
                 <Border Height="3"
                         VerticalAlignment="Bottom"
                         Background="#FF64BEFF" />
@@ -86,33 +155,57 @@
                 </ListView.Resources>
                 <ListView.ContextMenu>
                     <ContextMenu Background="#FF32353E" Foreground="#FFEBEEF5">
-                        <MenuItem Header="Ajouter couche" Click="MenuAddLayer_Click" />
-                        <MenuItem Header="Supprimer couche" Click="MenuRemoveLayer_Click" />
-                        <MenuItem Header="Renommer l’affichage…" Click="MenuRenameLayer_Click" />
-                        <MenuItem Header="Type moteur (Ground, Mask…)…" Click="MenuChangeEngineType_Click" />
+                        <MenuItem Header="Ajouter une couche" Click="MenuAddLayer_Click" />
+                        <MenuItem Header="Supprimer la couche" Click="MenuRemoveLayer_Click" />
+                        <MenuItem Header="Renommer…" Click="MenuRenameLayer_Click" />
+                        <MenuItem Header="Changer le type (Sol, Masque…)…" Click="MenuChangeEngineType_Click" />
                         <MenuItem Header="Verrouiller / déverrouiller" Click="MenuToggleLock_Click" />
                     </ContextMenu>
                 </ListView.ContextMenu>
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Width="40" Header=" ">
+                        <GridViewColumn Width="46">
+                            <GridViewColumn.Header>
+                                <TextBlock Text="Œil"
+                                           ToolTip="Afficher ou masquer la couche" />
+                            </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type panels:LayerListRow}">
-                                    <CheckBox Width="22"
-                                              HorizontalAlignment="Center"
+                                    <CheckBox HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
+                                              Style="{StaticResource LayerEyeCheck}"
                                               IsChecked="{Binding Visible, Mode=OneWay}"
                                               Click="LayerVisibleCheckBox_Click" />
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Width="130"
-                                        DisplayMemberBinding="{Binding Display}"
-                                        Header="Affichage" />
-                        <GridViewColumn Width="95"
+                        <GridViewColumn Width="132" Header="Nom">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type panels:LayerListRow}">
+                                    <TextBlock Text="{Binding Display}"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="{x:Type TextBlock}">
+                                                <Setter Property="Foreground" Value="#FFEBEEF5" />
+                                                <Setter Property="FontWeight" Value="Normal" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
+                                                                 Value="True">
+                                                        <Setter Property="Foreground" Value="#FF64BEFF" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Width="96"
                                         DisplayMemberBinding="{Binding EngineType}"
-                                        Header="Type moteur" />
-                        <GridViewColumn Width="52"
+                                        Header="Type" />
+                        <GridViewColumn Width="84"
                                         DisplayMemberBinding="{Binding LockLabel}"
                                         Header="Verrou" />
                     </GridView>

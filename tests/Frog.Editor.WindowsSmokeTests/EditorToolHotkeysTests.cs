@@ -94,6 +94,10 @@ public sealed class EditorToolHotkeysTests
         Assert.Contains("axe verrouillé", EditorToolHotkeys.FormatLineGesture(1, 1, 1, 6, 6, axisLocked: true), StringComparison.Ordinal);
         Assert.Contains("1 case", EditorToolHotkeys.FormatLineGesture(2, 2, 2, 2, 1, false), StringComparison.Ordinal);
         Assert.Contains("4×3", EditorToolHotkeys.FormatRectangleGesture(0, 0, 3, 2), StringComparison.Ordinal);
+        Assert.Equal("aperçu animé · 3 images", EditorToolHotkeys.FormatAnimatedTilePreview(3, true));
+        Assert.Equal("aperçu animé · 1 image", EditorToolHotkeys.FormatAnimatedTilePreview(1, true));
+        Assert.Equal("tuile animée · 3 images · aperçu arrêté", EditorToolHotkeys.FormatAnimatedTilePreview(3, false));
+        Assert.DoesNotContain("frame", EditorToolHotkeys.FormatAnimatedTilePreview(4, true), StringComparison.OrdinalIgnoreCase);
         Assert.Equal("D", EditorToolHotkeys.ShortcutGlyph(EditorTool.Spawn));
         Assert.Equal("P", EditorToolHotkeys.ShortcutGlyph(EditorTool.Prefab));
     }

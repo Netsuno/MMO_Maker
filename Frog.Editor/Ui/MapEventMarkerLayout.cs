@@ -1,4 +1,6 @@
 using System.Drawing;
+using Frog.Core.Events;
+using Frog.Core.Protocol;
 
 namespace Frog.Editor.Ui;
 
@@ -72,6 +74,72 @@ public static class MapEventMarkerLayout
         }
 
         return raw;
+    }
+
+    /// <summary>Nom complet pour la liste (pas de troncature, contrairement au losange).</summary>
+    public static string FormatListTitle(string? displayName, string? slug)
+    {
+        var raw = string.IsNullOrWhiteSpace(displayName) ? slug?.Trim() : displayName.Trim();
+        return string.IsNullOrEmpty(raw) ? "Événement" : raw;
+    }
+
+    /// <summary>Libellé français court du déclencheur (liste, barre d’état).</summary>
+    public static string TriggerLabel(string? kind)
+    {
+        if (MapEventMarkerColors.IsAutorunTrigger(kind))
+        {
+            return "Automatique";
+        }
+
+        if (MapEventMarkerColors.IsParallelTrigger(kind))
+        {
+            return "Parallèle";
+        }
+
+        if (MapEventMarkerColors.IsPlayerContactTrigger(kind))
+        {
+            return "Contact";
+        }
+
+        if (MapEventMarkerColors.IsLegacyPageTrigger(kind))
+        {
+            return "Page";
+        }
+
+        if (string.Equals(kind, Phase8MapEventTriggerKinds.Action, StringComparison.Ordinal)
+            || string.Equals(kind, MapEventTriggerKinds.Interact, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(kind))
+        {
+            return "Action";
+        }
+
+        return kind!.Trim();
+    }
+
+    /// <summary>Lettre lisible au centre du losange.</summary>
+    public static string TriggerGlyph(string? kind)
+    {
+        if (MapEventMarkerColors.IsAutorunTrigger(kind))
+        {
+            return "!";
+        }
+
+        if (MapEventMarkerColors.IsParallelTrigger(kind))
+        {
+            return "P";
+        }
+
+        if (MapEventMarkerColors.IsPlayerContactTrigger(kind))
+        {
+            return "C";
+        }
+
+        if (MapEventMarkerColors.IsLegacyPageTrigger(kind))
+        {
+            return "•";
+        }
+
+        return "A";
     }
 
     public static bool HitTest(
