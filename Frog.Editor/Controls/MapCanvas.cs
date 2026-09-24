@@ -164,6 +164,24 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private readonly HashSet<(int X, int Y)> _transferIssueTiles = new();
+
+    /// <summary>Tuiles source d’un warp ou d’un événement dont la destination est invalide.</summary>
+    public void SetTransferIssueTiles(IEnumerable<(int X, int Y)> tiles)
+    {
+        ArgumentNullException.ThrowIfNull(tiles);
+        _transferIssueTiles.Clear();
+        foreach (var tile in tiles)
+        {
+            _transferIssueTiles.Add(tile);
+        }
+
+        Invalidate();
+    }
+
+    internal bool HasTransferIssueTileForTest(int tileX, int tileY) =>
+        _transferIssueTiles.Contains((tileX, tileY));
+
     /// <summary>Clic sur un losange ou son libellé (sélection canevas déjà appliquée).</summary>
     public event Action<MapEventMarkerView>? MapEventMarkerPicked;
 
@@ -542,6 +560,7 @@ public sealed class MapCanvas : Control
                 DrawPlacedPrefabs(g);
                 DrawTileTypeOverlay(g, tx0, ty0, tx1, ty1);
                 DrawMapEventMarkerOverlay(g, tx0, ty0, tx1, ty1);
+                DrawTransferIssueOverlay(g, tx0, ty0, tx1, ty1);
                 DrawPlaytestSpawnMarker(g, tx0, ty0, tx1, ty1);
             }
 
@@ -766,6 +785,62 @@ public sealed class MapCanvas : Control
         g.DrawPolygon(pen, pts);
     }
 
+    private void DrawTransferIssueOverlay(Graphics g, int tx0, int ty0, int tx1, int ty1)
+    {
+        if (_transferIssueTiles.Count == 0 || Map is null)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var prev = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            foreach (var (tileX, tileY) in _transferIssueTiles)
+            {
+                if (tileX < tx0 || tileX > tx1 || tileY < ty0 || tileY > ty1)
+                {
+                    continue;
+                }
+
+                if (tileX < 0 || tileX >= Map.Width || tileY < 0 || tileY >= Map.Height)
+                {
+                    continue;
+                }
+
+                var rect = new Rectangle(tileX * ts, tileY * ts, ts, ts);
+                using (var pen = new Pen(EditorChrome.WarningAmber, Math.Max(1.6f, ts / 14f))
+                {
+                    DashStyle = DashStyle.Dash,
+                })
+                {
+                    g.DrawRectangle(pen, rect.X, rect.Y, Math.Max(1, rect.Width - 1), Math.Max(1, rect.Height - 1));
+                }
+
+                var badge = Math.Max(8, ts * 2 / 5);
+                var badgeRect = new RectangleF(rect.X + 1, rect.Y + 1, badge, badge);
+                using (var badgeBrush = new SolidBrush(Color.FromArgb(235, EditorChrome.WarningAmber)))
+                {
+                    g.FillEllipse(badgeBrush, badgeRect);
+                }
+
+                using var font = new Font(Font.FontFamily, Math.Max(7f, badge * 0.72f), FontStyle.Bold, GraphicsUnit.Pixel);
+                using var text = new SolidBrush(Color.FromArgb(42, 24, 8));
+                using var format = new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center,
+                };
+                g.DrawString("!", font, text, badgeRect, format);
+            }
+        }
+        finally
+        {
+            g.SmoothingMode = prev;
+        }
+    }
+
     private void DrawMapEventMarkerOverlay(Graphics g, int tx0, int ty0, int tx1, int ty1)
     {
         if (!ShowMapEventMarkers || _mapEventMarkers is null || Map is null || _mapEventMarkers.Count == 0)
@@ -845,8 +920,9 @@ public sealed class MapCanvas : Control
         var autorun = MapEventMarkerColors.IsAutorunTrigger(marker.PrimaryTriggerKind);
         var parallel = MapEventMarkerColors.IsParallelTrigger(marker.PrimaryTriggerKind);
         var legacyPage = MapEventMarkerColors.IsLegacyPageTrigger(marker.PrimaryTriggerKind);
-        var penWidth = selected ? Math.Max(2.2f, ts / 10f) : Math.Max(1.4f, ts / 16f);
-        var edgeColor = selected ? Color.Gold : Color.White;
+        var transferIssue = _transferIssueTiles.Contains((marker.TileX, marker.TileY));
+        var penWidth = selected || transferIssue ? Math.Max(2.2f, ts / 10f) : Math.Max(1.4f, ts / 16f);
+        var edgeColor = transferIssue ? EditorChrome.WarningAmber : selected ? Color.Gold : Color.White;
         using (var shadow = new Pen(Color.FromArgb(190, 16, 14, 22), penWidth + 1.6f))
         {
             DrawDiamond(g, shadow, diamond);

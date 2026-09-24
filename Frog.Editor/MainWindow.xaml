@@ -91,6 +91,7 @@
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
+                <MenuItem Header="Vérifier les transferts…" Command="{x:Static local:MainWindow.CmdShowTransferIssues}" />
                 <MenuItem Header="Outil point de départ"
                           Command="{x:Static local:MainWindow.CmdSpawnTool}"
                           InputGestureText="D" />
