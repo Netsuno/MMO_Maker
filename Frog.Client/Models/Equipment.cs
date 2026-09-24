@@ -5,8 +5,8 @@ namespace Frog.Client.Models;
 
 /// <summary>
 /// Équipement affiché sur le paperdoll. Arme et armure viennent du snapshot.
-/// Le casque est local (<see cref="LocalHeadwearItemId"/>) tant que le fil
-/// n'a pas de champ headwear. La tunique n'a pas de sheet dans ce MVP.
+/// Le casque et la tunique sont locaux (<see cref="LocalHeadwearItemId"/>,
+/// <see cref="LocalTunicItemId"/>) tant que le fil n'a pas ces champs.
 /// La main gauche (<see cref="OffhandItemId"/>) est réservée, sans sprite.
 /// </summary>
 public sealed record Equipment(
@@ -18,6 +18,9 @@ public sealed record Equipment(
 {
     /// <summary>Identifiant client du casque placeholder. Jamais envoyé au serveur.</summary>
     public static readonly Guid LocalHeadwearItemId = Guid.Parse("c0ffee00-0000-4000-8000-0000000000a1");
+
+    /// <summary>Identifiant client de la tunique placeholder. Jamais envoyé au serveur.</summary>
+    public static readonly Guid LocalTunicItemId = Guid.Parse("c0ffee00-0000-4000-8000-0000000000a2");
 
     public static Equipment Empty { get; } = new(null, null);
 
