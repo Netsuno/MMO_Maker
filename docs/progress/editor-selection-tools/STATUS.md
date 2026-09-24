@@ -43,4 +43,4 @@ Aperçu des tuiles animées ([#52](https://github.com/Netsuno/MMO_Maker/pull/52)
 ## Tests
 
 - Linux / unitaires : `Frog.Tests/EditorSelectionToolsTests.cs` (rectangle multi-couches, trous, attributs, couche verrouillée, rotation alignée, format v5) et copie d’attributs dans `MapEditOperationsTests`.
-- Windows smoke : `MapCanvasSelectionPipetteSmokeTests` (collage toutes couches, un seul undo/redo, coupe, Ctrl+Maj couche active, Maj+Q) et hints `EditorToolHotkeysTests` (« Toutes les couches », comparaison ordinale).
+- Windows smoke : `MapCanvasSelectionPipetteSmokeTests` (collage toutes couches, un seul undo/redo, coupe, Ctrl+Maj couche active, Maj+Q) et hints `EditorToolHotkeysTests` (« toutes les couches », comparaison ordinale insensible à la casse).

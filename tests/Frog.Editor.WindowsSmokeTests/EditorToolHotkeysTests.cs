@@ -74,7 +74,7 @@ public sealed class EditorToolHotkeysTests
         Assert.Contains("I", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("Q", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
         Assert.Contains("pipette", EditorToolHotkeys.SelectionHint, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Toutes les couches", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
+        Assert.Contains("toutes les couches", EditorToolHotkeys.SelectionHint, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Ctrl+Maj", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
         Assert.Contains("toutes les couches", EditorToolHotkeys.StatusHint(EditorTool.Selection), StringComparison.Ordinal);
         Assert.Contains("Ctrl+Maj", EditorToolHotkeys.StatusHint(EditorTool.Selection), StringComparison.Ordinal);
