@@ -125,5 +125,6 @@ internal static class TilesetCache
         _labelById.Clear();
         _sourcePathById.Clear();
         _nextId = 1;
+        TilesetAnimCatalog.Clear();
     }
 }

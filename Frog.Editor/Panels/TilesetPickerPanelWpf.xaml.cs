@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using Frog.Core.Animation;
 using Frog.Editor.Assets;
 
 namespace Frog.Editor.Panels;
@@ -14,6 +15,15 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
     public event Action<int>? SelectedTilesetChanged;
     public event Action? LoadTilesetsRequested;
     public event Action<System.Drawing.Rectangle>? StampSelectionChanged;
+    public event Action<string>? AnimStatusChanged;
+
+    internal string MarkButtonTextForTest => BtnMarkAnim.Content as string ?? string.Empty;
+
+    internal string ClearButtonTextForTest => BtnClearAnim.Content as string ?? string.Empty;
+
+    internal string AnimHintTextForTest => AnimHint.Text ?? string.Empty;
+
+    internal System.Drawing.Size StampSizeForTest => Palette.StampPixels.Size;
 
     public TilesetPickerPanelWpf()
     {
@@ -39,6 +49,53 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
 
     public bool TrySetStampPixels(System.Drawing.Point origin, System.Drawing.Size size)
         => Palette.TrySetStampPixels(origin, size);
+
+    public void SyncAnimPreview() => Palette.SyncAnimPreview();
+
+    public string MarkSelectionAnimated()
+    {
+        var stamp = Palette.StampPixels;
+        if (Palette.TilesetId < 1 || !TilesetCache.TryGet(Palette.TilesetId, out var bmp) || bmp is null)
+        {
+            return PublishAnimStatus(TilesetAnimSession.NeedTilesetMessage);
+        }
+
+        var result = TilesetAnimCatalog.MarkHorizontalSelection(
+            Palette.TilesetId,
+            stamp.X,
+            stamp.Y,
+            stamp.Width,
+            stamp.Height,
+            Math.Max(1, Palette.TileSize),
+            bmp.Width,
+            bmp.Height);
+        if (result.Ok)
+        {
+            var ts = Math.Max(1, Palette.TileSize);
+            var height = Math.Max(ts, result.RowCount * ts);
+            Palette.TrySetStampPixels(stamp.Location, new System.Drawing.Size(ts, height));
+        }
+
+        return PublishAnimStatus(result.Message);
+    }
+
+    public string ClearSelectionAnimated()
+    {
+        var stamp = Palette.StampPixels;
+        if (Palette.TilesetId < 1)
+        {
+            return PublishAnimStatus(TilesetAnimSession.NothingToClearMessage);
+        }
+
+        var result = TilesetAnimCatalog.ClearSelection(
+            Palette.TilesetId,
+            stamp.X,
+            stamp.Y,
+            stamp.Width,
+            stamp.Height,
+            Math.Max(1, Palette.TileSize));
+        return PublishAnimStatus(result.Message);
+    }
 
     public void SyncPaletteTileSize(int tileSizePixels)
     {
@@ -169,6 +226,17 @@ public partial class TilesetPickerPanelWpf : System.Windows.Controls.UserControl
     }
 
     private void BtnLoadTileset_OnClick(object sender, RoutedEventArgs e) => LoadTilesetsRequested?.Invoke();
+
+    private void BtnMarkAnim_OnClick(object sender, RoutedEventArgs e) => MarkSelectionAnimated();
+
+    private void BtnClearAnim_OnClick(object sender, RoutedEventArgs e) => ClearSelectionAnimated();
+
+    private string PublishAnimStatus(string message)
+    {
+        AnimHint.Text = message;
+        AnimStatusChanged?.Invoke(message);
+        return message;
+    }
 
     private sealed class TilesetRow
     {

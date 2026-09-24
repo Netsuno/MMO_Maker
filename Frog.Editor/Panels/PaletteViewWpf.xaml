@@ -26,6 +26,7 @@
                        Stretch="None"
                        SnapsToDevicePixels="True"
                        RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                <Canvas x:Name="AnimOverlay" IsHitTestVisible="False" />
                 <Canvas x:Name="GridOverlay" IsHitTestVisible="False" />
                 <Rectangle x:Name="SelectionRect"
                            Stroke="#FFFFB648"

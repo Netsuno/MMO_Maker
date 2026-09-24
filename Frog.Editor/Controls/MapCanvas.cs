@@ -290,6 +290,30 @@ public sealed class MapCanvas : Control
         KeyUp += (_, e) => RefreshShapePreview(e.KeyCode);
     }
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        TilesetAnimCatalog.Changed -= OnTilesetAnimChanged;
+        TilesetAnimCatalog.PreviewFrameChanged -= OnTilesetAnimChanged;
+        TilesetAnimCatalog.Changed += OnTilesetAnimChanged;
+        TilesetAnimCatalog.PreviewFrameChanged += OnTilesetAnimChanged;
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        TilesetAnimCatalog.Changed -= OnTilesetAnimChanged;
+        TilesetAnimCatalog.PreviewFrameChanged -= OnTilesetAnimChanged;
+        base.OnHandleDestroyed(e);
+    }
+
+    private void OnTilesetAnimChanged()
+    {
+        if (IsHandleCreated)
+        {
+            Invalidate();
+        }
+    }
+
     /// <summary>Le geste ligne / rectangle a changé (départ, Maj, annulation).</summary>
     public event Action? PaintGestureChanged;
 
@@ -628,10 +652,13 @@ public sealed class MapCanvas : Control
                     {
                         var sx = SelectedSrc.X + dx * ts;
                         var sy = SelectedSrc.Y + dy * ts;
+                        CanonicalizeStoredSource(ref sx, ref sy);
                         if (sx < 0 || sy < 0 || sx + ts > bmpG.Width || sy + ts > bmpG.Height)
                         {
                             continue;
                         }
+
+                        PreviewSource(bmpG, ref sx, ref sy);
 
                         var mtx = tx + dx;
                         var mty = ty + dy;
@@ -707,7 +734,10 @@ public sealed class MapCanvas : Control
                 continue;
             }
 
-            var src = new Rectangle(t.SrcX, t.SrcY, TileSize, TileSize);
+            var srcX = t.SrcX;
+            var srcY = t.SrcY;
+            PreviewSource(bmp, ref srcX, ref srcY);
+            var src = new Rectangle(srcX, srcY, TileSize, TileSize);
             var dst = new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
             if (src.Right > bmp.Width || src.Bottom > bmp.Height)
             {
@@ -1461,6 +1491,7 @@ public sealed class MapCanvas : Control
         var ts = TileSize;
         var sx = SelectedSrc.X;
         var sy = SelectedSrc.Y;
+        PreviewSource(bmp, ref sx, ref sy);
         if (sx < 0 || sy < 0 || sx + ts > bmp.Width || sy + ts > bmp.Height)
         {
             return;
@@ -2091,6 +2122,7 @@ public sealed class MapCanvas : Control
             {
                 var sx = SelectedSrc.X + dx * ts;
                 var sy = SelectedSrc.Y + dy * ts;
+                CanonicalizeStoredSource(ref sx, ref sy);
                 if (sx < 0 || sy < 0 || sx + ts > bmp.Width || sy + ts > bmp.Height)
                 {
                     continue;
@@ -2195,6 +2227,7 @@ public sealed class MapCanvas : Control
                 var dy = (y - minY) % sth;
                 var sx = SelectedSrc.X + dx * ts;
                 var sy = SelectedSrc.Y + dy * ts;
+                CanonicalizeStoredSource(ref sx, ref sy);
                 if (sx < 0 || sy < 0 || sx + ts > bmpR.Width || sy + ts > bmpR.Height)
                 {
                     continue;
@@ -2248,8 +2281,66 @@ public sealed class MapCanvas : Control
             return EditorToolHotkeys.FormatRectangleGesture(ro.X, ro.Y, _hoverTile.X, _hoverTile.Y);
         }
 
-        return EditorToolHotkeys.StatusHint(ActiveTool);
+        var hint = EditorToolHotkeys.StatusHint(ActiveTool);
+        if (TilesetAnimCatalog.TryFrameCount(ActiveTilesetId, SelectedSrc.X, SelectedSrc.Y, out var frames)
+            && ActiveTool is EditorTool.Brush or EditorTool.Fill or EditorTool.Rectangle or EditorTool.Line)
+        {
+            return hint + $" · tuile animée ({frames} frames)";
+        }
+
+        return hint;
     }
+
+    private void CanonicalizeStoredSource(ref int sx, ref int sy)
+    {
+        TilesetAnimCatalog.CanonicalizePaintSource(
+            ActiveTilesetId,
+            SelectedSrc.X,
+            SelectedSrc.Y,
+            Math.Max(1, SelectedStampInTiles.Width),
+            Math.Max(1, SelectedStampInTiles.Height),
+            TileSize,
+            ref sx,
+            ref sy);
+    }
+
+    private void PreviewSource(Bitmap bmp, ref int sx, ref int sy)
+    {
+        if (TilesetAnimCatalog.TryResolveDrawSource(
+                ActiveTilesetId,
+                sx,
+                sy,
+                TileSize,
+                TilesetAnimCatalog.PreviewElapsedMs,
+                bmp.Width,
+                bmp.Height,
+                out var drawX,
+                out var drawY))
+        {
+            sx = drawX;
+            sy = drawY;
+        }
+    }
+
+    internal bool TryResolveAnimDrawSourceForTest(
+        int tilesetId,
+        int srcX,
+        int srcY,
+        long elapsedMs,
+        int sheetWidth,
+        int sheetHeight,
+        out int drawX,
+        out int drawY) =>
+        TilesetAnimCatalog.TryResolveDrawSource(
+            tilesetId,
+            srcX,
+            srcY,
+            TileSize,
+            elapsedMs,
+            sheetWidth,
+            sheetHeight,
+            out drawX,
+            out drawY);
 
     private void NotifyPaintGesture()
     {

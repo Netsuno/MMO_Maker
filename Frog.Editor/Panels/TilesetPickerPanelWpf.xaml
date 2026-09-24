@@ -95,6 +95,30 @@
                 Padding="10,10,10,10"
                 MinHeight="120">
             <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                    <UniformGrid Columns="2" Margin="0,0,0,4">
+                        <Button x:Name="BtnMarkAnim"
+                                Style="{StaticResource EditorDarkButton}"
+                                Content="Animer la sélection"
+                                Margin="0,0,4,0"
+                                Padding="8,6"
+                                ToolTip="Marque les cases horizontales sélectionnées comme frames d’une tuile animée."
+                                Click="BtnMarkAnim_OnClick" />
+                        <Button x:Name="BtnClearAnim"
+                                Style="{StaticResource EditorDarkButton}"
+                                Content="Retirer l’animation"
+                                Margin="4,0,0,0"
+                                Padding="8,6"
+                                ToolTip="Retire l’animation des cases sélectionnées."
+                                Click="BtnClearAnim_OnClick" />
+                    </UniformGrid>
+                    <TextBlock x:Name="AnimHint"
+                               Text="La 1re case défile sur la carte et dans la palette (style RPG Maker). Sélectionnez au moins 2 cases horizontales."
+                               TextWrapping="Wrap"
+                               Foreground="#FFB7BCC8"
+                               FontFamily="Segoe UI"
+                               FontSize="11" />
+                </StackPanel>
                 <Button x:Name="BtnLoadTileset"
                         DockPanel.Dock="Top"
                         Style="{StaticResource EditorDarkButton}"

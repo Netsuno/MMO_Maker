@@ -93,6 +93,7 @@ internal static class EditorSmokeTestAccess
         EditorLocalWorkstate.OverrideFilePathForTest = null;
         _pumpUntil = null;
         TilesetCache.Clear();
+        TilesetAnimCatalog.PreviewEnabled = true;
         Environment.SetEnvironmentVariable(EditorMapRepositoryFactory.EnvForceInMemory, "1");
     }
 
