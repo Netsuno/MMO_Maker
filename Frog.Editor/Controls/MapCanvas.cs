@@ -8,6 +8,7 @@ using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Application.Prefabs;
 using Frog.Core.Enums;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Editor.Assets;
@@ -55,6 +56,14 @@ public sealed class MapCanvas : Control
 
     public int ActiveTilesetId { get; set; } = 0;
     public Point SelectedSrc { get; set; } = new(0, 0);
+
+    /// <summary>Catalogue TileAsset. Les cartes feuille continuent d’utiliser <see cref="TilesetCache"/>.</summary>
+    public TileAssetCatalogue? TileAssets { get; set; }
+
+    /// <summary>Pinceau v6. Ignoré tant que la carte n’est pas en identité TileAsset.</summary>
+    public TileAssetId ActiveTileAssetId { get; set; }
+
+    public event Action<TileAssetId>? TileAssetSampled;
 
     /// <summary>Tampon pinceau en tuiles (largeur × hauteur), aligné sur <see cref="SelectedSrc"/> dans le tileset.</summary>
     public Size SelectedStampInTiles { get; set; } = new(1, 1);
@@ -587,6 +596,11 @@ public sealed class MapCanvas : Control
         SelectedSrc = new Point(sample.SrcX, sample.SrcY);
         SelectedStampInTiles = new Size(1, 1);
         SelectedTileType = sample.Type;
+        if (!sample.AssetId.IsNone)
+        {
+            ActiveTileAssetId = sample.AssetId;
+            TileAssetSampled?.Invoke(sample.AssetId);
+        }
         if (switchToBrush)
         {
             ActiveTool = EditorTool.Brush;
@@ -715,41 +729,61 @@ public sealed class MapCanvas : Control
                 DrawLineRubberBand(g, CurrentLineCells(LineAxisConstrained()), mw, mh);
             }
 
-            if (BrushGhostVisible() && _linePaintOrigin is null && TilesetCache.TryGet(ActiveTilesetId, out var bmpG) && bmpG is not null)
+            if (BrushGhostVisible() && _linePaintOrigin is null)
             {
                 var tx = _hoverTile.X;
                 var ty = _hoverTile.Y;
                 var ts = TileSize;
                 var sw = Math.Max(1, SelectedStampInTiles.Width);
                 var sh = Math.Max(1, SelectedStampInTiles.Height);
-                using var attrs = new System.Drawing.Imaging.ImageAttributes();
-                attrs.SetColorMatrix(
-                    new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.45f },
-                    System.Drawing.Imaging.ColorMatrixFlag.Default,
-                    System.Drawing.Imaging.ColorAdjustType.Bitmap);
-                for (var dy = 0; dy < sh; dy++)
+                if (IsTileAssetMap)
                 {
-                    for (var dx = 0; dx < sw; dx++)
+                    for (var dy = 0; dy < sh; dy++)
                     {
-                        var sx = SelectedSrc.X + dx * ts;
-                        var sy = SelectedSrc.Y + dy * ts;
-                        CanonicalizeStoredSource(ref sx, ref sy);
-                        if (sx < 0 || sy < 0 || sx + ts > bmpG.Width || sy + ts > bmpG.Height)
+                        for (var dx = 0; dx < sw; dx++)
                         {
-                            continue;
+                            var mtx = tx + dx;
+                            var mty = ty + dy;
+                            if (mtx < 0 || mty < 0 || mtx >= mw || mty >= mh)
+                            {
+                                continue;
+                            }
+
+                            DrawTileAssetImage(g, ActiveTileAssetId, new Rectangle(mtx * ts, mty * ts, ts, ts), 0.45f);
                         }
-
-                        PreviewSource(bmpG, ref sx, ref sy);
-
-                        var mtx = tx + dx;
-                        var mty = ty + dy;
-                        if (mtx < 0 || mty < 0 || mtx >= mw || mty >= mh)
+                    }
+                }
+                else if (TilesetCache.TryGet(ActiveTilesetId, out var bmpG) && bmpG is not null)
+                {
+                    using var attrs = new System.Drawing.Imaging.ImageAttributes();
+                    attrs.SetColorMatrix(
+                        new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.45f },
+                        System.Drawing.Imaging.ColorMatrixFlag.Default,
+                        System.Drawing.Imaging.ColorAdjustType.Bitmap);
+                    for (var dy = 0; dy < sh; dy++)
+                    {
+                        for (var dx = 0; dx < sw; dx++)
                         {
-                            continue;
-                        }
+                            var sx = SelectedSrc.X + dx * ts;
+                            var sy = SelectedSrc.Y + dy * ts;
+                            CanonicalizeStoredSource(ref sx, ref sy);
+                            if (sx < 0 || sy < 0 || sx + ts > bmpG.Width || sy + ts > bmpG.Height)
+                            {
+                                continue;
+                            }
 
-                        var dst = new Rectangle(mtx * ts, mty * ts, ts, ts);
-                        g.DrawImage(bmpG, dst, sx, sy, ts, ts, GraphicsUnit.Pixel, attrs);
+                            PreviewSource(bmpG, ref sx, ref sy);
+
+                            var mtx = tx + dx;
+                            var mty = ty + dy;
+                            if (mtx < 0 || mty < 0 || mtx >= mw || mty >= mh)
+                            {
+                                continue;
+                            }
+
+                            var dst = new Rectangle(mtx * ts, mty * ts, ts, ts);
+                            g.DrawImage(bmpG, dst, sx, sy, ts, ts, GraphicsUnit.Pixel, attrs);
+                        }
                     }
                 }
             }
@@ -760,9 +794,19 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private bool IsTileAssetMap => Map?.GraphicIdentity == TileGraphicIdentity.TileAsset;
+
+    private bool HasTileAssetBrush() =>
+        IsTileAssetMap
+        && TileAssets is not null
+        && !ActiveTileAssetId.IsNone
+        && TileAssets.TryGet(ActiveTileAssetId, out _);
+
     private bool BrushGhostVisible() =>
-        Map is not null && ActiveTilesetId > 0 && IsActiveLayerEditable() &&
-        ActiveTool is EditorTool.Brush or EditorTool.Rectangle or EditorTool.Line or EditorTool.Fill;
+        Map is not null
+        && IsActiveLayerEditable()
+        && (ActiveTool is EditorTool.Brush or EditorTool.Rectangle or EditorTool.Line or EditorTool.Fill)
+        && (IsTileAssetMap ? HasTileAssetBrush() : ActiveTilesetId > 0);
 
     private void DrawGridCells(Graphics g, int mapW, int mapH, int tx0, int ty0, int tx1, int ty1)
     {
@@ -807,6 +851,12 @@ public sealed class MapCanvas : Control
         {
             if (t.X < tx0 || t.X > tx1 || t.Y < ty0 || t.Y > ty1)
             {
+                continue;
+            }
+
+            if (!t.AssetId.IsNone)
+            {
+                DrawTileAssetImage(g, t.AssetId, new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize));
                 continue;
             }
 
@@ -1592,6 +1642,17 @@ public sealed class MapCanvas : Control
 
     private void DrawBrushTileGhost(Graphics g, int tx, int ty, int mapW, int mapH, float alpha)
     {
+        if (IsTileAssetMap)
+        {
+            if (!HasTileAssetBrush() || tx < 0 || ty < 0 || tx >= mapW || ty >= mapH)
+            {
+                return;
+            }
+
+            DrawTileAssetImage(g, ActiveTileAssetId, new Rectangle(tx * TileSize, ty * TileSize, TileSize, TileSize), alpha);
+            return;
+        }
+
         if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
         {
             return;
@@ -2216,6 +2277,12 @@ public sealed class MapCanvas : Control
             return;
         }
 
+        if (IsTileAssetMap)
+        {
+            ApplyTileAssetStamp(tx, ty);
+            return;
+        }
+
         if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
         {
             return;
@@ -2275,6 +2342,93 @@ public sealed class MapCanvas : Control
         return tile;
     }
 
+    private void ApplyTileAssetRectangle(int x0, int y0, int x1, int y1)
+    {
+        if (Map is null || !HasTileAssetBrush())
+        {
+            return;
+        }
+
+        EnsureLayerExists();
+        var left = Math.Min(x0, x1);
+        var right = Math.Max(x0, x1);
+        var top = Math.Min(y0, y1);
+        var bottom = Math.Max(y0, y1);
+        for (var y = top; y <= bottom; y++)
+        {
+            for (var x = left; x <= right; x++)
+            {
+                TileAssetMapEditing.TryPaint(Map, ActiveLayerIndex, x, y, CreateTileAssetBrushTile(x, y));
+            }
+        }
+    }
+
+    private void ApplyTileAssetStamp(int tx, int ty)
+    {
+        if (Map is null || !HasTileAssetBrush())
+        {
+            return;
+        }
+
+        EnsureLayerExists();
+        var sw = Math.Max(1, SelectedStampInTiles.Width);
+        var sh = Math.Max(1, SelectedStampInTiles.Height);
+        for (var dy = 0; dy < sh; dy++)
+        {
+            for (var dx = 0; dx < sw; dx++)
+            {
+                var mx = tx + dx;
+                var my = ty + dy;
+                TileAssetMapEditing.TryPaint(Map, ActiveLayerIndex, mx, my, CreateTileAssetBrushTile(mx, my));
+            }
+        }
+    }
+
+    private Tile CreateTileAssetBrushTile(int tx, int ty)
+    {
+        var tile = TileAssetMapEditing.CreateBrushTile(tx, ty, ActiveTileAssetId, SelectedTileType);
+        if (SelectedTileType == TileType.Warp)
+        {
+            tile.WarpTargetMapId = DefaultWarpTargetMapId ?? Guid.Empty;
+            tile.WarpTargetX = 0;
+            tile.WarpTargetY = 0;
+        }
+
+        if (SelectedTileType == TileType.Script)
+        {
+            tile.ScriptId = string.Empty;
+        }
+
+        return tile;
+    }
+
+    private void DrawTileAssetImage(Graphics g, TileAssetId id, Rectangle destination, float? alpha = null)
+    {
+        if (TileAssets is null || id.IsNone)
+        {
+            return;
+        }
+
+        var bitmap = TileAssetThumbnails.Get(TileAssets, id);
+        if (bitmap is null)
+        {
+            return;
+        }
+
+        if (alpha is null)
+        {
+            g.DrawImage(bitmap, destination);
+            return;
+        }
+
+        using var attrs = new System.Drawing.Imaging.ImageAttributes();
+        attrs.SetColorMatrix(
+            new System.Drawing.Imaging.ColorMatrix { Matrix33 = alpha.Value },
+            System.Drawing.Imaging.ColorMatrixFlag.Default,
+            System.Drawing.Imaging.ColorAdjustType.Bitmap);
+        g.DrawImage(bitmap, destination, 0, 0, bitmap.Width, bitmap.Height, GraphicsUnit.Pixel, attrs);
+    }
+
     private void EraseAt(int tx, int ty)
     {
         if (Map is null)
@@ -2312,6 +2466,12 @@ public sealed class MapCanvas : Control
     {
         if (Map is null || !IsActiveLayerEditable())
         {
+            return;
+        }
+
+        if (IsTileAssetMap)
+        {
+            ApplyTileAssetRectangle(x0, y0, x1, y1);
             return;
         }
 
@@ -2401,7 +2561,15 @@ public sealed class MapCanvas : Control
         }
 
         var hint = EditorToolHotkeys.StatusHint(ActiveTool);
-        if (TilesetAnimCatalog.TryFrameCount(ActiveTilesetId, SelectedSrc.X, SelectedSrc.Y, out var frames)
+        if (IsTileAssetMap)
+        {
+            hint += ActiveTileAssetId.IsNone
+                ? " · TileAsset"
+                : " · TileAsset " + ActiveTileAssetId.ToHex()[..8];
+        }
+
+        if (!IsTileAssetMap
+            && TilesetAnimCatalog.TryFrameCount(ActiveTilesetId, SelectedSrc.X, SelectedSrc.Y, out var frames)
             && ActiveTool is EditorTool.Brush or EditorTool.Fill or EditorTool.Rectangle or EditorTool.Line)
         {
             return hint + " · " + EditorToolHotkeys.FormatAnimatedTilePreview(frames, TilesetAnimCatalog.PreviewEnabled);
@@ -2523,6 +2691,18 @@ public sealed class MapCanvas : Control
             return;
         }
 
+        if (IsTileAssetMap)
+        {
+            if (!HasTileAssetBrush())
+            {
+                return;
+            }
+
+            EnsureLayerExists();
+            MapEditOperations.PaintLine(Map, ActiveLayerIndex, x0, y0, x1, y1, CreateTileAssetBrushTile(x0, y0));
+            return;
+        }
+
         if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
         {
             return;
@@ -2544,6 +2724,18 @@ public sealed class MapCanvas : Control
     {
         if (Map is null || !IsActiveLayerEditable())
         {
+            return;
+        }
+
+        if (IsTileAssetMap)
+        {
+            if (!HasTileAssetBrush())
+            {
+                return;
+            }
+
+            EnsureLayerExists();
+            MapEditOperations.FloodFill(Map, ActiveLayerIndex, sx, sy, CreateTileAssetBrushTile(sx, sy));
             return;
         }
 

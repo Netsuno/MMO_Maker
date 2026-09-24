@@ -453,6 +453,7 @@ public static class MapEditOperations
             SrcX = source.SrcX,
             SrcY = source.SrcY,
             TilesetId = source.TilesetId,
+            AssetId = source.AssetId,
             WarpTargetMapId = source.WarpTargetMapId,
             WarpTargetX = source.WarpTargetX,
             WarpTargetY = source.WarpTargetY,
@@ -488,7 +489,7 @@ public static class MapEditOperations
             return false;
         }
 
-        if (a.TilesetId != b.TilesetId || a.SrcX != b.SrcX || a.SrcY != b.SrcY || a.Type != b.Type)
+        if (a.AssetId != b.AssetId || a.TilesetId != b.TilesetId || a.SrcX != b.SrcX || a.SrcY != b.SrcY || a.Type != b.Type)
         {
             return false;
         }

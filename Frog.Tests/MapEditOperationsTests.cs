@@ -2,7 +2,10 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Frog.Application.Maps;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.IO;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Xunit;
 
@@ -63,6 +66,27 @@ public sealed class MapEditOperationsTests
         map.Layers[1].Locked = true;
         MapEditOperations.EraseRectangle(map, 1, 0, 0, 1, 1);
         Assert.Contains(map.Layers[1].Tiles, tile => tile.X == 0 && tile.Y == 0 && tile.SrcX == 5);
+    }
+
+    [Fact]
+    public void PaintTile_PreservesTileAssetId_AndFloodFillDoesNotCrossIds()
+    {
+        var red = TileAssetId.FromStraightRgba(SolidRgba(255, 0, 0, 255));
+        var blue = TileAssetId.FromStraightRgba(SolidRgba(0, 0, 255, 255));
+        var map = MapFormat.CreateTileAssetMap("TileAsset", 2, 1);
+        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        MapEditOperations.PaintTile(map, 0, 0, 0, new Tile { AssetId = red, Type = TileType.Ground });
+        MapEditOperations.PaintTile(map, 0, 1, 0, new Tile { AssetId = blue, Type = TileType.Ground });
+
+        var left = map.Layers[0].Tiles.Single(tile => tile.X == 0);
+        Assert.Equal(red, left.AssetId);
+        Assert.Equal(0, left.TilesetId);
+        Assert.Equal(0, left.SrcX);
+        Assert.Equal(0, left.SrcY);
+
+        MapEditOperations.FloodFill(map, 0, 0, 0, new Tile { AssetId = red, Type = TileType.Ground });
+        Assert.Equal(blue, map.Layers[0].Tiles.Single(tile => tile.X == 1).AssetId);
+        Assert.Equal(TileAssetMetrics.TargetTileSizePixels, map.TileSizePixels);
     }
 
     [Fact]
@@ -208,5 +232,19 @@ public sealed class MapEditOperationsTests
         var map = new Map { Name = "Test", Width = 5, Height = 5 };
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
         return map;
+    }
+
+    private static byte[] SolidRgba(byte r, byte g, byte b, byte a)
+    {
+        var bytes = new byte[TileAssetMetrics.CanonicalPixelByteCount];
+        for (var i = 0; i < bytes.Length; i += 4)
+        {
+            bytes[i] = r;
+            bytes[i + 1] = g;
+            bytes[i + 2] = b;
+            bytes[i + 3] = a;
+        }
+
+        return bytes;
     }
 }

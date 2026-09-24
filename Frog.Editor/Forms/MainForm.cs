@@ -13,6 +13,7 @@ using Frog.Application.Playtest;
 using Frog.Application.Prefabs;
 using Frog.Core.Enums;
 using Frog.Core.IO;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Editor.Assets;
 using Frog.Editor.Controls;
@@ -95,6 +96,12 @@ public sealed class MainForm : Form
     private CancellationTokenSource? _playtestCts;
     private bool _playtestBusy;
     private EditorMainFormCloseCoordinator? _closeCoordinator;
+    private readonly TileAssetCatalogue _tileAssetCatalogue;
+    private readonly TileAssetWorkbench _tileAssetWorkbench;
+    private readonly Panel _sheetTilesHost;
+    private readonly Button _btnPaletteSheet;
+    private readonly Button _btnPaletteAsset;
+    private string? _tileAssetMapPath;
 
     /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
     internal Control LeftShellForWpf => _leftColumnPanel;
@@ -311,6 +318,7 @@ public sealed class MainForm : Form
         FormClosed += (_, _) =>
         {
             TilesetCache.Clear();
+            TileAssetThumbnails.Clear();
             if (_mapEventsDialog is { IsDisposed: false } eventsDialog)
             {
                 _mapEventsDialog = null;
@@ -401,12 +409,14 @@ public sealed class MainForm : Form
 
             var mResources = new ToolStripMenuItem("Ressources");
             mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
+            mResources.DropDownItems.Add("Importer une feuille TileAsset…", null, (_, _) => ImportTileAssetSheet());
             mResources.DropDownItems.Add("Importer un asset projet…", null, (_, _) => ImportProjectAsset());
             mResources.DropDownItems.Add("Animer la sélection de tuiles", null, (_, _) => MarkSelectedTilesAnimated());
             mResources.DropDownItems.Add("Retirer l’animation de la sélection", null, (_, _) => ClearSelectedTilesAnimated());
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
+            mMap.DropDownItems.Add("Passer cette carte en TileAsset (v6)…", null, (_, _) => ConvertCurrentMapToTileAsset());
             mMap.DropDownItems.Add("Vérifier les transferts…", null, (_, _) => ShowTransferIssues());
             mMap.DropDownItems.Add("Outil ligne (L)", null, (_, _) => SelectEditorTool(EditorTool.Line));
             mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
@@ -525,7 +535,8 @@ public sealed class MainForm : Form
             _splitRight = null;
         }
 
-        _canvas = new MapCanvas { Dock = DockStyle.Fill };
+        _tileAssetCatalogue = CreateTileAssetCatalogue();
+        _canvas = new MapCanvas { Dock = DockStyle.Fill, TileAssets = _tileAssetCatalogue };
         _canvas.HoveredTileChanged += OnHoveredTileChanged;
         _canvas.PaintGestureChanged += PushEditorStatusLine;
         _canvas.ViewTransformChanged += OnCanvasViewTransformChanged;
@@ -616,8 +627,48 @@ public sealed class MainForm : Form
             Child = _tilesetPickerWpf,
         };
 
+        _sheetTilesHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg, Padding = new Padding(0) };
+        _sheetTilesHost.Controls.Add(_tilesetPickerElementHost);
+        _tileAssetWorkbench = new TileAssetWorkbench(_tileAssetCatalogue) { Visible = false };
+        _tileAssetWorkbench.BrushTileChosen += id =>
+        {
+            _canvas.ActiveTileAssetId = id;
+            _canvas.SelectedStampInTiles = new Size(1, 1);
+            _canvas.Invalidate();
+        };
+        _canvas.TileAssetSampled += _tileAssetWorkbench.SelectTile;
+        _btnPaletteSheet = new Button
+        {
+            Text = "Feuille",
+            Dock = DockStyle.Left,
+            Width = 110,
+            FlatStyle = FlatStyle.Flat,
+        };
+        _btnPaletteAsset = new Button
+        {
+            Text = "TileAsset",
+            Dock = DockStyle.Left,
+            Width = 110,
+            FlatStyle = FlatStyle.Flat,
+        };
+        _btnPaletteSheet.Click += (_, _) => ShowPaletteMode(tileAsset: false);
+        _btnPaletteAsset.Click += (_, _) => ShowPaletteMode(tileAsset: true);
+        ShowPaletteMode(tileAsset: false);
+        var paletteModeBar = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 36,
+            Padding = new Padding(8, 4, 8, 4),
+            BackColor = EditorChrome.SidebarBg,
+        };
+        paletteModeBar.Controls.Add(_btnPaletteAsset);
+        paletteModeBar.Controls.Add(_btnPaletteSheet);
+        var paletteBody = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
+        paletteBody.Controls.Add(_tileAssetWorkbench);
+        paletteBody.Controls.Add(_sheetTilesHost);
         var tilesHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg, Padding = new Padding(0) };
-        tilesHost.Controls.Add(_tilesetPickerElementHost);
+        tilesHost.Controls.Add(paletteBody);
+        tilesHost.Controls.Add(paletteModeBar);
 
         _leftLayout = new TableLayoutPanel
         {
@@ -1066,6 +1117,7 @@ public sealed class MainForm : Form
             RefreshMapEventMarkers();
             RestorePlaytestSpawnFromWorkstate();
             RestorePrefabPlacementsFromWorkstate();
+            SyncPaletteModeToMap();
         }
         finally
         {
@@ -1625,6 +1677,85 @@ public sealed class MainForm : Form
         _mapsProjectPanel.RefreshFromMap(_canvas.Map?.Name);
     }
 
+    private static TileAssetCatalogue CreateTileAssetCatalogue()
+    {
+        var catalogue = new TileAssetCatalogue();
+        try
+        {
+            var store = TileAssetCatalogue.DefaultStoreDirectory();
+            catalogue.StoreDirectory = store;
+            catalogue.LoadFromDirectory(store);
+        }
+        catch (Exception)
+        {
+            var store = catalogue.StoreDirectory;
+            catalogue = new TileAssetCatalogue { StoreDirectory = store };
+        }
+
+        catalogue.EnsureDefaultWorkingTileset();
+        return catalogue;
+    }
+
+    private void ShowPaletteMode(bool tileAsset)
+    {
+        _sheetTilesHost.Visible = !tileAsset;
+        _tileAssetWorkbench.Visible = tileAsset;
+        _btnPaletteSheet.BackColor = tileAsset ? EditorChrome.SidebarElevated : EditorChrome.PrimaryButtonBg;
+        _btnPaletteAsset.BackColor = tileAsset ? EditorChrome.PrimaryButtonBg : EditorChrome.SidebarElevated;
+        _btnPaletteSheet.ForeColor = EditorChrome.LabelPrimary;
+        _btnPaletteAsset.ForeColor = Color.White;
+        _btnPaletteSheet.FlatStyle = FlatStyle.Flat;
+        _btnPaletteAsset.FlatStyle = FlatStyle.Flat;
+    }
+
+    private void SyncPaletteModeToMap()
+    {
+        ShowPaletteMode(TileAssetMapEditing.IsTileAssetMap(_canvas.Map));
+    }
+
+    internal void ImportTileAssetSheet()
+    {
+        ShowPaletteMode(tileAsset: true);
+        _tileAssetWorkbench.PromptImport();
+    }
+
+    internal void ConvertCurrentMapToTileAsset()
+    {
+        if (_canvas.Map is null)
+        {
+            return;
+        }
+
+        if (_canvas.Map.GraphicIdentity != TileGraphicIdentity.TileAsset)
+        {
+            var blocked = _canvas.Map.Layers.SelectMany(layer => layer.Tiles)
+                .Any(tile => tile.TilesetId != 0 || tile.SrcX != 0 || tile.SrcY != 0 || !tile.AssetId.IsNone);
+            if (blocked)
+            {
+                _dialogService.ShowWarning(
+                    "Cette carte contient des coordonnées de feuille (Src). Elle reste en v5. Ré-auteur les tuiles en TileAsset ; pas de conversion automatique.",
+                    "TileAsset");
+                return;
+            }
+
+            _canvas.History.PushBeforeChange(_canvas.Map);
+        }
+
+        if (!TileAssetMapEditing.TryAdoptTileAssetIdentity(_canvas.Map, out var error))
+        {
+            _dialogService.ShowWarning(error ?? "Conversion impossible.", "TileAsset");
+            return;
+        }
+
+        _canvas.SelectedStampInTiles = new Size(1, 1);
+        _canvas.Invalidate();
+        ShowPaletteMode(tileAsset: true);
+        UpdateMapChromeLabels();
+        OnMapEdited();
+        _statusNotice = "Carte en TileAsset (v6, 48 px). Le pinceau pose des TileAssetId.";
+        PushEditorStatusLine();
+    }
+
     private void UpdateMapChromeLabels()
     {
         if (_canvas.Map is null)
@@ -1633,8 +1764,11 @@ public sealed class MainForm : Form
             return;
         }
 
+        var identity = _canvas.Map.GraphicIdentity == TileGraphicIdentity.TileAsset
+            ? "    ·    TileAsset v6 · 48 px"
+            : "    ·    feuille v5";
         _lblMapWorkspaceTitle.Text =
-            $"Carte : {_canvas.Map.Name}    ({_canvas.Map.Width} × {_canvas.Map.Height} tuiles)";
+            $"Carte : {_canvas.Map.Name}    ({_canvas.Map.Width} × {_canvas.Map.Height} tuiles){identity}";
         _mapsProjectPanel.UpdateCurrentMapDisplayName(_canvas.Map.Name);
     }
 
@@ -2001,8 +2135,15 @@ public sealed class MainForm : Form
             return;
         }
 
-        var map = new Map { Width = dlg.MapWidth, Height = dlg.MapHeight, Name = dlg.MapName };
-        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        var map = dlg.UseTileAsset
+            ? TileAssetMapEditing.CreateMap(dlg.MapName, dlg.MapWidth, dlg.MapHeight)
+            : new Map { Width = dlg.MapWidth, Height = dlg.MapHeight, Name = dlg.MapName };
+        if (!dlg.UseTileAsset)
+        {
+            map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        }
+
+        _tileAssetMapPath = null;
         _workspace?.AdoptLocalDraft(map);
         _canvas.DefaultWarpTargetMapId = null;
         _canvas.ClearHistory();
@@ -2016,6 +2157,7 @@ public sealed class MainForm : Form
         RefreshMapEventMarkers();
         RestorePlaytestSpawnFromWorkstate();
         RestorePrefabPlacementsFromWorkstate();
+        SyncPaletteModeToMap();
         PushEditorStatusLine();
     }
 
@@ -2154,18 +2296,29 @@ public sealed class MainForm : Form
             return;
         }
 
-        var serializer = new MapSerializer();
-        var bytes = serializer.Serialize(_canvas.Map);
+        var bytes = TileAssetMapEditing.WriteEditorMap(_canvas.Map);
         File.WriteAllBytes(sfd.FileName, bytes);
-        SaveTilesetManifestNextToMap(sfd.FileName);
-        SavePrefabSidecarNextToMap(sfd.FileName);
-        TilesetAnimCatalog.WriteMapSidecars(
-            sfd.FileName,
-            Path.GetDirectoryName(sfd.FileName),
-            TilesetCache.ListRegistered().Select(entry => entry.Id));
+        var tileAsset = TileAssetMapEditing.IsTileAssetMap(_canvas.Map);
+        if (tileAsset)
+        {
+            _tileAssetMapPath = sfd.FileName;
+            SavePrefabSidecarNextToMap(sfd.FileName);
+        }
+        else
+        {
+            SaveTilesetManifestNextToMap(sfd.FileName);
+            SavePrefabSidecarNextToMap(sfd.FileName);
+            TilesetAnimCatalog.WriteMapSidecars(
+                sfd.FileName,
+                Path.GetDirectoryName(sfd.FileName),
+                TilesetCache.ListRegistered().Select(entry => entry.Id));
+        }
+
         MessageBox.Show(
             GetDialogOwner(),
-            "Carte, PNG tileset, manifeste (.tilesets.json), animations (.anims.json) et sidecar prefabs (.prefabs.json) exportés.",
+            tileAsset
+                ? "Carte TileAsset enregistrée (format v6, tuiles 48 px). Le fichier stocke des TileAssetId, pas la position dans la palette."
+                : "Carte, PNG tileset, manifeste (.tilesets.json), animations (.anims.json) et sidecar prefabs (.prefabs.json) exportés.",
             "Export",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
@@ -2173,7 +2326,19 @@ public sealed class MainForm : Form
 
     private async System.Threading.Tasks.Task SaveMapCoreAsync()
     {
-        if (_workspace is null || _canvas.Map is null)
+        if (_canvas.Map is null)
+        {
+            _dialogService.ShowInfo("Aucune carte chargée.", "Enregistrement");
+            return;
+        }
+
+        if (TileAssetMapEditing.IsTileAssetMap(_canvas.Map))
+        {
+            SaveTileAssetMapFile(promptIfMissing: _tileAssetMapPath is null);
+            return;
+        }
+
+        if (_workspace is null)
         {
             _dialogService.ShowInfo("Catalogue non initialisé.", "Enregistrement");
             return;
@@ -2200,7 +2365,22 @@ public sealed class MainForm : Form
 
     private async System.Threading.Tasks.Task PublishMapCoreAsync()
     {
-        if (_workspace is null || _canvas.Map is null)
+        if (_canvas.Map is null)
+        {
+            _dialogService.ShowInfo("Aucune carte chargée.", "Publication");
+            return;
+        }
+
+        if (TileAssetMapEditing.IsTileAssetMap(_canvas.Map))
+        {
+            _dialogService.ShowInfo(
+                "La publication PostgreSQL des cartes TileAsset n’est pas dans cette phase. Le fichier .fmap v6 (TileAssetId, 48 px) est la sauvegarde.",
+                "Publication");
+            SaveTileAssetMapFile(promptIfMissing: true);
+            return;
+        }
+
+        if (_workspace is null)
         {
             _dialogService.ShowInfo("Catalogue non initialisé.", "Publication");
             return;
@@ -2643,6 +2823,17 @@ public sealed class MainForm : Form
             return;
         }
 
+        if (TileAssetMapEditing.IsTileAssetMap(_canvas.Map))
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                "MariaDB (héritage) n’accepte pas les cartes TileAsset. Enregistrez un fichier .fmap v6.",
+                "Publication MariaDB",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
         if (!_canvas.Map.Validate(out var err))
         {
             MessageBox.Show(GetDialogOwner(), err ?? "Carte invalide.", "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -2671,8 +2862,7 @@ public sealed class MainForm : Form
 
         try
         {
-            var serializer = new MapSerializer();
-            var bytes = serializer.Serialize(_canvas.Map);
+            var bytes = TileAssetMapEditing.WriteEditorMap(_canvas.Map);
             MariaMapBlobPublisher.UpsertMap(
                 connectionString,
                 dlg.PublishedMapId,
@@ -3345,8 +3535,8 @@ public sealed class MainForm : Form
 
         var mapPath = ofd.FileName;
         var data = File.ReadAllBytes(mapPath);
-        var serializer = new MapSerializer();
-        var map = serializer.Deserialize(data);
+        var map = TileAssetMapEditing.ReadEditorMap(data);
+        _tileAssetMapPath = TileAssetMapEditing.IsTileAssetMap(map) ? mapPath : null;
 
         TilesetCache.Clear();
         var manifestOutcome = TryApplyTilesetManifestFromMapPath(mapPath);
@@ -3371,6 +3561,7 @@ public sealed class MainForm : Form
         RefreshMapEventMarkers();
         RestorePlaytestSpawnFromWorkstate();
         TryApplyPrefabSidecarFromMapPath(mapPath);
+        SyncPaletteModeToMap();
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
         {
@@ -3385,6 +3576,56 @@ public sealed class MainForm : Form
         }
 
         PushEditorStatusLine();
+    }
+
+    private void SaveTileAssetMapFile(bool promptIfMissing)
+    {
+        if (_canvas.Map is null || !TileAssetMapEditing.IsTileAssetMap(_canvas.Map))
+        {
+            return;
+        }
+
+        if (!_canvas.Map.Validate(out var error))
+        {
+            _dialogService.ShowWarning(error ?? "Carte invalide.", "Enregistrement TileAsset");
+            return;
+        }
+
+        var path = _tileAssetMapPath;
+        if (promptIfMissing || string.IsNullOrWhiteSpace(path))
+        {
+            using var dialog = new SaveFileDialog
+            {
+                Filter = "Frog Map|*.fmap",
+                FileName = SafeMapFileStem(_canvas.Map.Name) + ".fmap",
+            };
+            if (dialog.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+            {
+                return;
+            }
+
+            path = dialog.FileName;
+        }
+
+        var bytes = TileAssetMapEditing.Write(_canvas.Map);
+        File.WriteAllBytes(path, bytes);
+        _tileAssetMapPath = path;
+        SavePrefabSidecarNextToMap(path);
+        _workspace?.ClearDirty();
+        _statusNotice = "Carte TileAsset enregistrée (v6, 48 px).";
+        UpdateMapChromeLabels();
+        PushEditorStatusLine();
+    }
+
+    private static string SafeMapFileStem(string name)
+    {
+        var stem = string.IsNullOrWhiteSpace(name) ? "carte" : name.Trim();
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            stem = stem.Replace(invalid, '_');
+        }
+
+        return string.IsNullOrWhiteSpace(stem) ? "carte" : stem;
     }
 
     /// <summary>
@@ -3608,10 +3849,12 @@ public sealed class MainForm : Form
         private readonly NumericUpDown _numW;
         private readonly NumericUpDown _numH;
         private readonly TextBox _txtName;
+        private readonly CheckBox _tileAsset;
 
         public int MapWidth => (int)_numW.Value;
         public int MapHeight => (int)_numH.Value;
         public string MapName => _txtName.Text.Trim();
+        public bool UseTileAsset => _tileAsset.Checked;
 
         public NewMapDialog()
         {
@@ -3620,8 +3863,8 @@ public sealed class MainForm : Form
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
-            MinimumSize = new Size(440, 260);
-            ClientSize = new Size(480, 240);
+            MinimumSize = new Size(440, 300);
+            ClientSize = new Size(520, 280);
             AutoScaleMode = AutoScaleMode.Dpi;
             Padding = new Padding(0);
             EditorChrome.ApplyFormChrome(this);
@@ -3630,11 +3873,12 @@ public sealed class MainForm : Form
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 4,
+                RowCount = 5,
                 Padding = new Padding(20, 18, 20, 16),
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 168f));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
@@ -3695,6 +3939,15 @@ public sealed class MainForm : Form
             root.Controls.Add(_numH, 1, 1);
             root.Controls.Add(lblN, 0, 2);
             root.Controls.Add(_txtName, 1, 2);
+            _tileAsset = new CheckBox
+            {
+                Text = "Carte TileAsset (48×48, format v6)",
+                AutoSize = true,
+                ForeColor = EditorChrome.LabelPrimary,
+                Margin = new Padding(10, 8, 0, 0),
+            };
+            root.SetColumnSpan(_tileAsset, 2);
+            root.Controls.Add(_tileAsset, 0, 3);
 
             var buttons = new FlowLayoutPanel
             {
@@ -3712,7 +3965,7 @@ public sealed class MainForm : Form
             buttons.Controls.Add(btnOk);
             buttons.Controls.Add(btnCancel);
             root.SetColumnSpan(buttons, 2);
-            root.Controls.Add(buttons, 0, 3);
+            root.Controls.Add(buttons, 0, 4);
 
             Controls.Add(root);
             AcceptButton = btnOk;
