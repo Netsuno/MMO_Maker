@@ -301,7 +301,7 @@ public sealed class GameplayClientSmokeTests
                 form.MeleeButtonForTest.PerformClick();
                 Pump(
                     form,
-                    () => form.LogContainsForTest("Mêlée → MonstreInexistant: rate"),
+                    () => form.LogContainsForTest("Mêlée → MonstreInexistant: raté — Cible hors ligne."),
                     "invalid target melee refused");
                 Assert.Equal(hpBeforeInvalid, form.CombatHpForTest);
 
