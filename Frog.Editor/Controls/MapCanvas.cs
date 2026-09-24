@@ -219,6 +219,30 @@ public sealed class MapCanvas : Control
         }
     }
 
+    /// <summary>Déclencheur français de l’événement survolé, sinon de l’événement sélectionné.</summary>
+    public string? ActiveMapEventTriggerLabel
+    {
+        get
+        {
+            if (!ShowMapEventMarkers)
+            {
+                return null;
+            }
+
+            if (_hoveredMapEventMarker is { } hovered)
+            {
+                return MapEventMarkerLayout.TriggerLabel(hovered.PrimaryTriggerKind);
+            }
+
+            if (_hasSelectedMapEvent && TryFindSelectedMarker(out var selected))
+            {
+                return MapEventMarkerLayout.TriggerLabel(selected.PrimaryTriggerKind);
+            }
+
+            return null;
+        }
+    }
+
     /// <summary>Met en évidence un placement (liste événements) sans redéclencher <see cref="MapEventMarkerPicked"/>.</summary>
     public void HighlightMapEventMarker(int tileX, int tileY, string? placementKey)
     {
@@ -1002,7 +1026,7 @@ public sealed class MapCanvas : Control
         var hovered = _hoveredMapEventMarker is { } h && h.Equals(marker);
         var fill = MapEventMarkerColors.TintFromSlug(marker.PrimarySlug);
         var tile = new Rectangle(marker.TileX * ts, marker.TileY * ts, ts, ts);
-        var washAlpha = selected ? 92 : hovered ? 68 : 42;
+        var washAlpha = selected ? 70 : hovered ? 48 : 26;
         using (var wash = new SolidBrush(Color.FromArgb(washAlpha, fill)))
         {
             g.FillRectangle(wash, tile);
@@ -1050,19 +1074,47 @@ public sealed class MapCanvas : Control
             using var dot = new SolidBrush(Color.FromArgb(230, Color.White));
             g.FillEllipse(dot, cx - r, cy - r, r * 2f, r * 2f);
         }
+        else
+        {
+            DrawTriggerGlyph(g, diamond, MapEventMarkerLayout.TriggerGlyph(marker.PrimaryTriggerKind));
+        }
 
         if (marker.PlacementCount > 1 && !ShouldDrawNameFor(marker))
         {
-            var label = marker.PlacementCount > 9 ? "9+" : marker.PlacementCount.ToString();
-            using var f = new Font(Font.FontFamily, Math.Max(6f, ts * 0.28f), FontStyle.Bold, GraphicsUnit.Pixel);
-            using var tb = new SolidBrush(Color.White);
-            using var sf = new StringFormat
-            {
-                Alignment = StringAlignment.Center,
-                LineAlignment = StringAlignment.Center,
-            };
-            g.DrawString(label, f, tb, diamond, sf);
+            DrawPlacementCountBadge(g, tile, marker.PlacementCount, ts);
         }
+    }
+
+    private static void DrawTriggerGlyph(Graphics g, Rectangle diamond, string glyph)
+    {
+        using var font = new Font("Segoe UI", Math.Max(7f, diamond.Width * 0.46f), FontStyle.Bold, GraphicsUnit.Pixel);
+        using var brush = new SolidBrush(Color.FromArgb(245, 255, 255, 255));
+        using var format = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+        };
+        g.DrawString(glyph, font, brush, diamond, format);
+    }
+
+    private static void DrawPlacementCountBadge(Graphics g, Rectangle tile, int count, int ts)
+    {
+        var label = count > 9 ? "9+" : count.ToString();
+        var diameter = Math.Max(11f, ts * 0.36f);
+        var badge = new RectangleF(tile.Right - diameter - 1f, tile.Y + 1f, diameter, diameter);
+        using (var bg = new SolidBrush(Color.FromArgb(230, 16, 14, 22)))
+        {
+            g.FillEllipse(bg, badge);
+        }
+
+        using var font = new Font("Segoe UI", Math.Max(6f, diameter * 0.62f), FontStyle.Bold, GraphicsUnit.Pixel);
+        using var brush = new SolidBrush(Color.White);
+        using var format = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+        };
+        g.DrawString(label, font, brush, badge, format);
     }
 
     private void DrawMapEventMarkerName(Graphics g, MapEventMarkerView marker, int ts)
@@ -2352,7 +2404,7 @@ public sealed class MapCanvas : Control
         if (TilesetAnimCatalog.TryFrameCount(ActiveTilesetId, SelectedSrc.X, SelectedSrc.Y, out var frames)
             && ActiveTool is EditorTool.Brush or EditorTool.Fill or EditorTool.Rectangle or EditorTool.Line)
         {
-            return hint + $" · tuile animée ({frames} frames)";
+            return hint + " · " + EditorToolHotkeys.FormatAnimatedTilePreview(frames, TilesetAnimCatalog.PreviewEnabled);
         }
 
         return hint;

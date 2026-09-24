@@ -26,6 +26,25 @@ public sealed class MapEventMarkerOverlaySmokeTests
     }
 
     [Fact]
+    public void TriggerLabel_UsesFrenchScanNames()
+    {
+        Assert.Equal("Action", MapEventMarkerLayout.TriggerLabel("action"));
+        Assert.Equal("Action", MapEventMarkerLayout.TriggerLabel("interact"));
+        Assert.Equal("Contact", MapEventMarkerLayout.TriggerLabel("player_contact"));
+        Assert.Equal("Contact", MapEventMarkerLayout.TriggerLabel("step_on"));
+        Assert.Equal("Automatique", MapEventMarkerLayout.TriggerLabel("autorun"));
+        Assert.Equal("Automatique", MapEventMarkerLayout.TriggerLabel("auto_tile"));
+        Assert.Equal("Parallèle", MapEventMarkerLayout.TriggerLabel("parallel"));
+        Assert.Equal("Page", MapEventMarkerLayout.TriggerLabel("page"));
+        Assert.Equal("A", MapEventMarkerLayout.TriggerGlyph("action"));
+        Assert.Equal("C", MapEventMarkerLayout.TriggerGlyph("step_on"));
+        Assert.Equal("!", MapEventMarkerLayout.TriggerGlyph("autorun"));
+        Assert.Equal("P", MapEventMarkerLayout.TriggerGlyph("parallel"));
+        Assert.Equal("Marchand", MapEventMarkerLayout.FormatListTitle("Marchand", "pnj"));
+        Assert.Equal("pnj_garde", MapEventMarkerLayout.FormatListTitle(" ", "pnj_garde"));
+    }
+
+    [Fact]
     public void ShouldDrawName_RespectsToggleZoomHoverAndSelection()
     {
         Assert.True(MapEventMarkerLayout.ShouldDrawName(true, 1f, 32, hovered: false, selected: false));

@@ -646,6 +646,16 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         ToolChanged?.Invoke(tool);
     }
 
+    internal void SetLiveToolHint(string? hint)
+    {
+        if (DrawToolHint is null || string.IsNullOrWhiteSpace(hint) || DrawToolHint.Text == hint)
+        {
+            return;
+        }
+
+        DrawToolHint.Text = hint;
+    }
+
     private void ApplyDrawToolChrome(EditorTool tool)
     {
         if (DrawToolHint is not null)

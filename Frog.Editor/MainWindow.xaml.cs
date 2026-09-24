@@ -594,6 +594,7 @@ public partial class MainWindow : Window
         }
 
         TileStatusText.Text = text;
+        TileStatusText.ToolTip = text;
         TileStatusText.Foreground = text.Contains("à corriger", StringComparison.Ordinal)
             ? StatusWarnBrush
             : StatusBrush;

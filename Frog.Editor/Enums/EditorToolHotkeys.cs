@@ -130,7 +130,7 @@ public static class EditorToolHotkeys
             EditorTool.Fill => "Pot (F) · clic pour remplir les cases connectées",
             EditorTool.Rectangle => "Rectangle (R) · cliquez un coin, glissez, relâchez pour peindre",
             EditorTool.Line => "Ligne (L) · cliquez le départ, glissez, relâchez · Maj = axe",
-            EditorTool.Selection => "Sélection (M) · rectangle toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr",
+            EditorTool.Selection => "Sélection (M) · tracez un rectangle · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr",
             EditorTool.Spawn => "Départ (D) · clic pour poser le spawn playtest",
             EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · Échap quitte",
             _ => DisplayName(tool),
@@ -158,13 +158,23 @@ public static class EditorToolHotkeys
     {
         var w = Math.Abs(x1 - x0) + 1;
         var h = Math.Abs(y1 - y0) + 1;
-        return $"Sélection (M) · ({x0}, {y0}) → ({x1}, {y1}) · {w}×{h} · toutes les couches · relâchez pour figer";
+        return $"Sélection (M) · ({x0}, {y0}) → ({x1}, {y1}) · {w}×{h} · toutes les couches · relâchez pour figer la sélection";
     }
 
     /// <summary>Sélection figée : copier-coller multi-couches, couche active avec Ctrl+Maj.</summary>
     public static string FormatSelectionCommitted(int width, int height)
-        => $"Sélection (M) · {width}×{height} · toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr";
+        => $"Sélection (M) · {width}×{height} · copie toutes les couches · Ctrl+C/X/V (copie, coupe, colle) · Ctrl+Maj = couche active · Q/H/V · Suppr";
+
+    /// <summary>État d’une tuile animée dans la barre d’état (français, sans le mot anglais « frames »).</summary>
+    public static string FormatAnimatedTilePreview(int frameCount, bool previewEnabled)
+    {
+        var count = Math.Max(0, frameCount);
+        var noun = count <= 1 ? "image" : "images";
+        return previewEnabled
+            ? $"aperçu animé · {count} {noun}"
+            : $"tuile animée · {count} {noun} · aperçu arrêté";
+    }
 
     public const string SelectionHint =
-        "Toutes les couches : Ctrl+C/X/V · couche active : Ctrl+Maj+C/V · Q rotation · H/V miroir · I pipette (Alt+clic)";
+        "Copie toutes les couches : Ctrl+C copie, Ctrl+X coupe, Ctrl+V colle · couche active : Ctrl+Maj+C/V · Q rotation · H/V miroir · I pipette (Alt+clic)";
 }

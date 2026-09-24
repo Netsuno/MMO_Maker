@@ -231,7 +231,7 @@
                     Tag="Selection"
                     Margin="2"
                     Padding="8,5"
-                    ToolTip="Sélection (M) — rectangle toutes les couches. Ctrl+C copie, Ctrl+Maj+C couche active."
+                    ToolTip="Sélection (M) — rectangle. Ctrl+C/X/V copie toutes les couches, Ctrl+Maj = couche active."
                     Click="OnDrawToolClick" />
         </UniformGrid>
         <TextBlock Text="{x:Static enums:EditorToolHotkeys.PaletteHint}"

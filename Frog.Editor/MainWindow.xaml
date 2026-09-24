@@ -194,7 +194,11 @@
         </ToolBarTray>
         <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">
             <StatusBarItem>
-                <TextBlock x:Name="TileStatusText" Text="Tuile · x = 0, y = 0    ·    Zoom 100 %" Foreground="#FFEBEEF5" />
+                <TextBlock x:Name="TileStatusText"
+                           Text="Tuile · x = 0, y = 0    ·    Zoom 100 %"
+                           Foreground="#FFEBEEF5"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="Tuile · x = 0, y = 0    ·    Zoom 100 %" />
             </StatusBarItem>
         </StatusBar>
         <!-- Coque WPF : colonnes et splitters ; îlots WinForms (canevas GDI+, palettes, PropertyGrid). -->
