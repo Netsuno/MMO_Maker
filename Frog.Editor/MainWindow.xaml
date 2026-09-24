@@ -110,12 +110,14 @@
             <MenuItem Header="_Ressources" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Données de jeu…" Command="{x:Static local:MainWindow.CmdGameData}" />
                 <MenuItem Header="Charger une image tuiles…" Command="{x:Static local:MainWindow.CmdOpenTileset}" />
+                <MenuItem Header="Importer une feuille TileAsset…" Command="{x:Static local:MainWindow.CmdImportTileAssetSheet}" />
                 <Separator />
                 <MenuItem Header="Animer la sélection de tuiles" Command="{x:Static local:MainWindow.CmdMarkTilesAnimated}" />
                 <MenuItem Header="Retirer l’animation de la sélection" Command="{x:Static local:MainWindow.CmdClearTilesAnimated}" />
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
+                <MenuItem Header="Passer cette carte en TileAsset (v6)…" Command="{x:Static local:MainWindow.CmdConvertMapToTileAsset}" />
                 <MenuItem Header="Vérifier les transferts…" Command="{x:Static local:MainWindow.CmdShowTransferIssues}" />
                 <MenuItem Header="Outil ligne"
                           Command="{x:Static local:MainWindow.CmdLineTool}"

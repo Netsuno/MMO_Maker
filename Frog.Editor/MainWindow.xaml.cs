@@ -97,6 +97,16 @@ public partial class MainWindow : Window
         nameof(CmdOpenTileset),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdImportTileAssetSheet = new(
+        "Importer une feuille TileAsset…",
+        nameof(CmdImportTileAssetSheet),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdConvertMapToTileAsset = new(
+        "Passer cette carte en TileAsset (v6)…",
+        nameof(CmdConvertMapToTileAsset),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdGameData = new(
         "Données de jeu…",
         nameof(CmdGameData),
@@ -241,6 +251,8 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdUndo, (_, _) => _editor.DoUndo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanUndo));
         CommandBindings.Add(new CommandBinding(CmdRedo, (_, _) => _editor.DoRedo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanRedo));
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
+        CommandBindings.Add(new CommandBinding(CmdImportTileAssetSheet, (_, _) => _editor.ImportTileAssetSheet()));
+        CommandBindings.Add(new CommandBinding(CmdConvertMapToTileAsset, (_, _) => _editor.ConvertCurrentMapToTileAsset()));
         CommandBindings.Add(new CommandBinding(CmdMarkTilesAnimated, (_, _) => _editor.MarkSelectedTilesAnimated()));
         CommandBindings.Add(new CommandBinding(CmdClearTilesAnimated, (_, _) => _editor.ClearSelectedTilesAnimated()));
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
