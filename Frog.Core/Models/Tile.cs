@@ -5,6 +5,7 @@ using System.ComponentModel;
 namespace Frog.Core.Models;
 
 using Frog.Core.Enums;
+using Frog.Core.Maps;
 
 /// <summary>
 /// Tuile individuelle placée sur une couche. Les coordonnées (X, Y) sont exprimées en tuiles.
@@ -52,6 +53,14 @@ public sealed class Tile
     [Category("Graphique")]
     [Description("Découpe verticale dans l’image du tileset (pixels).")]
     public int SrcY { get; set; }
+
+    /// <summary>
+    /// Identité graphique v6 (empreinte SHA-256 des pixels 48×48). Vide pour une carte v5.
+    /// Le fichier ne stocke pas à la fois cet id et <see cref="SrcX"/>/<see cref="SrcY"/>/<see cref="TilesetId"/>.
+    /// </summary>
+    [Category("Graphique")]
+    [Description("Identifiant de contenu 48×48 (format carte v6). Indépendant de la position dans la feuille.")]
+    public TileAssetId AssetId { get; set; }
 
     public List<ITileAttribute> Attributes { get; } = new();
 
