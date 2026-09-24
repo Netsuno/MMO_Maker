@@ -102,6 +102,11 @@ public partial class MainWindow : Window
         nameof(CmdShowTransferIssues),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdLineTool = new(
+        "Outil ligne",
+        nameof(CmdLineTool),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdSpawnTool = new(
         "Outil point de départ",
         nameof(CmdSpawnTool),
@@ -214,6 +219,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdShowTransferIssues, (_, _) => _editor.ShowTransferIssues()));
+        CommandBindings.Add(new CommandBinding(CmdLineTool, (_, _) => _editor.SelectEditorTool(EditorTool.Line)));
         CommandBindings.Add(new CommandBinding(CmdSpawnTool, (_, _) => _editor.SelectEditorTool(EditorTool.Spawn)));
         CommandBindings.Add(new CommandBinding(CmdPrefabTool, (_, _) => _editor.SelectEditorTool(EditorTool.Prefab)));
         CommandBindings.Add(new CommandBinding(CmdRotateSelection, (_, _) => _editor.TryRotateSelection90()));
@@ -231,6 +237,7 @@ public partial class MainWindow : Window
         _editor.MapEventNamesVisibilityChanged += SyncMapEventNamesMenu;
 
         PreviewKeyDown += OnPreviewToolHotkey;
+        PreviewKeyUp += OnPreviewShapeModifier;
         Loaded += OnMainWindowLoaded;
         SizeChanged += (_, _) => _editor.NotifyWpfShellLayout();
         Closing += OnMainWindowClosing;
@@ -424,6 +431,11 @@ public partial class MainWindow : Window
 
     private void OnPreviewToolHotkey(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key is Key.LeftShift or Key.RightShift)
+        {
+            _editor.RefreshShapePreview();
+        }
+
         if (Keyboard.FocusedElement is System.Windows.Controls.MenuItem)
         {
             return;
@@ -440,6 +452,12 @@ public partial class MainWindow : Window
         }
 
         if (Keyboard.Modifiers == ModifierKeys.None && e.Key == Key.Escape && _editor.TryHandlePrefabEscape())
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.None && e.Key == Key.Escape && _editor.TryCancelShapeGesture())
         {
             e.Handled = true;
             return;
@@ -509,5 +527,13 @@ public partial class MainWindow : Window
         var brush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(red, green, blue));
         brush.Freeze();
         return brush;
+    }
+
+    private void OnPreviewShapeModifier(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is Key.LeftShift or Key.RightShift)
+        {
+            _editor.RefreshShapePreview();
+        }
     }
 }

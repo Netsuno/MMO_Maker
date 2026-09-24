@@ -165,6 +165,75 @@
                       MinHeight="28"
                       SelectionChanged="ComboTool_OnSelectionChanged" />
         </Grid>
+        <TextBlock x:Name="DrawToolHint"
+                   Text="Pinceau (B) · clic ou glisser pour peindre la tuile"
+                   TextWrapping="Wrap"
+                   Foreground="#FF64BEFF"
+                   FontFamily="Segoe UI"
+                   FontSize="11"
+                   Margin="8,0,2,6" />
+        <UniformGrid Columns="2" Margin="2,0,2,8">
+            <UniformGrid.Resources>
+                <Style TargetType="Button">
+                    <Setter Property="Background" Value="#FF32353E" />
+                    <Setter Property="Foreground" Value="#FFEBEEF5" />
+                    <Setter Property="BorderBrush" Value="#FF585C68" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="FontFamily" Value="Segoe UI" />
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#FF3A3F4A" />
+                            <Setter Property="BorderBrush" Value="#FF64BEFF" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </UniformGrid.Resources>
+            <Button x:Name="BtnToolBrush"
+                    Content="Pinceau"
+                    Tag="Brush"
+                    Margin="2"
+                    Padding="8,5"
+                    ToolTip="Pinceau (B) — peindre la tuile"
+                    Click="OnDrawToolClick" />
+            <Button x:Name="BtnToolEraser"
+                    Content="Gomme"
+                    Tag="Eraser"
+                    Margin="2"
+                    Padding="8,5"
+                    ToolTip="Gomme (E) — effacer"
+                    Click="OnDrawToolClick" />
+            <Button x:Name="BtnToolFill"
+                    Content="Pot"
+                    Tag="Fill"
+                    Margin="2"
+                    Padding="8,5"
+                    ToolTip="Pot de peinture (F) — remplissage"
+                    Click="OnDrawToolClick" />
+            <Button x:Name="BtnToolRectangle"
+                    Content="Rectangle"
+                    Tag="Rectangle"
+                    Margin="2"
+                    Padding="8,5"
+                    ToolTip="Rectangle (R) — clic, glisser, relâcher"
+                    Click="OnDrawToolClick" />
+            <Button x:Name="BtnToolLine"
+                    Content="Ligne"
+                    Tag="Line"
+                    Margin="2"
+                    Padding="8,5"
+                    ToolTip="Ligne (L) — trait d'une tuile. Maj = axe."
+                    Click="OnDrawToolClick" />
+            <Button x:Name="BtnToolSelection"
+                    Content="Sélection"
+                    Tag="Selection"
+                    Margin="2"
+                    Padding="8,5"
+                    ToolTip="Sélection (M) — copier, rotation, miroir"
+                    Click="OnDrawToolClick" />
+        </UniformGrid>
         <TextBlock Text="{x:Static enums:EditorToolHotkeys.PaletteHint}"
                    TextWrapping="Wrap"
                    Foreground="#FF949BAA"

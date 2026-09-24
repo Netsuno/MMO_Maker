@@ -262,6 +262,7 @@ public sealed class MapCanvas : Control
     private Point _lastMouse;
     private bool _paintStroke;
     private Point? _rectPaintOrigin;
+    private Point? _linePaintOrigin;
     private Point _hoverTile;
 
     /// <summary>Dernière tuile sous le curseur (coordonnées carte).</summary>
@@ -285,7 +286,12 @@ public sealed class MapCanvas : Control
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
         MouseLeave += (_, _) => ClearMapEventMarkerHover();
+        KeyDown += (_, e) => RefreshShapePreview(e.KeyCode);
+        KeyUp += (_, e) => RefreshShapePreview(e.KeyCode);
     }
+
+    /// <summary>Le geste ligne / rectangle a changé (départ, Maj, annulation).</summary>
+    public event Action? PaintGestureChanged;
 
     /// <summary>Coin haut-gauche et coin bas-droit visibles, en coordonnées « monde » (pixels carte avant zoom).</summary>
     public void GetViewportWorldBounds(out PointF topLeft, out PointF bottomRight)
@@ -599,7 +605,12 @@ public sealed class MapCanvas : Control
                 DrawTileRectPixels(g, ro.X, ro.Y, _hoverTile.X, _hoverTile.Y, Color.Cyan, dash: false);
             }
 
-            if (BrushGhostVisible() && TilesetCache.TryGet(ActiveTilesetId, out var bmpG) && bmpG is not null)
+            if (Map is not null && ActiveTool == EditorTool.Line && _linePaintOrigin is not null)
+            {
+                DrawLineRubberBand(g, CurrentLineCells(LineAxisConstrained()), mw, mh);
+            }
+
+            if (BrushGhostVisible() && _linePaintOrigin is null && TilesetCache.TryGet(ActiveTilesetId, out var bmpG) && bmpG is not null)
             {
                 var tx = _hoverTile.X;
                 var ty = _hoverTile.Y;
@@ -643,7 +654,7 @@ public sealed class MapCanvas : Control
 
     private bool BrushGhostVisible() =>
         Map is not null && ActiveTilesetId > 0 && IsActiveLayerEditable() &&
-        ActiveTool is EditorTool.Brush or EditorTool.Rectangle or EditorTool.Fill;
+        ActiveTool is EditorTool.Brush or EditorTool.Rectangle or EditorTool.Line or EditorTool.Fill;
 
     private void DrawGridCells(Graphics g, int mapW, int mapH, int tx0, int ty0, int tx1, int ty1)
     {
@@ -1386,6 +1397,100 @@ public sealed class MapCanvas : Control
         g.DrawRectangle(p, r);
     }
 
+    private void DrawLineRubberBand(Graphics g, IReadOnlyList<(int X, int Y)> cells, int mapW, int mapH)
+    {
+        if (cells.Count == 0)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var accent = EditorChrome.RibbonAccent;
+        using var wash = new SolidBrush(Color.FromArgb(72, accent));
+        using var spine = new Pen(Color.FromArgb(235, 236, 246, 255), 2.2f)
+        {
+            DashStyle = DashStyle.Dash,
+            DashPattern = new[] { 5f, 3.5f },
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+        };
+        using var midEdge = new Pen(Color.FromArgb(210, accent), 1.4f) { DashStyle = DashStyle.Dash };
+        using var endEdge = new Pen(Color.FromArgb(245, 236, 246, 255), 2.2f);
+        using var handleFill = new SolidBrush(Color.FromArgb(230, accent));
+        using var handleRing = new Pen(Color.White, 1.6f);
+
+        var centers = new List<PointF>(cells.Count);
+        for (var i = 0; i < cells.Count; i++)
+        {
+            var (x, y) = cells[i];
+            if (x < 0 || y < 0 || x >= mapW || y >= mapH)
+            {
+                continue;
+            }
+
+            DrawBrushTileGhost(g, x, y, mapW, mapH, 0.72f);
+            var rect = new Rectangle(x * ts + 1, y * ts + 1, Math.Max(1, ts - 2), Math.Max(1, ts - 2));
+            g.FillRectangle(wash, rect);
+            var last = i == cells.Count - 1;
+            g.DrawRectangle(i == 0 || last ? endEdge : midEdge, rect);
+            centers.Add(new PointF(x * ts + (ts / 2f), y * ts + (ts / 2f)));
+        }
+
+        if (centers.Count >= 2)
+        {
+            g.DrawLines(spine, centers.ToArray());
+        }
+
+        if (centers.Count > 0)
+        {
+            DrawLineHandle(g, centers[0], ts, handleFill, handleRing, filled: true);
+            if (centers.Count > 1)
+            {
+                DrawLineHandle(g, centers[^1], ts, handleFill, handleRing, filled: false);
+            }
+        }
+    }
+
+    private void DrawBrushTileGhost(Graphics g, int tx, int ty, int mapW, int mapH, float alpha)
+    {
+        if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var sx = SelectedSrc.X;
+        var sy = SelectedSrc.Y;
+        if (sx < 0 || sy < 0 || sx + ts > bmp.Width || sy + ts > bmp.Height)
+        {
+            return;
+        }
+
+        if (tx < 0 || ty < 0 || tx >= mapW || ty >= mapH)
+        {
+            return;
+        }
+
+        using var attrs = new System.Drawing.Imaging.ImageAttributes();
+        attrs.SetColorMatrix(
+            new System.Drawing.Imaging.ColorMatrix { Matrix33 = alpha },
+            System.Drawing.Imaging.ColorMatrixFlag.Default,
+            System.Drawing.Imaging.ColorAdjustType.Bitmap);
+        g.DrawImage(bmp, new Rectangle(tx * ts, ty * ts, ts, ts), sx, sy, ts, ts, GraphicsUnit.Pixel, attrs);
+    }
+
+    private static void DrawLineHandle(Graphics g, PointF center, int tileSize, Brush fill, Pen ring, bool filled)
+    {
+        var d = Math.Clamp(tileSize * 0.28f, 6f, 14f);
+        var r = new RectangleF(center.X - (d / 2f), center.Y - (d / 2f), d, d);
+        if (filled)
+        {
+            g.FillEllipse(fill, r);
+        }
+
+        g.DrawEllipse(ring, r);
+    }
+
     private void ComputeVisibleTileRange(out int tx0, out int ty0, out int tx1, out int ty1)
     {
         tx0 = ty0 = 0;
@@ -1566,7 +1671,14 @@ public sealed class MapCanvas : Control
             if (ActiveTool == EditorTool.Rectangle)
             {
                 _rectPaintOrigin = null;
-                Invalidate();
+                NotifyPaintGesture();
+                return;
+            }
+
+            if (ActiveTool == EditorTool.Line)
+            {
+                _linePaintOrigin = null;
+                NotifyPaintGesture();
                 return;
             }
 
@@ -1651,7 +1763,21 @@ public sealed class MapCanvas : Control
                     _rectPaintOrigin = new Point(tx, ty);
                     _hoverTile = new Point(tx, ty);
                     Capture = true;
-                    Invalidate();
+                    Focus();
+                    NotifyPaintGesture();
+                    break;
+
+                case EditorTool.Line:
+                    if (!IsActiveLayerEditable())
+                    {
+                        break;
+                    }
+
+                    _linePaintOrigin = new Point(tx, ty);
+                    _hoverTile = new Point(tx, ty);
+                    Capture = true;
+                    Focus();
+                    NotifyPaintGesture();
                     break;
 
                 case EditorTool.Selection:
@@ -1777,7 +1903,8 @@ public sealed class MapCanvas : Control
                     Invalidate();
                 }
             }
-            else if (ActiveTool is EditorTool.Rectangle or EditorTool.Selection && (_rectPaintOrigin is not null || _selectionMarqueeAnchor is not null))
+            else if (ActiveTool is EditorTool.Rectangle or EditorTool.Selection or EditorTool.Line
+                     && (_rectPaintOrigin is not null || _selectionMarqueeAnchor is not null || _linePaintOrigin is not null))
             {
                 Invalidate();
             }
@@ -1798,6 +1925,7 @@ public sealed class MapCanvas : Control
         if (!_suppressRightButtonErase &&
             ActiveTool != EditorTool.Spawn &&
             ActiveTool != EditorTool.Prefab &&
+            ActiveTool != EditorTool.Line &&
             (e.Button & MouseButtons.Right) != 0 &&
             tx >= 0 &&
             ty >= 0 &&
@@ -1866,7 +1994,15 @@ public sealed class MapCanvas : Control
 
                 _rectPaintOrigin = null;
                 Capture = false;
-                Invalidate();
+                NotifyPaintGesture();
+            }
+
+            if (ActiveTool == EditorTool.Line && e.Button == MouseButtons.Left && _linePaintOrigin is not null)
+            {
+                var world = ScreenToWorld(e.Location);
+                var ex = (int)Math.Floor(world.X / TileSize);
+                var ey = (int)Math.Floor(world.Y / TileSize);
+                CommitLineAt(ex, ey, LineAxisConstrained());
             }
 
             if (ActiveTool == EditorTool.Selection && e.Button == MouseButtons.Left && _selectionMarqueeAnchor is { } sa)
@@ -2069,6 +2205,131 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private void RefreshShapePreview(Keys key)
+    {
+        if (key != Keys.ShiftKey || (_linePaintOrigin is null && _rectPaintOrigin is null))
+        {
+            return;
+        }
+
+        NotifyPaintGesture();
+    }
+
+    internal void RefreshShapePreviewForTest() => NotifyPaintGesture();
+
+    /// <summary>Annule le trait ou le rectangle en cours sans peindre. Échap.</summary>
+    internal bool TryCancelShapeGesture()
+    {
+        if (_linePaintOrigin is null && _rectPaintOrigin is null)
+        {
+            return false;
+        }
+
+        _linePaintOrigin = null;
+        _rectPaintOrigin = null;
+        Capture = false;
+        NotifyPaintGesture();
+        return true;
+    }
+
+    /// <summary>Phrase française pour la barre d'état, geste compris.</summary>
+    internal string GetPaintStatusHint()
+    {
+        if (ActiveTool == EditorTool.Line && _linePaintOrigin is { } origin)
+        {
+            var axis = LineAxisConstrained();
+            var end = ResolveLineEnd(origin, _hoverTile, axis);
+            var count = MapEditOperations.EnumerateLine(origin.X, origin.Y, end.X, end.Y).Count;
+            return EditorToolHotkeys.FormatLineGesture(origin.X, origin.Y, end.X, end.Y, count, axis);
+        }
+
+        if (ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } ro)
+        {
+            return EditorToolHotkeys.FormatRectangleGesture(ro.X, ro.Y, _hoverTile.X, _hoverTile.Y);
+        }
+
+        return EditorToolHotkeys.StatusHint(ActiveTool);
+    }
+
+    private void NotifyPaintGesture()
+    {
+        Invalidate();
+        PaintGestureChanged?.Invoke();
+    }
+
+    private static bool LineAxisConstrained() => (ModifierKeys & Keys.Shift) == Keys.Shift;
+
+    private static Point ResolveLineEnd(Point origin, Point end, bool axisAligned)
+    {
+        if (!axisAligned)
+        {
+            return end;
+        }
+
+        var constrained = MapEditOperations.ConstrainToDominantAxis(origin.X, origin.Y, end.X, end.Y);
+        return new Point(constrained.X, constrained.Y);
+    }
+
+    private IReadOnlyList<(int X, int Y)> CurrentLineCells(bool axisAligned)
+    {
+        if (_linePaintOrigin is not { } origin)
+        {
+            return Array.Empty<(int, int)>();
+        }
+
+        var end = ResolveLineEnd(origin, _hoverTile, axisAligned);
+        return MapEditOperations.EnumerateLine(origin.X, origin.Y, end.X, end.Y);
+    }
+
+    private bool CommitLineAt(int ex, int ey, bool axisAligned)
+    {
+        if (Map is null || _linePaintOrigin is not { } origin)
+        {
+            return false;
+        }
+
+        ex = Math.Clamp(ex, 0, Map.Width - 1);
+        ey = Math.Clamp(ey, 0, Map.Height - 1);
+        var end = ResolveLineEnd(origin, new Point(ex, ey), axisAligned);
+        var painted = false;
+        if (IsActiveLayerEditable())
+        {
+            BeginEditTransaction();
+            ApplyLine(origin.X, origin.Y, end.X, end.Y);
+            painted = Map.Layers[ActiveLayerIndex].Tiles.Any(t => t.X == origin.X && t.Y == origin.Y);
+            RaiseTileClicked(end.X, end.Y);
+        }
+
+        _linePaintOrigin = null;
+        Capture = false;
+        NotifyPaintGesture();
+        return painted;
+    }
+
+    private void ApplyLine(int x0, int y0, int x1, int y1)
+    {
+        if (Map is null || !IsActiveLayerEditable())
+        {
+            return;
+        }
+
+        if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var sx = SelectedSrc.X;
+        var sy = SelectedSrc.Y;
+        if (sx < 0 || sy < 0 || sx + ts > bmp.Width || sy + ts > bmp.Height)
+        {
+            return;
+        }
+
+        EnsureLayerExists();
+        MapEditOperations.PaintLine(Map, ActiveLayerIndex, x0, y0, x1, y1, CreateBrushTile(x0, y0, sx, sy));
+    }
+
     private void FloodFill(int sx, int sy)
     {
         if (Map is null || !IsActiveLayerEditable())
@@ -2096,6 +2357,42 @@ public sealed class MapCanvas : Control
         ApplyBrush(x, y);
         Invalidate();
         return Map.Layers[ActiveLayerIndex].Tiles.Any(t => t.X == x && t.Y == y);
+    }
+
+    internal bool TryBeginLineDragForTest(int x, int y)
+    {
+        if (Map is null || !IsActiveLayerEditable())
+        {
+            return false;
+        }
+
+        if (x < 0 || y < 0 || x >= Map.Width || y >= Map.Height)
+        {
+            return false;
+        }
+
+        ActiveTool = EditorTool.Line;
+        _linePaintOrigin = new Point(x, y);
+        _hoverTile = new Point(x, y);
+        return true;
+    }
+
+    internal IReadOnlyList<(int X, int Y)> GetLinePreviewCellsForTest(bool axisAligned) => CurrentLineCells(axisAligned);
+
+    internal bool TryCommitLineDragForTest(int x, int y, bool axisAligned = false)
+    {
+        if (Map is null || _linePaintOrigin is null)
+        {
+            return false;
+        }
+
+        if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
+        {
+            _linePaintOrigin = null;
+            return false;
+        }
+
+        return CommitLineAt(x, y, axisAligned);
     }
 
     internal void SetHoverTileForTest(int x, int y) => _hoverTile = new Point(x, y);

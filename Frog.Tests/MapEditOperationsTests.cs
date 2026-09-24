@@ -40,6 +40,60 @@ public sealed class MapEditOperationsTests
     }
 
     [Fact]
+    public void EnumerateLine_IsOneTileWideAndIncludesBothEnds()
+    {
+        var diagonal = MapEditOperations.EnumerateLine(0, 0, 4, 2);
+        Assert.Equal(new[] { (0, 0), (1, 0), (2, 1), (3, 1), (4, 2) }, diagonal);
+        Assert.Equal(new[] { (2, 2) }, MapEditOperations.EnumerateLine(2, 2, 2, 2));
+        Assert.Equal(new[] { (0, 0), (1, 0), (2, 0), (3, 0) }, MapEditOperations.EnumerateLine(0, 0, 3, 0));
+        Assert.Equal(new[] { (1, 0), (1, 1), (1, 2) }, MapEditOperations.EnumerateLine(1, 0, 1, 2));
+
+        var back = MapEditOperations.EnumerateLine(4, 2, 0, 0);
+        Assert.Equal((4, 2), back[0]);
+        Assert.Equal((0, 0), back[^1]);
+        Assert.Equal(Math.Max(4, 2) + 1, back.Count);
+        Assert.DoesNotContain((0, 2), back);
+    }
+
+    [Fact]
+    public void PaintLine_PaintsOnlyBresenhamCells()
+    {
+        var map = CreateMap();
+        var stamp = new Tile { Type = TileType.Ground, SrcX = 7, TilesetId = 3 };
+        MapEditOperations.PaintLine(map, 0, 0, 0, 4, 2, stamp);
+
+        var tiles = map.Layers[0].Tiles;
+        Assert.Equal(5, tiles.Count);
+        Assert.All(tiles, t => Assert.Equal(7, t.SrcX));
+        Assert.Contains(tiles, t => t.X == 0 && t.Y == 0);
+        Assert.Contains(tiles, t => t.X == 4 && t.Y == 2);
+        Assert.DoesNotContain(tiles, t => t.X == 0 && t.Y == 2);
+        Assert.DoesNotContain(tiles, t => t.X == 4 && t.Y == 0);
+    }
+
+    [Fact]
+    public void PaintLine_SkipsLockedLayerAndOutOfBounds()
+    {
+        var map = CreateMap();
+        map.Layers[0].Locked = true;
+        MapEditOperations.PaintLine(map, 0, 0, 0, 2, 0, new Tile { Type = TileType.Ground });
+        Assert.Empty(map.Layers[0].Tiles);
+
+        map.Layers[0].Locked = false;
+        MapEditOperations.PaintLine(map, 0, -1, 0, 2, 0, new Tile { Type = TileType.Ground, SrcX = 1 });
+        Assert.Equal(3, map.Layers[0].Tiles.Count);
+        Assert.DoesNotContain(map.Layers[0].Tiles, t => t.X < 0);
+    }
+
+    [Fact]
+    public void ConstrainToDominantAxis_PrefersHorizontalOnTie()
+    {
+        Assert.Equal((4, 0), MapEditOperations.ConstrainToDominantAxis(0, 0, 4, 2));
+        Assert.Equal((0, 3), MapEditOperations.ConstrainToDominantAxis(0, 0, 2, 3));
+        Assert.Equal((3, 0), MapEditOperations.ConstrainToDominantAxis(0, 0, 3, 3));
+    }
+
+    [Fact]
     public void PaintRectangle_FillsArea()
     {
         var map = CreateMap();
