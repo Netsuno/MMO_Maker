@@ -24,4 +24,7 @@ public static class CombatMvpLimits
     public const byte DamageFlagHit = 1;
 
     public const byte DamageFlagKilled = 2;
+
+    /// <summary>Bit libre déjà présent dans l'octet de flags du trailer 18. Pas un nouvel opcode.</summary>
+    public const byte DamageFlagCrit = 4;
 }
