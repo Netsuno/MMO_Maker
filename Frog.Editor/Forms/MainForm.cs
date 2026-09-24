@@ -123,6 +123,10 @@ public sealed class MainForm : Form
         return ProcessCmdKey(ref msg, keyData);
     }
 
+    internal string PrefabStatusForTest() => _leftToolsWpf.StatusTextForTest;
+
+    internal string PrefabSelectedNameForTest() => _leftToolsWpf.SelectedNameForTest;
+
     internal void RestorePlaytestSpawnFromWorkstateForTest() => RestorePlaytestSpawnFromWorkstate();
 
     internal MapWorkspaceSession? GetWorkspaceSessionForTest() => _workspace;
@@ -539,6 +543,8 @@ public sealed class MainForm : Form
         _leftToolsWpf.ToolChanged += tool => SelectEditorTool(tool);
         _leftToolsWpf.TileTypeChanged += type => _canvas.SelectedTileType = type;
         _leftToolsWpf.PrefabSelectionChanged += OnPrefabPaletteChanged;
+        _leftToolsWpf.PrefabDuplicateRequested += OnDuplicateLastPrefab;
+        _leftToolsWpf.PrefabEscapeRequested += () => TryHandlePrefabEscape();
         _leftToolsWpf.PipetteRequested += () => TryPipetteAtHover();
         _leftToolsWpf.BindPrefabCatalog(_canvas.PrefabCatalog, _canvas.SelectedPrefabId, _canvas.SelectedPrefabFacing);
         _leftToolsElementHost = new ElementHost
@@ -870,6 +876,7 @@ public sealed class MainForm : Form
         ApplyWorkspaceMapToUi();
         await HydrateTilesetCacheFromPublishedAsync().ConfigureAwait(true);
         UpdatePersistenceMenuState();
+        RestoreSavedPrefabSelection();
         PushEditorStatusLine();
     }
 
@@ -1098,12 +1105,62 @@ public sealed class MainForm : Form
 
     private bool _suppressSpawnPersist;
     private bool _suppressPrefabPersist;
+    private EditorTool _toolBeforePrefab = EditorTool.Brush;
+    private int _prefabEscapeTick;
 
     internal void SelectEditorTool(EditorTool tool)
     {
+        if (tool == EditorTool.Prefab && _canvas.ActiveTool != EditorTool.Prefab)
+        {
+            _toolBeforePrefab = _canvas.ActiveTool;
+        }
+
         _leftToolsWpf.SetSelectedTool(tool);
+        _leftToolsWpf.SetPrefabPlaceMode(tool == EditorTool.Prefab);
         _canvas.ActiveTool = tool;
         _canvas.Invalidate();
+        PushEditorStatusLine();
+    }
+
+    internal bool IsPrefabSearchFocused => _leftToolsWpf.IsPrefabSearchFocused;
+
+    /// <summary>
+    /// Échap : vide le filtre s’il a le focus, sinon quitte le placement prefab.
+    /// Retourne false si rien de spécifique au prefab n’a été consommé.
+    /// </summary>
+    internal bool TryHandlePrefabEscape()
+    {
+        var now = Environment.TickCount;
+        if (_prefabEscapeTick != 0 && unchecked(now - _prefabEscapeTick) < 80)
+        {
+            return true;
+        }
+
+        if (_leftToolsWpf.TryConsumePrefabFilterEscape())
+        {
+            _prefabEscapeTick = now;
+            return true;
+        }
+
+        if (!TryCancelPrefabPlaceMode())
+        {
+            return false;
+        }
+
+        _prefabEscapeTick = now;
+        return true;
+    }
+
+    private bool TryCancelPrefabPlaceMode()
+    {
+        if (_canvas.ActiveTool != EditorTool.Prefab)
+        {
+            return false;
+        }
+
+        var restore = _toolBeforePrefab == EditorTool.Prefab ? EditorTool.Brush : _toolBeforePrefab;
+        SelectEditorTool(restore);
+        return true;
     }
 
     internal bool TryRotateSelection90()
@@ -1181,6 +1238,41 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
     }
 
+    /// <summary>
+    /// Réapplique le dernier prefab mémorisé après le chargement de la carte.
+    /// La liste WPF peut sinon rester sur le premier objet (Canapé) alors que le canevas a déjà l’id restauré.
+    /// </summary>
+    private void RestoreSavedPrefabSelection()
+    {
+        EditorLocalWorkstate.TryReadLastPrefabSelection(out var id, out var facing);
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            id = _canvas.SelectedPrefabId;
+            facing = _canvas.SelectedPrefabFacing;
+        }
+
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        if (!PrefabPlacementService.TryGetDefinition(_canvas.PrefabCatalog, id, out _))
+        {
+            _canvas.PrefabCatalog = MapPrefabPersistDocument.MergeCatalogs(
+                _canvas.PrefabCatalog,
+                BuiltInPrefabCatalog.Create());
+        }
+
+        if (!PrefabPlacementService.TryGetDefinition(_canvas.PrefabCatalog, id, out _))
+        {
+            return;
+        }
+
+        _canvas.SelectedPrefabId = id;
+        _canvas.SelectedPrefabFacing = facing;
+        _leftToolsWpf.BindPrefabCatalog(_canvas.PrefabCatalog, id, facing);
+    }
+
     private void OnPrefabSelectionPicked(string prefabId, PrefabFacing facing)
     {
         _leftToolsWpf.SetPrefabSelection(prefabId, facing);
@@ -1206,6 +1298,7 @@ public sealed class MainForm : Form
 
     private void OnPrefabPlacementsChanged()
     {
+        _leftToolsWpf.SetCanDuplicateLastPrefab(_canvas.PrefabPlacements.Count > 0);
         if (_suppressPrefabPersist)
         {
             PushEditorStatusLine();
@@ -1296,6 +1389,18 @@ public sealed class MainForm : Form
         EditorLocalWorkstate.WriteLastPrefabSelection(_canvas.SelectedPrefabId, facing);
         _canvas.Invalidate();
         PushEditorStatusLine();
+    }
+
+    private void OnDuplicateLastPrefab()
+    {
+        if (_canvas.TryDuplicateLastPrefab(out var placed, out var error) && placed is not null)
+        {
+            _leftToolsWpf.SetPrefabActionMessage($"Copie posée en ({placed.TileX}, {placed.TileY}).");
+            PushEditorStatusLine();
+            return;
+        }
+
+        _leftToolsWpf.SetPrefabActionMessage(error ?? "Duplication impossible.");
     }
 
     private void PersistCurrentPlaytestSpawnUnderMapId(Guid? mapId)
@@ -1389,14 +1494,17 @@ public sealed class MainForm : Form
         var spawn = _canvas.PlaytestSpawnTile is { } sp
             ? $"    ·    départ ({sp.X},{sp.Y})"
             : "";
-        var prefab = _canvas.PrefabPlacements.Count > 0
+        var prefabCount = _canvas.PrefabPlacements.Count > 0
             ? $"    ·    prefabs {_canvas.PrefabPlacements.Count}"
+            : "";
+        var prefabPlace = _canvas.ActiveTool == EditorTool.Prefab
+            ? $"    ·    {_leftToolsWpf.SelectedPrefabSummary} — clic pour placer"
             : "";
         var eventCaption = _canvas.ActiveMapEventCaption;
         var eventText = string.IsNullOrEmpty(eventCaption) ? "" : $"    ·    événement {eventCaption}";
         var notice = string.IsNullOrEmpty(_statusNotice) ? "" : _statusNotice + "    ·    ";
         var text =
-            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefab}{eventText}    ·    catalogue {backend}";
+            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{eventText}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -1468,13 +1576,18 @@ public sealed class MainForm : Form
 
         if (!ctrl && code == Keys.Escape)
         {
-            if (CancelQuickNpcPlacement(userInitiated: true))
+            if (TryHandlePrefabEscape() || CancelQuickNpcPlacement(userInitiated: true))
             {
                 return true;
             }
 
             _canvas.ClearSelection();
             return true;
+        }
+
+        if (_leftToolsWpf.IsPrefabSearchFocused)
+        {
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         if (EditorToolHotkeys.TryResolve(keyData, out var tool))

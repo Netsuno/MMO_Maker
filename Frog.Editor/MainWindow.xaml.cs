@@ -417,8 +417,24 @@ public partial class MainWindow : Window
 
     private void OnPreviewToolHotkey(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (Keyboard.FocusedElement is System.Windows.Controls.TextBox)
+        if (Keyboard.FocusedElement is System.Windows.Controls.MenuItem)
         {
+            return;
+        }
+
+        if (Keyboard.FocusedElement is System.Windows.Controls.TextBox || _editor.IsPrefabSearchFocused)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.None && e.Key == Key.Escape && _editor.TryHandlePrefabEscape())
+            {
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.None && e.Key == Key.Escape && _editor.TryHandlePrefabEscape())
+        {
+            e.Handled = true;
             return;
         }
 
