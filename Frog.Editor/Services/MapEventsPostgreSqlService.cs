@@ -448,6 +448,24 @@ public sealed class MapEventsPostgreSqlService : IDisposable
         }
     }
 
+    public MapEventDefinition? TryLoadDefinition(Guid eventId)
+    {
+        if (eventId == Guid.Empty)
+        {
+            return null;
+        }
+
+        try
+        {
+            var stored = RunOffUiSyncContext(() => _repository.LoadByIdAsync(eventId));
+            return stored?.Definition;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public async Task<string?> LoadPagesJsonAsync(Guid eventId)
     {
         var stored = await _repository.LoadByIdAsync(eventId).ConfigureAwait(false);

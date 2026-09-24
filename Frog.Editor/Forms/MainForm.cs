@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using System.Windows.Interop;
 using Frog.Application.Assets;
+using Frog.Application.Content;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Application.Prefabs;
@@ -47,6 +48,7 @@ public sealed class MainForm : Form
     private readonly ElementHost _layersElementHost;
     private bool _suspendLayerListEvents;
     private readonly PropertyGrid _propGrid;
+    private readonly TransferIssuesPanel _transferIssuesPanel;
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
     private Point _lastHoverTile;
@@ -70,6 +72,9 @@ public sealed class MainForm : Form
     private Phase8ContentPostgreSqlService? _phase8ContentService;
     private PendingQuickNpc? _pendingQuickNpc;
     private string? _statusNotice;
+    private List<MapTransferIssue> _transferIssues = new();
+    private IReadOnlyList<MapTransferLink> _eventTransferLinks = Array.Empty<MapTransferLink>();
+    private readonly Dictionary<Guid, CachedTransferMap> _transferMapCache = new();
     private EditorPostgreSqlScope? _mapDatabaseScope;
     private EditorPostgreSqlScope? _mapEventDatabaseScope;
     private EditorPostgreSqlScope? _phase8DatabaseScope;
@@ -393,6 +398,7 @@ public sealed class MainForm : Form
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
+            mMap.DropDownItems.Add("Vérifier les transferts…", null, (_, _) => ShowTransferIssues());
             mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
             mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
             mMap.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
@@ -748,7 +754,12 @@ public sealed class MainForm : Form
                 _propGrid.SelectedObject = _canvas.Map;
             }
         };
-        _splitLayersProps.Panel2.Controls.Add(_propGrid);
+        _transferIssuesPanel = new TransferIssuesPanel { Dock = DockStyle.Bottom, Height = 132 };
+        _transferIssuesPanel.IssueActivated += FocusTransferIssue;
+        var propsHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
+        propsHost.Controls.Add(_transferIssuesPanel);
+        propsHost.Controls.Add(_propGrid);
+        _splitLayersProps.Panel2.Controls.Add(propsHost);
 
         _splitRightTileset.Panel2.Controls.Add(_splitLayersProps);
         _splitRightTileset.HandleCreated += (_, _) =>
@@ -792,7 +803,7 @@ public sealed class MainForm : Form
         RefreshTilesetList();
         SyncMapsTree();
         UpdateMapChromeLabels();
-        PushEditorStatusLine();
+        RefreshTransferWarnings();
     }
 
     private Task? _workspaceInitTask;
@@ -1502,12 +1513,19 @@ public sealed class MainForm : Form
             : "";
         var eventCaption = _canvas.ActiveMapEventCaption;
         var eventText = string.IsNullOrEmpty(eventCaption) ? "" : $"    ·    événement {eventCaption}";
+        var transferCount = _transferIssues.Count;
+        var transferText = transferCount == 0
+            ? ""
+            : transferCount == 1
+                ? "    ·    1 transfert à corriger"
+                : $"    ·    {transferCount} transferts à corriger";
         var notice = string.IsNullOrEmpty(_statusNotice) ? "" : _statusNotice + "    ·    ";
         var text =
-            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{eventText}    ·    catalogue {backend}";
+            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{eventText}{transferText}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
+            _lblPos.ForeColor = transferCount > 0 ? EditorChrome.WarningAmber : EditorChrome.LabelMuted;
         }
 
         TileHoverStatusChanged?.Invoke(text);
@@ -1702,7 +1720,7 @@ public sealed class MainForm : Form
         }
 
         _workspace?.MarkDirty();
-        PushEditorStatusLine();
+        RefreshTransferWarnings();
     }
 
     private void OnMapReplaced()
@@ -2274,7 +2292,7 @@ public sealed class MainForm : Form
         _workspace.MarkDirty();
         _canvas.Invalidate();
         UpdateUndoRedoButtons();
-        PushEditorStatusLine();
+        RefreshTransferWarnings();
     }
 
     internal void LaunchFrogGameClient()
@@ -2371,6 +2389,12 @@ public sealed class MainForm : Form
             {
                 LastPlaytestErrorForTest = "Aucune carte ouverte.";
                 _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
+                return;
+            }
+
+            if (!ConfirmTransferPlaytestGate())
+            {
+                LastPlaytestErrorForTest = "Playtest annulé : transferts à corriger.";
                 return;
             }
 
@@ -2810,6 +2834,7 @@ public sealed class MainForm : Form
         _syncingMapEventOverlay = true;
         try
         {
+            _eventTransferLinks = Array.Empty<MapTransferLink>();
             if (_mapEventService is null || !_mapEventService.IsAvailable)
             {
                 _canvas.MapEventMarkers = null;
@@ -2824,10 +2849,12 @@ public sealed class MainForm : Form
                 {
                     var rows = _mapEventService.LoadPlacementsForMap(mapId);
                     _canvas.MapEventMarkers = MapEventsPostgreSqlService.ToMarkerViews(rows);
+                    _eventTransferLinks = BuildEventTransferLinks(rows);
                 }
                 catch
                 {
                     _canvas.MapEventMarkers = null;
+                    _eventTransferLinks = Array.Empty<MapTransferLink>();
                 }
             }
 
@@ -2841,7 +2868,275 @@ public sealed class MainForm : Form
         {
             _syncingMapEventOverlay = false;
         }
+
+        RefreshTransferWarnings();
     }
+
+    internal void ShowTransferIssues()
+    {
+        RefreshMapEventMarkers();
+        if (_transferIssues.Count == 0)
+        {
+            _dialogService.ShowInfo(
+                "Aucun problème de transfert (carte manquante, hors limites, tuile bloquée ou carte non publiée).",
+                "Transferts");
+            return;
+        }
+
+        FocusTransferIssue(_transferIssues[0]);
+        _dialogService.ShowWarning(MapTransferValidator.FormatIssueList(_transferIssues), "Transferts");
+    }
+
+    internal IReadOnlyList<MapTransferIssue> TransferIssuesForTest => _transferIssues;
+
+    private bool ConfirmTransferPlaytestGate()
+    {
+        RefreshTransferWarnings();
+        var message = MapTransferValidator.FormatPlaytestGateMessage(_transferIssues);
+        if (message is null)
+        {
+            return true;
+        }
+
+        return _dialogService.ConfirmYesNo(message, "Transferts");
+    }
+
+    private void RefreshTransferWarnings()
+    {
+        if (IsDisposed || _canvas.IsDisposed)
+        {
+            return;
+        }
+
+        IReadOnlyList<MapTransferIssue> issues;
+        if (_canvas.Map is null)
+        {
+            issues = Array.Empty<MapTransferIssue>();
+        }
+        else
+        {
+            var links = MapTransferScanner.ScanWarps(_canvas.Map);
+            foreach (var link in _eventTransferLinks)
+            {
+                links.Add(link);
+            }
+
+            var context = MapTransferCatalogBuilder.Build(
+                _canvas.Map,
+                _workspace?.CurrentMapId,
+                _workspace?.Catalog ?? Array.Empty<MapCatalogEntry>(),
+                TryLoadTransferMap);
+            issues = MapTransferValidator.Validate(links, context);
+        }
+
+        _transferIssues = issues.ToList();
+        _transferIssuesPanel.SetIssues(_transferIssues);
+        _canvas.SetTransferIssueTiles(_transferIssues.Select(issue => (issue.SourceX, issue.SourceY)));
+        PushEditorStatusLine();
+    }
+
+    private void FocusTransferIssue(MapTransferIssue issue)
+    {
+        _lastHoverTile = new Point(issue.SourceX, issue.SourceY);
+        _canvas.CenterViewOnTile(issue.SourceX, issue.SourceY);
+        if (_canvas.MapEventMarkers is { } markers)
+        {
+            foreach (var marker in markers)
+            {
+                if (marker.TileX == issue.SourceX && marker.TileY == issue.SourceY)
+                {
+                    _canvas.HighlightMapEventMarker(issue.SourceX, issue.SourceY, marker.PrimaryPlacementKey);
+                    break;
+                }
+            }
+        }
+
+        if (issue.SourceKind == MapTransferSourceKind.Warp && _canvas.Map is not null)
+        {
+            Tile? tile = null;
+            foreach (var layer in _canvas.Map.Layers)
+            {
+                tile = layer.Tiles.FirstOrDefault(t =>
+                    t.X == issue.SourceX && t.Y == issue.SourceY && t.Type == TileType.Warp);
+                if (tile is not null)
+                {
+                    break;
+                }
+            }
+
+            if (tile is not null)
+            {
+                _propGrid.SelectedObject = tile;
+            }
+        }
+
+        PushEditorStatusLine();
+    }
+
+    private MapTransferLoadedMap TryLoadTransferMap(Guid mapId)
+    {
+        if (_workspace is null || _mapRepository is null || mapId == Guid.Empty)
+        {
+            return new MapTransferLoadedMap(null, false);
+        }
+
+        if (_workspace.CurrentMapId == mapId)
+        {
+            return new MapTransferLoadedMap(null, false);
+        }
+
+        var entry = _workspace.Catalog.FirstOrDefault(item => item.MapId == mapId);
+        if (entry is null)
+        {
+            return new MapTransferLoadedMap(null, false);
+        }
+
+        if (_transferMapCache.TryGetValue(mapId, out var cached)
+            && cached.DraftRevision == entry.Revision
+            && cached.PublishedRevision == entry.PublishedRevision)
+        {
+            return new MapTransferLoadedMap(cached.Map, cached.IsPublished);
+        }
+
+        try
+        {
+            StoredMap? stored = null;
+            var published = false;
+            if (entry.PublishedRevision is not null)
+            {
+                stored = MapEventsPostgreSqlService.RunOffUiSyncContext(
+                    () => _mapRepository.LoadPublishedByIdAsync(mapId));
+                published = stored is not null;
+            }
+
+            if (stored is null)
+            {
+                stored = MapEventsPostgreSqlService.RunOffUiSyncContext(
+                    () => _mapRepository.LoadByIdAsync(mapId));
+                published = false;
+            }
+
+            if (stored?.Map is null)
+            {
+                return new MapTransferLoadedMap(null, false);
+            }
+
+            _transferMapCache[mapId] = new CachedTransferMap(entry.Revision, entry.PublishedRevision, stored.Map, published);
+            return new MapTransferLoadedMap(stored.Map, published);
+        }
+        catch
+        {
+            return new MapTransferLoadedMap(null, false);
+        }
+    }
+
+    private IReadOnlyList<MapTransferLink> BuildEventTransferLinks(IReadOnlyList<PgMapEventPlacementRow> rows)
+    {
+        if (_mapEventService is null || rows.Count == 0)
+        {
+            return Array.Empty<MapTransferLink>();
+        }
+
+        var links = new List<MapTransferLink>();
+        var definitions = new Dictionary<Guid, MapEventDefinition?>();
+        var commonEvents = new Dictionary<Guid, CommonEventDefinition?>();
+        IReadOnlyList<Phase8ContentListRow>? commonRows = null;
+        foreach (var row in rows)
+        {
+            if (!definitions.TryGetValue(row.EventDefinitionId, out var definition))
+            {
+                definition = _mapEventService.TryLoadDefinition(row.EventDefinitionId);
+                definitions[row.EventDefinitionId] = definition;
+            }
+
+            if (definition is null)
+            {
+                continue;
+            }
+
+            var name = string.IsNullOrWhiteSpace(row.DisplayName) ? row.Slug : row.DisplayName;
+            MapTransferScanner.AppendEventTeleports(
+                links,
+                row.TileX,
+                row.TileY,
+                name,
+                definition.Pages,
+                LookupCommonEvent);
+        }
+
+        return links;
+
+        (bool Found, string Name, IReadOnlyList<MapEventPageDefinition> Pages) LookupCommonEvent(Guid? id, int? alias)
+        {
+            var resolved = id is Guid guid && guid != Guid.Empty ? guid : Guid.Empty;
+            if (resolved == Guid.Empty && alias is int editorAlias && editorAlias > 0 && _phase8ContentService is { IsAvailable: true })
+            {
+                try
+                {
+                    commonRows ??= MapEventsPostgreSqlService.RunOffUiSyncContext(
+                        () => _phase8ContentService.ListAsync(Phase8ContentKind.CommonEvent));
+                }
+                catch
+                {
+                    commonRows = Array.Empty<Phase8ContentListRow>();
+                }
+
+                foreach (var commonRow in commonRows)
+                {
+                    if (commonRow.EditorAliasId == editorAlias)
+                    {
+                        resolved = commonRow.Id;
+                        break;
+                    }
+                }
+            }
+
+            if (resolved == Guid.Empty)
+            {
+                return (false, string.Empty, Array.Empty<MapEventPageDefinition>());
+            }
+
+            if (!commonEvents.TryGetValue(resolved, out var commonEvent))
+            {
+                commonEvent = TryLoadCommonEvent(resolved);
+                commonEvents[resolved] = commonEvent;
+            }
+
+            if (commonEvent is null)
+            {
+                return (false, string.Empty, Array.Empty<MapEventPageDefinition>());
+            }
+
+            return (true, commonEvent.Name, commonEvent.Pages);
+        }
+    }
+
+    private CommonEventDefinition? TryLoadCommonEvent(Guid id)
+    {
+        if (_phase8ContentService is not { IsAvailable: true })
+        {
+            return null;
+        }
+
+        try
+        {
+            var stored = MapEventsPostgreSqlService.RunOffUiSyncContext(
+                () => _phase8ContentService.LoadDraftAsync(id));
+            if (stored is null
+                || !Phase8ContentPostgreSqlService.TryDeserialize(stored.PayloadJson, out CommonEventDefinition definition, out _))
+            {
+                return null;
+            }
+
+            return definition;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private sealed record CachedTransferMap(long DraftRevision, long? PublishedRevision, Map Map, bool IsPublished);
 
     internal bool MapEventMarkersVisible
     {
@@ -3143,7 +3438,7 @@ public sealed class MainForm : Form
         }
 
         var panel1Min = 100;
-        var panel2Min = 160;
+        var panel2Min = 280;
         var maxDist = h - panel2Min - sw;
         if (maxDist < panel1Min)
         {

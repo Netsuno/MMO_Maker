@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Controls.Primitives;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -94,6 +95,11 @@ public partial class MainWindow : Window
     public static readonly RoutedUICommand CmdValidateMap = new(
         "Valider la carte…",
         nameof(CmdValidateMap),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdShowTransferIssues = new(
+        "Vérifier les transferts…",
+        nameof(CmdShowTransferIssues),
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdSpawnTool = new(
@@ -207,6 +213,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdOpenTileset, (_, _) => _editor.OpenTileset()));
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
+        CommandBindings.Add(new CommandBinding(CmdShowTransferIssues, (_, _) => _editor.ShowTransferIssues()));
         CommandBindings.Add(new CommandBinding(CmdSpawnTool, (_, _) => _editor.SelectEditorTool(EditorTool.Spawn)));
         CommandBindings.Add(new CommandBinding(CmdPrefabTool, (_, _) => _editor.SelectEditorTool(EditorTool.Prefab)));
         CommandBindings.Add(new CommandBinding(CmdRotateSelection, (_, _) => _editor.TryRotateSelection90()));
@@ -484,10 +491,23 @@ public partial class MainWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.Invoke(() => TileStatusText.Text = text);
+            Dispatcher.Invoke(() => OnTileHoverStatusChanged(text));
             return;
         }
 
         TileStatusText.Text = text;
+        TileStatusText.Foreground = text.Contains("à corriger", StringComparison.Ordinal)
+            ? StatusWarnBrush
+            : StatusBrush;
+    }
+
+    private static readonly SolidColorBrush StatusBrush = CreateFrozenBrush(0xEB, 0xEE, 0xF5);
+    private static readonly SolidColorBrush StatusWarnBrush = CreateFrozenBrush(0xFF, 0xBA, 0x5C);
+
+    private static SolidColorBrush CreateFrozenBrush(byte red, byte green, byte blue)
+    {
+        var brush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(red, green, blue));
+        brush.Freeze();
+        return brush;
     }
 }

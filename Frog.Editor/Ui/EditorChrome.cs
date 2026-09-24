@@ -25,6 +25,9 @@ internal static class EditorChrome
     public static readonly Color RibbonAccentDim = Color.FromArgb(70, 130, 200);
     public static readonly Color LabelPrimary = Color.FromArgb(235, 238, 245);
     public static readonly Color LabelMuted = Color.FromArgb(148, 155, 170);
+
+    /// <summary>Alerte douce (transferts invalides), lisible sur le fond sombre.</summary>
+    public static readonly Color WarningAmber = Color.FromArgb(255, 186, 92);
     public static readonly Color PrimaryButtonBg = Color.FromArgb(92, 130, 255);
     public static readonly Color PrimaryButtonHover = Color.FromArgb(112, 150, 255);
 
