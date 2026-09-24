@@ -7,7 +7,7 @@
 | **Statut** | Planche jouable : cercle tête/corps existant, barres Kenney lisibles |
 | **Base** | `main` @ `3dbf63f` |
 | **Branche** | `cursor/client-status-hud-planche-1243` |
-| **PR** | Draft vers `main` |
+| **PR** | Draft [#51](https://github.com/Netsuno/MMO_Maker/pull/51) vers `main` — **pas de merge** |
 | **Protocole** | **v11** inchangé |
 
 Présentation du statut HG seulement. Pas de nouvelle planche de skin, pas de génération paperdoll, pas de bump protocole.
