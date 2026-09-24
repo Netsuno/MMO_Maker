@@ -10,7 +10,7 @@ namespace Frog.Client.UI;
 /// <summary>
 /// Eldiran CC0 32×32 top-down player (blue knight) plus original paperdoll overlays.
 /// Idle + 4-dir walk composite each cell in <see cref="CompositeDrawOrder"/>:
-/// body → tunic (empty) → armor → head → hat → weapon.
+/// body → tunic → armor → head → hat → weapon.
 /// Combined <c>player.png</c> is south idle for fallback. Never Graal sheets.
 /// Hat / weapon stay on that order for every walk frame (the up-facing blade
 /// sits beside the body, still drawn last).
@@ -20,12 +20,14 @@ internal static class PlayerWorldAssets
     public const string RelativePath = "Assets/World/player.png";
     public const string BodyRelativePath = "Assets/World/player-body.png";
     public const string HeadRelativePath = "Assets/World/player-head.png";
+    public const string TunicRelativePath = "Assets/World/player-tunic.png";
     public const string ArmorRelativePath = "Assets/World/player-armor.png";
     public const string HatRelativePath = "Assets/World/player-hat.png";
     public const string WeaponRelativePath = "Assets/World/player-weapon.png";
     public const string WalkRelativePath = "Assets/World/player-walk.png";
     public const string WalkBodyRelativePath = "Assets/World/player-walk-body.png";
     public const string WalkHeadRelativePath = "Assets/World/player-walk-head.png";
+    public const string WalkTunicRelativePath = "Assets/World/player-walk-tunic.png";
     public const string WalkArmorRelativePath = "Assets/World/player-walk-armor.png";
     public const string WalkHatRelativePath = "Assets/World/player-walk-hat.png";
     public const string WalkWeaponRelativePath = "Assets/World/player-walk-weapon.png";
@@ -48,12 +50,14 @@ internal static class PlayerWorldAssets
     private const string EmbeddedName = "Frog.Client.Assets.World.player.png";
     private const string EmbeddedBodyName = "Frog.Client.Assets.World.player-body.png";
     private const string EmbeddedHeadName = "Frog.Client.Assets.World.player-head.png";
+    private const string EmbeddedTunicName = "Frog.Client.Assets.World.player-tunic.png";
     private const string EmbeddedArmorName = "Frog.Client.Assets.World.player-armor.png";
     private const string EmbeddedHatName = "Frog.Client.Assets.World.player-hat.png";
     private const string EmbeddedWeaponName = "Frog.Client.Assets.World.player-weapon.png";
     private const string EmbeddedWalkName = "Frog.Client.Assets.World.player-walk.png";
     private const string EmbeddedWalkBodyName = "Frog.Client.Assets.World.player-walk-body.png";
     private const string EmbeddedWalkHeadName = "Frog.Client.Assets.World.player-walk-head.png";
+    private const string EmbeddedWalkTunicName = "Frog.Client.Assets.World.player-walk-tunic.png";
     private const string EmbeddedWalkArmorName = "Frog.Client.Assets.World.player-walk-armor.png";
     private const string EmbeddedWalkHatName = "Frog.Client.Assets.World.player-walk-hat.png";
     private const string EmbeddedWalkWeaponName = "Frog.Client.Assets.World.player-walk-weapon.png";
@@ -64,6 +68,7 @@ internal static class PlayerWorldAssets
     private static Bitmap?[,,]? _overlayFrames;
     private static Bitmap? _bodySheet;
     private static Bitmap? _headSheet;
+    private static Bitmap? _tunicSheet;
     private static Bitmap? _armorSheet;
     private static Bitmap? _hatSheet;
     private static Bitmap? _weaponSheet;
@@ -238,6 +243,7 @@ internal static class PlayerWorldAssets
 
             _bodySheet = LoadWalkOrIdle(WalkBodyRelativePath, EmbeddedWalkBodyName, BodyRelativePath, EmbeddedBodyName);
             _headSheet = LoadWalkOrIdle(WalkHeadRelativePath, EmbeddedWalkHeadName, HeadRelativePath, EmbeddedHeadName);
+            _tunicSheet = LoadWalkOrIdle(WalkTunicRelativePath, EmbeddedWalkTunicName, TunicRelativePath, EmbeddedTunicName);
             _armorSheet = LoadWalkOrIdle(WalkArmorRelativePath, EmbeddedWalkArmorName, ArmorRelativePath, EmbeddedArmorName);
             _hatSheet = LoadWalkOrIdle(WalkHatRelativePath, EmbeddedWalkHatName, HatRelativePath, EmbeddedHatName);
             _weaponSheet = LoadWalkOrIdle(WalkWeaponRelativePath, EmbeddedWalkWeaponName, WeaponRelativePath, EmbeddedWeaponName);
@@ -310,7 +316,7 @@ internal static class PlayerWorldAssets
     private static Bitmap? SheetFor(PlayerSpriteSlot slot) => slot switch
     {
         PlayerSpriteSlot.Body => _bodySheet,
-        PlayerSpriteSlot.Tunic => null,
+        PlayerSpriteSlot.Tunic => _tunicSheet,
         PlayerSpriteSlot.Armor => _armorSheet,
         PlayerSpriteSlot.Head => _headSheet,
         PlayerSpriteSlot.Hat => _hatSheet,
@@ -361,7 +367,7 @@ internal static class PlayerWorldAssets
         g.Clear(Color.Transparent);
         var src = new Rectangle(srcX, srcY, NativeSize, NativeSize);
         var dst = new Rectangle(0, 0, NativeSize, NativeSize);
-        // Draw order when nothing is equipped: Body → (Tunic/Armor empty) → Head → (Hat/Weapon empty).
+        // Draw order when nothing is equipped: Body → Head. Overlays stay off.
         g.DrawImage(body, dst, src, GraphicsUnit.Pixel);
         g.DrawImage(head, dst, src, GraphicsUnit.Pixel);
         return composed;

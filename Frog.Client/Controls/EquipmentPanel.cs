@@ -6,28 +6,34 @@ using Frog.Core.Protocol;
 
 namespace Frog.Client.Controls;
 
-/// <summary>Affichage équipement actif + déséquiper. Le casque est local (pas sur le fil).</summary>
+/// <summary>Affichage équipement actif + déséquiper. Casque et tunique sont locaux (pas sur le fil).</summary>
 public sealed class EquipmentPanel : UserControl
 {
     private readonly Label _lblWeapon = new() { AutoSize = true, Text = "Arme: —", Margin = new Padding(2, 1, 2, 1) };
     private readonly Label _lblArmor = new() { AutoSize = true, Text = "Armure: —", Margin = new Padding(2, 1, 2, 1) };
+    private readonly Label _lblTunic = new() { AutoSize = true, Text = "Tunique: —", Margin = new Padding(2, 1, 2, 1) };
     private readonly Label _lblHeadwear = new() { AutoSize = true, Text = "Casque: —", Margin = new Padding(2, 1, 2, 1) };
     private readonly Button _btnUnequipWeapon = new() { Text = "Déséquiper arme", AutoSize = true, Margin = new Padding(2, 1, 2, 1) };
     private readonly Button _btnUnequipArmor = new() { Text = "Déséquiper armure", AutoSize = true, Margin = new Padding(2, 1, 2, 1) };
+    private readonly Button _btnToggleTunic = new() { Text = "Porter la tunique", AutoSize = true, Margin = new Padding(2, 1, 2, 1) };
     private readonly Button _btnToggleHeadwear = new() { Text = "Porter le casque", AutoSize = true, Margin = new Padding(2, 1, 2, 1) };
     private InventorySnapshotWire? _snapshot;
     private Func<Guid, string> _nameLookup = static id => id.ToString("N");
     private bool _localHeadwear;
+    private bool _localTunic;
 
     public event Action<EquipmentSlotKind>? UnequipRequested;
 
     /// <summary><c>true</c> quand le casque placeholder local est porté.</summary>
     public event Action<bool>? LocalHeadwearChanged;
 
+    /// <summary><c>true</c> quand la tunique placeholder locale est portée.</summary>
+    public event Action<bool>? LocalTunicChanged;
+
     public EquipmentPanel()
     {
-        Size = new Size(220, 176);
-        MinimumSize = new Size(200, 176);
+        Size = new Size(220, 240);
+        MinimumSize = new Size(200, 240);
         var flow = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -39,6 +45,8 @@ public sealed class EquipmentPanel : UserControl
         flow.Controls.Add(_btnUnequipWeapon);
         flow.Controls.Add(_lblArmor);
         flow.Controls.Add(_btnUnequipArmor);
+        flow.Controls.Add(_lblTunic);
+        flow.Controls.Add(_btnToggleTunic);
         flow.Controls.Add(_lblHeadwear);
         flow.Controls.Add(_btnToggleHeadwear);
         Controls.Add(flow);
@@ -46,6 +54,7 @@ public sealed class EquipmentPanel : UserControl
         Paint += (s, e) => UiTheme.PaintDoubleGoldFrame(this, e);
         _btnUnequipWeapon.Click += (_, _) => UnequipRequested?.Invoke(EquipmentSlotKind.Weapon);
         _btnUnequipArmor.Click += (_, _) => UnequipRequested?.Invoke(EquipmentSlotKind.Armor);
+        _btnToggleTunic.Click += (_, _) => ToggleLocalTunic();
         _btnToggleHeadwear.Click += (_, _) => ToggleLocalHeadwear();
     }
 
@@ -83,11 +92,20 @@ public sealed class EquipmentPanel : UserControl
         ApplyHeadwearLabel();
     }
 
+    /// <summary>Retire la tunique locale sans notifier (logout / changement de perso).</summary>
+    public void ResetLocalTunic()
+    {
+        _localTunic = false;
+        ApplyTunicLabel();
+    }
+
     internal void ClickUnequipWeaponForTest() => _btnUnequipWeapon.PerformClick();
 
     internal void ClickUnequipArmorForTest() => _btnUnequipArmor.PerformClick();
 
     internal void ClickToggleHeadwearForTest() => _btnToggleHeadwear.PerformClick();
+
+    internal void ClickToggleTunicForTest() => _btnToggleTunic.PerformClick();
 
     internal string WeaponLabelTextForTest => _lblWeapon.Text;
 
@@ -96,6 +114,10 @@ public sealed class EquipmentPanel : UserControl
     internal string HeadwearLabelTextForTest => _lblHeadwear.Text;
 
     internal string HeadwearButtonTextForTest => _btnToggleHeadwear.Text;
+
+    internal string TunicLabelTextForTest => _lblTunic.Text;
+
+    internal string TunicButtonTextForTest => _btnToggleTunic.Text;
 
     internal bool UnequipWeaponEnabledForTest => _btnUnequipWeapon.Enabled;
 
@@ -110,5 +132,18 @@ public sealed class EquipmentPanel : UserControl
     {
         _lblHeadwear.Text = _localHeadwear ? "Casque: porté (local)" : "Casque: —";
         _btnToggleHeadwear.Text = _localHeadwear ? "Retirer le casque" : "Porter le casque";
+    }
+
+    private void ToggleLocalTunic()
+    {
+        _localTunic = !_localTunic;
+        ApplyTunicLabel();
+        LocalTunicChanged?.Invoke(_localTunic);
+    }
+
+    private void ApplyTunicLabel()
+    {
+        _lblTunic.Text = _localTunic ? "Tunique: portée (local)" : "Tunique: —";
+        _btnToggleTunic.Text = _localTunic ? "Retirer la tunique" : "Porter la tunique";
     }
 }

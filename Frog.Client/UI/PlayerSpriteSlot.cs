@@ -4,7 +4,7 @@ namespace Frog.Client.UI;
 
 /// <summary>
 /// World-player composite slots. Body + head are the Eldiran base.
-/// Tunic stays empty (no separate sheet). Armor, hat, and weapon are optional overlays.
+/// Tunic, armor, hat, and weapon are optional overlays.
 /// Draw order: body → tunic → armor → head → hat → weapon.
 /// Values match <c>Frog.Core.Gameplay.PaperdollLayer</c>.
 /// Original or Eldiran CC0 only — never Graal sheets.
