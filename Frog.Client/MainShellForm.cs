@@ -1723,12 +1723,6 @@ public sealed class MainShellForm : Form
     private void OnDamageEvent(DamageEvent ev)
     {
         _combatHud.Apply(ev, DateTime.UtcNow);
-        if (CombatEffect.ShouldFlash(_combatHud))
-        {
-            _hudHotbar.FlashMeleeSlot(_combatHud.FlashCrit);
-            _combatHud.ClearFlash();
-        }
-
         var hpSuffix = ev.Killed ? " (vaincu)" : $" ({ev.RemainingHp}/{ev.MaxHp})";
         AppendLog(!ev.Hit
             ? $"Raté → {ev.TargetName}"

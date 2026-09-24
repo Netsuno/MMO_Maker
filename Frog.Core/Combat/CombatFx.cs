@@ -12,7 +12,7 @@ public enum CombatFxKind : byte
     Crit = 4,
 }
 
-/// <summary>Cue client : texte, flash hotbar, taille. Testable sans WinForms.</summary>
+/// <summary>Cue client : texte français, flash sprite, taille. Testable sans WinForms.</summary>
 public readonly record struct CombatFxCue(CombatFxKind Kind, string Text, bool Flash, float EmSize)
 {
     public bool Visible => Kind != CombatFxKind.None && Text.Length > 0;
@@ -29,6 +29,25 @@ public static class CombatFx
     public const float HitEmSize = 9f;
 
     public const float CritEmSize = 13f;
+
+    /// <summary>Jaune saturé — nombre de dégâts lisible sur une tuile, pas un or d'interface.</summary>
+    public const int HitArgb = unchecked((int)0xFFFFFF00);
+
+    /// <summary>Blanc plein pour le coup qui achève.</summary>
+    public const int KillArgb = unchecked((int)0xFFFFFFFF);
+
+    /// <summary>Gris pour « Raté ».</summary>
+    public const int MissArgb = unchecked((int)0xFFB0B0B0);
+
+    /// <summary>Rouge saturé — critique plus fort que le jaune, sans lueur.</summary>
+    public const int CritArgb = unchecked((int)0xFFFF2020);
+
+    public const int OutlineArgb = unchecked((int)0xFF000000);
+
+    /// <summary>Clignotement blanc du sprite (une frame classique), pas un flash d'interface.</summary>
+    public const int SpriteFlashMs = 120;
+
+    public const int SpriteSizePx = 32;
 
     public static CombatFxCue MissCue { get; } = new(CombatFxKind.Miss, MissText, Flash: false, HitEmSize);
 
@@ -73,8 +92,31 @@ public static class CombatFx
             || message.Contains("en face", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Ancre au-dessus des pieds du joueur. Le nombre monte (Y diminue) avec l'âge.</summary>
-    public static (float X, float Y) Place(
+    public static int ArgbFor(CombatFxKind kind) => kind switch
+    {
+        CombatFxKind.Crit => CritArgb,
+        CombatFxKind.Kill => KillArgb,
+        CombatFxKind.Miss => MissArgb,
+        _ => HitArgb,
+    };
+
+    /// <summary>Flash sprite seulement sur un coup qui porte, et seulement au tout début.</summary>
+    public static bool ShowSpriteFlash(CombatFxKind kind, double ageMs)
+        => kind is CombatFxKind.Hit or CombatFxKind.Kill or CombatFxKind.Crit
+           && ageMs >= 0
+           && ageMs < SpriteFlashMs;
+
+    /// <summary>Rectangle du sprite pieds-ancré, en pixels entiers.</summary>
+    public static (int X, int Y, int Size) SpriteFlashRect(float feetX, float feetY)
+    {
+        var size = SpriteSizePx;
+        var x = (int)MathF.Round(feetX - (size / 2f));
+        var y = (int)MathF.Round(feetY - size + 1f);
+        return (x, y, size);
+    }
+
+    /// <summary>Ancre au-dessus des pieds, en pixels entiers. Le nombre monte (Y diminue).</summary>
+    public static (int X, int Y) Place(
         float feetX,
         float feetY,
         int risePixels,
@@ -84,12 +126,12 @@ public static class CombatFx
     {
         var nudgeX = facing switch
         {
-            Direction.Left => -12f,
-            Direction.Right => 12f,
-            _ => 0f,
+            Direction.Left => -12,
+            Direction.Right => 12,
+            _ => 0,
         };
-        var x = feetX + nudgeX + (stackIndex * 10f);
-        var y = feetY - (28f + emSize) - risePixels;
+        var x = (int)MathF.Round(feetX) + nudgeX + (stackIndex * 10);
+        var y = (int)MathF.Round(feetY - (28f + emSize) - risePixels);
         return (x, y);
     }
 }

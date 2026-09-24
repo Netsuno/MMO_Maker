@@ -44,6 +44,31 @@ public sealed class CombatFxTests
     }
 
     [Fact]
+    public void ClassicTopDown_YellowNumber_RedCrit_GreyMiss_BriefWhiteFlash()
+    {
+        Assert.Equal(CombatFx.HitArgb, CombatFx.ArgbFor(CombatFxKind.Hit));
+        Assert.Equal(CombatFx.CritArgb, CombatFx.ArgbFor(CombatFxKind.Crit));
+        Assert.Equal(CombatFx.KillArgb, CombatFx.ArgbFor(CombatFxKind.Kill));
+        Assert.Equal(CombatFx.MissArgb, CombatFx.ArgbFor(CombatFxKind.Miss));
+        Assert.Equal(0xFF, (CombatFx.HitArgb >> 16) & 0xFF);
+        Assert.Equal(0xFF, (CombatFx.HitArgb >> 8) & 0xFF);
+        Assert.Equal(0x00, CombatFx.HitArgb & 0xFF);
+        Assert.True(((CombatFx.CritArgb >> 16) & 0xFF) > ((CombatFx.CritArgb >> 8) & 0xFF));
+        Assert.Equal("Raté", CombatFx.MissText);
+
+        Assert.True(CombatFx.ShowSpriteFlash(CombatFxKind.Hit, 0));
+        Assert.True(CombatFx.ShowSpriteFlash(CombatFxKind.Crit, CombatFx.SpriteFlashMs - 1));
+        Assert.True(CombatFx.ShowSpriteFlash(CombatFxKind.Kill, 40));
+        Assert.False(CombatFx.ShowSpriteFlash(CombatFxKind.Hit, CombatFx.SpriteFlashMs));
+        Assert.False(CombatFx.ShowSpriteFlash(CombatFxKind.Miss, 0));
+
+        var rect = CombatFx.SpriteFlashRect(48.2f, 80.6f);
+        Assert.Equal(CombatFx.SpriteSizePx, rect.Size);
+        Assert.Equal(32, rect.X);
+        Assert.Equal(50, rect.Y);
+    }
+
+    [Fact]
     public void IsSwingMiss_OnlyRangeAndFacing_NotCooldownOrDeath()
     {
         Assert.True(CombatFx.IsSwingMiss(false, "Hors portee."));

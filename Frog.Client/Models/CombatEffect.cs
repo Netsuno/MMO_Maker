@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using Frog.Core.Combat;
 using Frog.Core.Constants;
@@ -7,7 +8,10 @@ using Frog.Client.UI;
 
 namespace Frog.Client.Models;
 
-/// <summary>Floats de dégâts sur le bitmap carte (police UI, pas de moteur de particules).</summary>
+/// <summary>
+/// Nombres flottants et clignotement blanc du sprite.
+/// Style MMO 2D vu de dessus : pixels nets, contour noir, pas de lueur.
+/// </summary>
 internal static class CombatEffect
 {
     public static void Draw(
@@ -24,10 +28,20 @@ internal static class CombatEffect
         }
 
         using var g = Graphics.FromImage(bmp);
-        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        g.SmoothingMode = SmoothingMode.None;
+        g.InterpolationMode = InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = PixelOffsetMode.None;
+        g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
         using var hitFont = UiTheme.UiFont(CombatFx.HitEmSize, FontStyle.Bold);
         using var critFont = UiTheme.UiFont(CombatFx.CritEmSize, FontStyle.Bold);
-        using var shadow = new SolidBrush(Color.FromArgb(220, 14, 18, 24));
+        using var outline = new SolidBrush(Color.FromArgb(CombatFx.OutlineArgb));
+
+        if (NeedsSpriteFlash(floats, utcNow))
+        {
+            var (sx, sy, size) = CombatFx.SpriteFlashRect(feetX, feetY);
+            g.FillRectangle(Brushes.White, sx, sy, size, size);
+        }
+
         for (var i = 0; i < floats.Count; i++)
         {
             var ev = floats[i];
@@ -39,14 +53,15 @@ internal static class CombatEffect
             var font = ev.Kind == CombatFxKind.Crit ? critFont : hitFont;
             var (x, y) = CombatFx.Place(feetX, feetY, ev.RisePixels(utcNow), ev.EmSize, facing, i);
             var size = g.MeasureString(ev.Text, font);
-            x -= size.Width / 2f;
+            x -= (int)MathF.Round(size.Width / 2f);
+            var maxX = Math.Max(2, bmp.Width - 2 - (int)MathF.Ceiling(size.Width));
             if (x < 2)
             {
                 x = 2;
             }
-            else if (x + size.Width > bmp.Width - 2)
+            else if (x > maxX)
             {
-                x = Math.Max(2, bmp.Width - 2 - size.Width);
+                x = maxX;
             }
 
             if (y < 2)
@@ -54,9 +69,8 @@ internal static class CombatEffect
                 y = 2;
             }
 
-            using var brush = new SolidBrush(ColorFor(ev.Kind));
-            g.DrawString(ev.Text, font, shadow, x + 1f, y + 1f);
-            g.DrawString(ev.Text, font, brush, x, y);
+            using var brush = new SolidBrush(Color.FromArgb(CombatFx.ArgbFor(ev.Kind)));
+            DrawOutlined(g, ev.Text, font, brush, outline, x, y);
         }
     }
 
@@ -64,11 +78,31 @@ internal static class CombatEffect
 
     public static int LifetimeMs => CombatMvpLimits.FloatingNumberLifetimeMs;
 
-    private static Color ColorFor(CombatFxKind kind) => kind switch
+    private static bool NeedsSpriteFlash(IReadOnlyList<FloatingCombatNumber> floats, DateTime utcNow)
     {
-        CombatFxKind.Crit => Color.FromArgb(255, 255, 236, 150),
-        CombatFxKind.Kill => Color.FromArgb(255, 220, 80, 40),
-        CombatFxKind.Miss => Color.FromArgb(255, 176, 182, 194),
-        _ => Color.FromArgb(255, 255, 210, 80),
-    };
+        foreach (var ev in floats)
+        {
+            if (ev.IsExpired(utcNow))
+            {
+                continue;
+            }
+
+            var age = (utcNow - ev.CreatedUtc).TotalMilliseconds;
+            if (CombatFx.ShowSpriteFlash(ev.Kind, age))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void DrawOutlined(Graphics g, string text, Font font, Brush fill, Brush outline, int x, int y)
+    {
+        g.DrawString(text, font, outline, x - 1, y);
+        g.DrawString(text, font, outline, x + 1, y);
+        g.DrawString(text, font, outline, x, y - 1);
+        g.DrawString(text, font, outline, x, y + 1);
+        g.DrawString(text, font, fill, x, y);
+    }
 }
