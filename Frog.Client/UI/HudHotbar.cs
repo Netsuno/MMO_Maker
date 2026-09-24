@@ -134,13 +134,13 @@ public sealed class HudHotbar : Panel
     }
 
     /// <summary>Flash court du slot mêlée (0) — restaure le chrome DA v2 ensuite.</summary>
-    public void FlashMeleeSlot()
+    public void FlashMeleeSlot(bool crit = false)
     {
         var btn = _slots[0];
         var restoreBack = btn.BackColor;
         var restoreFore = btn.ForeColor;
-        btn.BackColor = Color.FromArgb(180, 70, 40);
-        btn.ForeColor = UiTheme.TextPrimary;
+        btn.BackColor = crit ? Color.FromArgb(232, 197, 71) : Color.FromArgb(180, 70, 40);
+        btn.ForeColor = crit ? Color.FromArgb(14, 18, 24) : UiTheme.TextPrimary;
         var timer = new System.Windows.Forms.Timer { Interval = 120 };
         timer.Tick += (_, _) =>
         {

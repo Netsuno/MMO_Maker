@@ -64,6 +64,7 @@ public sealed class CombatMvpWireTests
         Assert.Equal(ev.RemainingHp, parsed.RemainingHp);
         Assert.True(parsed.Hit);
         Assert.False(parsed.Killed);
+        Assert.False(parsed.Crit);
 
         var name = System.Text.Encoding.UTF8.GetBytes("Slime");
         var msg = System.Text.Encoding.UTF8.GetBytes("Touche.");
@@ -85,6 +86,7 @@ public sealed class CombatMvpWireTests
         Assert.True(CombatMvpWire.TryParseMeleeResult(withTrailer, out _, out _, out _, out var dmg2));
         Assert.True(dmg2.HasValue);
         Assert.Equal(12, dmg2.Value.Damage);
+        Assert.False(dmg2.Value.Crit);
     }
 
     [Fact]

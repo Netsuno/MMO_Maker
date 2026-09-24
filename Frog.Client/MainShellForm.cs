@@ -623,9 +623,13 @@ public sealed class MainShellForm : Form
         {
             RedrawMap();
         }
-        else if (_weatherPlan.ParticleCount > 0)
+        else if (_weatherPlan.ParticleCount > 0 || _combatHud.HasFloats)
         {
-            _weatherTickMs += _smoothTimer.Interval;
+            if (_weatherPlan.ParticleCount > 0)
+            {
+                _weatherTickMs += _smoothTimer.Interval;
+            }
+
             RedrawMap();
         }
 
@@ -1419,7 +1423,13 @@ public sealed class MainShellForm : Form
             AppendLog(r.Success ? "Échange: " + r.Message : "Échange refusé: " + r.Message);
         _client.TradeSnapshotReceived += OnTradeSnapshot;
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
-            AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "rate")} — {msg}");
+        {
+            AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "raté")} — {msg}");
+            if (CombatFx.IsSwingMiss(hit, msg))
+            {
+                OnMeleeMiss();
+            }
+        };
         _client.DamageEventReceived += OnDamageEvent;
         _client.CharacterListReceived += OnCharacterListJson;
         _client.CharacterSelectResultReceived += OnCharacterSelectResult;
@@ -1701,18 +1711,30 @@ public sealed class MainShellForm : Form
         _btnBankWithdrawItem.Enabled = enabled && _lstBank.SelectedItem is BankRow;
     }
 
+    private void OnMeleeMiss()
+    {
+        _combatHud.ApplyMiss(DateTime.UtcNow);
+        if (_phase == ClientUiPhase.Playing)
+        {
+            RedrawMap();
+        }
+    }
+
     private void OnDamageEvent(DamageEvent ev)
     {
         _combatHud.Apply(ev, DateTime.UtcNow);
         if (CombatEffect.ShouldFlash(_combatHud))
         {
-            _hudHotbar.FlashMeleeSlot();
+            _hudHotbar.FlashMeleeSlot(_combatHud.FlashCrit);
             _combatHud.ClearFlash();
         }
 
-        AppendLog(ev.Killed
-            ? $"Dégâts {ev.Damage} → {ev.TargetName} (vaincu)"
-            : $"Dégâts {ev.Damage} → {ev.TargetName} ({ev.RemainingHp}/{ev.MaxHp})");
+        var hpSuffix = ev.Killed ? " (vaincu)" : $" ({ev.RemainingHp}/{ev.MaxHp})";
+        AppendLog(!ev.Hit
+            ? $"Raté → {ev.TargetName}"
+            : ev.Crit
+                ? $"Critique {ev.Damage} → {ev.TargetName}{hpSuffix}"
+                : $"Dégâts {ev.Damage} → {ev.TargetName}{hpSuffix}");
         if (_phase == ClientUiPhase.Playing)
         {
             RedrawMap();
@@ -3418,7 +3440,7 @@ public sealed class MainShellForm : Form
             weatherPlan: _weatherPlan,
             weatherTickMs: _weatherTickMs);
         _combatHud.Tick(DateTime.UtcNow);
-        CombatEffect.Draw(bmp, _combatHud.Floats, DateTime.UtcNow);
+        CombatEffect.Draw(bmp, _combatHud.Floats, DateTime.UtcNow, lcx, lcy, _localFacing);
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
