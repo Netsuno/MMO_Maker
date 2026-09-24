@@ -18,8 +18,8 @@ using Frog.Editor.Ui;
 namespace Frog.Editor.Controls;
 
 /// <summary>
-/// Canvas carte : vue culling pour grandes surfaces, sélection rectangle, Ctrl+C/X/V,
-/// undo intégré (objectifs type RPG Maker, par étapes).
+/// Canvas carte : vue culling pour grandes surfaces, sélection rectangle,
+/// Ctrl+C/X/V sur toutes les couches (Ctrl+Maj = couche active), undo intégré.
 /// </summary>
 public sealed class MapCanvas : Control
 {
@@ -371,58 +371,113 @@ public sealed class MapCanvas : Control
     {
         _selectionMarqueeAnchor = null;
         _committedSelectionTiles = null;
-        Invalidate();
+        NotifyPaintGesture();
     }
 
-    public bool TryCopyTileSelection()
+    public bool TryCopyTileSelection(bool activeLayerOnly = false)
     {
         if (Map is null || !TryGetCommittedSelectionNormalized(out var rect))
         {
             return false;
         }
 
-        EditorTileClipboard.CopyFromLayer(Map, ActiveLayerIndex, rect);
+        if (activeLayerOnly)
+        {
+            EditorTileClipboard.CopyFromLayer(Map, ActiveLayerIndex, rect);
+        }
+        else
+        {
+            EditorTileClipboard.CopyAllLayers(Map, rect);
+        }
+
         return EditorTileClipboard.HasContent;
     }
 
-    public bool TryCutTileSelection()
+    public bool TryCutTileSelection(bool activeLayerOnly = false)
     {
-        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect) || !IsActiveLayerEditable())
+        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect))
         {
             return false;
         }
 
-        EditorTileClipboard.CopyFromLayer(Map, ActiveLayerIndex, rect);
+        var only = activeLayerOnly ? ActiveLayerIndex : (int?)null;
+        if (!MapEditOperations.HasEditableTilesInRect(Map, rect.X, rect.Y, rect.Width, rect.Height, only))
+        {
+            return false;
+        }
+
+        if (!TryCopyTileSelection(activeLayerOnly))
+        {
+            return false;
+        }
+
         BeginEditTransaction();
-        DeleteTilesInRectangle(rect);
+        EraseSelection(rect, activeLayerOnly);
         Invalidate();
         return true;
     }
 
-    public bool TryPasteAtHover()
+    public bool TryPasteAtHover(bool activeLayerOnly = false)
     {
-        if (Map is null || !EditorTileClipboard.HasContent || !IsActiveLayerEditable())
+        if (Map is null || !EditorTileClipboard.HasContent || !PasteAnchorIntersectsMap())
         {
             return false;
         }
 
-        EnsureLayerExists();
+        var singleLayer = activeLayerOnly || EditorTileClipboard.IsSingleLayer;
+        if (singleLayer)
+        {
+            if (!IsActiveLayerEditable())
+            {
+                return false;
+            }
+
+            if (!EditorTileClipboard.IsSingleLayer && !EditorTileClipboard.CapturesLayer(ActiveLayerIndex))
+            {
+                return false;
+            }
+
+            BeginEditTransaction();
+            EnsureLayerExists();
+            var result = EditorTileClipboard.PasteToLayer(
+                Map,
+                ActiveLayerIndex,
+                _hoverTile.X,
+                _hoverTile.Y,
+                Map.Width,
+                Map.Height);
+            Invalidate();
+            RaiseTileClicked(_hoverTile.X, _hoverTile.Y);
+            return result.Changed;
+        }
+
+        if (!EditorTileClipboard.CanPasteAllLayers(Map))
+        {
+            return false;
+        }
+
         BeginEditTransaction();
-        var n = EditorTileClipboard.PasteToLayer(Map, ActiveLayerIndex, _hoverTile.X, _hoverTile.Y, Map.Width, Map.Height);
+        var pasted = EditorTileClipboard.PasteAllLayers(Map, _hoverTile.X, _hoverTile.Y, Map.Width, Map.Height);
         Invalidate();
         RaiseTileClicked(_hoverTile.X, _hoverTile.Y);
-        return n > 0;
+        return pasted.Changed;
     }
 
-    public bool TryDeleteSelectedTiles()
+    public bool TryDeleteSelectedTiles(bool activeLayerOnly = false)
     {
-        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect) || !IsActiveLayerEditable())
+        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect))
+        {
+            return false;
+        }
+
+        var only = activeLayerOnly ? ActiveLayerIndex : (int?)null;
+        if (!MapEditOperations.HasEditableTilesInRect(Map, rect.X, rect.Y, rect.Width, rect.Height, only))
         {
             return false;
         }
 
         BeginEditTransaction();
-        DeleteTilesInRectangle(rect);
+        EraseSelection(rect, activeLayerOnly);
         Invalidate();
         return true;
     }
@@ -437,19 +492,19 @@ public sealed class MapCanvas : Control
         switch (code)
         {
             case Keys.C when ctrl && !alt:
-                return TryCopyTileSelection();
+                return TryCopyTileSelection(activeLayerOnly: shift);
             case Keys.X when ctrl && !alt:
-                return TryCutTileSelection();
+                return TryCutTileSelection(activeLayerOnly: shift);
             case Keys.V when ctrl && !alt:
-                return TryPasteAtHover();
-            case Keys.V when !ctrl && !alt && !shift:
-                return TryTransformSelection(TileSelectionTransformKind.MirrorVertical);
+                return TryPasteAtHover(activeLayerOnly: shift);
+            case Keys.V when !ctrl && !alt:
+                return TryTransformSelection(TileSelectionTransformKind.MirrorVertical, activeLayerOnly: shift);
             case Keys.Delete when !ctrl && !alt:
-                return TryDeleteSelectedTiles();
-            case Keys.Q when !ctrl && !alt && !shift:
-                return TryTransformSelection(TileSelectionTransformKind.Rotate90Clockwise);
-            case Keys.H when !ctrl && !alt && !shift:
-                return TryTransformSelection(TileSelectionTransformKind.MirrorHorizontal);
+                return TryDeleteSelectedTiles(activeLayerOnly: shift);
+            case Keys.Q when !ctrl && !alt:
+                return TryTransformSelection(TileSelectionTransformKind.Rotate90Clockwise, activeLayerOnly: shift);
+            case Keys.H when !ctrl && !alt:
+                return TryTransformSelection(TileSelectionTransformKind.MirrorHorizontal, activeLayerOnly: shift);
             case Keys.I when !ctrl && !alt && !shift:
                 return TryPipetteAtHover(switchToBrush: true);
             default:
@@ -457,26 +512,28 @@ public sealed class MapCanvas : Control
         }
     }
 
-    public bool TryTransformSelection(TileSelectionTransformKind kind)
+    public bool TryTransformSelection(TileSelectionTransformKind kind, bool activeLayerOnly = false)
     {
         if (Map is null)
         {
             return false;
         }
 
-        if (TryGetCommittedSelectionNormalized(out var rect)
-            && IsActiveLayerEditable()
-            && MapEditOperations.CountTilesInRect(Map, ActiveLayerIndex, rect.X, rect.Y, rect.Width, rect.Height) > 0)
+        if (TryGetCommittedSelectionNormalized(out var rect))
         {
-            BeginEditTransaction();
-            if (!TileSelectionService.TryTransform(Map, ActiveLayerIndex, rect, kind, out var next))
+            var only = activeLayerOnly ? ActiveLayerIndex : (int?)null;
+            if (MapEditOperations.HasEditableTilesInRect(Map, rect.X, rect.Y, rect.Width, rect.Height, only))
             {
-                return false;
-            }
+                BeginEditTransaction();
+                if (!TileSelectionService.TryTransform(Map, ActiveLayerIndex, rect, kind, out var next, activeLayerOnly))
+                {
+                    return false;
+                }
 
-            _committedSelectionTiles = next;
-            Invalidate();
-            return true;
+                _committedSelectionTiles = next;
+                NotifyPaintGesture();
+                return true;
+            }
         }
 
         if (!EditorTileClipboard.TryTransform(kind))
@@ -1815,7 +1872,7 @@ public sealed class MapCanvas : Control
                     _selectionMarqueeAnchor = new Point(tx, ty);
                     _hoverTile = new Point(tx, ty);
                     Capture = true;
-                    Invalidate();
+                    NotifyPaintGesture();
                     break;
 
                 case EditorTool.Spawn:
@@ -2050,7 +2107,7 @@ public sealed class MapCanvas : Control
                 _committedSelectionTiles = new Rectangle(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
                 _selectionMarqueeAnchor = null;
                 Capture = false;
-                Invalidate();
+                NotifyPaintGesture();
                 RaiseTileClicked(ex, ey);
             }
         }
@@ -2279,6 +2336,16 @@ public sealed class MapCanvas : Control
         if (ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } ro)
         {
             return EditorToolHotkeys.FormatRectangleGesture(ro.X, ro.Y, _hoverTile.X, _hoverTile.Y);
+        }
+
+        if (ActiveTool == EditorTool.Selection && _selectionMarqueeAnchor is { } anchor)
+        {
+            return EditorToolHotkeys.FormatSelectionGesture(anchor.X, anchor.Y, _hoverTile.X, _hoverTile.Y);
+        }
+
+        if (ActiveTool == EditorTool.Selection && TryGetCommittedSelectionNormalized(out var selection))
+        {
+            return EditorToolHotkeys.FormatSelectionCommitted(selection.Width, selection.Height);
         }
 
         var hint = EditorToolHotkeys.StatusHint(ActiveTool);
@@ -2578,20 +2645,37 @@ public sealed class MapCanvas : Control
         return true;
     }
 
-    private void DeleteTilesInRectangle(Rectangle tileRect)
+    private bool PasteAnchorIntersectsMap()
     {
-        if (Map is null || ActiveLayerIndex < 0 || ActiveLayerIndex >= Map.Layers.Count || !IsActiveLayerEditable())
+        if (Map is null || EditorTileClipboard.Width <= 0 || EditorTileClipboard.Height <= 0)
+        {
+            return false;
+        }
+
+        var x0 = _hoverTile.X;
+        var y0 = _hoverTile.Y;
+        return x0 < Map.Width
+               && y0 < Map.Height
+               && x0 + EditorTileClipboard.Width > 0
+               && y0 + EditorTileClipboard.Height > 0;
+    }
+
+    private void EraseSelection(Rectangle tileRect, bool activeLayerOnly)
+    {
+        if (Map is null)
         {
             return;
         }
 
-        var layer = Map.Layers[ActiveLayerIndex];
-        for (var y = tileRect.Top; y < tileRect.Top + tileRect.Height; y++)
+        if (activeLayerOnly)
         {
-            for (var x = tileRect.Left; x < tileRect.Left + tileRect.Width; x++)
-            {
-                layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
-            }
+            MapEditOperations.EraseRectangle(Map, ActiveLayerIndex, tileRect.X, tileRect.Y, tileRect.Width, tileRect.Height);
+            return;
+        }
+
+        for (var i = 0; i < Map.Layers.Count; i++)
+        {
+            MapEditOperations.EraseRectangle(Map, i, tileRect.X, tileRect.Y, tileRect.Width, tileRect.Height);
         }
     }
 

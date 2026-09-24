@@ -127,6 +127,21 @@ public partial class MainWindow : Window
         nameof(CmdPrefabTool),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdCopySelection = new(
+        "Copier la sélection",
+        nameof(CmdCopySelection),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdCutSelection = new(
+        "Couper la sélection",
+        nameof(CmdCutSelection),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdPasteSelection = new(
+        "Coller la sélection",
+        nameof(CmdPasteSelection),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdRotateSelection = new(
         "Rotation 90°",
         nameof(CmdRotateSelection),
@@ -234,6 +249,9 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdLineTool, (_, _) => _editor.SelectEditorTool(EditorTool.Line)));
         CommandBindings.Add(new CommandBinding(CmdSpawnTool, (_, _) => _editor.SelectEditorTool(EditorTool.Spawn)));
         CommandBindings.Add(new CommandBinding(CmdPrefabTool, (_, _) => _editor.SelectEditorTool(EditorTool.Prefab)));
+        CommandBindings.Add(new CommandBinding(CmdCopySelection, (_, e) => _editor.CopyTileSelection(ActiveLayerMenu(e))));
+        CommandBindings.Add(new CommandBinding(CmdCutSelection, (_, e) => _editor.CutTileSelection(ActiveLayerMenu(e))));
+        CommandBindings.Add(new CommandBinding(CmdPasteSelection, (_, e) => _editor.PasteTileSelection(ActiveLayerMenu(e))));
         CommandBindings.Add(new CommandBinding(CmdRotateSelection, (_, _) => _editor.TryRotateSelection90()));
         CommandBindings.Add(new CommandBinding(CmdMirrorHorizontal, (_, _) => _editor.TryMirrorSelectionHorizontal()));
         CommandBindings.Add(new CommandBinding(CmdMirrorVertical, (_, _) => _editor.TryMirrorSelectionVertical()));
@@ -508,22 +526,64 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (Keyboard.Modifiers == ModifierKeys.None && e.Key is Key.Q or Key.H or Key.V or Key.I)
+        if (TryForwardEditorShortcut(e.Key, Keyboard.Modifiers))
         {
-            var mapped = e.Key switch
+            e.Handled = true;
+        }
+    }
+
+    private bool TryForwardEditorShortcut(Key key, ModifierKeys modifiers)
+    {
+        var alt = (modifiers & ModifierKeys.Alt) != 0;
+        var ctrl = (modifiers & ModifierKeys.Control) != 0;
+        var shift = (modifiers & ModifierKeys.Shift) != 0;
+        if (alt)
+        {
+            return false;
+        }
+
+        Keys code;
+        if (!ctrl && key is Key.Q or Key.H or Key.V or Key.I or Key.Delete)
+        {
+            code = key switch
             {
                 Key.Q => Keys.Q,
                 Key.H => Keys.H,
                 Key.V => Keys.V,
                 Key.I => Keys.I,
-                _ => Keys.None,
+                _ => Keys.Delete,
             };
-            if (mapped != Keys.None && _editor.TryProcessCmdKeyForTest(mapped))
-            {
-                e.Handled = true;
-            }
         }
+        else if (ctrl && key is Key.C or Key.X or Key.V)
+        {
+            code = key switch
+            {
+                Key.C => Keys.C,
+                Key.X => Keys.X,
+                _ => Keys.V,
+            };
+        }
+        else
+        {
+            return false;
+        }
+
+        var keyData = code;
+        if (ctrl)
+        {
+            keyData |= Keys.Control;
+        }
+
+        if (shift)
+        {
+            keyData |= Keys.Shift;
+        }
+
+        return _editor.TryProcessCmdKeyForTest(keyData);
     }
+
+    private static bool ActiveLayerMenu(ExecutedRoutedEventArgs e)
+        => e.Parameter is string value && string.Equals(value, "layer", StringComparison.Ordinal);
 
     private void OnTileHoverStatusChanged(string text)
     {

@@ -387,6 +387,13 @@ public sealed class MainForm : Form
             mEdit.DropDownItems.Add(mnuUndo);
             mEdit.DropDownItems.Add(mnuRedo);
             mEdit.DropDownItems.Add(new ToolStripSeparator());
+            mEdit.DropDownItems.Add("Copier la sélection — toutes les couches (Ctrl+C)", null, (_, _) => CopyTileSelection(false));
+            mEdit.DropDownItems.Add("Couper la sélection — toutes les couches (Ctrl+X)", null, (_, _) => CutTileSelection(false));
+            mEdit.DropDownItems.Add("Coller — toutes les couches (Ctrl+V)", null, (_, _) => PasteTileSelection(false));
+            mEdit.DropDownItems.Add("Copier la couche active (Ctrl+Maj+C)", null, (_, _) => CopyTileSelection(true));
+            mEdit.DropDownItems.Add("Couper la couche active (Ctrl+Maj+X)", null, (_, _) => CutTileSelection(true));
+            mEdit.DropDownItems.Add("Coller sur la couche active (Ctrl+Maj+V)", null, (_, _) => PasteTileSelection(true));
+            mEdit.DropDownItems.Add(new ToolStripSeparator());
             mEdit.DropDownItems.Add("Rotation 90° (Q)", null, (_, _) => TryRotateSelection90());
             mEdit.DropDownItems.Add("Miroir horizontal (H)", null, (_, _) => TryMirrorSelectionHorizontal());
             mEdit.DropDownItems.Add("Miroir vertical (V)", null, (_, _) => TryMirrorSelectionVertical());
@@ -1193,6 +1200,12 @@ public sealed class MainForm : Form
         SelectEditorTool(restore);
         return true;
     }
+
+    internal void CopyTileSelection(bool activeLayerOnly) => _canvas.TryCopyTileSelection(activeLayerOnly);
+
+    internal void CutTileSelection(bool activeLayerOnly) => _canvas.TryCutTileSelection(activeLayerOnly);
+
+    internal void PasteTileSelection(bool activeLayerOnly) => _canvas.TryPasteAtHover(activeLayerOnly);
 
     internal bool TryRotateSelection90()
         => _canvas.TryTransformSelection(TileSelectionTransformKind.Rotate90Clockwise);
