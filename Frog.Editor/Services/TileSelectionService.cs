@@ -4,7 +4,10 @@ using Frog.Core.Models;
 
 namespace Frog.Editor.Services;
 
-/// <summary>Rotation / miroir de la sélection couche tuile (in situ si rectangle commis, sinon presse-papiers).</summary>
+/// <summary>
+/// Rotation / miroir de la sélection. In situ sur toutes les couches éditables du rectangle
+/// (ou la couche active si demandé), sinon sur le presse-papiers.
+/// </summary>
 public static class TileSelectionService
 {
     public static bool TryTransform(
@@ -12,23 +15,23 @@ public static class TileSelectionService
         int layerIndex,
         Rectangle? committedSelection,
         TileSelectionTransformKind kind,
-        out Rectangle? newSelection)
+        out Rectangle? newSelection,
+        bool activeLayerOnly = false)
     {
         ArgumentNullException.ThrowIfNull(map);
         newSelection = committedSelection;
 
-        if (committedSelection is { Width: > 0, Height: > 0 } rect
-            && MapEditOperations.IsLayerEditable(map, layerIndex)
-            && MapEditOperations.CountTilesInRect(map, layerIndex, rect.X, rect.Y, rect.Width, rect.Height) > 0)
+        if (committedSelection is { Width: > 0, Height: > 0 } rect)
         {
-            if (!MapEditOperations.TryTransformLayerRect(
+            int? onlyLayer = activeLayerOnly ? layerIndex : null;
+            if (!MapEditOperations.TryTransformMapRect(
                     map,
-                    layerIndex,
                     rect.X,
                     rect.Y,
                     rect.Width,
                     rect.Height,
                     kind,
+                    onlyLayer,
                     out var newWidth,
                     out var newHeight))
             {
@@ -36,7 +39,15 @@ public static class TileSelectionService
             }
 
             var next = new Rectangle(rect.X, rect.Y, newWidth, newHeight);
-            EditorTileClipboard.CopyFromLayer(map, layerIndex, next);
+            if (activeLayerOnly)
+            {
+                EditorTileClipboard.CopyFromLayer(map, layerIndex, next);
+            }
+            else
+            {
+                EditorTileClipboard.CopyAllLayers(map, next);
+            }
+
             newSelection = next;
             return true;
         }

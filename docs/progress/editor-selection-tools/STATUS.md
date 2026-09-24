@@ -1,43 +1,43 @@
-# STATUS — Éditeur : rotation / miroir de sélection + pipette tuile
+# STATUS — Éditeur : copier-coller de sélection multi-couches
 
 | Champ | Valeur |
 | --- | --- |
-| **Chantier** | Outil Sélection (M) : rotation 90° + miroirs ; pipette pinceau |
+| **Chantier** | Sélection (M) : copier / couper / coller le rectangle sur toutes les couches |
 | **Propriétaire** | Netsun |
-| **Statut** | Livré — PR ready-for-review |
-| **Base** | `main` @ `4d0e30f` |
-| **Branche** | `cursor/editor-selection-rotate-pipette-b4b5` |
-| **PR** | [#39](https://github.com/Netsuno/MMO_Maker/pull/39) vers `main` |
-| **Tip** | `ac936b9` |
-| **CI** | [35592864093](https://github.com/Netsuno/MMO_Maker/actions/runs/35592864093) **SUCCESS** (`build-and-test` + `postgres-integration`) |
+| **Statut** | Livré — PR ouverte |
+| **Base** | `main` @ `3dbf63f` |
+| **Branche** | `cursor/editor-multilayer-selection-copy-1081` |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** |
 
-Parallèle au chantier spawn (#22) : **aucun** changement publish prefab / PostgreSQL / catalogue / matérialisation client. Pas de bump `.fmap`.
+Parallèle aux chantiers déjà livrés (rotation / miroir / pipette, spawn, prefabs) : **aucun** bump `.fmap`, **aucun** changement protocole, client, ou publication prefab.
 
 ---
 
 ## Livré
 
-1. **Rotation 90° horaire (Q)** — si un rectangle de sélection est commis sur la couche active : transforme les tuiles **in situ** (annulable) et met à jour le presse-papiers éditeur. Sinon, transforme uniquement le tampon copier/coller (`Ctrl+C` / `Ctrl+V`).
-2. **Miroir horizontal (H)** et **miroir vertical (V)** — même règle (sélection in situ, sinon presse-papiers). Les `SrcX` / `SrcY` du tileset ne tournent pas : on déplace les tuiles, on ne pivot pas les pixels d’atlas.
-3. **Pipette (I)** — échantillonne `TilesetId` + `SrcX`/`SrcY` + type depuis la tuile sous le curseur (couche active, sinon couche visible du dessus). Passe au **Pinceau** et synchronise la palette. **Alt+clic** : même échantillon **sans** changer d’outil (pas de peinture).
-4. UI FR : menus Édition / Carte, bouton barre **Pipette**, hints palette.
+1. **Ctrl+C / Ctrl+X / Ctrl+V** capturent et restituent le rectangle sur **toutes les couches** de la carte (sol, frange, attributs, et toute autre couche du modèle). Le collage réécrit aussi les cases vides du rectangle (trous). **Une seule entrée d’annulation** pour le collage, la coupe, la suppression et la rotation in situ.
+2. **Ctrl+Maj+C / X / V** et **Maj+Q / H / V** limitent l’opération à la **couche active** (l’ancien comportement). Sans sélection, Q/H/V tournent ou miroitent tout le presse-papiers, dont toutes les couches qu’il contient.
+3. **Attributs déjà présents** sur la tuile (`BlockAttribute`, `WarpAttribute`, `ResourceAttribute`) sont copiés en mémoire avec le type, le tileset, la destination de warp et le script. Les couches verrouillées sont copiées mais ni écrasées, ni tournées, ni coupées. Le format v5 conserve `TileType`, warp et script ; on n’ajoute pas de version pour la liste d’attributs (déjà absente du `.fmap`).
+4. Libellés FR : menu Édition (WPF et WinForms), barre d’état, hint de l’outil Sélection. Raccourcis Ctrl+C/X/V relayés depuis la coque WPF.
 
-Raccourcis **sans** modificateur : ne volent pas `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+Z`.
+La rotation 90° (Q), les miroirs H/V et la pipette (I) restent en place. Suppr efface le rectangle sur toutes les couches éditables ; Maj+Suppr n’efface que la couche active.
 
 ---
 
-## Hors scope (volontaire)
+## Hors scope
 
-- Prefabs publish / PostgreSQL / catalogue / `PrefabDefinition` / `ClientPrefabLoader` / dessin prefab `MapViewRenderer` / `MapPublishedTilesetSync`.
-- Ligne, cercle, tampon multi-cartes, déplacement d’objets au curseur.
-- Rotation antihoraire (un seul sens 90° horaire).
+- Prefabs, déplacement d’événements, bump protocole ou format, changements client.
+- Persistance nouvelle de `ResourceAttribute.ResourceId` (déjà absente du `.fmap` v5 et du JSON cellule).
+
+---
+
+## Déjà en place (ne pas régresser)
+
+Rotation 90°, miroirs H/V, pipette I — voir l’historique PR [#39](https://github.com/Netsuno/MMO_Maker/pull/39). Raccourcis sans modificateur : ne volent pas Ctrl+C / Ctrl+X / Ctrl+V / Ctrl+Z.
 
 ---
 
 ## Tests
 
-- Linux / unitaires : `Frog.Tests/EditorSelectionToolsTests.cs` (maths rotation/miroir, presse-papiers, in situ, pipette couches, protocole inchangé).
-- Windows smoke : `MapCanvasSelectionPipetteSmokeTests` + raccourcis `EditorToolHotkeysTests` (I/Q/H/V ne sont pas des outils).
-
-CI **SUCCESS** sur `ac936b9` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35592864093/job/106311040598) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35592864093/job/106311040346). Windows editor smokes inclus dans `build-and-test`.
+- Linux / unitaires : `Frog.Tests/EditorSelectionToolsTests.cs` (rectangle multi-couches, trous, attributs, couche verrouillée, rotation alignée, format v5) et copie d’attributs dans `MapEditOperationsTests`.
+- Windows smoke : `MapCanvasSelectionPipetteSmokeTests` (collage toutes couches, un seul undo/redo, coupe, Ctrl+Maj couche active, Maj+Q) et hints `EditorToolHotkeysTests`.

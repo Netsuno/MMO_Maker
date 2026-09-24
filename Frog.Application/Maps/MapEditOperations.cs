@@ -270,6 +270,53 @@ public static class MapEditOperations
     }
 
     /// <summary>
+    /// Vrai s’il existe au moins une tuile effaçable dans le rectangle.
+    /// <paramref name="onlyLayerIndex"/> null = toutes les couches déverrouillées.
+    /// </summary>
+    public static bool HasEditableTilesInRect(
+        Map map,
+        int left,
+        int top,
+        int width,
+        int height,
+        int? onlyLayerIndex)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (onlyLayerIndex is int only)
+        {
+            return IsLayerEditable(map, only) && CountTilesInRect(map, only, left, top, width, height) > 0;
+        }
+
+        for (var i = 0; i < map.Layers.Count; i++)
+        {
+            if (IsLayerEditable(map, i) && CountTilesInRect(map, i, left, top, width, height) > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Efface le rectangle sur une couche. Couche verrouillée ou hors index : aucun effet.</summary>
+    public static void EraseRectangle(Map map, int layerIndex, int left, int top, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (!IsLayerEditable(map, layerIndex) || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        for (var y = top; y < top + height; y++)
+        {
+            for (var x = left; x < left + width; x++)
+            {
+                EraseTile(map, layerIndex, x, y);
+            }
+        }
+    }
+
+    /// <summary>
     /// Rotation / miroir in situ d’un rectangle de couche. Le nouveau rectangle est ancré en (left, top).
     /// Ne mute pas si le rectangle ne contient aucune tuile.
     /// </summary>
@@ -332,6 +379,61 @@ public static class MapEditOperations
         return true;
     }
 
+    /// <summary>
+    /// Rotation / miroir in situ du rectangle sur une ou toutes les couches éditables.
+    /// Les couches verrouillées ou vides ne bougent pas. Le rectangle reste ancré en (left, top).
+    /// </summary>
+    public static bool TryTransformMapRect(
+        Map map,
+        int left,
+        int top,
+        int width,
+        int height,
+        TileSelectionTransformKind kind,
+        int? onlyLayerIndex,
+        out int newWidth,
+        out int newHeight)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        newWidth = width;
+        newHeight = height;
+        if (width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        if (onlyLayerIndex is int only && (only < 0 || only >= map.Layers.Count))
+        {
+            return false;
+        }
+
+        var (nw, nh) = TileSelectionTransform.TransformSize(width, height, kind);
+        var any = false;
+        var last = onlyLayerIndex ?? map.Layers.Count - 1;
+        var first = onlyLayerIndex ?? 0;
+        for (var index = first; index <= last; index++)
+        {
+            if (!IsLayerEditable(map, index) || CountTilesInRect(map, index, left, top, width, height) == 0)
+            {
+                continue;
+            }
+
+            if (TryTransformLayerRect(map, index, left, top, width, height, kind, out _, out _))
+            {
+                any = true;
+            }
+        }
+
+        if (!any)
+        {
+            return false;
+        }
+
+        newWidth = nw;
+        newHeight = nh;
+        return true;
+    }
+
     public static Tile CloneTileAt(Tile source, int x, int y)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -342,7 +444,8 @@ public static class MapEditOperations
         => x >= 0 && y >= 0 && x < map.Width && y < map.Height;
 
     private static Tile CloneTile(Tile source, int x, int y)
-        => new()
+    {
+        var clone = new Tile
         {
             X = x,
             Y = y,
@@ -355,6 +458,28 @@ public static class MapEditOperations
             WarpTargetY = source.WarpTargetY,
             ScriptId = source.ScriptId,
         };
+
+        foreach (var attribute in source.Attributes)
+        {
+            clone.Attributes.Add(CloneAttribute(attribute));
+        }
+
+        return clone;
+    }
+
+    private static ITileAttribute CloneAttribute(ITileAttribute attribute) => attribute switch
+    {
+        BlockAttribute => new BlockAttribute(),
+        WarpAttribute warp => new WarpAttribute
+        {
+            TargetMapId = warp.TargetMapId,
+            TargetX = warp.TargetX,
+            TargetY = warp.TargetY,
+        },
+        ResourceAttribute resource => new ResourceAttribute { ResourceId = resource.ResourceId },
+        _ => throw new NotSupportedException(
+            $"Attribut de tuile non copié : {attribute.GetType().Name}."),
+    };
 
     private static bool SameVisualTile(Tile a, Tile? b)
     {

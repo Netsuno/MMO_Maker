@@ -27,6 +27,7 @@ public sealed class EditorToolHotkeysTests
     public void ControlModifier_DoesNotStealClipboardOrSave()
     {
         Assert.False(EditorToolHotkeys.TryResolve(Keys.Control | Keys.C, out _));
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.Control | Keys.Shift | Keys.C, out _));
         Assert.False(EditorToolHotkeys.TryResolve(Keys.Control | Keys.S, out _));
         Assert.False(EditorToolHotkeys.TryResolve(Keys.Control | Keys.V, out _));
         Assert.False(EditorToolHotkeys.TryResolve(Keys.Control | Keys.Z, out _));
@@ -73,6 +74,13 @@ public sealed class EditorToolHotkeysTests
         Assert.Contains("I", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("Q", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
         Assert.Contains("pipette", EditorToolHotkeys.SelectionHint, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("toutes les couches", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+Maj", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
+        Assert.Contains("toutes les couches", EditorToolHotkeys.StatusHint(EditorTool.Selection), StringComparison.Ordinal);
+        Assert.Contains("Ctrl+Maj", EditorToolHotkeys.StatusHint(EditorTool.Selection), StringComparison.Ordinal);
+        Assert.Contains("2×2", EditorToolHotkeys.FormatSelectionCommitted(2, 2), StringComparison.Ordinal);
+        Assert.Contains("toutes les couches", EditorToolHotkeys.FormatSelectionGesture(0, 0, 3, 1), StringComparison.Ordinal);
+        Assert.Contains("4×2", EditorToolHotkeys.FormatSelectionGesture(0, 0, 3, 1), StringComparison.Ordinal);
         Assert.Equal("L", EditorToolHotkeys.ShortcutGlyph(EditorTool.Line));
         Assert.Equal("Ligne", EditorToolHotkeys.DisplayName(EditorTool.Line));
         Assert.Contains("Ligne (L)", EditorToolHotkeys.StatusHint(EditorTool.Line), StringComparison.Ordinal);

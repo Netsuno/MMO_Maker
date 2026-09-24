@@ -2,100 +2,283 @@ using Frog.Core.Models;
 
 namespace Frog.Application.Maps;
 
-/// <summary>Presse-papiers tuiles indépendant de l’UI (copie / collage / rotation / miroir d’une couche).</summary>
+/// <summary>Résultat d’un collage : tuiles posées et cases vidées (trous du rectangle).</summary>
+public readonly record struct TilePasteResult(int Painted, int Cleared)
+{
+    public bool Changed => Painted > 0 || Cleared > 0;
+}
+
+/// <summary>
+/// Presse-papiers tuiles indépendant de l’UI.
+/// Par défaut le rectangle couvre toutes les couches (comme RPG Maker) ; une copie couche active reste possible.
+/// Les attributs déjà portés par la tuile (blocage, warp, ressource) sont copiés en mémoire.
+/// </summary>
 public sealed class TileClipboardBuffer
 {
-    private readonly List<Tile> _tiles = new();
+    private readonly List<LayerStamp> _layers = new();
 
     public int Width { get; private set; }
 
     public int Height { get; private set; }
 
-    public bool HasContent => _tiles.Count > 0;
+    /// <summary>Vrai après Ctrl+Maj+C (une seule couche, collée sur la couche active).</summary>
+    public bool IsSingleLayer { get; private set; }
+
+    public bool HasContent => _layers.Exists(layer => layer.Tiles.Count > 0);
+
+    public int CapturedLayerCount => _layers.Count;
+
+    public bool CapturesLayer(int layerIndex) => _layers.Exists(layer => layer.LayerIndex == layerIndex);
 
     public IReadOnlyList<Tile> Snapshot()
-        => _tiles.Select(t => MapEditOperations.CloneTileAt(t, t.X, t.Y)).ToList();
+        => _layers
+            .SelectMany(layer => layer.Tiles)
+            .Select(tile => MapEditOperations.CloneTileAt(tile, tile.X, tile.Y))
+            .ToList();
 
     public void CopyFromLayer(Map map, int layerIndex, int left, int top, int width, int height)
     {
         ArgumentNullException.ThrowIfNull(map);
-        _tiles.Clear();
-        Width = 0;
-        Height = 0;
+        Clear();
         if (width <= 0 || height <= 0 || layerIndex < 0 || layerIndex >= map.Layers.Count)
         {
             return;
         }
 
-        var layer = map.Layers[layerIndex];
-        for (var y = top; y < top + height; y++)
-        {
-            for (var x = left; x < left + width; x++)
-            {
-                var t = layer.Tiles.FirstOrDefault(tile => tile.X == x && tile.Y == y);
-                if (t is null)
-                {
-                    continue;
-                }
-
-                _tiles.Add(MapEditOperations.CloneTileAt(t, x - left, y - top));
-            }
-        }
-
-        if (_tiles.Count == 0)
+        var tiles = Capture(map.Layers[layerIndex], left, top, width, height);
+        if (tiles.Count == 0)
         {
             return;
         }
 
+        _layers.Add(new LayerStamp(layerIndex, tiles));
         Width = width;
         Height = height;
+        IsSingleLayer = true;
     }
 
-    /// <summary>Colle avec ancrage tuile supérieure gauche. Retourne le nombre de tuiles posées.</summary>
-    public int PasteToLayer(Map map, int layerIndex, int anchorTileX, int anchorTileY, int mapWidth, int mapHeight)
+    /// <summary>
+    /// Capture le rectangle sur chaque couche, y compris les couches vides (pour effacer les trous au collage).
+    /// Les couches verrouillées sont incluses : le collage les réécrit seulement si la destination est éditable.
+    /// </summary>
+    public void CopyAllLayers(Map map, int left, int top, int width, int height)
     {
         ArgumentNullException.ThrowIfNull(map);
-        if (_tiles.Count == 0 || layerIndex < 0 || layerIndex >= map.Layers.Count)
+        Clear();
+        if (width <= 0 || height <= 0 || map.Layers.Count == 0)
         {
-            return 0;
+            return;
         }
 
-        var n = 0;
-        foreach (var template in _tiles)
+        var stamps = new List<LayerStamp>(map.Layers.Count);
+        var any = false;
+        for (var i = 0; i < map.Layers.Count; i++)
         {
-            var gx = anchorTileX + template.X;
-            var gy = anchorTileY + template.Y;
-            if (gx < 0 || gy < 0 || gx >= mapWidth || gy >= mapHeight)
+            var tiles = Capture(map.Layers[i], left, top, width, height);
+            if (tiles.Count > 0)
             {
-                continue;
+                any = true;
             }
 
-            MapEditOperations.PaintTile(map, layerIndex, gx, gy, template);
-            n++;
+            stamps.Add(new LayerStamp(i, tiles));
         }
 
-        return n;
+        if (!any)
+        {
+            return;
+        }
+
+        _layers.AddRange(stamps);
+        Width = width;
+        Height = height;
+        IsSingleLayer = false;
     }
 
-    public bool TryTransform(TileSelectionTransformKind kind)
+    /// <summary>
+    /// Colle sur une couche. Tampon mono-couche : ignore l’index source et vise <paramref name="layerIndex"/>.
+    /// Tampon multi-couches : n’écrit que l’empreinte de cet index (trous compris).
+    /// </summary>
+    public TilePasteResult PasteToLayer(
+        Map map,
+        int layerIndex,
+        int anchorTileX,
+        int anchorTileY,
+        int mapWidth,
+        int mapHeight)
     {
-        if (_tiles.Count == 0 || Width <= 0 || Height <= 0)
+        ArgumentNullException.ThrowIfNull(map);
+        if (!HasContent)
+        {
+            return default;
+        }
+
+        if (IsSingleLayer)
+        {
+            return _layers.Count == 1
+                ? Apply(_layers[0], map, layerIndex, anchorTileX, anchorTileY, mapWidth, mapHeight)
+                : default;
+        }
+
+        var stamp = _layers.Find(layer => layer.LayerIndex == layerIndex);
+        return stamp is null
+            ? default
+            : Apply(stamp, map, layerIndex, anchorTileX, anchorTileY, mapWidth, mapHeight);
+    }
+
+    /// <summary>
+    /// Restaure chaque couche capturée sur le même index. Tampon mono-couche : aucun effet
+    /// (utiliser <see cref="PasteToLayer"/> pour viser la couche active).
+    /// </summary>
+    public TilePasteResult PasteAllLayers(Map map, int anchorTileX, int anchorTileY, int mapWidth, int mapHeight)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (!HasContent || IsSingleLayer)
+        {
+            return default;
+        }
+
+        var painted = 0;
+        var cleared = 0;
+        foreach (var stamp in _layers)
+        {
+            var result = Apply(stamp, map, stamp.LayerIndex, anchorTileX, anchorTileY, mapWidth, mapHeight);
+            painted += result.Painted;
+            cleared += result.Cleared;
+        }
+
+        return new TilePasteResult(painted, cleared);
+    }
+
+    public bool CanPasteAllLayers(Map map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (!HasContent || IsSingleLayer)
         {
             return false;
         }
 
-        var result = TileSelectionTransform.Apply(_tiles, Width, Height, kind);
-        _tiles.Clear();
-        _tiles.AddRange(result.Tiles);
-        Width = result.Width;
-        Height = result.Height;
+        return _layers.Exists(stamp => MapEditOperations.IsLayerEditable(map, stamp.LayerIndex));
+    }
+
+    public bool TryTransform(TileSelectionTransformKind kind)
+    {
+        if (!HasContent || Width <= 0 || Height <= 0)
+        {
+            return false;
+        }
+
+        var (newWidth, newHeight) = TileSelectionTransform.TransformSize(Width, Height, kind);
+        foreach (var stamp in _layers)
+        {
+            if (stamp.Tiles.Count == 0)
+            {
+                continue;
+            }
+
+            var result = TileSelectionTransform.Apply(stamp.Tiles, Width, Height, kind);
+            stamp.Tiles.Clear();
+            stamp.Tiles.AddRange(result.Tiles);
+        }
+
+        Width = newWidth;
+        Height = newHeight;
         return true;
     }
 
     public void Clear()
     {
-        _tiles.Clear();
+        _layers.Clear();
         Width = 0;
         Height = 0;
+        IsSingleLayer = false;
+    }
+
+    private TilePasteResult Apply(
+        LayerStamp stamp,
+        Map map,
+        int layerIndex,
+        int anchorTileX,
+        int anchorTileY,
+        int mapWidth,
+        int mapHeight)
+    {
+        if (!MapEditOperations.IsLayerEditable(map, layerIndex) || Width <= 0 || Height <= 0)
+        {
+            return default;
+        }
+
+        var byCell = new Dictionary<(int X, int Y), Tile>();
+        foreach (var tile in stamp.Tiles)
+        {
+            byCell[(tile.X, tile.Y)] = tile;
+        }
+
+        var layer = map.Layers[layerIndex];
+        var limitW = Math.Min(mapWidth, map.Width);
+        var limitH = Math.Min(mapHeight, map.Height);
+        var painted = 0;
+        var cleared = 0;
+        for (var y = 0; y < Height; y++)
+        {
+            for (var x = 0; x < Width; x++)
+            {
+                var gx = anchorTileX + x;
+                var gy = anchorTileY + y;
+                if (gx < 0 || gy < 0 || gx >= limitW || gy >= limitH)
+                {
+                    continue;
+                }
+
+                if (byCell.TryGetValue((x, y), out var template))
+                {
+                    MapEditOperations.PaintTile(map, layerIndex, gx, gy, template);
+                    painted++;
+                    continue;
+                }
+
+                if (!layer.Tiles.Any(tile => tile.X == gx && tile.Y == gy))
+                {
+                    continue;
+                }
+
+                MapEditOperations.EraseTile(map, layerIndex, gx, gy);
+                cleared++;
+            }
+        }
+
+        return new TilePasteResult(painted, cleared);
+    }
+
+    private static List<Tile> Capture(Layer layer, int left, int top, int width, int height)
+    {
+        var list = new List<Tile>();
+        for (var y = top; y < top + height; y++)
+        {
+            for (var x = left; x < left + width; x++)
+            {
+                var tile = layer.Tiles.FirstOrDefault(candidate => candidate.X == x && candidate.Y == y);
+                if (tile is null)
+                {
+                    continue;
+                }
+
+                list.Add(MapEditOperations.CloneTileAt(tile, x - left, y - top));
+            }
+        }
+
+        return list;
+    }
+
+    private sealed class LayerStamp
+    {
+        public LayerStamp(int layerIndex, List<Tile> tiles)
+        {
+            LayerIndex = layerIndex;
+            Tiles = tiles;
+        }
+
+        public int LayerIndex { get; }
+
+        public List<Tile> Tiles { get; }
     }
 }

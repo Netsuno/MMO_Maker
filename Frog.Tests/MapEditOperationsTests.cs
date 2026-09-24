@@ -31,6 +31,41 @@ public sealed class MapEditOperationsTests
     }
 
     [Fact]
+    public void PaintTile_CopiesBlockWarpAndResourceAttributes()
+    {
+        var map = CreateMap();
+        var warpTarget = Guid.Parse("bbbbbbbb-cccc-dddd-eeee-ffffffffffff");
+        var stamp = new Tile
+        {
+            Type = TileType.Warp,
+            WarpTargetMapId = warpTarget,
+            WarpTargetX = 2,
+            WarpTargetY = 3,
+            Attributes =
+            {
+                new BlockAttribute(),
+                new WarpAttribute { TargetMapId = warpTarget, TargetX = 2, TargetY = 3 },
+                new ResourceAttribute { ResourceId = 9 },
+            },
+        };
+
+        MapEditOperations.PaintTile(map, 0, 1, 1, stamp);
+        var tile = map.Layers[0].Tiles.Single();
+        Assert.Equal(3, tile.Attributes.Count);
+        Assert.Contains(tile.Attributes, attribute => attribute is BlockAttribute);
+        var warp = Assert.IsType<WarpAttribute>(tile.Attributes[1]);
+        Assert.Equal(warpTarget, warp.TargetMapId);
+        Assert.Equal(9, Assert.IsType<ResourceAttribute>(tile.Attributes[2]).ResourceId);
+        Assert.NotSame(stamp.Attributes[0], tile.Attributes[0]);
+
+        map.Layers.Add(new Layer { LayerType = LayerType.Fringe });
+        MapEditOperations.PaintTile(map, 1, 0, 0, new Tile { Type = TileType.Ground, SrcX = 5 });
+        map.Layers[1].Locked = true;
+        MapEditOperations.EraseRectangle(map, 1, 0, 0, 1, 1);
+        Assert.Contains(map.Layers[1].Tiles, tile => tile.X == 0 && tile.Y == 0 && tile.SrcX == 5);
+    }
+
+    [Fact]
     public void EraseTile_RemovesTile()
     {
         var map = CreateMap();
