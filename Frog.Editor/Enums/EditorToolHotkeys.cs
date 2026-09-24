@@ -32,6 +32,7 @@ public static class EditorToolHotkeys
             Key.C => Keys.C,
             Key.F => Keys.F,
             Key.R => Keys.R,
+            Key.L => Keys.L,
             Key.M => Keys.M,
             Key.D => Keys.D,
             Key.P => Keys.P,
@@ -60,6 +61,9 @@ public static class EditorToolHotkeys
             case Keys.R:
                 tool = EditorTool.Rectangle;
                 return true;
+            case Keys.L:
+                tool = EditorTool.Line;
+                return true;
             case Keys.M:
                 tool = EditorTool.Selection;
                 return true;
@@ -83,6 +87,7 @@ public static class EditorToolHotkeys
             EditorTool.Cursor => "C",
             EditorTool.Fill => "F",
             EditorTool.Rectangle => "R",
+            EditorTool.Line => "L",
             EditorTool.Selection => "M",
             EditorTool.Spawn => "D",
             EditorTool.Prefab => "P",
@@ -97,6 +102,7 @@ public static class EditorToolHotkeys
             EditorTool.Cursor => "Curseur",
             EditorTool.Fill => "Pot (remplissage)",
             EditorTool.Rectangle => "Rectangle",
+            EditorTool.Line => "Ligne",
             EditorTool.Selection => "Sélection",
             EditorTool.Spawn => "Départ (spawn)",
             EditorTool.Prefab => "Prefab (objet)",
@@ -112,7 +118,7 @@ public static class EditorToolHotkeys
     }
 
     public const string PaletteHint =
-        "B pinceau · E gomme · C curseur · F pot · R rectangle · M sélection · D départ · P prefab · I pipette";
+        "B pinceau · E gomme · C curseur · F pot · R rectangle · L ligne (Maj = axe) · M sélection · D départ · P prefab · I pipette";
 
     public const string SelectionHint =
         "Sélection : Q rotation 90° · H miroir horizontal · V miroir vertical · I pipette (Alt+clic)";

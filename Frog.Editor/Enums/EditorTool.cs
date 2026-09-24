@@ -9,11 +9,13 @@ namespace Frog.Editor.Enums
         Fill = 3,
         /// <summary>Rectangle plein entre deux cases (clic départ, clic fin).</summary>
         Rectangle = 4,
+        /// <summary>Trait d'une tuile de large (Bresenham) entre deux cases. Majuscule : axe horizontal ou vertical.</summary>
+        Line = 5,
         /// <summary>Sélection rectangulaire (copier / coller tuiles sur la couche active).</summary>
-        Selection = 5,
+        Selection = 6,
         /// <summary>Clic = tuile de spawn playtest / départ (mémo locale, pas de peinture).</summary>
-        Spawn = 6,
+        Spawn = 7,
         /// <summary>Clic = poser un prefab (sidecar / workstate, pas de peinture tuile).</summary>
-        Prefab = 7
+        Prefab = 8
     }
 }

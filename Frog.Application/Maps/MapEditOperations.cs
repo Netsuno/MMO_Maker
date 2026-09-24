@@ -56,6 +56,69 @@ public static class MapEditOperations
         }
     }
 
+    /// <summary>Trait d'une tuile de large (Bresenham), extrémités comprises. Hors carte : ignoré.</summary>
+    public static void PaintLine(Map map, int layerIndex, int x0, int y0, int x1, int y1, Tile stamp)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(stamp);
+        if (!IsLayerEditable(map, layerIndex))
+        {
+            return;
+        }
+
+        foreach (var (x, y) in EnumerateLine(x0, y0, x1, y1))
+        {
+            PaintTile(map, layerIndex, x, y, stamp);
+        }
+    }
+
+    /// <summary>
+    /// Cases d'un segment en Bresenham entier (largeur 1). Inclut les deux bouts.
+    /// Chaque pas avance d'au plus une case en X et en Y.
+    /// </summary>
+    public static IReadOnlyList<(int X, int Y)> EnumerateLine(int x0, int y0, int x1, int y1)
+    {
+        var points = new List<(int X, int Y)>();
+        var dx = Math.Abs(x1 - x0);
+        var dy = Math.Abs(y1 - y0);
+        var sx = x0 < x1 ? 1 : -1;
+        var sy = y0 < y1 ? 1 : -1;
+        var err = dx - dy;
+        var limit = dx + dy;
+
+        while (points.Count <= limit)
+        {
+            points.Add((x0, y0));
+            if (x0 == x1 && y0 == y1)
+            {
+                break;
+            }
+
+            var e2 = 2 * err;
+            if (e2 > -dy)
+            {
+                err -= dy;
+                x0 += sx;
+            }
+
+            if (e2 < dx)
+            {
+                err += dx;
+                y0 += sy;
+            }
+        }
+
+        return points;
+    }
+
+    /// <summary>Maj : verrouille l'arrivée sur l'axe dominant (horizontal si |dx| &gt;= |dy|).</summary>
+    public static (int X, int Y) ConstrainToDominantAxis(int x0, int y0, int x1, int y1)
+    {
+        var dx = Math.Abs(x1 - x0);
+        var dy = Math.Abs(y1 - y0);
+        return dx >= dy ? (x1, y0) : (x0, y1);
+    }
+
     /// <summary>Remplissage par diffusion, borné aux dimensions de la carte.</summary>
     public static void FloodFill(Map map, int layerIndex, int sx, int sy, Tile replacement)
     {

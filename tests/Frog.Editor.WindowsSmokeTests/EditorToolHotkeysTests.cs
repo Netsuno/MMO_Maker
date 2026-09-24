@@ -13,6 +13,7 @@ public sealed class EditorToolHotkeysTests
     [InlineData(Keys.C, EditorTool.Cursor)]
     [InlineData(Keys.F, EditorTool.Fill)]
     [InlineData(Keys.R, EditorTool.Rectangle)]
+    [InlineData(Keys.L, EditorTool.Line)]
     [InlineData(Keys.M, EditorTool.Selection)]
     [InlineData(Keys.D, EditorTool.Spawn)]
     [InlineData(Keys.P, EditorTool.Prefab)]
@@ -40,6 +41,15 @@ public sealed class EditorToolHotkeysTests
     }
 
     [Fact]
+    public void WpfLetterL_SelectsLine()
+    {
+        Assert.True(EditorToolHotkeys.TryResolveWpf(Key.L, ModifierKeys.None, out var tool));
+        Assert.Equal(EditorTool.Line, tool);
+        Assert.False(EditorToolHotkeys.TryResolveWpf(Key.L, ModifierKeys.Shift, out _));
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.Shift | Keys.L, out _));
+    }
+
+    [Fact]
     public void WpfLetterP_SelectsPrefab()
     {
         Assert.True(EditorToolHotkeys.TryResolveWpf(Key.P, ModifierKeys.None, out var tool));
@@ -57,11 +67,14 @@ public sealed class EditorToolHotkeysTests
             Assert.Contains(EditorToolHotkeys.DisplayName(tool), label, StringComparison.Ordinal);
         }
 
+        Assert.Contains("L ligne", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("D", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("P", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("I", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("Q", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
         Assert.Contains("pipette", EditorToolHotkeys.SelectionHint, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("L", EditorToolHotkeys.ShortcutGlyph(EditorTool.Line));
+        Assert.Equal("Ligne", EditorToolHotkeys.DisplayName(EditorTool.Line));
         Assert.Equal("D", EditorToolHotkeys.ShortcutGlyph(EditorTool.Spawn));
         Assert.Equal("P", EditorToolHotkeys.ShortcutGlyph(EditorTool.Prefab));
     }
