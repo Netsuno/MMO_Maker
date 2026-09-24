@@ -4,25 +4,39 @@
 | --- | --- |
 | **Chantier** | Remplacer le 16×16 pauvre par un skin chibi top-down natif 32×32 |
 | **Propriétaire** | Netsun |
-| **Statut** | Native 32×32 Eldiran CC0, nearest ×1, pieds sur `(Cx,Cy)` — pas de resize monde |
-| **Base** | `main` @ `60757c9` (merge PR #16 contrast, includes #15 skin) |
-| **Branche** | `cursor/client-player-skin-v2-5d89` |
-| **PR** | Draft vers `main` — **pas de merge** |
+| **Statut** | Paperdoll MVP : corps + tête Eldiran, overlays originaux armure / casque / arme |
+| **Base** | `main` @ `a75ca4c` |
+| **Branche** | `cursor/paperdoll-overlays-aa00` |
+| **PR** | Draft [#49](https://github.com/Netsuno/MMO_Maker/pull/49) vers `main` — **pas de merge** |
 
 Protocole / gameplay / `WorldMetrics.DefaultTileSizePixels = 32` inchangés.
 Affichage nearest-neighbor seulement (pas de bicubique / ColorMatrix or).
 
-## Couches (équipement plus tard)
+## Couches
 
-Draw order : **body → tunic → armor → head → weapon** (`PlayerSpriteSlot`).
+Draw order : **body → tunic → armor → head → hat → weapon** (`PlayerSpriteSlot` / `PaperdollDrawOrder`).
+Même ordre sur chaque cellule de marche (l'arme reste devant, y compris vers le nord : la lame est à côté du corps).
 
-| Slot | v1 | Fichier |
+| Slot | MVP | Fichier |
 | --- | --- | --- |
-| Body | Eldiran torso/jambes (rows 14–31) | `player-body.png` |
-| Head | Eldiran casque/visage (rows 0–13) | `player-head.png` |
-| Tunic / Armor / Weapon | vides — overlay équipement plus tard | — |
+| Body | Eldiran torso/jambes | `player-body.png` + `player-walk-body.png` |
+| Tunic | vide — pas de sheet distincte | — |
+| Armor | overlay original si `EquippedArmorItemId` | `player-armor.png` + `player-walk-armor.png` |
+| Head | Eldiran visage (rows 0–13) | `player-head.png` + `player-walk-head.png` |
+| Hat | casque original, **après** la tête | `player-hat.png` + `player-walk-hat.png` |
+| Weapon | overlay original si `EquippedWeaponItemId` | `player-weapon.png` + `player-walk-weapon.png` |
 
 `player.png` = idle sud déjà composé (secours). Pas de sheet Graal embarquée.
+Overlays régénérés par `python3 tools/generate-paperdoll-overlays.py` (procédural, pas Eldiran, pas Graal).
+
+## Paperdoll MVP
+
+- Arme et armure suivent le snapshot inventaire déjà en place (`EquipmentSlot` = `EquipmentSlotKind` 1 / 2). Pas de bump protocole.
+- Casque : bouton **Porter le casque** / **Retirer le casque** dans le panneau équipement. Identifiant local, jamais envoyé. Slot `Headwear` sans champ fil.
+- Tunique : slot réservé, rien n'est dessiné. L'overlay vert est l'armure (torse), pas une couche tunique en plus.
+- Main gauche / bouclier (`Offhand`) : enum seulement, pas de sprite.
+- Joueur local : `MainShellForm` passe `localAppearance` à `MapViewRenderer`. Déséquipé → overlays cachés, corps + tête restent.
+- **Écart :** les autres joueurs ne reçoivent pas l'équipement (`PositionUpdate` n'a pas ces champs). Ils restent corps + tête. Le casque non plus n'est pas réseau.
 
 ---
 

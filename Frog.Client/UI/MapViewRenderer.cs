@@ -34,6 +34,7 @@ internal static class MapViewRenderer
     /// <param name="monsterPoses">Facing + walk frame par id monstre.</param>
     /// <param name="weatherPlan">Overlay teinte / traits (MVP). Défaut = pas de dessin.</param>
     /// <param name="weatherTickMs">Horloge cheap pour les traits de pluie.</param>
+    /// <param name="localAppearance">Overlays du joueur local (arme, armure, casque). Les autres joueurs restent corps + tête : leur équipement n'est pas sur le fil.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -53,7 +54,8 @@ internal static class MapViewRenderer
         IReadOnlyDictionary<string, (float CxPx, float CyPx)>? monsterCentersPx = null,
         IReadOnlyDictionary<string, WorldSpritePose>? monsterPoses = null,
         WeatherOverlayPlan weatherPlan = default,
-        int weatherTickMs = 0)
+        int weatherTickMs = 0,
+        PaperdollOverlaySet localAppearance = default)
     {
         var tw = WorldMetrics.DefaultTileSizePixels;
         var w = map.Width * tw;
@@ -193,10 +195,11 @@ internal static class MapViewRenderer
                 otherPose = posed;
             }
 
+            // Pas d'équipement sur PositionUpdate : les autres restent corps + tête.
             DrawPlayerSpriteAtPixelCenter(g, kv.Value.CxPx, kv.Value.CyPx, other: true, otherPose);
         }
 
-        DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false, localPose);
+        DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false, localPose, localAppearance);
         WeatherOverlayRenderer.Draw(g, bmp.Size, weatherPlan, weatherTickMs);
         return bmp;
     }
@@ -365,8 +368,14 @@ internal static class MapViewRenderer
     }
 
     /// <summary>Pieds / centre bas du sprite sur (Cx, Cy) ; nearest, scale from native 32 (tileSize stays 32).</summary>
-    private static void DrawPlayerSpriteAtPixelCenter(Graphics g, float centerXPx, float centerYPx, bool other, PlayerSpritePose pose)
-        => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other, pose);
+    private static void DrawPlayerSpriteAtPixelCenter(
+        Graphics g,
+        float centerXPx,
+        float centerYPx,
+        bool other,
+        PlayerSpritePose pose,
+        PaperdollOverlaySet appearance = default)
+        => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other, pose, appearance);
 
     private static void DrawWorldEntities(
         Graphics g,
