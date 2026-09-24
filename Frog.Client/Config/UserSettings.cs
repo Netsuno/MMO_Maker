@@ -1,3 +1,5 @@
+using System;
+
 namespace Frog.Client.Config;
 
 /// <summary>Réglages persistés (%LocalAppData%\Frog\client-settings.json).</summary>
@@ -31,6 +33,21 @@ public sealed class UserSettings
 
     public bool RememberAccount { get; set; }
 
+    /// <summary>
+    /// Base HTTP du canal contenu (<c>http://hôte:6080</c>). Variable
+    /// <c>FROG_TILEPACK_CONTENT_BASE_URL</c> prioritaire. Défaut <c>http://127.0.0.1:6080</c>.
+    /// </summary>
+    public string TilePackContentBaseUrl { get; set; } = TilePackClientOptions.DefaultContentBaseUrl;
+
+    /// <summary>
+    /// Clé publique Ed25519 épinglée (64 hex). Variable <c>FROG_TILEPACK_PUBLIC_KEY_HEX</c> prioritaire.
+    /// Vide : le client ne peint pas les tuiles du paquet.
+    /// </summary>
+    public string TilePackPublicKeyHex { get; set; } = string.Empty;
+
+    /// <summary>Slug optionnel du paquet. Variable <c>FROG_TILEPACK_SLUG</c> prioritaire. Vide : paquet publié le plus récent.</summary>
+    public string TilePackSlug { get; set; } = string.Empty;
+
     public void Normalize()
     {
         if (SchemaVersion < 1)
@@ -46,6 +63,14 @@ public sealed class UserSettings
         LastHost = string.IsNullOrWhiteSpace(LastHost) ? "127.0.0.1" : LastHost.Trim();
         LastPort = Math.Clamp(LastPort, 1, 65535);
         LastUsername = RememberAccount ? (LastUsername ?? string.Empty).Trim() : string.Empty;
+        if (!TilePackClientOptions.TryNormalizeBaseUrl(TilePackContentBaseUrl, out var tilePackUrl))
+        {
+            tilePackUrl = TilePackClientOptions.DefaultContentBaseUrl;
+        }
+
+        TilePackContentBaseUrl = tilePackUrl;
+        TilePackPublicKeyHex = (TilePackPublicKeyHex ?? string.Empty).Trim();
+        TilePackSlug = (TilePackSlug ?? string.Empty).Trim();
     }
 
     public void ApplyPreset(KeyboardLayoutPreset preset)
@@ -69,6 +94,9 @@ public sealed class UserSettings
             LastPort = LastPort,
             LastUsername = LastUsername,
             RememberAccount = RememberAccount,
+            TilePackContentBaseUrl = TilePackContentBaseUrl,
+            TilePackPublicKeyHex = TilePackPublicKeyHex,
+            TilePackSlug = TilePackSlug,
         };
         copy.Normalize();
         return copy;

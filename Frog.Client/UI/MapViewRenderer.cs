@@ -3,9 +3,12 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using Frog.Application.Prefabs;
+using Frog.Client.Assets;
 using Frog.Core.Constants;
+using Frog.Core.Distribution;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Core.Weather;
@@ -35,6 +38,8 @@ internal static class MapViewRenderer
     /// <param name="weatherPlan">Overlay teinte / traits (MVP). Défaut = pas de dessin.</param>
     /// <param name="weatherTickMs">Horloge cheap pour les traits de pluie.</param>
     /// <param name="localAppearance">Overlays du joueur local (tunique, arme, armure, casque). Les autres joueurs restent corps + tête : leur équipement n'est pas sur le fil.</param>
+    /// <param name="tileAssets">Tuiles v6 vérifiées, indexées par <see cref="TileAssetId"/>. Absent : pas de blit 48×48.</param>
+    /// <param name="tileAssetBitmaps">Cache d’affichage rempli à la demande. L’appelant dispose les bitmaps.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -55,9 +60,11 @@ internal static class MapViewRenderer
         IReadOnlyDictionary<string, WorldSpritePose>? monsterPoses = null,
         WeatherOverlayPlan weatherPlan = default,
         int weatherTickMs = 0,
-        PaperdollOverlaySet localAppearance = default)
+        PaperdollOverlaySet localAppearance = default,
+        ITileAssetLookup? tileAssets = null,
+        IDictionary<TileAssetId, Bitmap>? tileAssetBitmaps = null)
     {
-        var tw = WorldMetrics.DefaultTileSizePixels;
+        var tw = MapTileSizePixels(map);
         var w = map.Width * tw;
         var h = map.Height * tw;
         var bmp = new Bitmap(Math.Max(w, 1), Math.Max(h, 1));
@@ -90,6 +97,17 @@ internal static class MapViewRenderer
                     var t = FindTile(layer, tx, ty);
                     if (t is null)
                     {
+                        continue;
+                    }
+
+                    if (!t.AssetId.IsNone || map.GraphicIdentity == TileGraphicIdentity.TileAsset)
+                    {
+                        if (!t.AssetId.IsNone && TryDrawTileAsset(g, t, rect, tileAssets, tileAssetBitmaps))
+                        {
+                            continue;
+                        }
+
+                        FillFallbackType(g, rect, t.Type);
                         continue;
                     }
 
@@ -265,6 +283,62 @@ internal static class MapViewRenderer
             using var pen = new Pen(Color.FromArgb(220, 32, 20, 14), 2f);
             g.FillRectangle(fill, dest);
             g.DrawRectangle(pen, dest);
+        }
+    }
+
+    /// <summary>
+    /// Carte feuille : <see cref="WorldMetrics.DefaultTileSizePixels"/> (32).
+    /// Carte TileAsset : <c>tileSizePixels</c> de l’en-tête v6 (48). La constante monde ne change pas.
+    /// </summary>
+    internal static int MapTileSizePixels(Map map) => TileAssetDisplayPixels.MapPixelSize(map);
+
+    private static bool TryDrawTileAsset(
+        Graphics g,
+        Tile tile,
+        Rectangle dst,
+        ITileAssetLookup? tileAssets,
+        IDictionary<TileAssetId, Bitmap>? cache)
+    {
+        if (tile.AssetId.IsNone || tileAssets is null || !tileAssets.TryGet(tile.AssetId, out var asset) || asset is null)
+        {
+            return false;
+        }
+
+        if (asset.NormalizedRgba.Length != TileAssetMetrics.CanonicalPixelByteCount)
+        {
+            return false;
+        }
+
+        Bitmap? created = null;
+        Bitmap bmp;
+        if (cache is not null && cache.TryGetValue(tile.AssetId, out var cached) && cached is not null)
+        {
+            bmp = cached;
+        }
+        else
+        {
+            created = ClientTileAssetImages.Create(asset.NormalizedRgba);
+            bmp = created;
+            if (cache is not null)
+            {
+                cache[tile.AssetId] = created;
+                created = null;
+            }
+        }
+
+        try
+        {
+            if (bmp.Width != TileAssetMetrics.TargetTileSizePixels || bmp.Height != TileAssetMetrics.TargetTileSizePixels)
+            {
+                return false;
+            }
+
+            g.DrawImage(bmp, dst);
+            return true;
+        }
+        finally
+        {
+            created?.Dispose();
         }
     }
 
