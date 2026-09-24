@@ -4,8 +4,8 @@
 | --- | --- |
 | **Chantier** | Sélection (M) : copier / couper / coller le rectangle sur toutes les couches |
 | **Propriétaire** | Netsun |
-| **Statut** | Livré — PR ready-for-review |
-| **Base** | `main` @ `3dbf63f` |
+| **Statut** | Livré — PR ready-for-review, rebasé sur `main` |
+| **Base** | `main` @ `00050b5` (tuiles animées #52) |
 | **Branche** | `cursor/editor-multilayer-selection-copy-1081` |
 | **PR** | [#53](https://github.com/Netsuno/MMO_Maker/pull/53) vers `main` |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** |
@@ -36,9 +36,11 @@ La rotation 90° (Q), les miroirs H/V et la pipette (I) restent en place. Suppr 
 
 Rotation 90°, miroirs H/V, pipette I — voir l’historique PR [#39](https://github.com/Netsuno/MMO_Maker/pull/39). Raccourcis sans modificateur : ne volent pas Ctrl+C / Ctrl+X / Ctrl+V / Ctrl+Z.
 
+Aperçu des tuiles animées ([#52](https://github.com/Netsuno/MMO_Maker/pull/52)) : les outils pinceau, pot, rectangle et ligne gardent le suffixe « tuile animée » dans la barre d’état. Les phrases de sélection (geste en cours et rectangle figé) restent prioritaires.
+
 ---
 
 ## Tests
 
 - Linux / unitaires : `Frog.Tests/EditorSelectionToolsTests.cs` (rectangle multi-couches, trous, attributs, couche verrouillée, rotation alignée, format v5) et copie d’attributs dans `MapEditOperationsTests`.
-- Windows smoke : `MapCanvasSelectionPipetteSmokeTests` (collage toutes couches, un seul undo/redo, coupe, Ctrl+Maj couche active, Maj+Q) et hints `EditorToolHotkeysTests`.
+- Windows smoke : `MapCanvasSelectionPipetteSmokeTests` (collage toutes couches, un seul undo/redo, coupe, Ctrl+Maj couche active, Maj+Q) et hints `EditorToolHotkeysTests` (« Toutes les couches », comparaison ordinale).
