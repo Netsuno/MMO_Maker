@@ -286,7 +286,12 @@ public sealed class MapCanvas : Control
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
         MouseLeave += (_, _) => ClearMapEventMarkerHover();
+        KeyDown += (_, e) => RefreshShapePreview(e.KeyCode);
+        KeyUp += (_, e) => RefreshShapePreview(e.KeyCode);
     }
+
+    /// <summary>Le geste ligne / rectangle a changé (départ, Maj, annulation).</summary>
+    public event Action? PaintGestureChanged;
 
     /// <summary>Coin haut-gauche et coin bas-droit visibles, en coordonnées « monde » (pixels carte avant zoom).</summary>
     public void GetViewportWorldBounds(out PointF topLeft, out PointF bottomRight)
@@ -602,19 +607,13 @@ public sealed class MapCanvas : Control
 
             if (Map is not null && ActiveTool == EditorTool.Line && _linePaintOrigin is not null)
             {
-                DrawLineRubberBand(g, CurrentLineCells(LineAxisConstrained()));
+                DrawLineRubberBand(g, CurrentLineCells(LineAxisConstrained()), mw, mh);
             }
 
-            if (BrushGhostVisible() && TilesetCache.TryGet(ActiveTilesetId, out var bmpG) && bmpG is not null)
+            if (BrushGhostVisible() && _linePaintOrigin is null && TilesetCache.TryGet(ActiveTilesetId, out var bmpG) && bmpG is not null)
             {
                 var tx = _hoverTile.X;
                 var ty = _hoverTile.Y;
-                if (ActiveTool == EditorTool.Line && _linePaintOrigin is { } lineOrigin)
-                {
-                    var end = ResolveLineEnd(lineOrigin, _hoverTile, LineAxisConstrained());
-                    tx = end.X;
-                    ty = end.Y;
-                }
                 var ts = TileSize;
                 var sw = Math.Max(1, SelectedStampInTiles.Width);
                 var sh = Math.Max(1, SelectedStampInTiles.Height);
@@ -1398,7 +1397,7 @@ public sealed class MapCanvas : Control
         g.DrawRectangle(p, r);
     }
 
-    private void DrawLineRubberBand(Graphics g, IReadOnlyList<(int X, int Y)> cells)
+    private void DrawLineRubberBand(Graphics g, IReadOnlyList<(int X, int Y)> cells, int mapW, int mapH)
     {
         if (cells.Count == 0)
         {
@@ -1406,14 +1405,90 @@ public sealed class MapCanvas : Control
         }
 
         var ts = TileSize;
-        using var fill = new SolidBrush(Color.FromArgb(55, Color.Cyan));
-        using var pen = new Pen(Color.Cyan, 2f);
-        foreach (var (x, y) in cells)
+        var accent = EditorChrome.RibbonAccent;
+        using var wash = new SolidBrush(Color.FromArgb(72, accent));
+        using var spine = new Pen(Color.FromArgb(235, 236, 246, 255), 2.2f)
         {
-            var r = new Rectangle(x * ts, y * ts, ts, ts);
-            g.FillRectangle(fill, r);
-            g.DrawRectangle(pen, r);
+            DashStyle = DashStyle.Dash,
+            DashPattern = new[] { 5f, 3.5f },
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+        };
+        using var midEdge = new Pen(Color.FromArgb(210, accent), 1.4f) { DashStyle = DashStyle.Dash };
+        using var endEdge = new Pen(Color.FromArgb(245, 236, 246, 255), 2.2f);
+        using var handleFill = new SolidBrush(Color.FromArgb(230, accent));
+        using var handleRing = new Pen(Color.White, 1.6f);
+
+        var centers = new List<PointF>(cells.Count);
+        for (var i = 0; i < cells.Count; i++)
+        {
+            var (x, y) = cells[i];
+            if (x < 0 || y < 0 || x >= mapW || y >= mapH)
+            {
+                continue;
+            }
+
+            DrawBrushTileGhost(g, x, y, mapW, mapH, 0.72f);
+            var rect = new Rectangle(x * ts + 1, y * ts + 1, Math.Max(1, ts - 2), Math.Max(1, ts - 2));
+            g.FillRectangle(wash, rect);
+            var last = i == cells.Count - 1;
+            g.DrawRectangle(i == 0 || last ? endEdge : midEdge, rect);
+            centers.Add(new PointF(x * ts + (ts / 2f), y * ts + (ts / 2f)));
         }
+
+        if (centers.Count >= 2)
+        {
+            g.DrawLines(spine, centers.ToArray());
+        }
+
+        if (centers.Count > 0)
+        {
+            DrawLineHandle(g, centers[0], ts, handleFill, handleRing, filled: true);
+            if (centers.Count > 1)
+            {
+                DrawLineHandle(g, centers[^1], ts, handleFill, handleRing, filled: false);
+            }
+        }
+    }
+
+    private void DrawBrushTileGhost(Graphics g, int tx, int ty, int mapW, int mapH, float alpha)
+    {
+        if (!TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var sx = SelectedSrc.X;
+        var sy = SelectedSrc.Y;
+        if (sx < 0 || sy < 0 || sx + ts > bmp.Width || sy + ts > bmp.Height)
+        {
+            return;
+        }
+
+        if (tx < 0 || ty < 0 || tx >= mapW || ty >= mapH)
+        {
+            return;
+        }
+
+        using var attrs = new System.Drawing.Imaging.ImageAttributes();
+        attrs.SetColorMatrix(
+            new System.Drawing.Imaging.ColorMatrix { Matrix33 = alpha },
+            System.Drawing.Imaging.ColorMatrixFlag.Default,
+            System.Drawing.Imaging.ColorAdjustType.Bitmap);
+        g.DrawImage(bmp, new Rectangle(tx * ts, ty * ts, ts, ts), sx, sy, ts, ts, GraphicsUnit.Pixel, attrs);
+    }
+
+    private static void DrawLineHandle(Graphics g, PointF center, int tileSize, Brush fill, Pen ring, bool filled)
+    {
+        var d = Math.Clamp(tileSize * 0.28f, 6f, 14f);
+        var r = new RectangleF(center.X - (d / 2f), center.Y - (d / 2f), d, d);
+        if (filled)
+        {
+            g.FillEllipse(fill, r);
+        }
+
+        g.DrawEllipse(ring, r);
     }
 
     private void ComputeVisibleTileRange(out int tx0, out int ty0, out int tx1, out int ty1)
@@ -1596,14 +1671,14 @@ public sealed class MapCanvas : Control
             if (ActiveTool == EditorTool.Rectangle)
             {
                 _rectPaintOrigin = null;
-                Invalidate();
+                NotifyPaintGesture();
                 return;
             }
 
             if (ActiveTool == EditorTool.Line)
             {
                 _linePaintOrigin = null;
-                Invalidate();
+                NotifyPaintGesture();
                 return;
             }
 
@@ -1688,7 +1763,8 @@ public sealed class MapCanvas : Control
                     _rectPaintOrigin = new Point(tx, ty);
                     _hoverTile = new Point(tx, ty);
                     Capture = true;
-                    Invalidate();
+                    Focus();
+                    NotifyPaintGesture();
                     break;
 
                 case EditorTool.Line:
@@ -1700,7 +1776,8 @@ public sealed class MapCanvas : Control
                     _linePaintOrigin = new Point(tx, ty);
                     _hoverTile = new Point(tx, ty);
                     Capture = true;
-                    Invalidate();
+                    Focus();
+                    NotifyPaintGesture();
                     break;
 
                 case EditorTool.Selection:
@@ -1917,7 +1994,7 @@ public sealed class MapCanvas : Control
 
                 _rectPaintOrigin = null;
                 Capture = false;
-                Invalidate();
+                NotifyPaintGesture();
             }
 
             if (ActiveTool == EditorTool.Line && e.Button == MouseButtons.Left && _linePaintOrigin is not null)
@@ -2128,6 +2205,58 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private void RefreshShapePreview(Keys key)
+    {
+        if (key != Keys.ShiftKey || (_linePaintOrigin is null && _rectPaintOrigin is null))
+        {
+            return;
+        }
+
+        NotifyPaintGesture();
+    }
+
+    internal void RefreshShapePreviewForTest() => NotifyPaintGesture();
+
+    /// <summary>Annule le trait ou le rectangle en cours sans peindre. Échap.</summary>
+    internal bool TryCancelShapeGesture()
+    {
+        if (_linePaintOrigin is null && _rectPaintOrigin is null)
+        {
+            return false;
+        }
+
+        _linePaintOrigin = null;
+        _rectPaintOrigin = null;
+        Capture = false;
+        NotifyPaintGesture();
+        return true;
+    }
+
+    /// <summary>Phrase française pour la barre d'état, geste compris.</summary>
+    internal string GetPaintStatusHint()
+    {
+        if (ActiveTool == EditorTool.Line && _linePaintOrigin is { } origin)
+        {
+            var axis = LineAxisConstrained();
+            var end = ResolveLineEnd(origin, _hoverTile, axis);
+            var count = MapEditOperations.EnumerateLine(origin.X, origin.Y, end.X, end.Y).Count;
+            return EditorToolHotkeys.FormatLineGesture(origin.X, origin.Y, end.X, end.Y, count, axis);
+        }
+
+        if (ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } ro)
+        {
+            return EditorToolHotkeys.FormatRectangleGesture(ro.X, ro.Y, _hoverTile.X, _hoverTile.Y);
+        }
+
+        return EditorToolHotkeys.StatusHint(ActiveTool);
+    }
+
+    private void NotifyPaintGesture()
+    {
+        Invalidate();
+        PaintGestureChanged?.Invoke();
+    }
+
     private static bool LineAxisConstrained() => (ModifierKeys & Keys.Shift) == Keys.Shift;
 
     private static Point ResolveLineEnd(Point origin, Point end, bool axisAligned)
@@ -2173,7 +2302,7 @@ public sealed class MapCanvas : Control
 
         _linePaintOrigin = null;
         Capture = false;
-        Invalidate();
+        NotifyPaintGesture();
         return painted;
     }
 

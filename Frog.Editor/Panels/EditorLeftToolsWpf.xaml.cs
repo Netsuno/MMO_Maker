@@ -45,6 +45,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         }
 
         ComboTool.SelectedIndex = 0;
+        ApplyDrawToolChrome(EditorTool.Brush);
         SetSpawnDisplay(null, null);
         BindPrefabCatalog(BuiltInPrefabCatalog.Create(), BuiltInPrefabCatalog.SofaId, PrefabFacing.South);
         Loaded += (_, _) => RestoreProgrammaticPrefabSelection();
@@ -95,6 +96,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
 
     public void SetSelectedTool(EditorTool tool)
     {
+        ApplyDrawToolChrome(tool);
         for (var i = 0; i < ComboTool.Items.Count; i++)
         {
             if (ComboTool.Items[i] is ToolItem it && it.Tool == tool)
@@ -628,8 +630,61 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
             return;
         }
 
+        ApplyDrawToolChrome(it.Tool);
         ToolChanged?.Invoke(it.Tool);
     }
+
+    private void OnDrawToolClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { Tag: string name }
+            || !Enum.TryParse(name, out EditorTool tool))
+        {
+            return;
+        }
+
+        SetSelectedTool(tool);
+        ToolChanged?.Invoke(tool);
+    }
+
+    private void ApplyDrawToolChrome(EditorTool tool)
+    {
+        if (DrawToolHint is not null)
+        {
+            DrawToolHint.Text = EditorToolHotkeys.StatusHint(tool);
+        }
+
+        StyleDrawChip(BtnToolBrush, tool == EditorTool.Brush);
+        StyleDrawChip(BtnToolEraser, tool == EditorTool.Eraser);
+        StyleDrawChip(BtnToolFill, tool == EditorTool.Fill);
+        StyleDrawChip(BtnToolRectangle, tool == EditorTool.Rectangle);
+        StyleDrawChip(BtnToolLine, tool == EditorTool.Line);
+        StyleDrawChip(BtnToolSelection, tool == EditorTool.Selection);
+    }
+
+    private static void StyleDrawChip(System.Windows.Controls.Button? button, bool active)
+    {
+        if (button is null)
+        {
+            return;
+        }
+
+        if (!active)
+        {
+            button.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
+            button.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
+            button.ClearValue(System.Windows.Controls.Control.ForegroundProperty);
+            button.FontWeight = FontWeights.Normal;
+            return;
+        }
+
+        button.Background = ChipActiveBg;
+        button.BorderBrush = ChipActiveFg;
+        button.Foreground = ChipActiveFg;
+        button.FontWeight = FontWeights.SemiBold;
+    }
+
+    private static readonly System.Windows.Media.SolidColorBrush ChipActiveBg = Freeze(0x1A, 0x3D, 0x58);
+    private static readonly System.Windows.Media.SolidColorBrush ChipActiveFg = Freeze(0x64, 0xBE, 0xFF);
 
     private void ComboTileType_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {

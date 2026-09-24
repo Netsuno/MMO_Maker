@@ -399,6 +399,7 @@ public sealed class MainForm : Form
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Vérifier les transferts…", null, (_, _) => ShowTransferIssues());
+            mMap.DropDownItems.Add("Outil ligne (L)", null, (_, _) => SelectEditorTool(EditorTool.Line));
             mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
             mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
             mMap.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
@@ -502,6 +503,7 @@ public sealed class MainForm : Form
 
         _canvas = new MapCanvas { Dock = DockStyle.Fill };
         _canvas.HoveredTileChanged += OnHoveredTileChanged;
+        _canvas.PaintGestureChanged += PushEditorStatusLine;
         _canvas.ViewTransformChanged += OnCanvasViewTransformChanged;
         _canvas.PlaytestSpawnChanged += OnPlaytestSpawnChanged;
         _canvas.PrefabPlacementsChanged += OnPrefabPlacementsChanged;
@@ -1119,6 +1121,10 @@ public sealed class MainForm : Form
     private EditorTool _toolBeforePrefab = EditorTool.Brush;
     private int _prefabEscapeTick;
 
+    internal void RefreshShapePreview() => _canvas.RefreshShapePreviewForTest();
+
+    internal bool TryCancelShapeGesture() => _canvas.TryCancelShapeGesture();
+
     internal void SelectEditorTool(EditorTool tool)
     {
         if (tool == EditorTool.Prefab && _canvas.ActiveTool != EditorTool.Prefab)
@@ -1513,6 +1519,9 @@ public sealed class MainForm : Form
             : "";
         var eventCaption = _canvas.ActiveMapEventCaption;
         var eventText = string.IsNullOrEmpty(eventCaption) ? "" : $"    ·    événement {eventCaption}";
+        var toolHint = _canvas.ActiveTool == EditorTool.Prefab
+            ? ""
+            : $"    ·    {_canvas.GetPaintStatusHint()}";
         var transferCount = _transferIssues.Count;
         var transferText = transferCount == 0
             ? ""
@@ -1521,7 +1530,7 @@ public sealed class MainForm : Form
                 : $"    ·    {transferCount} transferts à corriger";
         var notice = string.IsNullOrEmpty(_statusNotice) ? "" : _statusNotice + "    ·    ";
         var text =
-            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{eventText}{transferText}    ·    catalogue {backend}";
+            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}{toolHint}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{eventText}{transferText}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -1595,6 +1604,11 @@ public sealed class MainForm : Form
         if (!ctrl && code == Keys.Escape)
         {
             if (TryHandlePrefabEscape() || CancelQuickNpcPlacement(userInitiated: true))
+            {
+                return true;
+            }
+
+            if (_canvas.TryCancelShapeGesture())
             {
                 return true;
             }

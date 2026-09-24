@@ -92,6 +92,9 @@
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
                 <MenuItem Header="Vérifier les transferts…" Command="{x:Static local:MainWindow.CmdShowTransferIssues}" />
+                <MenuItem Header="Outil ligne"
+                          Command="{x:Static local:MainWindow.CmdLineTool}"
+                          InputGestureText="L" />
                 <MenuItem Header="Outil point de départ"
                           Command="{x:Static local:MainWindow.CmdSpawnTool}"
                           InputGestureText="D" />
@@ -150,6 +153,7 @@
                 <Separator />
                 <Button Content="Catalogue" Command="{x:Static local:MainWindow.CmdRefreshCatalog}" Padding="10,4" />
                 <Separator />
+                <Button Content="Ligne" Command="{x:Static local:MainWindow.CmdLineTool}" Padding="10,4" ToolTip="Outil ligne : trait de tuiles (L). Maj aligne sur l'axe." />
                 <Button Content="Départ" Command="{x:Static local:MainWindow.CmdSpawnTool}" Padding="10,4" ToolTip="Outil point de départ playtest (D)" />
                 <Button Content="Prefab" Command="{x:Static local:MainWindow.CmdPrefabTool}" Padding="10,4" ToolTip="Poser un objet prefab (P)" />
                 <Button Content="Pipette" Command="{x:Static local:MainWindow.CmdTilePipette}" Padding="10,4" ToolTip="Pipette tuile : I ou Alt+clic" />
