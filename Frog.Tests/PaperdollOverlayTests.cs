@@ -128,11 +128,18 @@ public sealed class PaperdollOverlayTests
         Assert.DoesNotContain("OffhandItemId", service, StringComparison.Ordinal);
 
         Assert.Contains("localAppearance: EquipmentService.ToOverlaySet(_paperdoll)", shell, StringComparison.Ordinal);
+        Assert.Contains("_hudStatus.ApplyPortrait(EquipmentService.ToOverlaySet(_paperdoll))", shell, StringComparison.Ordinal);
         Assert.Contains("_paperdoll.WithServerLoadout(snapshot)", shell, StringComparison.Ordinal);
         Assert.Contains("Equipment.LocalHeadwearItemId", shell, StringComparison.Ordinal);
         Assert.Contains("Equipment.LocalTunicItemId", shell, StringComparison.Ordinal);
         Assert.Contains("LocalTunicChanged", shell, StringComparison.Ordinal);
         Assert.Contains("ResetLocalTunic", shell, StringComparison.Ordinal);
+        var tunicHandler = shell.IndexOf("_equipmentPanel.LocalTunicChanged", StringComparison.Ordinal);
+        var portraitRefresh = shell.IndexOf("SyncStatusPortrait()", tunicHandler, StringComparison.Ordinal);
+        var nextHandler = shell.IndexOf("_dialoguePanel.ChoiceRequested", tunicHandler, StringComparison.Ordinal);
+        Assert.True(
+            tunicHandler >= 0 && portraitRefresh > tunicHandler && portraitRefresh < nextHandler,
+            "local tunic refreshes the status portrait sample");
         Assert.Contains("Porter le casque", panel, StringComparison.Ordinal);
         Assert.Contains("Retirer le casque", panel, StringComparison.Ordinal);
         Assert.Contains("Casque: porté (local)", panel, StringComparison.Ordinal);
