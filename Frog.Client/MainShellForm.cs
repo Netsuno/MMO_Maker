@@ -305,6 +305,7 @@ public sealed class MainShellForm : Form
     private readonly Button _btnPickup = new() { Text = "Ramasser", AutoSize = true, Enabled = false };
     private GroundItemsSnapshotWire? _groundSnapshot;
     private readonly HashSet<Guid> _walkOnPickupSent = new();
+    private (int MapId, int TileX, int TileY)? _walkOnScannedTile;
     private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _heartbeatTimer = new() { Interval = 45_000 };
@@ -1926,14 +1927,14 @@ public sealed class MainShellForm : Form
             RedrawMap();
         }
 
-        TryRequestWalkOnPickup();
+        TryRequestWalkOnPickup(steppedOntoTile: false);
     }
 
     /// <summary>
-    /// Graal-style walk-on: the client asks to pick up stacks on the local tile.
-    /// The server still validates range and inventory. Headless tests send PickupItemRequest themselves.
+    /// Walk-on pickup when the local player steps onto a tile that already has loot.
+    /// A drop or a kill that lands under a stationary player stays until they leave and come back, or use Ramasser.
     /// </summary>
-    private void TryRequestWalkOnPickup()
+    private void TryRequestWalkOnPickup(bool steppedOntoTile)
     {
         if (_client is null || !_client.IsConnected || _groundSnapshot is null)
         {
@@ -1946,6 +1947,13 @@ public sealed class MainShellForm : Form
         }
 
         var tile = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+        var here = (_groundSnapshot.MapId, tile.X, tile.Y);
+        if (!steppedOntoTile && _walkOnScannedTile == here)
+        {
+            return;
+        }
+
+        _walkOnScannedTile = here;
         foreach (var item in _groundSnapshot.Items)
         {
             if (GroundLootPlacement.PixelToTile(item.PixelX, item.PixelY) != tile)
@@ -2505,6 +2513,7 @@ public sealed class MainShellForm : Form
         _lstGround.Items.Clear();
         _groundSnapshot = null;
         _walkOnPickupSent.Clear();
+        _walkOnScannedTile = null;
         _craftPanel.ClearRecipes();
         // Keep ItemNameLookup wired to ResolveItemName (handles null catalog).
     }
@@ -3125,7 +3134,9 @@ public sealed class MainShellForm : Form
                 TryScheduleMapRequestAfterWarp(mapId);
             }
 
-            if (!_localVisualInitialized)
+            var wasInitialized = _localVisualInitialized;
+            var tileBefore = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+            if (!wasInitialized)
             {
                 _srvPixelX = x;
                 _srvPixelY = y;
@@ -3135,6 +3146,8 @@ public sealed class MainShellForm : Form
                 _localVisualInitialized = true;
                 SnapCameraToLocalVisual();
                 needImmediateRedraw = true;
+                var spawnTile = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+                _walkOnScannedTile = (mapId, spawnTile.X, spawnTile.Y);
             }
             else if (x != _srvPixelX || y != _srvPixelY)
             {
@@ -3150,9 +3163,12 @@ public sealed class MainShellForm : Form
                 _srvPixelX = (int)MathF.Round(sx);
                 _srvPixelY = (int)MathF.Round(sy);
                 _movementMeasure.NoteLocalCorrection();
+                var tileAfter = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+                if (tileBefore != tileAfter || mapChanged)
+                {
+                    TryRequestWalkOnPickup(steppedOntoTile: true);
+                }
             }
-
-            TryRequestWalkOnPickup();
         }
         else
         {
