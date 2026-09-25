@@ -165,6 +165,8 @@ public sealed class MainShellForm : Form
 
     private readonly ClientSettingsStore _settingsStore = new();
     private UserSettings _settings;
+    private int _uiScalePercent = ClientUiScale.DefaultPercent;
+    private int _appliedUiScalePercent = ClientUiScale.DefaultPercent;
     private readonly TilePackClientService _tilePacks;
     private readonly Dictionary<TileAssetId, Bitmap> _tileAssetBitmaps = new();
     private string? _tileAssetBitmapSha;
@@ -350,6 +352,8 @@ public sealed class MainShellForm : Form
     {
         _playtestOptions = playtestOptions;
         _settings = _settingsStore.Load();
+        _uiScalePercent = _settings.UiScalePercent;
+        ClientUiScale.SetActive(_uiScalePercent);
         _tilePacks = new TilePackClientService(TilePackClientOptions.Resolve(_settings));
         _input.Apply(_settings);
         _sound.Apply(_settings);
@@ -382,6 +386,7 @@ public sealed class MainShellForm : Form
         }
 
         ApplyDaTheme();
+        ApplyUiScale(_settings.UiScalePercent);
         ApplyVersionChrome();
         ApplyPlayerStatusLayout();
         RefreshMoveHint();
@@ -3801,6 +3806,7 @@ public sealed class MainShellForm : Form
         }
 
         if (e.KeyCode == Keys.C
+            && !_input.IsAttack(e.KeyCode)
             && !_input.IsMovementOrInteract(e.KeyCode)
             && !InputService.IsTextInputFocus(ActiveControl))
         {
@@ -3827,7 +3833,7 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        if (e.KeyCode == Keys.Space)
+        if (_input.IsAttack(e.KeyCode))
         {
             e.Handled = true;
             e.SuppressKeyPress = true;
@@ -4342,6 +4348,7 @@ public sealed class MainShellForm : Form
         _input.Apply(_settings);
         _sound.Apply(_settings);
         ApplyWindowSettings(_settings.Window);
+        ApplyUiScale(_settings.UiScalePercent);
         if (_playtestOptions is not { IsPlaytest: true })
         {
             _txtHost.Text = _settings.LastHost;
@@ -4377,7 +4384,7 @@ public sealed class MainShellForm : Form
     private void RefreshMoveHint()
     {
         var layout = _input.Preset == KeyboardLayoutPreset.Qwerty ? "WASD" : "ZQSD";
-        _lblMoveHint.Text = $"{layout} + flèches = déplacement · {InputService.KeyDisplayName(_input.Interact)} = interagir · F1 = aide";
+        _lblMoveHint.Text = $"{layout} + flèches = déplacement · {InputService.KeyDisplayName(_input.Interact)} = interagir · {InputService.KeyDisplayName(_input.Attack)} = mêlée · F1 = aide";
         RefreshInteractHint();
     }
 
@@ -4493,6 +4500,47 @@ public sealed class MainShellForm : Form
 
     private void ApplyVersionChrome() => UpdateVersionBadge();
 
+    /// <summary>
+    /// Échelle d’interface seulement. La carte peinte reste en tuiles 32
+    /// (<see cref="WorldMetrics.DefaultTileSizePixels"/>). Le DPI système n’est pas relu.
+    /// À 100 % la méthode sort sans retoucher le layout Hello ni le HUD.
+    /// </summary>
+    private void ApplyUiScale(int percent)
+    {
+        var clamped = ClientUiScale.ClampPercent(percent);
+        _uiScalePercent = clamped;
+        _settings.UiScalePercent = clamped;
+        ClientUiScale.SetActive(clamped);
+        if (clamped == _appliedUiScalePercent)
+        {
+            return;
+        }
+
+        _appliedUiScalePercent = clamped;
+        UiScaleApplicator.ApplyFonts(this, clamped);
+        _loginShell.ApplyUiScale(clamped);
+        LoginShell.ApplyCharacterPageScale(_panelCharacter, clamped);
+        _hudStatus.ApplyChromeScale(clamped);
+        _hudMinimap.ApplyChromeScale(clamped);
+        _hudQuest.ApplyChromeScale(clamped);
+        _hudChat.ApplyChromeScale(clamped);
+        _hudStatus.Size = new Size(
+            ClientUiScale.ScaleDip(HudStatusModule.ModuleWidth, clamped),
+            ClientUiScale.ScaleDip(HudStatusModule.ModuleHeight, clamped));
+        _hudStatus.MinimumSize = new Size(
+            ClientUiScale.ScaleDip(200, clamped),
+            ClientUiScale.ScaleDip(64, clamped));
+        _hudMinimap.Size = new Size(ClientUiScale.ScaleDip(180, clamped), ClientUiScale.ScaleDip(180, clamped));
+        _hudMinimap.MinimumSize = new Size(ClientUiScale.ScaleDip(140, clamped), ClientUiScale.ScaleDip(140, clamped));
+        _hudQuest.Size = new Size(ClientUiScale.ScaleDip(180, clamped), ClientUiScale.ScaleDip(76, clamped));
+        _hudQuest.MinimumSize = new Size(ClientUiScale.ScaleDip(140, clamped), ClientUiScale.ScaleDip(64, clamped));
+        _hudChat.Size = new Size(ClientUiScale.ScaleDip(360, clamped), ClientUiScale.ScaleDip(200, clamped));
+        _hudChat.MinimumSize = new Size(ClientUiScale.ScaleDip(280, clamped), ClientUiScale.ScaleDip(160, clamped));
+        _hudHotbar.ApplyUiScale(clamped);
+        _hudMenu.ApplyUiScale(clamped);
+        LayoutGameHud();
+    }
+
     private void ApplyDaTheme()
     {
         UiTheme.Apply(this);
@@ -4518,14 +4566,14 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        const int gap = 8;
+        var gap = ClientUiScale.ScaleDip(8, _uiScalePercent);
         var chromeExtraH = HudWindowChrome.TitleBarHeight + HudWindowChrome.ContentPadding;
         var tabH = Math.Clamp(host.Height - (gap * 2) - chromeExtraH, 250, 700);
         _windowChrome.Visible = _windowLayerVisible;
         _gameplayTabs.Visible = _windowLayerVisible;
         if (_windowLayerVisible)
         {
-            _gameplayTabs.Size = new Size(360, tabH);
+            _gameplayTabs.Size = new Size(ClientUiScale.ScaleDip(360, _uiScalePercent), tabH);
             _windowChrome.FitToContent();
             _windowChrome.Location = new Point(Math.Max(0, host.Width - _windowChrome.Width - gap), gap);
             _windowChrome.BringToFront();
@@ -4573,7 +4621,7 @@ public sealed class MainShellForm : Form
         _gameplayTabs.Visible = visible;
         if (visible)
         {
-            _gameplayTabs.Width = 360;
+            _gameplayTabs.Width = ClientUiScale.ScaleDip(360, _uiScalePercent);
             if (_gameplayTabs.Height < 250 || _gameplayTabs.Height > 700)
             {
                 _gameplayTabs.Height = 480;
@@ -5543,6 +5591,8 @@ public sealed class MainShellForm : Form
     internal string MoveHintTextForTest => _lblMoveHint.Text;
 
     internal UserSettings SettingsForTest => _settings.Clone();
+
+    internal int UiScalePercentForTest => _uiScalePercent;
 
     internal InputService InputServiceForTest => _input;
 

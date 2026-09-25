@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using Frog.Client.Config;
 
 namespace Frog.Client.UI;
 
@@ -106,6 +107,38 @@ public sealed class HudMenuRing : Panel
         }
 
         Controls.Add(row);
+    }
+
+    /// <summary>À 100 % : icône 40, case 64 — mêmes constantes que le constructeur.</summary>
+    public void ApplyUiScale(int percent)
+    {
+        var itemW = ClientUiScale.ScaleDip(ItemWidth, percent);
+        var icon = ClientUiScale.ScaleDip(IconDiameter, percent);
+        var labelH = ClientUiScale.ScaleDip(LabelHeight, percent);
+        var gap = ClientUiScale.ScaleDip(ItemGap, percent);
+        var extra = ClientUiScale.ScaleDip(4, percent);
+        var height = icon + labelH + extra;
+        var width = (itemW * _pills.Length) + (gap * Math.Max(0, _pills.Length - 1));
+        MinimumSize = new Size(width, height);
+        Size = new Size(width, height);
+        if (Controls.Count == 0 || Controls[0] is not FlowLayoutPanel row)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _pills.Length; i++)
+        {
+            var cell = row.Controls[i];
+            cell.Size = new Size(itemW, height);
+            cell.Margin = new Padding(i == 0 ? 0 : gap, 0, 0, 0);
+            var btn = _pills[i];
+            btn.MinimumSize = new Size(icon, icon);
+            btn.MaximumSize = new Size(icon, icon);
+            btn.Size = new Size(icon, icon);
+            btn.Margin = new Padding(Math.Max(0, (itemW - icon) / 2), 0, 0, 0);
+            var label = _labels[i];
+            label.Size = new Size(itemW, labelH);
+        }
     }
 
     internal int PillCountForTest => _pills.Length;

@@ -1,6 +1,7 @@
 #nullable enable
 using System.Drawing;
 using System.Windows.Forms;
+using Frog.Client.Config;
 
 namespace Frog.Client.UI;
 
@@ -37,6 +38,16 @@ public class HudModulePanel : Panel
         };
         Controls.Add(TitleLabel);
         Paint += DrawChrome;
+    }
+
+    /// <summary>Padding et titre. À 100 % retrouve 8 px / 18 px de titre.</summary>
+    public void ApplyChromeScale(int percent)
+    {
+        var pad = ClientUiScale.ScaleDip(8, percent);
+        Padding = _showTitle
+            ? new Padding(pad, ClientUiScale.ScaleDip(22, percent), pad, pad)
+            : new Padding(pad);
+        TitleLabel.Height = _showTitle ? ClientUiScale.ScaleDip(CompactTitleHeight, percent) : 0;
     }
 
     internal bool TitleVisibleForTest => _showTitle;

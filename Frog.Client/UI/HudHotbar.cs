@@ -1,6 +1,7 @@
 #nullable enable
 using System.Drawing;
 using System.Windows.Forms;
+using Frog.Client.Config;
 
 namespace Frog.Client.UI;
 
@@ -87,6 +88,20 @@ public sealed class HudHotbar : Panel
         }
 
         Controls.Add(row);
+    }
+
+    /// <summary>À 100 % : barre 392×52, case 36 — mêmes chiffres que le constructeur.</summary>
+    public void ApplyUiScale(int percent)
+    {
+        var slot = ClientUiScale.ScaleDip(36, percent);
+        MinimumSize = new Size(ClientUiScale.ScaleDip(360, percent), ClientUiScale.ScaleDip(48, percent));
+        Size = new Size(ClientUiScale.ScaleDip(392, percent), ClientUiScale.ScaleDip(52, percent));
+        Padding = new Padding(ClientUiScale.ScaleDip(6, percent));
+        foreach (var btn in _slots)
+        {
+            btn.Width = slot;
+            btn.Height = slot;
+        }
     }
 
     internal int SlotCountForTest => _slots.Length;

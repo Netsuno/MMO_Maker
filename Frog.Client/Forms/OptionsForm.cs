@@ -25,11 +25,13 @@ public sealed class OptionsForm : Form
     private readonly NumericUpDown _numHeight = new() { Minimum = 640, Maximum = 4320, Width = 80 };
     private readonly CheckBox _chkMaximized = new() { Text = "Fenêtre maximisée", AutoSize = true };
     private readonly CheckBox _chkFullScreen = new() { Text = "Plein écran", AutoSize = true };
+    private readonly ComboBox _cmbScale = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
     private readonly Button _btnUp = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Button _btnDown = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Button _btnLeft = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Button _btnRight = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Button _btnInteract = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
+    private readonly Button _btnAttack = new() { AutoSize = true, MinimumSize = new Size(88, 28) };
     private readonly Label _lblCapture = new() { AutoSize = true, Text = "Cliquez une action puis appuyez sur une touche." };
     private readonly TextBox _txtHost = new() { Width = 160 };
     private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Width = 80 };
@@ -62,6 +64,12 @@ public sealed class OptionsForm : Form
         _numHeight.Value = _draft.Window.Height;
         _chkMaximized.Checked = _draft.Window.Maximized;
         _chkFullScreen.Checked = _draft.Window.FullScreen;
+        foreach (var step in ClientUiScale.Steps)
+        {
+            _cmbScale.Items.Add(step + " %");
+        }
+
+        _cmbScale.SelectedIndex = ClientUiScale.StepIndex(_draft.UiScalePercent);
         _txtHost.Text = _draft.LastHost;
         _numPort.Value = _draft.LastPort;
         RefreshVolumeLabel();
@@ -93,10 +101,13 @@ public sealed class OptionsForm : Form
             Row(Lbl("Haut"), _btnUp, Lbl("Bas"), _btnDown),
             Row(Lbl("Gauche"), _btnLeft, Lbl("Droite"), _btnRight),
             Row(Lbl("Interagir"), _btnInteract),
+            Row(Lbl("Mêlée"), _btnAttack),
             _lblCapture);
         var ui = Page(
             Heading("Interface"),
-            Note("DPI Windows 100 / 125 / 150 % : layout DIP (AutoScaleMode.Font)."),
+            Row(Lbl("Échelle de l'interface"), _cmbScale),
+            Note("Pas de 25 %, de 75 à 200. Le DPI Windows est déjà pris en compte (polices en points) : ce réglage ne le multiplie pas."),
+            Note("Les tuiles du monde restent à 32 px. L'écran de connexion garde sa carte centrée."),
             Note("Hitboxes et cadres restent en pixels logiques — pas de chiffre FPS inventé."),
             Note("Le HUD n’est pas repeint par le timer mouvement 16 ms."));
         var network = Page(
@@ -161,6 +172,11 @@ public sealed class OptionsForm : Form
         _numHeight.ValueChanged += (_, _) => _draft.Window.Height = (int)_numHeight.Value;
         _chkMaximized.CheckedChanged += (_, _) => _draft.Window.Maximized = _chkMaximized.Checked;
         _chkFullScreen.CheckedChanged += (_, _) => _draft.Window.FullScreen = _chkFullScreen.Checked;
+        _cmbScale.SelectedIndexChanged += (_, _) =>
+        {
+            var index = Math.Clamp(_cmbScale.SelectedIndex, 0, ClientUiScale.Steps.Length - 1);
+            _draft.UiScalePercent = ClientUiScale.Steps[index];
+        };
         _txtHost.TextChanged += (_, _) => _draft.LastHost = _txtHost.Text.Trim();
         _numPort.ValueChanged += (_, _) => _draft.LastPort = (int)_numPort.Value;
 
@@ -169,6 +185,7 @@ public sealed class OptionsForm : Form
         _btnLeft.Click += (_, _) => BeginCapture("MoveLeft");
         _btnRight.Click += (_, _) => BeginCapture("MoveRight");
         _btnInteract.Click += (_, _) => BeginCapture("Interact");
+        _btnAttack.Click += (_, _) => BeginCapture("Attack");
 
         KeyDown += OptionsForm_KeyDown;
         save.Click += (_, _) => CommitSave();
@@ -192,6 +209,14 @@ public sealed class OptionsForm : Form
 
     internal NumericUpDown PortNumericForTest => _numPort;
 
+    internal CheckBox FullScreenCheckBoxForTest => _chkFullScreen;
+
+    internal ComboBox UiScaleComboForTest => _cmbScale;
+
+    internal Button AttackButtonForTest => _btnAttack;
+
+    internal void AssignBindingForTest(string action, string keyName) => AssignBinding(action, keyName);
+
     internal ListBox SectionNavForTest => _nav ?? throw new InvalidOperationException("nav");
 
     internal void CommitSave()
@@ -210,6 +235,7 @@ public sealed class OptionsForm : Form
         _btnLeft.Text = _draft.Bindings.MoveLeft;
         _btnRight.Text = _draft.Bindings.MoveRight;
         _btnInteract.Text = _draft.Bindings.Interact;
+        _btnAttack.Text = _draft.Bindings.Attack;
     }
 
     private void BeginCapture(string action)
@@ -233,25 +259,7 @@ public sealed class OptionsForm : Form
             return;
         }
 
-        var name = e.KeyCode.ToString();
-        switch (_capturing)
-        {
-            case "MoveUp":
-                _draft.Bindings.MoveUp = name;
-                break;
-            case "MoveDown":
-                _draft.Bindings.MoveDown = name;
-                break;
-            case "MoveLeft":
-                _draft.Bindings.MoveLeft = name;
-                break;
-            case "MoveRight":
-                _draft.Bindings.MoveRight = name;
-                break;
-            case "Interact":
-                _draft.Bindings.Interact = name;
-                break;
-        }
+        AssignBinding(_capturing, e.KeyCode.ToString());
 
         _capturing = null;
         _lblCapture.Text = "Touche enregistrée (pas encore sauvegardée).";
@@ -267,8 +275,34 @@ public sealed class OptionsForm : Form
         "MoveLeft" => "gauche",
         "MoveRight" => "droite",
         "Interact" => "interagir",
+        "Attack" => "mêlée",
         _ => action,
     };
+
+    private void AssignBinding(string action, string keyName)
+    {
+        switch (action)
+        {
+            case "MoveUp":
+                _draft.Bindings.MoveUp = keyName;
+                break;
+            case "MoveDown":
+                _draft.Bindings.MoveDown = keyName;
+                break;
+            case "MoveLeft":
+                _draft.Bindings.MoveLeft = keyName;
+                break;
+            case "MoveRight":
+                _draft.Bindings.MoveRight = keyName;
+                break;
+            case "Interact":
+                _draft.Bindings.Interact = keyName;
+                break;
+            case "Attack":
+                _draft.Bindings.Attack = keyName;
+                break;
+        }
+    }
 
     private static FlowLayoutPanel Page(params Control[] controls)
     {
