@@ -3250,6 +3250,8 @@ public sealed class MainShellForm : Form
         _username = null;
         _sessionDisplayedMapId = 0;
         _others.Clear();
+        _worldMonsters.Clear();
+        _worldNpcs.Clear();
         ResetLocalMotionState();
         ResetPaperdoll();
         ClearMapImage();
@@ -3475,6 +3477,8 @@ public sealed class MainShellForm : Form
         _mapBlockedTiles = null;
         _sessionDisplayedMapId = 0;
         _others.Clear();
+        _worldMonsters.Clear();
+        _worldNpcs.Clear();
         ResetLocalMotionState();
         ResetPaperdoll();
         ClearMapImage();
@@ -3533,6 +3537,8 @@ public sealed class MainShellForm : Form
         _map = map;
         _mapBlockedTiles = MapCollision.IndexBlockedTiles(map);
         _others.Clear();
+        _worldMonsters.Clear();
+        _worldNpcs.Clear();
         // Ne pas ResetLocalMotionState() ici : un second MapRequest (ex. après CharacterSelectResult)
         // recevrait MapData après PositionUpdate ; la remise à zéro coupait tout envoi PositionSync.
         _motionSmoothLastUtc = DateTime.UtcNow;
@@ -3913,8 +3919,14 @@ public sealed class MainShellForm : Form
         }
     }
 
-    private void OnPositionUpdate(string user, int mapId, int x, int y)
+    private void OnPositionUpdate(string user, int mapId, int x, int y, CombatTargetKind kind)
     {
+        if (MonsterAi.TracksAsMonsterSprite(kind))
+        {
+            NoteMonsterPosition(user, mapId, x, y);
+            return;
+        }
+
         var isLocal = _username is not null && string.Equals(user, _username, StringComparison.OrdinalIgnoreCase);
         if (isLocal && _playtestOptions is { IsPlaytest: true })
         {
@@ -3999,6 +4011,38 @@ public sealed class MainShellForm : Form
         if (isLocal)
         {
             _hudMinimap.SetPlayerPixel(_srvPixelX, _srvPixelY);
+        }
+    }
+
+    private void NoteMonsterPosition(string name, int mapId, int x, int y)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        if (_sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
+        {
+            return;
+        }
+
+        _others.TryRemove(name, out _);
+        var isNew = !_worldMonsters.ContainsKey(name);
+        var view = _worldMonsters.GetOrAdd(name, _ => new WorldEntityView());
+        if (isNew)
+        {
+            view.ServerPixelX = x;
+            view.ServerPixelY = y;
+            view.VisCx = x;
+            view.VisCy = y;
+            RedrawMap();
+            return;
+        }
+
+        if (view.ServerPixelX != x || view.ServerPixelY != y)
+        {
+            view.ServerPixelX = x;
+            view.ServerPixelY = y;
         }
     }
 
@@ -4220,19 +4264,27 @@ public sealed class MainShellForm : Form
 
     private void BeginNamedAttack(string name)
     {
-        if (string.IsNullOrWhiteSpace(name) || !_others.TryGetValue(name, out var other))
+        if (string.IsNullOrWhiteSpace(name))
         {
             return;
         }
 
-        if (other.Action == SpriteAction.Death)
+        var played = false;
+        if (_others.TryGetValue(name, out var other) && other.Action != SpriteAction.Death)
         {
-            return;
+            other.Action = SpriteAction.Attack;
+            other.ActionElapsedMs = 0;
+            played = true;
         }
 
-        other.Action = SpriteAction.Attack;
-        other.ActionElapsedMs = 0;
-        if (_phase == ClientUiPhase.Playing && _map is not null)
+        if (_worldMonsters.TryGetValue(name, out var monster) && monster.Action != SpriteAction.Death)
+        {
+            monster.Action = SpriteAction.Attack;
+            monster.ActionElapsedMs = 0;
+            played = true;
+        }
+
+        if (played && _phase == ClientUiPhase.Playing && _map is not null)
         {
             RedrawMap();
         }

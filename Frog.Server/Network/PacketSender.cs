@@ -163,30 +163,23 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         return SendUtf8MessageAsync(session, PacketId.Error, message, cancellationToken);
     }
 
-    /// <summary>Deux entiers = centre joueur en pixels monde (axes partagés Frog.Core WorldMetrics), pas indices de tuile.</summary>
+    /// <summary>
+    /// Deux entiers = centre en pixels monde. <paramref name="kind"/> monstre ou mannequin ajoute un octet ;
+    /// un joueur garde la longueur historique.
+    /// </summary>
     public Task SendPositionUpdateAsync(
         ClientSession session,
         string username,
         int mapId,
         int pixelCenterX,
         int pixelCenterY,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CombatTargetKind kind = CombatTargetKind.Player)
     {
-        var usernameBytes = Encoding.UTF8.GetBytes(username);
-        if (usernameBytes.Length > byte.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(nameof(username), "Le nom utilisateur est trop long.");
-        }
-
-        var payload = new byte[2 + usernameBytes.Length + sizeof(int) + sizeof(int) + sizeof(int)];
+        var body = Phase7PacketCodec.BuildPositionUpdateBody(username, mapId, pixelCenterX, pixelCenterY, kind);
+        var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.PositionUpdate;
-        payload[1] = (byte)usernameBytes.Length;
-        usernameBytes.CopyTo(payload, 2);
-        var o = 2 + usernameBytes.Length;
-        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), mapId);
-        o += sizeof(int);
-        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), pixelCenterX);
-        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o + sizeof(int)), pixelCenterY);
+        body.CopyTo(payload, 1);
         return session.SendFrameAsync(payload, cancellationToken);
     }
 

@@ -55,4 +55,13 @@ public interface ICombatMutationRepository
     Task<bool> TryRestoreMonsterAsync(
         CombatMonsterSnapshot snapshot,
         CancellationToken cancellationToken = default);
+
+    IReadOnlyList<int> ListMapIdsWithMonsters();
+
+    Task<bool> TrySetMonsterPositionAsync(
+        int mapId,
+        Guid instanceId,
+        int pixelX,
+        int pixelY,
+        CancellationToken cancellationToken = default);
 }

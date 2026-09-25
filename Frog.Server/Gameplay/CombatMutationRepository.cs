@@ -123,6 +123,46 @@ public sealed class CombatMutationRepository : ICombatMutationRepository
         return Task.FromResult(true);
     }
 
+    public IReadOnlyList<int> ListMapIdsWithMonsters()
+    {
+        var ids = new List<int>();
+        foreach (var entry in _monstersByMap)
+        {
+            if (!entry.Value.IsEmpty)
+            {
+                ids.Add(entry.Key);
+            }
+        }
+
+        return ids;
+    }
+
+    public Task<bool> TrySetMonsterPositionAsync(
+        int mapId,
+        Guid instanceId,
+        int pixelX,
+        int pixelY,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_monstersByMap.TryGetValue(mapId, out var map))
+        {
+            return Task.FromResult(false);
+        }
+
+        var gate = _monsterLocks.GetOrAdd(instanceId, static _ => new object());
+        lock (gate)
+        {
+            if (!map.TryGetValue(instanceId, out var monster) || monster.Hp <= 0)
+            {
+                return Task.FromResult(false);
+            }
+
+            map[instanceId] = monster with { PixelX = pixelX, PixelY = pixelY };
+            return Task.FromResult(true);
+        }
+    }
+
     private static CombatMonsterSnapshot? FindMonsterInRange(
         IEnumerable<CombatMonsterSnapshot> monsters,
         string targetName,

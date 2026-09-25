@@ -75,6 +75,38 @@ public sealed class CombatMvpService
         }
     }
 
+    public IReadOnlyList<CombatTarget> ListLiveDummies()
+    {
+        lock (_gate)
+        {
+            var list = new List<CombatTarget>();
+            foreach (var dummy in _dummies.Values)
+            {
+                if (dummy.Hp > 0)
+                {
+                    list.Add(dummy.ToTarget());
+                }
+            }
+
+            return list;
+        }
+    }
+
+    public bool TryMoveDummy(int mapId, int pixelX, int pixelY)
+    {
+        lock (_gate)
+        {
+            if (!_dummies.TryGetValue(mapId, out var dummy) || dummy.Hp <= 0)
+            {
+                return false;
+            }
+
+            dummy.PixelX = pixelX;
+            dummy.PixelY = pixelY;
+            return true;
+        }
+    }
+
     public bool IsDummyRequest(AttackRequest request)
         => request.Kind == CombatTargetKind.Dummy
            || request.TargetId == CombatMvpLimits.DummyId

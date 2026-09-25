@@ -491,7 +491,9 @@ public static class FrogServerHostFactory
                 services.AddSingleton<Frog.Server.Economy.EconomyHubService>();
                 services.AddSingleton<Frog.Server.Instances.InstanceHubService>();
                 services.AddSingleton<Frog.Server.Combat.CombatMvpService>();
+                services.AddSingleton<MonsterAiService>();
                 services.AddHostedService<Frog.Server.Combat.StatusEffectTickHostedService>();
+                services.AddHostedService<Frog.Server.Combat.MonsterAiTickHostedService>();
                 services.AddSingleton<IPublishedContentLiveRefreshSink, PublishedContentLiveRefreshSink>();
                 services.AddSingleton<PublishedContentLiveRefreshCoordinator>();
                 services.AddSingleton<PlayerLifecycleNotifier>();
