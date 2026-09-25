@@ -422,6 +422,10 @@ public sealed class MainForm : Form
             mEdit.DropDownItems.Add("Miroir horizontal (H)", null, (_, _) => TryMirrorSelectionHorizontal());
             mEdit.DropDownItems.Add("Miroir vertical (V)", null, (_, _) => TryMirrorSelectionVertical());
             mEdit.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
+            mEdit.DropDownItems.Add(new ToolStripSeparator());
+            mEdit.DropDownItems.Add("Enregistrer la sélection comme modèle…", null, (_, _) => SaveSelectionAsMapTemplate());
+            mEdit.DropDownItems.Add("Enregistrer la carte comme modèle…", null, (_, _) => SaveCurrentMapAsTemplate());
+            mEdit.DropDownItems.Add("Poser un modèle…", null, (_, _) => PromptStampMapTemplate());
 
             var mResources = new ToolStripMenuItem("Ressources");
             mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
@@ -1344,6 +1348,185 @@ public sealed class MainForm : Form
     internal void CutTileSelection(bool activeLayerOnly) => _canvas.TryCutTileSelection(activeLayerOnly);
 
     internal void PasteTileSelection(bool activeLayerOnly) => _canvas.TryPasteAtHover(activeLayerOnly);
+
+    public void SaveSelectionAsMapTemplate()
+    {
+        if (_canvas.Map is null)
+        {
+            _dialogService.ShowInfo("Aucune carte chargée.", "Modèle");
+            return;
+        }
+
+        if (!_canvas.TryGetCommittedSelectionBounds(out var rect))
+        {
+            _dialogService.ShowInfo("Tracez une sélection (outil M), ou enregistrez la carte entière.", "Modèle");
+            return;
+        }
+
+        PromptAndSaveMapTemplate(rect);
+    }
+
+    public void SaveCurrentMapAsTemplate()
+    {
+        if (_canvas.Map is not { } map)
+        {
+            _dialogService.ShowInfo("Aucune carte chargée.", "Modèle");
+            return;
+        }
+
+        PromptAndSaveMapTemplate(new Rectangle(0, 0, map.Width, map.Height));
+    }
+
+    public void PromptStampMapTemplate()
+    {
+        if (!EditorMapTemplateStore.TryLoad(out var library, out var loadError))
+        {
+            _dialogService.ShowError(loadError ?? "Le fichier de modèles est illisible.", "Modèle");
+            return;
+        }
+
+        if (library.Templates.Count == 0)
+        {
+            _dialogService.ShowInfo("Aucun modèle enregistré. Enregistrez la sélection ou la carte depuis le menu Édition.", "Modèle");
+            return;
+        }
+
+        using var dialog = new MapTemplateListDialog(library.Templates);
+        if (dialog.ShowDialog(GetDialogOwner()) != DialogResult.OK || dialog.Selected is not { } selected)
+        {
+            return;
+        }
+
+        if (dialog.Choice == MapTemplateListChoice.Delete)
+        {
+            if (!_dialogService.ConfirmYesNo($"Supprimer le modèle « {selected.Name} » ?", "Modèle"))
+            {
+                return;
+            }
+
+            if (!library.TryRemove(selected.Name, out var removeError)
+                || !library.TryWrite(EditorMapTemplateStore.DirectoryPath(), out removeError))
+            {
+                _dialogService.ShowWarning(removeError ?? "Suppression impossible.", "Modèle");
+                return;
+            }
+
+            _statusNotice = $"Modèle « {selected.Name} » supprimé.";
+            PushEditorStatusLine();
+            return;
+        }
+
+        if (_canvas.Map is null)
+        {
+            _dialogService.ShowInfo("Aucune carte chargée.", "Modèle");
+            return;
+        }
+
+        var anchor = dialog.Choice == MapTemplateListChoice.Origin
+            ? new Point(0, 0)
+            : _canvas.HoveredTile;
+        if (!TryStampMapTemplate(selected, anchor.X, anchor.Y, out var error))
+        {
+            _dialogService.ShowWarning(error ?? "Pose impossible.", "Modèle");
+        }
+    }
+
+    internal bool TrySaveMapTemplateForTest(Rectangle rect, string name, out string? error)
+    {
+        if (_canvas.Map is null)
+        {
+            error = "Aucune carte chargée.";
+            return false;
+        }
+
+        return TrySaveMapTemplate(rect, name, confirmReplace: true, out error);
+    }
+
+    internal bool TryStampNamedTemplateForTest(string name, int anchorX, int anchorY, out string? error)
+    {
+        if (!EditorMapTemplateStore.TryLoad(out var library, out error))
+        {
+            return false;
+        }
+
+        var template = library.FindByName(name);
+        if (template is null)
+        {
+            error = "Modèle introuvable.";
+            return false;
+        }
+
+        return TryStampMapTemplate(template, anchorX, anchorY, out error);
+    }
+
+    private void PromptAndSaveMapTemplate(Rectangle rect)
+    {
+        var suggested = string.IsNullOrWhiteSpace(_canvas.Map?.Name) ? "Modèle" : _canvas.Map.Name.Trim();
+        var name = SimpleInputDialog.Show(GetDialogOwner(), "Enregistrer un modèle", "Nom du modèle", suggested);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        if (!TrySaveMapTemplate(rect, name, confirmReplace: false, out var error) && error is not null)
+        {
+            _dialogService.ShowWarning(error, "Modèle");
+        }
+    }
+
+    private bool TrySaveMapTemplate(Rectangle rect, string name, bool confirmReplace, out string? error)
+    {
+        if (_canvas.Map is not { } map)
+        {
+            error = "Aucune carte chargée.";
+            return false;
+        }
+
+        if (!EditorMapTemplateStore.TryLoad(out var library, out error))
+        {
+            return false;
+        }
+
+        if (!confirmReplace && library.FindByName(name) is not null
+            && !_dialogService.ConfirmYesNo($"Remplacer le modèle « {name.Trim()} » ?", "Modèle"))
+        {
+            error = null;
+            return false;
+        }
+
+        if (!MapStampTemplateOperations.TryCapture(
+                map,
+                rect.Left,
+                rect.Top,
+                rect.Width,
+                rect.Height,
+                _canvas.PrefabPlacements,
+                name,
+                out var template,
+                out error)
+            || template is null
+            || !library.TryUpsert(template, out error)
+            || !library.TryWrite(EditorMapTemplateStore.DirectoryPath(), out error))
+        {
+            return false;
+        }
+
+        _statusNotice = MapStampTemplateOperations.FormatSaved(template);
+        PushEditorStatusLine();
+        return true;
+    }
+
+    private bool TryStampMapTemplate(MapStampTemplate template, int anchorX, int anchorY, out string? error)
+    {
+        if (!_canvas.TryApplyMapTemplate(template, anchorX, anchorY, out var status, out error))
+        {
+            return false;
+        }
+
+        _statusNotice = status;
+        PushEditorStatusLine();
+        return true;
+    }
 
     internal bool TryRotateSelection90()
         => _canvas.TryTransformSelection(TileSelectionTransformKind.Rotate90Clockwise);

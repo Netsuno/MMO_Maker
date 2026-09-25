@@ -137,7 +137,7 @@ public static class EditorToolHotkeys
             EditorTool.Fill => FormatFillStatus(visibleUnlockedLayers: false, respectAttributes: false),
             EditorTool.Rectangle => FormatRectangleStatus(outline: false, ellipse: false),
             EditorTool.Line => "Ligne (L) · cliquez le départ, glissez, relâchez · Maj = axe",
-            EditorTool.Selection => "Sélection (M) · tracez un rectangle · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr",
+            EditorTool.Selection => "Sélection (M) · tracez un rectangle · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition",
             EditorTool.Spawn => "Départ (D) · clic pour poser le spawn playtest",
             EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · Échap quitte",
             EditorTool.Place => "Entités (N) · Apparition, PNJ ou Objet · clic pose · glisser déplace · clic droit retire",
@@ -207,7 +207,7 @@ public static class EditorToolHotkeys
 
     /// <summary>Sélection figée : copier-coller multi-couches, couche active avec Ctrl+Maj.</summary>
     public static string FormatSelectionCommitted(int width, int height)
-        => $"Sélection (M) · {width}×{height} · copie toutes les couches · Ctrl+C/X/V (copie, coupe, colle) · Ctrl+Maj = couche active · Q/H/V · Suppr";
+        => $"Sélection (M) · {width}×{height} · copie toutes les couches · Ctrl+C/X/V (copie, coupe, colle) · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition";
 
     /// <summary>État d’une tuile animée dans la barre d’état (français, sans le mot anglais « frames »).</summary>
     public static string FormatAnimatedTilePreview(int frameCount, bool previewEnabled)

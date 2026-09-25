@@ -91,6 +91,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.MainWorkspaceInitBarrierForTest = null;
         EditorTestHooks.MainFormSaveBarrierForTest = null;
         EditorLocalWorkstate.OverrideFilePathForTest = null;
+        EditorMapTemplateStore.OverrideDirectoryForTest = null;
         _pumpUntil = null;
         TilesetCache.Clear();
         TilesetAnimCatalog.PreviewEnabled = true;

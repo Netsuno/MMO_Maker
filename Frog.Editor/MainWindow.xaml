@@ -107,6 +107,13 @@
                 <MenuItem Header="Pipette tuile"
                           Command="{x:Static local:MainWindow.CmdTilePipette}"
                           InputGestureText="I" />
+                <Separator />
+                <MenuItem Header="Enregistrer la sélection comme modèle…"
+                          Command="{x:Static local:MainWindow.CmdSaveSelectionTemplate}" />
+                <MenuItem Header="Enregistrer la carte comme modèle…"
+                          Command="{x:Static local:MainWindow.CmdSaveMapTemplate}" />
+                <MenuItem Header="Poser un modèle…"
+                          Command="{x:Static local:MainWindow.CmdStampTemplate}" />
             </MenuItem>
             <MenuItem Header="_Ressources" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Données de jeu…" Command="{x:Static local:MainWindow.CmdGameData}" />
