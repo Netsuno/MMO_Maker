@@ -63,6 +63,45 @@ public sealed class Phase10TradeWireTests
         Assert.Equal("Potion", snap2.InitiatorOffer.Stacks[0].DisplayName);
         Assert.True(snap2.InitiatorConfirmed);
         Assert.False(snap2.PartnerConfirmed);
+        Assert.Equal(string.Empty, snap2.Notice);
+
+        var noticed = snap with { Notice = "Inventaire plein." };
+        var plain = TradeWire.BuildSnapshot(snap);
+        var withNotice = TradeWire.BuildSnapshot(noticed);
+        Assert.True(withNotice.Length > plain.Length);
+        Assert.True(withNotice.AsSpan(0, plain.Length).SequenceEqual(plain));
+        Assert.True(TradeWire.TryParseSnapshot(withNotice, out var parsedNotice));
+        Assert.Equal("Inventaire plein.", parsedNotice.Notice);
+        Assert.True(TradeWire.TryParseSnapshot(plain, out var parsedPlain));
+        Assert.Equal(string.Empty, parsedPlain.Notice);
+    }
+
+    [Fact]
+    public void InviteName_IsNotAGuid_AndSlashAcceptsNameOrBareVerbs()
+    {
+        var fifteen = new string('n', 15);
+        var padded = TradeWire.BuildInviteName(fifteen);
+        Assert.NotEqual(16, padded.Length);
+        Assert.True(TradeWire.TryReadInviteTarget(padded, out var empty, out var name));
+        Assert.Equal(Guid.Empty, empty);
+        Assert.Equal(fifteen, name);
+
+        var target = Guid.NewGuid();
+        var guidPayload = TradeWire.BuildGuidPayload(target);
+        Assert.Equal(16, guidPayload.Length);
+        Assert.True(TradeWire.TryReadInviteTarget(guidPayload, out var parsed, out var noName));
+        Assert.Equal(target, parsed);
+        Assert.Null(noName);
+
+        Assert.True(TradeWire.TryParseSlashCommand("/trade Netsun", out var byName, out _, out var nameExtra));
+        Assert.Equal((byte)TradeAction.Invite, byName);
+        Assert.True(TradeWire.TryReadInviteTarget(nameExtra, out _, out var invited));
+        Assert.Equal("Netsun", invited);
+        Assert.True(TradeWire.TryParseSlashCommand("/trade accept", out var accept, out var tradeId, out _));
+        Assert.Equal((byte)TradeAction.Accept, accept);
+        Assert.Equal(Guid.Empty, tradeId);
+        Assert.False(TradeWire.TryParseSlashCommand("/trader Netsun", out _, out _, out _));
+        Assert.False(TradeWire.TryParseSlashCommand("/trade invite", out _, out _, out _));
     }
 
     [Fact]

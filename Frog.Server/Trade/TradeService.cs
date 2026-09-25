@@ -166,12 +166,46 @@ public sealed class TradeService : ITradePresenceSink
         ReadOnlyMemory<byte> extra,
         CancellationToken cancellationToken)
     {
-        if (!TradeWire.TryReadGuid(extra.Span, out var targetId) || targetId == actorId)
+        if (!TradeWire.TryReadInviteTarget(extra.Span, out var targetId, out var targetName))
         {
             return Fail((byte)TradeAction.Invite, Guid.Empty, requestId, "Cible invalide.");
         }
 
-        if (!TryGetOnline(targetId, out var targetSession) || targetSession is null || targetSession.IsDead)
+        Session? targetSession = null;
+        if (targetId != Guid.Empty)
+        {
+            if (targetId == actorId || !TryGetOnline(targetId, out targetSession) || targetSession is null)
+            {
+                return Fail(
+                    (byte)TradeAction.Invite,
+                    Guid.Empty,
+                    requestId,
+                    targetId == actorId ? "Cible invalide." : "Joueur hors ligne.");
+            }
+        }
+        else
+        {
+            var (resolved, ambiguous) = await FindOnlineByLabelAsync(targetName ?? string.Empty, cancellationToken)
+                .ConfigureAwait(false);
+            if (ambiguous)
+            {
+                return Fail((byte)TradeAction.Invite, Guid.Empty, requestId, "Plusieurs joueurs portent ce nom.");
+            }
+
+            if (resolved is null || resolved.CharacterGuid == actorId)
+            {
+                return Fail(
+                    (byte)TradeAction.Invite,
+                    Guid.Empty,
+                    requestId,
+                    resolved is null ? "Joueur hors ligne." : "Cible invalide.");
+            }
+
+            targetSession = resolved;
+            targetId = resolved.CharacterGuid!.Value;
+        }
+
+        if (targetSession.IsDead)
         {
             return Fail((byte)TradeAction.Invite, Guid.Empty, requestId, "Joueur hors ligne.");
         }
@@ -274,6 +308,7 @@ public sealed class TradeService : ITradePresenceSink
             }
 
             trade.Status = TradeStatus.Open;
+            trade.Notice = string.Empty;
             trade.LastOfferMutationAt = _clock.GetUtcNow();
         }
 
@@ -415,6 +450,7 @@ public sealed class TradeService : ITradePresenceSink
             trade.Revision++;
             trade.InitiatorConfirmed = false;
             trade.PartnerConfirmed = false;
+            trade.Notice = string.Empty;
             trade.LastOfferMutationAt = _clock.GetUtcNow();
         }
 
@@ -476,6 +512,7 @@ public sealed class TradeService : ITradePresenceSink
                 trade.PartnerConfirmed = true;
             }
 
+            trade.Notice = string.Empty;
             bothConfirmed = trade.InitiatorConfirmed && trade.PartnerConfirmed;
         }
 
@@ -502,11 +539,13 @@ public sealed class TradeService : ITradePresenceSink
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            await NoteCommitFailureAsync(trade, "Echec de l'echange.", cancellationToken).ConfigureAwait(false);
             return Fail((byte)TradeAction.Confirm, tradeId, requestId, "Echec de l'echange.");
         }
 
         if (!commit.Success)
         {
+            await NoteCommitFailureAsync(trade, commit.Message, cancellationToken).ConfigureAwait(false);
             return Fail((byte)TradeAction.Confirm, tradeId, requestId, commit.Message);
         }
 
@@ -588,6 +627,7 @@ public sealed class TradeService : ITradePresenceSink
             }
 
             trade.Status = TradeStatus.Cancelled;
+            trade.Notice = reason;
             DetachLocked(trade);
         }
 
@@ -806,7 +846,8 @@ public sealed class TradeService : ITradePresenceSink
             trade.InitiatorName,
             trade.PartnerName,
             new TradeOfferWire(trade.InitiatorGold, await Named(trade.InitiatorItems).ConfigureAwait(false)),
-            new TradeOfferWire(trade.PartnerGold, await Named(trade.PartnerItems).ConfigureAwait(false)));
+            new TradeOfferWire(trade.PartnerGold, await Named(trade.PartnerItems).ConfigureAwait(false)),
+            trade.Notice);
     }
 
     private bool TryGetReplay(Guid characterId, Guid requestId, out TradeResultWire result)
@@ -852,6 +893,88 @@ public sealed class TradeService : ITradePresenceSink
         public IReadOnlyList<TradeStackOffer> PartnerItems { get; set; } = Array.Empty<TradeStackOffer>();
         public bool InitiatorConfirmed { get; set; }
         public bool PartnerConfirmed { get; set; }
+        public string Notice { get; set; } = string.Empty;
         public Guid? CommitRequestId { get; set; }
+    }
+
+    private async Task NoteCommitFailureAsync(TradeSessionState trade, string message, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            if (trade.Status != TradeStatus.Open)
+            {
+                return;
+            }
+
+            trade.InitiatorConfirmed = false;
+            trade.PartnerConfirmed = false;
+            trade.Notice = string.IsNullOrWhiteSpace(message) ? "Echec de l'echange." : message;
+            trade.Revision++;
+            trade.LastOfferMutationAt = _clock.GetUtcNow();
+        }
+
+        await PushSnapshotAsync(trade, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<(Session? Session, bool Ambiguous)> FindOnlineByLabelAsync(
+        string label,
+        CancellationToken cancellationToken)
+    {
+        var trimmed = label.Trim();
+        if (trimmed.Length == 0)
+        {
+            return (null, false);
+        }
+
+        Session? byAccount = null;
+        foreach (var session in _connections.GetActiveSessions())
+        {
+            if (session.CharacterGuid is not Guid id || id == Guid.Empty)
+            {
+                continue;
+            }
+
+            if (!string.Equals(session.Username, trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (byAccount is not null)
+            {
+                return (null, true);
+            }
+
+            byAccount = session;
+        }
+
+        if (byAccount is not null)
+        {
+            return (byAccount, false);
+        }
+
+        Session? byCharacter = null;
+        foreach (var session in _connections.GetActiveSessions())
+        {
+            if (session.CharacterGuid is not Guid id || id == Guid.Empty)
+            {
+                continue;
+            }
+
+            var record = await _characters.FindByIdAsync(id, cancellationToken).ConfigureAwait(false);
+            if (record is null
+                || !string.Equals(record.DisplayName, trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (byCharacter is not null)
+            {
+                return (null, true);
+            }
+
+            byCharacter = session;
+        }
+
+        return (byCharacter, false);
     }
 }

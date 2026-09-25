@@ -166,7 +166,9 @@ public sealed class Phase10TradeTcpTests
             }
 
             await a.SendFrameAsync(BuildTradeInvite(Guid.NewGuid(), bId));
-            Assert.False(DecodeTradeResult(await a.ReadUntilAsync(PacketId.TradeResult)).Success);
+            var tooFar = DecodeTradeResult(await a.ReadUntilAsync(PacketId.TradeResult));
+            Assert.False(tooFar.Success);
+            Assert.Contains("loin", tooFar.Message, StringComparison.OrdinalIgnoreCase);
 
             foreach (var s in connections.GetActiveSessions())
             {
@@ -181,6 +183,94 @@ public sealed class Phase10TradeTcpTests
             Assert.True(DecodeSocialResult(await b.ReadUntilAsync(PacketId.SocialResult)).Success);
             await a.SendFrameAsync(BuildTradeInvite(Guid.NewGuid(), bId));
             Assert.False(DecodeTradeResult(await a.ReadUntilAsync(PacketId.TradeResult)).Success);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
+    public async Task Tcp_InviteByName_FullInventoryResetsConfirm_DisconnectCancels()
+    {
+        var port = GetFreePort();
+        using var host = CreateInMemoryHost(port);
+        await host.StartAsync();
+        try
+        {
+            const string password = "password123";
+            await using var a = new TcpProbe();
+            await using var b = new TcpProbe();
+            var aUser = UniqueUser("na");
+            var bUser = UniqueUser("nb");
+            var aId = await RegisterLoginSelectAsync(a, port, aUser, password, "NaHero");
+            var bId = await RegisterLoginSelectAsync(b, port, bUser, password, "NbHero");
+            await SeedAsync(host, aId, gold: 40, itemId: Phase7ContentSeed.DefaultItemId, qty: 1);
+            await SeedAsync(host, bId, gold: 10, itemId: Guid.NewGuid(), qty: 1);
+            var inv = host.Services.GetRequiredService<IInventoryRepository>();
+            for (var i = 0; i < GameplayLimits.InventorySlotCount - 1; i++)
+            {
+                var added = await inv.TryAddAsync(bId, Guid.NewGuid(), 1, 1);
+                Assert.Equal(InventoryMutationStatus.Ok, added.Status);
+            }
+
+            await a.SendFrameAsync(BuildTrade(
+                (byte)TradeAction.Invite,
+                Guid.Empty,
+                Guid.NewGuid(),
+                TradeWire.BuildInviteName(bUser)));
+            var invite = DecodeTradeResult(await a.ReadUntilAsync(PacketId.TradeResult));
+            Assert.True(invite.Success);
+            var snap = DecodeTradeSnapshot(await b.ReadUntilAsync(PacketId.TradeSnapshot));
+            Assert.Equal(TradeStatus.Inviting, snap.Status);
+            await a.DrainPendingAsync();
+
+            await b.SendFrameAsync(BuildTrade((byte)TradeAction.Accept, invite.TradeId, Guid.NewGuid()));
+            Assert.True(DecodeTradeResult(await b.ReadUntilAsync(PacketId.TradeResult)).Success);
+            snap = DecodeTradeSnapshot(await a.ReadUntilAsync(PacketId.TradeSnapshot));
+            if (snap.Status != TradeStatus.Open)
+            {
+                snap = DecodeTradeSnapshot(await a.ReadUntilAsync(PacketId.TradeSnapshot));
+            }
+
+            Assert.Equal(TradeStatus.Open, snap.Status);
+            await b.DrainPendingAsync();
+
+            var offer = TradeWire.BuildSetOfferPayload(
+                snap.Revision,
+                0,
+                [new TradeStackWire(Phase7ContentSeed.DefaultItemId, 1, "")]);
+            await a.SendFrameAsync(BuildTrade((byte)TradeAction.SetOffer, invite.TradeId, Guid.NewGuid(), offer));
+            Assert.True(DecodeTradeResult(await a.ReadUntilAsync(PacketId.TradeResult)).Success);
+            snap = DecodeTradeSnapshot(await b.ReadUntilAsync(PacketId.TradeSnapshot));
+            await a.DrainPendingAsync();
+
+            await a.SendFrameAsync(BuildTrade(
+                (byte)TradeAction.Confirm,
+                invite.TradeId,
+                Guid.NewGuid(),
+                TradeWire.BuildRevisionPayload(snap.Revision)));
+            Assert.True(DecodeTradeResult(await a.ReadUntilAsync(PacketId.TradeResult)).Success);
+            await b.SendFrameAsync(BuildTrade(
+                (byte)TradeAction.Confirm,
+                invite.TradeId,
+                Guid.NewGuid(),
+                TradeWire.BuildRevisionPayload(snap.Revision)));
+            var failed = DecodeTradeResult(await b.ReadUntilAsync(PacketId.TradeResult));
+            Assert.False(failed.Success);
+            Assert.Contains("plein", failed.Message, StringComparison.OrdinalIgnoreCase);
+            snap = DecodeTradeSnapshot(await a.ReadUntilAsync(PacketId.TradeSnapshot));
+            Assert.Equal(TradeStatus.Open, snap.Status);
+            Assert.False(snap.InitiatorConfirmed);
+            Assert.False(snap.PartnerConfirmed);
+            Assert.Contains("plein", snap.Notice, StringComparison.OrdinalIgnoreCase);
+            await b.DrainPendingAsync();
+
+            await a.DisconnectAsync();
+            snap = DecodeTradeSnapshot(await b.ReadUntilAsync(PacketId.TradeSnapshot));
+            Assert.Equal(TradeStatus.Cancelled, snap.Status);
+            Assert.Contains("deconnecte", snap.Notice, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

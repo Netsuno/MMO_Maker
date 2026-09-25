@@ -29,12 +29,16 @@ public readonly record struct TradeSnapshotWire(
     string InitiatorName,
     string PartnerName,
     TradeOfferWire InitiatorOffer,
-    TradeOfferWire PartnerOffer);
+    TradeOfferWire PartnerOffer,
+    string Notice = "");
 
 /// <summary>Codec binaire opcodes 84–86.</summary>
 public static class TradeWire
 {
     public const int RequestHeaderBytes = 1 + 16 + 16;
+
+    /// <summary>Premier octet d'une invitation par nom (longueur ≠ 16). Un Guid reste 16 octets bruts.</summary>
+    public const byte InviteByNameMarker = 1;
 
     public static bool IsKnownAction(byte action) => action is >= 1 and <= 7;
 
@@ -90,6 +94,60 @@ public static class TradeWire
 
         id = new Guid(extra.Slice(0, 16));
         return id != Guid.Empty;
+    }
+
+    /// <summary>
+    /// Invitation par nom de compte ou de personnage. Jamais 16 octets, pour ne pas être lue comme un Guid.
+    /// </summary>
+    public static byte[] BuildInviteName(string name)
+    {
+        var utf8 = Encoding.UTF8.GetBytes((name ?? string.Empty).Trim());
+        if (utf8.Length > SocialProtocolLimits.MaxDisplayNameUtf8Bytes)
+        {
+            Array.Resize(ref utf8, SocialProtocolLimits.MaxDisplayNameUtf8Bytes);
+        }
+
+        var extra = new byte[1 + utf8.Length];
+        extra[0] = InviteByNameMarker;
+        utf8.CopyTo(extra, 1);
+        if (extra.Length == 16)
+        {
+            Array.Resize(ref extra, 17);
+        }
+
+        return extra;
+    }
+
+    /// <summary>16 octets = Guid historique. Sinon marqueur + nom UTF-8 (zéro final de bourrage ignoré).</summary>
+    public static bool TryReadInviteTarget(ReadOnlySpan<byte> extra, out Guid characterId, out string? name)
+    {
+        characterId = Guid.Empty;
+        name = null;
+        if (extra.Length == 16)
+        {
+            characterId = new Guid(extra);
+            return characterId != Guid.Empty;
+        }
+
+        if (extra.Length < 2 || extra[0] != InviteByNameMarker)
+        {
+            return false;
+        }
+
+        var nameBytes = extra.Slice(1);
+        var end = nameBytes.Length;
+        while (end > 0 && nameBytes[end - 1] == 0)
+        {
+            end--;
+        }
+
+        if (end == 0)
+        {
+            return false;
+        }
+
+        name = Encoding.UTF8.GetString(nameBytes.Slice(0, end));
+        return !string.IsNullOrWhiteSpace(name);
     }
 
     public static byte[] BuildSetOfferPayload(uint revisionBase, int gold, IReadOnlyList<TradeStackWire> stacks)
@@ -243,6 +301,13 @@ public static class TradeWire
 
         var initiatorName = BoundName(snapshot.InitiatorName);
         var partnerName = BoundName(snapshot.PartnerName);
+        var notice = Encoding.UTF8.GetBytes(snapshot.Notice ?? string.Empty);
+        if (notice.Length > SocialProtocolLimits.MaxResultMessageUtf8Bytes)
+        {
+            Array.Resize(ref notice, SocialProtocolLimits.MaxResultMessageUtf8Bytes);
+        }
+
+        var noticeBytes = notice.Length == 0 ? 0 : 2 + notice.Length;
         var aStacks = snapshot.InitiatorOffer.Stacks ?? Array.Empty<TradeStackWire>();
         var bStacks = snapshot.PartnerOffer.Stacks ?? Array.Empty<TradeStackWire>();
         var aNames = new byte[aStacks.Count][];
@@ -263,7 +328,7 @@ public static class TradeWire
         var payload = new byte[
             16 + 4 + 1 + 16 + 16 + 1 + 1 + 4 + 4
             + 2 + initiatorName.Length + 2 + partnerName.Length
-            + 1 + 1 + extra];
+            + 1 + 1 + extra + noticeBytes];
         var o = 0;
         snapshot.TradeId.TryWriteBytes(payload.AsSpan(o));
         o += 16;
@@ -314,6 +379,13 @@ public static class TradeWire
             o += bNames[i].Length;
         }
 
+        if (notice.Length > 0)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(o), (ushort)notice.Length);
+            o += 2;
+            notice.CopyTo(payload.AsSpan(o));
+        }
+
         return payload;
     }
 
@@ -356,6 +428,13 @@ public static class TradeWire
             return false;
         }
 
+        var notice = string.Empty;
+        if (o < payload.Length
+            && !TryReadUtf8(payload, ref o, SocialProtocolLimits.MaxResultMessageUtf8Bytes, out notice))
+        {
+            return false;
+        }
+
         if (o != payload.Length)
         {
             return false;
@@ -372,7 +451,8 @@ public static class TradeWire
             aName,
             bName,
             new TradeOfferWire(aGold, aStacks),
-            new TradeOfferWire(bGold, bStacks));
+            new TradeOfferWire(bGold, bStacks),
+            notice);
         return true;
     }
 
@@ -381,53 +461,75 @@ public static class TradeWire
         action = 0;
         tradeId = Guid.Empty;
         extra = [];
-        if (string.IsNullOrWhiteSpace(text) || !text.StartsWith("/trade", StringComparison.OrdinalIgnoreCase))
+        var trimmed = text.Trim();
+        if (trimmed.Length < 6
+            || !trimmed.StartsWith("/trade", StringComparison.OrdinalIgnoreCase)
+            || (trimmed.Length > 6 && !char.IsWhiteSpace(trimmed[6])))
         {
             return false;
         }
 
-        var parts = text.Trim().Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2)
+        var rest = trimmed.Length == 6 ? string.Empty : trimmed[6..].Trim();
+        if (rest.Length == 0)
         {
             return false;
         }
 
-        var verb = parts[1].ToLowerInvariant();
-        switch (verb)
+        var space = rest.IndexOf(' ');
+        var verb = (space < 0 ? rest : rest[..space]).ToLowerInvariant();
+        var arg = space < 0 ? string.Empty : rest[(space + 1)..].Trim();
+        if (verb is "invite" or "accept" or "decline" or "cancel" or "confirm" or "unconfirm")
         {
-            case "invite" when parts.Length >= 3 && Guid.TryParse(parts[2], out var target):
-                action = (byte)TradeAction.Invite;
-                extra = BuildGuidPayload(target);
-                return true;
-            case "accept" when parts.Length >= 3 && Guid.TryParse(parts[2], out var acc):
-                action = (byte)TradeAction.Accept;
-                tradeId = acc;
-                return true;
-            case "decline" when parts.Length >= 3 && Guid.TryParse(parts[2], out var dec):
-                action = (byte)TradeAction.Decline;
-                tradeId = dec;
-                return true;
-            case "cancel" when parts.Length >= 3 && Guid.TryParse(parts[2], out var can):
-                action = (byte)TradeAction.Cancel;
-                tradeId = can;
-                return true;
-            case "confirm" when parts.Length >= 3 && Guid.TryParse(parts[2], out var conf):
-                action = (byte)TradeAction.Confirm;
-                tradeId = conf;
-                extra = BuildRevisionPayload(0);
-                return true;
-            case "unconfirm" when parts.Length >= 3 && Guid.TryParse(parts[2], out var un):
-                action = (byte)TradeAction.Unconfirm;
-                tradeId = un;
-                return true;
-            default:
-                return false;
+            switch (verb)
+            {
+                case "invite" when Guid.TryParse(arg, out var target):
+                    action = (byte)TradeAction.Invite;
+                    extra = BuildGuidPayload(target);
+                    return true;
+                case "invite" when arg.Length > 0:
+                    action = (byte)TradeAction.Invite;
+                    extra = BuildInviteName(arg);
+                    return true;
+                case "accept":
+                    action = (byte)TradeAction.Accept;
+                    tradeId = ParseOptionalTradeId(arg);
+                    return arg.Length == 0 || tradeId != Guid.Empty;
+                case "decline":
+                    action = (byte)TradeAction.Decline;
+                    tradeId = ParseOptionalTradeId(arg);
+                    return arg.Length == 0 || tradeId != Guid.Empty;
+                case "cancel":
+                    action = (byte)TradeAction.Cancel;
+                    tradeId = ParseOptionalTradeId(arg);
+                    return arg.Length == 0 || tradeId != Guid.Empty;
+                case "confirm":
+                    action = (byte)TradeAction.Confirm;
+                    tradeId = ParseOptionalTradeId(arg);
+                    extra = BuildRevisionPayload(0);
+                    return arg.Length == 0 || tradeId != Guid.Empty;
+                case "unconfirm":
+                    action = (byte)TradeAction.Unconfirm;
+                    tradeId = ParseOptionalTradeId(arg);
+                    return arg.Length == 0 || tradeId != Guid.Empty;
+                default:
+                    return false;
+            }
         }
+
+        action = (byte)TradeAction.Invite;
+        extra = BuildInviteName(rest);
+        return true;
     }
 
+    private static Guid ParseOptionalTradeId(string arg)
+        => arg.Length == 0 ? Guid.Empty : Guid.TryParse(arg, out var id) ? id : Guid.Empty;
+
     private static bool TryReadName(ReadOnlySpan<byte> payload, ref int o, out string name)
+        => TryReadUtf8(payload, ref o, SocialProtocolLimits.MaxDisplayNameUtf8Bytes, out name);
+
+    private static bool TryReadUtf8(ReadOnlySpan<byte> payload, ref int o, int maxLen, out string text)
     {
-        name = string.Empty;
+        text = string.Empty;
         if (payload.Length < o + 2)
         {
             return false;
@@ -435,12 +537,12 @@ public static class TradeWire
 
         var len = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(o, 2));
         o += 2;
-        if (len > SocialProtocolLimits.MaxDisplayNameUtf8Bytes || payload.Length < o + len)
+        if (len > maxLen || payload.Length < o + len)
         {
             return false;
         }
 
-        name = len == 0 ? string.Empty : Encoding.UTF8.GetString(payload.Slice(o, len));
+        text = len == 0 ? string.Empty : Encoding.UTF8.GetString(payload.Slice(o, len));
         o += len;
         return true;
     }
