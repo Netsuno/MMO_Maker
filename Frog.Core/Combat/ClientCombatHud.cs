@@ -6,8 +6,11 @@ namespace Frog.Core.Combat;
 public sealed class ClientCombatHud
 {
     private readonly List<FloatingCombatNumber> _floats = new();
+    private readonly List<ActiveStatusIcon> _statuses = new();
 
     public DamageEvent? LastEvent { get; private set; }
+
+    public StatusEffectEvent? LastStatus { get; private set; }
 
     public string LastFloatText { get; private set; } = string.Empty;
 
@@ -17,7 +20,14 @@ public sealed class ClientCombatHud
 
     public IReadOnlyList<FloatingCombatNumber> Floats => _floats;
 
+    public IReadOnlyList<ActiveStatusIcon> Statuses => _statuses;
+
     public bool HasFloats => _floats.Count > 0;
+
+    public bool HasStatuses => _statuses.Count > 0;
+
+    public string StatusTooltip
+        => string.Join(" · ", _statuses.Select(icon => icon.Tooltip));
 
     public SparkBurst? Sparks { get; private set; }
 
@@ -38,6 +48,46 @@ public sealed class ClientCombatHud
     }
 
     public void ApplyMiss(DateTime utcNow) => ApplyCue(CombatFx.MissCue, utcNow);
+
+    /// <summary>
+    /// Apply / tic / clear. Le coup d'arme (Apply) ne rajoute pas un second nombre :
+    /// le <see cref="DamageEvent"/> s'en charge. Un tic de poison ajoute le nombre vert.
+    /// </summary>
+    public void ApplyStatus(StatusEffectEvent ev, DateTime utcNow, DamageEvent? damage)
+    {
+        LastStatus = ev;
+        if (ev.Op == StatusEffectOp.Clear)
+        {
+            if (ev.Kind == StatusEffectKind.None)
+            {
+                _statuses.RemoveAll(icon => icon.TargetId == ev.TargetId);
+            }
+            else
+            {
+                _statuses.RemoveAll(icon => icon.TargetId == ev.TargetId && icon.Kind == ev.Kind);
+            }
+
+            if (damage is { Killed: false, Damage: > 0 } && ev.Kind == StatusEffectKind.Poison)
+            {
+                ApplyCue(CombatFx.PoisonTick(damage.Value.Damage), utcNow);
+            }
+
+            return;
+        }
+
+        if (ev.Kind is not (StatusEffectKind.Poison or StatusEffectKind.Stun))
+        {
+            return;
+        }
+
+        Upsert(ev);
+        if (ev.Op == StatusEffectOp.Tick
+            && damage is { Killed: false, Damage: > 0 }
+            && ev.Kind == StatusEffectKind.Poison)
+        {
+            ApplyCue(CombatFx.PoisonTick(damage.Value.Damage), utcNow);
+        }
+    }
 
     public void Tick(DateTime utcNow) => Prune(utcNow);
 
@@ -78,6 +128,26 @@ public sealed class ClientCombatHud
 
         _floats.Add(new FloatingCombatNumber(cue.Text, utcNow, cue.Kind, cue.EmSize));
         Prune(utcNow);
+    }
+
+    private void Upsert(StatusEffectEvent ev)
+    {
+        var icon = new ActiveStatusIcon(ev.TargetId, ev.Kind, ev.RemainingTicks, ev.Potency);
+        for (var i = 0; i < _statuses.Count; i++)
+        {
+            if (_statuses[i].TargetId == ev.TargetId && _statuses[i].Kind == ev.Kind)
+            {
+                _statuses[i] = icon;
+                return;
+            }
+        }
+
+        while (_statuses.Count >= 4)
+        {
+            _statuses.RemoveAt(0);
+        }
+
+        _statuses.Add(icon);
     }
 
     private void Prune(DateTime utcNow)

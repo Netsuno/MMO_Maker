@@ -30,4 +30,7 @@ public static class CombatMvpLimits
 
     /// <summary>Même octet de flags : coup à distance. Les clients qui ignorent le bit restent valides.</summary>
     public const byte DamageFlagRanged = 8;
+
+    /// <summary>Trailer d'effet après <see cref="DamageEventTrailerBytes"/>. Les parseurs qui s'arrêtent avant l'ignorent.</summary>
+    public const int StatusEffectTrailerBytes = StatusEffectLimits.TrailerBytes;
 }

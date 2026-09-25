@@ -60,6 +60,7 @@ public sealed class FrogGameClient : IDisposable
     public event Action<ChatChannel, string, string, string>? ChatMessageReceived;
     public event Action<bool, string, string>? MeleeAttackResultReceived;
     public event Action<DamageEvent>? DamageEventReceived;
+    public event Action<StatusEffectEvent, DamageEvent?>? StatusEffectReceived;
     /// <summary>JSON : tableau d’objets { id, name } (protocole wire ≥ 4).</summary>
     public event Action<string>? CharacterListReceived;
     public event Action<bool, string>? CharacterSelectResultReceived;
@@ -414,7 +415,13 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.MeleeAttackResult:
-                if (CombatMvpWire.TryParseMeleeResult(body.Span, out var hit, out var tgt, out var meleeMsg, out var damageEv)
+                if (CombatMvpWire.TryParseMeleeResult(
+                        body.Span,
+                        out var hit,
+                        out var tgt,
+                        out var meleeMsg,
+                        out var damageEv,
+                        out var statusEv)
                     || TryReadMeleeResult(body.Span, out hit, out tgt, out meleeMsg))
                 {
                     var resolvedStyle = damageEv switch
@@ -423,13 +430,20 @@ public sealed class FrogGameClient : IDisposable
                         not null => AttackStyle.Melee,
                         null => _pendingAttackStyle,
                     };
+                    var statusTickOwnsFloat = statusEv is { Op: StatusEffectOp.Tick or StatusEffectOp.Clear }
+                        && damageEv is { Killed: false };
                     Post(() =>
                     {
                         LastResolvedAttackStyle = resolvedStyle;
                         MeleeAttackResultReceived?.Invoke(hit, tgt, meleeMsg);
-                        if (damageEv is { } ev)
+                        if (damageEv is { } ev && !statusTickOwnsFloat)
                         {
                             DamageEventReceived?.Invoke(ev);
+                        }
+
+                        if (statusEv is { } st)
+                        {
+                            StatusEffectReceived?.Invoke(st, damageEv);
                         }
                     });
                 }
@@ -1281,10 +1295,12 @@ public sealed class FrogGameClient : IDisposable
         Direction facing,
         Guid targetId,
         CancellationToken cancellationToken = default,
-        AttackStyle style = AttackStyle.Melee)
+        AttackStyle style = AttackStyle.Melee,
+        StatusEffectKind applyStatus = StatusEffectKind.None)
     {
         _pendingAttackStyle = style;
-        var body = CombatMvpWire.BuildAttackRequest(new AttackRequest(targetUsername, kind, facing, targetId, style));
+        var body = CombatMvpWire.BuildAttackRequest(
+            new AttackRequest(targetUsername, kind, facing, targetId, style, applyStatus));
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.MeleeAttackRequest;
         body.CopyTo(payload.AsSpan(1));

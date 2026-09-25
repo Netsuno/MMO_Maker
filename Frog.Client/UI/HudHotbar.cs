@@ -37,10 +37,10 @@ public sealed class HudHotbar : Panel
         var digits = new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" };
         _tooltips = new[]
         {
-            "Mêlée (1)",
+            "Mêlée (1) — poison",
             "Sort (2)",
             "Interagir (3)",
-            "Distance (4)",
+            "Distance (4) — étourdissement",
             "Slot 5 — non lié",
             "Slot 6 — non lié",
             "Slot 7 — non lié",
