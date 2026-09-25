@@ -117,8 +117,12 @@
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
+                <MenuItem Header="Propriétés de la carte…" Command="{x:Static local:MainWindow.CmdMapProperties}" />
                 <MenuItem Header="Passer cette carte en TileAsset (v6)…" Command="{x:Static local:MainWindow.CmdConvertMapToTileAsset}" />
                 <MenuItem Header="Vérifier les transferts…" Command="{x:Static local:MainWindow.CmdShowTransferIssues}" />
+                <MenuItem Header="Outil gomme"
+                          Command="{x:Static local:MainWindow.CmdEraserTool}"
+                          InputGestureText="E" />
                 <MenuItem Header="Outil remplissage"
                           Command="{x:Static local:MainWindow.CmdFillTool}"
                           InputGestureText="F" />
@@ -192,7 +196,9 @@
                 <Separator />
                 <Button Content="Catalogue" Command="{x:Static local:MainWindow.CmdRefreshCatalog}" Padding="10,4" />
                 <Separator />
+                <Button Content="Gomme" Command="{x:Static local:MainWindow.CmdEraserTool}" Padding="10,4" ToolTip="Outil gomme (E). Efface le tampon sur la couche active visible et déverrouillée." />
                 <Button Content="Remplissage" Command="{x:Static local:MainWindow.CmdFillTool}" Padding="10,4" ToolTip="Outil remplissage (pot, F). Clic : zone connexe en 4 directions. Clic droit ou tuile vide : efface. Ctrl : couches visibles." />
+                <Button Content="Propriétés" Command="{x:Static local:MainWindow.CmdMapProperties}" Padding="10,4" ToolTip="Propriétés de la carte : nom, taille, chevauchement." />
                 <Button Content="Rectangle" Command="{x:Static local:MainWindow.CmdRectangleTool}" Padding="10,4" ToolTip="Outil rectangle (R). Plein par défaut sur la couche active. Maj ou case Contour : bord seulement. Case Ellipse : ellipse inscrite." />
                 <Button Content="Ligne" Command="{x:Static local:MainWindow.CmdLineTool}" Padding="10,4" ToolTip="Outil ligne : trait de tuiles (L). Maj aligne sur l'axe." />
                 <Button Content="Départ" Command="{x:Static local:MainWindow.CmdSpawnTool}" Padding="10,4" ToolTip="Outil point de départ playtest (D)" />

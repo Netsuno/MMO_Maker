@@ -49,6 +49,7 @@ public sealed class MainForm : Form
     private readonly ElementHost _layersElementHost;
     private bool _suspendLayerListEvents;
     private readonly PropertyGrid _propGrid;
+    private readonly MapPropertiesBar _mapPropertiesBar;
     private readonly TransferIssuesPanel _transferIssuesPanel;
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
@@ -416,8 +417,10 @@ public sealed class MainForm : Form
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
+            mMap.DropDownItems.Add("Propriétés de la carte…", null, (_, _) => ShowMapProperties());
             mMap.DropDownItems.Add("Passer cette carte en TileAsset (v6)…", null, (_, _) => ConvertCurrentMapToTileAsset());
             mMap.DropDownItems.Add("Vérifier les transferts…", null, (_, _) => ShowTransferIssues());
+            mMap.DropDownItems.Add("Outil gomme (E)", null, (_, _) => SelectEditorTool(EditorTool.Eraser));
             mMap.DropDownItems.Add("Outil remplissage (F)", null, (_, _) => SelectEditorTool(EditorTool.Fill));
             mMap.DropDownItems.Add("Outil rectangle (R)", null, (_, _) => SelectEditorTool(EditorTool.Rectangle));
             mMap.DropDownItems.Add("Outil ligne (L)", null, (_, _) => SelectEditorTool(EditorTool.Line));
@@ -844,9 +847,12 @@ public sealed class MainForm : Form
                 return;
             }
 
-            if (_propGrid.SelectedObject is Map)
+            if (_propGrid.SelectedObject is Map map)
             {
+                MapEditOperations.ClampDimensions(map);
+                MapEditOperations.ClipTilesOutsideBounds(map);
                 UpdateMapChromeLabels();
+                _propGrid.Refresh();
             }
 
             OnMapEdited();
@@ -864,9 +870,14 @@ public sealed class MainForm : Form
         };
         _transferIssuesPanel = new TransferIssuesPanel { Dock = DockStyle.Bottom, Height = 132 };
         _transferIssuesPanel.IssueActivated += FocusTransferIssue;
+        _mapPropertiesBar = new MapPropertiesBar { Dock = DockStyle.Top };
+        _mapPropertiesBar.EditRequested += (_, _) => ShowMapProperties();
+        var propsBody = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
+        propsBody.Controls.Add(_propGrid);
+        propsBody.Controls.Add(_mapPropertiesBar);
         var propsHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
         propsHost.Controls.Add(_transferIssuesPanel);
-        propsHost.Controls.Add(_propGrid);
+        propsHost.Controls.Add(propsBody);
         _splitLayersProps.Panel2.Controls.Add(propsHost);
 
         _splitRightTileset.Panel2.Controls.Add(_splitLayersProps);
@@ -1313,6 +1324,7 @@ public sealed class MainForm : Form
         }
 
         _leftToolsWpf.SetSpawnDisplay(tile.X, tile.Y);
+        RefreshMapPropertiesBar();
         PushEditorStatusLine();
     }
 
@@ -1337,6 +1349,7 @@ public sealed class MainForm : Form
 
             var spawn = _canvas.PlaytestSpawnTile;
             _leftToolsWpf.SetSpawnDisplay(spawn?.X, spawn?.Y);
+            RefreshMapPropertiesBar();
         }
         finally
         {
@@ -1785,6 +1798,7 @@ public sealed class MainForm : Form
         if (_canvas.Map is null)
         {
             _lblMapWorkspaceTitle.Text = "Carte : —";
+            RefreshMapPropertiesBar();
             return;
         }
 
@@ -1794,6 +1808,17 @@ public sealed class MainForm : Form
         _lblMapWorkspaceTitle.Text =
             $"Carte : {_canvas.Map.Name}    ({_canvas.Map.Width} × {_canvas.Map.Height} tuiles){identity}";
         _mapsProjectPanel.UpdateCurrentMapDisplayName(_canvas.Map.Name);
+        RefreshMapPropertiesBar();
+    }
+
+    private void RefreshMapPropertiesBar()
+    {
+        if (_mapPropertiesBar is null)
+        {
+            return;
+        }
+
+        _mapPropertiesBar.Bind(_canvas.Map, _canvas.PlaytestSpawnTile);
     }
 
     private int GetSelectedLayerIndex() => _layersProjectPanel.GetSelectedLayerIndex();
@@ -1920,6 +1945,67 @@ public sealed class MainForm : Form
     {
         _propGrid.SelectedObject = tile ?? (object?)_canvas.Map;
     }
+
+    internal void ShowMapProperties()
+    {
+        if (_canvas.Map is null)
+        {
+            _dialogService.ShowInfo("Aucune carte chargée.", "Propriétés de la carte");
+            return;
+        }
+
+        using var dlg = new MapPropertiesDialog(_canvas.Map, _canvas.PlaytestSpawnTile);
+        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var applied = MapEditOperations.TryApplyProperties(
+            _canvas.Map,
+            dlg.PendingEdit,
+            out var error,
+            () => _canvas.History.PushBeforeChange(_canvas.Map));
+        if (!string.IsNullOrEmpty(error))
+        {
+            _dialogService.ShowWarning(error, "Propriétés de la carte");
+            return;
+        }
+
+        if (!applied)
+        {
+            return;
+        }
+
+        ReconcileSpawnMemoAfterMapMetaChange();
+        _canvas.Invalidate();
+        UpdateMapChromeLabels();
+        OnMapEdited();
+        UpdateUndoRedoButtons();
+        if (_propGrid.SelectedObject is Map)
+        {
+            _propGrid.Refresh();
+        }
+
+        PushEditorStatusLine();
+    }
+
+    private void ReconcileSpawnMemoAfterMapMetaChange()
+    {
+        if (_canvas.Map is not { } map || _canvas.PlaytestSpawnTile is not { } spawn)
+        {
+            return;
+        }
+
+        if (spawn.X < 0 || spawn.Y < 0 || spawn.X >= map.Width || spawn.Y >= map.Height)
+        {
+            _canvas.TrySetPlaytestSpawn(spawn.X, spawn.Y);
+            return;
+        }
+
+        EditorMapSpawnWorkstate.Write(_workspace?.CurrentMapId, map, spawn.X, spawn.Y);
+    }
+
+    internal string MapPropertiesSummaryForTest => _mapPropertiesBar.SummaryForTest;
 
     internal void ValidateMap()
     {

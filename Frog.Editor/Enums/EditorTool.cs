@@ -3,6 +3,7 @@ namespace Frog.Editor.Enums
     public enum EditorTool
     {
         Brush = 0,
+        /// <summary>Efface le tampon sur la couche active visible et déverrouillée. Les autres couches restent.</summary>
         Eraser = 1,
         Cursor = 2,
         /// <summary>Remplissage 4-connexe (pot). Clic droit ou sélection vide : efface la région.</summary>

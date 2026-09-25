@@ -122,6 +122,16 @@ public partial class MainWindow : Window
         nameof(CmdShowTransferIssues),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdEraserTool = new(
+        "Outil gomme",
+        nameof(CmdEraserTool),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdMapProperties = new(
+        "Propriétés de la carte…",
+        nameof(CmdMapProperties),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdFillTool = new(
         "Outil remplissage",
         nameof(CmdFillTool),
@@ -268,6 +278,8 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdShowTransferIssues, (_, _) => _editor.ShowTransferIssues()));
+        CommandBindings.Add(new CommandBinding(CmdEraserTool, (_, _) => _editor.SelectEditorTool(EditorTool.Eraser)));
+        CommandBindings.Add(new CommandBinding(CmdMapProperties, (_, _) => _editor.ShowMapProperties()));
         CommandBindings.Add(new CommandBinding(CmdFillTool, (_, _) => _editor.SelectEditorTool(EditorTool.Fill)));
         CommandBindings.Add(new CommandBinding(CmdRectangleTool, (_, _) => _editor.SelectEditorTool(EditorTool.Rectangle)));
         CommandBindings.Add(new CommandBinding(CmdLineTool, (_, _) => _editor.SelectEditorTool(EditorTool.Line)));

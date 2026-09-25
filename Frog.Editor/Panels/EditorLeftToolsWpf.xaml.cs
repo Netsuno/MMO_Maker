@@ -716,6 +716,10 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         }
     }
 
+    internal string EraserButtonTextForTest => BtnToolEraser.Content as string ?? string.Empty;
+
+    internal string DrawToolHintForTest => DrawToolHint?.Text ?? string.Empty;
+
     internal string FillButtonTextForTest => BtnToolFill.Content as string ?? string.Empty;
 
     internal bool FillOptionsVisibleForTest => FillOptionsPanel.Visibility == System.Windows.Visibility.Visible;

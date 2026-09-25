@@ -91,6 +91,9 @@ public sealed class EditorToolHotkeysTests
         Assert.Contains("couches visibles", EditorToolHotkeys.FormatFillStatus(true, false), StringComparison.Ordinal);
         Assert.Contains("collisions", EditorToolHotkeys.FormatFillStatus(false, true), StringComparison.Ordinal);
         Assert.Equal("Remplissage", EditorToolHotkeys.DisplayName(EditorTool.Fill));
+        Assert.Equal("Gomme", EditorToolHotkeys.DisplayName(EditorTool.Eraser));
+        Assert.Contains("couche active visible et déverrouillée", EditorToolHotkeys.StatusHint(EditorTool.Eraser), StringComparison.Ordinal);
+        Assert.Contains("effacer le tampon", EditorToolHotkeys.StatusHint(EditorTool.Eraser), StringComparison.Ordinal);
         Assert.Contains("Rectangle (R)", EditorToolHotkeys.StatusHint(EditorTool.Rectangle), StringComparison.Ordinal);
         Assert.Contains("plein", EditorToolHotkeys.StatusHint(EditorTool.Rectangle), StringComparison.Ordinal);
         Assert.Contains("Contour", EditorToolHotkeys.StatusHint(EditorTool.Rectangle), StringComparison.Ordinal);
