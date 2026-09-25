@@ -113,6 +113,7 @@ public sealed class OptionsForm : Form
         var network = Page(
             Heading("Réseau"),
             Row(Lbl("Hôte"), _txtHost, Lbl("Port"), _numPort),
+            Note("Écran de connexion : liste des serveurs. F9 ajoute une adresse."),
             Note("TLS : géré par le serveur — pas de handshake ajouté ici."));
         var pages = new[] { graphics, sound, controls, ui, network };
         var content = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8) };

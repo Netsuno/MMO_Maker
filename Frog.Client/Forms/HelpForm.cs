@@ -11,9 +11,10 @@ public sealed class HelpForm : Form
         FRoG — Aide
 
         Connexion
-        • Saisissez l'hôte et le port du serveur, puis votre compte et votre mot de passe.
-        • « Connecter » établit le lien, puis « Login » ou « Inscription ».
-        • Serveur hors ligne, version incompatible, mauvais identifiants, sanction ou certificat invalide : un message l'explique en français.
+        • Choisissez un serveur dans la liste. F9 saisit l'hôte, le port et un nom, puis « Ajouter ».
+        • « Connecter » établit le lien, puis « Connexion » ou « Inscription ».
+        • « Réessayer » relance la même adresse, ou renvoie le compte si le lien est déjà ouvert.
+        • Délai dépassé, serveur injoignable, version incompatible, mauvais identifiants ou certificat invalide : le message est en français. Le bandeau indique la cause, l'adresse et le protocole.
         • Reconnecter reprend une session déjà ouverte (le jeton n'est jamais affiché).
 
         Déplacement

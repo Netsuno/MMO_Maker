@@ -34,10 +34,13 @@ public sealed class UserSettings
     /// </summary>
     public int UiScalePercent { get; set; } = ClientUiScale.DefaultPercent;
 
-    /// <summary>Dernier hôte TCP (login + Options → Réseau). Une seule vérité JSON.</summary>
+    /// <summary>Dernier hôte TCP sélectionné (login + Options → Réseau).</summary>
     public string LastHost { get; set; } = "127.0.0.1";
 
     public int LastPort { get; set; } = 6000;
+
+    /// <summary>Serveurs mémorisés pour le sélecteur. Jamais de mot de passe.</summary>
+    public List<SavedServerEndpoint> SavedServers { get; set; } = new();
 
     /// <summary>Compte mémorisé (login souvenir). Jamais le mot de passe.</summary>
     public string LastUsername { get; set; } = string.Empty;
@@ -80,6 +83,7 @@ public sealed class UserSettings
         UiScalePercent = ClientUiScale.ClampPercent(UiScalePercent);
         LastHost = string.IsNullOrWhiteSpace(LastHost) ? "127.0.0.1" : LastHost.Trim();
         LastPort = Math.Clamp(LastPort, 1, 65535);
+        SavedServerList.Normalize(this);
         LastUsername = RememberAccount ? (LastUsername ?? string.Empty).Trim() : string.Empty;
         if (!TilePackClientOptions.TryNormalizeBaseUrl(TilePackContentBaseUrl, out var tilePackUrl))
         {
@@ -163,6 +167,10 @@ public sealed class UserSettings
             UiScalePercent = UiScalePercent,
             LastHost = LastHost,
             LastPort = LastPort,
+            SavedServers = (SavedServers ?? new List<SavedServerEndpoint>())
+                .Where(static row => row is not null)
+                .Select(static row => row.Copy())
+                .ToList(),
             LastUsername = LastUsername,
             RememberAccount = RememberAccount,
             TilePackContentBaseUrl = TilePackContentBaseUrl,
