@@ -97,7 +97,7 @@ public static class Phase10DemoWorldCatalog
     public static IReadOnlyList<NpcDefinition> CreateFriendlyNpcs() =>
     [
         Npc(GuideNpcId, "Guide", NpcKind.Npc, "sprites/npcs/guide.png", 1, "Accueil et quêtes."),
-        Npc(MerchantNpcId, "Marchand", NpcKind.Npc, "sprites/npcs/merchant.png", 1, "Boutique du village."),
+        Npc(MerchantNpcId, "Marchand", NpcKind.Npc, "sprites/npcs/merchant.png", 1, "Boutique du village. shop:" + ShopId.ToString("D")),
         Npc(CrafterNpcId, "Artisan", NpcKind.Npc, "sprites/npcs/crafter.png", 1, "Métier herboriste."),
     ];
 

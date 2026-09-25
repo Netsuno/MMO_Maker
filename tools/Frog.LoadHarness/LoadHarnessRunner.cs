@@ -221,8 +221,7 @@ public sealed class LoadHarnessRunner
             {
                 var authTasks = Enumerable.Range(0, options.Sessions).Select(async i =>
                 {
-                    var tcp = clients[i];
-                    if (tcp is null)
+                    if (clients[i] is null)
                     {
                         return;
                     }
@@ -233,7 +232,19 @@ public sealed class LoadHarnessRunner
                         var user = $"ld{runId}{i:D3}";
                         const string password = "password123";
                         var charName = $"H{i}";
-                        await AuthenticateAsync(tcp, user, password, charName, counters).ConfigureAwait(false);
+                        await AuthenticateWithRetryAsync(
+                                clients,
+                                i,
+                                address,
+                                port,
+                                options.ConnectTimeoutMs,
+                                tls,
+                                user,
+                                password,
+                                charName,
+                                counters,
+                                cancellationToken)
+                            .ConfigureAwait(false);
                     }
                     finally
                     {
@@ -309,67 +320,162 @@ public sealed class LoadHarnessRunner
         return (counters, campaign);
     }
 
-    private static async Task AuthenticateAsync(
+    /// <summary>
+    /// One fresh socket per attempt. A torn post-login frame used to drop a session
+    /// before character select; the discarded attempt is not merged into the report,
+    /// so a recovered session still counts as one hello/register/login/select.
+    /// </summary>
+    private static async Task AuthenticateWithRetryAsync(
+        LoadTcpClient[] clients,
+        int index,
+        string address,
+        int port,
+        int connectTimeoutMs,
+        ClientTlsOptions tls,
+        string user,
+        string password,
+        string charName,
+        LoadClientCounters counters,
+        CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 2;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var tcp = clients[index];
+            if (tcp is null)
+            {
+                Interlocked.Increment(ref counters.AuthenticateException);
+                return;
+            }
+
+            var local = new LoadClientCounters();
+            bool ok;
+            try
+            {
+                var attemptUser = attempt == 1 ? user : user + "r" + attempt;
+                ok = await AuthenticateOnceAsync(tcp, attemptUser, password, charName, local)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                Interlocked.Increment(ref local.AuthenticateException);
+                ok = false;
+            }
+
+            if (ok || attempt == maxAttempts)
+            {
+                CommitAuthCounters(counters, local);
+                return;
+            }
+
+            await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+            if (!await ReplaceClientAsync(clients, index, address, port, connectTimeoutMs, tls)
+                    .ConfigureAwait(false))
+            {
+                CommitAuthCounters(counters, local);
+                return;
+            }
+        }
+    }
+
+    private static async Task<bool> ReplaceClientAsync(
+        LoadTcpClient[] clients,
+        int index,
+        string address,
+        int port,
+        int connectTimeoutMs,
+        ClientTlsOptions tls)
+    {
+        var previous = clients[index];
+        if (previous is not null)
+        {
+            await previous.DisposeAsync().ConfigureAwait(false);
+        }
+
+        var next = new LoadTcpClient();
+        clients[index] = next;
+        try
+        {
+            await next.ConnectAsync(address, port, TimeSpan.FromMilliseconds(connectTimeoutMs), tls)
+                .ConfigureAwait(false);
+            var hello = await next.ReadFrameAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            return LoadPackets.IsHello(hello);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void CommitAuthCounters(LoadClientCounters target, LoadClientCounters local)
+    {
+        Interlocked.Add(ref target.RegisterOk, local.RegisterOk);
+        Interlocked.Add(ref target.RegisterFail, local.RegisterFail);
+        Interlocked.Add(ref target.LoginOk, local.LoginOk);
+        Interlocked.Add(ref target.LoginFail, local.LoginFail);
+        Interlocked.Add(ref target.CharacterCreateOk, local.CharacterCreateOk);
+        Interlocked.Add(ref target.CharacterCreateFail, local.CharacterCreateFail);
+        Interlocked.Add(ref target.CharacterSelectOk, local.CharacterSelectOk);
+        Interlocked.Add(ref target.CharacterSelectFail, local.CharacterSelectFail);
+        Interlocked.Add(ref target.AuthenticateException, local.AuthenticateException);
+    }
+
+    private static async Task<bool> AuthenticateOnceAsync(
         LoadTcpClient tcp,
         string user,
         string password,
         string charName,
         LoadClientCounters counters)
     {
-        try
+        await tcp.SendFrameAsync(LoadPackets.Register(user, password)).ConfigureAwait(false);
+        var register = await tcp.ReadUntilAsync(PacketId.RegisterResult, TimeSpan.FromSeconds(20))
+            .ConfigureAwait(false);
+        if (!LoadPackets.StatusOk(register))
         {
-            await tcp.SendFrameAsync(LoadPackets.Register(user, password)).ConfigureAwait(false);
-            var register = await tcp.ReadUntilAsync(PacketId.RegisterResult, TimeSpan.FromSeconds(20))
-                .ConfigureAwait(false);
-            if (!LoadPackets.StatusOk(register))
-            {
-                Interlocked.Increment(ref counters.RegisterFail);
-                return;
-            }
-
-            Interlocked.Increment(ref counters.RegisterOk);
-
-            await tcp.SendFrameAsync(LoadPackets.Login(user, password)).ConfigureAwait(false);
-            var login = await tcp.ReadUntilAsync(PacketId.LoginResult, TimeSpan.FromSeconds(20))
-                .ConfigureAwait(false);
-            if (!LoadPackets.StatusOk(login))
-            {
-                Interlocked.Increment(ref counters.LoginFail);
-                return;
-            }
-
-            Interlocked.Increment(ref counters.LoginOk);
-            await tcp.DrainPendingAsync(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
-
-            await tcp.SendFrameAsync(LoadPackets.CharacterCreate(charName, LoadPackets.DefaultClassId))
-                .ConfigureAwait(false);
-            var create = await tcp.ReadUntilAsync(PacketId.CharacterCreateResult, TimeSpan.FromSeconds(15))
-                .ConfigureAwait(false);
-            if (!LoadPackets.StatusOk(create))
-            {
-                Interlocked.Increment(ref counters.CharacterCreateFail);
-                return;
-            }
-
-            Interlocked.Increment(ref counters.CharacterCreateOk);
-            var characterId = LoadPackets.StatusMessage(create);
-
-            await tcp.SendFrameAsync(LoadPackets.CharacterSelect(characterId)).ConfigureAwait(false);
-            var select = await tcp.ReadUntilAsync(PacketId.CharacterSelectResult, TimeSpan.FromSeconds(15))
-                .ConfigureAwait(false);
-            if (!LoadPackets.StatusOk(select))
-            {
-                Interlocked.Increment(ref counters.CharacterSelectFail);
-                return;
-            }
-
-            Interlocked.Increment(ref counters.CharacterSelectOk);
-            await tcp.DrainPendingAsync(TimeSpan.FromMilliseconds(400)).ConfigureAwait(false);
+            Interlocked.Increment(ref counters.RegisterFail);
+            return false;
         }
-        catch
+
+        Interlocked.Increment(ref counters.RegisterOk);
+
+        await tcp.SendFrameAsync(LoadPackets.Login(user, password)).ConfigureAwait(false);
+        var login = await tcp.ReadUntilAsync(PacketId.LoginResult, TimeSpan.FromSeconds(20))
+            .ConfigureAwait(false);
+        if (!LoadPackets.StatusOk(login))
         {
-            Interlocked.Increment(ref counters.AuthenticateException);
+            Interlocked.Increment(ref counters.LoginFail);
+            return false;
         }
+
+        Interlocked.Increment(ref counters.LoginOk);
+        await tcp.DrainPendingAsync(TimeSpan.FromMilliseconds(750)).ConfigureAwait(false);
+
+        await tcp.SendFrameAsync(LoadPackets.CharacterCreate(charName, LoadPackets.DefaultClassId))
+            .ConfigureAwait(false);
+        var create = await tcp.ReadUntilAsync(PacketId.CharacterCreateResult, TimeSpan.FromSeconds(20))
+            .ConfigureAwait(false);
+        if (!LoadPackets.StatusOk(create))
+        {
+            Interlocked.Increment(ref counters.CharacterCreateFail);
+            return false;
+        }
+
+        Interlocked.Increment(ref counters.CharacterCreateOk);
+        var characterId = LoadPackets.StatusMessage(create);
+
+        await tcp.SendFrameAsync(LoadPackets.CharacterSelect(characterId)).ConfigureAwait(false);
+        var select = await tcp.ReadUntilAsync(PacketId.CharacterSelectResult, TimeSpan.FromSeconds(20))
+            .ConfigureAwait(false);
+        if (!LoadPackets.StatusOk(select))
+        {
+            Interlocked.Increment(ref counters.CharacterSelectFail);
+            return false;
+        }
+
+        Interlocked.Increment(ref counters.CharacterSelectOk);
+        await tcp.DrainPendingAsync(TimeSpan.FromMilliseconds(750)).ConfigureAwait(false);
+        return true;
     }
 
     private static async Task ChatBurstAsync(LoadTcpClient tcp, int burst, LoadClientCounters counters)

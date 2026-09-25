@@ -29,6 +29,7 @@ using Frog.Core.Combat;
 using Frog.Core.Economy;
 using Frog.Core.Instances;
 using Frog.Core.Social;
+using Frog.Core.Shop;
 using Frog.Core.Trade;
 using Frog.Core.Weather;
 
@@ -225,8 +226,8 @@ public sealed class MainShellForm : Form
     private readonly TextBox _txtNewCharName = new() { Width = 100, PlaceholderText = "Nouveau perso" };
     private readonly Button _btnCharCreate = new() { Text = "Créer perso", Width = 95, Enabled = false };
     private readonly ComboBox _cmbClass = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Enabled = false };
-    private readonly ComboBox _cmbShop = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140, Enabled = false };
-    private readonly ComboBox _cmbShopItem = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Enabled = false };
+    private readonly ComboBox _cmbShop = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Enabled = false };
+    private readonly ComboBox _cmbShopItem = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280, Enabled = false };
     private readonly ComboBox _cmbSpell = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, Enabled = false };
     private PublishedCatalogWire? _publishedCatalog;
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
@@ -271,6 +272,9 @@ public sealed class MainShellForm : Form
     private readonly QuestJournalPanel _questJournalPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
     private readonly CraftPanel _craftPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 56) };
     private readonly TradeForm _tradeForm = new();
+    private readonly ClientShopBankSession _shopBank = new();
+    private readonly ShopForm _shopForm = new();
+    private bool _shopChromeLock;
     private readonly EnvironmentPanel _environmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 72) };
     private readonly TabControl _gameplayTabs = new() { Dock = DockStyle.None, Width = 360, Height = 480, MinimumSize = new Size(300, 250), MaximumSize = new Size(360, 700) };
     private readonly TabPage _tabChat = new("Chat") { Padding = new Padding(4) };
@@ -310,17 +314,19 @@ public sealed class MainShellForm : Form
     private readonly TextBox _txtShopId = new() { Width = 220, PlaceholderText = "Shop Guid (secours)", Visible = false };
     private readonly TextBox _txtShopItemId = new() { Width = 220, PlaceholderText = "Item Guid (secours)", Visible = false };
     private readonly NumericUpDown _numShopQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
+    private readonly Button _btnShopToggle = new() { Text = "Ouvrir la boutique", AutoSize = true, Enabled = false };
     private readonly Button _btnShopBuy = new() { Text = "Acheter", AutoSize = true, Enabled = false };
-    private readonly Button _btnShopSell = new() { Text = "Vendre slot", AutoSize = true, Enabled = false };
+    private readonly Button _btnShopSell = new() { Text = "Vendre", AutoSize = true, Enabled = false };
+    private readonly Label _lblShopListing = new() { AutoSize = true, Text = "—", Margin = new Padding(4, 6, 4, 0) };
     /// <summary>Emplacement banque interne (P7-G5) : piloté par la sélection dans <see cref="_lstBank"/>, plus affiché en brut.</summary>
     private readonly NumericUpDown _numBankSlot = new() { Minimum = 0, Maximum = 39, Width = 48, Visible = false };
     private readonly NumericUpDown _numBankQty = new() { Minimum = 1, Maximum = 99, Value = 1, Width = 48 };
-    private readonly Button _btnBankDepositItem = new() { Text = "Banque dépôt", AutoSize = true, Enabled = false };
-    private readonly Button _btnBankWithdrawItem = new() { Text = "Banque retrait", AutoSize = true, Enabled = false };
+    private readonly Button _btnBankDepositItem = new() { Text = "Déposer l'objet", AutoSize = true, Enabled = false };
+    private readonly Button _btnBankWithdrawItem = new() { Text = "Retirer l'objet", AutoSize = true, Enabled = false };
     private readonly NumericUpDown _numBankGold = new() { Minimum = 1, Maximum = 999999, Value = 10, Width = 64 };
-    private readonly Button _btnBankDepositGold = new() { Text = "Dépôt or", AutoSize = true, Enabled = false };
-    private readonly Button _btnBankWithdrawGold = new() { Text = "Retrait or", AutoSize = true, Enabled = false };
-    private readonly Label _lblBank = new() { AutoSize = true, Text = "Banque: —", Margin = new Padding(4, 4, 4, 4) };
+    private readonly Button _btnBankDepositGold = new() { Text = "Déposer l'or", AutoSize = true, Enabled = false };
+    private readonly Button _btnBankWithdrawGold = new() { Text = "Retirer l'or", AutoSize = true, Enabled = false };
+    private readonly Label _lblBank = new() { AutoSize = true, Text = "Banque : —", Margin = new Padding(4, 4, 4, 4) };
     /// <summary>Liste banque nommée (P7-G5) : sélectionner une ligne fixe <see cref="_numBankSlot"/> pour retrait.</summary>
     private readonly ListBox _lstBank = new() { Dock = DockStyle.Fill, IntegralHeight = false, Height = 70 };
     private BankSnapshotWire? _bankSnapshot;
@@ -418,8 +424,11 @@ public sealed class MainShellForm : Form
         _smoothTimer.Start();
         _cmbChannel.Items.AddRange(new object[] { "Global", "Map", "Whisper", "Party", "Guild" });
         _cmbChannel.SelectedIndex = 1;
-        _cmbShop.SelectedIndexChanged += (_, _) => RefreshShopItemCombo();
-        _cmbShopItem.SelectedIndexChanged += (_, _) => SyncShopGuidTextBoxes();
+        _cmbShop.SelectedIndexChanged += (_, _) => OnShopComboChanged();
+        _cmbShopItem.SelectedIndexChanged += (_, _) => OnShopItemChanged();
+        _numShopQty.ValueChanged += (_, _) => OnEconomyQuantityChanged();
+        _numBankQty.ValueChanged += (_, _) => OnEconomyQuantityChanged();
+        _numBankGold.ValueChanged += (_, _) => OnEconomyQuantityChanged();
         _heartbeatTimer.Tick += async (_, _) => await SendHeartbeatSafeAsync();
         Load += MainShell_Load;
         FormClosing += async (_, _) => await MainShell_FormClosingAsync();
@@ -1262,6 +1271,7 @@ public sealed class MainShellForm : Form
         StyleToolbarButton(_btnRanged);
         StyleToolbarButton(_btnSpell);
         StyleToolbarButton(_btnRespawn);
+        StyleToolbarButton(_btnShopToggle);
         StyleToolbarButton(_btnShopBuy);
         StyleToolbarButton(_btnShopSell);
         StyleToolbarButton(_btnBankDepositItem);
@@ -1381,22 +1391,27 @@ public sealed class MainShellForm : Form
         gameplayTab.Controls.Add(_equipmentPanel, 0, 1);
         gameplayTab.Controls.Add(_inventoryPanel, 0, 2);
         var shopRow = CreateToolbarRow();
-        shopRow.Controls.Add(Lbl("Shop"));
+        shopRow.Controls.Add(_btnShopToggle);
+        shopRow.Controls.Add(Lbl("Boutique"));
         shopRow.Controls.Add(_cmbShop);
         shopRow.Controls.Add(Lbl("Article"));
         shopRow.Controls.Add(_cmbShopItem);
+        shopRow.Controls.Add(Lbl("Qté"));
         shopRow.Controls.Add(_numShopQty);
         shopRow.Controls.Add(_btnShopBuy);
         shopRow.Controls.Add(_btnShopSell);
+        shopRow.Controls.Add(_lblShopListing);
         shopRow.Controls.Add(_txtShopId);
         shopRow.Controls.Add(_txtShopItemId);
         gameplayTab.Controls.Add(shopRow, 0, 3);
         var bankRow = CreateToolbarRow();
-        bankRow.Controls.Add(Lbl("Slot"));
+        bankRow.Controls.Add(Lbl("Banque"));
         bankRow.Controls.Add(_numBankSlot);
+        bankRow.Controls.Add(Lbl("Qté"));
         bankRow.Controls.Add(_numBankQty);
         bankRow.Controls.Add(_btnBankDepositItem);
         bankRow.Controls.Add(_btnBankWithdrawItem);
+        bankRow.Controls.Add(Lbl("Or"));
         bankRow.Controls.Add(_numBankGold);
         bankRow.Controls.Add(_btnBankDepositGold);
         bankRow.Controls.Add(_btnBankWithdrawGold);
@@ -1576,12 +1591,41 @@ public sealed class MainShellForm : Form
         _btnRanged.Click += async (_, _) => await RangedAsync();
         _btnSpell.Click += async (_, _) => await SpellCastAsync();
         _btnRespawn.Click += async (_, _) => await RespawnAsync();
+        _btnShopToggle.Click += (_, _) => ToggleShopFromUi();
         _btnShopBuy.Click += async (_, _) => await ShopBuyAsync();
         _btnShopSell.Click += async (_, _) => await ShopSellAsync();
         _btnBankDepositItem.Click += async (_, _) => await BankDepositItemAsync();
         _btnBankWithdrawItem.Click += async (_, _) => await BankWithdrawItemAsync();
         _btnBankDepositGold.Click += async (_, _) => await BankDepositGoldAsync();
         _btnBankWithdrawGold.Click += async (_, _) => await BankWithdrawGoldAsync();
+        _shopForm.BuyClicked += () => _ = ShopBuyAsync();
+        _shopForm.SellClicked += () => _ = ShopSellAsync();
+        _shopForm.CloseClicked += () => CloseShopWindow(announce: true);
+        _shopForm.QuantityChanged += qty =>
+        {
+            if (_shopChromeLock)
+            {
+                return;
+            }
+
+            var clamped = Math.Clamp(qty, (int)_numShopQty.Minimum, (int)_numShopQty.Maximum);
+            if (_numShopQty.Value != clamped)
+            {
+                _numShopQty.Value = clamped;
+            }
+        };
+        _shopForm.SelectionChanged += index =>
+        {
+            if (_shopChromeLock || index < 0 || index >= _cmbShopItem.Items.Count)
+            {
+                return;
+            }
+
+            if (_cmbShopItem.SelectedIndex != index)
+            {
+                _cmbShopItem.SelectedIndex = index;
+            }
+        };
         _btnPickup.Click += async (_, _) => await PickupSelectedGroundItemAsync();
         _lstBank.SelectedIndexChanged += (_, _) =>
         {
@@ -1754,10 +1798,10 @@ public sealed class MainShellForm : Form
         _client.GroundItemsSnapshotReceived += OnGroundItemsSnapshot;
         _client.SpellCastResultReceived += (ok, msg) => AppendLog(ok ? "Sort: " + msg : "Sort refusé: " + msg);
         _client.CombatStateReceived += OnCombatState;
-        _client.ShopBuyResultReceived += (ok, msg) => AppendLog(ok ? "Achat: " + msg : "Achat refusé: " + msg);
-        _client.ShopSellResultReceived += (ok, msg) => AppendLog(ok ? "Vente: " + msg : "Vente refusée: " + msg);
-        _client.BankDepositResultReceived += (ok, msg) => AppendLog(ok ? "Banque dépôt: " + msg : "Banque dépôt refusé: " + msg);
-        _client.BankWithdrawResultReceived += (ok, msg) => AppendLog(ok ? "Banque retrait: " + msg : "Banque retrait refusé: " + msg);
+        _client.ShopBuyResultReceived += (ok, msg) => FinishEconomy(ShopBankAction.Buy, ok, msg, "Achat: ", "Achat refusé: ");
+        _client.ShopSellResultReceived += (ok, msg) => FinishEconomy(ShopBankAction.Sell, ok, msg, "Vente: ", "Vente refusée: ");
+        _client.BankDepositResultReceived += (ok, msg) => FinishEconomy(ShopBankAction.DepositItem, ok, msg, "Banque dépôt: ", "Banque dépôt refusé: ");
+        _client.BankWithdrawResultReceived += (ok, msg) => FinishEconomy(ShopBankAction.WithdrawItem, ok, msg, "Banque retrait: ", "Banque retrait refusé: ");
         _client.BankSnapshotReceived += OnBankSnapshot;
         _client.RespawnResultReceived += (ok, msg) => AppendLog(ok ? "Respawn: " + msg : "Respawn refusé: " + msg);
         _client.ExperienceGainReceived += gain =>
@@ -1852,13 +1896,11 @@ public sealed class MainShellForm : Form
             _cmbClass.SelectedIndex = 0;
         }
 
+        _shopChromeLock = true;
         _cmbShop.Items.Clear();
-        foreach (var entry in catalog.Shops)
+        foreach (var shop in ClientShopBankSession.ReadShops(catalog))
         {
-            if (Guid.TryParse(entry.Id, out var shopId))
-            {
-                _cmbShop.Items.Add(new ShopPickRow(shopId, entry.Name, entry.ItemIds));
-            }
+            _cmbShop.Items.Add(new ShopPickRow(shop));
         }
 
         if (_cmbShop.Items.Count > 0)
@@ -1866,6 +1908,7 @@ public sealed class MainShellForm : Form
             _cmbShop.SelectedIndex = 0;
         }
 
+        _shopChromeLock = false;
         RefreshShopItemCombo();
 
         _cmbSpell.Items.Clear();
@@ -1927,35 +1970,77 @@ public sealed class MainShellForm : Form
         _craftPanel.SetCraftEnabled(_phase == ClientUiPhase.Playing);
     }
 
-    private void RefreshShopItemCombo()
+    private void OnShopComboChanged()
     {
-        _cmbShopItem.Items.Clear();
-        if (_cmbShop.SelectedItem is not ShopPickRow shop || _publishedCatalog is null)
+        RefreshShopItemCombo();
+        if (_shopChromeLock)
         {
-            SyncShopGuidTextBoxes();
             return;
         }
 
-        var itemsById = _publishedCatalog.Items.ToDictionary(i => i.Id, StringComparer.OrdinalIgnoreCase);
-        foreach (var itemId in shop.ItemIds)
+        if (_shopBank.ShopOpen && _cmbShop.SelectedItem is ShopPickRow row)
         {
-            if (!itemsById.TryGetValue(itemId, out var item))
-            {
-                continue;
-            }
-
-            if (Guid.TryParse(item.Id, out var parsedId))
-            {
-                _cmbShopItem.Items.Add(new ItemPickRow(parsedId, item.Name, item.Type));
-            }
+            _shopBank.Retarget(row.Id, row.Shop.Name);
         }
 
-        if (_cmbShopItem.Items.Count > 0)
-        {
-            _cmbShopItem.SelectedIndex = 0;
-        }
+        _shopBank.Disarm();
+        ApplyShopBankChrome();
+    }
 
+    private void OnShopItemChanged()
+    {
         SyncShopGuidTextBoxes();
+        if (_shopChromeLock)
+        {
+            return;
+        }
+
+        _shopBank.Disarm();
+        ApplyShopBankChrome();
+    }
+
+    private void OnEconomyQuantityChanged()
+    {
+        if (_shopChromeLock)
+        {
+            return;
+        }
+
+        _shopBank.Disarm();
+        ApplyShopBankChrome();
+    }
+
+    private void RefreshShopItemCombo()
+    {
+        var previous = _shopChromeLock;
+        _shopChromeLock = true;
+        try
+        {
+            _cmbShopItem.Items.Clear();
+            if (_cmbShop.SelectedItem is ShopPickRow shop)
+            {
+                foreach (var listing in shop.Shop.Listings)
+                {
+                    _cmbShopItem.Items.Add(new ItemPickRow(listing));
+                }
+            }
+
+            if (_cmbShopItem.Items.Count > 0)
+            {
+                _cmbShopItem.SelectedIndex = 0;
+            }
+
+            SyncShopGuidTextBoxes();
+        }
+        finally
+        {
+            _shopChromeLock = previous;
+        }
+
+        if (!previous)
+        {
+            ApplyShopBankChrome();
+        }
     }
 
     private void SyncShopGuidTextBoxes()
@@ -1978,7 +2063,7 @@ public sealed class MainShellForm : Form
         if (_cmbShop.SelectedItem is ShopPickRow shop && _cmbShopItem.SelectedItem is ItemPickRow item)
         {
             shopId = shop.Id;
-            itemId = item.Id;
+            itemId = item.Listing.ItemId;
             return true;
         }
 
@@ -2000,7 +2085,15 @@ public sealed class MainShellForm : Form
 
     private void SetGameplayControlsEnabled(bool enabled)
     {
+        if (!enabled)
+        {
+            _shopForm.HideShop();
+            _shopBank.CloseSilent();
+            _shopBank.Disarm();
+        }
+
         _btnShopBuy.Enabled = enabled;
+        _btnShopToggle.Enabled = enabled && _cmbShop.Items.Count > 0;
         UpdateInventoryActionButtons();
         UpdateBankWithdrawButtons();
         _btnBankDepositGold.Enabled = enabled;
@@ -2011,6 +2104,7 @@ public sealed class MainShellForm : Form
         _cmbShop.Enabled = enabled && _cmbShop.Items.Count > 0;
         _cmbShopItem.Enabled = enabled && _cmbShopItem.Items.Count > 0;
         _cmbSpell.Enabled = enabled && _cmbSpell.Items.Count > 0;
+        ApplyShopBankChrome();
     }
 
     private void UpdateInventoryActionButtons()
@@ -2076,6 +2170,8 @@ public sealed class MainShellForm : Form
     {
         _lastCombatState = state;
         _tradeForm.SetWallet(state.Gold);
+        _shopBank.SetWallet(state.Gold);
+        _lblBank.Text = _shopBank.BankLine;
         _lblCombat.Text =
             $"Niv {state.Level} · XP {state.Experience} · HP {state.Hp}/{state.MaxHp} · MP {state.Mp}/{state.MaxMp} · Or {state.Gold}";
         _btnRespawn.Visible = state.IsDead;
@@ -2098,6 +2194,7 @@ public sealed class MainShellForm : Form
         _paperdoll = _paperdoll.WithServerLoadout(snapshot);
         SyncStatusPortrait();
         _inventoryPanel.ApplySnapshot(snapshot);
+        _shopBank.SetBag(BuildShopBag(snapshot));
         _tradeForm.SetBag(BuildTradeBag(snapshot));
         _equipmentPanel.ApplySnapshot(snapshot);
         _characterSheet.ApplyBag(snapshot, ResolveItemName, ResolveItemType);
@@ -2130,6 +2227,30 @@ public sealed class MainShellForm : Form
         {
             _tradeForm.SetLocalCharacter(id);
         }
+    }
+
+    private List<ShopBagSlot> BuildShopBag(InventorySnapshotWire snapshot)
+    {
+        var bag = new List<ShopBagSlot>();
+        foreach (var slot in snapshot.Slots)
+        {
+            if (slot.ItemId is not Guid id || slot.Quantity <= 0)
+            {
+                continue;
+            }
+
+            var item = FindPublishedItem(id);
+            bag.Add(new ShopBagSlot(
+                slot.SlotIndex,
+                id,
+                slot.Quantity,
+                ResolveItemName(id),
+                item?.SellPrice ?? 0,
+                item?.MaxStack ?? 0,
+                item?.Stackable ?? false));
+        }
+
+        return bag;
     }
 
     private List<TradeBagEntry> BuildTradeBag(InventorySnapshotWire snapshot)
@@ -2197,8 +2318,27 @@ public sealed class MainShellForm : Form
     private void OnBankSnapshot(BankSnapshotWire snapshot)
     {
         _bankSnapshot = snapshot;
-        var filled = snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0);
-        _lblBank.Text = $"Banque: or {snapshot.BankGold} · {filled} slot(s)";
+        var bankSlots = new List<ShopBagSlot>();
+        foreach (var slot in snapshot.Slots)
+        {
+            if (slot.ItemId is not Guid id || slot.Quantity <= 0)
+            {
+                continue;
+            }
+
+            var item = FindPublishedItem(id);
+            bankSlots.Add(new ShopBagSlot(
+                slot.SlotIndex,
+                id,
+                slot.Quantity,
+                ResolveItemName(id),
+                item?.SellPrice ?? 0,
+                item?.MaxStack ?? 0,
+                item?.Stackable ?? false));
+        }
+
+        _shopBank.SetBank(snapshot.BankGold, bankSlots);
+        _lblBank.Text = _shopBank.BankLine;
 
         var previouslySelectedSlot = (_lstBank.SelectedItem as BankRow)?.SlotIndex;
         _lstBank.Items.Clear();
@@ -2609,130 +2749,366 @@ public sealed class MainShellForm : Form
         }
     }
 
-    private async Task ShopBuyAsync()
+    private bool EnsureEconomyOnline()
     {
-        if (_client is null || !_client.IsConnected)
+        if (_client is { IsConnected: true })
         {
-            return;
+            return true;
         }
 
-        if (!TryResolveShopSelection(out var shopId, out var itemId))
+        ShowPlayerStatus("Connexion interrompue.");
+        return false;
+    }
+
+    private void FinishEconomy(ShopBankAction hinted, bool ok, string msg, string okPrefix, string failPrefix)
+    {
+        var action = hinted;
+        if (hinted == ShopBankAction.DepositItem && _shopBank.InFlight == ShopBankAction.DepositGold)
         {
-            AppendLog("Shop: sélectionnez boutique et article (catalogue) ou saisissez des Guids valides.");
+            action = ShopBankAction.DepositGold;
+        }
+        else if (hinted == ShopBankAction.WithdrawItem && _shopBank.InFlight == ShopBankAction.WithdrawGold)
+        {
+            action = ShopBankAction.WithdrawGold;
+        }
+
+        AppendLog(ok ? okPrefix + msg : failPrefix + msg);
+        _shopBank.NoteResult(action, ok, msg);
+        var human = _shopBank.ConsumeToast();
+        if (!string.IsNullOrWhiteSpace(human))
+        {
+            ShowPlayerStatus(human);
+        }
+
+        ApplyShopBankChrome();
+    }
+
+    private async Task CommitEconomyAsync(bool send, string? blocked, ShopBankAction action, Func<Task> sendAsync, string failureLogPrefix)
+    {
+        ApplyShopBankChrome();
+        if (!send)
+        {
+            _shopBank.ConsumeToast();
+            ShowPlayerStatus(blocked ?? "Opération refusée.");
             return;
         }
 
         try
         {
-            await _client.SendShopBuyAsync(shopId, itemId, (int)_numShopQty.Value).ConfigureAwait(true);
+            _shopBank.MarkInFlight(action);
+            await sendAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            AppendLog("Achat: " + ex.Message);
+            _shopBank.ClearInFlight();
+            AppendLog(failureLogPrefix + ex.Message);
+            ShowPlayerStatus(PlayerFacingMessages.FromException(ex));
+            ApplyShopBankChrome();
         }
+    }
+
+    private async Task ShopBuyAsync()
+    {
+        if (!EnsureEconomyOnline())
+        {
+            return;
+        }
+
+        if (!TryResolveShopSelection(out var shopId, out var itemId) || _cmbShopItem.SelectedItem is not ItemPickRow row)
+        {
+            ShowPlayerStatus("Choisissez une boutique et un article.");
+            return;
+        }
+
+        var qty = (int)_numShopQty.Value;
+        var send = _shopBank.TryConfirmBuy(shopId, row.Listing, qty, out var blocked);
+        await CommitEconomyAsync(
+            send,
+            blocked,
+            ShopBankAction.Buy,
+            () => _client!.SendShopBuyAsync(shopId, itemId, qty),
+            "Achat: ").ConfigureAwait(true);
     }
 
     private async Task ShopSellAsync()
     {
-        if (_client is null || !_client.IsConnected)
+        if (!EnsureEconomyOnline())
         {
             return;
         }
 
         if (_inventoryPanel.SelectedInventorySlot is not byte slot)
         {
-            AppendLog("Vente: sélectionnez un objet dans l'inventaire.");
+            ShowPlayerStatus("Sélectionnez un objet dans l'inventaire.");
             return;
         }
 
-        try
-        {
-            await _client.SendShopSellAsync(slot, (int)_numShopQty.Value).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            AppendLog("Vente: " + ex.Message);
-        }
+        var qty = (int)_numShopQty.Value;
+        var send = _shopBank.TryConfirmSell(slot, qty, out var blocked);
+        await CommitEconomyAsync(
+            send,
+            blocked,
+            ShopBankAction.Sell,
+            () => _client!.SendShopSellAsync(slot, qty),
+            "Vente: ").ConfigureAwait(true);
     }
 
     private async Task BankDepositItemAsync()
     {
-        if (_client is null || !_client.IsConnected)
+        if (!EnsureEconomyOnline())
         {
             return;
         }
 
         if (_inventoryPanel.SelectedInventorySlot is not byte slot)
         {
-            AppendLog("Banque dépôt: sélectionnez un objet dans l'inventaire.");
+            ShowPlayerStatus("Sélectionnez un objet dans l'inventaire.");
             return;
         }
 
-        try
-        {
-            await _client.SendBankDepositItemAsync(slot, (int)_numBankQty.Value).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            AppendLog("Banque dépôt: " + ex.Message);
-        }
+        var qty = (int)_numBankQty.Value;
+        var send = _shopBank.TryConfirmDepositItem(slot, qty, out var blocked);
+        await CommitEconomyAsync(
+            send,
+            blocked,
+            ShopBankAction.DepositItem,
+            () => _client!.SendBankDepositItemAsync(slot, qty),
+            "Banque dépôt: ").ConfigureAwait(true);
     }
 
     private async Task BankWithdrawItemAsync()
     {
-        if (_client is null || !_client.IsConnected)
+        if (!EnsureEconomyOnline())
         {
             return;
         }
 
         if (_lstBank.SelectedItem is not BankRow row)
         {
-            AppendLog("Banque retrait: sélectionnez un objet dans la banque.");
+            ShowPlayerStatus("Sélectionnez un objet dans la banque.");
             return;
         }
 
-        try
-        {
-            await _client.SendBankWithdrawItemAsync((byte)row.SlotIndex, (int)_numBankQty.Value).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            AppendLog("Banque retrait: " + ex.Message);
-        }
+        var qty = (int)_numBankQty.Value;
+        var send = _shopBank.TryConfirmWithdrawItem(row.SlotIndex, qty, out var blocked);
+        await CommitEconomyAsync(
+            send,
+            blocked,
+            ShopBankAction.WithdrawItem,
+            () => _client!.SendBankWithdrawItemAsync((byte)row.SlotIndex, qty),
+            "Banque retrait: ").ConfigureAwait(true);
     }
 
     private async Task BankDepositGoldAsync()
     {
-        if (_client is null || !_client.IsConnected)
+        if (!EnsureEconomyOnline())
         {
             return;
         }
 
-        try
-        {
-            await _client.SendBankDepositGoldAsync((int)_numBankGold.Value).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            AppendLog("Dépôt or: " + ex.Message);
-        }
+        var amount = (int)_numBankGold.Value;
+        var send = _shopBank.TryConfirmDepositGold(amount, out var blocked);
+        await CommitEconomyAsync(
+            send,
+            blocked,
+            ShopBankAction.DepositGold,
+            () => _client!.SendBankDepositGoldAsync(amount),
+            "Dépôt or: ").ConfigureAwait(true);
     }
 
     private async Task BankWithdrawGoldAsync()
     {
-        if (_client is null || !_client.IsConnected)
+        if (!EnsureEconomyOnline())
         {
             return;
         }
 
-        try
+        var amount = (int)_numBankGold.Value;
+        var send = _shopBank.TryConfirmWithdrawGold(amount, out var blocked);
+        await CommitEconomyAsync(
+            send,
+            blocked,
+            ShopBankAction.WithdrawGold,
+            () => _client!.SendBankWithdrawGoldAsync(amount),
+            "Retrait or: ").ConfigureAwait(true);
+    }
+
+    private void ToggleShopFromUi()
+    {
+        if (_shopBank.ShopOpen)
         {
-            await _client.SendBankWithdrawGoldAsync((int)_numBankGold.Value).ConfigureAwait(true);
+            CloseShopWindow(announce: true);
+            return;
         }
-        catch (Exception ex)
+
+        if (_cmbShop.SelectedItem is not ShopPickRow shop)
         {
-            AppendLog("Retrait or: " + ex.Message);
+            ShowPlayerStatus("Aucune boutique dans le catalogue.");
+            return;
         }
+
+        OpenShopWindow(shop.Id, showForm: true);
+    }
+
+    private void OpenShopWindow(Guid shopId, bool showForm)
+    {
+        ShopPickRow? match = null;
+        for (var i = 0; i < _cmbShop.Items.Count; i++)
+        {
+            if (_cmbShop.Items[i] is ShopPickRow row && row.Id == shopId)
+            {
+                match = row;
+                if (_cmbShop.SelectedIndex != i)
+                {
+                    _cmbShop.SelectedIndex = i;
+                }
+
+                break;
+            }
+        }
+
+        if (match is null)
+        {
+            ShowPlayerStatus("Boutique inconnue.");
+            return;
+        }
+
+        _shopBank.Open(shopId, match.Shop.Name);
+        var status = _shopBank.ConsumeToast() ?? _shopBank.StatusLine;
+        ApplyShopBankChrome();
+        if (showForm)
+        {
+            if (!_shopForm.Visible)
+            {
+                _shopForm.Show(this);
+            }
+
+            ApplyShopBankChrome();
+        }
+
+        ShowPlayerStatus(status);
+    }
+
+    private void CloseShopWindow(bool announce)
+    {
+        var closed = _shopBank.Close(out var status);
+        _shopForm.HideShop();
+        ApplyShopBankChrome();
+        if (announce && closed)
+        {
+            _shopBank.ConsumeToast();
+            ShowPlayerStatus(status);
+        }
+        else
+        {
+            _shopBank.ConsumeToast();
+        }
+    }
+
+    private void ApplyShopBankChrome()
+    {
+        _btnShopBuy.Text = _shopBank.BuyLabel;
+        _btnShopSell.Text = _shopBank.SellLabel;
+        _btnBankDepositItem.Text = _shopBank.DepositItemLabel;
+        _btnBankWithdrawItem.Text = _shopBank.WithdrawItemLabel;
+        _btnBankDepositGold.Text = _shopBank.DepositGoldLabel;
+        _btnBankWithdrawGold.Text = _shopBank.WithdrawGoldLabel;
+        _btnShopToggle.Text = _shopBank.ToggleLabel;
+        _lblShopListing.Text = _cmbShopItem.SelectedItem is ItemPickRow row
+            ? row.ToString()
+            : "—";
+        _lblBank.Text = _shopBank.BankLine;
+        if (!_shopForm.Visible)
+        {
+            return;
+        }
+
+        var lines = new List<string>(_cmbShopItem.Items.Count);
+        foreach (var item in _cmbShopItem.Items)
+        {
+            lines.Add(item?.ToString() ?? "—");
+        }
+
+        _shopForm.Bind(
+            _shopBank.ShopTitle,
+            lines,
+            _cmbShopItem.SelectedIndex,
+            _shopBank.StatusLine,
+            _shopBank.BuyLabel,
+            _shopBank.SellLabel,
+            (int)_numShopQty.Value,
+            _btnShopBuy.Enabled,
+            _btnShopSell.Enabled);
+    }
+
+    private bool TryToggleNearbyShop()
+    {
+        if (_phase != ClientUiPhase.Playing || _map is null || _publishedCatalog is null)
+        {
+            return false;
+        }
+
+        var tile = CurrentPlayerTile();
+        if (DialogueOpenForHint(tile.TileX, tile.TileY) || InteractInputBlocked())
+        {
+            return false;
+        }
+
+        var anchors = new List<ShopNpcAnchor>(_mapEvents.Count + _playtestPlacedEntities.Count);
+        foreach (var ev in _mapEvents)
+        {
+            anchors.Add(new ShopNpcAnchor(ev.TileX, ev.TileY, ShopAnchorKind.Event, ev.ScriptKey, ev.DisplayName, null));
+        }
+
+        foreach (var entity in _playtestPlacedEntities)
+        {
+            if (entity.Kind != MapPlacedKind.Npc)
+            {
+                continue;
+            }
+
+            anchors.Add(new ShopNpcAnchor(entity.TileX, entity.TileY, ShopAnchorKind.Npc, null, entity.Name, entity.Notes));
+        }
+
+        if (!ShopNpcLink.TryResolve(tile.TileX, tile.TileY, anchors, _publishedCatalog, out var shopId, out _))
+        {
+            return false;
+        }
+
+        if (_shopBank.ShopOpen && _shopBank.OpenShopId == shopId)
+        {
+            CloseShopWindow(announce: true);
+            return true;
+        }
+
+        OpenShopWindow(shopId, showForm: true);
+        return true;
+    }
+
+    private bool ShopInReach(int tileX, int tileY)
+    {
+        if (_publishedCatalog is null)
+        {
+            return false;
+        }
+
+        var anchors = new List<ShopNpcAnchor>(_mapEvents.Count + _playtestPlacedEntities.Count);
+        foreach (var ev in _mapEvents)
+        {
+            anchors.Add(new ShopNpcAnchor(ev.TileX, ev.TileY, ShopAnchorKind.Event, ev.ScriptKey, ev.DisplayName, null));
+        }
+
+        foreach (var entity in _playtestPlacedEntities)
+        {
+            if (entity.Kind != MapPlacedKind.Npc)
+            {
+                continue;
+            }
+
+            anchors.Add(new ShopNpcAnchor(entity.TileX, entity.TileY, ShopAnchorKind.Npc, null, entity.Name, entity.Notes));
+        }
+
+        return ShopNpcLink.TryResolve(tileX, tileY, anchors, _publishedCatalog, out _, out _);
     }
 
     private async Task ConnectAsync()
@@ -2779,11 +3155,28 @@ public sealed class MainShellForm : Form
         }
 
         var tradeNote = _tradeForm.NotifyLocalDisconnect();
+        var shopNote = _shopBank.NotifyLocalDisconnect();
         ResetUiAfterDisconnect();
-        if (tradeNote is not null)
+        var note = CombinePlayerNotes(tradeNote, shopNote);
+        if (note is not null)
         {
-            ShowPlayerStatus(tradeNote);
+            ShowPlayerStatus(note);
         }
+    }
+
+    private static string? CombinePlayerNotes(string? first, string? second)
+    {
+        if (string.IsNullOrWhiteSpace(first))
+        {
+            return string.IsNullOrWhiteSpace(second) ? null : second;
+        }
+
+        if (string.IsNullOrWhiteSpace(second))
+        {
+            return first;
+        }
+
+        return first + " " + second;
     }
 
     private void ResetUiAfterDisconnect()
@@ -2824,6 +3217,8 @@ public sealed class MainShellForm : Form
     private void ClearPublishedCatalogUi()
     {
         _publishedCatalog = null;
+        _shopForm.HideShop();
+        _shopBank.CloseSilent();
         _cmbClass.Items.Clear();
         _cmbShop.Items.Clear();
         _cmbShopItem.Items.Clear();
@@ -2848,7 +3243,8 @@ public sealed class MainShellForm : Form
 
         AppendLog("Connexion fermée.");
         var tradeNote = _tradeForm.NotifyLocalDisconnect();
-        ShowPlayerStatus(tradeNote ?? PlayerFacingMessages.ConnectionLost);
+        var shopNote = _shopBank.NotifyLocalDisconnect();
+        ShowPlayerStatus(CombinePlayerNotes(tradeNote, shopNote) ?? PlayerFacingMessages.ConnectionLost);
         ResetUiAfterDisconnect();
     }
 
@@ -3223,6 +3619,7 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        TryToggleNearbyShop();
         try
         {
             await _client.SendInteractRequestAsync().ConfigureAwait(true);
@@ -4532,14 +4929,22 @@ public sealed class MainShellForm : Form
         }
 
         var tile = CurrentPlayerTile();
+        var playing = _phase == ClientUiPhase.Playing && _map is not null;
+        var dialogueOpen = DialogueOpenForHint(tile.TileX, tile.TileY);
+        var inputBlocked = InteractInputBlocked();
         var cue = MapEventInteractHint.Resolve(
             tile.TileX,
             tile.TileY,
             _mapEvents,
             InputService.KeyDisplayName(_input.Interact),
-            playing: _phase == ClientUiPhase.Playing && _map is not null,
-            dialogueOpen: DialogueOpenForHint(tile.TileX, tile.TileY),
-            inputBlocked: InteractInputBlocked());
+            playing,
+            dialogueOpen,
+            inputBlocked);
+        if (cue is null && playing && !dialogueOpen && !inputBlocked && ShopInReach(tile.TileX, tile.TileY))
+        {
+            var key = InputService.KeyDisplayName(_input.Interact);
+            cue = $"[{(string.IsNullOrWhiteSpace(key) ? "E" : key.Trim())}] Boutique";
+        }
         if (_interactHint.ApplyCue(cue))
         {
             PositionInteractHint();
@@ -5277,26 +5682,28 @@ public sealed class MainShellForm : Form
         public override string ToString() => Label;
     }
 
-    private sealed class ShopPickRow(Guid id, string label, IReadOnlyList<string> itemIds)
+    private sealed class ShopPickRow
     {
-        public Guid Id { get; } = id;
+        public ShopPickRow(ShopView shop) => Shop = shop;
 
-        public string Label { get; } = label;
+        public ShopView Shop { get; }
 
-        public IReadOnlyList<string> ItemIds { get; } = itemIds;
+        public Guid Id => Shop.Id;
 
-        public override string ToString() => Label;
+        public override string ToString() => Shop.Name;
     }
 
-    private sealed class ItemPickRow(Guid id, string label, string type)
+    private sealed class ItemPickRow
     {
-        public Guid Id { get; } = id;
+        public ItemPickRow(ShopListingView listing) => Listing = listing;
 
-        public string Label { get; } = label;
+        public ShopListingView Listing { get; }
 
-        public string Type { get; } = type;
+        public Guid Id => Listing.ItemId;
 
-        public override string ToString() => Label;
+        public string Type => Listing.Type;
+
+        public override string ToString() => ShopBankPlayerMessages.FormatListing(Listing);
     }
 
     private sealed class SpellPickRow(Guid id, string label)
@@ -5593,6 +6000,64 @@ public sealed class MainShellForm : Form
     internal TextBox ShopItemIdTextBoxForTest => _txtShopItemId;
 
     internal Button ShopBuyButtonForTest => _btnShopBuy;
+
+    internal Button ShopToggleButtonForTest => _btnShopToggle;
+
+    internal string ShopListingLabelForTest => _lblShopListing.Text;
+
+    internal bool ShopOpenForTest => _shopBank.ShopOpen;
+
+    internal void OpenShopForTest()
+    {
+        if (_cmbShop.SelectedItem is ShopPickRow shop)
+        {
+            OpenShopWindow(shop.Id, showForm: false);
+            return;
+        }
+
+        if (_cmbShop.Items.Count > 0 && _cmbShop.Items[0] is ShopPickRow first)
+        {
+            OpenShopWindow(first.Id, showForm: false);
+        }
+    }
+
+    internal void ConfirmShopBuyForTest()
+    {
+        OpenShopForTest();
+        _btnShopBuy.PerformClick();
+        _btnShopBuy.PerformClick();
+    }
+
+    internal void ConfirmShopSellForTest()
+    {
+        OpenShopForTest();
+        _btnShopSell.PerformClick();
+        _btnShopSell.PerformClick();
+    }
+
+    internal void ConfirmBankDepositItemForTest()
+    {
+        _btnBankDepositItem.PerformClick();
+        _btnBankDepositItem.PerformClick();
+    }
+
+    internal void ConfirmBankWithdrawItemForTest()
+    {
+        _btnBankWithdrawItem.PerformClick();
+        _btnBankWithdrawItem.PerformClick();
+    }
+
+    internal void ConfirmBankDepositGoldForTest()
+    {
+        _btnBankDepositGold.PerformClick();
+        _btnBankDepositGold.PerformClick();
+    }
+
+    internal void ConfirmBankWithdrawGoldForTest()
+    {
+        _btnBankWithdrawGold.PerformClick();
+        _btnBankWithdrawGold.PerformClick();
+    }
 
     internal Button BankDepositItemButtonForTest => _btnBankDepositItem;
 

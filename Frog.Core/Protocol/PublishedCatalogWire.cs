@@ -186,6 +186,14 @@ public sealed class PublishedItemWireEntry
 
     [JsonPropertyName("stackable")]
     public bool Stackable { get; init; }
+
+    /// <summary>Prix de revente. 0 si le catalogue ancien ne l’envoie pas.</summary>
+    [JsonPropertyName("sellPrice")]
+    public int SellPrice { get; init; }
+
+    /// <summary>Taille de pile. 0 si absente (le client ne bloque pas un empilement inconnu).</summary>
+    [JsonPropertyName("maxStack")]
+    public int MaxStack { get; init; }
 }
 
 public sealed class PublishedSpellWireEntry
@@ -210,6 +218,26 @@ public sealed class PublishedShopWireEntry
 
     [JsonPropertyName("itemIds")]
     public IReadOnlyList<string> ItemIds { get; init; } = Array.Empty<string>();
+
+    /// <summary>Prix et stock (JSON additif). Vide sur un catalogue ancien : le client retombe sur <see cref="ItemIds"/>.</summary>
+    [JsonPropertyName("listings")]
+    public IReadOnlyList<PublishedShopListingWireEntry> Listings { get; init; } = Array.Empty<PublishedShopListingWireEntry>();
+}
+
+public sealed class PublishedShopListingWireEntry
+{
+    [JsonPropertyName("itemId")]
+    public string ItemId { get; init; } = string.Empty;
+
+    [JsonPropertyName("price")]
+    public int Price { get; init; }
+
+    /// <summary>Null et <see cref="Unlimited"/> : stock illimité.</summary>
+    [JsonPropertyName("stock")]
+    public int? Stock { get; init; }
+
+    [JsonPropertyName("unlimited")]
+    public bool Unlimited { get; init; }
 }
 
 public sealed class PublishedNpcWireEntry
@@ -219,4 +247,8 @@ public sealed class PublishedNpcWireEntry
 
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
+
+    /// <summary>Boutique liée (JSON additif). Vide si le PNJ n’en a pas.</summary>
+    [JsonPropertyName("shopId")]
+    public string ShopId { get; init; } = string.Empty;
 }

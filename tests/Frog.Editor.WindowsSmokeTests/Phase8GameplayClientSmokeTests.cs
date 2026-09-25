@@ -73,7 +73,7 @@ public sealed class Phase8GameplayClientSmokeTests
 
             form.SelectGameplayTabForTest();
             Pump(form, () => form.ShopBuyButtonForTest.Enabled, "shop buy enabled on gameplay tab");
-            form.ShopBuyButtonForTest.PerformClick();
+            form.ConfirmShopBuyForTest();
             Pump(form, () => form.LogContainsForTest("Achat: Achat reussi"), "shop buy for craft ingredient");
             form.AcquireProfessionForTest(opts.ProfessionId);
             Pump(form, () => form.LogContainsForTest("Métier:") && form.LogContainsForTest("acquis"), "profession acquired");
