@@ -276,6 +276,15 @@ public sealed class MapCanvas : Control
     /// </summary>
     public bool FillRespectAttributes { get; set; }
 
+    /// <summary>
+    /// Rectangle : ne peindre que le bord. Défaut faux (plein).
+    /// Maj pendant le tracé force aussi le contour pour ce geste.
+    /// </summary>
+    public bool RectangleOutline { get; set; }
+
+    /// <summary>Rectangle : ellipse inscrite dans le rectangle tracé. Défaut faux.</summary>
+    public bool RectangleEllipse { get; set; }
+
     /// <summary>Tuile de spawn playtest / départ affichée sur le canevas (mémo éditeur).</summary>
     public Point? PlaytestSpawnTile { get; private set; }
 
@@ -732,7 +741,17 @@ public sealed class MapCanvas : Control
 
             if (Map is not null && ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } ro)
             {
-                DrawTileRectPixels(g, ro.X, ro.Y, _hoverTile.X, _hoverTile.Y, Color.Cyan, dash: false);
+                var shape = CurrentShapeOptions(ShapeShiftOutline());
+                var cells = MapEditOperations.EnumerateShape(ro.X, ro.Y, _hoverTile.X, _hoverTile.Y, shape);
+                if (shape.Outline || shape.Ellipse)
+                {
+                    DrawTileRectPixels(g, ro.X, ro.Y, _hoverTile.X, _hoverTile.Y, Color.Cyan, dash: true, wash: false);
+                    DrawShapeRubberBand(g, cells, mw, mh);
+                }
+                else
+                {
+                    DrawTileRectPixels(g, ro.X, ro.Y, _hoverTile.X, _hoverTile.Y, Color.Cyan, dash: false);
+                }
             }
 
             if (Map is not null && ActiveTool == EditorTool.Line && _linePaintOrigin is not null)
@@ -1583,7 +1602,7 @@ public sealed class MapCanvas : Control
         }
     }
 
-    private void DrawTileRectPixels(Graphics g, int ax, int ay, int bx, int by, Color color, bool dash)
+    private void DrawTileRectPixels(Graphics g, int ax, int ay, int bx, int by, Color color, bool dash, bool wash = true)
     {
         var x0 = Math.Min(ax, bx);
         var y0 = Math.Min(ay, by);
@@ -1591,10 +1610,40 @@ public sealed class MapCanvas : Control
         var y1 = Math.Max(ay, by);
         var ts = TileSize;
         var r = new Rectangle(x0 * ts, y0 * ts, (x1 - x0 + 1) * ts, (y1 - y0 + 1) * ts);
-        using var b = new SolidBrush(Color.FromArgb(dash ? 50 : 55, color));
+        if (wash)
+        {
+            using var b = new SolidBrush(Color.FromArgb(dash ? 50 : 55, color));
+            g.FillRectangle(b, r);
+        }
+
         using var p = new Pen(color, 2) { DashStyle = dash ? DashStyle.Dash : DashStyle.Solid };
-        g.FillRectangle(b, r);
         g.DrawRectangle(p, r);
+    }
+
+    private void DrawShapeRubberBand(Graphics g, IReadOnlyList<(int X, int Y)> cells, int mapW, int mapH)
+    {
+        if (cells.Count == 0)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var accent = EditorChrome.RibbonAccent;
+        using var wash = new SolidBrush(Color.FromArgb(72, accent));
+        using var edge = new Pen(Color.FromArgb(230, accent), 1.6f);
+        for (var i = 0; i < cells.Count; i++)
+        {
+            var (x, y) = cells[i];
+            if (x < 0 || y < 0 || x >= mapW || y >= mapH)
+            {
+                continue;
+            }
+
+            DrawBrushTileGhost(g, x, y, mapW, mapH, 0.72f);
+            var rect = new Rectangle(x * ts + 1, y * ts + 1, Math.Max(1, ts - 2), Math.Max(1, ts - 2));
+            g.FillRectangle(wash, rect);
+            g.DrawRectangle(edge, rect);
+        }
     }
 
     private void DrawLineRubberBand(Graphics g, IReadOnlyList<(int X, int Y)> cells, int mapW, int mapH)
@@ -1986,7 +2035,7 @@ public sealed class MapCanvas : Control
                     break;
 
                 case EditorTool.Rectangle:
-                    if (!IsActiveLayerEditable())
+                    if (!IsActiveLayerPaintable())
                     {
                         break;
                     }
@@ -2158,6 +2207,7 @@ public sealed class MapCanvas : Control
             ActiveTool != EditorTool.Prefab &&
             ActiveTool != EditorTool.Line &&
             ActiveTool != EditorTool.Fill &&
+            ActiveTool != EditorTool.Rectangle &&
             (e.Button & MouseButtons.Right) != 0 &&
             tx >= 0 &&
             ty >= 0 &&
@@ -2210,23 +2260,12 @@ public sealed class MapCanvas : Control
                 return;
             }
 
-            if (ActiveTool == EditorTool.Rectangle && e.Button == MouseButtons.Left && _rectPaintOrigin is { } ro)
+            if (ActiveTool == EditorTool.Rectangle && e.Button == MouseButtons.Left && _rectPaintOrigin is not null)
             {
                 var world = ScreenToWorld(e.Location);
                 var ex = (int)Math.Floor(world.X / TileSize);
                 var ey = (int)Math.Floor(world.Y / TileSize);
-                ex = Math.Clamp(ex, 0, Map.Width - 1);
-                ey = Math.Clamp(ey, 0, Map.Height - 1);
-                if (IsActiveLayerEditable())
-                {
-                    BeginEditTransaction();
-                    ApplyRectangle(ro.X, ro.Y, ex, ey);
-                    RaiseTileClicked(ex, ey);
-                }
-
-                _rectPaintOrigin = null;
-                Capture = false;
-                NotifyPaintGesture();
+                CommitRectangle(ex, ey, ShapeShiftOutline());
             }
 
             if (ActiveTool == EditorTool.Line && e.Button == MouseButtons.Left && _linePaintOrigin is not null)
@@ -2309,7 +2348,10 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        Cursor = !IsActiveLayerEditable() ? Cursors.No : Cursors.Cross;
+        var blocked = ActiveTool == EditorTool.Rectangle
+            ? !IsActiveLayerPaintable()
+            : !IsActiveLayerEditable();
+        Cursor = blocked ? Cursors.No : Cursors.Cross;
     }
 
     private void ApplyBrush(int tx, int ty)
@@ -2384,26 +2426,39 @@ public sealed class MapCanvas : Control
         return tile;
     }
 
-    private void ApplyTileAssetRectangle(int x0, int y0, int x1, int y1)
+    private bool CommitRectangle(int ex, int ey, bool shiftOutline)
     {
-        if (Map is null || !HasTileAssetBrush())
+        if (Map is null || _rectPaintOrigin is not { } origin)
         {
-            return;
+            return false;
         }
 
-        EnsureLayerExists();
-        var left = Math.Min(x0, x1);
-        var right = Math.Max(x0, x1);
-        var top = Math.Min(y0, y1);
-        var bottom = Math.Max(y0, y1);
-        for (var y = top; y <= bottom; y++)
+        ex = Math.Clamp(ex, 0, Math.Max(0, Map.Width - 1));
+        ey = Math.Clamp(ey, 0, Math.Max(0, Map.Height - 1));
+        var painted = false;
+        if (IsActiveLayerPaintable())
         {
-            for (var x = left; x <= right; x++)
+            var options = CurrentShapeOptions(shiftOutline);
+            painted = ApplyShape(origin.X, origin.Y, ex, ey, options);
+            if (painted)
             {
-                TileAssetMapEditing.TryPaint(Map, ActiveLayerIndex, x, y, CreateTileAssetBrushTile(x, y));
+                RaiseTileClicked(ex, ey);
             }
         }
+
+        _rectPaintOrigin = null;
+        Capture = false;
+        NotifyPaintGesture();
+        return painted;
     }
+
+    private ShapeStampOptions CurrentShapeOptions(bool shiftOutline) => new()
+    {
+        Outline = RectangleOutline || shiftOutline,
+        Ellipse = RectangleEllipse,
+    };
+
+    private static bool ShapeShiftOutline() => (ModifierKeys & Keys.Shift) == Keys.Shift;
 
     private void ApplyTileAssetStamp(int tx, int ty)
     {
@@ -2504,49 +2559,94 @@ public sealed class MapCanvas : Control
         }
     }
 
-    private void ApplyRectangle(int x0, int y0, int x1, int y1)
+    /// <summary>
+    /// Un glisser = un pas d'annulation, seulement si au moins une case est peinte.
+    /// Couche masquée ou verrouillée : aucun effet. Feuille : le tampon se répète.
+    /// TileAsset : le même id sur chaque case de la forme.
+    /// </summary>
+    private bool ApplyShape(int x0, int y0, int x1, int y1, ShapeStampOptions options)
     {
-        if (Map is null || !IsActiveLayerEditable())
+        if (Map is null || !IsActiveLayerPaintable())
         {
-            return;
+            return false;
         }
 
+        var cells = MapEditOperations.EnumerateShape(x0, y0, x1, y1, options);
+        var minX = Math.Min(x0, x1);
+        var minY = Math.Min(y0, y1);
         if (IsTileAssetMap)
         {
-            ApplyTileAssetRectangle(x0, y0, x1, y1);
-            return;
+            if (!HasTileAssetBrush())
+            {
+                return false;
+            }
+
+            var paint = new List<(int X, int Y)>();
+            foreach (var (x, y) in cells)
+            {
+                if (x >= 0 && y >= 0 && x < Map.Width && y < Map.Height)
+                {
+                    paint.Add((x, y));
+                }
+            }
+
+            if (paint.Count == 0)
+            {
+                return false;
+            }
+
+            BeginEditTransaction();
+            EnsureLayerExists();
+            foreach (var (x, y) in paint)
+            {
+                TileAssetMapEditing.TryPaint(Map, ActiveLayerIndex, x, y, CreateTileAssetBrushTile(x, y));
+            }
+
+            return true;
         }
 
         if (!TilesetCache.TryGet(ActiveTilesetId, out var bmpR) || bmpR is null)
         {
-            return;
+            return false;
         }
 
-        EnsureLayerExists();
-        var minX = Math.Min(x0, x1);
-        var maxX = Math.Max(x0, x1);
-        var minY = Math.Min(y0, y1);
-        var maxY = Math.Max(y0, y1);
         var ts = TileSize;
         var stw = Math.Max(1, SelectedStampInTiles.Width);
         var sth = Math.Max(1, SelectedStampInTiles.Height);
-        for (var y = minY; y <= maxY; y++)
+        var stamps = new List<(int X, int Y, int SrcX, int SrcY)>();
+        foreach (var (x, y) in cells)
         {
-            for (var x = minX; x <= maxX; x++)
+            if (x < 0 || y < 0 || x >= Map.Width || y >= Map.Height)
             {
-                var dx = (x - minX) % stw;
-                var dy = (y - minY) % sth;
-                var sx = SelectedSrc.X + dx * ts;
-                var sy = SelectedSrc.Y + dy * ts;
-                CanonicalizeStoredSource(ref sx, ref sy);
-                if (sx < 0 || sy < 0 || sx + ts > bmpR.Width || sy + ts > bmpR.Height)
-                {
-                    continue;
-                }
-
-                MapEditOperations.PaintTile(Map, ActiveLayerIndex, x, y, CreateBrushTile(x, y, sx, sy));
+                continue;
             }
+
+            var dx = (x - minX) % stw;
+            var dy = (y - minY) % sth;
+            var sx = SelectedSrc.X + dx * ts;
+            var sy = SelectedSrc.Y + dy * ts;
+            CanonicalizeStoredSource(ref sx, ref sy);
+            if (sx < 0 || sy < 0 || sx + ts > bmpR.Width || sy + ts > bmpR.Height)
+            {
+                continue;
+            }
+
+            stamps.Add((x, y, sx, sy));
         }
+
+        if (stamps.Count == 0)
+        {
+            return false;
+        }
+
+        BeginEditTransaction();
+        EnsureLayerExists();
+        foreach (var (x, y, sx, sy) in stamps)
+        {
+            MapEditOperations.PaintTile(Map, ActiveLayerIndex, x, y, CreateBrushTile(x, y, sx, sy));
+        }
+
+        return true;
     }
 
     private void RefreshShapePreview(Keys key)
@@ -2589,7 +2689,8 @@ public sealed class MapCanvas : Control
 
         if (ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } ro)
         {
-            return EditorToolHotkeys.FormatRectangleGesture(ro.X, ro.Y, _hoverTile.X, _hoverTile.Y);
+            var shape = CurrentShapeOptions(ShapeShiftOutline());
+            return EditorToolHotkeys.FormatRectangleGesture(ro.X, ro.Y, _hoverTile.X, _hoverTile.Y, shape.Outline, shape.Ellipse);
         }
 
         if (ActiveTool == EditorTool.Selection && _selectionMarqueeAnchor is { } anchor)
@@ -2602,9 +2703,12 @@ public sealed class MapCanvas : Control
             return EditorToolHotkeys.FormatSelectionCommitted(selection.Width, selection.Height);
         }
 
-        var hint = ActiveTool == EditorTool.Fill
-            ? EditorToolHotkeys.FormatFillStatus(FillVisibleUnlockedLayers, FillRespectAttributes)
-            : EditorToolHotkeys.StatusHint(ActiveTool);
+        var hint = ActiveTool switch
+        {
+            EditorTool.Fill => EditorToolHotkeys.FormatFillStatus(FillVisibleUnlockedLayers, FillRespectAttributes),
+            EditorTool.Rectangle => EditorToolHotkeys.FormatRectangleStatus(RectangleOutline, RectangleEllipse),
+            _ => EditorToolHotkeys.StatusHint(ActiveTool),
+        };
         if (IsTileAssetMap)
         {
             hint += ActiveTileAssetId.IsNone
@@ -2844,6 +2948,49 @@ public sealed class MapCanvas : Control
         ApplyBrush(x, y);
         Invalidate();
         return Map.Layers[ActiveLayerIndex].Tiles.Any(t => t.X == x && t.Y == y);
+    }
+
+    internal bool TryBeginRectangleDragForTest(int x, int y)
+    {
+        if (Map is null || !IsActiveLayerPaintable())
+        {
+            return false;
+        }
+
+        if (x < 0 || y < 0 || x >= Map.Width || y >= Map.Height)
+        {
+            return false;
+        }
+
+        ActiveTool = EditorTool.Rectangle;
+        _rectPaintOrigin = new Point(x, y);
+        _hoverTile = new Point(x, y);
+        return true;
+    }
+
+    internal IReadOnlyList<(int X, int Y)> GetRectanglePreviewCellsForTest(bool shiftOutline = false)
+    {
+        if (_rectPaintOrigin is not { } origin)
+        {
+            return Array.Empty<(int, int)>();
+        }
+
+        return MapEditOperations.EnumerateShape(
+            origin.X,
+            origin.Y,
+            _hoverTile.X,
+            _hoverTile.Y,
+            CurrentShapeOptions(shiftOutline));
+    }
+
+    internal bool TryCommitRectangleDragForTest(int x, int y, bool shiftOutline = false)
+    {
+        if (Map is null || _rectPaintOrigin is null)
+        {
+            return false;
+        }
+
+        return CommitRectangle(x, y, shiftOutline);
     }
 
     internal bool TryBeginLineDragForTest(int x, int y)

@@ -122,6 +122,9 @@
                 <MenuItem Header="Outil remplissage"
                           Command="{x:Static local:MainWindow.CmdFillTool}"
                           InputGestureText="F" />
+                <MenuItem Header="Outil rectangle"
+                          Command="{x:Static local:MainWindow.CmdRectangleTool}"
+                          InputGestureText="R" />
                 <MenuItem Header="Outil ligne"
                           Command="{x:Static local:MainWindow.CmdLineTool}"
                           InputGestureText="L" />
@@ -190,6 +193,7 @@
                 <Button Content="Catalogue" Command="{x:Static local:MainWindow.CmdRefreshCatalog}" Padding="10,4" />
                 <Separator />
                 <Button Content="Remplissage" Command="{x:Static local:MainWindow.CmdFillTool}" Padding="10,4" ToolTip="Outil remplissage (pot, F). Clic : zone connexe en 4 directions. Clic droit ou tuile vide : efface. Ctrl : couches visibles." />
+                <Button Content="Rectangle" Command="{x:Static local:MainWindow.CmdRectangleTool}" Padding="10,4" ToolTip="Outil rectangle (R). Plein par défaut sur la couche active. Maj ou case Contour : bord seulement. Case Ellipse : ellipse inscrite." />
                 <Button Content="Ligne" Command="{x:Static local:MainWindow.CmdLineTool}" Padding="10,4" ToolTip="Outil ligne : trait de tuiles (L). Maj aligne sur l'axe." />
                 <Button Content="Départ" Command="{x:Static local:MainWindow.CmdSpawnTool}" Padding="10,4" ToolTip="Outil point de départ playtest (D)" />
                 <Button Content="Prefab" Command="{x:Static local:MainWindow.CmdPrefabTool}" Padding="10,4" ToolTip="Poser un objet prefab (P)" />
