@@ -304,6 +304,8 @@ public sealed class MainShellForm : Form
     private readonly ListBox _lstGround = new() { Dock = DockStyle.Fill, IntegralHeight = false, Height = 70 };
     private readonly Button _btnPickup = new() { Text = "Ramasser", AutoSize = true, Enabled = false };
     private GroundItemsSnapshotWire? _groundSnapshot;
+    private readonly HashSet<Guid> _walkOnPickupSent = new();
+    private (int MapId, int TileX, int TileY)? _walkOnScannedTile;
     private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _heartbeatTimer = new() { Interval = 45_000 };
@@ -1920,6 +1922,71 @@ public sealed class MainShellForm : Form
 
         _btnPickup.Enabled = _lstGround.Items.Count > 0;
         AppendLog($"Sol map={snapshot.MapId}: {snapshot.Items.Count} objet(s)");
+        if (_map is not null)
+        {
+            RedrawMap();
+        }
+
+        TryRequestWalkOnPickup(steppedOntoTile: false);
+    }
+
+    /// <summary>
+    /// Walk-on pickup when the local player steps onto a tile that already has loot.
+    /// A drop or a kill that lands under a stationary player stays until they leave and come back, or use Ramasser.
+    /// </summary>
+    private void TryRequestWalkOnPickup(bool steppedOntoTile)
+    {
+        if (_client is null || !_client.IsConnected || _groundSnapshot is null)
+        {
+            return;
+        }
+
+        if (_sessionDisplayedMapId != 0 && _groundSnapshot.MapId != _sessionDisplayedMapId)
+        {
+            return;
+        }
+
+        var tile = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+        var here = (_groundSnapshot.MapId, tile.X, tile.Y);
+        if (!steppedOntoTile && _walkOnScannedTile == here)
+        {
+            return;
+        }
+
+        _walkOnScannedTile = here;
+        foreach (var item in _groundSnapshot.Items)
+        {
+            if (GroundLootPlacement.PixelToTile(item.PixelX, item.PixelY) != tile)
+            {
+                continue;
+            }
+
+            if (!_walkOnPickupSent.Add(item.GroundItemId))
+            {
+                continue;
+            }
+
+            var groundItemId = item.GroundItemId;
+            _ = SendWalkOnPickupAsync(groundItemId);
+        }
+    }
+
+    private async Task SendWalkOnPickupAsync(Guid groundItemId)
+    {
+        if (_client is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendPickupItemAsync(groundItemId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _walkOnPickupSent.Remove(groundItemId);
+            AppendLog("Ramasser: " + ex.Message);
+        }
     }
 
     private void OnDialogueStatePush(DialogueStateWire state)
@@ -2444,6 +2511,9 @@ public sealed class MainShellForm : Form
         _cmbMeleeTarget.Items.Clear();
         _lstBank.Items.Clear();
         _lstGround.Items.Clear();
+        _groundSnapshot = null;
+        _walkOnPickupSent.Clear();
+        _walkOnScannedTile = null;
         _craftPanel.ClearRecipes();
         // Keep ItemNameLookup wired to ResolveItemName (handles null catalog).
     }
@@ -2674,6 +2744,13 @@ public sealed class MainShellForm : Form
         AppendLog($"Map reçue id={mapId} {map.Name} {map.Width}x{map.Height}");
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
+        if (_groundSnapshot is null || _groundSnapshot.MapId != mapId)
+        {
+            _groundSnapshot = null;
+            _lstGround.Items.Clear();
+            _btnPickup.Enabled = false;
+        }
+
         _sessionDisplayedMapId = mapId;
         _map = map;
         _mapBlockedTiles = MapCollision.IndexBlockedTiles(map);
@@ -3057,7 +3134,9 @@ public sealed class MainShellForm : Form
                 TryScheduleMapRequestAfterWarp(mapId);
             }
 
-            if (!_localVisualInitialized)
+            var wasInitialized = _localVisualInitialized;
+            var tileBefore = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+            if (!wasInitialized)
             {
                 _srvPixelX = x;
                 _srvPixelY = y;
@@ -3067,6 +3146,8 @@ public sealed class MainShellForm : Form
                 _localVisualInitialized = true;
                 SnapCameraToLocalVisual();
                 needImmediateRedraw = true;
+                var spawnTile = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+                _walkOnScannedTile = (mapId, spawnTile.X, spawnTile.Y);
             }
             else if (x != _srvPixelX || y != _srvPixelY)
             {
@@ -3082,6 +3163,11 @@ public sealed class MainShellForm : Form
                 _srvPixelX = (int)MathF.Round(sx);
                 _srvPixelY = (int)MathF.Round(sy);
                 _movementMeasure.NoteLocalCorrection();
+                var tileAfter = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+                if (tileBefore != tileAfter || mapChanged)
+                {
+                    TryRequestWalkOnPickup(steppedOntoTile: true);
+                }
             }
         }
         else
@@ -3519,6 +3605,14 @@ public sealed class MainShellForm : Form
 
         var localWalking = TryGetHeldMoveDiscrete(out _, out _);
         var localPose = new PlayerSpritePose(_localFacing, localWalking, _localWalkElapsedMs);
+        IReadOnlyList<(int PixelX, int PixelY)>? groundLoot = null;
+        if (_groundSnapshot is { } groundSnap
+            && groundSnap.MapId == _sessionDisplayedMapId
+            && groundSnap.Items.Count > 0)
+        {
+            groundLoot = groundSnap.Items.Select(item => (item.PixelX, item.PixelY)).ToArray();
+        }
+
         var bmp = MapViewRenderer.Render(
             _map,
             otherPx,
@@ -3540,7 +3634,8 @@ public sealed class MainShellForm : Form
             weatherTickMs: _weatherTickMs,
             localAppearance: EquipmentService.ToOverlaySet(_paperdoll),
             tileAssets: _tilePacks.Lookup,
-            tileAssetBitmaps: _tileAssetBitmaps);
+            tileAssetBitmaps: _tileAssetBitmaps,
+            groundLootCentersPx: groundLoot);
         _combatHud.Tick(DateTime.UtcNow);
         CombatEffect.Draw(bmp, _combatHud.Floats, DateTime.UtcNow, lcx, lcy, _localFacing);
         var previous = _picMap.Image;

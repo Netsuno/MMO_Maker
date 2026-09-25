@@ -182,6 +182,34 @@ public static class Phase7PacketCodec
         return true;
     }
 
+    /// <summary>
+    /// Corps <see cref="Frog.Core.Enums.PacketId.GroundItemsSnapshot"/> sans l'octet d'opcode.
+    /// Taille fixe par pile (44 octets) — Hello 11, pas de champ ajouté.
+    /// </summary>
+    public static byte[] BuildGroundItemsSnapshotBody(int mapId, IReadOnlyList<GroundItemWire> items)
+    {
+        const int perItem = 16 + 16 + 4 + 4 + 4;
+        var payload = new byte[4 + 2 + items.Count * perItem];
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(0), mapId);
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(4), (ushort)items.Count);
+        var o = 6;
+        foreach (var item in items)
+        {
+            item.GroundItemId.TryWriteBytes(payload.AsSpan(o));
+            o += 16;
+            item.ItemId.TryWriteBytes(payload.AsSpan(o));
+            o += 16;
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.Quantity);
+            o += 4;
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.PixelX);
+            o += 4;
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.PixelY);
+            o += 4;
+        }
+
+        return payload;
+    }
+
     public static bool TryParseGroundItemsSnapshot(ReadOnlySpan<byte> body, out GroundItemsSnapshotWire snapshot)
     {
         snapshot = new GroundItemsSnapshotWire();

@@ -341,6 +341,7 @@ public static class FrogServerHostFactory
                             sp.GetRequiredService<ICharacterRepository>(),
                             sp.GetRequiredService<IInventoryRepository>(),
                             sp.GetRequiredService<IPublishedItemCatalog>()));
+                    services.AddHostedService<InMemoryStarterMonsterHostedService>();
                 }
 
                 if (usePostgreSql)
@@ -352,6 +353,10 @@ public static class FrogServerHostFactory
                 services.AddSingleton<CharacterMutationCoordinator>();
                 services.AddSingleton<CharacterGameplayService>();
                 services.AddSingleton<InventoryGameplayService>();
+                services.AddSingleton(GroundLootTable.CreateDefault());
+                services.AddSingleton<GroundLootService>();
+                services.AddSingleton<GroundItemObserverNotifier>();
+                services.AddHostedService<GroundLootExpiryHostedService>();
                 services.AddSingleton<ICombatMutationRepository, CombatMutationRepository>();
                 services.AddSingleton<CombatGameplayService>();
                 services.AddSingleton<ShopBankGameplayService>();

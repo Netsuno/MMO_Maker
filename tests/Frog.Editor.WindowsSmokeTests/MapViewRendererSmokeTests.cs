@@ -239,6 +239,38 @@ public sealed class MapViewRendererSmokeTests
             $"monster slime should read green, got {monsterPixel}");
     }
 
+    [Fact]
+    public void Render_DrawsGroundLootBagAboveGroundTile()
+    {
+        var map = CreateTwoByTwoGround();
+        var emptyOthers = new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase);
+        const int lootX = 16;
+        const int lootY = 16;
+
+        using var bare = MapViewRenderer.Render(
+            map,
+            emptyOthers,
+            localUsername: "self",
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null);
+        var groundArgb = GroundFill.ToArgb();
+        Assert.Equal(groundArgb, bare.GetPixel(lootX, lootY).ToArgb());
+
+        using var withLoot = MapViewRenderer.Render(
+            map,
+            emptyOthers,
+            localUsername: "self",
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            groundLootCentersPx: [(lootX, lootY)]);
+
+        var bag = withLoot.GetPixel(lootX, lootY);
+        Assert.Equal(UiTheme.AccentGoldDim.ToArgb(), bag.ToArgb());
+        Assert.NotEqual(groundArgb, bag.ToArgb());
+    }
+
     private static Map CreateTwoByTwoGround()
     {
         var map = new Map { Name = "GridOff", Width = 2, Height = 2 };

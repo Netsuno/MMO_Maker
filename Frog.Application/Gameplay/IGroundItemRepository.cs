@@ -27,7 +27,14 @@ public sealed record GroundItemMutationResult(
 
 public interface IGroundItemRepository
 {
+    /// <summary>
+    /// Objets encore au sol. Les piles plus vieilles que
+    /// <see cref="Frog.Core.Gameplay.GameplayLimits.GroundItemTimeToLiveSeconds"/> sont omises.
+    /// </summary>
     Task<IReadOnlyList<GroundItemRecord>> ListOnMapAsync(int mapId, CancellationToken cancellationToken = default);
+
+    /// <summary>Marque prises les piles expirées de la carte. Retourne le nombre retiré.</summary>
+    Task<int> PurgeExpiredAsync(int mapId, CancellationToken cancellationToken = default);
 
     Task<GroundItemMutationResult> DropAsync(
         int mapId,
