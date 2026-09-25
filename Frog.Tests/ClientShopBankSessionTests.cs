@@ -32,7 +32,7 @@ public sealed class ClientShopBankSessionTests
         Assert.Equal(57, (byte)PacketId.BankWithdrawRequest);
         Assert.Equal(58, (byte)PacketId.BankWithdrawResult);
         Assert.Equal(59, (byte)PacketId.BankSnapshot);
-        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
         Assert.NotEqual(80, (byte)PacketId.ShopBuyRequest);
         Assert.NotEqual(87, (byte)PacketId.BankDepositRequest);
     }
