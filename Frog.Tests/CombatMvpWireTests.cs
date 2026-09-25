@@ -174,10 +174,17 @@ public sealed class CombatMvpWireTests
         var quest = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Controls", "QuestJournalPanel.cs"));
         var env = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Controls", "EnvironmentPanel.cs"));
 
+        var input = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Services", "InputService.cs"));
+        var settings = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Config", "UserSettings.cs"));
+
         Assert.Contains("ClientCombatHud _combatHud", shell, StringComparison.Ordinal);
         Assert.Contains("DamageEventReceived += OnDamageEvent", shell, StringComparison.Ordinal);
         Assert.Contains("CombatMvpLimits.DummyName", shell, StringComparison.Ordinal);
-        Assert.Contains("Keys.Space", shell, StringComparison.Ordinal);
+        Assert.Contains("_input.IsAttack(e.KeyCode)", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (e.KeyCode == Keys.Space)", shell, StringComparison.Ordinal);
+        Assert.Contains("public string Attack { get; set; } = \"Space\";", settings, StringComparison.Ordinal);
+        Assert.Contains("ParseKey(settings.Bindings.Attack, Keys.Space)", input, StringComparison.Ordinal);
+        Assert.Contains("public bool IsAttack(Keys key)", input, StringComparison.Ordinal);
         Assert.Contains("CombatEffect.Draw", shell, StringComparison.Ordinal);
         Assert.Contains("case 0:", shell, StringComparison.Ordinal);
         Assert.Contains("MeleeAsync()", shell, StringComparison.Ordinal);
