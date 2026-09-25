@@ -13,7 +13,7 @@ namespace Frog.Client.Controls;
 /// Aperçu paperdoll (planches déjà en jeu, teintes procédurales). Clic ou flèches.
 /// Pas un champ de protocole.
 /// </summary>
-public sealed class AppearancePickerPanel : UserControl
+public sealed class AppearancePickerPanel : Panel
 {
     public const int PreviewScale = 2;
 
@@ -28,6 +28,7 @@ public sealed class AppearancePickerPanel : UserControl
         AccessibleName = "Apparence";
         TabStop = true;
         SetStyle(ControlStyles.Selectable, true);
+        SetStyle(ControlStyles.SupportsTransparentBackColor, true);
         BackColor = Color.Transparent;
         ForeColor = UiTheme.TextPrimary;
         var width = LoginShell.CharacterCardWidth - (LoginShell.CardPadding * 2);
@@ -137,20 +138,59 @@ public sealed class AppearancePickerPanel : UserControl
     }
 
     /// <summary>
-    /// Le panneau est la cible des flèches. <see cref="ContainerControl"/> donnerait
-    /// <c>WM_SETFOCUS</c> au dernier bouton ‹ › cliqué, et <see cref="Control.Focus"/>
-    /// renverrait false alors que le sélecteur est bien visible.
+    /// Le panneau est la cible des flèches. <see cref="Control.Focus"/> ne doit pas
+    /// laisser le focus sur le dernier bouton ‹ › cliqué.
     /// </summary>
-    protected override void WndProc(ref Message m)
+    public new bool Focus()
     {
-        const int WM_SETFOCUS = 0x0007;
-        if (m.Msg == WM_SETFOCUS && ActiveControl is not null)
+        if (!CanFocus && IsHandleCreated)
         {
-            DefWndProc(ref m);
-            return;
+            return false;
         }
 
-        base.WndProc(ref m);
+        if (!IsHandleCreated)
+        {
+            CreateControl();
+        }
+
+        var focused = base.Focus();
+        if (focused || Focused)
+        {
+            return true;
+        }
+
+        var tabStops = new List<(Control Control, bool TabStop)>();
+        RememberTabStops(this, tabStops);
+        foreach (var (control, _) in tabStops)
+        {
+            control.TabStop = false;
+        }
+
+        try
+        {
+            base.Focus();
+            return Focused;
+        }
+        finally
+        {
+            foreach (var (control, tabStop) in tabStops)
+            {
+                control.TabStop = tabStop;
+            }
+        }
+    }
+
+    private static void RememberTabStops(Control root, List<(Control Control, bool TabStop)> found)
+    {
+        foreach (Control child in root.Controls)
+        {
+            if (child.TabStop)
+            {
+                found.Add((child, true));
+            }
+
+            RememberTabStops(child, found);
+        }
     }
 
     private static void FocusSlot(SlotRow row)

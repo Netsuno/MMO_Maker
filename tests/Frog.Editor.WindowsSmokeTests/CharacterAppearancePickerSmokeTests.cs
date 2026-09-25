@@ -69,7 +69,12 @@ public sealed class CharacterAppearancePickerSmokeTests
                 form.PressAppearanceArrowForTest(Keys.Left);
                 Assert.Equal(beforeArrow, picker.ValueForTest(CharacterLookSlot.Body));
                 WaitUntilInteractive(picker);
-                Assert.True(picker.Focus(), "picker accepts focus for its own arrows");
+                var pickerFocused = picker.Focus();
+                Assert.True(
+                    pickerFocused,
+                    "picker accepts focus for its own arrows "
+                    + $"(CanFocus={picker.CanFocus}, CanSelect={picker.CanSelect}, Focused={picker.Focused}, "
+                    + $"ContainsFocus={picker.ContainsFocus}, Active={form.ActiveControl?.GetType().Name ?? "null"})");
                 Assert.True(picker.HandleKeyForTest(Keys.Down));
                 form.NewCharNameTextBoxForTest.Enabled = true;
                 WaitUntilInteractive(form.NewCharNameTextBoxForTest);
