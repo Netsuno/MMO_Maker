@@ -157,6 +157,11 @@ public partial class MainWindow : Window
         nameof(CmdPrefabTool),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdPlaceTool = new(
+        "Outil entités",
+        nameof(CmdPlaceTool),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdCopySelection = new(
         "Copier la sélection",
         nameof(CmdCopySelection),
@@ -285,6 +290,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdLineTool, (_, _) => _editor.SelectEditorTool(EditorTool.Line)));
         CommandBindings.Add(new CommandBinding(CmdSpawnTool, (_, _) => _editor.SelectEditorTool(EditorTool.Spawn)));
         CommandBindings.Add(new CommandBinding(CmdPrefabTool, (_, _) => _editor.SelectEditorTool(EditorTool.Prefab)));
+        CommandBindings.Add(new CommandBinding(CmdPlaceTool, (_, _) => _editor.SelectEditorTool(EditorTool.Place)));
         CommandBindings.Add(new CommandBinding(CmdCopySelection, (_, e) => _editor.CopyTileSelection(ActiveLayerMenu(e))));
         CommandBindings.Add(new CommandBinding(CmdCutSelection, (_, e) => _editor.CutTileSelection(ActiveLayerMenu(e))));
         CommandBindings.Add(new CommandBinding(CmdPasteSelection, (_, e) => _editor.PasteTileSelection(ActiveLayerMenu(e))));

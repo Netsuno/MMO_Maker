@@ -1,5 +1,6 @@
 using System.Windows.Forms;
 using System.Windows.Input;
+using Frog.Application.Maps;
 
 namespace Frog.Editor.Enums;
 
@@ -36,6 +37,7 @@ public static class EditorToolHotkeys
             Key.M => Keys.M,
             Key.D => Keys.D,
             Key.P => Keys.P,
+            Key.N => Keys.N,
             _ => Keys.None,
         };
 
@@ -73,6 +75,9 @@ public static class EditorToolHotkeys
             case Keys.P:
                 tool = EditorTool.Prefab;
                 return true;
+            case Keys.N:
+                tool = EditorTool.Place;
+                return true;
             default:
                 tool = default;
                 return false;
@@ -91,6 +96,7 @@ public static class EditorToolHotkeys
             EditorTool.Selection => "M",
             EditorTool.Spawn => "D",
             EditorTool.Prefab => "P",
+            EditorTool.Place => "N",
             _ => string.Empty,
         };
 
@@ -106,6 +112,7 @@ public static class EditorToolHotkeys
             EditorTool.Selection => "Sélection",
             EditorTool.Spawn => "Départ (spawn)",
             EditorTool.Prefab => "Prefab (objet)",
+            EditorTool.Place => "Entités",
             _ => tool.ToString(),
         };
 
@@ -118,7 +125,7 @@ public static class EditorToolHotkeys
     }
 
     public const string PaletteHint =
-        "B pinceau · E gomme · C curseur · F remplissage · R rectangle (Maj = contour) · L ligne (Maj = axe) · M sélection · D départ · P prefab · I pipette";
+        "B pinceau · E gomme · C curseur · F remplissage · R rectangle (Maj = contour) · L ligne (Maj = axe) · M sélection · D départ · P prefab · N entités · I pipette";
 
     /// <summary>Phrase d'aide affichée dans la barre d'état et le panneau d'outils.</summary>
     public static string StatusHint(EditorTool tool) =>
@@ -133,6 +140,7 @@ public static class EditorToolHotkeys
             EditorTool.Selection => "Sélection (M) · tracez un rectangle · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr",
             EditorTool.Spawn => "Départ (D) · clic pour poser le spawn playtest",
             EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · Échap quitte",
+            EditorTool.Place => "Entités (N) · Apparition, PNJ ou Objet · clic pose · glisser déplace · clic droit retire",
             _ => DisplayName(tool),
         };
 
@@ -147,6 +155,16 @@ public static class EditorToolHotkeys
             : "couche active · Ctrl = couches visibles";
         var attrs = respectAttributes ? " · collisions / attrs" : string.Empty;
         return $"Remplissage (F) · 4 directions · {layers}{attrs} · clic peint · clic droit ou tuile vide : efface";
+    }
+
+    /// <summary>Barre d'état de l'outil entités. Le type à poser vient du panneau de propriétés.</summary>
+    public static string FormatPlaceStatus(MapPlacedKind kind, string? selectedName)
+    {
+        var kindLabel = MapPlacedEntityEdit.KindLabel(kind);
+        var selected = string.IsNullOrWhiteSpace(selectedName)
+            ? "aucune sélection"
+            : $"sélection « {selectedName.Trim()} »";
+        return $"Entités (N) · poser {kindLabel} · {selected} · clic pose ou sélectionne · glisser déplace · clic droit retire";
     }
 
     /// <summary>Mesure du trait en cours (barre d'état).</summary>

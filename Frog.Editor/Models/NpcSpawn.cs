@@ -1,1 +1,0 @@
-// TODO: Implémenter NpcSpawn
