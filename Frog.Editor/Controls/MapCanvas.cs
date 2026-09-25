@@ -759,6 +759,20 @@ public sealed class MapCanvas : Control
                 DrawLineRubberBand(g, CurrentLineCells(LineAxisConstrained()), mw, mh);
             }
 
+            if (Map is not null && ActiveTool == EditorTool.Eraser && IsActiveLayerPaintable())
+            {
+                var ew = Math.Max(1, SelectedStampInTiles.Width);
+                var eh = Math.Max(1, SelectedStampInTiles.Height);
+                DrawTileRectPixels(
+                    g,
+                    _hoverTile.X,
+                    _hoverTile.Y,
+                    _hoverTile.X + ew - 1,
+                    _hoverTile.Y + eh - 1,
+                    Color.FromArgb(255, 220, 96, 96),
+                    dash: true);
+            }
+
             if (BrushGhostVisible() && _linePaintOrigin is null)
             {
                 var tx = _hoverTile.X;
@@ -1969,6 +1983,27 @@ public sealed class MapCanvas : Control
                 return;
             }
 
+            if (ActiveTool == EditorTool.Eraser)
+            {
+                if ((ModifierKeys & Keys.Control) == Keys.Control)
+                {
+                    _suppressRightButtonErase = true;
+                    TileContextMenuRequested?.Invoke(new Point(tx, ty));
+                    return;
+                }
+
+                if (!IsActiveLayerPaintable())
+                {
+                    return;
+                }
+
+                ApplyEraser(tx, ty);
+                Capture = true;
+                Invalidate();
+                RaiseTileClicked(tx, ty);
+                return;
+            }
+
             if ((ModifierKeys & Keys.Control) == Keys.Control)
             {
                 _suppressRightButtonErase = true;
@@ -2007,13 +2042,12 @@ public sealed class MapCanvas : Control
                     break;
 
                 case EditorTool.Eraser:
-                    if (!IsActiveLayerEditable())
+                    if (!IsActiveLayerPaintable())
                     {
                         break;
                     }
 
-                    BeginPaintStroke();
-                    EraseStamp(tx, ty);
+                    ApplyEraser(tx, ty);
                     Capture = true;
                     Invalidate();
                     RaiseTileClicked(tx, ty);
@@ -2171,6 +2205,11 @@ public sealed class MapCanvas : Control
                 ApplyBrush(tx, ty);
                 Invalidate();
             }
+            else if (ActiveTool == EditorTool.Eraser && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height && IsActiveLayerPaintable())
+            {
+                ApplyEraser(tx, ty);
+                Invalidate();
+            }
             else if (ActiveTool == EditorTool.Prefab && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
             {
                 if (_draggingPrefab is not null)
@@ -2203,11 +2242,25 @@ public sealed class MapCanvas : Control
         }
 
         if (!_suppressRightButtonErase &&
+            ActiveTool == EditorTool.Eraser &&
+            (e.Button & MouseButtons.Right) != 0 &&
+            tx >= 0 &&
+            ty >= 0 &&
+            tx < Map.Width &&
+            ty < Map.Height &&
+            IsActiveLayerPaintable())
+        {
+            ApplyEraser(tx, ty);
+            Invalidate();
+        }
+
+        if (!_suppressRightButtonErase &&
             ActiveTool != EditorTool.Spawn &&
             ActiveTool != EditorTool.Prefab &&
             ActiveTool != EditorTool.Line &&
             ActiveTool != EditorTool.Fill &&
             ActiveTool != EditorTool.Rectangle &&
+            ActiveTool != EditorTool.Eraser &&
             (e.Button & MouseButtons.Right) != 0 &&
             tx >= 0 &&
             ty >= 0 &&
@@ -2348,7 +2401,7 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        var blocked = ActiveTool == EditorTool.Rectangle
+        var blocked = ActiveTool is EditorTool.Rectangle or EditorTool.Fill or EditorTool.Eraser
             ? !IsActiveLayerPaintable()
             : !IsActiveLayerEditable();
         Cursor = blocked ? Cursors.No : Cursors.Cross;
@@ -2524,6 +2577,23 @@ public sealed class MapCanvas : Control
             System.Drawing.Imaging.ColorMatrixFlag.Default,
             System.Drawing.Imaging.ColorAdjustType.Bitmap);
         g.DrawImage(bitmap, destination, 0, 0, bitmap.Width, bitmap.Height, GraphicsUnit.Pixel, attrs);
+    }
+
+    /// <summary>
+    /// Gomme : retire le tampon sur la couche active seulement.
+    /// Couche masquée ou verrouillée : aucun effet. Un glisser = un pas d'annulation,
+    /// posé seulement si au moins une tuile disparaît.
+    /// </summary>
+    private int ApplyEraser(int tx, int ty)
+    {
+        if (Map is null || !IsActiveLayerPaintable())
+        {
+            return 0;
+        }
+
+        var sw = Math.Max(1, SelectedStampInTiles.Width);
+        var sh = Math.Max(1, SelectedStampInTiles.Height);
+        return MapEditOperations.EraseStamp(Map, ActiveLayerIndex, tx, ty, sw, sh, BeginPaintStroke);
     }
 
     private void EraseAt(int tx, int ty)
@@ -2930,6 +3000,28 @@ public sealed class MapCanvas : Control
     {
         ActiveTool = EditorTool.Fill;
         return FloodFill(x, y, erase);
+    }
+
+    /// <summary>Un clic de gomme : efface le tampon puis termine le trait (un pas d'annulation).</summary>
+    internal int TryEraseStampForTest(int x, int y)
+    {
+        ActiveTool = EditorTool.Eraser;
+        var removed = ApplyEraser(x, y);
+        EndPaintStrokeForTest();
+        return removed;
+    }
+
+    /// <summary>Poursuit le trait de gomme en cours, sans nouveau pas d'annulation.</summary>
+    internal int TryContinueEraserStrokeForTest(int x, int y)
+    {
+        ActiveTool = EditorTool.Eraser;
+        return ApplyEraser(x, y);
+    }
+
+    internal void EndPaintStrokeForTest()
+    {
+        _paintStroke = false;
+        Capture = false;
     }
 
     internal bool TryPaintTileForTest(int x, int y)

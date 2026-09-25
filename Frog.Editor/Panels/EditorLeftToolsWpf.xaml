@@ -203,7 +203,7 @@
                     Tag="Eraser"
                     Margin="2"
                     Padding="8,5"
-                    ToolTip="Gomme (E) — effacer"
+                    ToolTip="Gomme (E) — efface le tampon sur la couche active visible et déverrouillée. Les autres couches restent."
                     Click="OnDrawToolClick" />
             <Button x:Name="BtnToolFill"
                     Content="Remplissage"

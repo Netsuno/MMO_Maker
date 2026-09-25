@@ -1,4 +1,6 @@
+using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 
 namespace Frog.Application.Maps;
@@ -35,9 +37,27 @@ public readonly record struct FloodFillOptions
     public bool RespectAttributes { get; init; }
 }
 
+/// <summary>
+/// Métadonnées déjà portées par <see cref="Map"/> : nom, taille, chevauchement.
+/// L’identité graphique et la taille de tuile ne font pas partie de cet edit.
+/// Le départ playtest et la musique ne sont pas des champs du fichier carte.
+/// </summary>
+public readonly record struct MapPropertiesEdit
+{
+    public string Name { get; init; }
+
+    public int Width { get; init; }
+
+    public int Height { get; init; }
+
+    public bool AllowPlayerOverlap { get; init; }
+}
+
 /// <summary>Opérations d’édition carte testables sans UI ni rendu.</summary>
 public static class MapEditOperations
 {
+    public const int MinDimensionTiles = 1;
+    public const int MaxDimensionTiles = 512;
     public static bool IsLayerEditable(Map map, int layerIndex)
         => layerIndex >= 0 && layerIndex < map.Layers.Count && !map.Layers[layerIndex].Locked;
 
@@ -68,6 +88,157 @@ public static class MapEditOperations
         }
 
         map.Layers[layerIndex].Tiles.RemoveAll(t => t.X == x && t.Y == y);
+    }
+
+    /// <summary>
+    /// Efface le tampon ancré en haut à gauche sur une seule couche.
+    /// Couche masquée, verrouillée, ou sans tuile dans le tampon : 0, sans mutation.
+    /// Les autres couches (sol, masque, frange, attributs) restent intactes.
+    /// <paramref name="beforeMutate"/> est appelé une seule fois, et seulement
+    /// s’il y a au moins une tuile à retirer (un pas d’annulation).
+    /// </summary>
+    public static int EraseStamp(
+        Map map,
+        int layerIndex,
+        int originX,
+        int originY,
+        int stampWidth,
+        int stampHeight,
+        Action? beforeMutate = null)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (!IsLayerPaintable(map, layerIndex))
+        {
+            return 0;
+        }
+
+        var width = Math.Max(1, stampWidth);
+        var height = Math.Max(1, stampHeight);
+        var layer = map.Layers[layerIndex];
+        var hits = new List<(int X, int Y)>();
+        for (var dy = 0; dy < height; dy++)
+        {
+            for (var dx = 0; dx < width; dx++)
+            {
+                var x = originX + dx;
+                var y = originY + dy;
+                if (!IsInBounds(map, x, y))
+                {
+                    continue;
+                }
+
+                if (layer.Tiles.Exists(t => t.X == x && t.Y == y))
+                {
+                    hits.Add((x, y));
+                }
+            }
+        }
+
+        if (hits.Count == 0)
+        {
+            return 0;
+        }
+
+        beforeMutate?.Invoke();
+        foreach (var (x, y) in hits)
+        {
+            EraseTile(map, layerIndex, x, y);
+        }
+
+        return hits.Count;
+    }
+
+    /// <summary>
+    /// Applique nom, taille et chevauchement. Réduire la carte retire les tuiles hors limites,
+    /// sur toutes les couches. Identité graphique et taille de tuile inchangées.
+    /// Rien à changer : faux, sans mutation. Taille hors 1…512 : faux, message français.
+    /// </summary>
+    public static bool TryApplyProperties(
+        Map map,
+        MapPropertiesEdit edit,
+        out string? error,
+        Action? beforeMutate = null)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        var name = (edit.Name ?? string.Empty).Trim();
+        if (edit.Width < MinDimensionTiles || edit.Height < MinDimensionTiles
+            || edit.Width > MaxDimensionTiles || edit.Height > MaxDimensionTiles)
+        {
+            error = $"La taille doit rester entre {MinDimensionTiles} et {MaxDimensionTiles} tuiles.";
+            return false;
+        }
+
+        var changed = !string.Equals(map.Name, name, StringComparison.Ordinal)
+            || map.Width != edit.Width
+            || map.Height != edit.Height
+            || map.AllowPlayerOverlap != edit.AllowPlayerOverlap;
+        if (!changed)
+        {
+            error = null;
+            return false;
+        }
+
+        beforeMutate?.Invoke();
+        map.Name = name;
+        map.Width = edit.Width;
+        map.Height = edit.Height;
+        map.AllowPlayerOverlap = edit.AllowPlayerOverlap;
+        ClipTilesOutsideBounds(map);
+        error = null;
+        return true;
+    }
+
+    /// <summary>Ramène largeur et hauteur dans 1…512. Ne retire pas les tuiles.</summary>
+    public static void ClampDimensions(Map map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        map.Width = Math.Clamp(map.Width, MinDimensionTiles, MaxDimensionTiles);
+        map.Height = Math.Clamp(map.Height, MinDimensionTiles, MaxDimensionTiles);
+    }
+
+    /// <summary>Retire les tuiles hors carte, toutes couches. Ne change pas les dimensions.</summary>
+    public static int ClipTilesOutsideBounds(Map map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        var removed = 0;
+        foreach (var layer in map.Layers)
+        {
+            removed += layer.Tiles.RemoveAll(t => t.X < 0 || t.Y < 0 || t.X >= map.Width || t.Y >= map.Height);
+        }
+
+        return removed;
+    }
+
+    /// <summary>Libellé français de l’identité déjà stockée. v5 reste à la taille monde par défaut.</summary>
+    public static string FormatGraphicIdentity(Map map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (map.GraphicIdentity == TileGraphicIdentity.TileAsset)
+        {
+            return $"TileAsset (v6, {map.TileSizePixels} px)";
+        }
+
+        return $"Feuille (v5, {WorldMetrics.DefaultTileSizePixels} px)";
+    }
+
+    /// <summary>Départ playtest s’il est connu de l’éditeur. Absent du fichier carte.</summary>
+    public static string FormatSpawnMemo(int? tileX, int? tileY)
+        => tileX is int x && tileY is int y
+            ? $"Départ playtest : ({x}, {y})"
+            : "Départ playtest : non défini";
+
+    /// <summary>Résumé français des métadonnées déjà présentes, départ compris s’il est fourni.</summary>
+    public static string FormatPropertiesSummary(Map map, int? spawnX, int? spawnY)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        var overlap = map.AllowPlayerOverlap ? "oui" : "non";
+        return string.Join(
+            '\n',
+            $"Nom : {map.Name}",
+            $"Taille : {map.Width} × {map.Height} tuiles",
+            $"Chevauchement : {overlap}",
+            FormatGraphicIdentity(map),
+            FormatSpawnMemo(spawnX, spawnY));
     }
 
     public static void PaintRectangle(Map map, int layerIndex, int x0, int y0, int x1, int y1, Tile stamp)

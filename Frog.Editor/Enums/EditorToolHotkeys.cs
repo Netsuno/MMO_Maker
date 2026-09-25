@@ -125,7 +125,7 @@ public static class EditorToolHotkeys
         tool switch
         {
             EditorTool.Brush => "Pinceau (B) · clic ou glisser pour peindre la tuile",
-            EditorTool.Eraser => "Gomme (E) · clic ou glisser pour effacer",
+            EditorTool.Eraser => "Gomme (E) · clic ou glisser pour effacer le tampon · couche active visible et déverrouillée",
             EditorTool.Cursor => "Curseur (C) · clic pour inspecter la tuile",
             EditorTool.Fill => FormatFillStatus(visibleUnlockedLayers: false, respectAttributes: false),
             EditorTool.Rectangle => FormatRectangleStatus(outline: false, ellipse: false),

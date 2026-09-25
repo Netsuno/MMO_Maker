@@ -533,6 +533,138 @@ public sealed class MapEditOperationsTests
         Assert.Contains(attr.Tiles, t => t.Type == TileType.Block && t.X == 2 && t.Y == 2);
     }
 
+    [Fact]
+    public void EraseStamp_ClearsActiveLayer_LeavesMaskAndLockedHiddenUntouched()
+    {
+        var map = CreateMap();
+        map.Layers.Add(new Layer { LayerType = LayerType.Mask });
+        map.Layers.Add(new Layer { LayerType = LayerType.Attributes });
+        MapEditOperations.PaintTile(map, 0, 1, 1, Sheet(4));
+        MapEditOperations.PaintTile(map, 0, 2, 1, Sheet(5));
+        MapEditOperations.PaintTile(map, 0, 3, 1, Sheet(6));
+        MapEditOperations.PaintTile(map, 1, 1, 1, Sheet(7));
+        MapEditOperations.PaintTile(map, 2, 1, 1, new Tile { Type = TileType.Block });
+
+        var undo = false;
+        Assert.Equal(2, MapEditOperations.EraseStamp(map, 0, 1, 1, 2, 1, () => undo = true));
+        Assert.True(undo);
+        Assert.Null(FindTile(map, 0, 1, 1));
+        Assert.Null(FindTile(map, 0, 2, 1));
+        Assert.Equal(6, TileAt(map, 0, 3, 1).SrcX);
+        Assert.Equal(7, TileAt(map, 1, 1, 1).SrcX);
+        Assert.Equal(TileType.Block, TileAt(map, 2, 1, 1).Type);
+
+        map.Layers[1].Visible = false;
+        undo = false;
+        Assert.Equal(0, MapEditOperations.EraseStamp(map, 1, 1, 1, 1, 1, () => undo = true));
+        Assert.False(undo);
+        Assert.Equal(7, TileAt(map, 1, 1, 1).SrcX);
+
+        map.Layers[1].Visible = true;
+        map.Layers[1].Locked = true;
+        Assert.Equal(0, MapEditOperations.EraseStamp(map, 1, 1, 1, 1, 1));
+        Assert.Equal(7, TileAt(map, 1, 1, 1).SrcX);
+
+        undo = false;
+        Assert.Equal(0, MapEditOperations.EraseStamp(map, 0, 0, 0, 1, 1, () => undo = true));
+        Assert.False(undo);
+    }
+
+    [Fact]
+    public void TryApplyProperties_RenamesResizesOverlap_DropsTilesOutside_KeepsFileIdentity()
+    {
+        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+
+        var map = CreateMap();
+        map.AllowPlayerOverlap = false;
+        map.Layers.Add(new Layer { LayerType = LayerType.Mask });
+        MapEditOperations.PaintTile(map, 0, 1, 1, Sheet(2));
+        MapEditOperations.PaintTile(map, 0, 4, 4, Sheet(9));
+        MapEditOperations.PaintTile(map, 1, 1, 1, Sheet(3));
+        MapEditOperations.PaintTile(map, 1, 4, 1, Sheet(8));
+        var identity = map.GraphicIdentity;
+        var tileSize = map.TileSizePixels;
+
+        var unchanged = new MapPropertiesEdit
+        {
+            Name = map.Name,
+            Width = map.Width,
+            Height = map.Height,
+            AllowPlayerOverlap = false,
+        };
+        var called = false;
+        Assert.False(MapEditOperations.TryApplyProperties(map, unchanged, out var none, () => called = true));
+        Assert.Null(none);
+        Assert.False(called);
+
+        Assert.False(MapEditOperations.TryApplyProperties(
+            map,
+            new MapPropertiesEdit { Name = "x", Width = 0, Height = 4, AllowPlayerOverlap = true },
+            out var error));
+        Assert.Contains("512", error, StringComparison.Ordinal);
+        Assert.Equal(5, map.Width);
+
+        called = false;
+        Assert.True(MapEditOperations.TryApplyProperties(
+            map,
+            new MapPropertiesEdit
+            {
+                Name = "  Clairière  ",
+                Width = 3,
+                Height = 4,
+                AllowPlayerOverlap = true,
+            },
+            out var ok,
+            () => called = true));
+        Assert.Null(ok);
+        Assert.True(called);
+        Assert.Equal("Clairière", map.Name);
+        Assert.Equal(3, map.Width);
+        Assert.Equal(4, map.Height);
+        Assert.True(map.AllowPlayerOverlap);
+        Assert.Equal(identity, map.GraphicIdentity);
+        Assert.Equal(tileSize, map.TileSizePixels);
+        Assert.Equal(2, TileAt(map, 0, 1, 1).SrcX);
+        Assert.Null(FindTile(map, 0, 4, 4));
+        Assert.Equal(3, TileAt(map, 1, 1, 1).SrcX);
+        Assert.Null(FindTile(map, 1, 4, 1));
+        Assert.True(map.Validate(out var validateError), validateError);
+
+        var roundTrip = new MapSerializer().Deserialize(new MapSerializer().Serialize(map));
+        Assert.Equal("Clairière", roundTrip.Name);
+        Assert.Equal(3, roundTrip.Width);
+        Assert.Equal(4, roundTrip.Height);
+        Assert.True(roundTrip.AllowPlayerOverlap);
+        Assert.Equal(TileGraphicIdentity.SheetSource, roundTrip.GraphicIdentity);
+        Assert.Equal(0, roundTrip.TileSizePixels);
+        Assert.Equal(MapSerializer.MapFileFormatVersion, new MapSerializer().Serialize(map)[4]);
+
+        var summary = MapEditOperations.FormatPropertiesSummary(map, 1, 2);
+        Assert.Contains("Nom : Clairière", summary, StringComparison.Ordinal);
+        Assert.Contains("3 × 4", summary, StringComparison.Ordinal);
+        Assert.Contains("Chevauchement : oui", summary, StringComparison.Ordinal);
+        Assert.Contains($"Feuille (v5, {WorldMetrics.DefaultTileSizePixels} px)", summary, StringComparison.Ordinal);
+        Assert.Contains("Départ playtest : (1, 2)", summary, StringComparison.Ordinal);
+        Assert.Equal("Départ playtest : non défini", MapEditOperations.FormatSpawnMemo(null, null));
+        Assert.DoesNotContain("Musique", summary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryApplyProperties_TileAssetMap_Keeps48pxIdentity()
+    {
+        var map = MapFormat.CreateTileAssetMap("Asset", 4, 4);
+        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        Assert.True(MapEditOperations.TryApplyProperties(
+            map,
+            new MapPropertiesEdit { Name = "Asset 2", Width = 2, Height = 2, AllowPlayerOverlap = false },
+            out _));
+        Assert.Equal(TileGraphicIdentity.TileAsset, map.GraphicIdentity);
+        Assert.Equal(TileAssetMetrics.TargetTileSizePixels, map.TileSizePixels);
+        Assert.Contains("v6, 48 px", MapEditOperations.FormatGraphicIdentity(map), StringComparison.Ordinal);
+        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+    }
+
     private static Map CreateMap()
     {
         var map = new Map { Name = "Test", Width = 5, Height = 5 };

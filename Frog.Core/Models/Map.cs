@@ -16,8 +16,15 @@ using Frog.Core.Maps;
 public sealed class Map : IValidatable
 {
     /// <summary>Largeur de la carte en tuiles (doit être > 0).</summary>
+    [Category("Carte")]
+    [DisplayName("Largeur")]
+    [Description("Largeur en tuiles. Réduire la carte retire les tuiles qui sortent des nouvelles limites.")]
     public int Width { get; set; }
+
     /// <summary>Hauteur de la carte en tuiles (doit être > 0).</summary>
+    [Category("Carte")]
+    [DisplayName("Hauteur")]
+    [Description("Hauteur en tuiles. Réduire la carte retire les tuiles qui sortent des nouvelles limites.")]
     public int Height { get; set; }
 
     /// <summary>
@@ -26,13 +33,18 @@ public sealed class Map : IValidatable
     public List<Layer> Layers { get; } = new();
 
     /// <summary>Nom lisible par l’utilisateur (utile dans l’éditeur et pour le debug).</summary>
+    [Category("Carte")]
+    [DisplayName("Nom")]
+    [Description("Nom lisible de la carte, enregistré dans le fichier .fmap.")]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Si activé sur la carte, les joueurs ne se bloquent pas mutuellement (même tuile ou passage).
     /// Les collisions bloc / limites carte restent appliquées.
     /// </summary>
-    [Description("Autoriser plusieurs joueurs sur la même tuile (pas de collision joueur joueur).")]
+    [Category("Carte")]
+    [DisplayName("Chevauchement des joueurs")]
+    [Description("Autoriser plusieurs joueurs sur la même tuile. Les collisions et les bords de carte restent appliqués.")]
     public bool AllowPlayerOverlap { get; set; }
 
     /// <summary>
@@ -40,12 +52,20 @@ public sealed class Map : IValidatable
     /// <see cref="TileGraphicIdentity.SheetSource"/> (défaut) → v5, coordonnées de feuille.
     /// <see cref="TileGraphicIdentity.TileAsset"/> → v6, <see cref="Tile.AssetId"/> uniquement.
     /// </summary>
+    [Category("Fichier")]
+    [DisplayName("Identité graphique")]
+    [ReadOnly(true)]
+    [Description("Feuille (v5) ou TileAsset (v6). Le passage en TileAsset se fait par le menu Carte.")]
     public TileGraphicIdentity GraphicIdentity { get; set; } = TileGraphicIdentity.SheetSource;
 
     /// <summary>
     /// Taille de tuile déclarée par l’en-tête v6. 0 pour les fichiers v3–v5 : le consommateur garde
     /// <see cref="WorldMetrics.DefaultTileSizePixels"/> (32). Une carte TileAsset écrit 48, sans upscale implicite.
     /// </summary>
+    [Category("Fichier")]
+    [DisplayName("Taille de tuile (px)")]
+    [ReadOnly(true)]
+    [Description("0 en v5 : le monde reste à 32 px. 48 uniquement pour une carte TileAsset.")]
     public int TileSizePixels { get; set; }
 
     /// <summary>
