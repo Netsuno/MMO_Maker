@@ -39,7 +39,7 @@ public sealed class HudHotbar : Panel
             "Mêlée (1)",
             "Sort (2)",
             "Interagir (3)",
-            "Slot 4 — non lié",
+            "Distance (4)",
             "Slot 5 — non lié",
             "Slot 6 — non lié",
             "Slot 7 — non lié",
@@ -50,7 +50,7 @@ public sealed class HudHotbar : Panel
         for (var i = 0; i < SlotCount; i++)
         {
             var index = i;
-            var wired = i < 3;
+            var wired = i < 4;
             var btn = new Button
             {
                 Text = digits[i],

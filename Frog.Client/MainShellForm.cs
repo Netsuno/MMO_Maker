@@ -231,6 +231,7 @@ public sealed class MainShellForm : Form
     /// <summary>Cible mêlée/sort : ComboBox éditable (P7-G5) peuplée des noms PNJ/monstre publiés (défaut « Slime » si présent), texte libre toujours possible.</summary>
     private readonly ComboBox _cmbMeleeTarget = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 120 };
     private readonly Button _btnMelee = new() { Text = "Mêlée", Enabled = false };
+    private readonly Button _btnRanged = new() { Text = "Distance", Enabled = false };
     private readonly Button _btnSpell = new() { Text = "Sort", Enabled = false };
     private readonly Button _btnRespawn = new() { Text = "Respawn", Enabled = false, Visible = false };
     private readonly Label _lblCombat = new() { AutoSize = true, Text = "Combat: —", Margin = new Padding(4, 8, 4, 4) };
@@ -587,6 +588,7 @@ public sealed class MainShellForm : Form
         ReleaseAllMoveKeys();
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = false;
+        _btnRanged.Enabled = false;
         SetGameplayControlsEnabled(false);
         SetPhase(ClientUiPhase.CharacterSelect);
         _ = RefreshCharacterListAsync();
@@ -601,6 +603,7 @@ public sealed class MainShellForm : Form
 
         _awaitingPlayingPhase = false;
         _btnMelee.Enabled = true;
+        _btnRanged.Enabled = true;
         SetGameplayControlsEnabled(true);
         _gameplayTabs.SelectedTab = _tabGameplay;
         SetPhase(ClientUiPhase.Playing);
@@ -762,7 +765,7 @@ public sealed class MainShellForm : Form
         {
             RedrawMap();
         }
-        else if (_weatherPlan.ParticleCount > 0 || _combatHud.HasFloats)
+        else if (_weatherPlan.ParticleCount > 0 || _combatHud.HasFloats || _combatHud.SparksVisible(DateTime.UtcNow))
         {
             if (_weatherPlan.ParticleCount > 0)
             {
@@ -1173,6 +1176,7 @@ public sealed class MainShellForm : Form
         StyleToolbarButton(_btnEnterGame);
         StyleToolbarButton(_btnCharCreate);
         StyleToolbarButton(_btnMelee);
+        StyleToolbarButton(_btnRanged);
         StyleToolbarButton(_btnSpell);
         StyleToolbarButton(_btnRespawn);
         StyleToolbarButton(_btnShopBuy);
@@ -1380,6 +1384,7 @@ public sealed class MainShellForm : Form
         _gameToolbar.Controls.Add(Lbl("Cible"));
         _gameToolbar.Controls.Add(_cmbMeleeTarget);
         _gameToolbar.Controls.Add(_btnMelee);
+        _gameToolbar.Controls.Add(_btnRanged);
         _gameToolbar.Controls.Add(_cmbSpell);
         _gameToolbar.Controls.Add(_btnSpell);
         _lblMoveHint.Margin = new Padding(8, 14, 4, 4);
@@ -1485,6 +1490,7 @@ public sealed class MainShellForm : Form
         _btnLogout.Click += async (_, _) => await LogoutAsync();
         _btnSendChat.Click += async (_, _) => await SendChatAsync();
         _btnMelee.Click += async (_, _) => await MeleeAsync();
+        _btnRanged.Click += async (_, _) => await RangedAsync();
         _btnSpell.Click += async (_, _) => await SpellCastAsync();
         _btnRespawn.Click += async (_, _) => await RespawnAsync();
         _btnShopBuy.Click += async (_, _) => await ShopBuyAsync();
@@ -1622,7 +1628,8 @@ public sealed class MainShellForm : Form
         _client.TradeSnapshotReceived += OnTradeSnapshot;
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
         {
-            AppendLog($"Mêlée → {tgt}: {(hit ? "touche" : "raté")} — {msg}");
+            var label = _client.LastResolvedAttackStyle == AttackStyle.Ranged ? "Distance" : "Mêlée";
+            AppendLog($"{label} → {tgt}: {(hit ? "touche" : "raté")} — {msg}");
             if (CombatFx.IsSwingMiss(hit, msg))
             {
                 OnMeleeMiss();
@@ -1923,7 +1930,7 @@ public sealed class MainShellForm : Form
 
     private void OnDamageEvent(DamageEvent ev)
     {
-        _combatHud.Apply(ev, DateTime.UtcNow);
+        _combatHud.Apply(ev, DateTime.UtcNow, _localFacing);
         var hpSuffix = ev.Killed ? " (vaincu)" : $" ({ev.RemainingHp}/{ev.MaxHp})";
         AppendLog(!ev.Hit
             ? $"Raté → {ev.TargetName}"
@@ -2617,6 +2624,7 @@ public sealed class MainShellForm : Form
         _btnRegister.Enabled = false;
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
+        _btnRanged.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
         ClearPublishedCatalogUi();
@@ -2732,6 +2740,7 @@ public sealed class MainShellForm : Form
         _btnMap.Enabled = true;
         _btnLogout.Enabled = true;
         _btnMelee.Enabled = false;
+        _btnRanged.Enabled = false;
         _cmbCharacters.Enabled = true;
         _btnCharRefresh.Enabled = true;
         _btnEnterGame.Enabled = true;
@@ -2853,6 +2862,7 @@ public sealed class MainShellForm : Form
         _dialogueSessionOpen = false;
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
+        _btnRanged.Enabled = false;
         _btnLogout.Enabled = false;
         ResetCharacterPickUi();
         _awaitingPlayingPhase = false;
@@ -3511,7 +3521,11 @@ public sealed class MainShellForm : Form
         }
     }
 
-    private async Task MeleeAsync()
+    private Task MeleeAsync() => SendAttackAsync(AttackStyle.Melee);
+
+    private Task RangedAsync() => SendAttackAsync(AttackStyle.Ranged);
+
+    private async Task SendAttackAsync(AttackStyle style)
     {
         if (_client is null || !_client.IsConnected)
         {
@@ -3527,13 +3541,14 @@ public sealed class MainShellForm : Form
         var kind = string.Equals(t, CombatMvpLimits.DummyName, StringComparison.OrdinalIgnoreCase)
             ? CombatTargetKind.Dummy
             : CombatTargetKind.None;
+        var label = style == AttackStyle.Ranged ? "Distance" : "Mêlée";
         try
         {
-            await _client.SendMeleeAttackAsync(t, kind, _localFacing, Guid.Empty).ConfigureAwait(true);
+            await _client.SendMeleeAttackAsync(t, kind, _localFacing, Guid.Empty, style: style).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            AppendLog("Mêlée: " + ex.Message);
+            AppendLog(label + ": " + ex.Message);
         }
     }
 
@@ -3806,7 +3821,14 @@ public sealed class MainShellForm : Form
             tileAssetBitmaps: _tileAssetBitmaps,
             groundLootCentersPx: groundLoot);
         _combatHud.Tick(DateTime.UtcNow);
-        CombatEffect.Draw(bmp, _combatHud.Floats, DateTime.UtcNow, lcx, lcy, _localFacing);
+        CombatEffect.Draw(
+            bmp,
+            _combatHud.Floats,
+            DateTime.UtcNow,
+            lcx,
+            lcy,
+            _localFacing,
+            _combatHud.Sparks);
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
@@ -4699,6 +4721,9 @@ public sealed class MainShellForm : Form
             case 1:
                 _ = SpellCastAsync();
                 break;
+            case 3:
+                _ = RangedAsync();
+                break;
             case 2:
                 if (_map is null || _phase != ClientUiPhase.Playing)
                 {
@@ -4739,7 +4764,7 @@ public sealed class MainShellForm : Form
         }
 
         _hudHotbar.ActivateSlot(index);
-        return index < 3;
+        return index < 4;
     }
 
     private void PersistLastEndpoint(string host, int port)

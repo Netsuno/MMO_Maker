@@ -74,7 +74,8 @@ public sealed class CombatGameplayService(
     public async Task<MeleeCombatResult> TryMeleeAttackMonsterAsync(
         Session attacker,
         string targetName,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int rangePixels = CombatFormulas.BasicAttackRangePixels)
     {
         if (attacker.IsDead)
         {
@@ -101,7 +102,8 @@ public sealed class CombatGameplayService(
                 _combatMutations.ListMonstersOnMap(attacker.CurrentMapId),
                 targetName,
                 attacker.PixelX,
-                attacker.PixelY) is null)
+                attacker.PixelY,
+                rangePixels) is null)
         {
             return MeleeCombatResult.Fail("Monstre hors portee ou introuvable.");
         }
@@ -111,14 +113,15 @@ public sealed class CombatGameplayService(
             _combatMutations.ListMonstersOnMap(attacker.CurrentMapId),
             targetName,
             attacker.PixelX,
-            attacker.PixelY)!;
+            attacker.PixelY,
+            rangePixels)!;
         var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, preview.Level * 2);
         var applied = await _combatMutations.TryApplyDamageToNamedTargetAsync(
             attacker.CurrentMapId,
             targetName,
             attacker.PixelX,
             attacker.PixelY,
-            CombatFormulas.BasicAttackRangePixels,
+            rangePixels,
             damage,
             ct).ConfigureAwait(false);
         if (!applied.Success)

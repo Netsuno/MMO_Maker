@@ -1608,6 +1608,7 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
+        var range = CombatFormulas.AttackRangePixels(attack.Style);
         if (_combatMvp.IsDummyRequest(attack))
         {
             var dummy = _combatMvp.TryMelee(attacker, attack);
@@ -1628,7 +1629,11 @@ public sealed partial class PacketDispatcher(
         }
 
         var targetName = attack.TargetName;
-        var monsterResult = await _combatGameplay.TryMeleeAttackMonsterAsync(attacker, targetName, cancellationToken)
+        var monsterResult = await _combatGameplay.TryMeleeAttackMonsterAsync(
+                attacker,
+                targetName,
+                cancellationToken,
+                range)
             .ConfigureAwait(false);
         if (monsterResult.Success)
         {
@@ -1641,7 +1646,8 @@ public sealed partial class PacketDispatcher(
                 monsterResult.TargetHp,
                 monsterResult.TargetMaxHp,
                 Hit: true,
-                monsterResult.MonsterKilled);
+                monsterResult.MonsterKilled,
+                Ranged: attack.Style == AttackStyle.Ranged);
             await _packetSender.SendMeleeAttackResultAsync(
                 clientSession,
                 true,
@@ -1710,7 +1716,12 @@ public sealed partial class PacketDispatcher(
             return;
         }
 
-        var hit = MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY);
+        var hit = MeleeCombat.IsWithinMeleeRange(
+            attacker.PixelX,
+            attacker.PixelY,
+            defender.PixelX,
+            defender.PixelY,
+            range);
         if (!hit)
         {
             await _packetSender.SendMeleeAttackResultAsync(clientSession, false, targetName, "Hors portee.", cancellationToken);
@@ -1740,7 +1751,8 @@ public sealed partial class PacketDispatcher(
             defender.Hp,
             defender.MaxHp,
             Hit: true,
-            pvp.TargetKilled);
+            pvp.TargetKilled,
+            Ranged: attack.Style == AttackStyle.Ranged);
         await _packetSender.SendMeleeAttackResultAsync(
             clientSession,
             true,
@@ -1754,7 +1766,9 @@ public sealed partial class PacketDispatcher(
                 defenderClient,
                 true,
                 attacker.Username,
-                "Subi une attaque melee.",
+                attack.Style == AttackStyle.Ranged
+                    ? "Subi une attaque à distance."
+                    : "Subi une attaque melee.",
                 cancellationToken,
                 pvpEv);
             await SendCombatStateAsync(defenderClient, defender, cancellationToken);

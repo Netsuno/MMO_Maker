@@ -42,6 +42,23 @@ public sealed class CombatMvpWireTests
         Assert.Equal(req.Kind, parsed.Kind);
         Assert.Equal(req.Facing, parsed.Facing);
         Assert.Equal(req.TargetId, parsed.TargetId);
+        Assert.Equal(AttackStyle.Melee, parsed.Style);
+        Assert.Equal(1 + 9 + CombatMvpLimits.AttackExtrasBytes, body.Length);
+
+        var ranged = req with { Style = AttackStyle.Ranged };
+        var rangedBody = CombatMvpWire.BuildAttackRequest(ranged);
+        Assert.Equal(body.Length + 1, rangedBody.Length);
+        Assert.True(CombatMvpWire.TryParseAttackRequest(rangedBody, out var parsedRanged));
+        Assert.Equal(AttackStyle.Ranged, parsedRanged.Style);
+        Assert.Equal(ranged.TargetId, parsedRanged.TargetId);
+
+        var explicitMelee = (byte[])rangedBody.Clone();
+        explicitMelee[^1] = (byte)AttackStyle.Melee;
+        Assert.True(CombatMvpWire.TryParseAttackRequest(explicitMelee, out var parsedExplicit));
+        Assert.Equal(AttackStyle.Melee, parsedExplicit.Style);
+
+        explicitMelee[^1] = 9;
+        Assert.False(CombatMvpWire.TryParseAttackRequest(explicitMelee, out _));
     }
 
     [Fact]
@@ -164,6 +181,10 @@ public sealed class CombatMvpWireTests
         Assert.Contains("CombatEffect.Draw", shell, StringComparison.Ordinal);
         Assert.Contains("case 0:", shell, StringComparison.Ordinal);
         Assert.Contains("MeleeAsync()", shell, StringComparison.Ordinal);
+        Assert.Contains("RangedAsync()", shell, StringComparison.Ordinal);
+        Assert.Contains("case 3:", shell, StringComparison.Ordinal);
+        Assert.Contains("Distance", hotbar, StringComparison.Ordinal);
+        Assert.Contains("FillSparks", effect, StringComparison.Ordinal);
         Assert.DoesNotContain("HudMenuCommand.Combat", shell, StringComparison.Ordinal);
 
         Assert.Contains("SendMeleeAttackAsync", client, StringComparison.Ordinal);

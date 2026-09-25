@@ -2,6 +2,7 @@ using System;
 using Frog.Core.Combat;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.Protocol;
 using Xunit;
 
@@ -136,6 +137,16 @@ public sealed class CombatFxTests
             (byte)(CombatMvpLimits.DamageFlagHit | CombatMvpLimits.DamageFlagKilled | CombatMvpLimits.DamageFlagCrit),
             ev.Flags);
 
+        var ranged = ev with { Ranged = true };
+        Assert.Equal((byte)(ev.Flags | CombatMvpLimits.DamageFlagRanged), ranged.Flags);
+        Assert.True(CombatMvpWire.TryParseDamageEventTrailer(
+            CombatMvpWire.BuildDamageEventTrailer(ranged),
+            ranged.TargetName,
+            out var parsedRanged));
+        Assert.True(parsedRanged.Ranged);
+        Assert.True(parsedRanged.Crit);
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+
         var trailer = CombatMvpWire.BuildDamageEventTrailer(ev);
         Assert.Equal(CombatMvpLimits.DamageEventTrailerBytes, trailer.Length);
         Assert.True(CombatMvpWire.TryParseDamageEventTrailer(trailer, ev.TargetName, out var parsed));
@@ -151,6 +162,69 @@ public sealed class CombatFxTests
             out var parsedPlain));
         Assert.False(parsedPlain.Crit);
         Assert.True(parsedPlain.Killed);
+    }
+
+    [Fact]
+    public void Sparks_MeleeCrossThenOpen_RangedBoltThenImpact_YellowNotGold()
+    {
+        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+        Assert.Equal(96, CombatFormulas.RangedAttackRangePixels);
+        Assert.Equal(CombatFormulas.BasicAttackRangePixels, CombatFormulas.AttackRangePixels(AttackStyle.Melee));
+        Assert.Equal(CombatFormulas.RangedAttackRangePixels, CombatFormulas.AttackRangePixels(AttackStyle.Ranged));
+        Assert.True(CombatFormulas.RangedAttackRangePixels > CombatFormulas.BasicAttackRangePixels);
+        Assert.Equal(CombatFx.HitArgb, CombatFx.SparkYellowArgb);
+        Assert.Equal(unchecked((int)0xFFFFFF00), CombatFx.SparkYellowArgb);
+        Assert.Equal(unchecked((int)0xFFFFFFFF), CombatFx.SparkWhiteArgb);
+
+        var meleeAnchor = CombatFx.SparkAnchor(100f, 200f, Direction.Right, AttackStyle.Melee);
+        var rangedAnchor = CombatFx.SparkAnchor(100f, 200f, Direction.Right, AttackStyle.Ranged);
+        Assert.True(rangedAnchor.X > meleeAnchor.X);
+
+        Span<SparkPixel> pixels = stackalloc SparkPixel[9];
+        var tight = CombatFx.FillSparks(100f, 200f, Direction.Right, AttackStyle.Melee, 0, pixels);
+        Assert.Equal(5, tight);
+        Assert.Equal(2, pixels[0].Size);
+        Assert.Equal(CombatFx.SparkWhiteArgb, pixels[0].Argb);
+        Assert.Equal(CombatFx.SparkYellowArgb, pixels[1].Argb);
+        Assert.Equal(meleeAnchor.X, pixels[0].X);
+        Assert.Equal(meleeAnchor.Y, pixels[0].Y);
+
+        var opened = CombatFx.FillSparks(100f, 200f, Direction.Down, AttackStyle.Melee, CombatFx.SparkTravelMs, pixels);
+        Assert.Equal(9, opened);
+        Assert.Equal(1, pixels[0].Size);
+
+        var bolt = CombatFx.FillSparks(100f, 200f, Direction.Right, AttackStyle.Ranged, 0, pixels);
+        Assert.Equal(3, bolt);
+        Assert.Equal(rangedAnchor.X, pixels[2].X);
+        Assert.Equal(rangedAnchor.Y, pixels[2].Y);
+        Assert.Equal(CombatFx.SparkWhiteArgb, pixels[2].Argb);
+        Assert.True(pixels[0].X < pixels[2].X);
+
+        var impact = CombatFx.FillSparks(100f, 200f, Direction.Right, AttackStyle.Ranged, CombatFx.SparkTravelMs, pixels);
+        Assert.Equal(9, impact);
+        Assert.Equal(rangedAnchor.X, pixels[0].X);
+
+        Assert.Equal(0, CombatFx.FillSparks(100f, 200f, Direction.Right, AttackStyle.Melee, -1, pixels));
+        Assert.Equal(0, CombatFx.FillSparks(100f, 200f, Direction.Right, AttackStyle.Melee, CombatFx.SparkLifetimeMs, pixels));
+    }
+
+    [Fact]
+    public void Hud_HitStartsSparks_MissDoesNot_RangedFlagSelectsBolt()
+    {
+        var hud = new ClientCombatHud();
+        var now = new DateTime(2026, 9, 25, 0, 0, 0, DateTimeKind.Utc);
+        hud.Apply(Sample(4, true, false, false), now, Direction.Left);
+        Assert.True(hud.SparksVisible(now));
+        Assert.Equal(AttackStyle.Melee, hud.Sparks!.Value.Style);
+        Assert.Equal(Direction.Left, hud.Sparks.Value.Facing);
+
+        hud.Apply(Sample(4, true, false, false) with { Ranged = true }, now.AddMilliseconds(10), Direction.Up);
+        Assert.Equal(AttackStyle.Ranged, hud.Sparks!.Value.Style);
+        Assert.Equal(Direction.Up, hud.Sparks.Value.Facing);
+
+        hud.ApplyMiss(now.AddMilliseconds(20));
+        Assert.Equal(AttackStyle.Ranged, hud.Sparks!.Value.Style);
+        Assert.False(hud.SparksVisible(now.AddMilliseconds(20 + CombatFx.SparkLifetimeMs)));
     }
 
     [Fact]

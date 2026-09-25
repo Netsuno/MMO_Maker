@@ -20,9 +20,11 @@ internal static class CombatEffect
         DateTime utcNow,
         float feetX,
         float feetY,
-        Direction facing)
+        Direction facing,
+        SparkBurst? sparks = null)
     {
-        if (floats.Count == 0)
+        var liveSparks = sparks is { } candidate && candidate.Visible(utcNow) ? candidate : (SparkBurst?)null;
+        if (floats.Count == 0 && liveSparks is null)
         {
             return;
         }
@@ -40,6 +42,11 @@ internal static class CombatEffect
         {
             var (sx, sy, size) = CombatFx.SpriteFlashRect(feetX, feetY);
             g.FillRectangle(Brushes.White, sx, sy, size, size);
+        }
+
+        if (liveSparks is { } live)
+        {
+            DrawSparks(g, feetX, feetY, live, utcNow);
         }
 
         for (var i = 0; i < floats.Count; i++)
@@ -77,6 +84,18 @@ internal static class CombatEffect
     public static bool ShouldFlash(ClientCombatHud hud) => hud.FlashPending;
 
     public static int LifetimeMs => CombatMvpLimits.FloatingNumberLifetimeMs;
+
+    private static void DrawSparks(Graphics g, float feetX, float feetY, SparkBurst burst, DateTime utcNow)
+    {
+        Span<SparkPixel> pixels = stackalloc SparkPixel[9];
+        var count = CombatFx.FillSparks(feetX, feetY, burst.Facing, burst.Style, burst.AgeMs(utcNow), pixels);
+        for (var i = 0; i < count; i++)
+        {
+            var pixel = pixels[i];
+            using var brush = new SolidBrush(Color.FromArgb(pixel.Argb));
+            g.FillRectangle(brush, pixel.X, pixel.Y, pixel.Size, pixel.Size);
+        }
+    }
 
     private static bool NeedsSpriteFlash(IReadOnlyList<FloatingCombatNumber> floats, DateTime utcNow)
     {
