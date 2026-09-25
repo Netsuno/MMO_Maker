@@ -9,7 +9,7 @@
 | **Branche** | `cursor/status-effects-dot-mvp-969c` |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de nouvel opcode. Extension additive des paquets **17 / 18**. Reuse **50** `CombatState` / **63** `DeathNotify` inchangé. Gel social 80–86, économie 87–89, instance 90–92. |
 
-Chrome DA v2 amber inchangé. `WorldMetrics.DefaultTileSizePixels` reste **32**. Menu ring inchangé. Hotbar : mêlée (poison) et distance (étourdissement) sur le mannequin seulement.
+Chrome DA v2 amber inchangé. Tuiles TileAsset / carte v6 / TilePack restent **48×48** ; ce lot ne modifie pas `TileAssetMetrics` ni la grille monde. Menu ring inchangé. Hotbar : mêlée (poison) et distance (étourdissement) sur le mannequin seulement.
 
 ---
 

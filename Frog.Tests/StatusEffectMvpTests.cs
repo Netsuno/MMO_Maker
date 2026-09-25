@@ -18,7 +18,7 @@ public sealed class StatusEffectMvpTests
     public void Protocol_StaysV11_StatusTrailerIsAdditive()
     {
         Assert.Equal((ushort)11, FrogWireProtocol.Version);
-        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
         Assert.Equal(17, (byte)PacketId.MeleeAttackRequest);
         Assert.Equal(18, (byte)PacketId.MeleeAttackResult);
         Assert.Equal(46, CombatMvpLimits.DamageEventTrailerBytes);
@@ -423,6 +423,8 @@ public sealed class StatusEffectMvpTests
         Assert.Contains("in-memory", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Poison", text, StringComparison.Ordinal);
         Assert.Contains("refresh", text, StringComparison.Ordinal);
+        Assert.Contains("48×48", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("reste **32**", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Marc", text, StringComparison.Ordinal);
     }
 
