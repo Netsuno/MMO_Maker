@@ -28,7 +28,7 @@ internal static class MapViewRenderer
     /// <param name="showTileGrid">Contour de tuile debug. Défaut <c>false</c> — pas de grille visible en jeu.</param>
     /// <param name="localPose">Facing + walk frame for the local player (default south idle).</param>
     /// <param name="otherPoses">Optional facing + walk frame per other username.</param>
-    /// <param name="prefabPlacements">Instances prefab (sidecar), dessinées après les tuiles.</param>
+    /// <param name="prefabPlacements">Instances prefab (sidecar), triées avec la rangée sud de leur empreinte.</param>
     /// <param name="prefabCatalog">Catalogue pour résoudre empreinte / sprite.</param>
     /// <param name="prefabBitmaps">Nom de fichier sprite → image.</param>
     /// <param name="npcCentersPx">Centres PNJ en pixels monde (pieds). Optionnel.</param>
@@ -41,7 +41,7 @@ internal static class MapViewRenderer
     /// <param name="localLook">Palettes corps / cheveux / tunique du joueur local. Client seulement.</param>
     /// <param name="tileAssets">Tuiles v6 vérifiées, indexées par <see cref="TileAssetId"/>. Absent : pas de blit 48×48.</param>
     /// <param name="tileAssetBitmaps">Cache d’affichage rempli à la demande. L’appelant dispose les bitmaps.</param>
-    /// <param name="groundLootCentersPx">Centres monde des piles au sol. Dessinées au-dessus des tuiles, sous les acteurs.</param>
+    /// <param name="groundLootCentersPx">Ancres du butin (centre du sac). Même tri vertical que les acteurs.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -78,84 +78,75 @@ internal static class MapViewRenderer
         g.PixelOffsetMode = PixelOffsetMode.Half;
         g.Clear(BaseWalkable);
 
-        for (var ty = 0; ty < map.Height; ty++)
+        var below = new List<Layer>(map.Layers.Count);
+        var fringe = new List<Layer>(4);
+        var attributes = new List<Layer>(2);
+        foreach (var layer in map.Layers)
         {
-            for (var tx = 0; tx < map.Width; tx++)
+            if (!layer.Visible)
             {
-                var px = tx * tw;
-                var py = ty * tw;
-                var rect = new Rectangle(px, py, tw, tw);
+                continue;
+            }
 
-                foreach (var layer in map.Layers)
-                {
-                    if (!layer.Visible)
-                    {
-                        continue;
-                    }
-
-                    if (layer.LayerType == LayerType.Attributes)
-                    {
-                        continue;
-                    }
-
-                    var t = FindTile(layer, tx, ty);
-                    if (t is null)
-                    {
-                        continue;
-                    }
-
-                    if (!t.AssetId.IsNone || map.GraphicIdentity == TileGraphicIdentity.TileAsset)
-                    {
-                        if (!t.AssetId.IsNone && TryDrawTileAsset(g, t, rect, tileAssets, tileAssetBitmaps))
-                        {
-                            continue;
-                        }
-
-                        FillFallbackType(g, rect, t.Type);
-                        continue;
-                    }
-
-                    if (TryDrawGraphicTile(g, t, rect, tw, tilesetBitmaps))
-                    {
-                        continue;
-                    }
-
-                    FillFallbackType(g, rect, t.Type);
-                }
-
-                foreach (var layer in map.Layers)
-                {
-                    if (!layer.Visible || layer.LayerType != LayerType.Attributes)
-                    {
-                        continue;
-                    }
-
-                    var at = FindTile(layer, tx, ty);
-                    if (at is null)
-                    {
-                        continue;
-                    }
-
-                    if (at.Type == TileType.Block)
-                    {
-                        using var b2 = new SolidBrush(Color.FromArgb(110, BlockTile));
-                        g.FillRectangle(b2, rect);
-                    }
-                    else if (at.Type == TileType.Warp)
-                    {
-                        using var b2 = new SolidBrush(Color.FromArgb(110, WarpTile));
-                        g.FillRectangle(b2, rect);
-                    }
-                }
-
-                if (showTileGrid)
-                {
-                    DrawDebugTileGrid(g, rect);
-                }
+            if (WorldDepth.IsAttributeLayer(layer.LayerType))
+            {
+                attributes.Add(layer);
+            }
+            else if (WorldDepth.IsFringeLayer(layer.LayerType))
+            {
+                fringe.Add(layer);
+            }
+            else if (WorldDepth.IsBelowActorLayer(layer.LayerType))
+            {
+                below.Add(layer);
             }
         }
 
-        DrawPlacedPrefabs(g, map, tw, prefabPlacements, prefabCatalog, prefabBitmaps);
+        var actors = CollectDepthActors(
+            tw,
+            groundLootCentersPx,
+            monsterCentersPx,
+            monsterPoses,
+            npcCentersPx,
+            npcPoses,
+            otherPlayerCentersPx,
+            otherPoses,
+            localUsername,
+            localCenterXPx,
+            localCenterYPx,
+            localPose);
+        actors.Sort(static (a, b) => WorldDepth.CompareActors(a.Key, b.Key));
+        var actorIndex = 0;
+
+        foreach (var step in WorldDepth.RowSteps(map.Height))
+        {
+            switch (step.Kind)
+            {
+                case WorldDepth.RowStepKind.ActorsNorthOfMap:
+                    DrawPlacedPrefabs(g, map, tw, prefabPlacements, prefabCatalog, prefabBitmaps, baselineRow: -1, outsideMap: true);
+                    actorIndex = DrawActorsWhile(g, actors, actorIndex, static row => row < 0, localPose, localAppearance, localLook);
+                    break;
+                case WorldDepth.RowStepKind.BelowActors:
+                    DrawTileRow(g, map, below, attributes, step.Row, tw, tilesetBitmaps, tileAssets, tileAssetBitmaps, showTileGrid);
+                    break;
+                case WorldDepth.RowStepKind.ActorsOnRow:
+                    DrawPlacedPrefabs(g, map, tw, prefabPlacements, prefabCatalog, prefabBitmaps, baselineRow: step.Row, outsideMap: false);
+                    actorIndex = DrawActorsWhile(g, actors, actorIndex, row => row == step.Row, localPose, localAppearance, localLook);
+                    break;
+                case WorldDepth.RowStepKind.Fringe:
+                    DrawTileRow(g, map, fringe, attributes: null, step.Row, tw, tilesetBitmaps, tileAssets, tileAssetBitmaps, showTileGrid: false);
+                    break;
+                case WorldDepth.RowStepKind.ActorsSouthOfMap:
+                    DrawPlacedPrefabs(g, map, tw, prefabPlacements, prefabCatalog, prefabBitmaps, baselineRow: map.Height, outsideMap: true);
+                    while (actorIndex < actors.Count)
+                    {
+                        DrawDepthActor(g, actors[actorIndex], localPose, localAppearance, localLook);
+                        actorIndex++;
+                    }
+
+                    break;
+            }
+        }
 
         if (mapEvents is { Count: > 0 })
         {
@@ -201,28 +192,6 @@ internal static class MapViewRenderer
             }
         }
 
-        DrawGroundLoot(g, groundLootCentersPx);
-        DrawWorldEntities(g, monsterCentersPx, monsterPoses, WorldEntityKind.Monster);
-        DrawWorldEntities(g, npcCentersPx, npcPoses, WorldEntityKind.Npc);
-
-        foreach (var kv in otherPlayerCentersPx)
-        {
-            if (localUsername is not null && string.Equals(kv.Key, localUsername, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var otherPose = PlayerSpritePose.IdleDown;
-            if (otherPoses is not null && otherPoses.TryGetValue(kv.Key, out var posed))
-            {
-                otherPose = posed;
-            }
-
-            // Pas d'équipement sur PositionUpdate : les autres restent corps + tête.
-            DrawPlayerSpriteAtPixelCenter(g, kv.Value.CxPx, kv.Value.CyPx, other: true, otherPose);
-        }
-
-        DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false, localPose, localAppearance, localLook);
         WeatherOverlayRenderer.Draw(g, bmp.Size, weatherPlan, weatherTickMs);
         return bmp;
     }
@@ -250,7 +219,9 @@ internal static class MapViewRenderer
         int tileSize,
         IReadOnlyList<PrefabPlacement>? placements,
         PrefabCatalog? catalog,
-        IReadOnlyDictionary<string, Bitmap>? bitmaps)
+        IReadOnlyDictionary<string, Bitmap>? bitmaps,
+        int baselineRow = int.MinValue,
+        bool outsideMap = false)
     {
         if (g is null || map is null || placements is not { Count: > 0 } || catalog is null)
         {
@@ -265,6 +236,28 @@ internal static class MapViewRenderer
                 || !PrefabPlacementService.TryResolveFootprint(definition, variant, out var wTiles, out var hTiles))
             {
                 continue;
+            }
+
+            if (baselineRow != int.MinValue || outsideMap)
+            {
+                var row = WorldDepth.FootprintBaselineRow(placement.TileY, hTiles);
+                if (outsideMap)
+                {
+                    var north = baselineRow < 0;
+                    if (north && row >= 0)
+                    {
+                        continue;
+                    }
+
+                    if (!north && row < map.Height)
+                    {
+                        continue;
+                    }
+                }
+                else if (row != baselineRow)
+                {
+                    continue;
+                }
             }
 
             var dest = new Rectangle(
@@ -446,40 +439,6 @@ internal static class MapViewRenderer
         g.DrawPolygon(pen, pts);
     }
 
-    /// <summary>
-    /// Sac coloré (jetons <see cref="UiTheme"/> déjà utilisés par l'UI). Pas de nouvel art.
-    /// Au-dessus du sol, avant monstres / PNJ / joueurs.
-    /// </summary>
-    private static void DrawGroundLoot(Graphics g, IReadOnlyList<(int PixelX, int PixelY)>? loot)
-    {
-        if (loot is not { Count: > 0 })
-        {
-            return;
-        }
-
-        var previous = g.PixelOffsetMode;
-        g.PixelOffsetMode = PixelOffsetMode.None;
-        try
-        {
-            using var fill = new SolidBrush(UiTheme.AccentGoldDim);
-            using var knot = new SolidBrush(UiTheme.AccentGoldHi);
-            using var outline = new Pen(UiTheme.AccentGold);
-            foreach (var (pixelX, pixelY) in loot)
-            {
-                const int bagW = 14;
-                const int bagH = 10;
-                var body = new Rectangle(pixelX - (bagW / 2), pixelY - (bagH / 2), bagW, bagH);
-                g.FillRectangle(fill, body);
-                g.DrawRectangle(outline, body);
-                g.FillRectangle(knot, pixelX - 2, body.Y - 3, 4, 3);
-            }
-        }
-        finally
-        {
-            g.PixelOffsetMode = previous;
-        }
-    }
-
     /// <summary>Pieds / centre bas du sprite sur (Cx, Cy) ; nearest, scale from native 32 (tileSize stays 32).</summary>
     private static void DrawPlayerSpriteAtPixelCenter(
         Graphics g,
@@ -491,11 +450,83 @@ internal static class MapViewRenderer
         CharacterLook look = default)
         => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other, pose, appearance, look);
 
-    private static void DrawWorldEntities(
-        Graphics g,
+    private struct DepthActor
+    {
+        public WorldDepth.ActorKey Key;
+        public float X;
+        public float Y;
+        public int LootX;
+        public int LootY;
+        public PlayerSpritePose PlayerPose;
+        public WorldSpritePose WorldPose;
+    }
+
+    private static List<DepthActor> CollectDepthActors(
+        int tileSize,
+        IReadOnlyList<(int PixelX, int PixelY)>? groundLootCentersPx,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)>? monsterCentersPx,
+        IReadOnlyDictionary<string, WorldSpritePose>? monsterPoses,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)>? npcCentersPx,
+        IReadOnlyDictionary<string, WorldSpritePose>? npcPoses,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
+        IReadOnlyDictionary<string, PlayerSpritePose>? otherPoses,
+        string? localUsername,
+        float localCenterXPx,
+        float localCenterYPx,
+        PlayerSpritePose localPose)
+    {
+        var actors = new List<DepthActor>();
+        var sequence = 0;
+
+        if (groundLootCentersPx is not null)
+        {
+            foreach (var (pixelX, pixelY) in groundLootCentersPx)
+            {
+                actors.Add(new DepthActor
+                {
+                    Key = new WorldDepth.ActorKey(
+                        WorldDepth.FloorTileIndex(pixelY, tileSize),
+                        pixelY,
+                        WorldDepth.ActorSlot.Loot,
+                        sequence++),
+                    X = pixelX,
+                    Y = pixelY,
+                    LootX = pixelX,
+                    LootY = pixelY,
+                });
+            }
+        }
+
+        AddWorldActors(actors, ref sequence, tileSize, monsterCentersPx, monsterPoses, WorldDepth.ActorSlot.Monster);
+        AddWorldActors(actors, ref sequence, tileSize, npcCentersPx, npcPoses, WorldDepth.ActorSlot.Npc);
+
+        foreach (var kv in otherPlayerCentersPx)
+        {
+            if (localUsername is not null && string.Equals(kv.Key, localUsername, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var otherPose = PlayerSpritePose.IdleDown;
+            if (otherPoses is not null && otherPoses.TryGetValue(kv.Key, out var posed))
+            {
+                otherPose = posed;
+            }
+
+            actors.Add(ActorAt(tileSize, kv.Value.CxPx, kv.Value.CyPx, WorldDepth.ActorSlot.RemotePlayer, sequence++, otherPose, default));
+        }
+
+        actors.Add(ActorAt(tileSize, localCenterXPx, localCenterYPx, WorldDepth.ActorSlot.LocalPlayer, sequence, localPose, default));
+        return actors;
+    }
+
+    private static void AddWorldActors(
+        List<DepthActor> actors,
+        ref int sequence,
+        int tileSize,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)>? centers,
         IReadOnlyDictionary<string, WorldSpritePose>? poses,
-        WorldEntityKind kind)
+        WorldDepth.ActorSlot slot)
     {
         if (centers is not { Count: > 0 })
         {
@@ -510,7 +541,183 @@ internal static class MapViewRenderer
                 pose = posed;
             }
 
-            WorldEntityAssets.DrawFeetAnchored(g, kv.Value.CxPx, kv.Value.CyPx, kind, pose);
+            actors.Add(ActorAt(tileSize, kv.Value.CxPx, kv.Value.CyPx, slot, sequence++, default, pose));
+        }
+    }
+
+    private static DepthActor ActorAt(
+        int tileSize,
+        float x,
+        float y,
+        WorldDepth.ActorSlot slot,
+        int sequence,
+        PlayerSpritePose playerPose,
+        WorldSpritePose worldPose)
+        => new()
+        {
+            Key = new WorldDepth.ActorKey(
+                WorldDepth.FloorTileIndex(y, tileSize),
+                (int)MathF.Round(y),
+                slot,
+                sequence),
+            X = x,
+            Y = y,
+            PlayerPose = playerPose,
+            WorldPose = worldPose,
+        };
+
+    private static int DrawActorsWhile(
+        Graphics g,
+        List<DepthActor> actors,
+        int index,
+        Func<int, bool> rowMatches,
+        PlayerSpritePose localPose,
+        PaperdollOverlaySet localAppearance,
+        CharacterLook localLook)
+    {
+        while (index < actors.Count && rowMatches(actors[index].Key.Row))
+        {
+            DrawDepthActor(g, actors[index], localPose, localAppearance, localLook);
+            index++;
+        }
+
+        return index;
+    }
+
+    private static void DrawDepthActor(
+        Graphics g,
+        in DepthActor actor,
+        PlayerSpritePose localPose,
+        PaperdollOverlaySet localAppearance,
+        CharacterLook localLook)
+    {
+        switch (actor.Key.Slot)
+        {
+            case WorldDepth.ActorSlot.Loot:
+                DrawGroundLootAt(g, actor.LootX, actor.LootY);
+                break;
+            case WorldDepth.ActorSlot.Monster:
+                WorldEntityAssets.DrawFeetAnchored(g, actor.X, actor.Y, WorldEntityKind.Monster, actor.WorldPose);
+                break;
+            case WorldDepth.ActorSlot.Npc:
+                WorldEntityAssets.DrawFeetAnchored(g, actor.X, actor.Y, WorldEntityKind.Npc, actor.WorldPose);
+                break;
+            case WorldDepth.ActorSlot.RemotePlayer:
+                // Pas d'équipement sur PositionUpdate : les autres restent corps + tête.
+                DrawPlayerSpriteAtPixelCenter(g, actor.X, actor.Y, other: true, actor.PlayerPose);
+                break;
+            case WorldDepth.ActorSlot.LocalPlayer:
+                DrawPlayerSpriteAtPixelCenter(g, actor.X, actor.Y, other: false, localPose, localAppearance, localLook);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Sac coloré (jetons <see cref="UiTheme"/> déjà utilisés par l'UI). Pas de nouvel art.
+    /// Centre du rectangle = ancre, pour que le pixel (PixelX, PixelY) reste la toile.
+    /// </summary>
+    private static void DrawGroundLootAt(Graphics g, int pixelX, int pixelY)
+    {
+        var previous = g.PixelOffsetMode;
+        g.PixelOffsetMode = PixelOffsetMode.None;
+        try
+        {
+            using var fill = new SolidBrush(UiTheme.AccentGoldDim);
+            using var knot = new SolidBrush(UiTheme.AccentGoldHi);
+            using var outline = new Pen(UiTheme.AccentGold);
+            const int bagW = 14;
+            const int bagH = 10;
+            var body = new Rectangle(pixelX - (bagW / 2), pixelY - (bagH / 2), bagW, bagH);
+            g.FillRectangle(fill, body);
+            g.DrawRectangle(outline, body);
+            g.FillRectangle(knot, pixelX - 2, body.Y - 3, 4, 3);
+        }
+        finally
+        {
+            g.PixelOffsetMode = previous;
+        }
+    }
+
+    private static void DrawTileRow(
+        Graphics g,
+        Map map,
+        List<Layer> layers,
+        List<Layer>? attributes,
+        int ty,
+        int tw,
+        IReadOnlyDictionary<int, Bitmap>? tilesetBitmaps,
+        ITileAssetLookup? tileAssets,
+        IDictionary<TileAssetId, Bitmap>? tileAssetBitmaps,
+        bool showTileGrid)
+    {
+        if (ty < 0 || ty >= map.Height
+            || (layers.Count == 0 && attributes is not { Count: > 0 } && !showTileGrid))
+        {
+            return;
+        }
+
+        for (var tx = 0; tx < map.Width; tx++)
+        {
+            var rect = new Rectangle(tx * tw, ty * tw, tw, tw);
+            foreach (var layer in layers)
+            {
+                var tile = FindTile(layer, tx, ty);
+                if (tile is null)
+                {
+                    continue;
+                }
+
+                if (!tile.AssetId.IsNone || map.GraphicIdentity == TileGraphicIdentity.TileAsset)
+                {
+                    if (!tile.AssetId.IsNone && TryDrawTileAsset(g, tile, rect, tileAssets, tileAssetBitmaps))
+                    {
+                        continue;
+                    }
+
+                    FillFallbackType(g, rect, tile.Type);
+                    continue;
+                }
+
+                if (TryDrawGraphicTile(g, tile, rect, tw, tilesetBitmaps))
+                {
+                    continue;
+                }
+
+                FillFallbackType(g, rect, tile.Type);
+            }
+
+            if (attributes is { Count: > 0 })
+            {
+                DrawAttributeTint(g, attributes, tx, ty, rect);
+            }
+
+            if (showTileGrid)
+            {
+                DrawDebugTileGrid(g, rect);
+            }
+        }
+    }
+
+    private static void DrawAttributeTint(Graphics g, List<Layer> attributes, int tx, int ty, Rectangle rect)
+    {
+        foreach (var layer in attributes)
+        {
+            var at = FindTile(layer, tx, ty);
+            if (at is null)
+            {
+                continue;
+            }
+
+            if (at.Type == TileType.Block)
+            {
+                using var b2 = new SolidBrush(Color.FromArgb(110, BlockTile));
+                g.FillRectangle(b2, rect);
+            }
+            else if (at.Type == TileType.Warp)
+            {
+                using var b2 = new SolidBrush(Color.FromArgb(110, WarpTile));
+                g.FillRectangle(b2, rect);
+            }
         }
     }
 }
