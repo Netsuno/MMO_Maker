@@ -12,8 +12,6 @@ public static class EditorLocalWorkstate
 {
     private sealed class PersistedDto
     {
-        public int LastPublishedFrogMapId { get; set; } = 1;
-
         /// <summary>Chemin absolu vers <c>Frog.Client.exe</c> si la détection automatique a échoué une première fois.</summary>
         public string? ClientExePath { get; set; }
 
@@ -105,24 +103,6 @@ public static class EditorLocalWorkstate
         {
             // optionnel pour l’UX ; échec ignoré
         }
-    }
-
-    public static int ReadLastPublishedFrogMapId()
-    {
-        var id = LoadOrDefault().LastPublishedFrogMapId;
-        return id >= 1 ? id : 1;
-    }
-
-    public static void WriteLastPublishedFrogMapId(int frogMapId)
-    {
-        if (frogMapId < 1)
-        {
-            return;
-        }
-
-        var dto = LoadOrDefault();
-        dto.LastPublishedFrogMapId = frogMapId;
-        Save(dto);
     }
 
     public static bool TryReadClientExePath(out string fullPath)

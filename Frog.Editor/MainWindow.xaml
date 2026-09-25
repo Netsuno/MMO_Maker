@@ -52,8 +52,6 @@
                           Command="{x:Static local:MainWindow.CmdPublishMap}" />
                 <MenuItem Header="Exporter fichier .fmap…"
                           Command="{x:Static local:MainWindow.CmdExportMap}" />
-                <MenuItem Header="Publier vers MariaDB… (héritage)"
-                          Command="{x:Static local:MainWindow.CmdPublishMapToMariaDb}" />
                 <MenuItem Header="Lancer le client…"
                           Command="{x:Static local:MainWindow.CmdLaunchFrogClient}" />
                 <MenuItem Header="Tester (playtest)…"

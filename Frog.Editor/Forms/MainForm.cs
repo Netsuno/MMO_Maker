@@ -55,7 +55,6 @@ public sealed class MainForm : Form
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
     private Point _lastHoverTile;
-    private int _lastPublishedFrogMapId = 1;
     private readonly TableLayoutPanel _leftLayout;
     /// <summary>Horizontal : panneau haut = couches, bas = PropertyGrid.</summary>
     private readonly SplitContainer _splitLayersProps;
@@ -286,7 +285,6 @@ public sealed class MainForm : Form
     public MainForm(bool embedAsWpfChild = false)
     {
         _embedAsWpfChild = embedAsWpfChild;
-        _lastPublishedFrogMapId = EditorLocalWorkstate.ReadLastPublishedFrogMapId();
         Text = "MMO Maker — Éditeur";
         MinimumSize = new Size(1100, 720);
         if (embedAsWpfChild)
@@ -369,7 +367,6 @@ public sealed class MainForm : Form
             _mnuSave = mnuSave;
             _mnuPublish = mnuPublish;
             mFile.DropDownItems.Add(new ToolStripMenuItem("Exporter fichier .fmap…", null, (_, _) => ExportMapToFile()));
-            mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB… (héritage)", null, (_, _) => PublishMapToMariaDb()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Lancer le client Frog…", null, (_, _) => LaunchFrogGameClient()));
             _mnuPlaytest = new ToolStripMenuItem("Tester (playtest)…", null, async (_, _) => await StartPlaytestAsync())
             {
@@ -3288,81 +3285,6 @@ public sealed class MainForm : Form
         }
 
         return true;
-    }
-
-    internal void PublishMapToMariaDb()
-    {
-        if (_canvas.Map is null)
-        {
-            MessageBox.Show(GetDialogOwner(), "Aucune carte chargée.", "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-
-        if (TileAssetMapEditing.IsTileAssetMap(_canvas.Map))
-        {
-            MessageBox.Show(
-                GetDialogOwner(),
-                "MariaDB (héritage) n’accepte pas les cartes TileAsset. Enregistrez un fichier .fmap v6.",
-                "Publication MariaDB",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            return;
-        }
-
-        if (!_canvas.Map.Validate(out var err))
-        {
-            MessageBox.Show(GetDialogOwner(), err ?? "Carte invalide.", "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        if (!EditorMariaDbConfig.TryGetEnabledConnection(out var connectionString, out var hint))
-        {
-            MessageBox.Show(GetDialogOwner(), hint, "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-
-        var display = MapPublishNaming.ClampDisplayName(_canvas.Map.Name);
-        var key = MapPublishNaming.SlugFromName(_canvas.Map.Name);
-        using var dlg = new PublishMapDialog(display, key, _lastPublishedFrogMapId);
-        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
-        {
-            return;
-        }
-
-        if (!dlg.TryValidate(out var verr))
-        {
-            MessageBox.Show(GetDialogOwner(), verr, "Publication MariaDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        try
-        {
-            var bytes = TileAssetMapEditing.WriteEditorMap(_canvas.Map);
-            MariaMapBlobPublisher.UpsertMap(
-                connectionString,
-                dlg.PublishedMapId,
-                dlg.PublishedMapKey,
-                dlg.PublishedDisplayName,
-                bytes);
-            _lastPublishedFrogMapId = dlg.PublishedMapId;
-            EditorLocalWorkstate.WriteLastPublishedFrogMapId(_lastPublishedFrogMapId);
-            RefreshMapEventMarkers();
-            MessageBox.Show(
-                GetDialogOwner(),
-                $"Carte publiée : frog_map id={dlg.PublishedMapId}, clé « {dlg.PublishedMapKey} ».",
-                "Publication MariaDB",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                GetDialogOwner(),
-                "Publication échouée : " + ex.Message,
-                "Publication MariaDB",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
-        }
     }
 
     private void OnTileContextMenuRequested(Point tile)

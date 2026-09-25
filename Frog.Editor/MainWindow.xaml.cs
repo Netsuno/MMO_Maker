@@ -47,11 +47,6 @@ public partial class MainWindow : Window
         nameof(CmdEditWarp),
         typeof(MainWindow));
 
-    public static readonly RoutedUICommand CmdPublishMapToMariaDb = new(
-        "Publier vers MariaDB… (héritage)",
-        nameof(CmdPublishMapToMariaDb),
-        typeof(MainWindow));
-
     public static readonly RoutedUICommand CmdLaunchFrogClient = new(
         "Lancer le client…",
         nameof(CmdLaunchFrogClient),
@@ -218,7 +213,7 @@ public partial class MainWindow : Window
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdBrowseMapEvents = new(
-        "Événements carte (MariaDB, héritage)…",
+        "Événements carte…",
         nameof(CmdBrowseMapEvents),
         typeof(MainWindow));
 
@@ -228,7 +223,7 @@ public partial class MainWindow : Window
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdRefreshMapEventMarkers = new(
-        "Actualiser marqueurs événements (MariaDB, héritage)",
+        "Actualiser marqueurs événements",
         nameof(CmdRefreshMapEventMarkers),
         typeof(MainWindow));
 
@@ -282,7 +277,6 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdSaveMap, (_, _) => _editor.SaveMap(), (_, e) => e.CanExecute = _editor.CanExecuteSaveOrPublish()));
         CommandBindings.Add(new CommandBinding(CmdPublishMap, (_, _) => _editor.PublishMap(), (_, e) => e.CanExecute = _editor.CanExecuteSaveOrPublish()));
         CommandBindings.Add(new CommandBinding(CmdExportMap, (_, _) => _editor.ExportMapToFile()));
-        CommandBindings.Add(new CommandBinding(CmdPublishMapToMariaDb, (_, _) => _editor.PublishMapToMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdEditWarp, (_, _) => _editor.EditSelectedWarpDestination()));
         CommandBindings.Add(new CommandBinding(CmdLaunchFrogClient, (_, _) => _editor.LaunchFrogGameClient()));
         CommandBindings.Add(new CommandBinding(
