@@ -91,7 +91,7 @@ public sealed class CombatMvpService
                     attacker.PixelY,
                     dummy.PixelX,
                     dummy.PixelY,
-                    CombatFormulas.BasicAttackRangePixels))
+                    CombatFormulas.AttackRangePixels(request.Style)))
             {
                 return CombatMvpApplyResult.Fail("Hors portee.");
             }
@@ -125,7 +125,8 @@ public sealed class CombatMvpService
                 dummy.Hp,
                 dummy.MaxHp,
                 Hit: true,
-                killed);
+                killed,
+                Ranged: request.Style == AttackStyle.Ranged);
 
             if (killed)
             {

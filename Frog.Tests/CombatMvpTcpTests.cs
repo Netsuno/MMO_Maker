@@ -69,6 +69,36 @@ public sealed class CombatMvpTcpTests
 
     [Fact]
     [Trait("Category", "InMemorySmoke")]
+    public async Task Tcp_RangedDummy_SetsRangedFlagOnExistingTrailer()
+    {
+        var port = GetFreePort();
+        using var host = CreateInMemoryHost(port);
+        await host.StartAsync();
+        try
+        {
+            await using var client = new TcpProbe();
+            _ = await RegisterLoginSelectAsync(client, port, UniqueUser("cr"), "password123", "CrHero");
+            await client.SendFrameAsync(BuildMelee(
+                CombatMvpLimits.DummyName,
+                CombatTargetKind.Dummy,
+                Direction.Down,
+                AttackStyle.Ranged));
+            var result = DecodeMelee(await client.ReadUntilAsync(PacketId.MeleeAttackResult));
+            Assert.True(result.hit);
+            Assert.Equal("Touche.", result.message);
+            Assert.True(result.damage.HasValue);
+            Assert.True(result.damage!.Value.Ranged);
+            Assert.True(result.damage.Value.Hit);
+            Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
     public async Task Tcp_LegacyNameOnly_StillHitsDummy()
     {
         var port = GetFreePort();
@@ -182,9 +212,13 @@ public sealed class CombatMvpTcpTests
         return payload;
     }
 
-    private static byte[] BuildMelee(string target, CombatTargetKind kind, Direction facing)
+    private static byte[] BuildMelee(
+        string target,
+        CombatTargetKind kind,
+        Direction facing,
+        AttackStyle style = AttackStyle.Melee)
     {
-        var body = CombatMvpWire.BuildAttackRequest(new AttackRequest(target, kind, facing, CombatMvpLimits.DummyId));
+        var body = CombatMvpWire.BuildAttackRequest(new AttackRequest(target, kind, facing, CombatMvpLimits.DummyId, style));
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.MeleeAttackRequest;
         body.CopyTo(payload.AsSpan(1));

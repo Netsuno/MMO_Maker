@@ -27,4 +27,7 @@ public static class CombatMvpLimits
 
     /// <summary>Bit libre déjà présent dans l'octet de flags du trailer 18. Pas un nouvel opcode.</summary>
     public const byte DamageFlagCrit = 4;
+
+    /// <summary>Même octet de flags : coup à distance. Les clients qui ignorent le bit restent valides.</summary>
+    public const byte DamageFlagRanged = 8;
 }

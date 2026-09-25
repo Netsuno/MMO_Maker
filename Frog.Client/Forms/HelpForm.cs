@@ -29,7 +29,9 @@ public sealed class HelpForm : Form
         • Depuis la fiche, Équiper envoie l'objet du sac au serveur (arme ou armure). Un clic sur l'arme ou l'armure portée la range. Tunique et casque restent un aperçu local.
         • Vie, or, inventaire, équipement, banque, quêtes et fabrication sont des panneaux nommés.
         • Les identifiants techniques (Guid) ne font pas partie de l'interface normale.
-        • Mêlée et sorts : choisissez une cible par son nom.
+        • Mêlée (Espace ou 1) : coup au contact. Une touche affiche le nombre et des étincelles.
+        • Distance (touche 4) : même coup, jusqu'à 3 tuiles. Le trait jaune précède les étincelles.
+        • Sorts : choisissez une cible par son nom.
         • En cas de mort, le bouton Respawn apparaît.
 
         Échange entre joueurs

@@ -33,6 +33,10 @@ public sealed class FrogGameClient : IDisposable
     private readonly Dictionary<string, Guid> _lastEconomyRequestIds = new(StringComparer.Ordinal);
     private readonly object _interactActivationGate = new();
     private Guid _pendingInteractActivationId;
+    private AttackStyle _pendingAttackStyle = AttackStyle.Melee;
+
+    /// <summary>Style du dernier résultat 18, lu par l'UI au moment du rappel.</summary>
+    public AttackStyle LastResolvedAttackStyle { get; private set; } = AttackStyle.Melee;
 
     public FrogGameClient(SynchronizationContext uiContext)
     {
@@ -413,8 +417,15 @@ public sealed class FrogGameClient : IDisposable
                 if (CombatMvpWire.TryParseMeleeResult(body.Span, out var hit, out var tgt, out var meleeMsg, out var damageEv)
                     || TryReadMeleeResult(body.Span, out hit, out tgt, out meleeMsg))
                 {
+                    var resolvedStyle = damageEv switch
+                    {
+                        { Ranged: true } => AttackStyle.Ranged,
+                        not null => AttackStyle.Melee,
+                        null => _pendingAttackStyle,
+                    };
                     Post(() =>
                     {
+                        LastResolvedAttackStyle = resolvedStyle;
                         MeleeAttackResultReceived?.Invoke(hit, tgt, meleeMsg);
                         if (damageEv is { } ev)
                         {
@@ -1269,9 +1280,11 @@ public sealed class FrogGameClient : IDisposable
         CombatTargetKind kind,
         Direction facing,
         Guid targetId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        AttackStyle style = AttackStyle.Melee)
     {
-        var body = CombatMvpWire.BuildAttackRequest(new AttackRequest(targetUsername, kind, facing, targetId));
+        _pendingAttackStyle = style;
+        var body = CombatMvpWire.BuildAttackRequest(new AttackRequest(targetUsername, kind, facing, targetId, style));
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.MeleeAttackRequest;
         body.CopyTo(payload.AsSpan(1));

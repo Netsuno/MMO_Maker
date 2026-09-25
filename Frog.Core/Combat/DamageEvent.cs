@@ -14,7 +14,8 @@ public readonly record struct DamageEvent(
     int MaxHp,
     bool Hit,
     bool Killed,
-    bool Crit = false)
+    bool Crit = false,
+    bool Ranged = false)
 {
     public byte Flags
     {
@@ -34,6 +35,11 @@ public readonly record struct DamageEvent(
             if (Crit)
             {
                 flags |= CombatMvpLimits.DamageFlagCrit;
+            }
+
+            if (Ranged)
+            {
+                flags |= CombatMvpLimits.DamageFlagRanged;
             }
 
             return flags;
@@ -59,5 +65,6 @@ public readonly record struct DamageEvent(
             maxHp,
             (flags & CombatMvpLimits.DamageFlagHit) != 0,
             (flags & CombatMvpLimits.DamageFlagKilled) != 0,
-            (flags & CombatMvpLimits.DamageFlagCrit) != 0);
+            (flags & CombatMvpLimits.DamageFlagCrit) != 0,
+            (flags & CombatMvpLimits.DamageFlagRanged) != 0);
 }

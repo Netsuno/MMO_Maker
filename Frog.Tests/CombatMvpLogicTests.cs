@@ -102,6 +102,46 @@ public sealed class CombatMvpLogicTests
     }
 
     [Fact]
+    public void Ranged_HitsBeyondMelee_SharesCooldown_AndStopsAtThreeTiles()
+    {
+        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+        Assert.Equal(96, CombatFormulas.RangedAttackRangePixels);
+
+        var svc = new CombatMvpService();
+        var session = SessionOf(Guid.NewGuid());
+        var beyondMelee = session.PixelY + 80;
+        svc.EnsureDummy(session.CurrentMapId, session.PixelX, beyondMelee);
+
+        var melee = svc.TryMelee(session, DummyAttack());
+        Assert.False(melee.Success);
+        Assert.Equal("Hors portee.", melee.Message);
+
+        var ranged = svc.TryMelee(session, DummyAttack() with { Style = AttackStyle.Ranged });
+        Assert.True(ranged.Success);
+        Assert.NotNull(ranged.Damage);
+        Assert.True(ranged.Damage!.Value.Ranged);
+        Assert.True(ranged.Damage.Value.Hit);
+        Assert.Equal("Touche.", ranged.Message);
+
+        var retry = svc.TryMelee(session, DummyAttack() with { Style = AttackStyle.Ranged });
+        Assert.False(retry.Success);
+        Assert.Equal("Attaque en recharge.", retry.Message);
+
+        session.LastMeleeUtc = DateTime.UtcNow.AddSeconds(-2);
+        session.Facing = Direction.Left;
+        var facing = svc.TryMelee(session, DummyAttack() with { Style = AttackStyle.Ranged });
+        Assert.False(facing.Success);
+        Assert.Equal("Pas en face de la cible.", facing.Message);
+
+        session.Facing = Direction.Down;
+        session.LastMeleeUtc = DateTime.UtcNow.AddSeconds(-2);
+        svc.EnsureDummy(session.CurrentMapId, session.PixelX, session.PixelY + 120);
+        var tooFar = svc.TryMelee(session, DummyAttack() with { Style = AttackStyle.Ranged });
+        Assert.False(tooFar.Success);
+        Assert.Equal("Hors portee.", tooFar.Message);
+    }
+
+    [Fact]
     public void Melee_UnknownTarget_Fails()
     {
         var svc = new CombatMvpService();

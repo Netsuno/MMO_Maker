@@ -86,7 +86,9 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.True(form.HotbarForTest.SlotEnabledForTest(0), "slot 1 melee");
                 Assert.True(form.HotbarForTest.SlotEnabledForTest(1), "slot 2 spell");
                 Assert.True(form.HotbarForTest.SlotEnabledForTest(2), "slot 3 interact");
-                Assert.False(form.HotbarForTest.SlotEnabledForTest(3));
+                Assert.True(form.HotbarForTest.SlotEnabledForTest(3), "slot 4 distance");
+                Assert.Contains("Distance", form.HotbarForTest.SlotToolTipForTest(3), StringComparison.Ordinal);
+                Assert.False(form.HotbarForTest.SlotEnabledForTest(4));
                 Assert.False(form.HotbarForTest.SlotEnabledForTest(9));
                 Assert.True(form.StatusHudForTest.UsesFrameAssetForTest, "Kenney frame on HUD panels");
                 Assert.True(form.StatusHudForTest.UsesBarAssetsForTest, "Kenney HP/MP bars");
@@ -95,12 +97,14 @@ public sealed class ClientHudOverlaySmokeTests
                 Assert.Equal(UiTheme.TextPrimary, form.HotbarForTest.SlotForeColorForTest(0));
                 Assert.Equal(UiTheme.AccentGold, form.HotbarForTest.SlotBorderColorForTest(0));
                 Assert.Equal(UiTheme.BgSlot, form.HotbarForTest.SlotBackColorForTest(3));
-                Assert.Equal(UiTheme.TextMuted, form.HotbarForTest.SlotForeColorForTest(3));
-                Assert.Equal(UiTheme.AccentGoldDim, form.HotbarForTest.SlotBorderColorForTest(3));
+                Assert.Equal(UiTheme.TextPrimary, form.HotbarForTest.SlotForeColorForTest(3));
+                Assert.Equal(UiTheme.AccentGold, form.HotbarForTest.SlotBorderColorForTest(3));
+                Assert.Equal(UiTheme.TextMuted, form.HotbarForTest.SlotForeColorForTest(4));
+                Assert.Equal(UiTheme.AccentGoldDim, form.HotbarForTest.SlotBorderColorForTest(4));
                 Assert.True(form.HotbarForTest.SlotHasIconForTest(0), "melee icon");
                 Assert.True(form.HotbarForTest.SlotHasIconForTest(1), "spell icon");
                 Assert.True(form.HotbarForTest.SlotHasIconForTest(2), "interact icon");
-                Assert.False(form.HotbarForTest.SlotHasIconForTest(3), "unwired slots stay digit-only");
+                Assert.False(form.HotbarForTest.SlotHasIconForTest(3), "distance stays digit-only");
                 AssertHudIconIsCreamNotGold(UiPackAssets.CloneHotbarIcon(0), "hotbar melee");
                 Assert.True(form.ChatDockForTest.SendUsesCtaChromeForTest, "chat send CTA");
 

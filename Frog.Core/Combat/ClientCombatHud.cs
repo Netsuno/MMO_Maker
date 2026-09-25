@@ -1,3 +1,5 @@
+using Frog.Core.Enums;
+
 namespace Frog.Core.Combat;
 
 /// <summary>État client combat — testable sans WinForms (floats + flash).</summary>
@@ -17,9 +19,21 @@ public sealed class ClientCombatHud
 
     public bool HasFloats => _floats.Count > 0;
 
-    public void Apply(DamageEvent ev, DateTime utcNow)
+    public SparkBurst? Sparks { get; private set; }
+
+    public bool SparksVisible(DateTime utcNow) => Sparks is { } burst && burst.Visible(utcNow);
+
+    public void Apply(DamageEvent ev, DateTime utcNow, Direction facing = Direction.Down)
     {
         LastEvent = ev;
+        if (ev.Hit)
+        {
+            Sparks = new SparkBurst(
+                ev.Ranged ? AttackStyle.Ranged : AttackStyle.Melee,
+                facing,
+                utcNow);
+        }
+
         ApplyCue(CombatFx.Map(ev), utcNow);
     }
 

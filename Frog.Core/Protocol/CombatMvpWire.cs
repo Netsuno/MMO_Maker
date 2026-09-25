@@ -10,6 +10,7 @@ namespace Frog.Core.Protocol;
 /// <summary>
 /// Codec additif des paquets 17/18. <see cref="FrogWireProtocol.Version"/> reste 11.
 /// La requête historique (nom seul) reste valide ; extras kind/facing/id sont optionnels.
+/// Un octet <see cref="AttackStyle"/> peut suivre ces extras (absent = mêlée).
 /// Le trailer <see cref="DamageEvent"/> est ignoré par les parseurs qui s'arrêtent au message.
 /// </summary>
 public static class CombatMvpWire
@@ -37,13 +38,20 @@ public static class CombatMvpWire
             throw new ArgumentOutOfRangeException(nameof(request), "Nom de cible invalide.");
         }
 
-        var payload = new byte[1 + name.Length + CombatMvpLimits.AttackExtrasBytes];
+        var ranged = request.Style == AttackStyle.Ranged;
+        var payload = new byte[1 + name.Length + CombatMvpLimits.AttackExtrasBytes + (ranged ? 1 : 0)];
         payload[0] = (byte)name.Length;
         name.CopyTo(payload.AsSpan(1));
         var o = 1 + name.Length;
         payload[o++] = (byte)request.Kind;
         payload[o++] = (byte)request.Facing;
         request.TargetId.TryWriteBytes(payload.AsSpan(o));
+        o += 16;
+        if (ranged)
+        {
+            payload[o] = (byte)AttackStyle.Ranged;
+        }
+
         return payload;
     }
 
@@ -75,6 +83,7 @@ public static class CombatMvpWire
         var kind = CombatTargetKind.None;
         var facing = Direction.Down;
         var targetId = Guid.Empty;
+        var style = AttackStyle.Melee;
         var extras = payload.Slice(1 + len);
         if (extras.Length >= CombatMvpLimits.AttackExtrasBytes)
         {
@@ -91,9 +100,19 @@ public static class CombatMvpWire
             }
 
             targetId = new Guid(extras.Slice(2, 16));
+            if (extras.Length > CombatMvpLimits.AttackExtrasBytes)
+            {
+                var styleByte = extras[CombatMvpLimits.AttackExtrasBytes];
+                if (styleByte > (byte)AttackStyle.Ranged)
+                {
+                    return false;
+                }
+
+                style = (AttackStyle)styleByte;
+            }
         }
 
-        request = new AttackRequest(name, kind, facing, targetId);
+        request = new AttackRequest(name, kind, facing, targetId, style);
         return true;
     }
 

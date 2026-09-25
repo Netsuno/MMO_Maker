@@ -2,7 +2,7 @@ using Frog.Core.Enums;
 
 namespace Frog.Core.Combat;
 
-/// <summary>Genre de retour visuel mêlée. Pas de particules.</summary>
+/// <summary>Genre de retour visuel. Les étincelles sont quelques pixels, pas un moteur de particules.</summary>
 public enum CombatFxKind : byte
 {
     None = 0,
@@ -115,6 +115,18 @@ public static class CombatFx
         return (x, y, size);
     }
 
+    /// <summary>Durée des étincelles au contact. Plus court que le nombre flottant.</summary>
+    public const int SparkLifetimeMs = 240;
+
+    /// <summary>Le trait à distance devient la croix d'impact après ce délai.</summary>
+    public const int SparkTravelMs = 100;
+
+    /// <summary>Blanc plein du centre d'étincelle — pas un or d'interface.</summary>
+    public const int SparkWhiteArgb = unchecked((int)0xFFFFFFFF);
+
+    /// <summary>Jaune saturé des bras d'étincelle, identique au nombre de dégâts.</summary>
+    public const int SparkYellowArgb = HitArgb;
+
     /// <summary>Ancre au-dessus des pieds, en pixels entiers. Le nombre monte (Y diminue).</summary>
     public static (int X, int Y) Place(
         float feetX,
@@ -134,4 +146,95 @@ public static class CombatFx
         var y = (int)MathF.Round(feetY - (28f + emSize) - risePixels);
         return (x, y);
     }
+
+    /// <summary>Point d'impact devant le sprite. La distance part plus loin que la mêlée.</summary>
+    public static (int X, int Y) SparkAnchor(float feetX, float feetY, Direction facing, AttackStyle style)
+    {
+        var cx = (int)MathF.Round(feetX);
+        var cy = (int)MathF.Round(feetY) - 16;
+        var reach = style == AttackStyle.Ranged ? 34 : 20;
+        return facing switch
+        {
+            Direction.Left => (cx - reach, cy),
+            Direction.Right => (cx + reach, cy),
+            Direction.Up => (cx, cy - reach),
+            _ => (cx, cy + reach),
+        };
+    }
+
+    /// <summary>
+    /// Pixels d'étincelle absolus. Mêlée : croix jaune/blanc. Distance : trait puis la même croix.
+    /// </summary>
+    public static int FillSparks(
+        float feetX,
+        float feetY,
+        Direction facing,
+        AttackStyle style,
+        double ageMs,
+        Span<SparkPixel> dest)
+    {
+        if (dest.Length < 9 || ageMs < 0 || ageMs >= SparkLifetimeMs)
+        {
+            return 0;
+        }
+
+        var (ax, ay) = SparkAnchor(feetX, feetY, facing, style);
+        var opened = ageMs >= SparkTravelMs;
+        if (style == AttackStyle.Ranged && !opened)
+        {
+            return FillBolt(ax, ay, facing, dest);
+        }
+
+        return FillBurst(ax, ay, opened, dest);
+    }
+
+    private static int FillBolt(int ax, int ay, Direction facing, Span<SparkPixel> dest)
+    {
+        var (dx, dy) = facing switch
+        {
+            Direction.Left => (1, 0),
+            Direction.Right => (-1, 0),
+            Direction.Up => (0, 1),
+            _ => (0, -1),
+        };
+        dest[0] = new SparkPixel(ax + (dx * 16), ay + (dy * 16), SparkYellowArgb, 1);
+        dest[1] = new SparkPixel(ax + (dx * 8), ay + (dy * 8), SparkYellowArgb, 1);
+        dest[2] = new SparkPixel(ax, ay, SparkWhiteArgb, 2);
+        return 3;
+    }
+
+    private static int FillBurst(int ax, int ay, bool opened, Span<SparkPixel> dest)
+    {
+        var arm = opened ? 7 : 4;
+        dest[0] = new SparkPixel(ax, ay, SparkWhiteArgb, opened ? 1 : 2);
+        dest[1] = new SparkPixel(ax - arm, ay, SparkYellowArgb, 1);
+        dest[2] = new SparkPixel(ax + arm, ay, SparkYellowArgb, 1);
+        dest[3] = new SparkPixel(ax, ay - arm, SparkYellowArgb, 1);
+        dest[4] = new SparkPixel(ax, ay + arm, SparkYellowArgb, 1);
+        if (!opened)
+        {
+            return 5;
+        }
+
+        dest[5] = new SparkPixel(ax - 4, ay - 4, SparkWhiteArgb, 1);
+        dest[6] = new SparkPixel(ax + 4, ay - 4, SparkWhiteArgb, 1);
+        dest[7] = new SparkPixel(ax - 4, ay + 4, SparkWhiteArgb, 1);
+        dest[8] = new SparkPixel(ax + 4, ay + 4, SparkWhiteArgb, 1);
+        return 9;
+    }
+}
+
+/// <summary>Étincelle 1 ou 2 px, ancrée en pixels écran.</summary>
+public readonly record struct SparkPixel(int X, int Y, int Argb, int Size);
+
+/// <summary>Salve d'étincelles liée à un coup qui porte.</summary>
+public readonly record struct SparkBurst(AttackStyle Style, Direction Facing, DateTime StartedUtc)
+{
+    public bool Visible(DateTime utcNow)
+    {
+        var age = (utcNow - StartedUtc).TotalMilliseconds;
+        return age >= 0 && age < CombatFx.SparkLifetimeMs;
+    }
+
+    public double AgeMs(DateTime utcNow) => (utcNow - StartedUtc).TotalMilliseconds;
 }

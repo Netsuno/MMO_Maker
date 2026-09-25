@@ -1,3 +1,6 @@
+using Frog.Core.Combat;
+using Frog.Core.Constants;
+
 namespace Frog.Core.Gameplay;
 
 /// <summary>
@@ -8,7 +11,14 @@ public static class CombatFormulas
 {
     public const int BasicAttackCooldownMs = 800;
     public const int BasicAttackRangePixels = 56;
+
+    /// <summary>Portée distance : 3 tuiles. <see cref="WorldMetrics.DefaultTileSizePixels"/> reste 32.</summary>
+    public const int RangedAttackRangePixels = 3 * WorldMetrics.DefaultTileSizePixels;
+
     public const int DefaultSpellRangePixels = 160;
+
+    public static int AttackRangePixels(AttackStyle style)
+        => style == AttackStyle.Ranged ? RangedAttackRangePixels : BasicAttackRangePixels;
 
     /// <summary>Dégâts mêlée : max(1, STR + floor(weaponPower/2) - floor(targetVit/4)).</summary>
     public static int MeleeDamage(int attackerStr, int weaponPower, int targetVit)
