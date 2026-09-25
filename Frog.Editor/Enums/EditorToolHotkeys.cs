@@ -100,7 +100,7 @@ public static class EditorToolHotkeys
             EditorTool.Brush => "Pinceau",
             EditorTool.Eraser => "Gomme",
             EditorTool.Cursor => "Curseur",
-            EditorTool.Fill => "Pot (remplissage)",
+            EditorTool.Fill => "Remplissage",
             EditorTool.Rectangle => "Rectangle",
             EditorTool.Line => "Ligne",
             EditorTool.Selection => "Sélection",
@@ -118,7 +118,7 @@ public static class EditorToolHotkeys
     }
 
     public const string PaletteHint =
-        "B pinceau · E gomme · C curseur · F pot · R rectangle · L ligne (Maj = axe) · M sélection · D départ · P prefab · I pipette";
+        "B pinceau · E gomme · C curseur · F remplissage · R rectangle · L ligne (Maj = axe) · M sélection · D départ · P prefab · I pipette";
 
     /// <summary>Phrase d'aide affichée dans la barre d'état et le panneau d'outils.</summary>
     public static string StatusHint(EditorTool tool) =>
@@ -127,7 +127,7 @@ public static class EditorToolHotkeys
             EditorTool.Brush => "Pinceau (B) · clic ou glisser pour peindre la tuile",
             EditorTool.Eraser => "Gomme (E) · clic ou glisser pour effacer",
             EditorTool.Cursor => "Curseur (C) · clic pour inspecter la tuile",
-            EditorTool.Fill => "Pot (F) · clic pour remplir les cases connectées",
+            EditorTool.Fill => FormatFillStatus(visibleUnlockedLayers: false, respectAttributes: false),
             EditorTool.Rectangle => "Rectangle (R) · cliquez un coin, glissez, relâchez pour peindre",
             EditorTool.Line => "Ligne (L) · cliquez le départ, glissez, relâchez · Maj = axe",
             EditorTool.Selection => "Sélection (M) · tracez un rectangle · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr",
@@ -135,6 +135,19 @@ public static class EditorToolHotkeys
             EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · Échap quitte",
             _ => DisplayName(tool),
         };
+
+    /// <summary>
+    /// Barre d'état du pot. 4 directions. La sélection vide et le clic droit effacent la région.
+    /// Ctrl (ou la case à cocher) étend aux couches visibles déverrouillées, sauf Attributs.
+    /// </summary>
+    public static string FormatFillStatus(bool visibleUnlockedLayers, bool respectAttributes)
+    {
+        var layers = visibleUnlockedLayers
+            ? "couches visibles déverrouillées"
+            : "couche active · Ctrl = couches visibles";
+        var attrs = respectAttributes ? " · collisions / attrs" : string.Empty;
+        return $"Remplissage (F) · 4 directions · {layers}{attrs} · clic peint · clic droit ou tuile vide : efface";
+    }
 
     /// <summary>Mesure du trait en cours (barre d'état).</summary>
     public static string FormatLineGesture(int x0, int y0, int x1, int y1, int cells, bool axisLocked)

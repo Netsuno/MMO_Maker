@@ -165,8 +165,188 @@ public sealed class MapEditOperationsTests
     public void FloodFill_StaysWithinMapBounds()
     {
         var map = CreateMap();
-        MapEditOperations.FloodFill(map, 0, 0, 0, new Tile { Type = TileType.Ground, SrcX = 5 });
+        var changed = MapEditOperations.FloodFill(map, 0, 0, 0, new Tile { Type = TileType.Ground, SrcX = 5 });
+        Assert.Equal(map.Width * map.Height, changed);
         Assert.Equal(map.Width * map.Height, map.Layers[0].Tiles.Count);
+        Assert.DoesNotContain(map.Layers[0].Tiles, t => t.X < 0 || t.Y < 0 || t.X >= map.Width || t.Y >= map.Height);
+        Assert.Equal(0, MapEditOperations.FloodFill(map, 0, -1, 0, new Tile { Type = TileType.Ground, SrcX = 5 }));
+    }
+
+    [Fact]
+    public void FloodFill_Is4Connected_StopsAtDifferentTile_AndMapEdge()
+    {
+        Assert.Equal(11, FrogWireProtocol.Version);
+        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+
+        var map = CreateMap();
+        MapEditOperations.PaintTile(map, 0, 0, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 1, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 0, 1, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 2, 1, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 2, 0, Sheet(9));
+
+        var callbacks = 0;
+        var changed = MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(4), default, () => callbacks++);
+        Assert.Equal(1, callbacks);
+        Assert.Equal(3, changed);
+        Assert.Equal(4, TileAt(map, 0, 0, 0).SrcX);
+        Assert.Equal(4, TileAt(map, 0, 1, 0).SrcX);
+        Assert.Equal(4, TileAt(map, 0, 0, 1).SrcX);
+        Assert.Equal(1, TileAt(map, 0, 2, 1).SrcX);
+        Assert.Equal(9, TileAt(map, 0, 2, 0).SrcX);
+
+        Assert.Equal(0, MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(4), default, () => callbacks++));
+        Assert.Equal(1, callbacks);
+    }
+
+    [Fact]
+    public void FloodFill_EraseClearsMatchingRegionOnly()
+    {
+        var map = CreateMap();
+        MapEditOperations.PaintTile(map, 0, 0, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 1, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 2, 0, Sheet(8));
+
+        var changed = MapEditOperations.FloodFill(map, 0, 0, 0, replacement: null);
+        Assert.Equal(2, changed);
+        Assert.Null(FindTile(map, 0, 0, 0));
+        Assert.Null(FindTile(map, 0, 1, 0));
+        Assert.Equal(8, TileAt(map, 0, 2, 0).SrcX);
+        Assert.Equal(0, MapEditOperations.FloodFill(map, 0, 0, 0, replacement: null));
+    }
+
+    [Fact]
+    public void FloodFill_SkipsLockedAndHiddenLayers()
+    {
+        var map = CreateMap();
+        MapEditOperations.PaintTile(map, 0, 0, 0, Sheet(1));
+        map.Layers[0].Locked = true;
+        Assert.Equal(0, MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(4)));
+        Assert.Equal(1, TileAt(map, 0, 0, 0).SrcX);
+
+        map.Layers[0].Locked = false;
+        map.Layers[0].Visible = false;
+        Assert.Equal(0, MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(4)));
+        Assert.Equal(1, TileAt(map, 0, 0, 0).SrcX);
+    }
+
+    [Fact]
+    public void FloodFill_VisibleUnlockedLayers_SkipsHiddenLockedAndAttributesUnlessActive()
+    {
+        var map = CreateMap();
+        map.Layers.Add(new Layer { LayerType = LayerType.Fringe, Visible = true });
+        map.Layers.Add(new Layer { LayerType = LayerType.Mask, Visible = true });
+        map.Layers.Add(new Layer { LayerType = LayerType.Fringe2, Visible = true });
+        map.Layers.Add(new Layer { LayerType = LayerType.Attributes, Visible = true });
+
+        MapEditOperations.PaintTile(map, 0, 0, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 1, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 1, 0, 0, Sheet(2));
+        MapEditOperations.PaintTile(map, 1, 1, 0, Sheet(2));
+        MapEditOperations.PaintTile(map, 2, 0, 0, Sheet(3));
+        MapEditOperations.PaintTile(map, 3, 0, 0, Sheet(4));
+        MapEditOperations.PaintTile(map, 4, 0, 0, Sheet(5));
+        MapEditOperations.PaintTile(map, 4, 1, 0, Sheet(5));
+        map.Layers[2].Visible = false;
+        map.Layers[3].Locked = true;
+
+        var options = new FloodFillOptions { VisibleUnlockedLayers = true };
+        var changed = MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(7), options);
+        Assert.Equal(4, changed);
+        Assert.Equal(7, TileAt(map, 0, 0, 0).SrcX);
+        Assert.Equal(7, TileAt(map, 0, 1, 0).SrcX);
+        Assert.Equal(7, TileAt(map, 1, 0, 0).SrcX);
+        Assert.Equal(7, TileAt(map, 1, 1, 0).SrcX);
+        Assert.Equal(3, TileAt(map, 2, 0, 0).SrcX);
+        Assert.Equal(4, TileAt(map, 3, 0, 0).SrcX);
+        Assert.Equal(5, TileAt(map, 4, 0, 0).SrcX);
+        Assert.Equal(5, TileAt(map, 4, 1, 0).SrcX);
+
+        var attrChanged = MapEditOperations.FloodFill(map, 4, 0, 0, Sheet(6), options);
+        Assert.Equal(2, attrChanged);
+        Assert.Equal(6, TileAt(map, 4, 0, 0).SrcX);
+        Assert.Equal(6, TileAt(map, 4, 1, 0).SrcX);
+        Assert.Equal(7, TileAt(map, 0, 0, 0).SrcX);
+    }
+
+    [Fact]
+    public void FloodFill_RespectAttributes_StopsAtTileFlagsAndAttributesLayer()
+    {
+        var map = CreateMap();
+        var plain = Sheet(1);
+        var blocked = Sheet(1);
+        blocked.Attributes.Add(new BlockAttribute());
+        MapEditOperations.PaintTile(map, 0, 0, 0, plain);
+        MapEditOperations.PaintTile(map, 0, 1, 0, blocked);
+        MapEditOperations.PaintTile(map, 0, 2, 0, Sheet(1));
+
+        var respect = new FloodFillOptions { RespectAttributes = true };
+        Assert.Equal(1, MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(4), respect));
+        Assert.Equal(4, TileAt(map, 0, 0, 0).SrcX);
+        Assert.Equal(1, TileAt(map, 0, 1, 0).SrcX);
+        Assert.Contains(TileAt(map, 0, 1, 0).Attributes, a => a is BlockAttribute);
+        Assert.Equal(1, TileAt(map, 0, 2, 0).SrcX);
+
+        map.Layers[0].Tiles.Clear();
+        MapEditOperations.PaintTile(map, 0, 0, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 1, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 2, 0, Sheet(1));
+        map.Layers.Add(new Layer { LayerType = LayerType.Attributes, Visible = true });
+        MapEditOperations.PaintTile(map, 1, 1, 0, new Tile { Type = TileType.Block, Attributes = { new BlockAttribute() } });
+
+        Assert.Equal(1, MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(3), respect));
+        Assert.Equal(3, TileAt(map, 0, 0, 0).SrcX);
+        Assert.Equal(1, TileAt(map, 0, 1, 0).SrcX);
+        Assert.Equal(1, TileAt(map, 0, 2, 0).SrcX);
+        Assert.Equal(TileType.Block, TileAt(map, 1, 1, 0).Type);
+
+        map.Layers[0].Tiles.Clear();
+        MapEditOperations.PaintTile(map, 0, 0, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 1, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 2, 0, Sheet(1));
+        Assert.Equal(3, MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(8)));
+        Assert.Equal(8, TileAt(map, 0, 0, 0).SrcX);
+        Assert.Equal(8, TileAt(map, 0, 2, 0).SrcX);
+        Assert.Equal(TileType.Block, TileAt(map, 1, 1, 0).Type);
+    }
+
+    [Fact]
+    public void FloodFill_LargeEmptyRegion_TerminatesOnIterativeFill()
+    {
+        var map = new Map { Name = "Large", Width = 32, Height = 32 };
+        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        var changed = MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(2));
+        Assert.Equal(32 * 32, changed);
+        Assert.Equal(32 * 32, map.Layers[0].Tiles.Count);
+    }
+
+    [Fact]
+    public void FloodFill_SnapshotRestoresSheetAndTileAssetMaps()
+    {
+        var map = CreateMap();
+        MapEditOperations.PaintTile(map, 0, 0, 0, Sheet(1));
+        MapEditOperations.PaintTile(map, 0, 1, 0, Sheet(1));
+        var serializer = new MapSerializer();
+        var before = serializer.Serialize(map);
+        Assert.Equal(2, MapEditOperations.FloodFill(map, 0, 0, 0, Sheet(4)));
+        var restored = serializer.Deserialize(before);
+        Assert.Equal(1, restored.Layers[0].Tiles.Single(t => t.X == 0).SrcX);
+        Assert.Equal(1, restored.Layers[0].Tiles.Single(t => t.X == 1).SrcX);
+
+        var red = TileAssetId.FromStraightRgba(SolidRgba(255, 0, 0, 255));
+        var green = TileAssetId.FromStraightRgba(SolidRgba(0, 255, 0, 255));
+        var assets = MapFormat.CreateTileAssetMap("v6", 2, 1);
+        assets.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        MapEditOperations.PaintTile(assets, 0, 0, 0, new Tile { AssetId = red, Type = TileType.Ground });
+        var beforeV6 = serializer.Serialize(assets);
+        Assert.Equal(TileGraphicIdentity.TileAsset, assets.GraphicIdentity);
+        Assert.Equal(6, MapSerializer.TileAssetMapFileFormatVersion);
+        MapEditOperations.FloodFill(assets, 0, 0, 0, new Tile { AssetId = green, Type = TileType.Ground });
+        Assert.Equal(green, assets.Layers[0].Tiles.Single().AssetId);
+        var restoredV6 = serializer.Deserialize(beforeV6);
+        Assert.Equal(TileGraphicIdentity.TileAsset, restoredV6.GraphicIdentity);
+        Assert.Equal(red, restoredV6.Layers[0].Tiles.Single().AssetId);
+        Assert.Equal(TileAssetMetrics.TargetTileSizePixels, restoredV6.TileSizePixels);
     }
 
     [Fact]
@@ -233,6 +413,19 @@ public sealed class MapEditOperationsTests
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
         return map;
     }
+
+    private static Tile Sheet(int srcX) => new()
+    {
+        Type = TileType.Ground,
+        SrcX = srcX,
+        TilesetId = 1,
+    };
+
+    private static Tile? FindTile(Map map, int layer, int x, int y)
+        => map.Layers[layer].Tiles.SingleOrDefault(t => t.X == x && t.Y == y);
+
+    private static Tile TileAt(Map map, int layer, int x, int y)
+        => FindTile(map, layer, x, y) ?? throw new InvalidOperationException($"Tuile absente ({x},{y}).");
 
     private static byte[] SolidRgba(byte r, byte g, byte b, byte a)
     {

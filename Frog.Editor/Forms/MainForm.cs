@@ -418,6 +418,7 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Passer cette carte en TileAsset (v6)…", null, (_, _) => ConvertCurrentMapToTileAsset());
             mMap.DropDownItems.Add("Vérifier les transferts…", null, (_, _) => ShowTransferIssues());
+            mMap.DropDownItems.Add("Outil remplissage (F)", null, (_, _) => SelectEditorTool(EditorTool.Fill));
             mMap.DropDownItems.Add("Outil ligne (L)", null, (_, _) => SelectEditorTool(EditorTool.Line));
             mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
             mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
@@ -584,6 +585,16 @@ public sealed class MainForm : Form
 
         _leftToolsWpf = new EditorLeftToolsWpf();
         _leftToolsWpf.ToolChanged += tool => SelectEditorTool(tool);
+        _leftToolsWpf.FillVisibleUnlockedLayersChanged += enabled =>
+        {
+            _canvas.FillVisibleUnlockedLayers = enabled;
+            PushEditorStatusLine();
+        };
+        _leftToolsWpf.FillRespectAttributesChanged += enabled =>
+        {
+            _canvas.FillRespectAttributes = enabled;
+            PushEditorStatusLine();
+        };
         _leftToolsWpf.TileTypeChanged += type => _canvas.SelectedTileType = type;
         _leftToolsWpf.PrefabSelectionChanged += OnPrefabPaletteChanged;
         _leftToolsWpf.PrefabDuplicateRequested += OnDuplicateLastPrefab;
