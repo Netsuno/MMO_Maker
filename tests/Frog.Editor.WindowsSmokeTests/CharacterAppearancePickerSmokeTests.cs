@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Forms;
 using Frog.Client;
 using Frog.Client.Config;
+using Frog.Client.Controls;
 using Frog.Core.Gameplay;
 using Xunit;
 
@@ -30,6 +31,7 @@ public sealed class CharacterAppearancePickerSmokeTests
                 form = ClientSmokeTestAccess.CreateAndShowMainShell();
                 form.ShowCharacterSelectForTest();
                 var picker = form.AppearancePickerForTest;
+                WaitUntilPickerReady(picker);
                 Assert.Equal("Ocre", picker.ValueForTest(CharacterLookSlot.Tunic));
                 Assert.Equal("Chevalier", picker.ValueForTest(CharacterLookSlot.Body));
                 Assert.Equal("Naturel", picker.ValueForTest(CharacterLookSlot.Hair));
@@ -56,16 +58,22 @@ public sealed class CharacterAppearancePickerSmokeTests
                 picker.ClickNextForTest(CharacterLookSlot.Body);
                 Assert.Equal("Forêt", picker.ValueForTest(CharacterLookSlot.Body));
 
-                form.ActiveControl = form;
+                var outside = form.CharRefreshButtonForTest;
+                outside.Enabled = true;
+                WaitUntilInteractive(outside);
+                Assert.True(outside.Focus(), "Liste persos accepts focus beside the picker");
+                Assert.False(picker.ContainsFocus);
                 var beforeArrow = picker.ValueForTest(CharacterLookSlot.Body);
                 form.PressAppearanceArrowForTest(Keys.Right);
                 Assert.NotEqual(beforeArrow, picker.ValueForTest(CharacterLookSlot.Body));
                 form.PressAppearanceArrowForTest(Keys.Left);
                 Assert.Equal(beforeArrow, picker.ValueForTest(CharacterLookSlot.Body));
-                picker.Focus();
+                WaitUntilInteractive(picker);
+                Assert.True(picker.Focus(), "picker accepts focus for its own arrows");
                 Assert.True(picker.HandleKeyForTest(Keys.Down));
                 form.NewCharNameTextBoxForTest.Enabled = true;
-                form.NewCharNameTextBoxForTest.Focus();
+                WaitUntilInteractive(form.NewCharNameTextBoxForTest);
+                Assert.True(form.NewCharNameTextBoxForTest.Focus(), "name field accepts focus");
                 var hairBefore = picker.ValueForTest(CharacterLookSlot.Hair);
                 form.PressAppearanceArrowForTest(Keys.Right);
                 Assert.Equal(hairBefore, picker.ValueForTest(CharacterLookSlot.Hair));
@@ -111,6 +119,44 @@ public sealed class CharacterAppearancePickerSmokeTests
             }
         });
     }
+
+    private static void WaitUntilPickerReady(AppearancePickerPanel picker)
+    {
+        StaTestRunner.PumpUntil(
+            () => PickerInteractive(picker),
+            TimeSpan.FromSeconds(5));
+    }
+
+    private static bool PickerInteractive(AppearancePickerPanel picker)
+    {
+        if (!Interactive(picker))
+        {
+            return false;
+        }
+
+        foreach (CharacterLookSlot slot in Enum.GetValues<CharacterLookSlot>())
+        {
+            if (!Interactive(picker.NextButtonForTest(slot))
+                || !Interactive(picker.PreviousButtonForTest(slot)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void WaitUntilInteractive(Control control)
+    {
+        StaTestRunner.PumpUntil(() => Interactive(control), TimeSpan.FromSeconds(5));
+    }
+
+    private static bool Interactive(Control control)
+        => control.IsHandleCreated
+           && control.Visible
+           && control.Enabled
+           && control.CanSelect
+           && control.CanFocus;
 
     private static bool Contains(Bitmap bitmap, Color marker)
     {

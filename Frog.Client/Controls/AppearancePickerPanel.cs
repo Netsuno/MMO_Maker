@@ -89,12 +89,12 @@ public sealed class AppearancePickerPanel : UserControl
             case Keys.Up:
                 _focusSlot = (_focusSlot + _rows.Length - 1) % _rows.Length;
                 HighlightSlot();
-                _rows[_focusSlot].Focus();
+                FocusSlot(_rows[_focusSlot]);
                 break;
             case Keys.Down:
                 _focusSlot = (_focusSlot + 1) % _rows.Length;
                 HighlightSlot();
-                _rows[_focusSlot].Focus();
+                FocusSlot(_rows[_focusSlot]);
                 break;
             case Keys.Left:
                 NudgeSlot((CharacterLookSlot)_focusSlot, -1);
@@ -133,6 +133,20 @@ public sealed class AppearancePickerPanel : UserControl
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private static void FocusSlot(SlotRow row)
+    {
+        if (row.CanSelect)
+        {
+            row.Focus();
+            return;
+        }
+
+        if (row.NextButton.CanSelect)
+        {
+            row.NextButton.Focus();
+        }
     }
 
     private void NudgeSlot(CharacterLookSlot slot, int delta)
@@ -277,6 +291,7 @@ public sealed class AppearancePickerPanel : UserControl
             Height = 22;
             BackColor = Color.Transparent;
             TabStop = true;
+            SetStyle(ControlStyles.Selectable, true);
             AccessibleName = CharacterLook.Title(slot);
 
             _title = new Label

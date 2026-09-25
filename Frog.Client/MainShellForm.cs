@@ -4911,15 +4911,33 @@ public sealed class MainShellForm : Form
 
     internal Panel CharacterPanelForTest => _panelCharacter;
 
-    /// <summary>Affiche la page perso sans TCP — smokes de layout uniquement.</summary>
+    /// <summary>Affiche la page perso sans TCP et termine la mise en page avant tout focus.</summary>
     internal void ShowCharacterSelectForTest()
     {
         SetPhase(ClientUiPhase.CharacterSelect);
+        _panelCharacter.Visible = true;
+        _panelCharacter.BringToFront();
         PerformLayout();
-        _panelCharacter.PerformLayout();
-        foreach (Control child in _panelCharacter.Controls)
+        LayoutTree(_panelCharacter);
+        if (_panelCharacter.Visible)
         {
-            child.PerformLayout();
+            _panelCharacter.CreateControl();
+        }
+
+        if (_appearancePicker.Visible)
+        {
+            _appearancePicker.CreateControl();
+        }
+
+        System.Windows.Forms.Application.DoEvents();
+    }
+
+    private static void LayoutTree(Control root)
+    {
+        root.PerformLayout();
+        foreach (Control child in root.Controls)
+        {
+            LayoutTree(child);
         }
     }
 
