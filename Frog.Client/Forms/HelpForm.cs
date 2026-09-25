@@ -35,6 +35,13 @@ public sealed class HelpForm : Form
         • Sorts : choisissez une cible par son nom.
         • En cas de mort, le bouton Respawn apparaît.
 
+        Boutique et banque
+        • « Ouvrir la boutique » liste le nom, le prix et le stock. « Fermer la boutique » quitte la fenêtre.
+        • Acheter, vendre, déposer et retirer demandent un second clic (Confirmer).
+        • E sur un événement « shop:identifiant », ou à côté d'un PNJ de test lié, ouvre ou ferme cette boutique.
+        • Or insuffisant, stock épuisé, inventaire ou banque pleine s'affiche en français.
+        • Si la connexion tombe pendant l'envoi, l'action est interrompue. Vérifiez l'or après reconnexion.
+
         Échange entre joueurs
         • À portée (3 tuiles) : /trade NomDuJoueur, ou /trade avec le nom déjà saisi dans Cible whisper.
         • /trade invite <identifiant> reste possible. La fenêtre propose Accepter ou Refuser.

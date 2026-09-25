@@ -3,6 +3,7 @@ using Frog.Application.Assets;
 using Frog.Application.Content;
 using Frog.Application.Prefabs;
 using Frog.Core.Protocol;
+using Frog.Core.Shop;
 
 namespace Frog.Server.Gameplay;
 
@@ -55,6 +56,8 @@ public sealed class PublishedCatalogService(
                 Name = i.Name,
                 Type = i.Kind.ToString(),
                 Stackable = i.MaxStack > 1,
+                SellPrice = i.SellPrice,
+                MaxStack = i.MaxStack,
             }).ToArray(),
             Spells = spellList.Select(s => new PublishedSpellWireEntry
             {
@@ -67,11 +70,26 @@ public sealed class PublishedCatalogService(
                 Id = s.Id.ToString("D"),
                 Name = s.Name,
                 ItemIds = s.Listings.Select(l => l.ItemId.ToString("D")).ToArray(),
+                Listings = s.Listings.Select(l => new PublishedShopListingWireEntry
+                {
+                    ItemId = l.ItemId.ToString("D"),
+                    Price = l.Price,
+                    Stock = l.Stock,
+                    Unlimited = l.Stock is null,
+                }).ToArray(),
             }).ToArray(),
-            Npcs = npcList.Select(n => new PublishedNpcWireEntry
+            Npcs = npcList.Select(n =>
             {
-                Id = n.Id.ToString("D"),
-                Name = n.Name,
+                var shopId = ShopNpcLink.TryExtractShopId(n.Notes, out var linked)
+                             && shopList.Any(s => s.Id == linked)
+                    ? linked.ToString("D")
+                    : string.Empty;
+                return new PublishedNpcWireEntry
+                {
+                    Id = n.Id.ToString("D"),
+                    Name = n.Name,
+                    ShopId = shopId,
+                };
             }).ToArray(),
             Recipes = recipeList.Select(r => new PublishedRecipeWireEntry
             {

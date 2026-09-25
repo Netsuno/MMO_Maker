@@ -54,7 +54,7 @@ public sealed class GameplayClientSmokeTests
                 var weaponId = form.SelectedCatalogWeaponIdForTest;
                 Assert.NotNull(weaponId);
 
-                form.ShopBuyButtonForTest.PerformClick();
+                form.ConfirmShopBuyForTest();
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.ListedItemCountForTest > 0
@@ -165,7 +165,7 @@ public sealed class GameplayClientSmokeTests
                 var weaponId = form.SelectedCatalogWeaponIdForTest;
                 Assert.NotNull(weaponId);
 
-                form.ShopBuyButtonForTest.PerformClick();
+                form.ConfirmShopBuyForTest();
                 Pump(
                     form,
                     () => form.CharacterSheetForTest.BagCountForTest > 0
@@ -255,14 +255,14 @@ public sealed class GameplayClientSmokeTests
                 // P7-I1 : arme (stack 1) puis consommable — deux slots distincts.
                 // par défaut a MaxStack=20 et serait empilé si acheté deux fois).
                 Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "select weapon");
-                form.ShopBuyButtonForTest.PerformClick();
+                form.ConfirmShopBuyForTest();
                 Pump(
                     form,
                     () => form.LogContainsForTest("Achat: Achat reussi.") && form.InventoryPanelForTest.ListedItemCountForTest > 0,
                     "buy weapon");
 
                 Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "select consumable");
-                form.ShopBuyButtonForTest.PerformClick();
+                form.ConfirmShopBuyForTest();
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.ListedItemCountForTest >= 2,
@@ -271,7 +271,7 @@ public sealed class GameplayClientSmokeTests
                 Assert.True(form.InventoryPanelForTest.SelectedInventorySlotForTest > 0);
 
                 form.BankQtyNumericForTest.Value = 1;
-                form.BankDepositItemButtonForTest.PerformClick();
+                form.ConfirmBankDepositItemForTest();
                 Pump(
                     form,
                     () => form.LogContainsForTest("Banque dépôt: Depose en banque.") && form.BankItemsCountForTest > 0,
@@ -281,21 +281,21 @@ public sealed class GameplayClientSmokeTests
                     row => row.ToString()!.Contains('×', StringComparison.Ordinal));
 
                 form.BankItemsListForTest.SelectedIndex = 0;
-                form.BankWithdrawItemButtonForTest.PerformClick();
+                form.ConfirmBankWithdrawItemForTest();
                 Pump(
                     form,
                     () => form.LogContainsForTest("Banque retrait: Retire de la banque.") && form.BankItemsCountForTest == 0,
                     "bank item withdraw success");
 
                 form.BankGoldNumericForTest.Value = 10;
-                form.BankDepositGoldButtonForTest.PerformClick();
+                form.ConfirmBankDepositGoldForTest();
                 Pump(form, () => form.LogContainsForTest("Banque dépôt: Operation reussie."), "bank gold deposit success");
 
-                form.BankWithdrawGoldButtonForTest.PerformClick();
+                form.ConfirmBankWithdrawGoldForTest();
                 Pump(form, () => form.LogContainsForTest("Banque retrait: Operation reussie."), "bank gold withdraw success");
 
                 form.InventoryPanelForTest.SelectSlotByIndexForTest(1);
-                form.ShopSellButtonForTest.PerformClick();
+                form.ConfirmShopSellForTest();
                 Pump(form, () => form.LogContainsForTest("Vente: Vente reussie."), "shop sell success");
             }
             finally
@@ -431,7 +431,7 @@ public sealed class GameplayClientSmokeTests
                 Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "select weapon");
                 var weaponId = form.SelectedCatalogWeaponIdForTest;
                 Assert.NotNull(weaponId);
-                form.ShopBuyButtonForTest.PerformClick();
+                form.ConfirmShopBuyForTest();
                 Pump(form, () => form.InventoryPanelForTest.ListedItemCountForTest > 0, "inventory has item");
 
                 // P7-G5 : succès strict — le drop doit réussir, plus de secours "ou refusé".
@@ -484,16 +484,16 @@ public sealed class GameplayClientSmokeTests
                 harness.SetCharacterGoldForTest(150);
 
                 Pump(form, () => form.TrySelectConsumableFromCatalogForTest(), "consumable for bank shot");
-                form.ShopBuyButtonForTest.PerformClick();
+                form.ConfirmShopBuyForTest();
                 Pump(form, () => form.LogContainsForTest("Achat: Achat reussi."), "shop buy for screenshot");
                 form.InventoryPanelForTest.SelectSlotByIndexForTest(0);
                 form.BankQtyNumericForTest.Value = 1;
-                form.BankDepositItemButtonForTest.PerformClick();
+                form.ConfirmBankDepositItemForTest();
                 Pump(form, () => form.BankItemsCountForTest > 0, "bank deposit for screenshot");
                 ClientSmokeTestAccess.SaveScreenshot(form, "06-bank-shop.png");
 
                 Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "weapon for ground shot");
-                form.ShopBuyButtonForTest.PerformClick();
+                form.ConfirmShopBuyForTest();
                 Pump(form, () => form.InventoryPanelForTest.ListedItemCountForTest > 0, "weapon bought");
                 form.InventoryPanelForTest.SelectFirstForTest();
                 form.InventoryPanelForTest.ClickDropForTest();
