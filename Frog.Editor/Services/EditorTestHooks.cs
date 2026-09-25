@@ -41,6 +41,7 @@ internal static class EditorTestHooks
     /// <summary>Chemin client injecté (smoke).</summary>
     public static string? OverrideClientExePath { get; set; }
 
+    /// <summary>Smoke : ne pas recharger les marqueurs d’événements au démarrage. Le nom date du menu MariaDB ; le rechargement est PostgreSQL.</summary>
     public static bool SkipMariaDbOnStartup { get; set; }
 
     /// <summary>P10-6 : <c>Frog.Editor.exe --smoke-launch</c> — fenêtre réelle puis sortie 0, sans workspace PG.</summary>

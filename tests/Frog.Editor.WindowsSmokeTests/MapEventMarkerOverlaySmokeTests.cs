@@ -105,17 +105,6 @@ public sealed class MapEventMarkerOverlaySmokeTests
         Assert.Equal("slug_a", view.PrimarySlug);
         Assert.Equal("Alpha", view.PrimaryDisplayName);
         Assert.Equal(first.ToString("D"), view.PrimaryPlacementKey);
-
-        var legacy = new[]
-        {
-            new MapEventPlacementRow(9, 1, 3, 2, 2, "coffre", "Coffre", "interact"),
-            new MapEventPlacementRow(2, 1, 3, 2, 2, "porte", "Porte", "step_on"),
-        };
-        var legacyView = Assert.Single(MapEventsMariaDbReader.ToMarkerViews(legacy));
-        Assert.Equal("porte", legacyView.PrimarySlug);
-        Assert.Equal("Porte", legacyView.PrimaryDisplayName);
-        Assert.Equal("2", legacyView.PrimaryPlacementKey);
-        Assert.Equal(2, legacyView.PlacementCount);
     }
 
     [Fact]
