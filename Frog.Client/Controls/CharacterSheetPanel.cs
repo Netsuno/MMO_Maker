@@ -50,12 +50,16 @@ public sealed class CharacterSheetPanel : UserControl
     private readonly List<BagRow> _bag = new();
     private InventorySnapshotWire? _bagSnapshot;
     private PaperdollOverlaySet _appearance;
+    private CharacterLook _look;
     private Func<Guid, string> _names = static id => id.ToString("N")[..8];
     private Func<Guid, ItemType?>? _types;
 
     public event Action? ToggleTunicRequested;
 
     public event Action? ToggleHeadwearRequested;
+
+    /// <summary>Clic Corps ou Tête : style suivant (cheveux = couche head). Local, pas un paquet.</summary>
+    public event Action<CharacterLookSlot>? LookCycled;
 
     public event Action<byte>? EquipRequested;
 
@@ -209,6 +213,8 @@ public sealed class CharacterSheetPanel : UserControl
         return $"{who} · Niv {niv}";
     }
 
+    public void ApplyLook(CharacterLook look) => _look = look.Normalized();
+
     public void ApplyLoadout(Equipment equipment, Func<Guid, string>? nameLookup, string? playerName, int? level)
     {
         ArgumentNullException.ThrowIfNull(equipment);
@@ -216,16 +222,37 @@ public sealed class CharacterSheetPanel : UserControl
         _appearance = EquipmentService.ToOverlaySet(equipment);
         _identity.Text = FormatIdentity(playerName, level);
         _identity.ForeColor = UiTheme.TextPrimary;
-        _preview.SetAppearance(_appearance);
+        _preview.SetAppearance(_appearance, _look);
         foreach (var entry in Layers)
         {
             var slot = _slots[(int)entry.Layer];
             var occupied = _appearance.IsLayerVisible(entry.Layer);
-            var detail = DetailFor(entry.Layer, equipment, _names);
+            var detail = DisplayDetail(entry.Layer, equipment);
             var icon = PlayerWorldAssets.LayerIcon((PlayerSpriteSlot)(byte)entry.Layer);
             slot.Apply(occupied, detail, icon);
-            _tips.SetToolTip(slot, $"{entry.Label} : {detail}");
+            var hint = entry.Layer switch
+            {
+                PaperdollLayer.Body => $"{entry.Label} : {detail}. Clic : style suivant.",
+                PaperdollLayer.Head => $"Cheveux : {detail}. Clic : style suivant.",
+                _ => $"{entry.Label} : {detail}",
+            };
+            _tips.SetToolTip(slot, hint);
         }
+    }
+
+    private string DisplayDetail(PaperdollLayer layer, Equipment equipment)
+    {
+        if (layer == PaperdollLayer.Body && _look.Body != 0)
+        {
+            return _look.Label(CharacterLookSlot.Body);
+        }
+
+        if (layer == PaperdollLayer.Head && _look.Hair != 0)
+        {
+            return _look.Label(CharacterLookSlot.Hair);
+        }
+
+        return DetailFor(layer, equipment, _names);
     }
 
     /// <summary>Sac du snapshot serveur. Le type vient du catalogue publié (null si inconnu).</summary>
@@ -264,7 +291,7 @@ public sealed class CharacterSheetPanel : UserControl
     {
         var bmp = new Bitmap(_preview.Width, _preview.Height, PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(bmp);
-        PaintPreview(g, new Rectangle(0, 0, bmp.Width, bmp.Height), _appearance);
+        PaintPreview(g, new Rectangle(0, 0, bmp.Width, bmp.Height), _appearance, _look);
         return bmp;
     }
 
@@ -323,6 +350,12 @@ public sealed class CharacterSheetPanel : UserControl
     {
         switch (layer)
         {
+            case PaperdollLayer.Body:
+                LookCycled?.Invoke(CharacterLookSlot.Body);
+                return;
+            case PaperdollLayer.Head:
+                LookCycled?.Invoke(CharacterLookSlot.Hair);
+                return;
             case PaperdollLayer.Tunic:
                 ToggleTunicRequested?.Invoke();
                 return;
@@ -428,7 +461,7 @@ public sealed class CharacterSheetPanel : UserControl
         return string.IsNullOrWhiteSpace(name) ? itemId.ToString("N")[..8] : name.Trim();
     }
 
-    internal static void PaintPreview(Graphics g, Rectangle bounds, PaperdollOverlaySet appearance)
+    internal static void PaintPreview(Graphics g, Rectangle bounds, PaperdollOverlaySet appearance, CharacterLook look = default)
     {
         ArgumentNullException.ThrowIfNull(g);
         using (var fill = new SolidBrush(UiTheme.BgSlot))
@@ -442,7 +475,7 @@ public sealed class CharacterSheetPanel : UserControl
             g.DrawRectangle(pen, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
         }
 
-        var frame = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown, appearance);
+        var frame = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown, appearance, look);
         var size = Math.Min(PlayerWorldAssets.NativeSize * PreviewScale, Math.Max(1, Math.Min(bounds.Width - 4, bounds.Height - 4)));
         var dest = new Rectangle(
             bounds.X + ((bounds.Width - size) / 2),
@@ -470,6 +503,7 @@ public sealed class CharacterSheetPanel : UserControl
     private sealed class PreviewView : Panel
     {
         private PaperdollOverlaySet _appearance;
+        private CharacterLook _look;
 
         public PreviewView()
         {
@@ -488,14 +522,15 @@ public sealed class CharacterSheetPanel : UserControl
             AccessibleName = "Aperçu";
         }
 
-        public void SetAppearance(PaperdollOverlaySet appearance)
+        public void SetAppearance(PaperdollOverlaySet appearance, CharacterLook look)
         {
             _appearance = appearance;
+            _look = look;
             Invalidate();
         }
 
         protected override void OnPaint(PaintEventArgs e) =>
-            PaintPreview(e.Graphics, ClientRectangle, _appearance);
+            PaintPreview(e.Graphics, ClientRectangle, _appearance, _look);
     }
 
     private sealed class SlotView : Panel
@@ -514,7 +549,9 @@ public sealed class CharacterSheetPanel : UserControl
             Dock = DockStyle.Fill;
             Margin = new Padding(2);
             BackColor = UiTheme.BgSlot;
-            Cursor = layer is PaperdollLayer.Body or PaperdollLayer.Head ? Cursors.Default : Cursors.Hand;
+            Cursor = layer is PaperdollLayer.Body or PaperdollLayer.Head or PaperdollLayer.Tunic or PaperdollLayer.Hat
+                ? Cursors.Hand
+                : Cursors.Default;
             SetStyle(
                 ControlStyles.UserPaint
                 | ControlStyles.AllPaintingInWmPaint
@@ -536,11 +573,9 @@ public sealed class CharacterSheetPanel : UserControl
             _occupied = occupied;
             _detail = detail;
             _icon = occupied ? icon : null;
-            Cursor = Layer is PaperdollLayer.Body or PaperdollLayer.Head
-                ? Cursors.Default
-                : Layer is PaperdollLayer.Tunic or PaperdollLayer.Hat || occupied
-                    ? Cursors.Hand
-                    : Cursors.Default;
+            Cursor = Layer is PaperdollLayer.Body or PaperdollLayer.Head or PaperdollLayer.Tunic or PaperdollLayer.Hat || occupied
+                ? Cursors.Hand
+                : Cursors.Default;
             Invalidate();
         }
 

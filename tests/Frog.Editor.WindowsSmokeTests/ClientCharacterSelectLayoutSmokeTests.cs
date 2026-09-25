@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows.Forms;
 using Frog.Client;
 using Frog.Client.Config;
+using Frog.Core.Gameplay;
 using Xunit;
 
 namespace Frog.Editor.WindowsSmokeTests;
@@ -36,6 +37,10 @@ public sealed class ClientCharacterSelectLayoutSmokeTests
                 Assert.Equal("Créer perso", form.CharCreateButtonForTest.Text);
                 Assert.Equal("Liste persos", form.CharRefreshButtonForTest.Text);
                 Assert.Equal("Retour à la connexion (fermer la session)", form.BackDisconnectButtonForTest.Text);
+                Assert.Equal("Apparence", form.AppearancePickerForTest.AccessibleName);
+                Assert.Equal("Chevalier", form.AppearancePickerForTest.ValueForTest(CharacterLookSlot.Body));
+                Assert.Equal("Naturel", form.AppearancePickerForTest.ValueForTest(CharacterLookSlot.Hair));
+                Assert.Equal("Ocre", form.AppearancePickerForTest.ValueForTest(CharacterLookSlot.Tunic));
 
                 foreach (var client in new[]
                          {
@@ -76,13 +81,17 @@ public sealed class ClientCharacterSelectLayoutSmokeTests
     private static void FlushLayout(MainShellForm form)
     {
         form.PerformLayout();
-        form.CharacterPanelForTest.PerformLayout();
-        foreach (Control child in form.CharacterPanelForTest.Controls)
-        {
-            child.PerformLayout();
-        }
-
+        LayoutTree(form.CharacterPanelForTest);
         System.Windows.Forms.Application.DoEvents();
+    }
+
+    private static void LayoutTree(Control root)
+    {
+        root.PerformLayout();
+        foreach (Control child in root.Controls)
+        {
+            LayoutTree(child);
+        }
     }
 
     private static void AssertActionButtonsFullyVisible(MainShellForm form, string sizeLabel)
@@ -92,6 +101,10 @@ public sealed class ClientCharacterSelectLayoutSmokeTests
         AssertFullyVisibleInAncestors(form.CharCreateButtonForTest, form, sizeLabel);
         AssertFullyVisibleInAncestors(form.CharRefreshButtonForTest, form, sizeLabel);
         AssertFullyVisibleInAncestors(form.BackDisconnectButtonForTest, form, sizeLabel);
+        AssertFullyVisibleInAncestors(form.AppearancePickerForTest.NextButtonForTest(CharacterLookSlot.Body), form, sizeLabel);
+        AssertFullyVisibleInAncestors(form.AppearancePickerForTest.NextButtonForTest(CharacterLookSlot.Hair), form, sizeLabel);
+        AssertFullyVisibleInAncestors(form.AppearancePickerForTest.NextButtonForTest(CharacterLookSlot.Tunic), form, sizeLabel);
+        AssertFullyVisibleInAncestors(form.AppearancePickerForTest.PreviousButtonForTest(CharacterLookSlot.Tunic), form, sizeLabel);
     }
 
     private static void AssertFullyVisibleInAncestors(Control control, Control root, string sizeLabel)

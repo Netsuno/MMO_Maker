@@ -73,6 +73,8 @@ internal static class PlayerWorldAssets
     private static Bitmap? _hatSheet;
     private static Bitmap? _weaponSheet;
     private static Bitmap?[]? _layerIcons;
+    private static readonly Dictionary<(PlayerSpriteSlot Slot, byte Index), Bitmap> _styledSheets = new();
+    private static readonly Dictionary<long, Bitmap> _styledFrames = new();
     private static bool _resolved;
     private static string? _resolvedPath;
 
@@ -130,11 +132,20 @@ internal static class PlayerWorldAssets
     }
 
     /// <summary>Composed 32×32 cell for a pose (south idle when the walk sheet is missing).</summary>
-    internal static Bitmap FrameFor(PlayerSpritePose pose, PaperdollOverlaySet appearance = default)
+    internal static Bitmap FrameFor(
+        PlayerSpritePose pose,
+        PaperdollOverlaySet appearance = default,
+        CharacterLook look = default)
     {
         EnsureLoaded();
+        look = look.Normalized();
         var row = pose.SheetRow;
         var col = pose.SheetColumn;
+        if (NeedsPalette(appearance, look))
+        {
+            return StyledFrame(col, row, appearance, look);
+        }
+
         if (appearance.Equals(default(PaperdollOverlaySet)))
         {
             return _frames[row, col] ?? _sprite!;
@@ -150,7 +161,7 @@ internal static class PlayerWorldAssets
                 return cached;
             }
 
-            cached = RenderCell(col, row, appearance);
+            cached = RenderCell(col, row, appearance, CharacterLook.Default);
             _overlayFrames[index, row, col] = cached;
             return cached;
         }
@@ -191,10 +202,11 @@ internal static class PlayerWorldAssets
         float centerYPx,
         bool other,
         PlayerSpritePose pose = default,
-        PaperdollOverlaySet appearance = default)
+        PaperdollOverlaySet appearance = default,
+        CharacterLook look = default)
     {
         ArgumentNullException.ThrowIfNull(g);
-        var sprite = FrameFor(pose, appearance);
+        var sprite = FrameFor(pose, appearance, look);
         var dw = sprite.Width * DrawScale;
         var dh = sprite.Height * DrawScale;
         var dest = new Rectangle(
@@ -305,13 +317,112 @@ internal static class PlayerWorldAssets
         => TryLoadNamedPng(walkPath, walkEmbedded, WalkSheetWidth, WalkSheetHeight)
             ?? TryLoadNamedPng(idlePath, idleEmbedded, NativeSize, NativeSize);
 
-    private static Bitmap RenderCell(int col, int row, PaperdollOverlaySet set)
+    private static bool NeedsPalette(PaperdollOverlaySet appearance, CharacterLook look) =>
+        look.Body != 0 || look.Hair != 0 || (appearance.Tunic && look.Tunic >= 2);
+
+    private static Bitmap StyledFrame(int col, int row, PaperdollOverlaySet set, CharacterLook look)
+    {
+        var key = StyleKey(col, row, set, look);
+        lock (Gate)
+        {
+            if (_styledFrames.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            cached = RenderCell(col, row, set, look);
+            _styledFrames[key] = cached;
+            if (_styledFrames.Count > 768)
+            {
+                foreach (var pair in _styledFrames.ToArray())
+                {
+                    if (pair.Key == key)
+                    {
+                        continue;
+                    }
+
+                    pair.Value.Dispose();
+                    _styledFrames.Remove(pair.Key);
+                }
+            }
+
+            return cached;
+        }
+    }
+
+    private static long StyleKey(int col, int row, PaperdollOverlaySet set, CharacterLook look)
+    {
+        look = look.Normalized();
+        return ((long)row << 40)
+            | ((long)col << 36)
+            | ((long)OverlayIndex(set) << 24)
+            | ((long)look.Body << 16)
+            | ((long)look.Hair << 8)
+            | look.Tunic;
+    }
+
+    private static Bitmap? StyledSheet(PlayerSpriteSlot slot, CharacterLook look)
+    {
+        var source = SheetFor(slot);
+        if (source is null)
+        {
+            return null;
+        }
+
+        var index = slot switch
+        {
+            PlayerSpriteSlot.Body => look.Body,
+            PlayerSpriteSlot.Head => look.Hair,
+            PlayerSpriteSlot.Tunic => look.Tunic,
+            _ => (byte)0,
+        };
+        if (index == 0 || (slot == PlayerSpriteSlot.Tunic && index <= 1) || slot is not (
+            PlayerSpriteSlot.Body or PlayerSpriteSlot.Head or PlayerSpriteSlot.Tunic))
+        {
+            return source;
+        }
+
+        var key = (slot, index);
+        if (_styledSheets.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var kind = slot switch
+        {
+            PlayerSpriteSlot.Body => CharacterLookSlot.Body,
+            PlayerSpriteSlot.Head => CharacterLookSlot.Hair,
+            _ => CharacterLookSlot.Tunic,
+        };
+        cached = RecolorSheet(source, kind, index);
+        _styledSheets[key] = cached;
+        return cached;
+    }
+
+    private static Bitmap RecolorSheet(Bitmap source, CharacterLookSlot kind, byte index)
+    {
+        var clone = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
+        for (var y = 0; y < source.Height; y++)
+        {
+            for (var x = 0; x < source.Width; x++)
+            {
+                var pixel = source.GetPixel(x, y);
+                var tint = CharacterLookTint.Apply(kind, index, pixel.R, pixel.G, pixel.B, pixel.A);
+                clone.SetPixel(x, y, Color.FromArgb(tint.A, tint.R, tint.G, tint.B));
+            }
+        }
+
+        return clone;
+    }
+
+    private static Bitmap RenderCell(int col, int row, PaperdollOverlaySet set, CharacterLook look)
     {
         if (_bodySheet is null || _headSheet is null)
         {
             return _frames[row, col] ?? _sprite ?? CreateFallbackRaster();
         }
 
+        look = look.Normalized();
         var composed = new Bitmap(NativeSize, NativeSize, PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(composed);
         g.SmoothingMode = SmoothingMode.None;
@@ -325,7 +436,7 @@ internal static class PlayerWorldAssets
                 continue;
             }
 
-            var sheet = SheetFor(slot);
+            var sheet = StyledSheet(slot, look);
             if (sheet is null)
             {
                 continue;

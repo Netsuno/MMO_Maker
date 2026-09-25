@@ -99,6 +99,13 @@ public sealed class EquipmentPanel : UserControl
         ApplyTunicLabel();
     }
 
+    /// <summary>Pose ou retire la tunique locale sans événement (look déjà décidé).</summary>
+    public void SetLocalTunic(bool worn)
+    {
+        _localTunic = worn;
+        ApplyTunicLabel();
+    }
+
     internal void ClickUnequipWeaponForTest() => _btnUnequipWeapon.PerformClick();
 
     internal void ClickUnequipArmorForTest() => _btnUnequipArmor.PerformClick();
@@ -122,6 +129,13 @@ public sealed class EquipmentPanel : UserControl
     internal string TunicLabelTextForTest => _lblTunic.Text;
 
     internal string TunicButtonTextForTest => _btnToggleTunic.Text;
+
+    internal bool TunicToggleInteractiveForTest
+        => _btnToggleTunic.IsHandleCreated
+           && _btnToggleTunic.Visible
+           && _btnToggleTunic.Enabled
+           && _btnToggleTunic.CanSelect
+           && _btnToggleTunic.CanFocus;
 
     internal bool UnequipWeaponEnabledForTest => _btnUnequipWeapon.Enabled;
 

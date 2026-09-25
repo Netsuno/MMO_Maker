@@ -138,7 +138,7 @@ public sealed class HudStatusModule : HudModulePanel
         {
             try
             {
-                var frame = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown, _portrait.AppearanceForTest);
+                var frame = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown, _portrait.AppearanceForTest, _portrait.LookForTest);
                 return frame.Width == PlayerWorldAssets.NativeSize && frame.Height == PlayerWorldAssets.NativeSize;
             }
             catch (Exception)
@@ -257,6 +257,9 @@ public sealed class HudStatusModule : HudModulePanel
     /// </summary>
     public void ApplyPortrait(PaperdollOverlaySet appearance) => _portrait.SetAppearance(appearance);
 
+    /// <summary>Palettes locales (corps, cheveux, tunique). Pas un champ de protocole.</summary>
+    public void ApplyLook(CharacterLook look) => _portrait.SetLook(look);
+
     private void CenterPortrait(Panel host)
     {
         _portrait.Location = new Point(
@@ -355,6 +358,7 @@ public sealed class HudStatusModule : HudModulePanel
     {
         private string _initial = string.Empty;
         private PaperdollOverlaySet _appearance;
+        private CharacterLook _look;
 
         public CircularPortraitPlaceholder()
         {
@@ -376,6 +380,8 @@ public sealed class HudStatusModule : HudModulePanel
         internal string InitialForTest => _initial;
 
         internal PaperdollOverlaySet AppearanceForTest => _appearance;
+
+        internal CharacterLook LookForTest => _look;
 
         internal bool IsCircularRegionForTest
         {
@@ -412,6 +418,18 @@ public sealed class HudStatusModule : HudModulePanel
             }
 
             _appearance = appearance;
+            Invalidate();
+        }
+
+        public void SetLook(CharacterLook look)
+        {
+            look = look.Normalized();
+            if (look.Equals(_look))
+            {
+                return;
+            }
+
+            _look = look;
             Invalidate();
         }
 
@@ -484,7 +502,7 @@ public sealed class HudStatusModule : HudModulePanel
             var prevOffset = g.PixelOffsetMode;
             try
             {
-                var frame = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown, _appearance);
+                var frame = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown, _appearance, _look);
                 if (frame.Width <= 0 || frame.Height <= 0)
                 {
                     return false;
