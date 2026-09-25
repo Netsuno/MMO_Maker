@@ -177,6 +177,21 @@ public partial class MainWindow : Window
         nameof(CmdPasteSelection),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdSaveSelectionTemplate = new(
+        "Enregistrer la sélection comme modèle…",
+        nameof(CmdSaveSelectionTemplate),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdSaveMapTemplate = new(
+        "Enregistrer la carte comme modèle…",
+        nameof(CmdSaveMapTemplate),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdStampTemplate = new(
+        "Poser un modèle…",
+        nameof(CmdStampTemplate),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdRotateSelection = new(
         "Rotation 90°",
         nameof(CmdRotateSelection),
@@ -302,6 +317,9 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdMirrorHorizontal, (_, _) => _editor.TryMirrorSelectionHorizontal()));
         CommandBindings.Add(new CommandBinding(CmdMirrorVertical, (_, _) => _editor.TryMirrorSelectionVertical()));
         CommandBindings.Add(new CommandBinding(CmdTilePipette, (_, _) => _editor.TryPipetteAtHover()));
+        CommandBindings.Add(new CommandBinding(CmdSaveSelectionTemplate, (_, _) => _editor.SaveSelectionAsMapTemplate()));
+        CommandBindings.Add(new CommandBinding(CmdSaveMapTemplate, (_, _) => _editor.SaveCurrentMapAsTemplate()));
+        CommandBindings.Add(new CommandBinding(CmdStampTemplate, (_, _) => _editor.PromptStampMapTemplate()));
         CommandBindings.Add(new CommandBinding(CmdQuickTalkingNpc, (_, _) => _editor.OpenQuickTalkingNpc()));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEvents()));
         CommandBindings.Add(new CommandBinding(CmdBrowsePhase8Content, (_, _) => _editor.BrowsePhase8Content()));

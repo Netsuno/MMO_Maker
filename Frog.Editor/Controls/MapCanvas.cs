@@ -556,6 +556,74 @@ public sealed class MapCanvas : Control
         return pasted.Changed;
     }
 
+    internal bool TryGetCommittedSelectionBounds(out Rectangle rect)
+        => TryGetCommittedSelectionNormalized(out rect);
+
+    /// <summary>
+    /// Pose un modèle à l’ancre (coin haut-gauche). Les tuiles passent par l’annulation
+    /// déjà en place. Les prefabs restent hors de cette pile, comme une pose directe.
+    /// </summary>
+    public bool TryApplyMapTemplate(
+        MapStampTemplate template,
+        int anchorX,
+        int anchorY,
+        out string? status,
+        out string? error)
+    {
+        status = null;
+        if (Map is null)
+        {
+            error = "Aucune carte chargée.";
+            return false;
+        }
+
+        if (!MapStampTemplateOperations.TryValidateForStamp(Map, template, anchorX, anchorY, out error))
+        {
+            return false;
+        }
+
+        var tiles = MapStampTemplateOperations.ApplyTiles(Map, template, anchorX, anchorY, BeginEditTransaction);
+        var placed = 0;
+        var skipped = 0;
+        foreach (var prefab in MapStampTemplateOperations.PrefabsAt(template, anchorX, anchorY))
+        {
+            if (PrefabPlacementService.TryPlace(
+                    _prefabPlacements,
+                    PrefabCatalog,
+                    prefab.PrefabId,
+                    prefab.Facing,
+                    prefab.TileX,
+                    prefab.TileY,
+                    Map.Width,
+                    Map.Height,
+                    out _,
+                    out _))
+            {
+                placed++;
+            }
+            else
+            {
+                skipped++;
+            }
+        }
+
+        if (!tiles.Changed && placed == 0)
+        {
+            error = MapStampTemplateOperations.FormatRejected(tiles, skipped);
+            return false;
+        }
+
+        if (placed > 0)
+        {
+            PrefabPlacementsChanged?.Invoke();
+        }
+
+        Invalidate();
+        status = MapStampTemplateOperations.FormatStamped(template, anchorX, anchorY, tiles, placed, skipped);
+        error = null;
+        return true;
+    }
+
     public bool TryDeleteSelectedTiles(bool activeLayerOnly = false)
     {
         if (Map is null || !TryGetCommittedSelectionNormalized(out var rect))
