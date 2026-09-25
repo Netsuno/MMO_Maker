@@ -5,7 +5,7 @@ using Frog.Core.Enums;
 namespace Frog.Core.Gameplay;
 
 /// <summary>
-/// IA monstre in-memory : aggro, poursuite, attaque. Pas d'arbre de comportement.
+/// IA monstre in-memory : aggro, poursuite, mêlée, retour au spawn. Pas d'arbre de comportement.
 /// Le rayon d'aggro compte en tuiles de contenu 48 px (<see cref="TileAssetMetrics"/>),
 /// pas en <see cref="WorldMetrics.DefaultTileSizePixels"/>.
 /// </summary>
@@ -49,6 +49,9 @@ public enum MonsterAiOrder : byte
     Wander = 1,
     Chase = 2,
     Attack = 3,
+
+    /// <summary>Retour au point de spawn après laisse ou timeout. Pas de nouvelle cible avant d'y être.</summary>
+    Return = 4,
 }
 
 /// <summary>Mémoire par instance. Une seule cible principale.</summary>
@@ -69,6 +72,9 @@ public sealed class MonsterAiMemory
     public int HomeY { get; set; }
 
     public bool HomeSet { get; set; }
+
+    /// <summary>Vrai tant que l'instance n'a pas rejoint <see cref="HomeX"/> / <see cref="HomeY"/>.</summary>
+    public bool Returning { get; set; }
 }
 
 public readonly record struct MonsterAiActor(
@@ -102,7 +108,8 @@ public static class MonsterAi
         DateTime utcNow,
         int widthPx,
         int heightPx,
-        Func<int, int, bool> blocked)
+        Func<int, int, bool> blocked,
+        bool rangedCapable = false)
     {
         ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(actors);
@@ -118,15 +125,34 @@ public static class MonsterAi
         if (hp <= 0)
         {
             memory.TargetId = null;
+            memory.Returning = false;
             return new MonsterAiIntent(MonsterAiOrder.Hold, null, x, y, AttackStyle.Melee);
         }
 
         var width = widthPx > 0 ? widthPx : TileAssetMetrics.TargetTileSizePixels;
         var height = heightPx > 0 ? heightPx : TileAssetMetrics.TargetTileSizePixels;
-        var target = ResolveTarget(mapId, x, y, memory, actors, utcNow);
-        if (target is { } engaged)
+        if (memory.Returning)
         {
-            return Engage(x, y, memory, engaged, utcNow, width, height, blocked);
+            var back = ReturnHome(x, y, memory, width, height, blocked);
+            if (back is { } walkingHome)
+            {
+                return walkingHome;
+            }
+        }
+
+        var target = ResolveTarget(mapId, x, y, memory, actors, utcNow);
+        if (target is { } engaged && !memory.Returning)
+        {
+            return Engage(x, y, memory, engaged, utcNow, width, height, blocked, rangedCapable);
+        }
+
+        if (memory.Returning)
+        {
+            var back = ReturnHome(x, y, memory, width, height, blocked);
+            if (back is { } walkingHome)
+            {
+                return walkingHome;
+            }
         }
 
         return Wander(x, y, memory, utcNow, width, height, blocked);
@@ -145,25 +171,30 @@ public static class MonsterAi
             var kept = Find(actors, current);
             if (kept is null || !kept.Value.Alive || kept.Value.MapId != mapId)
             {
-                memory.TargetId = null;
+                DropCombat(memory, x, y);
+            }
+            else if (OutsideHomeLeash(memory, x, y) || OutsideHomeLeash(memory, kept.Value.X, kept.Value.Y))
+            {
+                DropCombat(memory, x, y);
             }
             else
             {
                 var dist = WorldMetrics.DistanceSquaredPixels(x, y, kept.Value.X, kept.Value.Y);
-                if (dist > (long)MonsterAiLimits.LeashRadiusPixels * MonsterAiLimits.LeashRadiusPixels)
-                {
-                    memory.TargetId = null;
-                }
-                else if (dist <= (long)MonsterAiLimits.AggroRadiusPixels * MonsterAiLimits.AggroRadiusPixels)
+                if (dist <= (long)MonsterAiLimits.AggroRadiusPixels * MonsterAiLimits.AggroRadiusPixels)
                 {
                     memory.LastInAggroUtc = utcNow;
                 }
                 else if (memory.LastInAggroUtc != default
                          && (utcNow - memory.LastInAggroUtc).TotalMilliseconds >= MonsterAiLimits.AggroTimeoutMs)
                 {
-                    memory.TargetId = null;
+                    DropCombat(memory, x, y);
                 }
             }
+        }
+
+        if (memory.Returning)
+        {
+            return null;
         }
 
         if (memory.TargetId is Guid still)
@@ -175,7 +206,7 @@ public static class MonsterAi
         var bestDist = long.MaxValue;
         foreach (var actor in actors)
         {
-            if (!actor.Alive || actor.MapId != mapId)
+            if (!actor.Alive || actor.MapId != mapId || OutsideHomeLeash(memory, actor.X, actor.Y))
             {
                 continue;
             }
@@ -219,11 +250,11 @@ public static class MonsterAi
         DateTime utcNow,
         int widthPx,
         int heightPx,
-        Func<int, int, bool> blocked)
+        Func<int, int, bool> blocked,
+        bool rangedCapable)
     {
         var dist = WorldMetrics.DistanceSquaredPixels(x, y, target.X, target.Y);
         var melee = CombatFormulas.BasicAttackRangePixels;
-        var ranged = CombatFormulas.RangedAttackRangePixels;
         var ready = memory.LastAttackUtc == default
                     || (utcNow - memory.LastAttackUtc).TotalMilliseconds >= CombatFormulas.BasicAttackCooldownMs;
         if (dist <= (long)melee * melee)
@@ -232,18 +263,71 @@ public static class MonsterAi
             return new MonsterAiIntent(order, target.Id, x, y, AttackStyle.Melee);
         }
 
-        if (dist <= (long)ranged * ranged)
+        if (rangedCapable)
         {
-            var order = ready ? MonsterAiOrder.Attack : MonsterAiOrder.Hold;
-            return new MonsterAiIntent(order, target.Id, x, y, AttackStyle.Ranged);
+            var ranged = CombatFormulas.RangedAttackRangePixels;
+            if (dist <= (long)ranged * ranged)
+            {
+                var order = ready ? MonsterAiOrder.Attack : MonsterAiOrder.Hold;
+                return new MonsterAiIntent(order, target.Id, x, y, AttackStyle.Ranged);
+            }
         }
 
         if (TryStep(x, y, target.X, target.Y, MonsterAiLimits.ChaseStepPixels, widthPx, heightPx, blocked, out var nx, out var ny))
         {
-            return new MonsterAiIntent(MonsterAiOrder.Chase, target.Id, nx, ny, AttackStyle.Melee);
+            if (!OutsideHomeLeash(memory, nx, ny))
+            {
+                return new MonsterAiIntent(MonsterAiOrder.Chase, target.Id, nx, ny, AttackStyle.Melee);
+            }
+
+            DropCombat(memory, x, y);
+            return ReturnHome(x, y, memory, widthPx, heightPx, blocked)
+                   ?? new MonsterAiIntent(MonsterAiOrder.Hold, null, x, y, AttackStyle.Melee);
         }
 
         return new MonsterAiIntent(MonsterAiOrder.Hold, target.Id, x, y, AttackStyle.Melee);
+    }
+
+    private static void DropCombat(MonsterAiMemory memory, int x, int y)
+    {
+        memory.TargetId = null;
+        if (x != memory.HomeX || y != memory.HomeY)
+        {
+            memory.Returning = true;
+        }
+    }
+
+    private static bool OutsideHomeLeash(MonsterAiMemory memory, int px, int py)
+    {
+        var dist = WorldMetrics.DistanceSquaredPixels(memory.HomeX, memory.HomeY, px, py);
+        var leash = (long)MonsterAiLimits.LeashRadiusPixels * MonsterAiLimits.LeashRadiusPixels;
+        return dist > leash;
+    }
+
+    /// <summary>
+    /// Un pas vers le spawn. Reste en retour tant que la position courante n'est pas le home,
+    /// pour ne pas lâcher le drapeau si le déplacement est refusé.
+    /// </summary>
+    private static MonsterAiIntent? ReturnHome(
+        int x,
+        int y,
+        MonsterAiMemory memory,
+        int widthPx,
+        int heightPx,
+        Func<int, int, bool> blocked)
+    {
+        if (x == memory.HomeX && y == memory.HomeY)
+        {
+            memory.Returning = false;
+            return null;
+        }
+
+        if (TryStep(x, y, memory.HomeX, memory.HomeY, MonsterAiLimits.ChaseStepPixels, widthPx, heightPx, blocked, out var nx, out var ny))
+        {
+            return new MonsterAiIntent(MonsterAiOrder.Return, null, nx, ny, AttackStyle.Melee);
+        }
+
+        return new MonsterAiIntent(MonsterAiOrder.Hold, null, x, y, AttackStyle.Melee);
     }
 
     private static MonsterAiIntent Wander(

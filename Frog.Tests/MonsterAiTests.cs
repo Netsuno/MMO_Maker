@@ -200,6 +200,102 @@ public sealed class MonsterAiTests
     }
 
     [Fact]
+    public void Brain_MeleeChasesInsideRangedBand_RangedOnlyWhenCapable()
+    {
+        var id = Guid.NewGuid();
+        var actors = new[] { new MonsterAiActor(id, 1, 80, 0, true) };
+        var meleeMemory = new MonsterAiMemory { HomeSet = true, HomeX = 0, HomeY = 0 };
+        var melee = MonsterAi.Decide(1, 0, 0, 20, meleeMemory, actors, T0, 4000, 4000, static (_, _) => false);
+        Assert.Equal(MonsterAiOrder.Chase, melee.Order);
+        Assert.Equal(AttackStyle.Melee, melee.Style);
+        Assert.Equal(MonsterAiLimits.ChaseStepPixels, melee.X);
+
+        var rangedMemory = new MonsterAiMemory { HomeSet = true, HomeX = 0, HomeY = 0 };
+        var ranged = MonsterAi.Decide(
+            1,
+            0,
+            0,
+            20,
+            rangedMemory,
+            actors,
+            T0,
+            4000,
+            4000,
+            static (_, _) => false,
+            rangedCapable: true);
+        Assert.Equal(MonsterAiOrder.Attack, ranged.Order);
+        Assert.Equal(AttackStyle.Ranged, ranged.Style);
+        Assert.Equal(0, ranged.X);
+
+        var close = new[] { new MonsterAiActor(id, 1, 40, 0, true) };
+        var meleeFirst = MonsterAi.Decide(
+            1,
+            0,
+            0,
+            20,
+            rangedMemory,
+            close,
+            T0,
+            4000,
+            4000,
+            static (_, _) => false,
+            rangedCapable: true);
+        Assert.Equal(MonsterAiOrder.Attack, meleeFirst.Order);
+        Assert.Equal(AttackStyle.Melee, meleeFirst.Style);
+    }
+
+    [Fact]
+    public void Brain_LeashOrTimeout_ReturnsHome_AndIgnoresPlayersUntilSpawn()
+    {
+        var id = Guid.NewGuid();
+        var memory = new MonsterAiMemory
+        {
+            HomeSet = true,
+            HomeX = 0,
+            HomeY = 0,
+            TargetId = id,
+            LastInAggroUtc = T0,
+        };
+        var pastLeash = new[] { new MonsterAiActor(id, 1, 400, 0, true) };
+        var back = MonsterAi.Decide(1, 360, 0, 20, memory, pastLeash, T0, 4000, 4000, static (_, _) => false);
+        Assert.Equal(MonsterAiOrder.Return, back.Order);
+        Assert.Null(back.TargetId);
+        Assert.Null(memory.TargetId);
+        Assert.True(memory.Returning);
+        Assert.Equal(360 - MonsterAiLimits.ChaseStepPixels, back.X);
+
+        var glued = new[] { new MonsterAiActor(id, 1, back.X, 0, true) };
+        var still = MonsterAi.Decide(1, back.X, 0, 20, memory, glued, T0, 4000, 4000, static (_, _) => false);
+        Assert.Equal(MonsterAiOrder.Return, still.Order);
+        Assert.Null(still.TargetId);
+        Assert.Equal(back.X - MonsterAiLimits.ChaseStepPixels, still.X);
+
+        memory = new MonsterAiMemory
+        {
+            HomeSet = true,
+            HomeX = 0,
+            HomeY = 0,
+            TargetId = id,
+            LastInAggroUtc = T0,
+        };
+        var outsideAggro = new[] { new MonsterAiActor(id, 1, 350, 0, true) };
+        var timed = MonsterAi.Decide(
+            1,
+            100,
+            0,
+            20,
+            memory,
+            outsideAggro,
+            T0.AddMilliseconds(MonsterAiLimits.AggroTimeoutMs),
+            4000,
+            4000,
+            static (_, _) => false);
+        Assert.Equal(MonsterAiOrder.Return, timed.Order);
+        Assert.Null(timed.TargetId);
+        Assert.Equal(100 - MonsterAiLimits.ChaseStepPixels, timed.X);
+    }
+
+    [Fact]
     public void Brain_WandersThenHoldsUntilInterval()
     {
         var memory = new MonsterAiMemory();
@@ -259,11 +355,10 @@ public sealed class MonsterAiTests
         session.PixelX = 80;
         session.PixelY = 0;
         await combat.TryMoveMonsterAsync(1, spawned.InstanceId, 0, 0);
-        var ranged = await ai.TickAsync(T0.AddSeconds(4));
-        Assert.Equal(AttackStyle.Ranged, ranged[0].Style);
-        Assert.Equal(0, ranged[0].PixelX);
-        Assert.NotNull(ranged[0].Strike);
-        Assert.True(ranged[0].Strike!.Success);
+        var closing = await ai.TickAsync(T0.AddSeconds(4));
+        Assert.Equal(AttackStyle.Melee, closing[0].Style);
+        Assert.Equal(MonsterAiLimits.ChaseStepPixels, closing[0].PixelX);
+        Assert.Null(closing[0].Strike);
 
         session.CurrentMapId = 9;
         var left = await ai.TickAsync(T0.AddSeconds(6));
@@ -284,6 +379,35 @@ public sealed class MonsterAiTests
         await ai.TickAsync(T0.AddSeconds(10));
         Assert.Null(ai.TargetOf(1, spawned.InstanceId));
         Assert.Empty(combat.ListMonstersOnMap(1));
+    }
+
+    [Fact]
+    public async Task Service_LeashReturnsHome_AndDoesNotReengage()
+    {
+        var (combat, session, _) = await CreateWorldAsync();
+        var sessions = new List<Session> { session };
+        var ai = new MonsterAiService(combat, () => sessions, MonsterAiWorld.Open(4000, 4000));
+        var spawned = combat.SpawnMonster(1, Phase7ContentSeed.DefaultMonsterId, 0, 0);
+        Assert.NotNull(spawned);
+
+        session.PixelX = 100;
+        session.PixelY = 0;
+        var chased = await ai.TickAsync(T0);
+        Assert.Equal(session.Id, ai.TargetOf(1, spawned!.InstanceId));
+        Assert.Equal(MonsterAiLimits.ChaseStepPixels, chased[0].PixelX);
+
+        await combat.TryMoveMonsterAsync(1, spawned.InstanceId, 400, 0);
+        session.PixelX = 400;
+        var back = await ai.TickAsync(T0.AddSeconds(2));
+        Assert.Null(ai.TargetOf(1, spawned.InstanceId));
+        Assert.Null(back[0].Strike);
+        Assert.Equal(400 - MonsterAiLimits.ChaseStepPixels, back[0].PixelX);
+
+        session.PixelX = back[0].PixelX;
+        var still = await ai.TickAsync(T0.AddSeconds(3));
+        Assert.Null(still[0].Strike);
+        Assert.Null(ai.TargetOf(1, spawned.InstanceId));
+        Assert.Equal(400 - (2 * MonsterAiLimits.ChaseStepPixels), still[0].PixelX);
     }
 
     [Fact]

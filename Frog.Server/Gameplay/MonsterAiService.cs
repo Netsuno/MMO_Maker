@@ -129,6 +129,8 @@ public sealed class MonsterAiService
     {
         var memory = _memory.GetOrAdd((monster.MapId, monster.InstanceId), _ => new MonsterAiMemory());
         _world.Query(monster.MapId, out var width, out var height, out var blocked);
+        // NpcDefinition n'a pas de portée. Mêlée seule. Le chemin distance (#68)
+        // reste dans Decide(rangedCapable: true) si une définition l'expose déjà.
         var intent = MonsterAi.Decide(
             monster.MapId,
             monster.PixelX,
@@ -139,7 +141,8 @@ public sealed class MonsterAiService
             utcNow,
             width,
             height,
-            blocked);
+            blocked,
+            rangedCapable: false);
         var x = monster.PixelX;
         var y = monster.PixelY;
         if (intent.X != x || intent.Y != y)
@@ -186,7 +189,8 @@ public sealed class MonsterAiService
             utcNow,
             width,
             height,
-            blocked);
+            blocked,
+            rangedCapable: false);
         if (intent.Order == MonsterAiOrder.Attack
             && _dummies is not null
             && _dummies.IsStunned(dummy.MapId, dummy.TargetId))
