@@ -7,6 +7,7 @@ using Frog.Client.Controls;
 using Frog.Client.Models;
 using Frog.Client.Services;
 using Frog.Client.UI;
+using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Protocol;
 using Xunit;
@@ -240,6 +241,82 @@ public sealed class CharacterSheetSmokeTests
                     // ignore
                 }
             }
+        });
+    }
+
+    [Fact]
+    public void CharacterSheet_BagEquipAndSlotClick_RaiseServerGearCommands()
+    {
+        StaTestRunner.Run(() =>
+        {
+            using var host = new Form { Size = new Size(420, 640) };
+            var sheet = new CharacterSheetPanel { Dock = DockStyle.Fill };
+            host.Controls.Add(sheet);
+            host.Show();
+            byte? equipped = null;
+            EquipmentSlotKind? unequipped = null;
+            var tunic = false;
+            sheet.EquipRequested += slot => equipped = slot;
+            sheet.UnequipRequested += slot => unequipped = slot;
+            sheet.ToggleTunicRequested += () => tunic = true;
+
+            var weapon = Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+            var armor = Guid.Parse("bbbbbbbb-cccc-4ddd-8eee-ffffffffffff");
+            var potion = Guid.Parse("cccccccc-dddd-4eee-8fff-111111111111");
+            sheet.ApplyBag(
+                new InventorySnapshotWire
+                {
+                    Slots =
+                    [
+                        new InventorySlotWire { SlotIndex = 0, ItemId = potion, Quantity = 3 },
+                        new InventorySlotWire { SlotIndex = 2, ItemId = weapon, Quantity = 1 },
+                        new InventorySlotWire { SlotIndex = 4, ItemId = armor, Quantity = 1 },
+                    ],
+                },
+                id => id == weapon ? "Épée" : id == armor ? "Cuirasse" : "Potion",
+                id => id == weapon ? ItemType.Weapon : id == armor ? ItemType.Armor : ItemType.Consumable);
+
+            Assert.Equal(3, sheet.BagCountForTest);
+            Assert.Equal("[0] Potion ×3", sheet.BagTextAtForTest(0));
+            Assert.Equal("[2] Épée ×1", sheet.BagTextAtForTest(1));
+            Assert.True(sheet.EquipBagEnabledForTest);
+            sheet.ClickEquipBagForTest();
+            Assert.Equal((byte)0, equipped);
+
+            equipped = null;
+            sheet.SelectBagBySlotForTest(2);
+            sheet.ClickEquipBagForTest();
+            Assert.Equal((byte)2, equipped);
+
+            equipped = null;
+            sheet.ClearBagSelectionForTest();
+            Assert.False(sheet.EquipBagEnabledForTest);
+            sheet.ClickSlotForTest(PaperdollLayer.Weapon);
+            Assert.Equal((byte)2, equipped);
+            Assert.Null(unequipped);
+
+            sheet.ApplyLoadout(
+                new Equipment(weapon, null),
+                id => id == weapon ? "Épée" : id.ToString("N"),
+                "Netsun",
+                2);
+            equipped = null;
+            sheet.ClickSlotForTest(PaperdollLayer.Weapon);
+            Assert.Equal(EquipmentSlotKind.Weapon, unequipped);
+            Assert.Null(equipped);
+
+            unequipped = null;
+            sheet.SelectBagBySlotForTest(4);
+            sheet.ClickSlotForTest(PaperdollLayer.Armor);
+            Assert.Equal((byte)4, equipped);
+            Assert.Null(unequipped);
+
+            equipped = null;
+            sheet.ClickSlotForTest(PaperdollLayer.Tunic);
+            Assert.True(tunic);
+            Assert.Null(equipped);
+            Assert.Null(unequipped);
+            host.Close();
         });
     }
 

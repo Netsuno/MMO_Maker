@@ -1417,6 +1417,7 @@ public sealed class MainShellForm : Form
         };
         _characterSheet.ToggleTunicRequested += () => _equipmentPanel.RequestToggleTunic();
         _characterSheet.ToggleHeadwearRequested += () => _equipmentPanel.RequestToggleHeadwear();
+        _characterSheet.EquipRequested += slot => _ = EquipSlotAsync(slot);
         _characterSheet.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
         _dialoguePanel.ChoiceRequested += (token, choiceId) => _ = SendDialogueChoiceAsync(token, choiceId);
         _questJournalPanel.TurnInRequested += questId => _ = QuestTurnInAsync(questId);
@@ -1549,6 +1550,8 @@ public sealed class MainShellForm : Form
         _publishedCatalog = catalog;
         ApplyCatalogToUi(catalog);
         ApplyCatalogRecipesToCraft(catalog);
+        _characterSheet.RefreshBag(ResolveItemName, ResolveItemType);
+        SyncStatusPortrait();
         var tilesetFiles = ClientPublishedTilesetMaterializer.Materialize(catalog, AppContext.BaseDirectory, _map?.Name);
         var prefabFiles = ClientPublishedPrefabMaterializer.Materialize(catalog, AppContext.BaseDirectory);
         if (tilesetFiles > 0 || prefabFiles > 0 || _map is not null)
@@ -1804,6 +1807,7 @@ public sealed class MainShellForm : Form
         SyncStatusPortrait();
         _inventoryPanel.ApplySnapshot(snapshot);
         _equipmentPanel.ApplySnapshot(snapshot);
+        _characterSheet.ApplyBag(snapshot, ResolveItemName, ResolveItemType);
         UpdateInventoryActionButtons();
         AppendLog($"Inventaire: {snapshot.Slots.Count(s => s.ItemId is not null && s.Quantity > 0)} slot(s) rempli(s).");
         if (_phase == ClientUiPhase.Playing && _map is not null)
@@ -1851,10 +1855,22 @@ public sealed class MainShellForm : Form
     /// <summary>Nom publié (catalogue) pour un ItemId ; secours GUID court si catalogue absent/objet inconnu.</summary>
     private string ResolveItemName(Guid itemId)
     {
-        var match = _publishedCatalog?.Items.FirstOrDefault(i =>
-            Guid.TryParse(i.Id, out var parsed) && parsed == itemId);
+        var match = FindPublishedItem(itemId);
         return match is not null ? match.Name : itemId.ToString("N")[..8];
     }
+
+    /// <summary>Type publié (Weapon / Armor / …). Null si le catalogue ne le connaît pas.</summary>
+    private ItemType? ResolveItemType(Guid itemId)
+    {
+        var match = FindPublishedItem(itemId);
+        return match is not null && CharacterSheetGear.TryParseItemType(match.Type, out var type)
+            ? type
+            : null;
+    }
+
+    private PublishedItemWireEntry? FindPublishedItem(Guid itemId) =>
+        _publishedCatalog?.Items.FirstOrDefault(i =>
+            Guid.TryParse(i.Id, out var parsed) && parsed == itemId);
 
     private void OnBankSnapshot(BankSnapshotWire snapshot)
     {

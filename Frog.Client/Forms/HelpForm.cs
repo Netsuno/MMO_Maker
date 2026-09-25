@@ -24,6 +24,7 @@ public sealed class HelpForm : Form
 
         Combat, inventaire, boutique
         • C ou le bouton Perso ouvre la fiche perso (aperçu paperdoll et emplacements Corps, Tunique, Armure, Tête, Casque, Arme).
+        • Depuis la fiche, Équiper envoie l'objet du sac au serveur (arme ou armure). Un clic sur l'arme ou l'armure portée la range. Tunique et casque restent un aperçu local.
         • Vie, or, inventaire, équipement, banque, quêtes et fabrication sont des panneaux nommés.
         • Les identifiants techniques (Guid) ne font pas partie de l'interface normale.
         • Mêlée et sorts : choisissez une cible par son nom.

@@ -147,6 +147,89 @@ public sealed class GameplayClientSmokeTests
     }
 
     [Fact]
+    public void GameplayClient_CharacterSheetEquipUnequip_PersistsOnReconnect()
+    {
+        StaTestRunner.Run(() =>
+        {
+            using var harness = GameplaySmokeHarness.Create();
+            var form = harness.Form;
+            try
+            {
+                harness.ConnectRegisterLogin();
+                Pump(form, () => form.CatalogClassesPopulatedForTest, "catalog classes after login");
+                const string charName = "FicheGear";
+                harness.CreateCharacter(charName);
+                harness.EnterPlayingPhase(charName);
+                Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "select weapon from catalog");
+                var weaponId = form.SelectedCatalogWeaponIdForTest;
+                Assert.NotNull(weaponId);
+
+                form.ShopBuyButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.CharacterSheetForTest.BagCountForTest > 0
+                          && form.LogContainsForTest("Achat: Achat reussi."),
+                    "shop buy visible in fiche bag");
+
+                form.CharacterSheetForTest.SelectBagIndexForTest(0);
+                form.CharacterSheetForTest.ClickEquipBagForTest();
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon)
+                          && form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Weapon) != "—",
+                    "fiche equip updates server snapshot and paperdoll");
+                Assert.StartsWith("Arme: ", form.EquipmentPanelForTest.WeaponLabelTextForTest);
+                Assert.Contains(
+                    "Épée",
+                    form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Weapon),
+                    StringComparison.Ordinal);
+
+                form.CharacterSheetForTest.ClearBagSelectionForTest();
+                form.CharacterSheetForTest.ClickSlotForTest(PaperdollLayer.Weapon);
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId is null
+                          && form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Weapon) == "—"
+                          && form.CharacterSheetForTest.BagCountForTest > 0,
+                    "fiche unequip returns weapon to the bag");
+
+                form.CharacterSheetForTest.ClearBagSelectionForTest();
+                form.CharacterSheetForTest.ClickSlotForTest(PaperdollLayer.Weapon);
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon),
+                    "empty weapon slot equips the bag weapon");
+
+                form.DisconnectForTest();
+                Pump(form, () => form.ConnectButtonForTest.Enabled && form.ConnectButtonForTest.Visible, "disconnect complete");
+                form.ConnectButtonForTest.PerformClick();
+                Pump(form, () => form.DisconnectButtonForTest.Enabled || form.BackDisconnectButtonForTest.Enabled, "reconnect TCP");
+                form.ReconnectButtonForTest.PerformClick();
+                Pump(form, () => form.LogContainsForTest("Reconnect OK"), "reconnect success logged");
+                Pump(
+                    form,
+                    () => form.CharactersComboForTest.Items.Count > 0
+                          && form.EnterGameButtonForTest.Visible
+                          && form.EnterGameButtonForTest.Enabled,
+                    "character list after reconnect");
+                harness.EnterPlayingPhase(charName);
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon),
+                    "fiche equipment persisted across reconnect",
+                    TimeSpan.FromSeconds(120));
+            }
+            finally
+            {
+                harness.Dispose();
+            }
+        });
+    }
+
+    [Fact]
     public void GameplayClient_ShopSellAndBankGold()
     {
         StaTestRunner.Run(() =>

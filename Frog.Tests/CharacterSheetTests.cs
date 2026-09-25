@@ -45,6 +45,7 @@ public sealed class CharacterSheetTests
     public void Shell_TogglesSheetFromKeyAndPerso_WithoutProtocolBump()
     {
         var shell = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "MainShellForm.cs"));
+        var sheet = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Controls", "CharacterSheetPanel.cs"));
         var help = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Forms", "HelpForm.cs"));
         var protocol = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Core", "Constants", "FrogWireProtocol.cs"));
 
@@ -58,6 +59,14 @@ public sealed class CharacterSheetTests
         Assert.Contains("_hudStatus.ApplyPortrait(EquipmentService.ToOverlaySet(_paperdoll))", shell, StringComparison.Ordinal);
         Assert.Contains("_characterSheet.ToggleTunicRequested", shell, StringComparison.Ordinal);
         Assert.Contains("_characterSheet.ToggleHeadwearRequested", shell, StringComparison.Ordinal);
+        Assert.Contains("_characterSheet.EquipRequested += slot => _ = EquipSlotAsync(slot);", shell, StringComparison.Ordinal);
+        Assert.Contains("_characterSheet.UnequipRequested += slot => _ = UnequipSlotAsync(slot);", shell, StringComparison.Ordinal);
+        Assert.Contains("_characterSheet.ApplyBag(snapshot, ResolveItemName, ResolveItemType);", shell, StringComparison.Ordinal);
+        Assert.Contains("SendEquipAsync", shell, StringComparison.Ordinal);
+        Assert.Contains("SendUnequipAsync", shell, StringComparison.Ordinal);
+        Assert.Contains("CharacterSheetGear.FromSlotClick", sheet, StringComparison.Ordinal);
+        Assert.Contains("CharacterSheetGear.FromBagEquip", sheet, StringComparison.Ordinal);
+        Assert.Contains("event Action<byte>? EquipRequested", sheet, StringComparison.Ordinal);
         Assert.Contains("RequestToggleTunic", shell, StringComparison.Ordinal);
         Assert.Contains("tabRight.TabPages.Add(_tabGameplay);", shell, StringComparison.Ordinal);
         var gameplayTab = shell.IndexOf("tabRight.TabPages.Add(_tabGameplay);", StringComparison.Ordinal);
@@ -92,6 +101,8 @@ public sealed class CharacterSheetTests
         Assert.Contains("Arme", text, StringComparison.Ordinal);
         Assert.Contains("body → tunic → armor → head → hat → weapon", text, StringComparison.Ordinal);
         Assert.Contains("v11", text, StringComparison.Ordinal);
+        Assert.Contains("EquipRequest", text, StringComparison.Ordinal);
+        Assert.Contains("UnequipRequest", text, StringComparison.Ordinal);
         Assert.Contains("Eldiran", text, StringComparison.Ordinal);
         Assert.Contains("Keys.C", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Marc", text, StringComparison.Ordinal);
