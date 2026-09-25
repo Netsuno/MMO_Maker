@@ -116,6 +116,7 @@ public sealed class MapCanvasRectSmokeTests
         {
             EditorSmokeTestAccess.ResetHooks();
             var canvas = CreateCanvas();
+            canvas.ActiveTool = EditorTool.Rectangle;
             canvas.RectangleEllipse = true;
             Assert.Contains("ellipse", canvas.GetPaintStatusHint(), StringComparison.Ordinal);
 
