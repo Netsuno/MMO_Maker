@@ -6,14 +6,17 @@ using System.Windows.Forms;
 using Frog.Client.Models;
 using Frog.Client.Services;
 using Frog.Client.UI;
+using Frog.Core.Enums;
 using Frog.Core.Gameplay;
+using Frog.Core.Protocol;
 
 namespace Frog.Client.Controls;
 
 /// <summary>
-/// Fiche perso : aperçu paperdoll local (sud, idle) et emplacements lisibles.
+/// Fiche perso : aperçu paperdoll (sud, idle), emplacements et sac.
 /// Couches déjà en jeu : body → tunic → armor → head → hat → weapon.
-/// État client seulement (arme/armure du snapshot, tunique et casque locaux). Pas un champ de protocole.
+/// Arme et armure passent par EquipRequest / UnequipRequest (snapshot serveur).
+/// Tunique et casque restent un aperçu local. Pas un nouveau champ de protocole.
 /// Eldiran CC0 / overlays procéduraux — never Graal sheets.
 /// </summary>
 public sealed class CharacterSheetPanel : UserControl
@@ -36,12 +39,25 @@ public sealed class CharacterSheetPanel : UserControl
     private readonly Label _identity;
     private readonly PreviewView _preview = new();
     private readonly SlotView[] _slots;
+    private readonly ListBox _bagList = new()
+    {
+        Dock = DockStyle.Fill,
+        IntegralHeight = false,
+        Name = "CharacterSheetBag",
+        AccessibleName = "Sac",
+    };
+    private readonly Button _btnEquipBag = new() { Text = "Équiper", AutoSize = true, Enabled = false };
+    private readonly List<BagRow> _bag = new();
+    private InventorySnapshotWire? _bagSnapshot;
     private PaperdollOverlaySet _appearance;
     private Func<Guid, string> _names = static id => id.ToString("N")[..8];
+    private Func<Guid, ItemType?>? _types;
 
     public event Action? ToggleTunicRequested;
 
     public event Action? ToggleHeadwearRequested;
+
+    public event Action<byte>? EquipRequested;
 
     public event Action<EquipmentSlotKind>? UnequipRequested;
 
@@ -109,7 +125,47 @@ public sealed class CharacterSheetPanel : UserControl
         grid.Controls.Add(_slots[(int)PaperdollLayer.Hat], 2, 2);
         grid.Controls.Add(_slots[(int)PaperdollLayer.Weapon], 2, 3);
 
+        var bag = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(4, 0, 4, 4),
+            BackColor = UiTheme.BgPanel,
+        };
+        bag.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        bag.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var bagBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            BackColor = UiTheme.BgPanel,
+            Margin = new Padding(0),
+        };
+        bagBar.Controls.Add(new Label
+        {
+            Text = "Sac",
+            AutoSize = true,
+            ForeColor = UiTheme.TextPrimary,
+            BackColor = Color.Transparent,
+            Font = UiTheme.UiFont(8f, FontStyle.Bold),
+            Margin = new Padding(2, 6, 8, 2),
+        });
+        _btnEquipBag.Margin = new Padding(2);
+        bagBar.Controls.Add(_btnEquipBag);
+        bag.Controls.Add(bagBar, 0, 0);
+        _bagList.BackColor = UiTheme.BgSlot;
+        _bagList.ForeColor = UiTheme.TextPrimary;
+        _bagList.BorderStyle = BorderStyle.FixedSingle;
+        bag.Controls.Add(_bagList, 0, 1);
+
         Controls.Add(grid);
+        Controls.Add(bag);
+        _btnEquipBag.Click += (_, _) => Dispatch(CharacterSheetGear.FromBagEquip(SelectedBagSlot));
+        _bagList.DoubleClick += (_, _) => Dispatch(CharacterSheetGear.FromBagEquip(SelectedBagSlot));
+        _bagList.SelectedIndexChanged += (_, _) => UpdateEquipButton();
         ApplyLoadout(Equipment.Empty, null, null, null);
     }
 
@@ -172,6 +228,30 @@ public sealed class CharacterSheetPanel : UserControl
         }
     }
 
+    /// <summary>Sac du snapshot serveur. Le type vient du catalogue publié (null si inconnu).</summary>
+    public void ApplyBag(InventorySnapshotWire snapshot, Func<Guid, string>? nameLookup, Func<Guid, ItemType?>? typeLookup)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        _bagSnapshot = snapshot;
+        if (nameLookup is not null)
+        {
+            _names = nameLookup;
+        }
+
+        _types = typeLookup;
+        RebuildBag();
+    }
+
+    public void RefreshBag(Func<Guid, string>? nameLookup, Func<Guid, ItemType?>? typeLookup)
+    {
+        if (_bagSnapshot is null)
+        {
+            return;
+        }
+
+        ApplyBag(_bagSnapshot, nameLookup, typeLookup);
+    }
+
     internal string IdentityTextForTest => _identity.Text;
 
     internal IReadOnlyList<string> SlotLabelsForTest => Layers.Select(static entry => entry.Label).ToArray();
@@ -190,23 +270,138 @@ public sealed class CharacterSheetPanel : UserControl
 
     internal void ClickSlotForTest(PaperdollLayer layer) => OnSlotClick(layer);
 
+    internal int BagCountForTest => _bagList.Items.Count;
+
+    internal byte? SelectedBagSlotForTest => SelectedBagSlot;
+
+    internal string? BagTextAtForTest(int listIndex) =>
+        listIndex >= 0 && listIndex < _bagList.Items.Count ? _bagList.Items[listIndex]?.ToString() : null;
+
+    internal void SelectBagIndexForTest(int listIndex)
+    {
+        if (listIndex >= 0 && listIndex < _bagList.Items.Count)
+        {
+            _bagList.SelectedIndex = listIndex;
+        }
+    }
+
+    internal void SelectBagBySlotForTest(byte slotIndex)
+    {
+        for (var i = 0; i < _bag.Count; i++)
+        {
+            if (_bag[i].SlotIndex == slotIndex)
+            {
+                _bagList.SelectedIndex = i;
+                return;
+            }
+        }
+    }
+
+    internal void ClearBagSelectionForTest() => _bagList.ClearSelected();
+
+    internal void ClickEquipBagForTest()
+    {
+        if (!_btnEquipBag.Enabled || SelectedBagSlot is null)
+        {
+            throw new InvalidOperationException("Équiper est désactivé : aucune ligne de sac.");
+        }
+
+        if (!_btnEquipBag.CanSelect)
+        {
+            throw new InvalidOperationException("Équiper n'est pas cliquable : l'onglet Fiche n'est pas visible.");
+        }
+
+        _btnEquipBag.PerformClick();
+    }
+
+    internal bool EquipBagEnabledForTest => _btnEquipBag.Enabled;
+
+    private byte? SelectedBagSlot =>
+        _bagList.SelectedItem is BagRow row ? row.SlotIndex : null;
+
     private void OnSlotClick(PaperdollLayer layer)
     {
         switch (layer)
         {
             case PaperdollLayer.Tunic:
                 ToggleTunicRequested?.Invoke();
-                break;
+                return;
             case PaperdollLayer.Hat:
                 ToggleHeadwearRequested?.Invoke();
+                return;
+        }
+
+        Dispatch(CharacterSheetGear.FromSlotClick(layer, _appearance.IsLayerVisible(layer), SelectedBagSlot, BagEntries()));
+    }
+
+    private void Dispatch(CharacterSheetGearCommand command)
+    {
+        switch (command.Action)
+        {
+            case CharacterSheetGearAction.Equip:
+                EquipRequested?.Invoke(command.InventorySlot);
                 break;
-            case PaperdollLayer.Weapon when _appearance.Weapon:
-                UnequipRequested?.Invoke(EquipmentSlotKind.Weapon);
-                break;
-            case PaperdollLayer.Armor when _appearance.Armor:
-                UnequipRequested?.Invoke(EquipmentSlotKind.Armor);
+            case CharacterSheetGearAction.Unequip:
+                UnequipRequested?.Invoke(command.UnequipSlot);
                 break;
         }
+    }
+
+    private EquipBagEntry[] BagEntries()
+    {
+        var entries = new EquipBagEntry[_bag.Count];
+        for (var i = 0; i < _bag.Count; i++)
+        {
+            entries[i] = new EquipBagEntry(_bag[i].SlotIndex, _bag[i].Type);
+        }
+
+        return entries;
+    }
+
+    private void RebuildBag()
+    {
+        var selected = SelectedBagSlot;
+        _bag.Clear();
+        _bagList.BeginUpdate();
+        try
+        {
+            _bagList.Items.Clear();
+            var slots = _bagSnapshot?.Slots ?? Array.Empty<InventorySlotWire>();
+            foreach (var slot in slots.OrderBy(s => s.SlotIndex))
+            {
+                if (slot.ItemId is not Guid id || slot.Quantity <= 0 || slot.SlotIndex is < 0 or > byte.MaxValue)
+                {
+                    continue;
+                }
+
+                var row = new BagRow((byte)slot.SlotIndex, slot.Quantity, NameOf(_names, id), _types?.Invoke(id));
+                _bag.Add(row);
+                _bagList.Items.Add(row);
+            }
+
+            if (_bagList.Items.Count > 0)
+            {
+                var restore = selected is byte prev ? _bag.FindIndex(r => r.SlotIndex == prev) : -1;
+                _bagList.SelectedIndex = restore >= 0 ? restore : 0;
+            }
+        }
+        finally
+        {
+            _bagList.EndUpdate();
+        }
+
+        UpdateEquipButton();
+    }
+
+    private void UpdateEquipButton() => _btnEquipBag.Enabled = SelectedBagSlot is not null;
+
+    private sealed class BagRow(byte slotIndex, int quantity, string name, ItemType? type)
+    {
+        public byte SlotIndex { get; } = slotIndex;
+
+        public ItemType? Type { get; } = type;
+
+        public override string ToString() => $"[{SlotIndex}] {name} ×{quantity}";
     }
 
     private static void CenterPreview(Panel host)

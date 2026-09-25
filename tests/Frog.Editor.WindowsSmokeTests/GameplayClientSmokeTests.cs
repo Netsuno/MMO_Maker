@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using Frog.Client;
+using Frog.Client.UI;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
@@ -138,6 +139,95 @@ public sealed class GameplayClientSmokeTests
                     "03-gameplay-inventory.png",
                     "04-reconnect-ok.png",
                     "05-reconnect-gameplay-usable.png");
+            }
+            finally
+            {
+                harness.Dispose();
+            }
+        });
+    }
+
+    [Fact]
+    public void GameplayClient_CharacterSheetEquipUnequip_PersistsOnReconnect()
+    {
+        StaTestRunner.Run(() =>
+        {
+            using var harness = GameplaySmokeHarness.Create();
+            var form = harness.Form;
+            try
+            {
+                harness.ConnectRegisterLogin();
+                Pump(form, () => form.CatalogClassesPopulatedForTest, "catalog classes after login");
+                const string charName = "FicheGear";
+                harness.CreateCharacter(charName);
+                harness.EnterPlayingPhase(charName);
+                Pump(form, () => form.TrySelectWeaponFromCatalogForTest(), "select weapon from catalog");
+                var weaponId = form.SelectedCatalogWeaponIdForTest;
+                Assert.NotNull(weaponId);
+
+                form.ShopBuyButtonForTest.PerformClick();
+                Pump(
+                    form,
+                    () => form.CharacterSheetForTest.BagCountForTest > 0
+                          && form.LogContainsForTest("Achat: Achat reussi."),
+                    "shop buy visible in fiche bag");
+
+                // EnterPlayingPhase leaves Inventaire selected. PerformClick on Équiper is a no-op
+                // until the Fiche tab is visible (Button.CanSelect walks the parent chain).
+                form.InvokeHudMenuCommandForTest(HudMenuCommand.Character);
+                Assert.True(form.IsCharacterSheetTabSelectedForTest, "Perso shows the fiche before equip");
+                form.CharacterSheetForTest.SelectBagIndexForTest(0);
+                Assert.True(form.CharacterSheetForTest.EquipBagEnabledForTest, "Équiper enabled for the bought weapon");
+                Assert.NotNull(form.CharacterSheetForTest.SelectedBagSlotForTest);
+                form.CharacterSheetForTest.ClickEquipBagForTest();
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon)
+                          && form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Weapon) != "—",
+                    "fiche equip updates server snapshot and paperdoll");
+                Assert.StartsWith("Arme: ", form.EquipmentPanelForTest.WeaponLabelTextForTest);
+                Assert.Contains(
+                    "Épée",
+                    form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Weapon),
+                    StringComparison.Ordinal);
+
+                form.CharacterSheetForTest.ClearBagSelectionForTest();
+                form.CharacterSheetForTest.ClickSlotForTest(PaperdollLayer.Weapon);
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId is null
+                          && form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Weapon) == "—"
+                          && form.CharacterSheetForTest.BagCountForTest > 0,
+                    "fiche unequip returns weapon to the bag");
+
+                form.CharacterSheetForTest.ClearBagSelectionForTest();
+                form.CharacterSheetForTest.ClickSlotForTest(PaperdollLayer.Weapon);
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon),
+                    "empty weapon slot equips the bag weapon");
+
+                form.DisconnectForTest();
+                Pump(form, () => form.ConnectButtonForTest.Enabled && form.ConnectButtonForTest.Visible, "disconnect complete");
+                form.ConnectButtonForTest.PerformClick();
+                Pump(form, () => form.DisconnectButtonForTest.Enabled || form.BackDisconnectButtonForTest.Enabled, "reconnect TCP");
+                form.ReconnectButtonForTest.PerformClick();
+                Pump(form, () => form.LogContainsForTest("Reconnect OK"), "reconnect success logged");
+                Pump(
+                    form,
+                    () => form.CharactersComboForTest.Items.Count > 0
+                          && form.EnterGameButtonForTest.Visible
+                          && form.EnterGameButtonForTest.Enabled,
+                    "character list after reconnect");
+                harness.EnterPlayingPhase(charName);
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon),
+                    "fiche equipment persisted across reconnect",
+                    TimeSpan.FromSeconds(120));
             }
             finally
             {
