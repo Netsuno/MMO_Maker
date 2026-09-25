@@ -28,7 +28,9 @@
         <Compile Include="..\Frog.Client\Assets\TileAssetDisplayPixels.cs" Link="ClientTilePack\TileAssetDisplayPixels.cs" />
         <Compile Include="..\Frog.Client\Config\TilePackClientOptions.cs" Link="ClientTilePack\TilePackClientOptions.cs" />
         <Compile Include="..\Frog.Client\Config\UserSettings.cs" Link="ClientTilePack\UserSettings.cs" />
+        <Compile Include="..\Frog.Client\Config\SavedServerList.cs" Link="ClientTilePack\SavedServerList.cs" />
         <Compile Include="..\Frog.Client\Config\ClientSettingsStore.cs" Link="ClientTilePack\ClientSettingsStore.cs" />
+        <Compile Include="..\Frog.Client\Services\PlayerFacingMessages.cs" Link="ClientTilePack\PlayerFacingMessages.cs" />
     </ItemGroup>
 
     <ItemGroup>

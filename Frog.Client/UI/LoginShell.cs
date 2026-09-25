@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using Frog.Client.Config;
+using Frog.Core.Constants;
 
 namespace Frog.Client.UI;
 
@@ -38,6 +39,11 @@ public sealed class LoginShell : Panel
     private Button? _disconnectButton;
     private TextBox? _hostBox;
     private NumericUpDown? _portBox;
+    private ComboBox? _serverList;
+    private TextBox? _serverName;
+    private Button? _addServerButton;
+    private Button? _retryButton;
+    private readonly Label _connectDiag;
     private int _appliedUiScalePercent = ClientUiScale.DefaultPercent;
 
     public LoginShell()
@@ -81,12 +87,22 @@ public sealed class LoginShell : Panel
         };
         _networkHint = new Label
         {
-            Text = "Serveur : Options → Réseau  ·  F9 = hôte / port",
+            Text = "Liste ci-dessus · F9 = ajouter · Options → Réseau",
             AutoSize = true,
             Font = UiTheme.UiFont(8f),
             ForeColor = UiTheme.TextMuted,
             BackColor = Color.Transparent,
-            Margin = new Padding(0, 8, 0, 0),
+            Margin = new Padding(0, 4, 0, 0),
+        };
+        _connectDiag = new Label
+        {
+            Text = "Protocole " + FrogWireProtocol.Version + " · prêt.",
+            AutoSize = true,
+            MaximumSize = new Size(FieldWidth, 0),
+            Font = UiTheme.UiFont(8f),
+            ForeColor = UiTheme.TextMuted,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0, 4, 0, 0),
         };
         _opsHint = new Label
         {
@@ -123,7 +139,11 @@ public sealed class LoginShell : Panel
         Button disconnect,
         TextBox host,
         NumericUpDown port,
-        Label authStatus)
+        Label authStatus,
+        ComboBox servers,
+        TextBox serverName,
+        Button addServer,
+        Button retry)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentNullException.ThrowIfNull(pass);
@@ -135,6 +155,10 @@ public sealed class LoginShell : Panel
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(port);
         ArgumentNullException.ThrowIfNull(authStatus);
+        ArgumentNullException.ThrowIfNull(servers);
+        ArgumentNullException.ThrowIfNull(serverName);
+        ArgumentNullException.ThrowIfNull(addServer);
+        ArgumentNullException.ThrowIfNull(retry);
 
         _accountUser = user;
         _accountPass = pass;
@@ -145,6 +169,10 @@ public sealed class LoginShell : Panel
         _disconnectButton = disconnect;
         _hostBox = host;
         _portBox = port;
+        _serverList = servers;
+        _serverName = serverName;
+        _addServerButton = addServer;
+        _retryButton = retry;
 
         login.Text = "Connexion";
         login.MinimumSize = new Size(FieldWidth, 34);
@@ -152,6 +180,10 @@ public sealed class LoginShell : Panel
         reconnect.MinimumSize = new Size(160, 30);
         connect.MinimumSize = new Size(120, 30);
         disconnect.MinimumSize = new Size(120, 30);
+        retry.Text = "Réessayer";
+        retry.MinimumSize = new Size(120, 30);
+        addServer.Text = "Ajouter";
+        addServer.MinimumSize = new Size(88, 30);
 
         StyleAccountField(user);
         StyleAccountField(pass);
@@ -160,6 +192,10 @@ public sealed class LoginShell : Panel
         StyleSecondaryCta(reconnect);
         StyleSecondaryCta(connect);
         StyleSecondaryCta(disconnect);
+        StyleSecondaryCta(retry);
+        StyleSecondaryCta(addServer);
+        UiTheme.StyleInput(servers);
+        UiTheme.StyleInput(serverName);
 
         var body = new FlowLayoutPanel
         {
@@ -212,6 +248,12 @@ public sealed class LoginShell : Panel
         secondary.Controls.Add(reconnect);
         body.Controls.Add(secondary);
 
+        body.Controls.Add(FieldLabel("Serveur"));
+        servers.Width = FieldWidth;
+        servers.DropDownStyle = ComboBoxStyle.DropDownList;
+        servers.Margin = new Padding(0, 0, 0, 8);
+        body.Controls.Add(servers);
+
         var serverRow = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.LeftToRight,
@@ -221,15 +263,19 @@ public sealed class LoginShell : Panel
             Margin = new Padding(0, 4, 0, 0),
         };
         connect.Margin = new Padding(0, 0, 8, 4);
-        disconnect.Margin = new Padding(0, 0, 0, 4);
+        disconnect.Margin = new Padding(0, 0, 8, 4);
+        retry.Margin = new Padding(0, 0, 0, 4);
         serverRow.Controls.Add(connect);
         serverRow.Controls.Add(disconnect);
+        serverRow.Controls.Add(retry);
         body.Controls.Add(serverRow);
 
         authStatus.ForeColor = UiTheme.TextSecondary;
         authStatus.BackColor = Color.Transparent;
         authStatus.Margin = new Padding(0, 8, 0, 0);
+        authStatus.MaximumSize = new Size(FieldWidth, 0);
         body.Controls.Add(authStatus);
+        body.Controls.Add(_connectDiag);
         body.Controls.Add(_networkHint);
 
         host.Width = 160;
@@ -244,21 +290,43 @@ public sealed class LoginShell : Panel
             BackColor = Color.Transparent,
             Margin = new Padding(0),
         };
+        serverName.Width = 120;
+        serverName.Margin = new Padding(0, 0, 8, 4);
+        addServer.Margin = new Padding(0, 0, 0, 4);
         opsFields.Controls.Add(FieldLabel("Hôte", muted: true));
         opsFields.Controls.Add(host);
         opsFields.Controls.Add(FieldLabel("Port", muted: true));
         opsFields.Controls.Add(port);
+        opsFields.Controls.Add(FieldLabel("Nom", muted: true));
+        opsFields.Controls.Add(serverName);
+        opsFields.Controls.Add(addServer);
         _opsStrip.Controls.Add(_opsHint);
         _opsStrip.Controls.Add(opsFields);
         body.Controls.Add(_opsStrip);
 
         _card.Controls.Clear();
         _card.Controls.Add(body);
-        _card.Size = new Size(CardWidth, Math.Max(420, body.PreferredSize.Height + 8));
         _opsVisible = false;
         _opsStrip.Visible = false;
-        CenterCard();
+        FitCardToBody();
     }
+
+    /// <summary>Bandeau non modal : protocole, adresse, cause courte. Le statut joueur garde la phrase complète.</summary>
+    public void SetConnectDiagnostic(string text, bool failure)
+    {
+        var color = failure ? UiTheme.TextDanger : UiTheme.TextMuted;
+        if (string.Equals(_connectDiag.Text, text, StringComparison.Ordinal)
+            && _connectDiag.ForeColor.ToArgb() == color.ToArgb())
+        {
+            return;
+        }
+
+        _connectDiag.Text = text;
+        _connectDiag.ForeColor = color;
+        FitCardToBody();
+    }
+
+    internal string ConnectDiagnosticTextForTest => _connectDiag.Text;
 
     public void ToggleOps() => SetOpsVisible(!_opsVisible);
 
@@ -266,8 +334,7 @@ public sealed class LoginShell : Panel
     {
         _opsVisible = visible;
         _opsStrip.Visible = visible;
-        _card.PerformLayout();
-        CenterCard();
+        FitCardToBody();
         Invalidate(true);
     }
 
@@ -314,6 +381,13 @@ public sealed class LoginShell : Panel
         SizeButton(_reconnectButton, 160, 30, clamped);
         SizeButton(_connectButton, 120, 30, clamped);
         SizeButton(_disconnectButton, 120, 30, clamped);
+        SizeButton(_retryButton, 120, 30, clamped);
+        SizeButton(_addServerButton, 88, 30, clamped);
+        if (_serverList is not null)
+        {
+            _serverList.Width = fieldW;
+        }
+
         if (_hostBox is not null)
         {
             _hostBox.Width = ClientUiScale.ScaleDip(160, clamped);
@@ -324,12 +398,16 @@ public sealed class LoginShell : Panel
             _portBox.Width = ClientUiScale.ScaleDip(70, clamped);
         }
 
+        if (_serverName is not null)
+        {
+            _serverName.Width = ClientUiScale.ScaleDip(120, clamped);
+        }
+
+        _connectDiag.MaximumSize = new Size(fieldW, 0);
+
         RecenterLabel(_logoWordmark, inner);
         RecenterLabel(_logoSub, inner);
-        _body.PerformLayout();
-        var contentH = Math.Max(ClientUiScale.ScaleDip(420, clamped), _body.PreferredSize.Height + 8);
-        _card.Height = contentH;
-        CenterCard();
+        FitCardToBody();
     }
 
     private static void SizeField(TextBox? box, int width, int designHeight, int percent)
@@ -374,11 +452,34 @@ public sealed class LoginShell : Panel
         _remember.ForeColor = UiTheme.TextPrimary;
         _remember.BackColor = Color.Transparent;
         _networkHint.ForeColor = UiTheme.TextMuted;
+        if (_connectDiag.ForeColor != UiTheme.TextDanger)
+        {
+            _connectDiag.ForeColor = UiTheme.TextMuted;
+        }
+
+        _connectDiag.BackColor = Color.Transparent;
         _opsHint.ForeColor = UiTheme.TextSecondary;
         _opsStrip.BackColor = Color.Transparent;
     }
 
     internal bool OpsVisibleForTest => _opsVisible && _opsStrip.Visible;
+
+    private void FitCardToBody()
+    {
+        if (_body is null)
+        {
+            return;
+        }
+
+        var cardW = ClientUiScale.ScaleDip(CardWidth, _appliedUiScalePercent);
+        _body.Width = cardW;
+        _body.PerformLayout();
+        _body.Width = cardW;
+        _card.Width = cardW;
+        var minH = ClientUiScale.ScaleDip(420, _appliedUiScalePercent);
+        _card.Height = Math.Max(minH, _body.PreferredSize.Height + 8);
+        CenterCard();
+    }
 
     internal CheckBox RememberCheckBoxForTest => _remember;
 
@@ -577,12 +678,9 @@ public sealed class LoginShell : Panel
             _card.Location = new Point(
                 Math.Max(12, (Width - _card.Width) / 2),
                 Math.Max(20, (Height - _card.Height) / 3));
-            if (_appliedUiScalePercent == ClientUiScale.DefaultPercent)
-            {
-                return;
-            }
-
-            var fits = _card.Width + 24 <= ClientSize.Width && _card.Height + 40 <= ClientSize.Height;
+            var fits = ClientSize.Width <= 0
+                || ClientSize.Height <= 0
+                || (_card.Width + 24 <= ClientSize.Width && _card.Height + 40 <= ClientSize.Height);
             AutoScroll = !fits;
             AutoScrollMinSize = fits ? Size.Empty : new Size(_card.Width + 24, _card.Height + 40);
         }

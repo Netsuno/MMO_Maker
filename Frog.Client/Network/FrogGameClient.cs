@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using Frog.Client.Services;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
@@ -42,6 +43,9 @@ public sealed class FrogGameClient : IDisposable
     {
         _ui = uiContext;
     }
+
+    /// <summary>Délai d'établissement TCP/TLS. N'entre pas dans le Hello (protocole <see cref="FrogWireProtocol.Version"/>).</summary>
+    public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(8);
 
     public bool IsConnected => _tcp?.Connected == true;
 
@@ -129,12 +133,21 @@ public sealed class FrogGameClient : IDisposable
         var tcp = new TcpClient();
         try
         {
-            await tcp.ConnectAsync(host, port, cancellationToken).ConfigureAwait(false);
-            var stream = await TlsClientAuthenticator
-                .WrapAfterConnectAsync(tcp.GetStream(), tls, host, cancellationToken)
-                .ConfigureAwait(false);
-            _tcp = tcp;
-            _stream = stream;
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(ConnectTimeout);
+            try
+            {
+                await tcp.ConnectAsync(host, port, timeoutCts.Token).ConfigureAwait(false);
+                var stream = await TlsClientAuthenticator
+                    .WrapAfterConnectAsync(tcp.GetStream(), tls, host, timeoutCts.Token)
+                    .ConfigureAwait(false);
+                _tcp = tcp;
+                _stream = stream;
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException(PlayerFacingMessages.TimedOut);
+            }
         }
         catch
         {
@@ -295,12 +308,8 @@ public sealed class FrogGameClient : IDisposable
                 {
                     if (helloVer != FrogWireProtocol.Version)
                     {
-                        Post(() =>
-                        {
-                            ErrorReceived?.Invoke(
-                                $"Version protocole incompatible (serveur indique {helloVer}, ce client attend {FrogWireProtocol.Version}). Mettez à jour client et serveur ensemble.");
-                            _ = DisconnectAsync();
-                        });
+                        Post(() => RejectProtocolAsync(
+                            $"Version protocole incompatible (serveur indique {helloVer}, ce client attend {FrogWireProtocol.Version}). Mettez à jour client et serveur ensemble."));
                     }
                     else
                     {
@@ -309,12 +318,8 @@ public sealed class FrogGameClient : IDisposable
                 }
                 else
                 {
-                    Post(() =>
-                    {
-                        ErrorReceived?.Invoke(
-                            "Hello serveur incomplet ou obsolète — mettez Frog.Server à jour (même dépôt que le client).");
-                        _ = DisconnectAsync();
-                    });
+                    Post(() => RejectProtocolAsync(
+                        "Hello serveur incomplet ou obsolète — mettez Frog.Server à jour (même dépôt que le client)."));
                 }
 
                 break;
@@ -884,6 +889,26 @@ public sealed class FrogGameClient : IDisposable
     private void Post(Action action)
     {
         _ui.Post(_ => action(), null);
+    }
+
+    /// <summary>
+    /// Annonce l'échec Hello avant de fermer le TCP. La pompe STA observe le message
+    /// « protocole » et <see cref="IsConnected"/> ensemble ; fermer d'abord faisait
+    /// sortir la pompe sur la coupure, sans erreur, ou laissait le socket encore ouvert.
+    /// Le texte et <see cref="FrogWireProtocol.Version"/> restent ceux du handshake existant.
+    /// </summary>
+    private void RejectProtocolAsync(string message)
+    {
+        try
+        {
+            ErrorReceived?.Invoke(message);
+        }
+        catch
+        {
+            // l'UI journalise déjà
+        }
+
+        _ = DisconnectAsync();
     }
 
     public async Task SendLoginAsync(string username, string password, CancellationToken cancellationToken = default)

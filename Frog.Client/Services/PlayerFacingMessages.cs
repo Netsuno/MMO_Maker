@@ -1,3 +1,4 @@
+using System;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Text;
@@ -12,6 +13,9 @@ internal static class PlayerFacingMessages
     public const string Ready = "Prêt.";
     public const string Connected = "Connecté au serveur.";
     public const string Unavailable = "Serveur indisponible. Vérifiez l'adresse et que le serveur est lancé.";
+    public const string Unreachable = "Serveur injoignable. Vérifiez l'adresse et que le serveur est lancé.";
+    public const string TimedOut = "Délai dépassé. Le serveur ne répond pas.";
+    public const string VersionMismatch = "Version incompatible. Mettez à jour le client et le serveur ensemble.";
     public const string BadCertificate = "Certificat invalide. La connexion sécurisée a échoué.";
     public const string ConnectionLost = "Connexion interrompue.";
     public const string BadCredentials = "Identifiants incorrects.";
@@ -24,40 +28,118 @@ internal static class PlayerFacingMessages
 
     private static readonly Regex TokenLike = new("[A-Za-z0-9_-]{40,}", RegexOptions.Compiled);
 
-    public static string FromException(Exception ex)
+    public static ConnectionFailureKind ClassifyException(Exception ex)
     {
         for (var current = ex; current is not null; current = current.InnerException!)
         {
             if (current is AuthenticationException)
             {
-                return BadCertificate;
+                return ConnectionFailureKind.Certificate;
+            }
+
+            if (current is TimeoutException)
+            {
+                return ConnectionFailureKind.Timeout;
             }
 
             if (current is SocketException socket)
             {
                 return socket.SocketErrorCode switch
                 {
+                    SocketError.TimedOut => ConnectionFailureKind.Timeout,
                     SocketError.ConnectionRefused
-                        or SocketError.TimedOut
                         or SocketError.HostUnreachable
                         or SocketError.NetworkUnreachable
                         or SocketError.TryAgain
-                        or SocketError.HostNotFound => Unavailable,
+                        or SocketError.HostNotFound => ConnectionFailureKind.Unreachable,
                     SocketError.ConnectionReset
                         or SocketError.ConnectionAborted
-                        or SocketError.Shutdown => ConnectionLost,
-                    _ => Unavailable,
+                        or SocketError.Shutdown => ConnectionFailureKind.ConnectionLost,
+                    _ => ConnectionFailureKind.Unreachable,
                 };
             }
 
             var text = current.Message ?? string.Empty;
             if (LooksLikeTls(text))
             {
-                return BadCertificate;
+                return ConnectionFailureKind.Certificate;
             }
         }
 
-        return Unavailable;
+        return ConnectionFailureKind.Other;
+    }
+
+    public static string FromException(Exception ex) => Present(ClassifyException(ex));
+
+    public static ConnectionFailureKind ClassifyServer(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return ConnectionFailureKind.ConnectionLost;
+        }
+
+        if (LooksLikeTls(raw))
+        {
+            return ConnectionFailureKind.Certificate;
+        }
+
+        if (raw.Contains("protocole", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("Hello", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("version incompatible", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConnectionFailureKind.Version;
+        }
+
+        if (raw.Contains("Identifiants", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConnectionFailureKind.Auth;
+        }
+
+        if (raw.Contains("deja connecte", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("déjà connecté", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConnectionFailureKind.AlreadyConnected;
+        }
+
+        if (raw.Contains("Inscriptions fermees", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("Inscriptions fermées", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConnectionFailureKind.Other;
+        }
+
+        if (MaintenanceMessages.IsMaintenanceSignal(raw))
+        {
+            return ConnectionFailureKind.Maintenance;
+        }
+
+        if (raw.Contains("Session invalide", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConnectionFailureKind.SessionExpired;
+        }
+
+        if (raw.Contains("Délai dépassé", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("Delai depasse", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("timeout", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConnectionFailureKind.Timeout;
+        }
+
+        if (raw.Contains("injoignable", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("indisponible", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("connection refused", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConnectionFailureKind.Unreachable;
+        }
+
+        if (raw.Contains("Connexion interrompue", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("Connexion fermée", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("Connexion fermee", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConnectionFailureKind.ConnectionLost;
+        }
+
+        return ConnectionFailureKind.Other;
     }
 
     public static string FromServerOrNetwork(string raw)
@@ -67,53 +149,51 @@ internal static class PlayerFacingMessages
             return ConnectionLost;
         }
 
-        if (LooksLikeTls(raw))
+        return ClassifyServer(raw) switch
         {
-            return BadCertificate;
-        }
-
-        if (raw.Contains("protocole", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("Hello", StringComparison.OrdinalIgnoreCase))
-        {
-            return Redact(raw);
-        }
-
-        if (raw.Contains("Identifiants", StringComparison.OrdinalIgnoreCase))
-        {
-            return BadCredentials;
-        }
-
-        if (raw.Contains("deja connecte", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("déjà connecté", StringComparison.OrdinalIgnoreCase))
-        {
-            return AlreadyConnected;
-        }
-
-        if (raw.Contains("Inscriptions fermees", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("Inscriptions fermées", StringComparison.OrdinalIgnoreCase))
-        {
-            return RegistrationsClosed;
-        }
-
-        if (MaintenanceMessages.IsMaintenanceSignal(raw))
-        {
-            return Maintenance;
-        }
-
-        if (raw.Contains("Session invalide", StringComparison.OrdinalIgnoreCase))
-        {
-            return SessionExpired;
-        }
-
-        if (raw.Contains("Connexion interrompue", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("Connexion fermée", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("Connexion fermee", StringComparison.OrdinalIgnoreCase))
-        {
-            return ConnectionLost;
-        }
-
-        return Redact(raw);
+            ConnectionFailureKind.Certificate => BadCertificate,
+            ConnectionFailureKind.Version => Redact(raw),
+            ConnectionFailureKind.Auth => BadCredentials,
+            ConnectionFailureKind.AlreadyConnected => AlreadyConnected,
+            ConnectionFailureKind.Maintenance => Maintenance,
+            ConnectionFailureKind.SessionExpired => SessionExpired,
+            ConnectionFailureKind.ConnectionLost => ConnectionLost,
+            ConnectionFailureKind.Timeout => TimedOut,
+            ConnectionFailureKind.Unreachable => Unreachable,
+            _ when raw.Contains("Inscriptions fermees", StringComparison.OrdinalIgnoreCase)
+                || raw.Contains("Inscriptions fermées", StringComparison.OrdinalIgnoreCase) => RegistrationsClosed,
+            _ => Redact(raw),
+        };
     }
+
+    public static string Present(ConnectionFailureKind kind) => kind switch
+    {
+        ConnectionFailureKind.Auth => BadCredentials,
+        ConnectionFailureKind.Timeout => TimedOut,
+        ConnectionFailureKind.Version => VersionMismatch,
+        ConnectionFailureKind.Unreachable => Unreachable,
+        ConnectionFailureKind.Certificate => BadCertificate,
+        ConnectionFailureKind.AlreadyConnected => AlreadyConnected,
+        ConnectionFailureKind.Maintenance => Maintenance,
+        ConnectionFailureKind.SessionExpired => SessionExpired,
+        ConnectionFailureKind.ConnectionLost => ConnectionLost,
+        _ => Unavailable,
+    };
+
+    /// <summary>Libellé court du bandeau diagnostic (la phrase complète reste dans le statut).</summary>
+    public static string Headline(ConnectionFailureKind kind) => kind switch
+    {
+        ConnectionFailureKind.Auth => "identifiants",
+        ConnectionFailureKind.Timeout => "délai dépassé",
+        ConnectionFailureKind.Version => "version incompatible",
+        ConnectionFailureKind.Unreachable => "serveur injoignable",
+        ConnectionFailureKind.Certificate => "certificat",
+        ConnectionFailureKind.AlreadyConnected => "compte déjà connecté",
+        ConnectionFailureKind.Maintenance => "maintenance",
+        ConnectionFailureKind.SessionExpired => "session expirée",
+        ConnectionFailureKind.ConnectionLost => "connexion interrompue",
+        _ => "erreur",
+    };
 
     public static string Redact(string text)
     {
@@ -134,6 +214,22 @@ internal static class PlayerFacingMessages
         || text.Contains("RemoteCertificate", StringComparison.OrdinalIgnoreCase);
 }
 
+/// <summary>Cause affichée au joueur. Le fil Hello ne change pas.</summary>
+internal enum ConnectionFailureKind
+{
+    None,
+    Auth,
+    Timeout,
+    Version,
+    Unreachable,
+    Certificate,
+    AlreadyConnected,
+    Maintenance,
+    SessionExpired,
+    ConnectionLost,
+    Other,
+}
+
 /// <summary>Rapport diagnostics expurgé (jamais jeton / mot de passe).</summary>
 internal static class ClientDiagnostics
 {
@@ -147,7 +243,8 @@ internal static class ClientDiagnostics
         string? tlsTargetHost,
         string phase,
         bool connected,
-        string? username)
+        string? username,
+        string? lastFailure = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("FRoG — diagnostics (expurgés)");
@@ -159,6 +256,7 @@ internal static class ClientDiagnostics
         sb.AppendLine("TLS: " + tlsMode + (string.IsNullOrWhiteSpace(tlsTargetHost) ? string.Empty : " SNI=" + tlsTargetHost));
         sb.AppendLine("Phase: " + phase);
         sb.AppendLine("Connecté: " + (connected ? "oui" : "non"));
+        sb.AppendLine("Dernier échec: " + (string.IsNullOrWhiteSpace(lastFailure) ? "aucun" : lastFailure));
         if (!string.IsNullOrWhiteSpace(username))
         {
             sb.AppendLine("Compte: " + username);

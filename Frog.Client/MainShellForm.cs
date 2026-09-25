@@ -209,6 +209,17 @@ public sealed class MainShellForm : Form
     private EnvironmentStateWire? _lastEnvironment;
     private readonly TextBox _txtHost = new() { Text = "127.0.0.1", Width = 120 };
     private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Value = 6000, Width = 70 };
+    private readonly ComboBox _cmbServers = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        Width = LoginShell.FieldWidth,
+    };
+    private readonly TextBox _txtServerName = new() { Width = 120, PlaceholderText = "Nom" };
+    private readonly Button _btnAddServer = new() { Text = "Ajouter" };
+    private readonly Button _btnRetry = new() { Text = "Réessayer", Enabled = false };
+    private bool _syncingServerList;
+    private ConnectionFailureKind _lastFailureKind;
+    private string? _lastFailureText;
     private readonly TextBox _txtUser = new() { Text = "demo", Width = LoginShell.FieldWidth };
     private readonly TextBox _txtPass = new() { Text = "demo", Width = LoginShell.FieldWidth, UseSystemPasswordChar = true };
     private readonly Button _btnConnect = new() { Text = "Connecter" };
@@ -417,6 +428,10 @@ public sealed class MainShellForm : Form
                 ? "FRoG — Playtest"
                 : $"FRoG — Playtest [{_playtestOptions.CorrelationId}]";
         }
+
+        _cmbServers.SelectedIndexChanged += (_, _) => ApplyPickedServer();
+        _btnAddServer.Click += (_, _) => AddServerFromFields();
+        RefreshServerListUi();
 
         EnableDoubleBuffer(_mapScroll);
         EnableDoubleBuffer(_picMap);
@@ -1259,6 +1274,8 @@ public sealed class MainShellForm : Form
     {
         StyleToolbarButton(_btnConnect);
         StyleToolbarButton(_btnDisconnect);
+        StyleToolbarButton(_btnRetry);
+        StyleToolbarButton(_btnAddServer);
         StyleToolbarButton(_btnLogin);
         StyleToolbarButton(_btnRegister);
         StyleToolbarButton(_btnReconnect);
@@ -1545,12 +1562,18 @@ public sealed class MainShellForm : Form
             _btnDisconnect,
             _txtHost,
             _numPort,
-            _lblAuthStatus);
+            _lblAuthStatus,
+            _cmbServers,
+            _txtServerName,
+            _btnAddServer,
+            _btnRetry);
         _btnLogin.EnabledChanged += (_, _) => LoginShell.StylePrimaryCta(_btnLogin);
         _btnRegister.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnRegister);
         _btnReconnect.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnReconnect);
         _btnConnect.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnConnect);
         _btnDisconnect.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnDisconnect);
+        _btnRetry.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnRetry);
+        _btnAddServer.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnAddServer);
         _loginShell.RememberCheckBoxForTest.CheckedChanged += (_, _) => PersistRememberedAccount();
         _panelLogin.Controls.Clear();
         _panelLogin.Controls.Add(_loginShell);
@@ -1580,6 +1603,7 @@ public sealed class MainShellForm : Form
         }
 
         _btnConnect.Click += async (_, _) => await ConnectAsync();
+        _btnRetry.Click += async (_, _) => await RetryAsync();
         _btnDisconnect.Click += async (_, _) => await DisconnectAsync();
         _btnLogin.Click += async (_, _) => await LoginAsync();
         _btnRegister.Click += async (_, _) => await RegisterAsync();
@@ -1735,9 +1759,22 @@ public sealed class MainShellForm : Form
         _client.PlayerLeaveReceived += OnPlayerLeave;
         _client.ErrorReceived += err =>
         {
+            var kind = PlayerFacingMessages.ClassifyServer(err);
             var human = PlayerFacingMessages.FromServerOrNetwork(err);
             AppendLog("Erreur: " + human);
             ShowPlayerStatus(human);
+            NoteConnectFailure(kind, human);
+            if (kind == ConnectionFailureKind.Version)
+            {
+                // Le message part avant la fermeture TCP : couper Login tout de suite,
+                // réarmer Connecter / Réessayer. Le socket tombe dans le même tour.
+                _btnConnect.Enabled = true;
+                _btnDisconnect.Enabled = false;
+                _btnLogin.Enabled = false;
+                _btnRegister.Enabled = false;
+                UpdateAuthTokenUi();
+            }
+
             if (_playtestOptions is { IsPlaytest: true } && !_playtestReady.ReadyEmitted)
             {
                 EmitPlaytestFailure(human);
@@ -3121,6 +3158,7 @@ public sealed class MainShellForm : Form
         try
         {
             _btnConnect.Enabled = false;
+            _btnRetry.Enabled = false;
             var host = _txtHost.Text.Trim();
             var port = (int)_numPort.Value;
             var tls = ClientTlsOptions.FromEnvironment(host);
@@ -3130,6 +3168,7 @@ public sealed class MainShellForm : Form
                 ? $"TLS connecté {host}:{port} SNI={tls.TargetHost}"
                 : $"TCP connecté {host}:{port}";
             AppendLog(connected);
+            ClearConnectFailure();
             ShowPlayerStatus(PlayerFacingMessages.Connected);
             _ = SyncTilePackAsync(redrawIfReady: false);
             _btnDisconnect.Enabled = true;
@@ -3139,11 +3178,24 @@ public sealed class MainShellForm : Form
         }
         catch (Exception ex)
         {
+            var kind = PlayerFacingMessages.ClassifyException(ex);
             var human = PlayerFacingMessages.FromException(ex);
             AppendLog("Connexion: " + human);
             ShowPlayerStatus(human);
+            NoteConnectFailure(kind, human);
             _btnConnect.Enabled = true;
         }
+    }
+
+    private async Task RetryAsync()
+    {
+        if (_client is { IsConnected: true })
+        {
+            await LoginAsync().ConfigureAwait(true);
+            return;
+        }
+
+        await ConnectAsync().ConfigureAwait(true);
     }
 
     private async Task DisconnectAsync()
@@ -3156,6 +3208,7 @@ public sealed class MainShellForm : Form
 
         var tradeNote = _tradeForm.NotifyLocalDisconnect();
         var shopNote = _shopBank.NotifyLocalDisconnect();
+        ClearConnectFailure();
         ResetUiAfterDisconnect();
         var note = CombinePlayerNotes(tradeNote, shopNote);
         if (note is not null)
@@ -3244,8 +3297,10 @@ public sealed class MainShellForm : Form
         AppendLog("Connexion fermée.");
         var tradeNote = _tradeForm.NotifyLocalDisconnect();
         var shopNote = _shopBank.NotifyLocalDisconnect();
-        ShowPlayerStatus(CombinePlayerNotes(tradeNote, shopNote) ?? PlayerFacingMessages.ConnectionLost);
+        var human = CombinePlayerNotes(tradeNote, shopNote) ?? PlayerFacingMessages.ConnectionLost;
+        ShowPlayerStatus(human);
         ResetUiAfterDisconnect();
+        NoteConnectFailure(ConnectionFailureKind.ConnectionLost, human);
     }
 
     private async Task LoginAsync()
@@ -3272,7 +3327,9 @@ public sealed class MainShellForm : Form
             // Échec : message serveur générique ("Identifiants invalides.") — jamais de jeton,
             // mais on sanitize quand même par défense en profondeur.
             AppendLog("Login refusé: " + SanitizeSecrets(message));
-            ShowPlayerStatus(PlayerFacingMessages.FromServerOrNetwork(message));
+            var human = PlayerFacingMessages.FromServerOrNetwork(message);
+            ShowPlayerStatus(human);
+            NoteConnectFailure(PlayerFacingMessages.ClassifyServer(message), human);
             if (_playtestOptions is { IsPlaytest: true })
             {
                 EmitPlaytestFailure("login refusé: " + message);
@@ -3290,6 +3347,7 @@ public sealed class MainShellForm : Form
         }
 
         AppendLog("Login OK");
+        ClearConnectFailure();
         ShowPlayerStatus(PlayerFacingMessages.LoggedIn);
         PersistRememberedAccount();
         try
@@ -4883,6 +4941,7 @@ public sealed class MainShellForm : Form
             _numPort.Value = Math.Clamp(_settings.LastPort, 1, 65535);
         }
 
+        RefreshServerListUi();
         RefreshMoveHint();
         ApplyRememberedAccount();
         _settingsStore.Save(_settings);
@@ -5089,6 +5148,8 @@ public sealed class MainShellForm : Form
         LoginShell.StyleSecondaryCta(_btnReconnect);
         LoginShell.StyleSecondaryCta(_btnConnect);
         LoginShell.StyleSecondaryCta(_btnDisconnect);
+        LoginShell.StyleSecondaryCta(_btnRetry);
+        LoginShell.StyleSecondaryCta(_btnAddServer);
         _mapScroll.BackColor = MapSurfaceBackColor;
         _picMap.BackColor = MapSurfaceBackColor;
         _worldHost.BackColor = MapSurfaceBackColor;
@@ -5567,8 +5628,9 @@ public sealed class MainShellForm : Form
 
     private void PersistLastEndpoint(string host, int port)
     {
-        _settings.LastHost = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();
-        _settings.LastPort = Math.Clamp(port, 1, 65535);
+        var normalizedHost = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();
+        var normalizedPort = Math.Clamp(port, 1, 65535);
+        SavedServerList.TryRemember(_settings, normalizedHost, normalizedPort, name: null, out _);
         try
         {
             _settingsStore.Save(_settings);
@@ -5577,6 +5639,113 @@ public sealed class MainShellForm : Form
         {
             // persistance optionnelle
         }
+
+        RefreshServerListUi();
+    }
+
+    private void ApplyPickedServer()
+    {
+        if (_syncingServerList || _cmbServers.SelectedItem is not SavedServerEndpoint endpoint)
+        {
+            return;
+        }
+
+        _txtHost.Text = endpoint.Host;
+        _numPort.Value = Math.Clamp(endpoint.Port, 1, 65535);
+        _settings.LastHost = endpoint.Host;
+        _settings.LastPort = endpoint.Port;
+        try
+        {
+            _settingsStore.Save(_settings);
+        }
+        catch
+        {
+            // persistance optionnelle
+        }
+
+        RefreshConnectDiagnostic();
+    }
+
+    private void AddServerFromFields()
+    {
+        if (!SavedServerList.TryRemember(
+                _settings,
+                _txtHost.Text,
+                (int)_numPort.Value,
+                _txtServerName.Text,
+                out var error))
+        {
+            ShowPlayerStatus(error);
+            return;
+        }
+
+        _txtServerName.Clear();
+        try
+        {
+            _settingsStore.Save(_settings);
+        }
+        catch
+        {
+            // persistance optionnelle
+        }
+
+        RefreshServerListUi();
+        ShowPlayerStatus("Serveur enregistré.");
+    }
+
+    private void RefreshServerListUi()
+    {
+        _syncingServerList = true;
+        try
+        {
+            _cmbServers.BeginUpdate();
+            _cmbServers.Items.Clear();
+            foreach (var row in _settings.SavedServers)
+            {
+                _cmbServers.Items.Add(row);
+            }
+
+            _cmbServers.SelectedIndex = SavedServerList.IndexOf(_settings.SavedServers, _txtHost.Text, (int)_numPort.Value);
+        }
+        finally
+        {
+            _cmbServers.EndUpdate();
+            _syncingServerList = false;
+        }
+
+        RefreshConnectDiagnostic();
+    }
+
+    private void NoteConnectFailure(ConnectionFailureKind kind, string human)
+    {
+        _lastFailureKind = kind == ConnectionFailureKind.None ? ConnectionFailureKind.Other : kind;
+        _lastFailureText = PlayerFacingMessages.Redact(human);
+        _btnRetry.Enabled = true;
+        RefreshConnectDiagnostic();
+    }
+
+    private void ClearConnectFailure()
+    {
+        _lastFailureKind = ConnectionFailureKind.None;
+        _lastFailureText = null;
+        _btnRetry.Enabled = false;
+        RefreshConnectDiagnostic();
+    }
+
+    private void RefreshConnectDiagnostic()
+    {
+        var where = _txtHost.Text.Trim() + ":" + (int)_numPort.Value;
+        if (_lastFailureKind == ConnectionFailureKind.None)
+        {
+            _loginShell.SetConnectDiagnostic(
+                $"Protocole {FrogWireProtocol.Version} · {where} · prêt.",
+                failure: false);
+            return;
+        }
+
+        _loginShell.SetConnectDiagnostic(
+            $"Échec : {PlayerFacingMessages.Headline(_lastFailureKind)} · {where} · protocole {FrogWireProtocol.Version}",
+            failure: true);
     }
 
     private void ApplyPlayerStatusLayout()
@@ -5651,7 +5820,8 @@ public sealed class MainShellForm : Form
             tls.TargetHost,
             _phase.ToString(),
             _client is { IsConnected: true },
-            string.IsNullOrWhiteSpace(_username) ? _txtUser.Text.Trim() : _username);
+            string.IsNullOrWhiteSpace(_username) ? _txtUser.Text.Trim() : _username,
+            _lastFailureText);
         if (_movementMeasure.Enabled)
         {
             raw += Environment.NewLine + _movementMeasure.FormatSummary();
@@ -5758,6 +5928,23 @@ public sealed class MainShellForm : Form
     internal TextBox PassTextBoxForTest => _txtPass;
 
     internal Button ConnectButtonForTest => _btnConnect;
+
+    internal Button RetryConnectButtonForTest => _btnRetry;
+
+    internal Button AddServerButtonForTest => _btnAddServer;
+
+    internal ComboBox ServerListComboForTest => _cmbServers;
+
+    internal TextBox ServerNameTextBoxForTest => _txtServerName;
+
+    internal string ConnectDiagnosticTextForTest => _loginShell.ConnectDiagnosticTextForTest;
+
+    internal void NoteConnectFailureForTest(string raw)
+    {
+        var human = PlayerFacingMessages.FromServerOrNetwork(raw);
+        NoteConnectFailure(PlayerFacingMessages.ClassifyServer(raw), human);
+        ShowPlayerStatus(human);
+    }
 
     internal Button DisconnectButtonForTest => _btnDisconnect;
 
