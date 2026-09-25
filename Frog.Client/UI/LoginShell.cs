@@ -1,7 +1,9 @@
 #nullable enable
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.CompilerServices;
 using System.Windows.Forms;
+using Frog.Client.Config;
 
 namespace Frog.Client.UI;
 
@@ -26,6 +28,17 @@ public sealed class LoginShell : Panel
     private readonly Label _opsHint;
     private readonly Label _networkHint;
     private bool _opsVisible;
+    private FlowLayoutPanel? _body;
+    private TextBox? _accountUser;
+    private TextBox? _accountPass;
+    private Button? _loginButton;
+    private Button? _registerButton;
+    private Button? _reconnectButton;
+    private Button? _connectButton;
+    private Button? _disconnectButton;
+    private TextBox? _hostBox;
+    private NumericUpDown? _portBox;
+    private int _appliedUiScalePercent = ClientUiScale.DefaultPercent;
 
     public LoginShell()
     {
@@ -123,6 +136,16 @@ public sealed class LoginShell : Panel
         ArgumentNullException.ThrowIfNull(port);
         ArgumentNullException.ThrowIfNull(authStatus);
 
+        _accountUser = user;
+        _accountPass = pass;
+        _loginButton = login;
+        _registerButton = register;
+        _reconnectButton = reconnect;
+        _connectButton = connect;
+        _disconnectButton = disconnect;
+        _hostBox = host;
+        _portBox = port;
+
         login.Text = "Connexion";
         login.MinimumSize = new Size(FieldWidth, 34);
         register.MinimumSize = new Size(120, 30);
@@ -149,6 +172,7 @@ public sealed class LoginShell : Panel
             BackColor = Color.Transparent,
             Width = CardWidth,
         };
+        _body = body;
 
         var logoRow = new FlowLayoutPanel
         {
@@ -247,6 +271,96 @@ public sealed class LoginShell : Panel
         Invalidate(true);
     }
 
+    /// <summary>
+    /// Échelle DIP de la carte login. À 100 % ne relit pas la mise en page déjà construite.
+    /// </summary>
+    public void ApplyUiScale(int percent)
+    {
+        var clamped = ClientUiScale.ClampPercent(percent);
+        if (_body is null)
+        {
+            _appliedUiScalePercent = clamped;
+            return;
+        }
+
+        if (clamped == _appliedUiScalePercent)
+        {
+            return;
+        }
+
+        _appliedUiScalePercent = clamped;
+        var cardW = ClientUiScale.ScaleDip(CardWidth, clamped);
+        var pad = ClientUiScale.ScaleDip(CardPadding, clamped);
+        var fieldW = ClientUiScale.ScaleDip(FieldWidth, clamped);
+        var emblem = ClientUiScale.ScaleDip(LogoEmblemSize, clamped);
+        var inner = Math.Max(1, cardW - (pad * 2));
+
+        _body.Padding = new Padding(pad);
+        _body.Width = cardW;
+        _card.Width = cardW;
+        _emblem.MinimumSize = new Size(emblem, emblem);
+        _emblem.MaximumSize = new Size(emblem, emblem);
+        _emblem.Size = new Size(emblem, emblem);
+
+        if (_body.Controls.Count > 0 && _body.Controls[0] is FlowLayoutPanel logoRow)
+        {
+            logoRow.Margin = new Padding(Math.Max(0, (inner - emblem) / 2), ClientUiScale.ScaleDip(4, clamped), 0, 0);
+        }
+
+        SizeField(_accountUser, fieldW, 24, clamped);
+        SizeField(_accountPass, fieldW, 24, clamped);
+        SizeButton(_loginButton, fieldW, 34, clamped);
+        SizeButton(_registerButton, 120, 30, clamped);
+        SizeButton(_reconnectButton, 160, 30, clamped);
+        SizeButton(_connectButton, 120, 30, clamped);
+        SizeButton(_disconnectButton, 120, 30, clamped);
+        if (_hostBox is not null)
+        {
+            _hostBox.Width = ClientUiScale.ScaleDip(160, clamped);
+        }
+
+        if (_portBox is not null)
+        {
+            _portBox.Width = ClientUiScale.ScaleDip(70, clamped);
+        }
+
+        RecenterLabel(_logoWordmark, inner);
+        RecenterLabel(_logoSub, inner);
+        _body.PerformLayout();
+        var contentH = Math.Max(ClientUiScale.ScaleDip(420, clamped), _body.PreferredSize.Height + 8);
+        _card.Height = contentH;
+        CenterCard();
+    }
+
+    private static void SizeField(TextBox? box, int width, int designHeight, int percent)
+    {
+        if (box is null)
+        {
+            return;
+        }
+
+        box.Width = width;
+        box.MinimumSize = new Size(width, ClientUiScale.ScaleDip(designHeight, percent));
+    }
+
+    private static void SizeButton(Button? button, int designWidth, int designHeight, int percent)
+    {
+        if (button is null)
+        {
+            return;
+        }
+
+        button.MinimumSize = new Size(
+            ClientUiScale.ScaleDip(designWidth, percent),
+            ClientUiScale.ScaleDip(designHeight, percent));
+    }
+
+    private static void RecenterLabel(Label label, int innerWidth)
+    {
+        var textW = TextRenderer.MeasureText(label.Text, label.Font).Width;
+        label.Margin = new Padding(Math.Max(0, (innerWidth - textW) / 2), label.Margin.Top, 0, label.Margin.Bottom);
+    }
+
     public void ApplyTheme()
     {
         BackColor = UiTheme.BgApp;
@@ -282,7 +396,7 @@ public sealed class LoginShell : Panel
     {
         ArgumentNullException.ThrowIfNull(button);
         UiTheme.StyleContrastHudButton(button, button.Enabled);
-        button.Font = UiTheme.UiFont(10f, FontStyle.Bold);
+        UiScaleApplicator.ApplyDesignFont(button, 10f, FontStyle.Bold);
         button.Cursor = Cursors.Hand;
     }
 
@@ -290,7 +404,7 @@ public sealed class LoginShell : Panel
     {
         ArgumentNullException.ThrowIfNull(button);
         UiTheme.StyleContrastHudButton(button, button.Enabled);
-        button.Font = UiTheme.UiFont(8.5f);
+        UiScaleApplicator.ApplyDesignFont(button, 8.5f, FontStyle.Regular);
         button.Cursor = Cursors.Hand;
     }
 
@@ -311,8 +425,11 @@ public sealed class LoginShell : Panel
     public static void HostCenteredCard(Panel page, params Control[] sections)
     {
         ArgumentNullException.ThrowIfNull(page);
-        const int cardWidth = CharacterCardWidth;
-        var innerWidth = cardWidth - (CardPadding * 2);
+        var state = new CardScaleState();
+        CharacterPageScales.Add(page, state);
+        var cardWidth = ClientUiScale.ScaleDip(CharacterCardWidth, state.Percent);
+        var pad = ClientUiScale.ScaleDip(CardPadding, state.Percent);
+        var innerWidth = cardWidth - (pad * 2);
 
         var card = new LoginCard { Width = cardWidth, AutoScroll = true };
         var body = new FlowLayoutPanel
@@ -321,7 +438,7 @@ public sealed class LoginShell : Panel
             WrapContents = false,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Padding = new Padding(CardPadding),
+            Padding = new Padding(pad),
             Margin = new Padding(0),
             BackColor = Color.Transparent,
             Width = cardWidth,
@@ -365,9 +482,23 @@ public sealed class LoginShell : Panel
             layingOut = true;
             try
             {
-                body.Width = cardWidth;
-                body.MaximumSize = new Size(cardWidth, 0);
+                var scaledCard = ClientUiScale.ScaleDip(CharacterCardWidth, state.Percent);
+                var scaledPad = ClientUiScale.ScaleDip(CardPadding, state.Percent);
+                var scaledInner = Math.Max(1, scaledCard - (scaledPad * 2));
+                body.Padding = new Padding(scaledPad);
+                body.Width = scaledCard;
+                body.MaximumSize = new Size(scaledCard, 0);
+                foreach (Control section in body.Controls)
+                {
+                    if (section is FlowLayoutPanel row)
+                    {
+                        row.Width = scaledInner;
+                        row.MaximumSize = new Size(scaledInner, 0);
+                    }
+                }
+
                 body.PerformLayout();
+                cardWidth = scaledCard;
 
                 var contentH = Math.Max(8, body.PreferredSize.Height + 8);
                 var availH = Math.Max(80, host.ClientSize.Height - 16);
@@ -399,19 +530,66 @@ public sealed class LoginShell : Panel
         page.Controls.Clear();
         page.BackColor = UiTheme.BgApp;
         page.Controls.Add(host);
+        state.Relayout = LayoutCard;
         LayoutCard();
     }
 
-    private void CenterCard()
+    /// <summary>Carte « choisir un personnage ». 100 % laisse la largeur 520 déjà posée.</summary>
+    public static void ApplyCharacterPageScale(Panel page, int percent)
     {
-        if (_card.Width <= 0 || Width <= 0)
+        ArgumentNullException.ThrowIfNull(page);
+        if (!CharacterPageScales.TryGetValue(page, out var state))
         {
             return;
         }
 
-        _card.Location = new Point(
-            Math.Max(12, (Width - _card.Width) / 2),
-            Math.Max(20, (Height - _card.Height) / 3));
+        var clamped = ClientUiScale.ClampPercent(percent);
+        if (clamped == state.Percent)
+        {
+            return;
+        }
+
+        state.Percent = clamped;
+        state.Relayout?.Invoke();
+    }
+
+    private static readonly ConditionalWeakTable<Panel, CardScaleState> CharacterPageScales = new();
+
+    private sealed class CardScaleState
+    {
+        public int Percent = ClientUiScale.DefaultPercent;
+
+        public Action? Relayout;
+    }
+
+    private bool _centeringCard;
+
+    private void CenterCard()
+    {
+        if (_centeringCard || _card.Width <= 0 || Width <= 0)
+        {
+            return;
+        }
+
+        _centeringCard = true;
+        try
+        {
+            _card.Location = new Point(
+                Math.Max(12, (Width - _card.Width) / 2),
+                Math.Max(20, (Height - _card.Height) / 3));
+            if (_appliedUiScalePercent == ClientUiScale.DefaultPercent)
+            {
+                return;
+            }
+
+            var fits = _card.Width + 24 <= ClientSize.Width && _card.Height + 40 <= ClientSize.Height;
+            AutoScroll = !fits;
+            AutoScrollMinSize = fits ? Size.Empty : new Size(_card.Width + 24, _card.Height + 40);
+        }
+        finally
+        {
+            _centeringCard = false;
+        }
     }
 
     private static void CenterLabel(FlowLayoutPanel body, Label label)
@@ -479,6 +657,7 @@ public sealed class LoginShell : Panel
             Size = new Size(LogoEmblemSize, LogoEmblemSize);
             MinimumSize = Size;
             MaximumSize = Size;
+            Font = UiTheme.UiFont(16f, FontStyle.Bold);
             BackColor = Color.Transparent;
         }
 
@@ -502,7 +681,7 @@ public sealed class LoginShell : Panel
             TextRenderer.DrawText(
                 g,
                 "F",
-                UiTheme.UiFont(16f, FontStyle.Bold),
+                Font,
                 ClientRectangle,
                 UiTheme.TextPrimary,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);

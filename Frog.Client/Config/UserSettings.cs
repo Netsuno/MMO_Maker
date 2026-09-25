@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using Frog.Core.Constants;
 using Frog.Core.Gameplay;
 
 namespace Frog.Client.Config;
@@ -26,6 +27,12 @@ public sealed class UserSettings
     public bool MusicEnabled { get; set; }
 
     public WindowSettings Window { get; set; } = new();
+
+    /// <summary>
+    /// Échelle d’interface en pourcent entier (pas de 25, 75–200). Défaut 100.
+    /// N’affecte pas la tuile monde (<see cref="WorldMetrics.DefaultTileSizePixels"/>).
+    /// </summary>
+    public int UiScalePercent { get; set; } = ClientUiScale.DefaultPercent;
 
     /// <summary>Dernier hôte TCP (login + Options → Réseau). Une seule vérité JSON.</summary>
     public string LastHost { get; set; } = "127.0.0.1";
@@ -70,6 +77,7 @@ public sealed class UserSettings
         Bindings.Normalize(KeyboardPreset);
         Window ??= new WindowSettings();
         Window.Normalize();
+        UiScalePercent = ClientUiScale.ClampPercent(UiScalePercent);
         LastHost = string.IsNullOrWhiteSpace(LastHost) ? "127.0.0.1" : LastHost.Trim();
         LastPort = Math.Clamp(LastPort, 1, 65535);
         LastUsername = RememberAccount ? (LastUsername ?? string.Empty).Trim() : string.Empty;
@@ -152,6 +160,7 @@ public sealed class UserSettings
             AudioMuted = AudioMuted,
             MusicEnabled = MusicEnabled,
             Window = Window.Clone(),
+            UiScalePercent = UiScalePercent,
             LastHost = LastHost,
             LastPort = LastPort,
             LastUsername = LastUsername,
@@ -188,6 +197,9 @@ public sealed class InputBindingsSettings
 
     public string Interact { get; set; } = "E";
 
+    /// <summary>Mêlée (barre d’espace par défaut). Les flèches de déplacement restent toujours actives.</summary>
+    public string Attack { get; set; } = "Space";
+
     public static InputBindingsSettings Azerty() => new();
 
     public static InputBindingsSettings Qwerty() => new()
@@ -197,6 +209,7 @@ public sealed class InputBindingsSettings
         MoveLeft = "A",
         MoveRight = "D",
         Interact = "E",
+        Attack = "Space",
     };
 
     public static InputBindingsSettings FromPreset(KeyboardLayoutPreset preset) =>
@@ -209,6 +222,7 @@ public sealed class InputBindingsSettings
         MoveLeft = NormalizeKeyName(MoveLeft, FromPreset(preset).MoveLeft);
         MoveRight = NormalizeKeyName(MoveRight, FromPreset(preset).MoveRight);
         Interact = NormalizeKeyName(Interact, FromPreset(preset).Interact);
+        Attack = NormalizeKeyName(Attack, FromPreset(preset).Attack);
     }
 
     public InputBindingsSettings Clone() => new()
@@ -218,6 +232,7 @@ public sealed class InputBindingsSettings
         MoveLeft = MoveLeft,
         MoveRight = MoveRight,
         Interact = Interact,
+        Attack = Attack,
     };
 
     private static string NormalizeKeyName(string? raw, string fallback)
@@ -250,4 +265,99 @@ public sealed class WindowSettings
         Maximized = Maximized,
         FullScreen = FullScreen,
     };
+}
+
+/// <summary>
+/// Échelle d’interface joueur, en pourcent entier.
+/// Le DPI Windows est déjà rendu par la police (points) et <c>AutoScaleMode.Font</c> :
+/// ce facteur ne lit pas <c>DeviceDpi</c> et ne le multiplie pas une seconde fois.
+/// La tuile monde reste <see cref="WorldMetrics.DefaultTileSizePixels"/> (32).
+/// </summary>
+public static class ClientUiScale
+{
+    public const int MinPercent = 75;
+
+    public const int MaxPercent = 200;
+
+    public const int StepPercent = 25;
+
+    public const int DefaultPercent = 100;
+
+    public static readonly int[] Steps = [75, 100, 125, 150, 175, 200];
+
+    /// <summary>Tuile monde : jamais passée par <see cref="ScaleDip"/>.</summary>
+    public static int WorldTilePixels => WorldMetrics.DefaultTileSizePixels;
+
+    /// <summary>
+    /// Pourcent joueur courant. 100 tant que le shell n’a pas appliqué les réglages.
+    /// Les polices créées ensuite (CTA login) s’alignent sans relire le DPI.
+    /// </summary>
+    public static int ActivePercent { get; private set; } = DefaultPercent;
+
+    public static void SetActive(int percent) => ActivePercent = ClampPercent(percent);
+
+    /// <summary>
+    /// 0 ou négatif → défaut (champ JSON absent / non écrit). Sinon pas de 25, borné 75–200.
+    /// </summary>
+    public static int ClampPercent(int percent)
+    {
+        if (percent <= 0)
+        {
+            return DefaultPercent;
+        }
+
+        var steps = (int)Math.Round(percent / (double)StepPercent, MidpointRounding.AwayFromZero);
+        var snapped = steps * StepPercent;
+        return Math.Clamp(snapped, MinPercent, MaxPercent);
+    }
+
+    public static int StepIndex(int percent)
+    {
+        var clamped = ClampPercent(percent);
+        for (var i = 0; i < Steps.Length; i++)
+        {
+            if (Steps[i] == clamped)
+            {
+                return i;
+            }
+        }
+
+        return 1;
+    }
+
+    /// <summary>Pixels logiques d’interface. À 100 %, rend exactement <paramref name="designDip"/>.</summary>
+    public static int ScaleDip(int designDip, int percent)
+    {
+        if (designDip == 0)
+        {
+            return 0;
+        }
+
+        var clamped = ClampPercent(percent);
+        if (clamped == DefaultPercent)
+        {
+            return designDip;
+        }
+
+        var sign = designDip < 0 ? -1 : 1;
+        var scaled = (int)Math.Round(Math.Abs(designDip) * (clamped / 100.0), MidpointRounding.AwayFromZero);
+        return sign * Math.Max(1, scaled);
+    }
+
+    /// <summary>Taille de police en points. À 100 %, rend exactement <paramref name="designEm"/>.</summary>
+    public static float ScaleEm(float designEm, int percent)
+    {
+        if (designEm <= 0)
+        {
+            return designEm;
+        }
+
+        var clamped = ClampPercent(percent);
+        if (clamped == DefaultPercent)
+        {
+            return designEm;
+        }
+
+        return designEm * (clamped / 100f);
+    }
 }

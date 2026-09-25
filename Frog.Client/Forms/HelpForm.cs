@@ -19,7 +19,8 @@ public sealed class HelpForm : Form
         Déplacement
         • Clavier AZERTY : ZQSD. Clavier QWERTY : WASD. Les flèches directionnelles fonctionnent toujours.
         • E : interagir avec un PNJ, un objet ou un événement proche.
-        • Les touches se règlent dans Options et sont conservées d'une session à l'autre.
+        • Espace : attaque de mêlée.
+        • Les touches se règlent dans Options (déplacement, interagir, mêlée) et sont conservées d'une session à l'autre.
         • La saisie dans un champ texte (chat, mot de passe) n'envoie pas de déplacement.
 
         Combat, inventaire, boutique
@@ -54,7 +55,7 @@ public sealed class HelpForm : Form
         Aide, options, diagnostics
         • F1 ou le bouton Aide ouvre cette fenêtre.
         • F8 (en jeu) : cycle météo debug Auto → Clair → Pluie → Brouillard (teinte overlay, pas de bump protocole).
-        • Options : volume, muet, musique (boucle de test), disposition clavier, rebind, taille de fenêtre, plein écran.
+        • Options : volume, muet, musique (boucle de test), disposition clavier, rebind, taille de fenêtre, plein écran, échelle d'interface (75–200 %).
         • Le numéro de version est visible en permanence.
         • « Copier diagnostics » prépare un rapport sans mot de passe ni jeton, pour signaler un problème.
         """;

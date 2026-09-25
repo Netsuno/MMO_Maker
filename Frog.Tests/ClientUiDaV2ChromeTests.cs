@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Frog.Client.Config;
 using Xunit;
 
 namespace Frog.Tests;
@@ -41,7 +42,11 @@ public sealed class ClientUiDaV2ChromeTests
         Assert.Contains("HudWindowChrome _windowChrome", shell, StringComparison.Ordinal);
         Assert.Contains("_windowChrome.Host(tabRight)", shell, StringComparison.Ordinal);
         Assert.Contains("UiTheme.StyleGoldTabs", shell, StringComparison.Ordinal);
-        Assert.Contains("_gameplayTabs.Size = new Size(360, tabH)", shell, StringComparison.Ordinal);
+        Assert.Contains(
+            "_gameplayTabs.Size = new Size(ClientUiScale.ScaleDip(360, _uiScalePercent), tabH)",
+            shell,
+            StringComparison.Ordinal);
+        Assert.Equal(360, ClientUiScale.ScaleDip(360, ClientUiScale.DefaultPercent));
         Assert.Contains("Phase8ExactShaPanelWidth = 324", shell, StringComparison.Ordinal);
         Assert.Contains("new(\"Inventaire\")", shell, StringComparison.Ordinal);
         Assert.Contains("new(\"Quêtes\")", shell, StringComparison.Ordinal);

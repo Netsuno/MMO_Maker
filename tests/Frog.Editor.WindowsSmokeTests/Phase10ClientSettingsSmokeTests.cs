@@ -40,6 +40,7 @@ public sealed class Phase10ClientSettingsSmokeTests
                 Assert.True(input.IsMoveUp(Keys.Z));
                 Assert.True(input.IsMoveUp(Keys.Up));
                 Assert.True(input.IsMoveLeft(Keys.Q));
+                Assert.True(input.IsAttack(Keys.Space));
                 Assert.True(input.IsMoveLeft(Keys.Left));
                 Assert.False(input.IsMoveUp(Keys.W));
 
@@ -59,6 +60,8 @@ public sealed class Phase10ClientSettingsSmokeTests
                 Assert.True(input.IsMoveUp(Keys.W));
                 Assert.True(input.IsMoveLeft(Keys.A));
                 Assert.Equal(35, new SoundService { }.ApplyVolume(reloaded));
+                Assert.Equal("Space", reloaded.Bindings.Attack);
+                Assert.Equal(100, reloaded.UiScalePercent);
 
                 reloaded.Bindings.MoveUp = "I";
                 store.Save(reloaded);
@@ -159,6 +162,19 @@ public sealed class Phase10ClientSettingsSmokeTests
                     Assert.True(options.Settings.AudioMuted);
                     Assert.True(options.Settings.MusicEnabled);
                     Assert.Equal("W", options.Settings.Bindings.MoveUp);
+                    Assert.Equal("Space", options.Settings.Bindings.Attack);
+                    Assert.False(options.Settings.Window.FullScreen);
+                    Assert.Equal(100, options.Settings.UiScalePercent);
+                    options.FullScreenCheckBoxForTest.Checked = true;
+                    options.UiScaleComboForTest.SelectedIndex = ClientUiScale.StepIndex(150);
+                    options.AssignBindingForTest("MoveLeft", "H");
+                    options.AssignBindingForTest("Attack", "F");
+                    options.CommitSave();
+                    Assert.True(options.Settings.Window.FullScreen);
+                    Assert.Equal(150, options.Settings.UiScalePercent);
+                    Assert.Equal("H", options.Settings.Bindings.MoveLeft);
+                    Assert.Equal("F", options.Settings.Bindings.Attack);
+                    Assert.Equal("150 %", options.UiScaleComboForTest.SelectedItem?.ToString());
 
                     var sound = form.SoundServiceForTest;
                     Assert.True(sound.PlayUiClick());

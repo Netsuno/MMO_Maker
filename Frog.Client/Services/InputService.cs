@@ -14,6 +14,7 @@ public sealed class InputService
     private Keys _moveLeft = Keys.Q;
     private Keys _moveRight = Keys.D;
     private Keys _interact = Keys.E;
+    private Keys _attack = Keys.Space;
 
     public KeyboardLayoutPreset Preset { get; private set; } = KeyboardLayoutPreset.Azerty;
 
@@ -27,6 +28,8 @@ public sealed class InputService
 
     public Keys Interact => _interact;
 
+    public Keys Attack => _attack;
+
     public void Apply(UserSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -37,6 +40,7 @@ public sealed class InputService
         _moveLeft = ParseKey(settings.Bindings.MoveLeft, Preset == KeyboardLayoutPreset.Qwerty ? Keys.A : Keys.Q);
         _moveRight = ParseKey(settings.Bindings.MoveRight, Keys.D);
         _interact = ParseKey(settings.Bindings.Interact, Keys.E);
+        _attack = ParseKey(settings.Bindings.Attack, Keys.Space);
     }
 
     public bool IsMoveLeft(Keys key) => key == Keys.Left || key == _moveLeft;
@@ -49,8 +53,10 @@ public sealed class InputService
 
     public bool IsInteract(Keys key) => key == _interact;
 
+    public bool IsAttack(Keys key) => key == _attack;
+
     public bool IsMovementOrInteract(Keys key) =>
-        IsMoveLeft(key) || IsMoveRight(key) || IsMoveUp(key) || IsMoveDown(key) || IsInteract(key);
+        IsMoveLeft(key) || IsMoveRight(key) || IsMoveUp(key) || IsMoveDown(key) || IsInteract(key) || IsAttack(key);
 
     public static bool IsTextInputFocus(Control? control)
     {
