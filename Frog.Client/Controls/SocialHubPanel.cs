@@ -164,6 +164,18 @@ public sealed class SocialHubPanel : UserControl
 
     public bool IsInstanceTabSelected => _tabs.SelectedTab == _tabInstance;
 
+    /// <summary>Nom affiché du membre sélectionné (ami, groupe ou guilde), pas une invitation.</summary>
+    public bool TryGetSelectedWhisperName(out string displayName)
+    {
+        displayName = string.Empty;
+        if (TryGetSelectedEconomy(out _) || IsInstanceTabSelected)
+        {
+            return false;
+        }
+
+        return Surface(SelectedKind).TryGetSelectedName(out displayName);
+    }
+
     public void SelectInstance()
     {
         _tabs.SelectedTab = _tabInstance;
@@ -342,6 +354,24 @@ public sealed class SocialHubPanel : UserControl
             Controls.Add(_motd);
             _list.SelectedIndexChanged += (_, _) => RefreshActions();
             _input.TextChanged += (_, _) => RefreshActions();
+        }
+
+        public bool TryGetSelectedName(out string displayName)
+        {
+            displayName = string.Empty;
+            if (_list.SelectedItem is not SocialRow row || row.Item.IsPendingInvite)
+            {
+                return false;
+            }
+
+            var name = row.Item.DisplayName.Trim();
+            if (name.Length == 0)
+            {
+                return false;
+            }
+
+            displayName = name;
+            return true;
         }
 
         public int RowCountForTest => _list.Items.Count;

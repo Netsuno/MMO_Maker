@@ -16,6 +16,7 @@ using Frog.Client.Services;
 using Frog.Client.UI;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
+using Frog.Core.Chat;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
@@ -81,6 +82,8 @@ public sealed class MainShellForm : Form
     private FrogGameClient? _client;
     private Map? _map;
     private string? _username;
+    private string? _lastWhisperTarget;
+    private bool _whisperAwaitingResult;
     private int _srvPixelX;
     private int _srvPixelY;
     private readonly ConcurrentDictionary<string, OtherPlayerView> _others = new(StringComparer.OrdinalIgnoreCase);
@@ -252,11 +255,12 @@ public sealed class MainShellForm : Form
         Location = new Point(0, 0),
         SizeMode = PictureBoxSizeMode.AutoSize,
         BackColor = MapSurfaceBackColor,
+        TabStop = true,
     };
     private readonly TextBox _txtChat = new() { Dock = DockStyle.Fill };
     private readonly Button _btnSendChat = new() { Text = "Envoyer chat", Dock = DockStyle.Bottom, Height = 28 };
     private readonly ComboBox _cmbChannel = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
-    private readonly TextBox _txtWhisperTo = new() { PlaceholderText = "Cible whisper", Width = 120 };
+    private readonly TextBox _txtWhisperTo = new() { PlaceholderText = "Nom, ami ou cible", Width = 140 };
     /// <summary>Cible mêlée/sort : ComboBox éditable (P7-G5) peuplée des noms PNJ/monstre publiés (défaut « Slime » si présent), texte libre toujours possible.</summary>
     private readonly ComboBox _cmbMeleeTarget = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 120 };
     private readonly Button _btnMelee = new() { Text = "Mêlée", Enabled = false };
@@ -437,7 +441,7 @@ public sealed class MainShellForm : Form
         EnableDoubleBuffer(_picMap);
         _smoothTimer.Tick += SmoothTimer_OnTick;
         _smoothTimer.Start();
-        _cmbChannel.Items.AddRange(new object[] { "Global", "Map", "Whisper", "Party", "Guild" });
+        _cmbChannel.Items.AddRange(new object[] { "Général", "Local", "Chuchoter", "Groupe", "Guilde" });
         _cmbChannel.SelectedIndex = 1;
         _cmbShop.SelectedIndexChanged += (_, _) => OnShopComboChanged();
         _cmbShopItem.SelectedIndexChanged += (_, _) => OnShopItemChanged();
@@ -1528,16 +1532,25 @@ public sealed class MainShellForm : Form
         _worldHost.Controls.Add(_hudHotbar);
         _worldHost.Controls.Add(_hudMenu);
         _worldHost.Controls.Add(_interactHint);
-        _txtChat.Enter += (_, _) => RefreshInteractHint();
+        _txtChat.Enter += (_, _) =>
+        {
+            StopMovementForChat();
+            RefreshInteractHint();
+        };
         _txtChat.Leave += (_, _) => RefreshInteractHint();
-        _txtWhisperTo.Enter += (_, _) => RefreshInteractHint();
+        _txtWhisperTo.Enter += (_, _) =>
+        {
+            StopMovementForChat();
+            RefreshInteractHint();
+        };
         _txtWhisperTo.Leave += (_, _) => RefreshInteractHint();
         _worldHost.Controls.Add(_btnRespawn);
         _worldHost.Controls.Add(_windowChrome);
-        _picMap.Click += (_, _) => DismissWindowLayerFromMap();
-        _mapScroll.Click += (_, _) => DismissWindowLayerFromMap();
+        _picMap.Click += (_, _) => OnWorldSurfaceClick();
+        _mapScroll.Click += (_, _) => OnWorldSurfaceClick();
         _worldHost.Resize += (_, _) => LayoutGameHud();
         _hudChat.AttachInputs(_cmbChannel, _txtWhisperTo, _txtChat, _btnSendChat);
+        _cmbChannel.SelectedIndexChanged += (_, _) => PrefillWhisperFromSelection();
         _hudChat.SocialPanelRequested += OpenSocialPanel;
         _hudHotbar.SlotActivated += OnHotbarSlotActivated;
         _hudMenu.Command += OnHudMenuCommand;
@@ -1759,6 +1772,16 @@ public sealed class MainShellForm : Form
         _client.PlayerLeaveReceived += OnPlayerLeave;
         _client.ErrorReceived += err =>
         {
+            if (_whisperAwaitingResult)
+            {
+                _whisperAwaitingResult = false;
+                if (ChatWhisper.TryPresent(err, _socialRoster.IsKnownOffline(_lastWhisperTarget), out var chatLine))
+                {
+                    ShowChatNotice(chatLine);
+                    return;
+                }
+            }
+
             var kind = PlayerFacingMessages.ClassifyServer(err);
             var human = PlayerFacingMessages.FromServerOrNetwork(err);
             AppendLog("Erreur: " + human);
@@ -4106,6 +4129,17 @@ public sealed class MainShellForm : Form
         var target = string.IsNullOrEmpty(to) ? string.Empty : $"→{to} ";
         AppendLog($"{prefix} {from} {target}: {message}");
         _hudChat.AppendChat(ch, from, to, message);
+        if (ch == ChatChannel.Whisper
+            && !string.IsNullOrEmpty(_username)
+            && string.Equals(from, _username, StringComparison.OrdinalIgnoreCase))
+        {
+            _whisperAwaitingResult = false;
+            var who = string.IsNullOrWhiteSpace(to) ? _lastWhisperTarget : to;
+            if (!string.IsNullOrWhiteSpace(who))
+            {
+                ShowPlayerStatus(ChatWhisper.SentTo(who));
+            }
+        }
     }
 
     private async Task SendChatAsync()
@@ -4141,7 +4175,7 @@ public sealed class MainShellForm : Form
             var whispered = _txtWhisperTo.Text.Trim();
             if (string.IsNullOrEmpty(whispered))
             {
-                ShowPlayerStatus("Indiquez le joueur : /trade Nom, ou remplissez Cible whisper.");
+                ShowPlayerStatus("Indiquez le joueur : /trade Nom, ou le nom au-dessus du chat.");
                 return;
             }
 
@@ -4196,23 +4230,68 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        var ch = _cmbChannel.SelectedIndex switch
+        var slash = ChatWhisper.ParseSlash(text, out var slashTarget, out var slashBody);
+        if (slash == ChatWhisper.Slash.Incomplete)
         {
-            0 => ChatChannel.Global,
-            1 => ChatChannel.Map,
-            2 => ChatChannel.Whisper,
-            3 => ChatChannel.Party,
-            4 => ChatChannel.Guild,
-            _ => ChatChannel.Whisper
-        };
+            ShowChatNotice(ChatWhisper.SlashHint);
+            return;
+        }
+
+        var ch = slash == ChatWhisper.Slash.Ready
+            ? ChatChannel.Whisper
+            : _cmbChannel.SelectedIndex switch
+            {
+                0 => ChatChannel.Global,
+                1 => ChatChannel.Map,
+                2 => ChatChannel.Whisper,
+                3 => ChatChannel.Party,
+                4 => ChatChannel.Guild,
+                _ => ChatChannel.Whisper
+            };
+        var body = slash == ChatWhisper.Slash.Ready ? slashBody : text;
+        var whisperTo = slash == ChatWhisper.Slash.Ready ? slashTarget : _txtWhisperTo.Text.Trim();
+        if (ch == ChatChannel.Whisper)
+        {
+            if (!ChatWhisper.TryResolveTarget(
+                    whisperTo,
+                    SelectedFriendName(),
+                    SelectedWorldTargetName(),
+                    CombatMvpLimits.DummyName,
+                    out whisperTo))
+            {
+                ShowChatNotice(ChatWhisper.EmptyTarget);
+                return;
+            }
+
+            if (ChatWhisper.IsSelf(whisperTo, _username, _activeCharacterName))
+            {
+                ShowChatNotice(ChatWhisper.Self);
+                return;
+            }
+
+            _txtWhisperTo.Text = whisperTo;
+            if (_cmbChannel.SelectedIndex != 2)
+            {
+                _cmbChannel.SelectedIndex = 2;
+            }
+
+            _lastWhisperTarget = whisperTo;
+            _whisperAwaitingResult = true;
+        }
 
         try
         {
-            await _client.SendChatAsync(ch, _txtWhisperTo.Text.Trim(), text).ConfigureAwait(true);
+            await _client.SendChatAsync(ch, whisperTo, body).ConfigureAwait(true);
             _txtChat.Clear();
+            FocusChatInput();
+            if (ch == ChatChannel.Whisper)
+            {
+                ShowPlayerStatus(ChatWhisper.SentTo(whisperTo));
+            }
         }
         catch (Exception ex)
         {
+            _whisperAwaitingResult = false;
             AppendLog("Chat: " + ex.Message);
         }
     }
@@ -4433,6 +4512,11 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (TryHandleChatComposeKey(e))
+        {
+            return;
+        }
+
         if (_client is null || !_client.IsConnected || string.IsNullOrEmpty(_username))
         {
             return;
@@ -4507,11 +4591,36 @@ public sealed class MainShellForm : Form
         TrySendHeldMoveNetwork();
     }
 
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (_phase == ClientUiPhase.Playing && ChatComposeFocused())
+        {
+            var key = keyData & Keys.KeyCode;
+            if (key is Keys.Up or Keys.Down)
+            {
+                // Flèches haut/bas d'une zone mono-ligne : ne pas donner le focus au monde.
+                return true;
+            }
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
     private void MainShell_KeyUp(object? sender, KeyEventArgs e)
     {
         if (_phase != ClientUiPhase.Playing)
         {
             _keysDown.Remove(e.KeyCode);
+            return;
+        }
+
+        if (ChatComposeFocused() || InputService.IsTextInputFocus(ActiveControl))
+        {
+            if (_keysDown.Remove(e.KeyCode) || _holdLeft || _holdRight || _holdUp || _holdDown)
+            {
+                StopMovementForChat();
+            }
+
             return;
         }
 
@@ -5310,6 +5419,169 @@ public sealed class MainShellForm : Form
         }
 
         _windowChrome.Title = _windowTitleHint;
+    }
+
+    private void OnWorldSurfaceClick()
+    {
+        StopMovementForChat();
+        if (ChatCompose.OnWorldClick(ChatComposeFocused()).ReleaseFocus)
+        {
+            ReleaseChatFocus();
+        }
+        else
+        {
+            RefreshInteractHint();
+        }
+
+        DismissWindowLayerFromMap();
+    }
+
+    private bool ChatComposeFocused() => _txtChat.ContainsFocus || _txtWhisperTo.ContainsFocus;
+
+    private bool TryHandleChatComposeKey(KeyEventArgs e)
+    {
+        var chatFocused = ChatComposeFocused();
+        var otherText = !chatFocused && InputService.IsTextInputFocus(ActiveControl);
+        var decision = ChatCompose.Decide(chatFocused, otherText, ClassifyChatKey(e.KeyCode));
+        if (!decision.BlockWorldInput && !decision.FocusChat && !decision.ReleaseFocus && !decision.Send)
+        {
+            return false;
+        }
+
+        if (decision.BlockWorldInput)
+        {
+            StopMovementForChat();
+        }
+
+        if (decision.ReleaseFocus)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            ReleaseChatFocus();
+            return true;
+        }
+
+        if (decision.Send)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            _ = SendChatAsync();
+            KeepChatFocus();
+            return true;
+        }
+
+        if (decision.FocusChat)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            StopMovementForChat();
+            FocusChatInput();
+            return true;
+        }
+
+        return true;
+    }
+
+    private ChatCompose.Key ClassifyChatKey(Keys key)
+    {
+        if (key == Keys.Enter)
+        {
+            return ChatCompose.Key.Enter;
+        }
+
+        if (key == Keys.Escape)
+        {
+            return ChatCompose.Key.Escape;
+        }
+
+        if (_input.IsMoveLeft(key)
+            || _input.IsMoveRight(key)
+            || _input.IsMoveUp(key)
+            || _input.IsMoveDown(key)
+            || _input.IsAttack(key)
+            || _input.IsInteract(key))
+        {
+            return ChatCompose.Key.World;
+        }
+
+        return ChatCompose.Key.Text;
+    }
+
+    private void StopMovementForChat()
+    {
+        var moving = _holdLeft || _holdRight || _holdUp || _holdDown || _keysDown.Count > 0;
+        if (!moving)
+        {
+            return;
+        }
+
+        ReleaseAllMoveKeys();
+        ScheduleIdlePositionSyncIfAllReleased();
+    }
+
+    private void FocusChatInput()
+    {
+        if (_txtChat.IsDisposed)
+        {
+            return;
+        }
+
+        _txtChat.Focus();
+    }
+
+    private void KeepChatFocus()
+    {
+        if (ChatComposeFocused() || _txtChat.Focused)
+        {
+            FocusChatInput();
+        }
+    }
+
+    private void ReleaseChatFocus()
+    {
+        StopMovementForChat();
+        _picMap.TabStop = true;
+        if (IsHandleCreated && !_picMap.Focus())
+        {
+            _mapScroll.TabStop = true;
+            _mapScroll.Focus();
+        }
+
+        RefreshInteractHint();
+    }
+
+    private void PrefillWhisperFromSelection()
+    {
+        if (_cmbChannel.SelectedIndex != 2 || !string.IsNullOrWhiteSpace(_txtWhisperTo.Text))
+        {
+            return;
+        }
+
+        if (ChatWhisper.TryResolveTarget(
+                null,
+                SelectedFriendName(),
+                SelectedWorldTargetName(),
+                CombatMvpLimits.DummyName,
+                out var name))
+        {
+            _txtWhisperTo.Text = name;
+        }
+    }
+
+    private string? SelectedFriendName() =>
+        _socialHub.TryGetSelectedWhisperName(out var name) ? name : null;
+
+    private string? SelectedWorldTargetName()
+    {
+        var text = _cmbMeleeTarget.Text.Trim();
+        return text.Length == 0 ? null : text;
+    }
+
+    private void ShowChatNotice(string message)
+    {
+        AppendLog(message);
+        _hudChat.AppendSystem(message);
+        ShowPlayerStatus(message);
     }
 
     private void DismissWindowLayerFromMap()
