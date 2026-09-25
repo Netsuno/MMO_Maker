@@ -99,8 +99,10 @@ public sealed class ChatFocusWhisperTests
         Assert.True(ChatWhisper.IsSelf("Héros", "compte", "héros"));
         Assert.False(ChatWhisper.IsSelf("Bruno", "aline", "Héros"));
 
-        Assert.True(ChatWhisper.TryPresent(ChatWhisper.OfflineWire, false, out var french));
+        Assert.True(ChatWhisper.TryPresent(ChatWhisper.OfflineWire, true, out var french));
         Assert.Equal("Joueur hors ligne.", french);
+        Assert.True(ChatWhisper.TryPresent(ChatWhisper.OfflineWire, false, out french));
+        Assert.Equal("Joueur hors ligne ou inconnu.", french);
         Assert.True(ChatWhisper.TryPresent(ChatWhisper.UnknownWire, false, out french));
         Assert.Equal("Joueur inconnu.", french);
         Assert.True(ChatWhisper.TryPresent(ChatWhisper.UnknownWire, true, out french));
@@ -154,9 +156,14 @@ public sealed class ChatFocusWhisperTests
         Assert.Contains("DeepActive", input, StringComparison.Ordinal);
         Assert.Contains("\"Chuchoter\"", dock, StringComparison.Ordinal);
         Assert.Contains("Échap", help, StringComparison.Ordinal);
-        Assert.Contains("ResolveWhisperTargetAsync", dispatcher, StringComparison.Ordinal);
-        Assert.Contains("ChatWhisper.BlockedWire", dispatcher, StringComparison.Ordinal);
-        Assert.Contains("ChatWhisper.UnknownWire", dispatcher, StringComparison.Ordinal);
+        Assert.Contains("ProcessCmdKey", shell, StringComparison.Ordinal);
+        Assert.Contains("_hudChat.AppendChat", shell, StringComparison.Ordinal);
+        Assert.Contains("ChatWhisper.ParseSlash", shell, StringComparison.Ordinal);
+        Assert.Contains("case ChatChannel.Whisper:", dispatcher, StringComparison.Ordinal);
+        Assert.Contains("TryGetSessionByUsername(whisperTarget", dispatcher, StringComparison.Ordinal);
+        Assert.Contains("\"Joueur hors ligne.\"", dispatcher, StringComparison.Ordinal);
+        Assert.Contains("\"Vous etes bloque.\"", dispatcher, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResolveWhisperTargetAsync", dispatcher, StringComparison.Ordinal);
         Assert.Contains("SocialRequest = 80", packetId, StringComparison.Ordinal);
         Assert.DoesNotContain("WhisperRequest", packetId, StringComparison.Ordinal);
 
@@ -169,7 +176,7 @@ public sealed class ChatFocusWhisperTests
 
     [Fact]
     [Trait("Category", "InMemorySmoke")]
-    public async Task Tcp_WhisperByCharacterName_OfflineUnknownSelf_PublicStillWorks()
+    public async Task Tcp_ExistingWhisperRoute_UsernameOfflineAndPublicChat()
     {
         var port = GetFreePort();
         using var host = CreateInMemoryHost(port);
@@ -199,7 +206,7 @@ public sealed class ChatFocusWhisperTests
             Assert.Equal("public-hello", gMsgC);
             await a.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
-            await a.SendFrameAsync(BuildChat(ChatChannel.Whisper, "psst", "Bruno"));
+            await a.SendFrameAsync(BuildChat(ChatChannel.Whisper, "psst", userB));
             var echo = await a.ReadUntilAsync(PacketId.ChatMessage);
             var delivered = await b.ReadUntilAsync(PacketId.ChatMessage);
             Assert.True(TryDecodeChat(echo, out var wCh, out _, out var wMsg));
@@ -211,11 +218,8 @@ public sealed class ChatFocusWhisperTests
             Assert.Equal("psst", dMsg);
             await c.DrainPendingAsync(TimeSpan.FromMilliseconds(200));
 
-            await a.SendFrameAsync(BuildChat(ChatChannel.Whisper, "moi", userA));
-            Assert.Equal(ChatWhisper.SelfWire, DecodeError(await a.ReadUntilAsync(PacketId.Error)));
-
             await a.SendFrameAsync(BuildChat(ChatChannel.Whisper, "qui", "NoSuchPlayer"));
-            Assert.Equal(ChatWhisper.UnknownWire, DecodeError(await a.ReadUntilAsync(PacketId.Error)));
+            Assert.Equal("Joueur hors ligne.", DecodeError(await a.ReadUntilAsync(PacketId.Error)));
 
             await b.SendFrameAsync([(byte)PacketId.LogoutRequest]);
             _ = await b.ReadUntilAsync(PacketId.LogoutAck);

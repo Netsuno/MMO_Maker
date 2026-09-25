@@ -58,7 +58,7 @@ public sealed class HelpForm : Form
         • Échap ou un clic sur le monde rend la main au déplacement.
         • Canaux Général, Local, Chuchoter, Groupe et Guilde.
         • Chuchoter : nom dans le champ, ami sélectionné, ou cible. /w Nom message fonctionne aussi.
-        • Hors ligne, nom inconnu ou bloqué s'affiche en français.
+        • La ligne part dans le même chat. Hors ligne, inconnu ou bloqué s'affiche en français.
 
         Amis, Groupe, Guilde
         • Boutons Amis / Groupe / Guilde dans le dock chat ouvrent les panneaux (même chrome que Inventaire).

@@ -4591,11 +4591,36 @@ public sealed class MainShellForm : Form
         TrySendHeldMoveNetwork();
     }
 
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (_phase == ClientUiPhase.Playing && ChatComposeFocused())
+        {
+            var key = keyData & Keys.KeyCode;
+            if (key is Keys.Up or Keys.Down)
+            {
+                // Flèches haut/bas d'une zone mono-ligne : ne pas donner le focus au monde.
+                return true;
+            }
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
     private void MainShell_KeyUp(object? sender, KeyEventArgs e)
     {
         if (_phase != ClientUiPhase.Playing)
         {
             _keysDown.Remove(e.KeyCode);
+            return;
+        }
+
+        if (ChatComposeFocused() || InputService.IsTextInputFocus(ActiveControl))
+        {
+            if (_keysDown.Remove(e.KeyCode) || _holdLeft || _holdRight || _holdUp || _holdDown)
+            {
+                StopMovementForChat();
+            }
+
             return;
         }
 
@@ -5516,9 +5541,10 @@ public sealed class MainShellForm : Form
     {
         StopMovementForChat();
         _picMap.TabStop = true;
-        if (IsHandleCreated && _picMap.CanFocus)
+        if (IsHandleCreated && !_picMap.Focus())
         {
-            ActiveControl = _picMap;
+            _mapScroll.TabStop = true;
+            _mapScroll.Focus();
         }
 
         RefreshInteractHint();

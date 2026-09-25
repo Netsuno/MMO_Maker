@@ -14,7 +14,6 @@ using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
-using Frog.Core.Chat;
 using Frog.Core.Combat;
 using Frog.Core.Protocol;
 using Frog.Server.Models;
@@ -1928,25 +1927,29 @@ public sealed partial class PacketDispatcher(
                 break;
 
             case ChatChannel.Whisper:
-                var whisper = await ResolveWhisperTargetAsync(session, whisperTarget, cancellationToken)
-                    .ConfigureAwait(false);
-                if (whisper.Error is not null)
+                if (!_connectionManager.TryGetSessionByUsername(whisperTarget, out var targetSession) || targetSession is null)
                 {
-                    await _packetSender.SendErrorAsync(clientSession, whisper.Error, cancellationToken);
+                    await _packetSender.SendErrorAsync(clientSession, "Joueur hors ligne.", cancellationToken);
+                    return;
+                }
+
+                if (!_clientRegistry.TryGet(targetSession.Id, out var targetClient) || targetClient is null)
+                {
+                    await _packetSender.SendErrorAsync(clientSession, "Joueur hors ligne.", cancellationToken);
                     return;
                 }
 
                 if (session.CharacterGuid is Guid whisperFrom
-                    && whisper.Session!.CharacterGuid is Guid whisperTo
+                    && targetSession.CharacterGuid is Guid whisperTo
                     && await _social.IsBlockedFromContactingAsync(whisperFrom, whisperTo, cancellationToken)
                         .ConfigureAwait(false))
                 {
-                    await _packetSender.SendErrorAsync(clientSession, ChatWhisper.BlockedWire, cancellationToken);
+                    await _packetSender.SendErrorAsync(clientSession, "Vous etes bloque.", cancellationToken);
                     return;
                 }
 
                 await _packetSender.SendChatMessageAsync(clientSession, channel, from, whisperTarget, message, cancellationToken);
-                await _packetSender.SendChatMessageAsync(whisper.Client!, channel, from, whisperTarget, message, cancellationToken);
+                await _packetSender.SendChatMessageAsync(targetClient, channel, from, whisperTarget, message, cancellationToken);
                 delivered = 2;
                 break;
 
@@ -2006,75 +2009,6 @@ public sealed partial class PacketDispatcher(
             result.Success,
             result.Message,
             cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<(Session? Session, ClientSession? Client, string? Error)> ResolveWhisperTargetAsync(
-        Session sender,
-        string whisperTarget,
-        CancellationToken cancellationToken)
-    {
-        var name = whisperTarget.Trim();
-        if (name.Length == 0)
-        {
-            return (null, null, ChatWhisper.EmptyWire);
-        }
-
-        if (string.Equals(name, sender.Username, StringComparison.OrdinalIgnoreCase))
-        {
-            return (null, null, ChatWhisper.SelfWire);
-        }
-
-        Session? target = null;
-        if (_connectionManager.TryGetSessionByUsername(name, out var byUser) && byUser is not null)
-        {
-            target = byUser;
-        }
-        else
-        {
-            var matches = new List<Session>();
-            foreach (var candidate in _connectionManager.GetActiveSessions())
-            {
-                if (candidate.CharacterGuid is not Guid id || id == Guid.Empty)
-                {
-                    continue;
-                }
-
-                var record = await _characterGameplay.FindAsync(id, cancellationToken).ConfigureAwait(false);
-                if (record is not null
-                    && string.Equals(record.DisplayName, name, StringComparison.OrdinalIgnoreCase))
-                {
-                    matches.Add(candidate);
-                }
-            }
-
-            if (matches.Count > 1)
-            {
-                return (null, null, ChatWhisper.AmbiguousWire);
-            }
-
-            if (matches.Count == 1)
-            {
-                target = matches[0];
-            }
-        }
-
-        if (target is not null && target.Id == sender.Id)
-        {
-            return (null, null, ChatWhisper.SelfWire);
-        }
-
-        if (target is null)
-        {
-            var account = await _accountRepository.FindByUsernameAsync(name, cancellationToken).ConfigureAwait(false);
-            return (null, null, account is null ? ChatWhisper.UnknownWire : ChatWhisper.OfflineWire);
-        }
-
-        if (!_clientRegistry.TryGet(target.Id, out var client) || client is null)
-        {
-            return (null, null, ChatWhisper.OfflineWire);
-        }
-
-        return (target, client, null);
     }
 
     public static bool TryParseChatSendPayload(ReadOnlySpan<byte> payload, out ChatChannel channel, out string whisperTarget, out string message)

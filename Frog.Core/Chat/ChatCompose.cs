@@ -181,7 +181,8 @@ public static class ChatWhisper
 
         if (EqualsName(text, OfflineWire))
         {
-            french = Offline;
+            // Le serveur existant répond la même phrase si le compte est absent ou déconnecté.
+            french = knownOffline ? Offline : "Joueur hors ligne ou inconnu.";
             return true;
         }
 
