@@ -318,6 +318,8 @@ public sealed class MainShellForm : Form
     private readonly HudMinimapModule _hudMinimap = new();
     private readonly HudQuestTrackerModule _hudQuest = new();
     private readonly HudChatDock _hudChat = new();
+    private readonly FriendsSticky _friendsSticky = new();
+    private readonly HudFriendsDock _hudFriends = new();
     private readonly HudHotbar _hudHotbar = new();
     private readonly HudMenuRing _hudMenu = new();
     private readonly InteractHintBadge _interactHint = new();
@@ -1516,6 +1518,8 @@ public sealed class MainShellForm : Form
         _hudMinimap.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _hudQuest.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _hudChat.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        _hudFriends.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        _hudFriends.Visible = false;
         _hudHotbar.Anchor = AnchorStyles.Bottom;
         _hudMenu.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
         tabRight.Anchor = AnchorStyles.Top | AnchorStyles.Left;
@@ -1529,6 +1533,18 @@ public sealed class MainShellForm : Form
         _worldHost.Controls.Add(_hudMinimap);
         _worldHost.Controls.Add(_hudQuest);
         _worldHost.Controls.Add(_hudChat);
+        _worldHost.Controls.Add(_hudFriends);
+        _hudFriends.PinToggled += (_, _) =>
+        {
+            _friendsSticky.TogglePin();
+            ApplyFriendsDock();
+        };
+        _hudFriends.CloseRequested += (_, _) =>
+        {
+            _friendsSticky.Close();
+            ApplyFriendsDock();
+        };
+        _hudFriends.FriendClicked += OnFriendsDockFriend;
         _worldHost.Controls.Add(_hudHotbar);
         _worldHost.Controls.Add(_hudMenu);
         _worldHost.Controls.Add(_interactHint);
@@ -4530,6 +4546,11 @@ public sealed class MainShellForm : Form
         if (e.KeyCode == Keys.Escape)
         {
             SetWindowLayerVisible(false);
+            if (_friendsSticky.DismissIfUnpinned())
+            {
+                ApplyFriendsDock();
+            }
+
             e.Handled = true;
             return;
         }
@@ -5280,6 +5301,7 @@ public sealed class MainShellForm : Form
         _hudMinimap.ApplyChromeScale(clamped);
         _hudQuest.ApplyChromeScale(clamped);
         _hudChat.ApplyChromeScale(clamped);
+        _hudFriends.ApplyChromeScale(clamped);
         _hudStatus.Size = new Size(
             ClientUiScale.ScaleDip(HudStatusModule.ModuleWidth, clamped),
             ClientUiScale.ScaleDip(HudStatusModule.ModuleHeight, clamped));
@@ -5292,6 +5314,8 @@ public sealed class MainShellForm : Form
         _hudQuest.MinimumSize = new Size(ClientUiScale.ScaleDip(140, clamped), ClientUiScale.ScaleDip(64, clamped));
         _hudChat.Size = new Size(ClientUiScale.ScaleDip(360, clamped), ClientUiScale.ScaleDip(200, clamped));
         _hudChat.MinimumSize = new Size(ClientUiScale.ScaleDip(280, clamped), ClientUiScale.ScaleDip(160, clamped));
+        _hudFriends.Size = new Size(ClientUiScale.ScaleDip(220, clamped), ClientUiScale.ScaleDip(168, clamped));
+        _hudFriends.MinimumSize = new Size(ClientUiScale.ScaleDip(180, clamped), ClientUiScale.ScaleDip(120, clamped));
         _hudHotbar.ApplyUiScale(clamped);
         _hudMenu.ApplyUiScale(clamped);
         LayoutGameHud();
@@ -5344,6 +5368,17 @@ public sealed class MainShellForm : Form
         _hudMinimap.Location = new Point(rightX, gap);
         _hudQuest.Location = new Point(rightX, _hudMinimap.Bottom + gap);
         _hudChat.Location = new Point(gap, Math.Max(gap, host.Height - _hudChat.Height - gap));
+        if (_friendsSticky.Visible)
+        {
+            var friendsY = _hudChat.Top - _hudFriends.Height - gap;
+            var minY = _hudStatus.Bottom + gap;
+            if (friendsY < minY)
+            {
+                friendsY = minY;
+            }
+
+            _hudFriends.Location = new Point(gap, friendsY);
+        }
         _hudHotbar.Location = new Point(
             Math.Max(gap, (host.Width - tabW - _hudHotbar.Width) / 2),
             Math.Max(gap, host.Height - _hudHotbar.Height - gap));
@@ -5359,6 +5394,11 @@ public sealed class MainShellForm : Form
         _hudStatus.BringToFront();
         _hudMinimap.BringToFront();
         _hudQuest.BringToFront();
+        if (_friendsSticky.Visible)
+        {
+            _hudFriends.BringToFront();
+        }
+
         _hudChat.BringToFront();
         _hudHotbar.BringToFront();
         _hudMenu.BringToFront();
@@ -5434,6 +5474,10 @@ public sealed class MainShellForm : Form
         }
 
         DismissWindowLayerFromMap();
+        if (_friendsSticky.DismissIfUnpinned())
+        {
+            ApplyFriendsDock();
+        }
     }
 
     private bool ChatComposeFocused() => _txtChat.ContainsFocus || _txtWhisperTo.ContainsFocus;
@@ -5568,6 +5612,40 @@ public sealed class MainShellForm : Form
         }
     }
 
+    private void ApplyFriendsDock()
+    {
+        _hudFriends.Bind(FriendsSticky.Build(_socialRoster), _friendsSticky.PinLabel, _friendsSticky.TitleText);
+        var show = _friendsSticky.Visible;
+        var was = _hudFriends.Visible;
+        _hudFriends.Visible = show;
+        if (show || was)
+        {
+            LayoutGameHud();
+        }
+    }
+
+    private void OnFriendsDockFriend(FriendsSticky.Row row)
+    {
+        var arm = FriendsSticky.Arm(row);
+        if (!arm.FillName)
+        {
+            ShowPlayerStatus(arm.Notice);
+            return;
+        }
+
+        _txtWhisperTo.Text = arm.Name;
+        if (_cmbChannel.Items.Count > 2 && _cmbChannel.SelectedIndex != 2)
+        {
+            _cmbChannel.SelectedIndex = 2;
+        }
+
+        ShowPlayerStatus(arm.Notice);
+        if (arm.FocusChatInput)
+        {
+            FocusChatInput();
+        }
+    }
+
     private string? SelectedFriendName() =>
         _socialHub.TryGetSelectedWhisperName(out var name) ? name : null;
 
@@ -5664,6 +5742,11 @@ public sealed class MainShellForm : Form
         _gameplayTabs.SelectedTab = _tabSocial;
         _socialHub.SelectKind(kind);
         RefreshWindowChromeTitle();
+        if (kind == SocialKind.Friend)
+        {
+            _friendsSticky.Pin();
+            ApplyFriendsDock();
+        }
     }
 
     private void OpenEconomyPanel(EconomyHubKind kind)
@@ -5830,6 +5913,7 @@ public sealed class MainShellForm : Form
     {
         _socialRoster.ApplySnapshot(snap);
         _socialHub.ApplyRoster(_socialRoster);
+        ApplyFriendsDock();
         var label = ClientSocialRoster.KindLabel(snap.Kind);
         AppendLog($"{label}: {snap.Members.Count} entrée(s)"
                   + (string.IsNullOrEmpty(snap.Motd) ? string.Empty : " — " + snap.Motd));
@@ -5843,6 +5927,7 @@ public sealed class MainShellForm : Form
     {
         _socialRoster.ApplyEvent(ev);
         _socialHub.ApplyRoster(_socialRoster);
+        ApplyFriendsDock();
         AppendLog("Social: " + ev.Message);
         if (!string.IsNullOrWhiteSpace(ev.Message))
         {
@@ -5854,6 +5939,7 @@ public sealed class MainShellForm : Form
     {
         _socialRoster.ApplyResult(result);
         _socialHub.ApplyRoster(_socialRoster);
+        ApplyFriendsDock();
         AppendLog(result.Success ? "Social: " + result.Message : "Social refusé: " + result.Message);
     }
 
@@ -5870,6 +5956,7 @@ public sealed class MainShellForm : Form
                 Guid.Empty,
                 Guid.Empty));
             _socialHub.ApplyRoster(_socialRoster);
+            ApplyFriendsDock();
             return;
         }
 

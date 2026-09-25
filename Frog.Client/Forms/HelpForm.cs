@@ -63,6 +63,8 @@ public sealed class HelpForm : Form
         Amis, Groupe, Guilde
         • Boutons Amis / Groupe / Guilde dans le dock chat ouvrent les panneaux (même chrome que Inventaire).
         • Les listes viennent des paquets sociaux existants (80–83). Slash /friend /party /guild restent valides.
+        • Ouvrir Amis épingle la liste à gauche. Elle reste pendant le déplacement et les clics sur la carte. « Détacher » la laisse se fermer au clic ou à Échap. « Épingler » la recolle. « Fermer » la range.
+        • Un clic sur un ami remplit le nom du chuchotement. Entrée envoie seulement si la saisie est déjà ouverte. Échap rend la main au monde.
 
         Aide, options, diagnostics
         • F1 ou le bouton Aide ouvre cette fenêtre.
