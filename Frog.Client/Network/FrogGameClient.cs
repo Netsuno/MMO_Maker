@@ -308,7 +308,7 @@ public sealed class FrogGameClient : IDisposable
                 {
                     if (helloVer != FrogWireProtocol.Version)
                     {
-                        Post(() => _ = RejectProtocolAsync(
+                        Post(() => RejectProtocolAsync(
                             $"Version protocole incompatible (serveur indique {helloVer}, ce client attend {FrogWireProtocol.Version}). Mettez à jour client et serveur ensemble."));
                     }
                     else
@@ -318,7 +318,7 @@ public sealed class FrogGameClient : IDisposable
                 }
                 else
                 {
-                    Post(() => _ = RejectProtocolAsync(
+                    Post(() => RejectProtocolAsync(
                         "Hello serveur incomplet ou obsolète — mettez Frog.Server à jour (même dépôt que le client)."));
                 }
 
@@ -892,20 +892,13 @@ public sealed class FrogGameClient : IDisposable
     }
 
     /// <summary>
-    /// Ferme le TCP avant d'annoncer l'échec Hello, pour que l'UI puisse réessayer.
+    /// Annonce l'échec Hello avant de fermer le TCP. La pompe STA observe le message
+    /// « protocole » et <see cref="IsConnected"/> ensemble ; fermer d'abord faisait
+    /// sortir la pompe sur la coupure, sans erreur, ou laissait le socket encore ouvert.
     /// Le texte et <see cref="FrogWireProtocol.Version"/> restent ceux du handshake existant.
     /// </summary>
-    private async Task RejectProtocolAsync(string message)
+    private void RejectProtocolAsync(string message)
     {
-        try
-        {
-            await DisconnectAsync().ConfigureAwait(true);
-        }
-        catch
-        {
-            // déjà fermé
-        }
-
         try
         {
             ErrorReceived?.Invoke(message);
@@ -914,6 +907,8 @@ public sealed class FrogGameClient : IDisposable
         {
             // l'UI journalise déjà
         }
+
+        _ = DisconnectAsync();
     }
 
     public async Task SendLoginAsync(string username, string password, CancellationToken cancellationToken = default)

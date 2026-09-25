@@ -1764,8 +1764,10 @@ public sealed class MainShellForm : Form
             AppendLog("Erreur: " + human);
             ShowPlayerStatus(human);
             NoteConnectFailure(kind, human);
-            if (kind == ConnectionFailureKind.Version && _client is not { IsConnected: true })
+            if (kind == ConnectionFailureKind.Version)
             {
+                // Le message part avant la fermeture TCP : couper Login tout de suite,
+                // réarmer Connecter / Réessayer. Le socket tombe dans le même tour.
                 _btnConnect.Enabled = true;
                 _btnDisconnect.Enabled = false;
                 _btnLogin.Enabled = false;
