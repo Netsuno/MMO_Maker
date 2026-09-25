@@ -58,13 +58,13 @@ public partial class MainWindow : Window
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdPlaytest = new(
-        "Playtest (publier + serveur + client)…",
+        "Tester (playtest)…",
         nameof(CmdPlaytest),
         typeof(MainWindow),
         new InputGestureCollection { new KeyGesture(Key.F5, ModifierKeys.Control) });
 
     public static readonly RoutedUICommand CmdStopPlaytest = new(
-        "Arrêter le playtest",
+        "Arrêter le test",
         nameof(CmdStopPlaytest),
         typeof(MainWindow));
 
@@ -260,6 +260,7 @@ public partial class MainWindow : Window
 
         _editor.TileHoverStatusChanged += OnTileHoverStatusChanged;
         _editor.UndoRedoStateChanged += (_, _) => Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
+        _editor.PlaytestStateChanged += () => Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
 
         CommandBindings.Add(new CommandBinding(CmdNewMap, (_, _) => _editor.CreateNewMap()));
         CommandBindings.Add(new CommandBinding(CmdOpenMap, (_, _) => _editor.LoadMap()));
@@ -269,9 +270,12 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdPublishMapToMariaDb, (_, _) => _editor.PublishMapToMariaDb()));
         CommandBindings.Add(new CommandBinding(CmdEditWarp, (_, _) => _editor.EditSelectedWarpDestination()));
         CommandBindings.Add(new CommandBinding(CmdLaunchFrogClient, (_, _) => _editor.LaunchFrogGameClient()));
-        CommandBindings.Add(new CommandBinding(CmdPlaytest, async (_, _) => await _editor.StartPlaytestAsync()));
+        CommandBindings.Add(new CommandBinding(
+            CmdPlaytest,
+            async (_, _) => await _editor.StartPlaytestAsync(),
+            (_, e) => e.CanExecute = !_editor.IsPlaytestBusyForTest() && !_editor.IsPlaytestActiveForTest()));
         CommandBindings.Add(new CommandBinding(CmdStopPlaytest, async (_, _) => await _editor.StopPlaytestAsync(),
-            (_, e) => e.CanExecute = _editor.IsPlaytestActiveForTest()));
+            (_, e) => e.CanExecute = _editor.IsPlaytestActiveForTest() || _editor.IsPlaytestBusyForTest()));
         CommandBindings.Add(new CommandBinding(CmdQuit, (_, _) => Close()));
         CommandBindings.Add(new CommandBinding(CmdUndo, (_, _) => _editor.DoUndo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanUndo));
         CommandBindings.Add(new CommandBinding(CmdRedo, (_, _) => _editor.DoRedo(), (_, e) => e.CanExecute = _editor.UndoHistory.CanRedo));

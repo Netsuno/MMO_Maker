@@ -14,6 +14,7 @@ using Frog.Client.Models;
 using Frog.Client.Network;
 using Frog.Client.Services;
 using Frog.Client.UI;
+using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Core.Character;
 using Frog.Core.Constants;
@@ -156,6 +157,7 @@ public sealed class MainShellForm : Form
     private static readonly TimeSpan AutoMapRequestDebounce = TimeSpan.FromMilliseconds(300);
     private readonly Dictionary<int, Bitmap> _tilesetBitmaps = new();
     private readonly List<PrefabPlacement> _prefabPlacements = new();
+    private readonly List<MapPlacedEntity> _playtestPlacedEntities = new();
     private readonly Dictionary<string, Bitmap> _prefabBitmaps = new(StringComparer.OrdinalIgnoreCase);
     private PrefabCatalog? _prefabCatalog;
     /// <summary>Envoi périodique <see cref="FrogGameClient.SendPositionSyncAsync"/> (protocole ≥ 8) : centre prédit en pixels.</summary>
@@ -1801,6 +1803,7 @@ public sealed class MainShellForm : Form
         {
             ReloadTilesetBitmaps();
             ReloadPrefabOverlays();
+            ReloadPlaytestPlacedEntities();
             RedrawMap();
         }
 
@@ -2739,6 +2742,7 @@ public sealed class MainShellForm : Form
         DisposePrefabBitmaps();
         _prefabPlacements.Clear();
         _prefabCatalog = null;
+        _playtestPlacedEntities.Clear();
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
         _awaitingPlayingPhase = false;
@@ -2954,6 +2958,7 @@ public sealed class MainShellForm : Form
         DisposePrefabBitmaps();
         _prefabPlacements.Clear();
         _prefabCatalog = null;
+        _playtestPlacedEntities.Clear();
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
         _btnMap.Enabled = false;
@@ -3022,6 +3027,7 @@ public sealed class MainShellForm : Form
 
         ReloadTilesetBitmaps();
         ReloadPrefabOverlays();
+        ReloadPlaytestPlacedEntities();
         if (map.GraphicIdentity == TileGraphicIdentity.TileAsset && !_tilePacks.HasVerifiedPack)
         {
             ClearMapImage();
@@ -4039,7 +4045,8 @@ public sealed class MainShellForm : Form
             localLook: _activeLook,
             tileAssets: _tilePacks.Lookup,
             tileAssetBitmaps: _tileAssetBitmaps,
-            groundLootCentersPx: groundLoot);
+            groundLootCentersPx: groundLoot,
+            playtestPlacedEntities: _playtestPlacedEntities);
         _combatHud.Tick(DateTime.UtcNow);
         CombatEffect.Draw(
             bmp,
@@ -4170,6 +4177,25 @@ public sealed class MainShellForm : Form
         if (_prefabPlacements.Count > 0)
         {
             AppendLog($"Prefabs posés : {_prefabPlacements.Count} (catalogue publié / sidecar Maps/*.prefabs.json).");
+        }
+    }
+
+    private void ReloadPlaytestPlacedEntities()
+    {
+        _playtestPlacedEntities.Clear();
+        if (_map is null || _sessionDisplayedMapId <= 0)
+        {
+            return;
+        }
+
+        var loaded = PlaytestPlacedEntityPackage.TryLoadForRuntimeMap(
+            ClientTilesetLoader.ResolveSearchDirectories(AppContext.BaseDirectory),
+            _sessionDisplayedMapId,
+            _map);
+        _playtestPlacedEntities.AddRange(loaded);
+        if (loaded.Count > 0)
+        {
+            AppendLog($"Entités de test : {loaded.Count} (fichier Maps/runtime-{_sessionDisplayedMapId}.placed.json).");
         }
     }
 

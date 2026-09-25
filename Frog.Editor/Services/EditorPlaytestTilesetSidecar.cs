@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using Frog.Application.Assets;
+using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Application.Prefabs;
 using Frog.Core.Models;
@@ -8,14 +9,18 @@ using Frog.Editor.Assets;
 
 namespace Frog.Editor.Services;
 
-/// <summary>Écrit tilesets + prefabs au layout client avant le lancement playtest.</summary>
+/// <summary>Écrit tilesets, prefabs et entités posées au layout client avant le lancement playtest.</summary>
 internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
 {
     private readonly Func<IReadOnlyList<PrefabPlacement>>? _prefabPlacements;
+    private readonly Func<IReadOnlyList<MapPlacedEntity>>? _placedEntities;
 
-    public EditorPlaytestTilesetSidecar(Func<IReadOnlyList<PrefabPlacement>>? prefabPlacements = null)
+    public EditorPlaytestTilesetSidecar(
+        Func<IReadOnlyList<PrefabPlacement>>? prefabPlacements = null,
+        Func<IReadOnlyList<MapPlacedEntity>>? placedEntities = null)
     {
         _prefabPlacements = prefabPlacements;
+        _placedEntities = placedEntities;
     }
 
     public void Write(PlaytestLaunchPlan plan, string? clientExecutablePath)
@@ -49,6 +54,9 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
             MapPrefabPackage.WritePlacementSidecar(mapsDir, runtimeMap.Name, placements, runtimeMap.CanonicalMapId);
         }
 
+        var placed = _placedEntities?.Invoke();
+        PlaytestPlacedEntityPackage.WriteForPlan(plan.WorkDirectory, plan, placed);
+
         if (string.IsNullOrWhiteSpace(clientExecutablePath))
         {
             return;
@@ -71,6 +79,8 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
         {
             MapPrefabPackage.WritePlacementSidecar(clientMapsDir, runtimeMap.Name, placements, runtimeMap.CanonicalMapId);
         }
+
+        PlaytestPlacedEntityPackage.WriteForPlan(clientDir, plan, placed);
     }
 
     private static IReadOnlyList<MapTilesetFile> CollectTilesetFiles(PlaytestLaunchPlan plan)

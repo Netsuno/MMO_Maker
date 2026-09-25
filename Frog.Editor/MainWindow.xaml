@@ -56,10 +56,11 @@
                           Command="{x:Static local:MainWindow.CmdPublishMapToMariaDb}" />
                 <MenuItem Header="Lancer le client…"
                           Command="{x:Static local:MainWindow.CmdLaunchFrogClient}" />
-                <MenuItem Header="Playtest (publier + serveur + client)…"
+                <MenuItem Header="Tester (playtest)…"
                           Command="{x:Static local:MainWindow.CmdPlaytest}"
-                          InputGestureText="Ctrl+F5" />
-                <MenuItem Header="Arrêter le playtest"
+                          InputGestureText="Ctrl+F5"
+                          ToolTip="Enregistre la carte si elle a changé, puis lance serveur et client frères sur cette carte. Le test suivant relit les tuiles, PNJ et objets sans republier le client." />
+                <MenuItem Header="Arrêter le test"
                           Command="{x:Static local:MainWindow.CmdStopPlaytest}" />
                 <Separator />
                 <MenuItem Header="_Quitter" Command="{x:Static local:MainWindow.CmdQuit}" />
@@ -189,6 +190,15 @@
                 <Button Content="Ouvrir" Command="{x:Static local:MainWindow.CmdOpenMap}" Padding="10,4" />
                 <Button Content="Enregistrer" Command="{x:Static local:MainWindow.CmdSaveMap}" Padding="10,4" />
                 <Button Content="Publier" Command="{x:Static local:MainWindow.CmdPublishMap}" Padding="10,4" />
+                <Separator />
+                <Button Content="Tester"
+                        Command="{x:Static local:MainWindow.CmdPlaytest}"
+                        Padding="10,4"
+                        ToolTip="Playtest de la carte courante (Ctrl+F5). Réutilise client-win-x64 et server-win-x64. Arrêtez le test pour recharger tuiles, PNJ et objets." />
+                <Button Content="Arrêter"
+                        Command="{x:Static local:MainWindow.CmdStopPlaytest}"
+                        Padding="10,4"
+                        ToolTip="Arrête le serveur et le client de test." />
                 <Separator />
                 <Button Content="Annuler" Command="{x:Static local:MainWindow.CmdUndo}" Padding="10,4" />
                 <Button Content="Rétablir" Command="{x:Static local:MainWindow.CmdRedo}" Padding="10,4" />
