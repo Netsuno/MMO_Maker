@@ -168,6 +168,45 @@ public sealed class ClientSocialRoster
         return rows;
     }
 
+    /// <summary>
+    /// Vrai si ce nom est un membre connu (ami, groupe, guilde) et qu'aucun homonyme n'est en ligne.
+    /// Sert au retour « hors ligne » quand le serveur ne voit que le compte.
+    /// </summary>
+    public bool IsKnownOffline(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var trimmed = name.Trim();
+        var sawOffline = false;
+        foreach (var snap in new[] { Friends, Party, Guild })
+        {
+            if (snap is null)
+            {
+                continue;
+            }
+
+            foreach (var member in snap.Value.Members)
+            {
+                if (!string.Equals(member.DisplayName, trimmed, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (member.Online)
+                {
+                    return false;
+                }
+
+                sawOffline = true;
+            }
+        }
+
+        return sawOffline;
+    }
+
     public string EmptyHint(SocialKind kind)
     {
         if (BuildRows(kind).Count > 0)

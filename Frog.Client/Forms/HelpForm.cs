@@ -44,7 +44,7 @@ public sealed class HelpForm : Form
         • Si la connexion tombe pendant l'envoi, l'action est interrompue. Vérifiez l'or après reconnexion.
 
         Échange entre joueurs
-        • À portée (3 tuiles) : /trade NomDuJoueur, ou /trade avec le nom déjà saisi dans Cible whisper.
+        • À portée (3 tuiles) : /trade NomDuJoueur, ou /trade avec le nom déjà saisi au-dessus du chat.
         • /trade invite <identifiant> reste possible. La fenêtre propose Accepter ou Refuser.
         • Huit emplacements et l'or. « Proposer » envoie l'offre. Confirmer et annuler un échange non vide demandent un second clic.
         • Trop loin, déconnexion ou inventaire plein s'affiche en français. Rien n'est transféré tant que les deux n'ont pas confirmé la même révision.
@@ -54,8 +54,11 @@ public sealed class HelpForm : Form
         • Un métier peut être requis selon la recette.
 
         Chat
-        • Canaux Map, Global, Whisper, Party et Guild.
-        • Whisper demande le nom du destinataire.
+        • Entrée ouvre la saisie. Tant que vous écrivez, les touches de déplacement ne bougent pas le personnage.
+        • Échap ou un clic sur le monde rend la main au déplacement.
+        • Canaux Général, Local, Chuchoter, Groupe et Guilde.
+        • Chuchoter : nom dans le champ, ami sélectionné, ou cible. /w Nom message fonctionne aussi.
+        • Hors ligne, nom inconnu ou bloqué s'affiche en français.
 
         Amis, Groupe, Guilde
         • Boutons Amis / Groupe / Guilde dans le dock chat ouvrent les panneaux (même chrome que Inventaire).

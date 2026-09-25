@@ -48,7 +48,7 @@ public sealed class HudChatDock : HudModulePanel
     {
         Size = new Size(360, 200);
         MinimumSize = new Size(280, 160);
-        var labels = new[] { "Général", "Local", "Whisper", "Groupe", "Guilde" };
+        var labels = new[] { "Général", "Local", "Chuchoter", "Groupe", "Guilde" };
         _tabButtons = new Button[labels.Length];
         for (var i = 0; i < labels.Length; i++)
         {

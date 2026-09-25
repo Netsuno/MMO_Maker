@@ -58,8 +58,27 @@ public sealed class InputService
     public bool IsMovementOrInteract(Keys key) =>
         IsMoveLeft(key) || IsMoveRight(key) || IsMoveUp(key) || IsMoveDown(key) || IsInteract(key) || IsAttack(key);
 
+    /// <summary>
+    /// <see cref="ContainerControl.ActiveControl"/> s'arrête au fils direct.
+    /// On descend jusqu'au contrôle qui a vraiment le focus (saisie chat, etc.).
+    /// </summary>
+    public static Control? DeepActive(Control? control)
+    {
+        var guard = 0;
+        while (control is ContainerControl container
+               && container.ActiveControl is Control child
+               && !ReferenceEquals(child, control)
+               && guard++ < 16)
+        {
+            control = child;
+        }
+
+        return control;
+    }
+
     public static bool IsTextInputFocus(Control? control)
     {
+        control = DeepActive(control);
         for (var c = control; c is not null; c = c.Parent)
         {
             if (c is TextBoxBase)
