@@ -27,6 +27,7 @@ public sealed class AppearancePickerPanel : UserControl
     {
         AccessibleName = "Apparence";
         TabStop = true;
+        SetStyle(ControlStyles.Selectable, true);
         BackColor = Color.Transparent;
         ForeColor = UiTheme.TextPrimary;
         var width = LoginShell.CharacterCardWidth - (LoginShell.CardPadding * 2);
@@ -133,6 +134,23 @@ public sealed class AppearancePickerPanel : UserControl
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    /// <summary>
+    /// Le panneau est la cible des flèches. <see cref="ContainerControl"/> donnerait
+    /// <c>WM_SETFOCUS</c> au dernier bouton ‹ › cliqué, et <see cref="Control.Focus"/>
+    /// renverrait false alors que le sélecteur est bien visible.
+    /// </summary>
+    protected override void WndProc(ref Message m)
+    {
+        const int WM_SETFOCUS = 0x0007;
+        if (m.Msg == WM_SETFOCUS && ActiveControl is not null)
+        {
+            DefWndProc(ref m);
+            return;
+        }
+
+        base.WndProc(ref m);
     }
 
     private static void FocusSlot(SlotRow row)
