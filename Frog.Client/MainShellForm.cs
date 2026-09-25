@@ -29,6 +29,7 @@ using Frog.Core.Combat;
 using Frog.Core.Economy;
 using Frog.Core.Instances;
 using Frog.Core.Social;
+using Frog.Core.Trade;
 using Frog.Core.Weather;
 
 namespace Frog.Client;
@@ -491,6 +492,7 @@ public sealed class MainShellForm : Form
         _activeLook = CharacterLook.Default;
         _activeCharacterId = null;
         _activeCharacterName = null;
+        _tradeForm.SetLocalCharacter(Guid.Empty);
         _equipmentPanel.ResetLocalHeadwear();
         _equipmentPanel.ResetLocalTunic();
         SyncStatusPortrait();
@@ -582,6 +584,7 @@ public sealed class MainShellForm : Form
             _activeCharacterName = displayName.Trim();
         }
 
+        SyncTradeIdentity();
         if (!CharacterLookBook.TryGet(_settings.CharacterLooks, _activeCharacterId, _activeCharacterName, out var record))
         {
             _activeLook = CharacterLook.Default;
@@ -1591,10 +1594,15 @@ public sealed class MainShellForm : Form
         _inventoryPanel.EquipRequested += slot => _ = EquipSlotAsync(slot);
         _inventoryPanel.DropRequested += (slot, qty) => _ = DropItemAsync(slot, qty);
         _inventoryPanel.SelectionChanged += UpdateInventoryActionButtons;
+        _tradeForm.AcceptRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Accept, id, []);
+        _tradeForm.DeclineRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Decline, id, []);
         _tradeForm.ConfirmRequested += (id, rev) => _ = SendTradeActionAsync(
             (byte)TradeAction.Confirm, id, TradeWire.BuildRevisionPayload(rev));
         _tradeForm.UnconfirmRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Unconfirm, id, []);
         _tradeForm.CancelRequested += id => _ = SendTradeActionAsync((byte)TradeAction.Cancel, id, []);
+        _tradeForm.SetOfferRequested += (id, rev, gold, stacks) => _ = SendTradeActionAsync(
+            (byte)TradeAction.SetOffer, id, TradeWire.BuildSetOfferPayload(rev, gold, stacks));
+        _tradeForm.PlayerNotice += ShowPlayerStatus;
         _tradeForm.VisibleChanged += (_, _) => RefreshInteractHint();
         _equipmentPanel.UnequipRequested += slot => _ = UnequipSlotAsync(slot);
         _equipmentPanel.LocalHeadwearChanged += worn =>
@@ -1703,7 +1711,11 @@ public sealed class MainShellForm : Form
         _client.InstanceHubResultReceived += OnInstanceHubResult;
         _client.InstanceHubSnapshotReceived += OnInstanceHubSnapshot;
         _client.TradeResultReceived += r =>
-            AppendLog(r.Success ? "Échange: " + r.Message : "Échange refusé: " + r.Message);
+        {
+            var human = TradePlayerMessages.Present(r.Message);
+            AppendLog(r.Success ? "Échange: " + human : "Échange refusé: " + human);
+            _tradeForm.ApplyResult(r);
+        };
         _client.TradeSnapshotReceived += OnTradeSnapshot;
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
         {
@@ -2040,6 +2052,7 @@ public sealed class MainShellForm : Form
     private void OnCombatState(CombatStateWire state)
     {
         _lastCombatState = state;
+        _tradeForm.SetWallet(state.Gold);
         _lblCombat.Text =
             $"Niv {state.Level} · XP {state.Experience} · HP {state.Hp}/{state.MaxHp} · MP {state.Mp}/{state.MaxMp} · Or {state.Gold}";
         _btnRespawn.Visible = state.IsDead;
@@ -2062,6 +2075,7 @@ public sealed class MainShellForm : Form
         _paperdoll = _paperdoll.WithServerLoadout(snapshot);
         SyncStatusPortrait();
         _inventoryPanel.ApplySnapshot(snapshot);
+        _tradeForm.SetBag(BuildTradeBag(snapshot));
         _equipmentPanel.ApplySnapshot(snapshot);
         _characterSheet.ApplyBag(snapshot, ResolveItemName, ResolveItemType);
         UpdateInventoryActionButtons();
@@ -2074,6 +2088,7 @@ public sealed class MainShellForm : Form
 
     private void OnTradeSnapshot(TradeSnapshotWire snapshot)
     {
+        SyncTradeIdentity();
         _tradeForm.ApplySnapshot(snapshot, ResolveItemName);
         AppendLog(
             $"Échange rév {snapshot.Revision}: {snapshot.InitiatorName} ({snapshot.InitiatorOffer.Gold} or) ↔ {snapshot.PartnerName} ({snapshot.PartnerOffer.Gold} or)");
@@ -2084,11 +2099,39 @@ public sealed class MainShellForm : Form
                 _tradeForm.Show(this);
             }
         }
-        else if (snapshot.Status is TradeStatus.Committed or TradeStatus.Cancelled)
+    }
+
+    private void SyncTradeIdentity()
+    {
+        if (Guid.TryParse(_activeCharacterId, out var id))
         {
-            ShowPlayerStatus(
-                snapshot.Status == TradeStatus.Committed ? "Échange validé." : "Échange annulé.");
+            _tradeForm.SetLocalCharacter(id);
         }
+    }
+
+    private List<TradeBagEntry> BuildTradeBag(InventorySnapshotWire snapshot)
+    {
+        var bag = new List<TradeBagEntry>();
+        foreach (var slot in snapshot.Slots)
+        {
+            if (slot.ItemId is not Guid id || slot.Quantity <= 0)
+            {
+                continue;
+            }
+
+            var index = bag.FindIndex(entry => entry.ItemId == id);
+            if (index >= 0)
+            {
+                var prev = bag[index];
+                bag[index] = prev with { Quantity = prev.Quantity + slot.Quantity };
+            }
+            else
+            {
+                bag.Add(new TradeBagEntry(id, slot.Quantity, ResolveItemName(id)));
+            }
+        }
+
+        return bag;
     }
 
     private async Task SendTradeActionAsync(byte action, Guid tradeId, byte[] extra)
@@ -2712,7 +2755,12 @@ public sealed class MainShellForm : Form
             await _client.DisconnectAsync().ConfigureAwait(true);
         }
 
+        var tradeNote = _tradeForm.NotifyLocalDisconnect();
         ResetUiAfterDisconnect();
+        if (tradeNote is not null)
+        {
+            ShowPlayerStatus(tradeNote);
+        }
     }
 
     private void ResetUiAfterDisconnect()
@@ -2776,7 +2824,8 @@ public sealed class MainShellForm : Form
         }
 
         AppendLog("Connexion fermée.");
-        ShowPlayerStatus(PlayerFacingMessages.ConnectionLost);
+        var tradeNote = _tradeForm.NotifyLocalDisconnect();
+        ShowPlayerStatus(tradeNote ?? PlayerFacingMessages.ConnectionLost);
         ResetUiAfterDisconnect();
     }
 
@@ -3565,11 +3614,34 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        if (text.Equals("/trade", StringComparison.OrdinalIgnoreCase))
+        {
+            var whispered = _txtWhisperTo.Text.Trim();
+            if (string.IsNullOrEmpty(whispered))
+            {
+                ShowPlayerStatus("Indiquez le joueur : /trade Nom, ou remplissez Cible whisper.");
+                return;
+            }
+
+            text = "/trade " + whispered;
+        }
+
         if (TradeWire.TryParseSlashCommand(text, out var tradeAction, out var tradeId, out var tradeExtra))
         {
             try
             {
-                if (tradeAction == (byte)TradeAction.Confirm && _tradeForm.DisplayedRevision != 0)
+                if (tradeId == Guid.Empty && tradeAction != (byte)TradeAction.Invite)
+                {
+                    if (_tradeForm.ActiveTradeId is not Guid active)
+                    {
+                        ShowPlayerStatus("Aucun échange en cours.");
+                        return;
+                    }
+
+                    tradeId = active;
+                }
+
+                if (tradeAction == (byte)TradeAction.Confirm)
                 {
                     tradeExtra = TradeWire.BuildRevisionPayload(_tradeForm.DisplayedRevision);
                 }

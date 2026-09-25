@@ -36,9 +36,10 @@ public sealed class HelpForm : Form
         • En cas de mort, le bouton Respawn apparaît.
 
         Échange entre joueurs
-        • À portée (3 tuiles) : /trade invite <identifiant personnage>, puis accepter.
-        • La fenêtre d'échange affiche les noms, objets, quantités, or et la révision.
-        • Confirmer uniquement la révision affichée ; modifier l'offre annule les confirmations.
+        • À portée (3 tuiles) : /trade NomDuJoueur, ou /trade avec le nom déjà saisi dans Cible whisper.
+        • /trade invite <identifiant> reste possible. La fenêtre propose Accepter ou Refuser.
+        • Huit emplacements et l'or. « Proposer » envoie l'offre. Confirmer et annuler un échange non vide demandent un second clic.
+        • Trop loin, déconnexion ou inventaire plein s'affiche en français. Rien n'est transféré tant que les deux n'ont pas confirmé la même révision.
 
         Fabrication
         • Onglet Quêtes : choisissez une recette par son nom, puis « Fabriquer ».
