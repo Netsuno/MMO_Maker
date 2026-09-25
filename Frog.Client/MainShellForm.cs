@@ -1920,6 +1920,10 @@ public sealed class MainShellForm : Form
 
         _btnPickup.Enabled = _lstGround.Items.Count > 0;
         AppendLog($"Sol map={snapshot.MapId}: {snapshot.Items.Count} objet(s)");
+        if (_map is not null)
+        {
+            RedrawMap();
+        }
     }
 
     private void OnDialogueStatePush(DialogueStateWire state)
@@ -2444,6 +2448,7 @@ public sealed class MainShellForm : Form
         _cmbMeleeTarget.Items.Clear();
         _lstBank.Items.Clear();
         _lstGround.Items.Clear();
+        _groundSnapshot = null;
         _craftPanel.ClearRecipes();
         // Keep ItemNameLookup wired to ResolveItemName (handles null catalog).
     }
@@ -2674,6 +2679,13 @@ public sealed class MainShellForm : Form
         AppendLog($"Map reçue id={mapId} {map.Name} {map.Width}x{map.Height}");
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
+        if (_groundSnapshot is null || _groundSnapshot.MapId != mapId)
+        {
+            _groundSnapshot = null;
+            _lstGround.Items.Clear();
+            _btnPickup.Enabled = false;
+        }
+
         _sessionDisplayedMapId = mapId;
         _map = map;
         _mapBlockedTiles = MapCollision.IndexBlockedTiles(map);
@@ -3519,6 +3531,14 @@ public sealed class MainShellForm : Form
 
         var localWalking = TryGetHeldMoveDiscrete(out _, out _);
         var localPose = new PlayerSpritePose(_localFacing, localWalking, _localWalkElapsedMs);
+        IReadOnlyList<(int PixelX, int PixelY)>? groundLoot = null;
+        if (_groundSnapshot is { } groundSnap
+            && groundSnap.MapId == _sessionDisplayedMapId
+            && groundSnap.Items.Count > 0)
+        {
+            groundLoot = groundSnap.Items.Select(item => (item.PixelX, item.PixelY)).ToArray();
+        }
+
         var bmp = MapViewRenderer.Render(
             _map,
             otherPx,
@@ -3540,7 +3560,8 @@ public sealed class MainShellForm : Form
             weatherTickMs: _weatherTickMs,
             localAppearance: EquipmentService.ToOverlaySet(_paperdoll),
             tileAssets: _tilePacks.Lookup,
-            tileAssetBitmaps: _tileAssetBitmaps);
+            tileAssetBitmaps: _tileAssetBitmaps,
+            groundLootCentersPx: groundLoot);
         _combatHud.Tick(DateTime.UtcNow);
         CombatEffect.Draw(bmp, _combatHud.Floats, DateTime.UtcNow, lcx, lcy, _localFacing);
         var previous = _picMap.Image;

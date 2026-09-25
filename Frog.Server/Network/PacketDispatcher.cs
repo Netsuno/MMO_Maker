@@ -71,6 +71,8 @@ public sealed partial class PacketDispatcher(
     CombatMvpService combatMvpService,
     IOptions<RegistrationOptions> registrationOptions,
     MaintenanceService maintenance,
+    GroundLootService groundLoot,
+    GroundItemObserverNotifier groundNotifier,
     ILogger<PacketDispatcher> logger)
 {
     private readonly AuthService _authService = authService;
@@ -108,6 +110,8 @@ public sealed partial class PacketDispatcher(
     private readonly CombatMvpService _combatMvp = combatMvpService;
     private readonly RegistrationOptions _registration = registrationOptions.Value;
     private readonly MaintenanceService _maintenance = maintenance;
+    private readonly GroundLootService _groundLoot = groundLoot;
+    private readonly GroundItemObserverNotifier _groundNotifier = groundNotifier;
     private readonly ILogger<PacketDispatcher> _logger = logger;
 
     /// <summary>Test barrier: runs at the start of <see cref="TryGetActiveSession"/>.</summary>
@@ -1033,6 +1037,26 @@ public sealed partial class PacketDispatcher(
             .ToList();
         if (here.Count == 0)
         {
+            var nearestLoot = await _groundLoot.TryPickupNearestInRangeAsync(session, cancellationToken)
+                .ConfigureAwait(false);
+            if (nearestLoot is not null)
+            {
+                if (nearestLoot.Success)
+                {
+                    await PushSuccessfulPickupsAsync(clientSession, session, [nearestLoot], cancellationToken)
+                        .ConfigureAwait(false);
+                    await _groundNotifier.BroadcastAsync(session.CurrentMapId, cancellationToken).ConfigureAwait(false);
+                }
+
+                await _packetSender.SendInteractResultAsync(
+                    clientSession,
+                    nearestLoot.Success,
+                    nearestLoot.Message,
+                    activationId,
+                    cancellationToken);
+                return;
+            }
+
             await _packetSender.SendInteractResultAsync(
                 clientSession,
                 false,
@@ -1171,6 +1195,7 @@ public sealed partial class PacketDispatcher(
 
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
+            await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
         }
 
         if (cellAfter != cellBefore)
@@ -1178,6 +1203,7 @@ public sealed partial class PacketDispatcher(
             await _phase8.NotifyVisitProgressAndPushJournalAsync(clientSession, session, cancellationToken)
                 .ConfigureAwait(false);
 
+            await TryPickupGroundOnStepAsync(clientSession, session, cancellationToken);
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
         }
     }
@@ -1261,6 +1287,7 @@ public sealed partial class PacketDispatcher(
 
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
+            await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
         }
 
         if (cellAfter != cellBefore)
@@ -1268,6 +1295,7 @@ public sealed partial class PacketDispatcher(
             await _phase8.NotifyVisitProgressAndPushJournalAsync(clientSession, session, cancellationToken)
                 .ConfigureAwait(false);
 
+            await TryPickupGroundOnStepAsync(clientSession, session, cancellationToken);
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
 
             if (cellAfter.CurrentMapId == cellBefore.CurrentMapId)
@@ -1642,6 +1670,11 @@ public sealed partial class PacketDispatcher(
                     .ConfigureAwait(false);
             }
 
+            if (monsterResult.DroppedLoot.Count > 0)
+            {
+                await PublishDeathLootAsync(monsterResult.DroppedLoot, cancellationToken).ConfigureAwait(false);
+            }
+
             await SendCombatStateAsync(clientSession, attacker, cancellationToken);
             return;
         }
@@ -1731,6 +1764,11 @@ public sealed partial class PacketDispatcher(
             {
                 await _packetSender.SendDeathNotifyAsync(defenderClient, cancellationToken);
             }
+        }
+
+        if (pvp.DroppedLoot.Count > 0)
+        {
+            await PublishDeathLootAsync(pvp.DroppedLoot, cancellationToken).ConfigureAwait(false);
         }
 
         ServerNetworkLogs.MeleeResolved(_logger, attacker.Username, targetName, true);

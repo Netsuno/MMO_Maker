@@ -40,6 +40,7 @@ internal static class MapViewRenderer
     /// <param name="localAppearance">Overlays du joueur local (tunique, arme, armure, casque). Les autres joueurs restent corps + tête : leur équipement n'est pas sur le fil.</param>
     /// <param name="tileAssets">Tuiles v6 vérifiées, indexées par <see cref="TileAssetId"/>. Absent : pas de blit 48×48.</param>
     /// <param name="tileAssetBitmaps">Cache d’affichage rempli à la demande. L’appelant dispose les bitmaps.</param>
+    /// <param name="groundLootCentersPx">Centres monde des piles au sol. Dessinées au-dessus des tuiles, sous les acteurs.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -62,7 +63,8 @@ internal static class MapViewRenderer
         int weatherTickMs = 0,
         PaperdollOverlaySet localAppearance = default,
         ITileAssetLookup? tileAssets = null,
-        IDictionary<TileAssetId, Bitmap>? tileAssetBitmaps = null)
+        IDictionary<TileAssetId, Bitmap>? tileAssetBitmaps = null,
+        IReadOnlyList<(int PixelX, int PixelY)>? groundLootCentersPx = null)
     {
         var tw = MapTileSizePixels(map);
         var w = map.Width * tw;
@@ -197,6 +199,7 @@ internal static class MapViewRenderer
             }
         }
 
+        DrawGroundLoot(g, groundLootCentersPx);
         DrawWorldEntities(g, monsterCentersPx, monsterPoses, WorldEntityKind.Monster);
         DrawWorldEntities(g, npcCentersPx, npcPoses, WorldEntityKind.Npc);
 
@@ -439,6 +442,40 @@ internal static class MapViewRenderer
         };
         using var pen = new Pen(stroke, 2.8f);
         g.DrawPolygon(pen, pts);
+    }
+
+    /// <summary>
+    /// Sac coloré (jetons <see cref="UiTheme"/> déjà utilisés par l'UI). Pas de nouvel art.
+    /// Au-dessus du sol, avant monstres / PNJ / joueurs.
+    /// </summary>
+    private static void DrawGroundLoot(Graphics g, IReadOnlyList<(int PixelX, int PixelY)>? loot)
+    {
+        if (loot is not { Count: > 0 })
+        {
+            return;
+        }
+
+        var previous = g.PixelOffsetMode;
+        g.PixelOffsetMode = PixelOffsetMode.None;
+        try
+        {
+            using var fill = new SolidBrush(UiTheme.AccentGoldDim);
+            using var knot = new SolidBrush(UiTheme.AccentGoldHi);
+            using var outline = new Pen(UiTheme.AccentGold);
+            foreach (var (pixelX, pixelY) in loot)
+            {
+                const int bagW = 14;
+                const int bagH = 10;
+                var body = new Rectangle(pixelX - (bagW / 2), pixelY - (bagH / 2), bagW, bagH);
+                g.FillRectangle(fill, body);
+                g.DrawRectangle(outline, body);
+                g.FillRectangle(knot, pixelX - 2, body.Y - 3, 4, 3);
+            }
+        }
+        finally
+        {
+            g.PixelOffsetMode = previous;
+        }
     }
 
     /// <summary>Pieds / centre bas du sprite sur (Cx, Cy) ; nearest, scale from native 32 (tileSize stays 32).</summary>

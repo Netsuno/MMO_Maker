@@ -151,6 +151,108 @@ public sealed partial class PacketDispatcher
         await _packetSender.SendGroundItemsSnapshotAsync(clientSession, session.CurrentMapId, wire, cancellationToken);
     }
 
+    private async Task PublishDeathLootAsync(
+        IReadOnlyList<GroundItemRecord> dropped,
+        CancellationToken cancellationToken)
+    {
+        if (dropped.Count == 0)
+        {
+            return;
+        }
+
+        var mapId = dropped[0].MapId;
+        await _groundNotifier.BroadcastAsync(mapId, cancellationToken).ConfigureAwait(false);
+        if (await PickupDeathLootUnderfootAsync(mapId, dropped, cancellationToken).ConfigureAwait(false))
+        {
+            await _groundNotifier.BroadcastAsync(mapId, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<bool> PickupDeathLootUnderfootAsync(
+        int mapId,
+        IReadOnlyList<GroundItemRecord> dropped,
+        CancellationToken cancellationToken)
+    {
+        var tiles = new HashSet<(int X, int Y)>();
+        foreach (var item in dropped)
+        {
+            tiles.Add(GroundLootPlacement.PixelToTile(item.PixelX, item.PixelY));
+        }
+
+        var pickedAny = false;
+        foreach (var session in _connectionManager.GetActiveSessions())
+        {
+            if (session.CurrentMapId != mapId || session.IsDead || !session.HasActiveCharacter())
+            {
+                continue;
+            }
+
+            if (!tiles.Contains(GroundLootPlacement.PixelToTile(session.PixelX, session.PixelY)))
+            {
+                continue;
+            }
+
+            if (!_clientRegistry.TryGet(session.Id, out var client) || client is null)
+            {
+                continue;
+            }
+
+            var picks = await _groundLoot.PickupOnCurrentTileAsync(session, cancellationToken).ConfigureAwait(false);
+            if (!picks.Any(pick => pick.Success))
+            {
+                continue;
+            }
+
+            pickedAny = true;
+            await PushSuccessfulPickupsAsync(client, session, picks, cancellationToken).ConfigureAwait(false);
+        }
+
+        return pickedAny;
+    }
+
+    private async Task TryPickupGroundOnStepAsync(
+        ClientSession clientSession,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        var picks = await _groundLoot.PickupOnCurrentTileAsync(session, cancellationToken).ConfigureAwait(false);
+        if (!picks.Any(pick => pick.Success))
+        {
+            return;
+        }
+
+        await PushSuccessfulPickupsAsync(clientSession, session, picks, cancellationToken).ConfigureAwait(false);
+        await _groundNotifier.BroadcastAsync(session.CurrentMapId, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task PushSuccessfulPickupsAsync(
+        ClientSession clientSession,
+        Session session,
+        IReadOnlyList<PickupResult> picks,
+        CancellationToken cancellationToken)
+    {
+        var any = false;
+        foreach (var pick in picks)
+        {
+            if (!pick.Success || pick.ItemId is not Guid itemId || itemId == Guid.Empty)
+            {
+                continue;
+            }
+
+            any = true;
+            if (session.CharacterGuid is Guid characterId
+                && await _phase8.NotifyCollectProgressAsync(characterId, itemId, cancellationToken).ConfigureAwait(false))
+            {
+                await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        if (any)
+        {
+            await SendInventorySnapshotAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     private async Task BroadcastPositionAfterSelectAsync(
         ClientSession clientSession,
         Session session,
@@ -257,7 +359,7 @@ public sealed partial class PacketDispatcher
         if (result.Success)
         {
             await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
-            await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
+            await _groundNotifier.BroadcastAsync(session.CurrentMapId, cancellationToken);
         }
     }
 
@@ -294,7 +396,7 @@ public sealed partial class PacketDispatcher
             }
 
             await SendInventorySnapshotAsync(clientSession, session, cancellationToken);
-            await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
+            await _groundNotifier.BroadcastAsync(session.CurrentMapId, cancellationToken);
         }
     }
 
@@ -339,6 +441,11 @@ public sealed partial class PacketDispatcher
             && await _phase8.NotifyKillProgressAsync(characterId, npcId, cancellationToken).ConfigureAwait(false))
         {
             await _phase8.SendQuestJournalAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (result.DroppedLoot.Count > 0)
+        {
+            await PublishDeathLootAsync(result.DroppedLoot, cancellationToken).ConfigureAwait(false);
         }
 
         await SendCombatStateAsync(clientSession, session, cancellationToken);

@@ -521,26 +521,10 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         IReadOnlyList<GroundItemWire> items,
         CancellationToken cancellationToken)
     {
-        var perItem = 16 + 16 + 4 + 4 + 4;
-        var payload = new byte[1 + 4 + 2 + items.Count * perItem];
+        var body = Phase7PacketCodec.BuildGroundItemsSnapshotBody(mapId, items);
+        var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.GroundItemsSnapshot;
-        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(1), mapId);
-        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(5), (ushort)items.Count);
-        var o = 7;
-        foreach (var item in items)
-        {
-            WriteGuid(payload.AsSpan(o), item.GroundItemId);
-            o += 16;
-            WriteGuid(payload.AsSpan(o), item.ItemId);
-            o += 16;
-            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.Quantity);
-            o += 4;
-            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.PixelX);
-            o += 4;
-            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), item.PixelY);
-            o += 4;
-        }
-
+        body.CopyTo(payload.AsSpan(1));
         return session.SendFrameAsync(payload, cancellationToken);
     }
 

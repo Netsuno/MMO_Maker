@@ -17,7 +17,8 @@ public sealed class CombatGameplayService(
     ICombatMutationRepository combatMutations,
     CharacterMutationCoordinator mutationCoordinator,
     IMonsterKillRewardRepository killRewards,
-    ITradePresenceSink? tradePresence = null)
+    ITradePresenceSink? tradePresence = null,
+    GroundLootService? groundLoot = null)
 {
     private readonly IPublishedNpcCatalog _npcs = npcs;
     private readonly IPublishedSpellCatalog _spells = spells;
@@ -28,6 +29,7 @@ public sealed class CombatGameplayService(
     private readonly CharacterMutationCoordinator _mutationCoordinator = mutationCoordinator;
     private readonly IMonsterKillRewardRepository _killRewards = killRewards;
     private readonly ITradePresenceSink? _tradePresence = tradePresence;
+    private readonly GroundLootService? _groundLoot = groundLoot;
     private readonly ConcurrentDictionary<Guid, Guid> _sessionTargets = new();
 
     public async Task<MonsterInstance?> SpawnMonsterAsync(
@@ -157,11 +159,15 @@ public sealed class CombatGameplayService(
                 return MeleeCombatResult.Fail("Recompense non accordee.");
             }
 
+            var dropped = await TryDropMonsterLootAsync(killedSnapshot, ct).ConfigureAwait(false);
             return MeleeCombatResult.ForMonsterKilled(
                 targetName,
                 applied.DamageApplied,
                 xp,
-                killedSnapshot.NpcDefinitionId);
+                killedSnapshot.NpcDefinitionId) with
+            {
+                DroppedLoot = dropped,
+            };
         }
 
         return MeleeCombatResult.ForMonsterHit(
@@ -289,12 +295,16 @@ public sealed class CombatGameplayService(
                     return SpellCombatResult.Fail("Recompense non accordee.");
                 }
 
+                var dropped = await TryDropMonsterLootAsync(killedSnapshot, ct).ConfigureAwait(false);
                 return SpellCombatResult.ForMonsterKilled(
                     spell.Name,
                     applied.DamageApplied,
                     xp,
                     caster.Mp,
-                    killedSnapshot.NpcDefinitionId);
+                    killedSnapshot.NpcDefinitionId) with
+                {
+                    DroppedLoot = dropped,
+                };
             }
 
             await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
@@ -420,6 +430,28 @@ public sealed class CombatGameplayService(
             && defender.CharacterGuid is Guid deadId)
         {
             await _tradePresence.NotifyCharacterUnfitAsync(deadId, "Personnage mort.", ct).ConfigureAwait(false);
+        }
+
+        if (pvpResult.TargetKilled && _groundLoot is not null)
+        {
+            try
+            {
+                var dropped = await _groundLoot.DropPlayerLootAsync(
+                    defender.CurrentMapId,
+                    defender.PixelX,
+                    defender.PixelY,
+                    defender.CharacterGuid,
+                    ct).ConfigureAwait(false);
+                pvpResult = pvpResult with { DroppedLoot = dropped };
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // La mort reste valide si le dépôt de butin échoue.
+            }
         }
 
         return pvpResult;
@@ -563,6 +595,35 @@ public sealed class CombatGameplayService(
         return best;
     }
 
+    private async Task<IReadOnlyList<GroundItemRecord>> TryDropMonsterLootAsync(
+        CombatMonsterSnapshot killed,
+        CancellationToken ct)
+    {
+        if (_groundLoot is null)
+        {
+            return Array.Empty<GroundItemRecord>();
+        }
+
+        try
+        {
+            return await _groundLoot.DropMonsterLootAsync(
+                killed.MapId,
+                killed.PixelX,
+                killed.PixelY,
+                killed.NpcDefinitionId,
+                ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Le kill et l'XP restent acquis si le dépôt échoue.
+            return Array.Empty<GroundItemRecord>();
+        }
+    }
+
     private static MonsterInstance ToMonsterInstance(CombatMonsterSnapshot snapshot)
         => new(
             snapshot.InstanceId,
@@ -601,6 +662,8 @@ public sealed record MeleeCombatResult(
     int TargetMaxHp = 0,
     Guid? NpcDefinitionId = null)
 {
+    public IReadOnlyList<GroundItemRecord> DroppedLoot { get; init; } = Array.Empty<GroundItemRecord>();
+
     public static MeleeCombatResult Fail(string message)
         => new(false, false, false, string.Empty, message, 0);
 
@@ -624,6 +687,8 @@ public sealed record SpellCombatResult(
     int TargetMaxHp = 0,
     Guid? NpcDefinitionId = null)
 {
+    public IReadOnlyList<GroundItemRecord> DroppedLoot { get; init; } = Array.Empty<GroundItemRecord>();
+
     public static SpellCombatResult Fail(string message)
         => new(false, false, false, string.Empty, message, 0);
 
@@ -656,6 +721,8 @@ public sealed record RespawnResult(bool Success, string Message)
 
 public sealed record PlayerMeleeCombatResult(bool Success, string Message, int Damage, bool TargetKilled)
 {
+    public IReadOnlyList<GroundItemRecord> DroppedLoot { get; init; } = Array.Empty<GroundItemRecord>();
+
     public static PlayerMeleeCombatResult Fail(string message)
         => new(false, message, 0, false);
 

@@ -14,6 +14,12 @@ public static class GameplayLimits
     public const int BankSlotCount = 40;
     public const int MaxGroundItemsPerMap = 200;
     public const int GroundPickupRangePixels = 48;
+
+    /// <summary>
+    /// Durée de vie d'une pile au sol (butin ou dépôt joueur), en secondes.
+    /// 3 minutes : assez pour ramasser, sans persistance longue.
+    /// </summary>
+    public const int GroundItemTimeToLiveSeconds = 180;
     public const int MaxChatMessagesPerWindow = 8;
     public const int ChatRateWindowSeconds = 10;
     public const int DefaultSpawnMapId = 1;

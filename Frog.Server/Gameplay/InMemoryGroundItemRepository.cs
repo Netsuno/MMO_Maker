@@ -9,11 +9,31 @@ public sealed class InMemoryGroundItemRepository : IGroundItemRepository
 {
     private readonly ConcurrentDictionary<Guid, GroundItemRecord> _items = new();
     private readonly object _gate = new();
+    private readonly TimeProvider _clock;
+
+    public InMemoryGroundItemRepository(TimeProvider? clock = null)
+    {
+        _clock = clock ?? TimeProvider.System;
+    }
 
     public Task<IReadOnlyList<GroundItemRecord>> ListOnMapAsync(int mapId, CancellationToken cancellationToken = default)
     {
-        var list = _items.Values.Where(i => i.MapId == mapId).ToArray();
-        return Task.FromResult<IReadOnlyList<GroundItemRecord>>(list);
+        var now = _clock.GetUtcNow();
+        lock (_gate)
+        {
+            var list = _items.Values
+                .Where(i => i.MapId == mapId && !GroundLootLifetime.IsExpired(i.CreatedAtUtc, now))
+                .ToArray();
+            return Task.FromResult<IReadOnlyList<GroundItemRecord>>(list);
+        }
+    }
+
+    public Task<int> PurgeExpiredAsync(int mapId, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            return Task.FromResult(RemoveExpiredUnlocked(mapId));
+        }
     }
 
     public Task<GroundItemMutationResult> DropAsync(
@@ -32,6 +52,7 @@ public sealed class InMemoryGroundItemRepository : IGroundItemRepository
 
         lock (_gate)
         {
+            RemoveExpiredUnlocked(mapId);
             var onMap = _items.Values.Count(i => i.MapId == mapId);
             if (onMap >= GameplayLimits.MaxGroundItemsPerMap)
             {
@@ -46,7 +67,7 @@ public sealed class InMemoryGroundItemRepository : IGroundItemRepository
                 itemId,
                 quantity,
                 ownerCharacterId,
-                DateTimeOffset.UtcNow);
+                _clock.GetUtcNow());
             _items[record.Id] = record;
             return Task.FromResult(new GroundItemMutationResult(GroundItemMutationStatus.Ok, record));
         }
@@ -60,10 +81,17 @@ public sealed class InMemoryGroundItemRepository : IGroundItemRepository
         int rangePixels,
         CancellationToken cancellationToken = default)
     {
+        _ = pickerCharacterId;
         lock (_gate)
         {
             if (!_items.TryGetValue(groundItemId, out var item))
             {
+                return Task.FromResult(new GroundItemMutationResult(GroundItemMutationStatus.NotFound));
+            }
+
+            if (GroundLootLifetime.IsExpired(item.CreatedAtUtc, _clock.GetUtcNow()))
+            {
+                _items.TryRemove(groundItemId, out _);
                 return Task.FromResult(new GroundItemMutationResult(GroundItemMutationStatus.NotFound));
             }
 
@@ -90,7 +118,8 @@ public sealed class InMemoryGroundItemRepository : IGroundItemRepository
     {
         lock (_gate)
         {
-            if (_items.TryGetValue(groundItemId, out var record))
+            if (_items.TryGetValue(groundItemId, out var record)
+                && !GroundLootLifetime.IsExpired(record.CreatedAtUtc, _clock.GetUtcNow()))
             {
                 item = record;
                 return true;
@@ -105,6 +134,14 @@ public sealed class InMemoryGroundItemRepository : IGroundItemRepository
     {
         lock (_gate)
         {
+            if (_items.TryGetValue(groundItemId, out var current)
+                && GroundLootLifetime.IsExpired(current.CreatedAtUtc, _clock.GetUtcNow()))
+            {
+                _items.TryRemove(groundItemId, out _);
+                removed = null;
+                return false;
+            }
+
             if (_items.TryRemove(groundItemId, out var record))
             {
                 removed = record;
@@ -122,5 +159,20 @@ public sealed class InMemoryGroundItemRepository : IGroundItemRepository
         {
             _items[item.Id] = item;
         }
+    }
+
+    private int RemoveExpiredUnlocked(int mapId)
+    {
+        var now = _clock.GetUtcNow();
+        var expired = _items.Values
+            .Where(i => i.MapId == mapId && GroundLootLifetime.IsExpired(i.CreatedAtUtc, now))
+            .Select(i => i.Id)
+            .ToArray();
+        foreach (var id in expired)
+        {
+            _items.TryRemove(id, out _);
+        }
+
+        return expired.Length;
     }
 }
