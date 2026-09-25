@@ -9,15 +9,13 @@ namespace Frog.Editor.Services;
 /// <summary>Résolution chemins serveur/client + utilitaires TCP playtest.</summary>
 public static class EditorFrogServerLauncher
 {
-    private const string ServerExeFileName = "Frog.Server.exe";
-    private const string ServerDllFileName = "Frog.Server.dll";
-
     public static bool TryResolveExecutable(out string exePath, out bool useDotnetDll)
         => TryResolveExecutable(AppContext.BaseDirectory, out exePath, out useDotnetDll);
 
     /// <summary>
     /// P10-3 / P10-6 : même dossier, layouts frères <c>../server-win-x64</c> /
     /// <c>../server-linux-x64</c>, puis <c>bin/Debug|Release</c> du dépôt.
+    /// Un second test réutilise ces exécutables sans republier le client.
     /// </summary>
     public static bool TryResolveExecutable(string searchBaseDirectory, out string exePath, out bool useDotnetDll)
     {
@@ -46,21 +44,7 @@ public static class EditorFrogServerLauncher
     }
 
     public static IEnumerable<(string Path, bool UseDotnetDll)> EnumerateServerCandidates(string searchBaseDirectory)
-    {
-        var baseDir = searchBaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        yield return (Path.Combine(baseDir, ServerExeFileName), false);
-        yield return (Path.Combine(baseDir, ServerDllFileName), true);
-        yield return (Path.Combine(baseDir, "Frog.Server"), false);
-        yield return (Path.GetFullPath(Path.Combine(baseDir, "..", "server-win-x64", ServerExeFileName)), false);
-        yield return (Path.GetFullPath(Path.Combine(baseDir, "..", "server-linux-x64", "Frog.Server")), false);
-        foreach (var cfg in new[] { "Debug", "Release" })
-        {
-            yield return (Path.GetFullPath(
-                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Server", "bin", cfg, "net8.0", ServerExeFileName)), false);
-            yield return (Path.GetFullPath(
-                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Server", "bin", cfg, "net8.0", ServerDllFileName)), true);
-        }
-    }
+        => PlaytestPublishLayouts.EnumerateServerCandidates(searchBaseDirectory);
 
     private static bool IsSameDirectory(string a, string b)
         => string.Equals(

@@ -1,4 +1,5 @@
 using System.Drawing;
+using Frog.Application.Maps;
 using Frog.Client.UI;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
@@ -377,6 +378,31 @@ public sealed class MapViewRendererSmokeTests
             tilesetBitmaps: tiles,
             groundLootCentersPx: [(tw / 2, lootY)]);
         Assert.Equal(UiTheme.AccentGoldDim.ToArgb(), lootSouth.GetPixel(tw / 2, 30).ToArgb());
+    }
+
+    [Fact]
+    public void Render_PlaytestPlacedNpc_PaintsMarkerOnItsTile()
+    {
+        var map = CreateTwoByTwoGround();
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var npc = MapPlacedEntityEdit.Create(MapPlacedKind.Npc, 1, 0, 1);
+        npc.Name = "Garde";
+        var emptyOthers = new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase);
+        using var painted = MapViewRenderer.Render(
+            map,
+            emptyOthers,
+            localUsername: "self",
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            playtestPlacedEntities: new[] { npc });
+
+        var marker = painted.GetPixel(tw + (tw / 2), tw / 2);
+        Assert.NotEqual(GroundFill.ToArgb(), marker.ToArgb());
+        Assert.True(marker.B > marker.R, $"PNJ playtest should read as a blue marker, got {marker}");
+
+        var otherTile = painted.GetPixel(tw / 2, tw + (tw / 2));
+        Assert.Equal(GroundFill.ToArgb(), otherTile.ToArgb());
     }
 
     private static Map CreateTwoByTwoGround()

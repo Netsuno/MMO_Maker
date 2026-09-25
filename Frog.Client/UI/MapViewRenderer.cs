@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using Frog.Application.Maps;
 using Frog.Application.Prefabs;
 using Frog.Client.Assets;
 using Frog.Core.Constants;
@@ -41,8 +42,9 @@ internal static class MapViewRenderer
     /// <param name="localLook">Palettes corps / cheveux / tunique du joueur local. Client seulement.</param>
     /// <param name="tileAssets">Tuiles v6 vérifiées, indexées par <see cref="TileAssetId"/>. Absent : pas de blit 48×48.</param>
     /// <param name="tileAssetBitmaps">Cache d’affichage rempli à la demande. L’appelant dispose les bitmaps.</param>
-    /// <param name="groundLootCentersPx">Ancres du butin (centre du sac). Même tri vertical que les acteurs.</param>
-    public static Bitmap Render(
+        /// <param name="groundLootCentersPx">Ancres du butin (centre du sac). Même tri vertical que les acteurs.</param>
+        /// <param name="playtestPlacedEntities">Apparitions, PNJ et objets du sidecar playtest. Absent en partie normale.</param>
+        public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
         string? localUsername,
@@ -66,7 +68,8 @@ internal static class MapViewRenderer
         CharacterLook localLook = default,
         ITileAssetLookup? tileAssets = null,
         IDictionary<TileAssetId, Bitmap>? tileAssetBitmaps = null,
-        IReadOnlyList<(int PixelX, int PixelY)>? groundLootCentersPx = null)
+        IReadOnlyList<(int PixelX, int PixelY)>? groundLootCentersPx = null,
+        IReadOnlyList<MapPlacedEntity>? playtestPlacedEntities = null)
     {
         var tw = MapTileSizePixels(map);
         var w = map.Width * tw;
@@ -131,6 +134,7 @@ internal static class MapViewRenderer
                     break;
                 case WorldDepth.RowStepKind.ActorsOnRow:
                     DrawPlacedPrefabs(g, map, tw, prefabPlacements, prefabCatalog, prefabBitmaps, baselineRow: step.Row, outsideMap: false);
+                    DrawPlaytestPlacedEntities(g, tw, step.Row, playtestPlacedEntities);
                     actorIndex = DrawActorsWhile(g, actors, actorIndex, row => row == step.Row, localPose, localAppearance, localLook);
                     break;
                 case WorldDepth.RowStepKind.Fringe:
@@ -210,6 +214,41 @@ internal static class MapViewRenderer
         finally
         {
             g.PixelOffsetMode = previous;
+        }
+    }
+
+    internal static void DrawPlaytestPlacedEntities(
+        Graphics g,
+        int tileSize,
+        int row,
+        IReadOnlyList<MapPlacedEntity>? entities)
+    {
+        if (g is null || entities is not { Count: > 0 } || tileSize <= 0)
+        {
+            return;
+        }
+
+        foreach (var entity in entities)
+        {
+            if (entity is null || entity.TileY != row)
+            {
+                continue;
+            }
+
+            var inset = Math.Max(2, tileSize / 6);
+            var rect = new Rectangle(
+                entity.TileX * tileSize + inset,
+                entity.TileY * tileSize + inset,
+                Math.Max(1, tileSize - (inset * 2)),
+                Math.Max(1, tileSize - (inset * 2)));
+            var color = entity.Kind switch
+            {
+                MapPlacedKind.Spawn => Color.FromArgb(230, 80, 200, 255),
+                MapPlacedKind.Npc => Color.FromArgb(230, 70, 120, 255),
+                _ => Color.FromArgb(230, 196, 132, 64),
+            };
+            using var brush = new SolidBrush(color);
+            g.FillRectangle(brush, rect);
         }
     }
 

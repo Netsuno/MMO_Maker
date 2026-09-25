@@ -95,6 +95,8 @@ public sealed class MainForm : Form
     private ToolStripMenuItem? _mnuStopPlaytest;
     private EditorPlaytestProcessLauncher? _playtestLauncher;
     private PlaytestOrchestrator? _playtestOrchestrator;
+    private string? _playtestReuseClientExe;
+    private string? _playtestReuseServerExe;
     private CancellationTokenSource? _playtestCts;
     private bool _playtestBusy;
     private EditorMainFormCloseCoordinator? _closeCoordinator;
@@ -275,6 +277,9 @@ public sealed class MainForm : Form
     /// <summary>État annuler / rétablir (pour menu WPF).</summary>
     public event Action<bool, bool>? UndoRedoStateChanged;
 
+    /// <summary>Session playtest démarrée ou arrêtée (boutons Tester / Arrêter).</summary>
+    public event Action? PlaytestStateChanged;
+
     public MapUndoController UndoHistory => _canvas.History;
 
     /// <param name="embedAsWpfChild">Si vrai, la fenêtre est hébergée dans un <c>WindowsFormsHost</c> WPF (pas de chrome fenêtre).</param>
@@ -366,11 +371,12 @@ public sealed class MainForm : Form
             mFile.DropDownItems.Add(new ToolStripMenuItem("Exporter fichier .fmap…", null, (_, _) => ExportMapToFile()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Publier vers MariaDB… (héritage)", null, (_, _) => PublishMapToMariaDb()));
             mFile.DropDownItems.Add(new ToolStripMenuItem("Lancer le client Frog…", null, (_, _) => LaunchFrogGameClient()));
-            _mnuPlaytest = new ToolStripMenuItem("Playtest (publier + serveur + client)…", null, async (_, _) => await StartPlaytestAsync())
+            _mnuPlaytest = new ToolStripMenuItem("Tester (playtest)…", null, async (_, _) => await StartPlaytestAsync())
             {
                 ShortcutKeys = Keys.F5 | Keys.Control,
+                ToolTipText = "Enregistre la carte si besoin, puis lance le client sur la carte courante (dossiers frères, sans republier).",
             };
-            _mnuStopPlaytest = new ToolStripMenuItem("Arrêter le playtest", null, async (_, _) => await StopPlaytestAsync())
+            _mnuStopPlaytest = new ToolStripMenuItem("Arrêter le test", null, async (_, _) => await StopPlaytestAsync())
             {
                 Enabled = false,
             };
@@ -2844,27 +2850,8 @@ public sealed class MainForm : Form
                 return;
             }
 
-            string serverExe;
-            if (!string.IsNullOrWhiteSpace(EditorTestHooks.OverrideServerExePath))
+            if (!TryResolvePlaytestExecutables(out var serverExe, out var clientExe))
             {
-                serverExe = EditorTestHooks.OverrideServerExePath;
-            }
-            else if (!EditorFrogServerLauncher.TryResolveExecutable(out serverExe, out _))
-            {
-                LastPlaytestErrorForTest = "Frog.Server introuvable. Compilez le serveur (Release/Debug) ou indiquez le chemin.";
-                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
-                return;
-            }
-
-            string clientExe;
-            if (!string.IsNullOrWhiteSpace(EditorTestHooks.OverrideClientExePath))
-            {
-                clientExe = EditorTestHooks.OverrideClientExePath;
-            }
-            else if (!EditorFrogClientLauncher.TryResolveExecutable(out clientExe))
-            {
-                LastPlaytestErrorForTest = "Frog.Client.exe introuvable.";
-                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Playtest");
                 return;
             }
 
@@ -2879,7 +2866,10 @@ public sealed class MainForm : Form
             }
 
             var preparer = new PlaytestMapPreparer(_mapRepository);
-            _playtestOrchestrator = new PlaytestOrchestrator(preparer, launcher, new EditorPlaytestTilesetSidecar(() => _canvas.PrefabPlacements));
+            _playtestOrchestrator = new PlaytestOrchestrator(
+                preparer,
+                launcher,
+                new EditorPlaytestTilesetSidecar(() => _canvas.PrefabPlacements, () => _canvas.PlacedEntities));
 
             if (_workspace.CurrentMap is null)
             {
@@ -2895,6 +2885,13 @@ public sealed class MainForm : Form
             }
 
             var map = _workspace.CurrentMap;
+            if (_workspace.IsDirty
+                && !_dialogService.ConfirmYesNo(PlaytestHotload.DirtySavePrompt, "Tester"))
+            {
+                LastPlaytestErrorForTest = PlaytestHotload.CancelledDirtyMessage;
+                return;
+            }
+
             int? storedX = null;
             int? storedY = null;
             if (EditorMapSpawnWorkstate.TryRead(_workspace.CurrentMapId, map, out var memoX, out var memoY))
@@ -2908,14 +2905,25 @@ public sealed class MainForm : Form
                 storedY = canvasSpawn.Y;
             }
 
-            var preferred = MapPlaytestSpawn.ResolvePreferred(
-                map,
-                storedX,
-                storedY,
-                _lastHoverTile.X,
-                _lastHoverTile.Y);
-            var defaultX = preferred.X;
-            var defaultY = preferred.Y;
+            var hotload = PlaytestHotload.Decide(new PlaytestHotloadRequest
+            {
+                IsDirty = _workspace.IsDirty,
+                SaveChoice = PlaytestSaveChoice.Save,
+                CurrentMapId = _workspace.CurrentMapId,
+                Map = map,
+                RememberedTileX = storedX,
+                RememberedTileY = storedY,
+                FallbackTileX = _lastHoverTile.X,
+                FallbackTileY = _lastHoverTile.Y,
+            });
+            if (hotload is PlaytestHotloadDecision.Cancelled cancelledHotload)
+            {
+                LastPlaytestErrorForTest = cancelledHotload.Reason;
+                _dialogService.ShowWarning(cancelledHotload.Reason, "Tester");
+                return;
+            }
+
+            var ready = (PlaytestHotloadDecision.Ready)hotload;
             int spawnX;
             int spawnY;
             if (EditorTestHooks.OverrideSpawnTile is { } forcedSpawn)
@@ -2923,9 +2931,14 @@ public sealed class MainForm : Form
                 spawnX = forcedSpawn.X;
                 spawnY = forcedSpawn.Y;
             }
+            else if (ready.UsedRememberedSpawn)
+            {
+                spawnX = ready.TileX;
+                spawnY = ready.TileY;
+            }
             else
             {
-                using var spawnDlg = new Dialogs.PlaytestSpawnDialog(map.Width, map.Height, defaultX, defaultY);
+                using var spawnDlg = new Dialogs.PlaytestSpawnDialog(map.Width, map.Height, ready.TileX, ready.TileY);
                 if (spawnDlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
                 {
                     LastPlaytestErrorForTest = "Playtest annulé (spawn).";
@@ -3034,6 +3047,64 @@ public sealed class MainForm : Form
         {
             _mnuStopPlaytest.Enabled = active || _playtestBusy;
         }
+
+        PlaytestStateChanged?.Invoke();
+    }
+
+    private bool TryResolvePlaytestExecutables(out string serverExe, out string clientExe)
+    {
+        serverExe = string.Empty;
+        clientExe = string.Empty;
+        var serverOverridden = !string.IsNullOrWhiteSpace(EditorTestHooks.OverrideServerExePath);
+        var clientOverridden = !string.IsNullOrWhiteSpace(EditorTestHooks.OverrideClientExePath);
+        if (serverOverridden)
+        {
+            serverExe = EditorTestHooks.OverrideServerExePath!;
+        }
+
+        if (clientOverridden)
+        {
+            clientExe = EditorTestHooks.OverrideClientExePath!;
+        }
+
+        if (!serverOverridden && !clientOverridden
+            && PlaytestPublishLayouts.TryReusePair(
+                _playtestReuseClientExe,
+                _playtestReuseServerExe,
+                out var reusedClient,
+                out var reusedServer))
+        {
+            clientExe = reusedClient;
+            serverExe = reusedServer;
+        }
+
+        if (string.IsNullOrWhiteSpace(serverExe))
+        {
+            if (!EditorFrogServerLauncher.TryResolveExecutable(out serverExe, out _))
+            {
+                LastPlaytestErrorForTest = "Frog.Server introuvable. Compilez le serveur (Release/Debug) ou indiquez le chemin.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Tester");
+                return false;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(clientExe))
+        {
+            if (!EditorFrogClientLauncher.TryResolveExecutable(out clientExe))
+            {
+                LastPlaytestErrorForTest = "Frog.Client.exe introuvable.";
+                _dialogService.ShowWarning(LastPlaytestErrorForTest, "Tester");
+                return false;
+            }
+        }
+
+        if (!serverOverridden && !clientOverridden)
+        {
+            _playtestReuseClientExe = clientExe;
+            _playtestReuseServerExe = serverExe;
+        }
+
+        return true;
     }
 
     internal void PublishMapToMariaDb()

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
+using Frog.Application.Playtest;
 using Frog.Editor.Config;
 
 namespace Frog.Editor.Services;
@@ -17,7 +18,8 @@ public static class EditorFrogClientLauncher
     /// <summary>
     /// P10-3 / P10-6 : même dossier que l’éditeur, layout frère <c>../client-win-x64</c>,
     /// puis <c>bin/Debug|Release</c> du dépôt. Le mémo local n’est lu que pour
-    /// <see cref="AppContext.BaseDirectory"/>.
+    /// <see cref="AppContext.BaseDirectory"/>. Le playtest hotload réutilise ces binaires
+    /// (pas de <c>dotnet publish</c>).
     /// </summary>
     public static bool TryResolveExecutable(string searchBaseDirectory, out string exePath)
     {
@@ -42,16 +44,7 @@ public static class EditorFrogClientLauncher
     }
 
     public static IEnumerable<string> EnumerateClientCandidates(string searchBaseDirectory)
-    {
-        var baseDir = searchBaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        yield return Path.Combine(baseDir, ClientExeFileName);
-        yield return Path.GetFullPath(Path.Combine(baseDir, "..", "client-win-x64", ClientExeFileName));
-        foreach (var cfg in new[] { "Debug", "Release" })
-        {
-            yield return Path.GetFullPath(
-                Path.Combine(baseDir, "..", "..", "..", "..", "Frog.Client", "bin", cfg, "net8.0-windows", ClientExeFileName));
-        }
-    }
+        => PlaytestPublishLayouts.EnumerateClientCandidates(searchBaseDirectory);
 
     private static bool IsSameDirectory(string a, string b)
         => string.Equals(
