@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Frog.Core.Combat;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.Protocol;
 using Frog.Server;
 using Frog.Server.Gameplay;
@@ -180,7 +181,41 @@ public sealed class CombatMvpTcpTests
         }
     }
 
-    private static IHost CreateInMemoryHost(int port, int? statusTickMs = null)
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
+    public async Task Tcp_MonsterAi_BroadcastsSlimePositionWithKindTrailer()
+    {
+        var port = GetFreePort();
+        using var host = CreateInMemoryHost(port, monsterAi: true);
+        await host.StartAsync();
+        try
+        {
+            await using var client = new TcpProbe();
+            _ = await RegisterLoginSelectAsync(client, port, UniqueUser("ma"), "password123", "MaHero");
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            PositionUpdateWire? slime = null;
+            while (DateTime.UtcNow < deadline && slime is null)
+            {
+                var frame = await client.ReadUntilAsync(PacketId.PositionUpdate, TimeSpan.FromSeconds(2));
+                if (Phase7PacketCodec.TryParsePositionUpdate(frame.AsSpan(1), out var pos)
+                    && pos.Kind == CombatTargetKind.Monster
+                    && string.Equals(pos.Username, "Slime", StringComparison.Ordinal))
+                {
+                    slime = pos;
+                }
+            }
+
+            Assert.NotNull(slime);
+            Assert.Equal(1, slime!.MapId);
+            Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    private static IHost CreateInMemoryHost(int port, int? statusTickMs = null, bool monsterAi = false)
         => FrogServerHostFactory
             .CreateHostBuilder(
                 configureServices: services =>
@@ -195,6 +230,7 @@ public sealed class CombatMvpTcpTests
                     ["Server:BindAddress"] = "127.0.0.1",
                     ["MariaDb:Enabled"] = "false",
                     ["PostgreSql:AllowInMemoryFallback"] = "true",
+                    [MonsterAiLimits.EnabledConfigKey] = monsterAi ? "true" : "false",
                 };
                 if (statusTickMs is int ms)
                 {

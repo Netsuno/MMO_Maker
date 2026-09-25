@@ -67,6 +67,17 @@ public sealed class CombatGameplayService(
             .Select(ToMonsterInstance)
             .ToArray();
 
+    public IReadOnlyList<int> ListMonsterMapIds()
+        => _combatMutations.ListMapIdsWithMonsters();
+
+    public Task<bool> TryMoveMonsterAsync(
+        int mapId,
+        Guid instanceId,
+        int pixelX,
+        int pixelY,
+        CancellationToken ct = default)
+        => _combatMutations.TrySetMonsterPositionAsync(mapId, instanceId, pixelX, pixelY, ct);
+
     public void CancelForSession(Guid sessionId) => _sessionTargets.TryRemove(sessionId, out _);
 
     public void CancelForMapChange(Session session) => CancelForSession(session.Id);
@@ -347,12 +358,68 @@ public sealed class CombatGameplayService(
         // l'application reelle des degats — plusieurs attaquants peuvent cibler la meme
         // victime depuis des connexions distinctes en meme temps.
         var weaponPower = await GetWeaponPowerAsync(attacker.EquippedWeaponItemId, ct).ConfigureAwait(false);
+        var result = await ApplyDamageToPlayerAsync(
+            defender,
+            attacker.PixelX,
+            attacker.PixelY,
+            attacker.CurrentMapId,
+            attacker.Stats?.Str ?? 10,
+            weaponPower,
+            Frog.Core.Constants.WorldMetrics.MeleeRangePixels,
+            ct).ConfigureAwait(false);
+        if (!result.Success)
+        {
+            return result;
+        }
 
+        attacker.LastMeleeUtc = now;
+        return await FinishPlayerDamageAsync(defender, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Coup d'un monstre ou du mannequin : même mutation HP que <see cref="TryMeleeAttackPlayerAsync"/>
+    /// (formule, verrou perso, butin de mort). La recharge est celle de l'IA, pas <see cref="Session.LastMeleeUtc"/>.
+    /// </summary>
+    public async Task<PlayerMeleeCombatResult> TryApplyCreatureStrikeAsync(
+        Session defender,
+        int attackerMapId,
+        int attackerPixelX,
+        int attackerPixelY,
+        int attackerStr,
+        int rangePixels,
+        CancellationToken ct = default)
+    {
+        var result = await ApplyDamageToPlayerAsync(
+            defender,
+            attackerPixelX,
+            attackerPixelY,
+            attackerMapId,
+            Math.Max(1, attackerStr),
+            0,
+            rangePixels,
+            ct).ConfigureAwait(false);
+        if (!result.Success)
+        {
+            return result;
+        }
+
+        return await FinishPlayerDamageAsync(defender, result, ct).ConfigureAwait(false);
+    }
+
+    private async Task<PlayerMeleeCombatResult> ApplyDamageToPlayerAsync(
+        Session defender,
+        int attackerPixelX,
+        int attackerPixelY,
+        int attackerMapId,
+        int attackerStr,
+        int weaponPower,
+        int rangePixels,
+        CancellationToken ct)
+    {
         var defenderCharacterId = defender.RequireCharacterGuid();
-        PlayerMeleeCombatResult pvpResult;
         try
         {
-            pvpResult = await _mutationCoordinator.RunExclusiveAsync(
+            return await _mutationCoordinator.RunExclusiveAsync(
                 defenderCharacterId,
                 async innerCt =>
                 {
@@ -361,12 +428,17 @@ public sealed class CombatGameplayService(
                         return PlayerMeleeCombatResult.Fail("Cible deja morte.");
                     }
 
-                    if (defender.CurrentMapId != attacker.CurrentMapId)
+                    if (defender.CurrentMapId != attackerMapId)
                     {
                         return PlayerMeleeCombatResult.Fail("Pas sur la meme carte.");
                     }
 
-                    if (!MeleeCombat.IsWithinMeleeRange(attacker.PixelX, attacker.PixelY, defender.PixelX, defender.PixelY))
+                    if (!MeleeCombat.IsWithinMeleeRange(
+                            attackerPixelX,
+                            attackerPixelY,
+                            defender.PixelX,
+                            defender.PixelY,
+                            rangePixels))
                     {
                         return PlayerMeleeCombatResult.Fail("Hors portee.");
                     }
@@ -382,8 +454,7 @@ public sealed class CombatGameplayService(
                         return PlayerMeleeCombatResult.Fail("Cible deja morte.");
                     }
 
-                    var targetVit = record.Stats.Vit;
-                    var damage = CombatFormulas.MeleeDamage(attacker.Stats?.Str ?? 10, weaponPower, targetVit);
+                    var damage = CombatFormulas.MeleeDamage(attackerStr, weaponPower, record.Stats.Vit);
                     var newHp = Math.Max(0, record.Hp - damage);
                     var killed = newHp <= 0;
                     var patch = record with
@@ -421,21 +492,21 @@ public sealed class CombatGameplayService(
 
             throw;
         }
+    }
 
-        if (!pvpResult.Success)
-        {
-            return pvpResult;
-        }
-
-        attacker.LastMeleeUtc = now;
-        if (pvpResult.TargetKilled
+    private async Task<PlayerMeleeCombatResult> FinishPlayerDamageAsync(
+        Session defender,
+        PlayerMeleeCombatResult result,
+        CancellationToken ct)
+    {
+        if (result.TargetKilled
             && _tradePresence is not null
             && defender.CharacterGuid is Guid deadId)
         {
             await _tradePresence.NotifyCharacterUnfitAsync(deadId, "Personnage mort.", ct).ConfigureAwait(false);
         }
 
-        if (pvpResult.TargetKilled && _groundLoot is not null)
+        if (result.TargetKilled && _groundLoot is not null)
         {
             try
             {
@@ -445,7 +516,7 @@ public sealed class CombatGameplayService(
                     defender.PixelY,
                     defender.CharacterGuid,
                     ct).ConfigureAwait(false);
-                pvpResult = pvpResult with { DroppedLoot = dropped };
+                result = result with { DroppedLoot = dropped };
             }
             catch (OperationCanceledException)
             {
@@ -457,7 +528,7 @@ public sealed class CombatGameplayService(
             }
         }
 
-        return pvpResult;
+        return result;
     }
 
     public async Task<RespawnResult> TryRespawnAsync(Session session, CancellationToken ct = default)

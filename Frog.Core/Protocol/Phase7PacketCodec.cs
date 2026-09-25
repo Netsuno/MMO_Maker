@@ -1,5 +1,8 @@
 using System.Buffers.Binary;
 using System.Text;
+using Frog.Core.Constants;
+using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 
 namespace Frog.Core.Protocol;
 
@@ -149,7 +152,41 @@ public static class Phase7PacketCodec
         return true;
     }
 
-    /// <summary>Corps <see cref="Frog.Core.Enums.PacketId.PositionUpdate"/> (miroir de <c>PacketSender.SendPositionUpdateAsync</c>).</summary>
+    /// <summary>
+    /// Corps <see cref="Frog.Core.Enums.PacketId.PositionUpdate"/> (miroir de <c>PacketSender.SendPositionUpdateAsync</c>).
+    /// Joueur : longueur historique. Monstre / mannequin : un octet <see cref="CombatTargetKind"/> en plus. Hello reste 11.
+    /// </summary>
+    public static byte[] BuildPositionUpdateBody(
+        string username,
+        int mapId,
+        int pixelX,
+        int pixelY,
+        CombatTargetKind kind = CombatTargetKind.Player)
+    {
+        var usernameBytes = Encoding.UTF8.GetBytes(username ?? string.Empty);
+        if (usernameBytes.Length > byte.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(username), "Le nom utilisateur est trop long.");
+        }
+
+        var trailer = MonsterAi.TracksAsMonsterSprite(kind) ? 1 : 0;
+        var payload = new byte[1 + usernameBytes.Length + (sizeof(int) * 3) + trailer];
+        payload[0] = (byte)usernameBytes.Length;
+        usernameBytes.CopyTo(payload, 1);
+        var o = 1 + usernameBytes.Length;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), mapId);
+        o += sizeof(int);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), pixelX);
+        o += sizeof(int);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(o), pixelY);
+        if (trailer == 1)
+        {
+            payload[^1] = (byte)kind;
+        }
+
+        return payload;
+    }
+
     public static bool TryParsePositionUpdate(ReadOnlySpan<byte> body, out PositionUpdateWire update)
     {
         update = new PositionUpdateWire();
@@ -159,8 +196,10 @@ public static class Phase7PacketCodec
         }
 
         var usernameLen = body[0];
-        var expected = 1 + usernameLen + 4 + 4 + 4;
-        if (usernameLen == 0 || body.Length != expected)
+        var expected = 1 + usernameLen + (sizeof(int) * 3);
+        if (usernameLen is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes
+            || body.Length < expected
+            || body.Length > expected + 1)
         {
             return false;
         }
@@ -168,16 +207,27 @@ public static class Phase7PacketCodec
         var username = Encoding.UTF8.GetString(body.Slice(1, usernameLen));
         var o = 1 + usernameLen;
         var mapId = BinaryPrimitives.ReadInt32LittleEndian(body.Slice(o));
-        o += 4;
+        o += sizeof(int);
         var pixelX = BinaryPrimitives.ReadInt32LittleEndian(body.Slice(o));
-        o += 4;
+        o += sizeof(int);
         var pixelY = BinaryPrimitives.ReadInt32LittleEndian(body.Slice(o));
+        var kind = CombatTargetKind.Player;
+        if (body.Length == expected + 1)
+        {
+            var raw = body[expected];
+            if (raw is (byte)CombatTargetKind.Monster or (byte)CombatTargetKind.Dummy)
+            {
+                kind = (CombatTargetKind)raw;
+            }
+        }
+
         update = new PositionUpdateWire
         {
             Username = username,
             MapId = mapId,
             PixelX = pixelX,
             PixelY = pixelY,
+            Kind = kind,
         };
         return true;
     }

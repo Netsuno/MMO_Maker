@@ -21,13 +21,18 @@ public sealed class ExperienceGainWire
     public long Experience { get; init; }
 }
 
-/// <summary>Corps <see cref="Frog.Core.Enums.PacketId.PositionUpdate"/> : username + carte + centre pixels.</summary>
+/// <summary>
+/// Corps <see cref="Frog.Core.Enums.PacketId.PositionUpdate"/> : username + carte + centre pixels.
+/// <see cref="Kind"/> vaut <see cref="Frog.Core.Enums.CombatTargetKind.Player"/> sans trailer.
+/// Un octet de kind (monstre / mannequin) peut suivre ; les parseurs qui s'arrêtent avant l'ignorent.
+/// </summary>
 public sealed class PositionUpdateWire
 {
     public string Username { get; init; } = string.Empty;
     public int MapId { get; init; }
     public int PixelX { get; init; }
     public int PixelY { get; init; }
+    public Frog.Core.Enums.CombatTargetKind Kind { get; init; } = Frog.Core.Enums.CombatTargetKind.Player;
 }
 
 public sealed class InventorySlotWire

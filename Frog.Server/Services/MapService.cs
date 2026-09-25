@@ -412,6 +412,32 @@ public sealed class MapService
                (height = chunk.Model.Height) > 0;
     }
 
+    /// <summary>
+    /// Grille de déplacement en pixels. Une carte TileAsset (v6) garde ses 48 px ;
+    /// une carte feuille (taille 0) reste sur <see cref="WorldMetrics.DefaultTileSizePixels"/>.
+    /// </summary>
+    public bool TryGetMoveGrid(int mapId, out int widthPx, out int heightPx, out int tileSizePixels)
+    {
+        widthPx = heightPx = tileSizePixels = 0;
+        if (!_chunks.TryGetValue(mapId, out var chunk))
+        {
+            return false;
+        }
+
+        var model = chunk.Model;
+        if (model.Width <= 0 || model.Height <= 0)
+        {
+            return false;
+        }
+
+        tileSizePixels = model.TileSizePixels > 0
+            ? model.TileSizePixels
+            : WorldMetrics.DefaultTileSizePixels;
+        widthPx = model.Width * tileSizePixels;
+        heightPx = model.Height * tileSizePixels;
+        return true;
+    }
+
     public bool IsBlocked(int mapId, int x, int y)
         => _chunks.TryGetValue(mapId, out var chunk) && chunk.BlockedTiles.Contains((x, y));
 

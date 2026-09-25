@@ -55,7 +55,7 @@ public sealed class FrogGameClient : IDisposable
     public event Action<int, Map>? MapDataReceived;
     /// <summary>Émis lorsque le serveur répond que le blob carte est déjà à jour (hint <see cref="PacketId.MapRequest"/>).</summary>
     public event Action<int, long>? MapAlreadySyncedReceived;
-    public event Action<string, int, int, int>? PositionUpdateReceived;
+    public event Action<string, int, int, int, CombatTargetKind>? PositionUpdateReceived;
     public event Action<string, string>? CharacterPayloadReceived;
     public event Action<string>? PlayerLeaveReceived;
     public event Action<string>? ErrorReceived;
@@ -380,9 +380,9 @@ public sealed class FrogGameClient : IDisposable
                 break;
 
             case PacketId.PositionUpdate:
-                if (TryReadPositionUpdate(body.Span, out var user, out var mapIdPu, out var px, out var py))
+                if (Phase7PacketCodec.TryParsePositionUpdate(body.Span, out var pos))
                 {
-                    Post(() => PositionUpdateReceived?.Invoke(user, mapIdPu, px, py));
+                    Post(() => PositionUpdateReceived?.Invoke(pos.Username, pos.MapId, pos.PixelX, pos.PixelY, pos.Kind));
                 }
 
                 break;
@@ -1739,30 +1739,6 @@ public sealed class FrogGameClient : IDisposable
     {
         username = string.Empty;
         return TryReadUtf8PrefixedByteLength(span, out username);
-    }
-
-    private static bool TryReadPositionUpdate(ReadOnlySpan<byte> span, out string username, out int mapId, out int x, out int y)
-    {
-        username = string.Empty;
-        mapId = x = y = 0;
-        if (span.Length < 1)
-        {
-            return false;
-        }
-
-        var ulen = span[0];
-        var need = 1 + ulen + sizeof(int) * 3;
-        if (ulen is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes || span.Length < need)
-        {
-            return false;
-        }
-
-        username = Encoding.UTF8.GetString(span.Slice(1, ulen));
-        var o = 1 + ulen;
-        mapId = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(o));
-        x = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(o + sizeof(int)));
-        y = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(o + sizeof(int) * 2));
-        return true;
     }
 
     private static bool TryReadCharacterPayload(ReadOnlySpan<byte> span, out string characterId, out string jsonPayload)
