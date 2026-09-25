@@ -22,38 +22,46 @@
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style x:Key="LayerEyeCheck" TargetType="{x:Type CheckBox}">
-            <Setter Property="Width" Value="16" />
+            <Setter Property="Width" Value="22" />
             <Setter Property="Height" Value="16" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
-            <Setter Property="ToolTip" Value="Afficher ou masquer cette couche" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type CheckBox}">
-                        <Border x:Name="Box"
-                                Width="16"
-                                Height="16"
-                                CornerRadius="2"
-                                Background="#FF202228"
-                                BorderBrush="#FF949BAA"
-                                BorderThickness="1"
-                                SnapsToDevicePixels="True"
-                                ToolTip="{TemplateBinding ToolTip}">
-                            <Ellipse x:Name="Pupil"
-                                     Width="8"
-                                     Height="8"
-                                     HorizontalAlignment="Center"
-                                     VerticalAlignment="Center"
-                                     Fill="#FF64BEFF"
-                                     Visibility="Collapsed" />
-                        </Border>
+                        <Viewbox Width="22"
+                                 Height="14"
+                                 Stretch="Uniform"
+                                 SnapsToDevicePixels="True"
+                                 ToolTip="{TemplateBinding ToolTip}">
+                            <Canvas Width="22" Height="16">
+                                <Path x:Name="Eye"
+                                      Data="M1,8 C5,2.5 17,2.5 21,8 C17,13.5 5,13.5 1,8 Z"
+                                      Stroke="#FF64BEFF"
+                                      StrokeThickness="1.3"
+                                      Fill="#FF202228" />
+                                <Ellipse x:Name="Pupil"
+                                         Canvas.Left="8"
+                                         Canvas.Top="5"
+                                         Width="6"
+                                         Height="6"
+                                         Fill="#FF64BEFF" />
+                                <Path x:Name="Slash"
+                                      Data="M2,14 L20,2"
+                                      Stroke="#FF949BAA"
+                                      StrokeThickness="1.5"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      Visibility="Collapsed" />
+                            </Canvas>
+                        </Viewbox>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Pupil" Property="Visibility" Value="Visible" />
-                                <Setter TargetName="Box" Property="BorderBrush" Value="#FF64BEFF" />
-                            </Trigger>
                             <Trigger Property="IsChecked" Value="False">
-                                <Setter TargetName="Box" Property="Opacity" Value="0.45" />
+                                <Setter TargetName="Pupil" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="Eye" Property="Stroke" Value="#FF949BAA" />
+                                <Setter TargetName="Eye" Property="Fill" Value="#FF202228" />
+                                <Setter TargetName="Slash" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="Slash" Property="Stroke" Value="#FF949BAA" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -90,6 +98,7 @@
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Row" Property="Background" Value="#FF1A3D58" />
                                 <Setter TargetName="Accent" Property="Background" Value="#FF64BEFF" />
+                                <Setter TargetName="Accent" Property="Width" Value="6" />
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
@@ -121,19 +130,25 @@
     </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="30" />
+            <RowDefinition Height="46" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Border Grid.Row="0"
                 Background="#FF202228"
-                Padding="12,0,8,0">
+                Padding="12,4,8,0">
             <Grid>
-                <TextBlock VerticalAlignment="Center"
-                           FontFamily="Segoe UI"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Foreground="#FFEBEEF5"
-                           Text="COUCHES · bas → haut" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock FontFamily="Segoe UI"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="#FFEBEEF5"
+                               Text="COUCHES" />
+                    <TextBlock Margin="0,1,0,0"
+                               FontFamily="Segoe UI"
+                               FontSize="10"
+                               Foreground="#FF949BAA"
+                               Text="Dessus en haut · la ligne marquée est peinte" />
+                </StackPanel>
                 <Border Height="3"
                         VerticalAlignment="Bottom"
                         Background="#FF64BEFF" />
@@ -159,55 +174,81 @@
                         <MenuItem Header="Supprimer la couche" Click="MenuRemoveLayer_Click" />
                         <MenuItem Header="Renommer…" Click="MenuRenameLayer_Click" />
                         <MenuItem Header="Changer le type (Sol, Masque…)…" Click="MenuChangeEngineType_Click" />
-                        <MenuItem Header="Verrouiller / déverrouiller" Click="MenuToggleLock_Click" />
+                        <MenuItem Header="Verrouiller ou rendre éditable" Click="MenuToggleLock_Click" />
                     </ContextMenu>
                 </ListView.ContextMenu>
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Width="46">
+                        <GridViewColumn Width="40">
                             <GridViewColumn.Header>
-                                <TextBlock Text="Œil"
-                                           ToolTip="Afficher ou masquer la couche" />
+                                <TextBlock Text="Vue"
+                                           ToolTip="Œil ouvert = couche visible. Œil barré = masquée." />
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type panels:LayerListRow}">
                                     <CheckBox HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               Style="{StaticResource LayerEyeCheck}"
+                                              ToolTip="{Binding VisibilityHint}"
                                               IsChecked="{Binding Visible, Mode=OneWay}"
                                               Click="LayerVisibleCheckBox_Click" />
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Width="132" Header="Nom">
+                        <GridViewColumn Width="210" Header="Nom">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type panels:LayerListRow}">
-                                    <TextBlock Text="{Binding Display}"
-                                               VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis">
-                                        <TextBlock.Style>
-                                            <Style TargetType="{x:Type TextBlock}">
-                                                <Setter Property="Foreground" Value="#FFEBEEF5" />
-                                                <Setter Property="FontWeight" Value="Normal" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
-                                                                 Value="True">
-                                                        <Setter Property="Foreground" Value="#FF64BEFF" />
-                                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                    <StackPanel Margin="2,3">
+                                        <DockPanel LastChildFill="True">
+                                            <TextBlock DockPanel.Dock="Right"
+                                                       Margin="8,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#FF64BEFF"
+                                                       Text="peinture">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="{x:Type TextBlock}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
+                                                                         Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Display}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="{x:Type TextBlock}">
+                                                        <Setter Property="Foreground" Value="#FFEBEEF5" />
+                                                        <Setter Property="FontWeight" Value="Normal" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
+                                                                         Value="True">
+                                                                <Setter Property="Foreground" Value="#FF64BEFF" />
+                                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </DockPanel>
+                                        <TextBlock Margin="0,1,0,0"
+                                                   FontSize="10"
+                                                   Foreground="#FF949BAA"
+                                                   Text="{Binding OrderHint}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Width="96"
-                                        DisplayMemberBinding="{Binding EngineType}"
-                                        Header="Type" />
-                        <GridViewColumn Width="84"
+                        <GridViewColumn Width="92"
                                         DisplayMemberBinding="{Binding LockLabel}"
-                                        Header="Verrou" />
+                                        Header="Édition" />
                     </GridView>
                 </ListView.View>
             </ListView>

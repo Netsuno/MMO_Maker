@@ -44,4 +44,25 @@ public sealed class LayerTypeLabelsTests
         Assert.Equal("Herbe", named.GetDisplayLabel());
         Assert.Equal("Attributs", unnamed.GetDisplayLabel());
     }
+
+    [Fact]
+    public void StackOrder_PutsPaintedTopFirst_WithoutRenamingTypes()
+    {
+        Assert.Equal(new[] { 2, 1, 0 }, LayerTypeLabels.TopFirstIndices(3));
+        Assert.Equal("1 · dessous", LayerTypeLabels.StackRank(0, 3));
+        Assert.Equal("2", LayerTypeLabels.StackRank(1, 3));
+        Assert.Equal("3 · dessus", LayerTypeLabels.StackRank(2, 3));
+        Assert.Equal("1 · seule", LayerTypeLabels.StackRank(0, 1));
+        Assert.Equal(string.Empty, LayerTypeLabels.StackRank(0, 0));
+
+        Assert.Equal(
+            "1 · dessous · sol, dessiné en premier",
+            LayerTypeLabels.OrderHint(0, 3, LayerType.Ground, displayName: ""));
+        Assert.Equal(
+            "3 · dessus · Sol · sol, dessiné en premier",
+            LayerTypeLabels.OrderHint(2, 3, LayerType.Ground, displayName: "Herbe"));
+        Assert.Equal("Verrouillée", LayerTypeLabels.LockCaption(true));
+        Assert.Equal("Éditable", LayerTypeLabels.LockCaption(false));
+        Assert.Equal("Sol", LayerTypeLabels.French(LayerType.Ground));
+    }
 }

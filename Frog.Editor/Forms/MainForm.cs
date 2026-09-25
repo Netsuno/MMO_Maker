@@ -1652,9 +1652,11 @@ public sealed class MainForm : Form
 
         var index = Math.Clamp(_canvas.ActiveLayerIndex, 0, map.Layers.Count - 1);
         var layer = map.Layers[index];
+        var rank = LayerTypeLabels.StackRank(index, map.Layers.Count);
         var hidden = layer.Visible ? "" : " · masquée";
         var locked = layer.Locked ? " · verrouillée" : "";
-        return $"    ·    couche {layer.GetDisplayLabel()}{hidden}{locked}";
+        var rankText = string.IsNullOrEmpty(rank) ? "" : $" · {rank}";
+        return $"    ·    peinture {layer.GetDisplayLabel()}{rankText}{hidden}{locked}";
     }
 
     internal void ResetMapView() => _canvas.ResetViewTransform();
@@ -1991,7 +1993,8 @@ public sealed class MainForm : Form
                 return;
             }
 
-            for (var i = 0; i < _canvas.Map.Layers.Count; i++)
+            var layerCount = _canvas.Map.Layers.Count;
+            foreach (var i in LayerTypeLabels.TopFirstIndices(layerCount))
             {
                 var l = _canvas.Map.Layers[i];
                 rows.Add(new LayerListRow
@@ -1999,8 +2002,9 @@ public sealed class MainForm : Form
                     Index = i,
                     Visible = l.Visible,
                     Display = l.GetDisplayLabel(),
+                    OrderHint = LayerTypeLabels.OrderHint(i, layerCount, l.LayerType, l.DisplayName),
                     EngineType = LayerTypeLabels.French(l.LayerType),
-                    LockLabel = l.Locked ? "Verrouillé" : "Libre",
+                    LockLabel = LayerTypeLabels.LockCaption(l.Locked),
                 });
             }
 

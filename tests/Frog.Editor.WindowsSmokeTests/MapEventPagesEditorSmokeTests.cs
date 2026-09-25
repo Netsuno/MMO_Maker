@@ -311,20 +311,20 @@ public sealed class MapEventPagesEditorSmokeTests
 
             panel.WaypointsForTest.Rows[0].Cells[0].Value = "nope";
             Assert.False(panel.TryBuildPages(out _, out var nonIntErr));
-            Assert.Contains("TileX", nonIntErr, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("X invalide", nonIntErr, StringComparison.OrdinalIgnoreCase);
 
             panel.WaypointsForTest.Rows[0].Cells[0].Value = -1;
             Assert.False(panel.TryBuildPages(out _, out var negErr));
-            Assert.Contains("TileX", negErr, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("X invalide", negErr, StringComparison.OrdinalIgnoreCase);
 
             panel.WaypointsForTest.Rows[0].Cells[0].Value = 2;
             panel.WaypointsForTest.Rows[0].Cells[2].Value = 60001;
             Assert.False(panel.TryBuildPages(out _, out var waitErr));
-            Assert.Contains("WaitMs", waitErr, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("attente invalide", waitErr, StringComparison.OrdinalIgnoreCase);
 
             panel.WaypointsForTest.Rows[0].Cells[2].Value = string.Empty;
             Assert.False(panel.TryBuildPages(out _, out var emptyErr));
-            Assert.Contains("WaitMs", emptyErr, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("attente invalide", emptyErr, StringComparison.OrdinalIgnoreCase);
 
             panel.WaypointsForTest.Rows[0].Cells[0].Value = 2;
             panel.WaypointsForTest.Rows[0].Cells[1].Value = 3;

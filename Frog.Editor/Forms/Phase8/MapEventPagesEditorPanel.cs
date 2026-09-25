@@ -1,24 +1,50 @@
 using Frog.Core.Events;
 using Frog.Core.Models;
+using Frog.Editor.Ui;
 
 namespace Frog.Editor.Forms.Phase8;
 
 /// <summary>Éditeur structuré de pages d'événement (P8-I2).</summary>
 internal sealed class MapEventPagesEditorPanel : UserControl
 {
-    private readonly ListBox _pages = new() { Width = 160, Height = 120 };
+    private readonly ListBox _pages = new()
+    {
+        Width = 460,
+        Height = 112,
+        Font = EditorChrome.BodyFont,
+    };
+    private readonly Label _activePageCaption = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(820, 0),
+        Font = EditorChrome.CaptionFont,
+        ForeColor = Color.White,
+        BackColor = Color.FromArgb(26, 61, 88),
+        Padding = new Padding(10, 6, 10, 6),
+        Margin = new Padding(0, 0, 0, 6),
+    };
     private readonly NumericUpDown _priority = new() { Width = 80, Minimum = 0, Maximum = 9999 };
-    private readonly ComboBox _trigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
-    private readonly ComboBox _movement = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
+    private readonly ComboBox _trigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Font = EditorChrome.BodyFont };
+    private readonly ComboBox _movement = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Font = EditorChrome.BodyFont };
     private readonly DataGridView _waypoints = CreateWaypointGrid();
     private readonly NumericUpDown _appearanceGraphic = new() { Width = 60, Minimum = 0, Maximum = 255 };
     private readonly NumericUpDown _appearanceDirection = new() { Width = 60, Minimum = 0, Maximum = 7 };
-    private readonly CheckBox _blocksCollision = new() { Text = "Bloque collision", Checked = true, AutoSize = true };
-    private readonly ListBox _conditions = new() { Width = 160, Height = 80 };
+    private readonly CheckBox _blocksCollision = new() { Text = "Bloque la collision", Checked = true, AutoSize = true };
+    private readonly ListBox _conditions = new()
+    {
+        Width = 460,
+        Height = 96,
+        Font = EditorChrome.BodyFont,
+    };
     private readonly MapEventConditionParameterPanel _conditionParams = new() { AutoSize = true };
-    private readonly ListBox _commands = new() { Width = 160, Height = 100 };
+    private readonly ListBox _commands = new()
+    {
+        Width = 460,
+        Height = 120,
+        Font = EditorChrome.BodyFont,
+    };
     private readonly MapEventCommandParameterPanel _commandParams = new() { AutoSize = true };
-    private readonly Label _validationLabel = new() { AutoSize = true, ForeColor = Color.Firebrick, MaximumSize = new Size(640, 0) };
+    private readonly Label _validationLabel = new() { AutoSize = true, ForeColor = Color.Firebrick, MaximumSize = new Size(820, 0) };
 
     private readonly List<MapEventPageDefinition> _pageModels = new();
     private readonly List<MapEventConditionDefinition> _conditionModels = new();
@@ -54,6 +80,13 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             _movement.SelectedIndex = 0;
         }
 
+        EditorListDraw.UseReadableSelection(_pages);
+        EditorListDraw.UseReadableSelection(_conditions);
+        EditorListDraw.UseReadableSelection(_commands);
+        EditorListDraw.UseReadableChoices(_trigger, MapEventEditorLabels.Trigger);
+        EditorListDraw.UseReadableChoices(_movement, MapEventEditorLabels.Movement);
+        _activePageCaption.Text = MapEventEditorLabels.ActivePageCaption(-1, 0, null);
+
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -68,27 +101,61 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         void Row(string label, Control control)
         {
             var row = root.RowCount++;
-            root.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row);
+            root.Controls.Add(new Label
+            {
+                Text = label,
+                AutoSize = true,
+                Anchor = AnchorStyles.Left,
+                Margin = new Padding(0, 6, 8, 0),
+            }, 0, row);
             root.Controls.Add(control, 1, row);
         }
 
-        var pageButtons = new FlowLayoutPanel { AutoSize = true };
-        var btnAddPage = new Button { Text = "Ajouter page", AutoSize = true };
-        var btnRemovePage = new Button { Text = "Retirer page", AutoSize = true };
+        void Span(Control control)
+        {
+            var row = root.RowCount++;
+            root.Controls.Add(control, 0, row);
+            root.SetColumnSpan(control, 2);
+        }
+
+        Label Section(string title) => new()
+        {
+            Text = title,
+            AutoSize = true,
+            Font = EditorChrome.SectionFont,
+            ForeColor = EditorChrome.RibbonAccentDim,
+            Margin = new Padding(0, 12, 0, 4),
+        };
+
+        Span(_activePageCaption);
+        Span(Section("Pages"));
+        var pageButtons = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Margin = new Padding(8, 0, 0, 0),
+        };
+        var btnAddPage = new Button { Text = "Ajouter une page", AutoSize = true };
+        var btnRemovePage = new Button { Text = "Retirer la page", AutoSize = true };
         btnAddPage.Click += (_, _) => AddPage();
         btnRemovePage.Click += (_, _) => RemovePage();
-        pageButtons.Controls.Add(_pages);
         pageButtons.Controls.Add(btnAddPage);
         pageButtons.Controls.Add(btnRemovePage);
-        Row("Pages", pageButtons);
+        var pageRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        pageRow.Controls.Add(_pages);
+        pageRow.Controls.Add(pageButtons);
+        Span(pageRow);
 
+        Span(Section("Déclenchement"));
         Row("Priorité", _priority);
-        Row("TriggerKind", _trigger);
-        Row("MovementKind", _movement);
+        Row("Déclencheur", _trigger);
+        Span(Section("Déplacement"));
+        Row("Mouvement", _movement);
 
         var wpButtons = new FlowLayoutPanel { AutoSize = true };
-        var btnAddWp = new Button { Text = "+ waypoint", AutoSize = true };
-        var btnRemoveWp = new Button { Text = "- waypoint", AutoSize = true };
+        var btnAddWp = new Button { Text = "Ajouter une étape", AutoSize = true };
+        var btnRemoveWp = new Button { Text = "Retirer l'étape", AutoSize = true };
         btnAddWp.Click += (_, _) => { _waypoints.Rows.Add(0, 0, 250); OnPageFieldChanged(); };
         btnRemoveWp.Click += (_, _) =>
         {
@@ -101,40 +168,67 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         wpButtons.Controls.Add(_waypoints);
         wpButtons.Controls.Add(btnAddWp);
         wpButtons.Controls.Add(btnRemoveWp);
-        Row("Route waypoints", wpButtons);
+        Row("Trajet", wpButtons);
 
+        Span(Section("Apparence"));
         var appearance = new FlowLayoutPanel { AutoSize = true };
-        appearance.Controls.Add(new Label { Text = "GraphicId", AutoSize = true });
+        appearance.Controls.Add(new Label { Text = "Graphisme", AutoSize = true, Margin = new Padding(0, 6, 4, 0) });
         appearance.Controls.Add(_appearanceGraphic);
-        appearance.Controls.Add(new Label { Text = "Direction", AutoSize = true, Margin = new Padding(12, 0, 0, 0) });
+        appearance.Controls.Add(new Label { Text = "Direction (0–7)", AutoSize = true, Margin = new Padding(12, 6, 4, 0) });
         appearance.Controls.Add(_appearanceDirection);
         appearance.Controls.Add(_blocksCollision);
-        Row("Apparence / collision", appearance);
+        Span(appearance);
 
+        Span(Section("Conditions — toutes doivent être vraies"));
         var condButtons = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-        var condListRow = new FlowLayoutPanel { AutoSize = true };
-        var btnAddCond = new Button { Text = "+ condition", AutoSize = true };
-        var btnRemoveCond = new Button { Text = "- condition", AutoSize = true };
+        var condListRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        var btnAddCond = new Button { Text = "Ajouter une condition", AutoSize = true };
+        var btnRemoveCond = new Button { Text = "Retirer", AutoSize = true };
         btnAddCond.Click += (_, _) => AddCondition();
         btnRemoveCond.Click += (_, _) => RemoveCondition();
+        var condButtonCol = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Margin = new Padding(8, 0, 0, 0),
+        };
+        condButtonCol.Controls.Add(btnAddCond);
+        condButtonCol.Controls.Add(btnRemoveCond);
         condListRow.Controls.Add(_conditions);
-        condListRow.Controls.Add(btnAddCond);
-        condListRow.Controls.Add(btnRemoveCond);
+        condListRow.Controls.Add(condButtonCol);
         condButtons.Controls.Add(condListRow);
         condButtons.Controls.Add(_conditionParams);
-        Row("Conditions", condButtons);
+        Span(condButtons);
 
-        var cmdButtons = new FlowLayoutPanel { AutoSize = true };
-        var btnAddCmd = new Button { Text = "+ commande", AutoSize = true };
-        var btnRemoveCmd = new Button { Text = "- commande", AutoSize = true };
+        Span(Section("Commandes — exécutées dans l'ordre"));
+        var cmdButtons = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        var btnAddCmd = new Button { Text = "Ajouter une commande", AutoSize = true };
+        var btnRemoveCmd = new Button { Text = "Retirer", AutoSize = true };
         btnAddCmd.Click += (_, _) => AddCommand();
         btnRemoveCmd.Click += (_, _) => RemoveCommand();
+        var cmdButtonCol = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Margin = new Padding(8, 0, 0, 0),
+        };
+        cmdButtonCol.Controls.Add(btnAddCmd);
+        cmdButtonCol.Controls.Add(btnRemoveCmd);
         cmdButtons.Controls.Add(_commands);
-        cmdButtons.Controls.Add(btnAddCmd);
-        cmdButtons.Controls.Add(btnRemoveCmd);
-        Row("Commandes", cmdButtons);
-        Row("Paramètres commande", _commandParams);
-        Row("Validation", _validationLabel);
+        cmdButtons.Controls.Add(cmdButtonCol);
+        var cmdBlock = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+        };
+        cmdBlock.Controls.Add(cmdButtons);
+        cmdBlock.Controls.Add(_commandParams);
+        Span(cmdBlock);
+        Span(Section("Validation"));
+        Span(_validationLabel);
 
         Controls.Add(root);
 
@@ -222,6 +316,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             {
                 _selectedPageIndex = -1;
                 ClearPageUi();
+                UpdateActivePageCaption();
             }
 
             _validationLabel.Text = string.Empty;
@@ -370,6 +465,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             {
                 _selectedCommandIndex = -1;
             }
+
+            UpdateActivePageCaption();
         }
         finally
         {
@@ -451,7 +548,16 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private void OnConditionFieldChanged()
     {
-        FlushCurrentCondition();
+        if (_binding)
+        {
+            return;
+        }
+
+        if (FlushCurrentCondition() && FlushCurrentPage())
+        {
+            RefreshPageList();
+        }
+
         NotifyChanged();
     }
 
@@ -469,19 +575,14 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         }
 
         _conditionModels[_selectedConditionIndex] = cond;
-        _ignoreListEvents = true;
-        try
+        WithIgnoredListEvents(() =>
         {
             RefreshConditionList();
             if (_selectedConditionIndex >= 0 && _selectedConditionIndex < _conditions.Items.Count)
             {
                 _conditions.SelectedIndex = _selectedConditionIndex;
             }
-        }
-        finally
-        {
-            _ignoreListEvents = false;
-        }
+        });
 
         return true;
     }
@@ -491,7 +592,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         _conditions.Items.Clear();
         for (var i = 0; i < _conditionModels.Count; i++)
         {
-            _conditions.Items.Add($"{i + 1}. {_conditionModels[i].Kind}");
+            var cond = _conditionModels[i];
+            _conditions.Items.Add(MapEventEditorLabels.ConditionListLine(i, cond.Kind, cond.ParameterJson));
         }
     }
 
@@ -530,15 +632,37 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private void OnPageFieldChanged()
     {
+        if (_binding)
+        {
+            return;
+        }
+
         FlushCurrentCommand();
         FlushCurrentCondition();
-        FlushCurrentPage();
+        if (FlushCurrentPage())
+        {
+            RefreshPageList();
+        }
+        else
+        {
+            UpdateActivePageCaption();
+        }
+
         NotifyChanged();
     }
 
     private void OnCommandFieldChanged()
     {
-        FlushCurrentCommand();
+        if (_binding)
+        {
+            return;
+        }
+
+        if (FlushCurrentCommand() && FlushCurrentPage())
+        {
+            RefreshPageList();
+        }
+
         NotifyChanged();
     }
 
@@ -556,19 +680,14 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         }
 
         _commandModels[_selectedCommandIndex] = cmd;
-        _ignoreListEvents = true;
-        try
+        WithIgnoredListEvents(() =>
         {
             RefreshCommandList();
             if (_selectedCommandIndex >= 0 && _selectedCommandIndex < _commands.Items.Count)
             {
                 _commands.SelectedIndex = _selectedCommandIndex;
             }
-        }
-        finally
-        {
-            _ignoreListEvents = false;
-        }
+        });
 
         return true;
     }
@@ -638,12 +757,29 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private void RefreshPageList()
     {
-        _pages.Items.Clear();
-        for (var i = 0; i < _pageModels.Count; i++)
+        var selected = _selectedPageIndex >= 0 ? _selectedPageIndex : _pages.SelectedIndex;
+        WithIgnoredListEvents(() =>
         {
-            var page = _pageModels[i];
-            _pages.Items.Add($"P{i + 1} pri={page.Priority} {page.TriggerKind}");
-        }
+            _pages.Items.Clear();
+            for (var i = 0; i < _pageModels.Count; i++)
+            {
+                _pages.Items.Add(MapEventEditorLabels.PageListLine(i, _pageModels[i]));
+            }
+
+            if (selected >= 0 && selected < _pages.Items.Count)
+            {
+                _pages.SelectedIndex = selected;
+            }
+        });
+        UpdateActivePageCaption();
+    }
+
+    private void UpdateActivePageCaption()
+    {
+        var page = _selectedPageIndex >= 0 && _selectedPageIndex < _pageModels.Count
+            ? _pageModels[_selectedPageIndex]
+            : null;
+        _activePageCaption.Text = MapEventEditorLabels.ActivePageCaption(_selectedPageIndex, _pageModels.Count, page);
     }
 
     private void RefreshCommandList()
@@ -651,7 +787,22 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         _commands.Items.Clear();
         for (var i = 0; i < _commandModels.Count; i++)
         {
-            _commands.Items.Add($"{i + 1}. {_commandModels[i].Discriminator}");
+            var cmd = _commandModels[i];
+            _commands.Items.Add(MapEventEditorLabels.CommandListLine(i, cmd.Discriminator, cmd.ParameterJson));
+        }
+    }
+
+    private void WithIgnoredListEvents(Action action)
+    {
+        var previous = _ignoreListEvents;
+        _ignoreListEvents = true;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _ignoreListEvents = previous;
         }
     }
 
@@ -697,9 +848,9 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             AllowUserToDeleteRows = false,
             RowHeadersVisible = false,
         };
-        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TileX", Width = 60 });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TileY", Width = 60 });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "WaitMs", Width = 80 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "X", Width = 60 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Y", Width = 60 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Attente (ms)", Width = 100 });
         grid.DataError += (_, e) => e.ThrowException = false;
         return grid;
     }
@@ -713,13 +864,13 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         waypoint = new MapEventRouteWaypoint();
         if (!TryParseWaypointInt(row.Cells[0].Value, min: 0, max: null, out var tileX, out var xError))
         {
-            error = $"Waypoint {waypointNumber}: TileX invalide ({xError}).";
+            error = $"Étape {waypointNumber} : X invalide ({xError}).";
             return false;
         }
 
         if (!TryParseWaypointInt(row.Cells[1].Value, min: 0, max: null, out var tileY, out var yError))
         {
-            error = $"Waypoint {waypointNumber}: TileY invalide ({yError}).";
+            error = $"Étape {waypointNumber} : Y invalide ({yError}).";
             return false;
         }
 
@@ -730,7 +881,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
                 out var waitMs,
                 out var waitError))
         {
-            error = $"Waypoint {waypointNumber}: WaitMs invalide ({waitError}).";
+            error = $"Étape {waypointNumber} : attente invalide ({waitError}).";
             return false;
         }
 
