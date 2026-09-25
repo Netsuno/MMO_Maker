@@ -99,6 +99,13 @@ public sealed class EquipmentPanel : UserControl
         ApplyTunicLabel();
     }
 
+    /// <summary>Pose ou retire la tunique locale sans événement (look déjà décidé).</summary>
+    public void SetLocalTunic(bool worn)
+    {
+        _localTunic = worn;
+        ApplyTunicLabel();
+    }
+
     internal void ClickUnequipWeaponForTest() => _btnUnequipWeapon.PerformClick();
 
     internal void ClickUnequipArmorForTest() => _btnUnequipArmor.PerformClick();

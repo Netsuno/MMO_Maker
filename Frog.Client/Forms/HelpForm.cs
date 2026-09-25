@@ -24,6 +24,8 @@ public sealed class HelpForm : Form
 
         Combat, inventaire, boutique
         • C ou le bouton Perso ouvre la fiche perso (aperçu paperdoll et emplacements Corps, Tunique, Armure, Tête, Casque, Arme).
+        • Création : Corps, Cheveux et Tunique se choisissent à côté de l'aperçu (clic ou flèches). Le choix reste sur cet ordinateur.
+        • En jeu, un clic sur Corps ou Tête dans la fiche change le style. La tunique locale se porte ou se retire comme avant.
         • Depuis la fiche, Équiper envoie l'objet du sac au serveur (arme ou armure). Un clic sur l'arme ou l'armure portée la range. Tunique et casque restent un aperçu local.
         • Vie, or, inventaire, équipement, banque, quêtes et fabrication sont des panneaux nommés.
         • Les identifiants techniques (Guid) ne font pas partie de l'interface normale.

@@ -1,4 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+
+using Frog.Core.Gameplay;
 
 namespace Frog.Client.Config;
 
@@ -48,6 +52,12 @@ public sealed class UserSettings
     /// <summary>Slug optionnel du paquet. Variable <c>FROG_TILEPACK_SLUG</c> prioritaire. Vide : paquet publié le plus récent.</summary>
     public string TilePackSlug { get; set; } = string.Empty;
 
+    /// <summary>Dernier brouillon du sélecteur d'apparence (création). Local uniquement.</summary>
+    public CharacterLookRecord? AppearanceDraft { get; set; }
+
+    /// <summary>Looks enregistrés par personnage (id ou nom). Local uniquement, pas sur le fil.</summary>
+    public List<CharacterLookRecord> CharacterLooks { get; set; } = new();
+
     public void Normalize()
     {
         if (SchemaVersion < 1)
@@ -71,6 +81,58 @@ public sealed class UserSettings
         TilePackContentBaseUrl = tilePackUrl;
         TilePackPublicKeyHex = (TilePackPublicKeyHex ?? string.Empty).Trim();
         TilePackSlug = (TilePackSlug ?? string.Empty).Trim();
+        NormalizeLooks();
+    }
+
+    private void NormalizeLooks()
+    {
+        CharacterLooks ??= new List<CharacterLookRecord>();
+        for (var i = CharacterLooks.Count - 1; i >= 0; i--)
+        {
+            var row = CharacterLooks[i];
+            if (row is null)
+            {
+                CharacterLooks.RemoveAt(i);
+                continue;
+            }
+
+            var look = row.ToLook();
+            row.Body = look.Body;
+            row.Hair = look.Hair;
+            row.Tunic = look.Tunic;
+            row.CharacterId = (row.CharacterId ?? string.Empty).Trim();
+            row.DisplayName = (row.DisplayName ?? string.Empty).Trim();
+            if (row.Tunic == 0)
+            {
+                row.TunicWorn = false;
+            }
+
+            if (row.CharacterId.Length == 0 && row.DisplayName.Length == 0)
+            {
+                CharacterLooks.RemoveAt(i);
+            }
+        }
+
+        if (CharacterLooks.Count > CharacterLookBook.MaxEntries)
+        {
+            CharacterLooks.RemoveRange(0, CharacterLooks.Count - CharacterLookBook.MaxEntries);
+        }
+
+        if (AppearanceDraft is null)
+        {
+            return;
+        }
+
+        var draft = AppearanceDraft.ToLook();
+        AppearanceDraft.Body = draft.Body;
+        AppearanceDraft.Hair = draft.Hair;
+        AppearanceDraft.Tunic = draft.Tunic;
+        AppearanceDraft.CharacterId = string.Empty;
+        AppearanceDraft.DisplayName = string.Empty;
+        if (AppearanceDraft.Tunic == 0)
+        {
+            AppearanceDraft.TunicWorn = false;
+        }
     }
 
     public void ApplyPreset(KeyboardLayoutPreset preset)
@@ -97,6 +159,11 @@ public sealed class UserSettings
             TilePackContentBaseUrl = TilePackContentBaseUrl,
             TilePackPublicKeyHex = TilePackPublicKeyHex,
             TilePackSlug = TilePackSlug,
+            AppearanceDraft = AppearanceDraft?.Copy(),
+            CharacterLooks = (CharacterLooks ?? new List<CharacterLookRecord>())
+                .Where(static row => row is not null)
+                .Select(static row => row.Copy())
+                .ToList(),
         };
         copy.Normalize();
         return copy;

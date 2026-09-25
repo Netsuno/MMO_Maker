@@ -38,6 +38,7 @@ internal static class MapViewRenderer
     /// <param name="weatherPlan">Overlay teinte / traits (MVP). Défaut = pas de dessin.</param>
     /// <param name="weatherTickMs">Horloge cheap pour les traits de pluie.</param>
     /// <param name="localAppearance">Overlays du joueur local (tunique, arme, armure, casque). Les autres joueurs restent corps + tête : leur équipement n'est pas sur le fil.</param>
+    /// <param name="localLook">Palettes corps / cheveux / tunique du joueur local. Client seulement.</param>
     /// <param name="tileAssets">Tuiles v6 vérifiées, indexées par <see cref="TileAssetId"/>. Absent : pas de blit 48×48.</param>
     /// <param name="tileAssetBitmaps">Cache d’affichage rempli à la demande. L’appelant dispose les bitmaps.</param>
     public static Bitmap Render(
@@ -61,6 +62,7 @@ internal static class MapViewRenderer
         WeatherOverlayPlan weatherPlan = default,
         int weatherTickMs = 0,
         PaperdollOverlaySet localAppearance = default,
+        CharacterLook localLook = default,
         ITileAssetLookup? tileAssets = null,
         IDictionary<TileAssetId, Bitmap>? tileAssetBitmaps = null)
     {
@@ -217,7 +219,7 @@ internal static class MapViewRenderer
             DrawPlayerSpriteAtPixelCenter(g, kv.Value.CxPx, kv.Value.CyPx, other: true, otherPose);
         }
 
-        DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false, localPose, localAppearance);
+        DrawPlayerSpriteAtPixelCenter(g, localCenterXPx, localCenterYPx, other: false, localPose, localAppearance, localLook);
         WeatherOverlayRenderer.Draw(g, bmp.Size, weatherPlan, weatherTickMs);
         return bmp;
     }
@@ -448,8 +450,9 @@ internal static class MapViewRenderer
         float centerYPx,
         bool other,
         PlayerSpritePose pose,
-        PaperdollOverlaySet appearance = default)
-        => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other, pose, appearance);
+        PaperdollOverlaySet appearance = default,
+        CharacterLook look = default)
+        => PlayerWorldAssets.DrawFeetAnchored(g, centerXPx, centerYPx, other, pose, appearance, look);
 
     private static void DrawWorldEntities(
         Graphics g,

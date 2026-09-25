@@ -237,7 +237,12 @@ public sealed class MainShellForm : Form
     private readonly InventoryPanel _inventoryPanel = new() { Dock = DockStyle.Fill, MinimumSize = new Size(200, 80) };
     private readonly EquipmentPanel _equipmentPanel = new() { Dock = DockStyle.Top, MinimumSize = new Size(200, 240) };
     private readonly CharacterSheetPanel _characterSheet = new() { Dock = DockStyle.Fill };
+    private readonly AppearancePickerPanel _appearancePicker = new();
     private Equipment _paperdoll = Equipment.Empty;
+    private CharacterLook _activeLook = CharacterLook.Default;
+    private string? _activeCharacterId;
+    private string? _activeCharacterName;
+    private string? _pendingLookName;
     /// <summary>
     /// Overlay TabControl is 360 (DA). Pre-overlay the tab filled a 360 TLP cell with
     /// default Margin 3+3, so Dialogue/Quest/Environment exact-sha crops stayed 324 wide.
@@ -349,6 +354,11 @@ public sealed class MainShellForm : Form
         }
 
         BuildLayout();
+        if (_settings.AppearanceDraft is { } draft)
+        {
+            _appearancePicker.SetLook(draft.ToLook());
+        }
+
         ApplyRememberedAccount();
         _movementMeasure.Log = AppendLog;
         if (_movementMeasure.Enabled)
@@ -456,6 +466,9 @@ public sealed class MainShellForm : Form
     private void ResetPaperdoll()
     {
         _paperdoll = Equipment.Empty;
+        _activeLook = CharacterLook.Default;
+        _activeCharacterId = null;
+        _activeCharacterName = null;
         _equipmentPanel.ResetLocalHeadwear();
         _equipmentPanel.ResetLocalTunic();
         SyncStatusPortrait();
@@ -463,8 +476,107 @@ public sealed class MainShellForm : Form
 
     private void SyncStatusPortrait()
     {
+        _hudStatus.ApplyLook(_activeLook);
         _hudStatus.ApplyPortrait(EquipmentService.ToOverlaySet(_paperdoll));
+        _characterSheet.ApplyLook(_activeLook);
         _characterSheet.ApplyLoadout(_paperdoll, ResolveItemName, _username, _lastCombatState?.Level);
+    }
+
+    private bool TryAppearanceArrow(KeyEventArgs e)
+    {
+        if (e.KeyCode is not (Keys.Left or Keys.Right or Keys.Up or Keys.Down))
+        {
+            return false;
+        }
+
+        if (ActiveControl is TextBoxBase or ComboBox or NumericUpDown)
+        {
+            return false;
+        }
+
+        if (_appearancePicker.ContainsFocus)
+        {
+            return false;
+        }
+
+        _appearancePicker.Nudge(e.KeyCode);
+        return true;
+    }
+
+    private void RememberNamedLook(string displayName, CharacterLook look)
+    {
+        _settings.CharacterLooks ??= new List<CharacterLookRecord>();
+        CharacterLookBook.Remember(
+            _settings.CharacterLooks,
+            characterId: null,
+            displayName,
+            look,
+            tunicWorn: look.WearsTunic);
+        _settings.AppearanceDraft = CharacterLookRecord.FromLook(look, look.WearsTunic);
+        try
+        {
+            _settingsStore.Save(_settings);
+        }
+        catch
+        {
+            // le look reste en mémoire jusqu'au prochain essai
+        }
+    }
+
+    private void PersistActiveLook()
+    {
+        if (string.IsNullOrWhiteSpace(_activeCharacterId) && string.IsNullOrWhiteSpace(_activeCharacterName))
+        {
+            return;
+        }
+
+        var worn = _paperdoll.TunicItemId == Equipment.LocalTunicItemId;
+        _settings.CharacterLooks ??= new List<CharacterLookRecord>();
+        CharacterLookBook.Remember(
+            _settings.CharacterLooks,
+            _activeCharacterId,
+            _activeCharacterName,
+            _activeLook,
+            worn);
+        try
+        {
+            _settingsStore.Save(_settings);
+        }
+        catch
+        {
+            // visuel local : le prochain enregistrement reprendra
+        }
+    }
+
+    private void ApplySavedLook(string? characterId, string? displayName)
+    {
+        if (!string.IsNullOrWhiteSpace(characterId))
+        {
+            _activeCharacterId = characterId.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            _activeCharacterName = displayName.Trim();
+        }
+
+        if (!CharacterLookBook.TryGet(_settings.CharacterLooks, _activeCharacterId, _activeCharacterName, out var record))
+        {
+            _activeLook = CharacterLook.Default;
+            _paperdoll = _paperdoll with { TunicItemId = null };
+            _equipmentPanel.SetLocalTunic(false);
+            SyncStatusPortrait();
+            return;
+        }
+
+        _activeLook = record.ToLook();
+        var worn = record.TunicWorn && _activeLook.WearsTunic;
+        _paperdoll = _paperdoll with
+        {
+            TunicItemId = worn ? Equipment.LocalTunicItemId : null,
+        };
+        _equipmentPanel.SetLocalTunic(worn);
+        SyncStatusPortrait();
     }
 
     private void GoToCharacterSelectPhase()
@@ -1154,6 +1266,7 @@ public sealed class MainShellForm : Form
             rowCharPick,
             rowEnter,
             rowCreate,
+            _appearancePicker,
             rowCreateAction,
             rowStats,
             rowCharNav);
@@ -1411,10 +1524,38 @@ public sealed class MainShellForm : Form
         };
         _equipmentPanel.LocalTunicChanged += worn =>
         {
+            if (worn && _activeLook.Tunic == 0)
+            {
+                _activeLook = _activeLook with { Tunic = 1 };
+            }
+
             _paperdoll = _paperdoll with
             {
                 TunicItemId = worn ? Equipment.LocalTunicItemId : null,
             };
+            PersistActiveLook();
+            SyncStatusPortrait();
+            if (_phase == ClientUiPhase.Playing && _map is not null)
+            {
+                RedrawMap();
+            }
+        };
+        _appearancePicker.LookChanged += look =>
+        {
+            _settings.AppearanceDraft = CharacterLookRecord.FromLook(look, look.WearsTunic);
+            try
+            {
+                _settingsStore.Save(_settings);
+            }
+            catch
+            {
+                // brouillon optionnel
+            }
+        };
+        _characterSheet.LookCycled += slot =>
+        {
+            _activeLook = _activeLook.Cycle(slot, +1);
+            PersistActiveLook();
             SyncStatusPortrait();
             if (_phase == ClientUiPhase.Playing && _map is not null)
             {
@@ -2833,6 +2974,7 @@ public sealed class MainShellForm : Form
 
     private void OnCharacterPayload(string characterId, string payloadJson)
     {
+        ApplySavedLook(characterId, _activeCharacterName);
         var cid = characterId.Length <= 12 ? characterId : characterId[..12] + "…";
         var j = payloadJson.Length <= 200 ? payloadJson : payloadJson[..200] + "…";
         AppendLog($"Perso {cid} : {j}");
@@ -2974,6 +3116,21 @@ public sealed class MainShellForm : Form
         if (ok)
         {
             AppendLog("Perso créé — id: " + message);
+            if (!string.IsNullOrWhiteSpace(_pendingLookName))
+            {
+                CharacterLookBook.BindCreatedId(_settings.CharacterLooks, _pendingLookName, message.Trim());
+                try
+                {
+                    _settingsStore.Save(_settings);
+                }
+                catch
+                {
+                    // le look nommé reste en mémoire
+                }
+
+                _pendingLookName = null;
+            }
+
             _ = RefreshCharacterListAsync();
         }
         else
@@ -3004,6 +3161,8 @@ public sealed class MainShellForm : Form
                 return;
             }
 
+            RememberNamedLook(name, _appearancePicker.Look);
+            _pendingLookName = name;
             await _client.SendCharacterCreateAsync(name, row.Id).ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -3027,6 +3186,9 @@ public sealed class MainShellForm : Form
 
         try
         {
+            _activeCharacterId = row.Id;
+            _activeCharacterName = row.DisplayName;
+            ApplySavedLook(row.Id, row.DisplayName);
             await _client.SendCharacterSelectAsync(row.Id).ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -3326,6 +3488,12 @@ public sealed class MainShellForm : Form
 
         if (_phase != ClientUiPhase.Playing)
         {
+            if (_phase == ClientUiPhase.CharacterSelect && TryAppearanceArrow(e))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+
             return;
         }
 
@@ -3539,6 +3707,7 @@ public sealed class MainShellForm : Form
             weatherPlan: _weatherPlan,
             weatherTickMs: _weatherTickMs,
             localAppearance: EquipmentService.ToOverlaySet(_paperdoll),
+            localLook: _activeLook,
             tileAssets: _tilePacks.Lookup,
             tileAssetBitmaps: _tileAssetBitmaps);
         _combatHud.Tick(DateTime.UtcNow);
@@ -4714,6 +4883,27 @@ public sealed class MainShellForm : Form
     internal Button ReconnectButtonForTest => _btnReconnect;
 
     internal Button CharCreateButtonForTest => _btnCharCreate;
+
+    internal AppearancePickerPanel AppearancePickerForTest => _appearancePicker;
+
+    internal CharacterLook ActiveLookForTest => _activeLook;
+
+    internal void PressAppearanceArrowForTest(Keys key) => MainShell_KeyDown(this, new KeyEventArgs(key));
+
+    internal void RememberAppearanceForTest()
+    {
+        var name = _txtNewCharName.Text.Trim();
+        RememberNamedLook(name, _appearancePicker.Look);
+        _pendingLookName = name;
+    }
+
+    internal void BindAppearanceIdForTest(string name, string id)
+    {
+        CharacterLookBook.BindCreatedId(_settings.CharacterLooks, name, id);
+        _settingsStore.Save(_settings);
+    }
+
+    internal void ApplySavedAppearanceForTest(string id, string name) => ApplySavedLook(id, name);
 
     internal Button EnterGameButtonForTest => _btnEnterGame;
 
