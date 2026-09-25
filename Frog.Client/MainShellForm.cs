@@ -4965,6 +4965,25 @@ public sealed class MainShellForm : Form
         SetPhase(ClientUiPhase.Playing);
     }
 
+    /// <summary>Ouvre l'inventaire en jeu pour que « Porter/Retirer la tunique » puisse recevoir un clic.</summary>
+    internal void ShowInventoryEquipmentForTest()
+    {
+        ShowPlayingHudForTest();
+        OnHudMenuCommand(HudMenuCommand.Inventory);
+        LayoutTree(_panelGame);
+        if (_panelGame.Visible)
+        {
+            _panelGame.CreateControl();
+        }
+
+        if (_equipmentPanel.Visible)
+        {
+            _equipmentPanel.CreateControl();
+        }
+
+        System.Windows.Forms.Application.DoEvents();
+    }
+
     internal void PressCharacterSheetKeyForTest() => MainShell_KeyDown(this, new KeyEventArgs(Keys.C));
 
     internal bool IsPlayingPhaseForTest => _phase == ClientUiPhase.Playing;

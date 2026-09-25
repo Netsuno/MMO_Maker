@@ -130,6 +130,13 @@ public sealed class EquipmentPanel : UserControl
 
     internal string TunicButtonTextForTest => _btnToggleTunic.Text;
 
+    internal bool TunicToggleInteractiveForTest
+        => _btnToggleTunic.IsHandleCreated
+           && _btnToggleTunic.Visible
+           && _btnToggleTunic.Enabled
+           && _btnToggleTunic.CanSelect
+           && _btnToggleTunic.CanFocus;
+
     internal bool UnequipWeaponEnabledForTest => _btnUnequipWeapon.Enabled;
 
     private void ToggleLocalHeadwear()

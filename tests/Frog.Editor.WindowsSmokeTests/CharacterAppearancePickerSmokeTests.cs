@@ -89,6 +89,10 @@ public sealed class CharacterAppearancePickerSmokeTests
                 Assert.Equal("Lin", form.ActiveLookForTest.Label(CharacterLookSlot.Tunic));
                 Assert.Equal("Retirer la tunique", form.EquipmentPanelForTest.TunicButtonTextForTest);
 
+                form.ShowInventoryEquipmentForTest();
+                StaTestRunner.PumpUntil(
+                    () => form.EquipmentPanelForTest.TunicToggleInteractiveForTest,
+                    TimeSpan.FromSeconds(5));
                 form.EquipmentPanelForTest.ClickToggleTunicForTest();
                 Assert.Equal("Porter la tunique", form.EquipmentPanelForTest.TunicButtonTextForTest);
                 var saved = form.SettingsForTest;
@@ -96,6 +100,9 @@ public sealed class CharacterAppearancePickerSmokeTests
                 Assert.False(off.TunicWorn);
                 Assert.Equal((byte)2, off.Tunic);
 
+                StaTestRunner.PumpUntil(
+                    () => form.EquipmentPanelForTest.TunicToggleInteractiveForTest,
+                    TimeSpan.FromSeconds(5));
                 form.EquipmentPanelForTest.ClickToggleTunicForTest();
                 Assert.Equal("Retirer la tunique", form.EquipmentPanelForTest.TunicButtonTextForTest);
                 Assert.Equal("Lin", form.ActiveLookForTest.Label(CharacterLookSlot.Tunic));
