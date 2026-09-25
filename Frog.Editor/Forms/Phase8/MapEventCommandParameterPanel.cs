@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Frog.Core.Events;
 using Frog.Core.Models;
+using Frog.Editor.Ui;
 
 namespace Frog.Editor.Forms.Phase8;
 
@@ -37,6 +38,8 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         {
             _discriminator.SelectedIndex = 0;
         }
+
+        EditorListDraw.UseReadableChoices(_discriminator, MapEventEditorLabels.CommandKind);
 
         var layout = new FlowLayoutPanel
         {
@@ -173,7 +176,7 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 break;
             case MapEventCommandDiscriminators.SetSwitch:
                 AddLabeled("switchId", new TextBox { Width = 200, Text = "gate_open" });
-                AddLabeled("value", new CheckBox { Text = "true", Checked = true });
+                AddLabeled("value", new CheckBox { Text = "oui", Checked = true, AutoSize = true });
                 break;
             case MapEventCommandDiscriminators.SetVariable:
                 AddLabeled("variableId", new TextBox { Width = 200, Text = "var1" });
@@ -247,7 +250,13 @@ internal sealed class MapEventCommandParameterPanel : UserControl
     private void AddLabeled(string key, Control control)
     {
         var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        row.Controls.Add(new Label { Text = key, AutoSize = true, Width = 120 });
+        row.Controls.Add(new Label
+        {
+            Text = MapEventEditorLabels.Field(key),
+            AutoSize = true,
+            MinimumSize = new Size(132, 0),
+            Margin = new Padding(0, 6, 8, 0),
+        });
         row.Controls.Add(control);
         row.Tag = key;
         _fieldsHost.Controls.Add(row);

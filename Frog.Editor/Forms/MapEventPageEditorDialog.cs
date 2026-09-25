@@ -31,7 +31,8 @@ internal sealed class MapEventPageEditorDialog : Form
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
-        ClientSize = new Size(720, 480);
+        ClientSize = new Size(980, 720);
+        MinimumSize = new Size(760, 560);
 
         var bottom = new FlowLayoutPanel
         {

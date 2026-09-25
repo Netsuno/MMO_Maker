@@ -22,10 +22,18 @@ public sealed class LayerListRow : INotifyPropertyChanged
 
             _visible = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(VisibilityHint));
         }
     }
 
+    public string VisibilityHint => Visible
+        ? "Visible — cliquer pour masquer cette couche"
+        : "Masquée — cliquer pour l'afficher";
+
     public string Display { get; set; } = string.Empty;
+
+    /// <summary>Rang dans la pile et rôle, sous le nom.</summary>
+    public string OrderHint { get; set; } = string.Empty;
 
     public string EngineType { get; set; } = string.Empty;
 

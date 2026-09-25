@@ -1,12 +1,18 @@
 using Frog.Core.Events;
 using Frog.Core.Models;
+using Frog.Editor.Ui;
 
 namespace Frog.Editor.Forms.Phase8;
 
 /// <summary>Liste structurée de commandes (Then/Else d'une branche).</summary>
 internal sealed class MapEventCommandListPanel : UserControl
 {
-    private readonly ListBox _commands = new() { Width = 160, Height = 80 };
+    private readonly ListBox _commands = new()
+    {
+        Width = 420,
+        Height = 88,
+        Font = EditorChrome.BodyFont,
+    };
     private readonly MapEventCommandParameterPanel _params = new() { AutoSize = true };
     private readonly Label _validationLabel = new() { AutoSize = true, ForeColor = Color.Firebrick };
 
@@ -18,8 +24,9 @@ internal sealed class MapEventCommandListPanel : UserControl
     public MapEventCommandListPanel()
     {
         AutoSize = true;
-        var add = new Button { Text = "+", AutoSize = true, Width = 28 };
-        var remove = new Button { Text = "-", AutoSize = true, Width = 28 };
+        EditorListDraw.UseReadableSelection(_commands);
+        var add = new Button { Text = "Ajouter", AutoSize = true };
+        var remove = new Button { Text = "Retirer", AutoSize = true };
         add.Click += (_, _) => AddCommand();
         remove.Click += (_, _) => RemoveCommand();
 
@@ -184,6 +191,7 @@ internal sealed class MapEventCommandListPanel : UserControl
 
         _models[_selectedIndex] = cmd;
         _validationLabel.Text = string.Empty;
+        var previous = _ignoreListEvents;
         _ignoreListEvents = true;
         try
         {
@@ -195,7 +203,7 @@ internal sealed class MapEventCommandListPanel : UserControl
         }
         finally
         {
-            _ignoreListEvents = false;
+            _ignoreListEvents = previous;
         }
 
         return true;
@@ -206,7 +214,8 @@ internal sealed class MapEventCommandListPanel : UserControl
         _commands.Items.Clear();
         for (var i = 0; i < _models.Count; i++)
         {
-            _commands.Items.Add($"{i + 1}. {_models[i].Discriminator}");
+            var cmd = _models[i];
+            _commands.Items.Add(MapEventEditorLabels.CommandListLine(i, cmd.Discriminator, cmd.ParameterJson));
         }
     }
 
