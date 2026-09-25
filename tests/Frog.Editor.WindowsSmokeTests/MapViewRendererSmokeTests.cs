@@ -271,6 +271,81 @@ public sealed class MapViewRendererSmokeTests
         Assert.NotEqual(groundArgb, bag.ToArgb());
     }
 
+    [Fact]
+    public void Render_FringeCoversActorsOnItsRow_AndYieldsToActorsSouth()
+    {
+        const int redId = 7;
+        using var red = new Bitmap(WorldMetrics.DefaultTileSizePixels, WorldMetrics.DefaultTileSizePixels);
+        using (var g = Graphics.FromImage(red))
+        {
+            g.Clear(Color.FromArgb(255, 0, 0));
+        }
+
+        var tiles = new Dictionary<int, Bitmap> { [redId] = red };
+        var emptyOthers = new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase);
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var fringeNorth = CreateColumn(height: 2, LayerType.Fringe, upperRow: 0, redId);
+
+        using var southOfFringe = MapViewRenderer.Render(
+            fringeNorth,
+            emptyOthers,
+            localUsername: "self",
+            localCenterXPx: tw / 2f,
+            localCenterYPx: tw + (tw / 2f),
+            tilesetBitmaps: tiles);
+        var headInNorthernFringe = southOfFringe.GetPixel(tw / 2, 20);
+        Assert.True(
+            headInNorthernFringe.B > headInNorthernFringe.R && headInNorthernFringe.B > headInNorthernFringe.G,
+            $"player south of a fringe tile paints in front of it, got {headInNorthernFringe}");
+        Assert.NotEqual(Color.FromArgb(255, 0, 0).ToArgb(), headInNorthernFringe.ToArgb());
+
+        using var onFringe = MapViewRenderer.Render(
+            fringeNorth,
+            emptyOthers,
+            localUsername: "self",
+            localCenterXPx: tw / 2f,
+            localCenterYPx: tw / 2f,
+            tilesetBitmaps: tiles);
+        var bodyUnderFringe = onFringe.GetPixel(tw / 2, 2);
+        Assert.Equal(Color.FromArgb(255, 0, 0).ToArgb(), bodyUnderFringe.ToArgb());
+
+        var mask = CreateColumn(height: 2, LayerType.Mask, upperRow: 0, redId);
+        using var onMask = MapViewRenderer.Render(
+            mask,
+            emptyOthers,
+            localUsername: "self",
+            localCenterXPx: tw / 2f,
+            localCenterYPx: tw / 2f,
+            tilesetBitmaps: tiles);
+        var bodyOverMask = onMask.GetPixel(tw / 2, 2);
+        Assert.True(
+            bodyOverMask.B > bodyOverMask.R,
+            $"mask stays under the actor of the same row, got {bodyOverMask}");
+        Assert.NotEqual(Color.FromArgb(255, 0, 0).ToArgb(), bodyOverMask.ToArgb());
+
+        using var lootUnderFringe = MapViewRenderer.Render(
+            fringeNorth,
+            emptyOthers,
+            localUsername: "self",
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: tiles,
+            groundLootCentersPx: [(tw / 2, tw / 2)]);
+        Assert.Equal(Color.FromArgb(255, 0, 0).ToArgb(), lootUnderFringe.GetPixel(tw / 2, tw / 2).ToArgb());
+
+        // Sac centré à y=34 (rangée 1) : son bord nord recouvre la frange de la rangée 0.
+        const int lootY = 34;
+        using var lootSouth = MapViewRenderer.Render(
+            fringeNorth,
+            emptyOthers,
+            localUsername: "self",
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: tiles,
+            groundLootCentersPx: [(tw / 2, lootY)]);
+        Assert.Equal(UiTheme.AccentGoldDim.ToArgb(), lootSouth.GetPixel(tw / 2, 30).ToArgb());
+    }
+
     private static Map CreateTwoByTwoGround()
     {
         var map = new Map { Name = "GridOff", Width = 2, Height = 2 };
@@ -284,6 +359,30 @@ public sealed class MapViewRendererSmokeTests
         }
 
         map.Layers.Add(ground);
+        return map;
+    }
+
+    private static Map CreateColumn(int height, LayerType upper, int upperRow, int tilesetId)
+    {
+        var map = new Map { Name = "depth", Width = 1, Height = height };
+        var ground = new Layer { LayerType = LayerType.Ground, Visible = true };
+        for (var y = 0; y < height; y++)
+        {
+            ground.Tiles.Add(new Tile { X = 0, Y = y, Type = TileType.Ground });
+        }
+
+        var top = new Layer { LayerType = upper, Visible = true };
+        top.Tiles.Add(new Tile
+        {
+            X = 0,
+            Y = upperRow,
+            Type = TileType.Ground,
+            TilesetId = tilesetId,
+            SrcX = 0,
+            SrcY = 0,
+        });
+        map.Layers.Add(ground);
+        map.Layers.Add(top);
         return map;
     }
 

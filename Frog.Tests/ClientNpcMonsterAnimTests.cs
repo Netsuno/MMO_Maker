@@ -39,8 +39,9 @@ public sealed class ClientNpcMonsterAnimTests
         Assert.Contains("monsterCentersPx", renderer, StringComparison.Ordinal);
         Assert.Contains("IReadOnlyDictionary<string, WorldSpritePose>? npcPoses", renderer, StringComparison.Ordinal);
         Assert.Contains("IReadOnlyDictionary<string, WorldSpritePose>? monsterPoses", renderer, StringComparison.Ordinal);
-        Assert.Contains("DrawWorldEntities(g, monsterCentersPx, monsterPoses, WorldEntityKind.Monster)", renderer, StringComparison.Ordinal);
-        Assert.Contains("DrawWorldEntities(g, npcCentersPx, npcPoses, WorldEntityKind.Npc)", renderer, StringComparison.Ordinal);
+        Assert.Contains("WorldEntityKind.Monster, actor.WorldPose)", renderer, StringComparison.Ordinal);
+        Assert.Contains("WorldEntityKind.Npc, actor.WorldPose)", renderer, StringComparison.Ordinal);
+        Assert.Contains("WorldDepth.RowSteps", renderer, StringComparison.Ordinal);
         Assert.Contains("WorldEntityAssets.DrawFeetAnchored", renderer, StringComparison.Ordinal);
         Assert.Contains("WeatherOverlayRenderer.Draw(g, bmp.Size, weatherPlan, weatherTickMs)", renderer, StringComparison.Ordinal);
 
