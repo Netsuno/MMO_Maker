@@ -1611,19 +1611,28 @@ public sealed partial class PacketDispatcher(
         var range = CombatFormulas.AttackRangePixels(attack.Style);
         if (_combatMvp.IsDummyRequest(attack))
         {
-            var dummy = _combatMvp.TryMelee(attacker, attack);
-            await _packetSender.SendMeleeAttackResultAsync(
-                clientSession,
-                dummy.Success,
-                attack.TargetName,
-                dummy.Message,
-                cancellationToken,
-                dummy.Damage);
-            if (dummy.Success && dummy.Damage is { } dummyEv)
+            await _combatMvp.RunTurnAsync(async () =>
             {
-                await BroadcastDamageEventAsync(attacker, dummyEv, attack.TargetName, dummy.Message, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+                var dummy = _combatMvp.TryMelee(attacker, attack);
+                await _packetSender.SendMeleeAttackResultAsync(
+                    clientSession,
+                    dummy.Success,
+                    attack.TargetName,
+                    dummy.Message,
+                    cancellationToken,
+                    dummy.Damage,
+                    dummy.Status).ConfigureAwait(false);
+                if (dummy.Success && dummy.Damage is { } dummyEv)
+                {
+                    await BroadcastDamageEventAsync(
+                        attacker,
+                        dummyEv,
+                        attack.TargetName,
+                        dummy.Message,
+                        cancellationToken,
+                        dummy.Status).ConfigureAwait(false);
+                }
+            }, cancellationToken).ConfigureAwait(false);
 
             return;
         }
@@ -1814,7 +1823,8 @@ public sealed partial class PacketDispatcher(
         DamageEvent ev,
         string targetName,
         string message,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        StatusEffectEvent? status = null)
     {
         foreach (var other in _connectionManager.GetActiveSessions())
         {
@@ -1831,7 +1841,8 @@ public sealed partial class PacketDispatcher(
                     targetName,
                     message,
                     cancellationToken,
-                    ev).ConfigureAwait(false);
+                    ev,
+                    status).ConfigureAwait(false);
                 if (ev.Killed && ev.TargetKind == CombatTargetKind.Player)
                 {
                     await _packetSender.SendDeathNotifyAsync(otherClient, cancellationToken).ConfigureAwait(false);

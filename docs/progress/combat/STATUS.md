@@ -1,57 +1,46 @@
-# STATUS — Combat MVP scaffolding
+# STATUS — Combat MVP + effets de statut
 
 | Champ | Valeur |
 | --- | --- |
-| **Chantier** | Combat mêlée MVP — AttackRequest / DamageEvent / CombatTarget après social / économie / donjons |
+| **Chantier** | DoT / statuts sur le Combat MVP (mêlée / distance + trailer DamageEvent) |
 | **Propriétaire** | Netsun |
-| **Statut** | MVP in-memory + hotbar / floats — **pas de merge** |
-| **Base** | `main` @ `d6e5975` (re-pin après merge PR #33 dungeons / instances) |
-| **Branche** | `cursor/combat-mvp-scaffolding-2d69` |
-| **PR** | Draft [#34](https://github.com/Netsuno/MMO_Maker/pull/34) vers `main` — **pas de merge** |
-| **Tip** | `04a673832121966bb619718ccf927f25650b6abb` |
-| **CI** | [35543597038](https://github.com/Netsuno/MMO_Maker/actions/runs/35543597038) **SUCCESS** (`build-and-test` + `postgres-integration`) |
-| **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de nouvel opcode. Extension additive des paquets Phase 7 **17 / 18** (`MeleeAttackRequest` / `MeleeAttackResult`) + reuse **50** `CombatState` / **63** `DeathNotify`. Gel social 80–86, économie 87–89, instance 90–92. |
+| **Statut** | MVP in-memory — poison + étourdissement court — **pas de merge** |
+| **Base** | `main` @ `205e290` (Trade polish #75) |
+| **Branche** | `cursor/status-effects-dot-mvp-969c` |
+| **Protocole** | `FrogWireProtocol.Version` **reste 11** — pas de nouvel opcode. Extension additive des paquets **17 / 18**. Reuse **50** `CombatState` / **63** `DeathNotify` inchangé. Gel social 80–86, économie 87–89, instance 90–92. |
 
-Chrome DA v2 + overlay existant. Menu ring **reste 5 icônes**. Dock chat **Amis / Groupe / Guilde** inchangé. Ouverture : hotbar slot **1** / touche **Espace** (pas de 6ᵉ icône, pas de nouvel onglet Social).
+Chrome DA v2 amber inchangé. Tuiles TileAsset / carte v6 / TilePack restent **48×48** ; ce lot ne modifie pas `TileAssetMetrics` ni la grille monde. Menu ring inchangé. Hotbar : mêlée (poison) et distance (étourdissement) sur le mannequin seulement.
 
 ---
 
-## Livré
+## Livré (ce lot)
 
-1. **Modèles** — `AttackRequest`, `DamageEvent`, `CombatTarget` (`Frog.Core/Combat`). Kind Player / Monster / Dummy / Npc. Mannequin d'entraînement `Mannequin` (id fixe) si les monstres ne sont pas spawnés.
-2. **Wire** — `Frog.Core/Protocol/CombatMvpWire.cs` : paquet **17** = nom historique + extras optionnels kind/facing/targetId ; paquet **18** = hit/nom/message historique + trailer `DamageEvent` (attaquant, cible, dégâts, HP, flags). Parseurs Phase 7 qui s'arrêtent au message restent valides.
-3. **Serveur** — `CombatMvpService` in-memory. Range (`BasicAttackRangePixels`), facing (tamponné au move, pas un champ protocole), rate-limit (`BasicAttackCooldownMs`). Applique les HP du mannequin, broadcast dégâts aux occupants de la carte, respawn dummy après mort. Réutilise `CombatGameplayService` pour Slime / PvP existants (trailer DamageEvent ajouté). Pas de migration PostgreSQL.
-4. **Client** — `ClientCombatHud` (Linux sans WinForms) + `CombatEffect` floats sur le bitmap carte + flash slot mêlée. `FrogGameClient.SendMeleeAttackAsync` / `DamageEventReceived`. Cible par défaut **Mannequin**.
-5. **Persistance** — **in-memory stubs**. Pas de table `combat_*` / journal de coups.
+1. **Modèle** — `StatusEffect` / `StatusEffectEvent` (`Frog.Core/Combat`). Kinds : **Poison** (DoT) et **Stun** (court, 0 dégât). Champs : effect id, kind, source, cible, tics restants, puissance.
+2. **Règle de pile** — **refresh** (`StatusEffectLimits.StackRule`). Un seul effet par (carte, cible, kind). Réappliquer remet la durée et la puissance ; les dégâts ne s'empilent pas. Poison et étourdissement coexistent.
+3. **Serveur** — `CombatMvpService` in-memory. Le drapeau optionnel du paquet 17 pose l'effet sur un coup qui porte contre le **Mannequin** (pas un jet aléatoire). Poison : 4 tics × 3 PV. Étourdissement : 2 tics, le porteur ne lance pas d'attaque (`Étourdi.`). `StatusEffectTickHostedService` tique (`Combat:StatusTickMs`, défaut 1000). Mort ou expiration : clear. Un coup fatal dissipe tout et ne pose pas l'effet. Pas de table PostgreSQL.
+4. **Wire** — Octet de kind après le style du paquet 17 (absent = aucun ; kind inconnu ignoré). Trailer `StatusEffectEvent` (54 o) après le trailer `DamageEvent` du paquet 18. Les parseurs qui s'arrêtent au message ou au trailer de dégâts restent valides.
+5. **Client** — Icône + teinte sur le sprite, nombre flottant vert pour le tic de poison, infobulles françaises (`Poison — N tic(s), P PV`, `Étourdi — N tic(s)`). Mêlée contre le mannequin envoie Poison ; distance envoie Stun. Les autres cibles ne demandent pas d'effet.
 
 ---
 
 ## Hors scope (volontaire)
 
-- IA monstre, aggro, sorts, PvP équilibré, loot table dédiée.
-- Persistence PostgreSQL `combat_event`, reprise après restart, idempotence `request_id`.
-- Bump `FrogWireProtocol.Version`, trailer Hello, opcodes 80–92, nouvel opcode 93+.
-- Weather, movement (hors tampon Facing), audio, maintenance, auction/mail/coffre, instances, login shell, panes Phase 8 exact-sha (`DialoguePanel` / `QuestJournalPanel` / `EnvironmentPanel`).
-- Nouveau chrome overlay / 6ᵉ icône menu ring / boutons dock extra.
+- Grimoire, arbre de sorts, PvP équilibré, IA monstre, persistance PostgreSQL des effets.
+- Bump `FrogWireProtocol.Version`, opcodes 80–92, DA skin v2, rotation de clés TilePack, enchères / mail, Trade.
+- Le poison ne s'applique pas aux Slimes / joueurs du chemin Phase 7 : seulement le mannequin MVP.
 
 ---
 
 ## TODO (prochaine passe)
 
-- Persistence PostgreSQL : journal de coups + HP monstre publié.
-- Spawn monstre carte + aggro + facing client→serveur dédié.
-- Smoke Windows dédié floats HUD (Linux this run = gates source seulement).
+- Persistence PostgreSQL : journal de coups + HP monstre publié + effets repris après restart.
+- Spawn monstre carte + aggro. Étendre le DoT au-delà du mannequin.
+- Smoke Windows dédié icônes HUD (Linux this run = gates source + tests in-memory).
 
 ---
 
 ## Tests
 
-- `Frog.Tests/CombatMvpWireTests.cs` — round-trip 17/18, protocole 11, facing, hud floats, câblage shell/hotbar/client, ce STATUS.
-- `Frog.Tests/CombatMvpLogicTests.cs` — sans perso / mort / hit dummy / rate-limit / hors portée / facing / kill+respawn.
-- `Frog.Tests/CombatMvpTcpTests.cs` — TCP in-memory attaque Mannequin + trailer + recharge + broadcast.
-
-Linux this run: `dotnet test Frog.Tests` **730 passed** (filtre CombatMvp **17 passed**). Existing Phase 7 combat filter **20 passed**.
-
-CI **green** on `04a6738` : [build-and-test](https://github.com/Netsuno/MMO_Maker/actions/runs/35543597038/job/106165530524) + [postgres-integration](https://github.com/Netsuno/MMO_Maker/actions/runs/35543597038/job/106165530498). Windows editor / gameplay / Phase 8 smokes included.
-
-Linux / cet agent : pas de capture WinForms HUD. Revue pixel = Windows 1280×720 DPI 125 %.
+- `Frog.Tests/StatusEffectMvpTests.cs` — round-trip 17/18, refresh, tic, expiration, mort, étourdissement, protocole 11.
+- `Frog.Tests/CombatMvpTcpTests.cs` — TCP in-memory : apply poison + tic + broadcast. Les coups sans drapeau restent sans effet.
+- `Frog.Tests/CombatMvpWireTests.cs` / `CombatMvpLogicTests.cs` — scaffolding mêlée inchangé (DamageEvent, Mannequin, rate-limit).

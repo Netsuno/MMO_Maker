@@ -125,7 +125,62 @@ public sealed class CombatMvpTcpTests
         }
     }
 
-    private static IHost CreateInMemoryHost(int port)
+    [Fact]
+    [Trait("Category", "InMemorySmoke")]
+    public async Task Tcp_PoisonDummy_AppliesTrailer_Ticks_AndBroadcasts()
+    {
+        var port = GetFreePort();
+        using var host = CreateInMemoryHost(port, statusTickMs: 120);
+        await host.StartAsync();
+        try
+        {
+            const string password = "password123";
+            await using var attacker = new TcpProbe();
+            await using var observer = new TcpProbe();
+            _ = await RegisterLoginSelectAsync(attacker, port, UniqueUser("sp"), password, "SpHero");
+            _ = await RegisterLoginSelectAsync(observer, port, UniqueUser("so"), password, "SoHero");
+
+            await attacker.SendFrameAsync(BuildMelee(
+                CombatMvpLimits.DummyName,
+                CombatTargetKind.Dummy,
+                Direction.Down,
+                apply: StatusEffectKind.Poison));
+            var result = DecodeMeleeFull(await attacker.ReadUntilAsync(PacketId.MeleeAttackResult));
+            Assert.True(result.hit);
+            Assert.Equal("Touche.", result.message);
+            Assert.True(result.damage.HasValue);
+            Assert.Equal(
+                CombatMvpLimits.DummyMaxHp - result.damage!.Value.Damage,
+                result.damage.Value.RemainingHp);
+            Assert.True(result.status.HasValue);
+            Assert.Equal(StatusEffectOp.Apply, result.status!.Value.Op);
+            Assert.Equal(StatusEffectKind.Poison, result.status.Value.Kind);
+            Assert.Equal(StatusEffectLimits.PoisonTicks, result.status.Value.RemainingTicks);
+            Assert.Equal(StatusEffectLimits.PoisonPotency, result.status.Value.Potency);
+            Assert.Equal((ushort)11, FrogWireProtocol.Version);
+
+            var observed = DecodeMeleeFull(await observer.ReadUntilAsync(PacketId.MeleeAttackResult));
+            Assert.True(observed.status.HasValue);
+            Assert.Equal(result.status.Value.EffectId, observed.status!.Value.EffectId);
+            Assert.Equal(StatusEffectKind.Poison, observed.status.Value.Kind);
+
+            var tick = DecodeMeleeFull(await attacker.ReadUntilAsync(PacketId.MeleeAttackResult, TimeSpan.FromSeconds(5)));
+            Assert.True(tick.status.HasValue);
+            Assert.Equal(StatusEffectOp.Tick, tick.status!.Value.Op);
+            Assert.Equal(StatusEffectKind.Poison, tick.status.Value.Kind);
+            Assert.Equal(StatusEffectLimits.PoisonTicks - 1, tick.status.Value.RemainingTicks);
+            Assert.Equal(StatusEffectLimits.PoisonPotency, tick.damage!.Value.Damage);
+            Assert.Equal(result.damage.Value.RemainingHp - StatusEffectLimits.PoisonPotency, tick.damage.Value.RemainingHp);
+            Assert.False(tick.damage.Value.Killed);
+            Assert.Equal("Poison.", tick.message);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    private static IHost CreateInMemoryHost(int port, int? statusTickMs = null)
         => FrogServerHostFactory
             .CreateHostBuilder(
                 configureServices: services =>
@@ -134,13 +189,19 @@ public sealed class CombatMvpTcpTests
                 })
             .ConfigureAppConfiguration((_, config) =>
             {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
+                var settings = new Dictionary<string, string?>
                 {
                     ["Server:Port"] = port.ToString(),
                     ["Server:BindAddress"] = "127.0.0.1",
                     ["MariaDb:Enabled"] = "false",
                     ["PostgreSql:AllowInMemoryFallback"] = "true",
-                });
+                };
+                if (statusTickMs is int ms)
+                {
+                    settings[StatusEffectLimits.TickIntervalConfigKey] = ms.ToString();
+                }
+
+                config.AddInMemoryCollection(settings);
             })
             .Build();
 
@@ -216,9 +277,11 @@ public sealed class CombatMvpTcpTests
         string target,
         CombatTargetKind kind,
         Direction facing,
-        AttackStyle style = AttackStyle.Melee)
+        AttackStyle style = AttackStyle.Melee,
+        StatusEffectKind apply = StatusEffectKind.None)
     {
-        var body = CombatMvpWire.BuildAttackRequest(new AttackRequest(target, kind, facing, CombatMvpLimits.DummyId, style));
+        var body = CombatMvpWire.BuildAttackRequest(
+            new AttackRequest(target, kind, facing, CombatMvpLimits.DummyId, style, apply));
         var payload = new byte[1 + body.Length];
         payload[0] = (byte)PacketId.MeleeAttackRequest;
         body.CopyTo(payload.AsSpan(1));
@@ -227,9 +290,21 @@ public sealed class CombatMvpTcpTests
 
     private static (bool hit, string target, string message, DamageEvent? damage) DecodeMelee(byte[] frame)
     {
+        var full = DecodeMeleeFull(frame);
+        return (full.hit, full.target, full.message, full.damage);
+    }
+
+    private static (bool hit, string target, string message, DamageEvent? damage, StatusEffectEvent? status) DecodeMeleeFull(byte[] frame)
+    {
         Assert.Equal((byte)PacketId.MeleeAttackResult, frame[0]);
-        Assert.True(CombatMvpWire.TryParseMeleeResult(frame.AsSpan(1), out var hit, out var target, out var message, out var damage));
-        return (hit, target, message, damage);
+        Assert.True(CombatMvpWire.TryParseMeleeResult(
+            frame.AsSpan(1),
+            out var hit,
+            out var target,
+            out var message,
+            out var damage,
+            out var status));
+        return (hit, target, message, damage, status);
     }
 
     private static (bool ok, string message) DecodeStatus(byte[] payload)

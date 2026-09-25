@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+using Frog.Core.Combat;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Protocol;
@@ -332,33 +333,13 @@ public sealed class PacketSender(ILogger<PacketSender> logger)
         string targetUsername,
         string message,
         CancellationToken cancellationToken,
-        Frog.Core.Combat.DamageEvent? damage = null)
+        DamageEvent? damage = null,
+        StatusEffectEvent? status = null)
     {
-        var targetBytes = Encoding.UTF8.GetBytes(targetUsername);
-        var messageBytes = Encoding.UTF8.GetBytes(message);
-        if (targetBytes.Length > ChatProtocolLimits.MaxUsernameUtf8Bytes ||
-            messageBytes.Length > ChatProtocolLimits.MaxMessageUtf8Bytes)
-        {
-            throw new ArgumentOutOfRangeException(nameof(message), "Taille melee result invalide.");
-        }
-
-        var trailer = damage is { } ev ? CombatMvpWire.BuildDamageEventTrailer(ev) : [];
-        var payload = new byte[1 + 1 + 1 + targetBytes.Length + sizeof(ushort) + messageBytes.Length + trailer.Length];
-        var o = 0;
-        payload[o++] = (byte)PacketId.MeleeAttackResult;
-        payload[o++] = hit ? (byte)1 : (byte)0;
-        payload[o++] = (byte)targetBytes.Length;
-        targetBytes.CopyTo(payload.AsSpan(o));
-        o += targetBytes.Length;
-        BitConverter.GetBytes((ushort)messageBytes.Length).CopyTo(payload.AsSpan(o));
-        o += sizeof(ushort);
-        messageBytes.CopyTo(payload.AsSpan(o));
-        o += messageBytes.Length;
-        if (trailer.Length > 0)
-        {
-            trailer.CopyTo(payload.AsSpan(o));
-        }
-
+        var body = CombatMvpWire.BuildMeleeResultBody(hit, targetUsername, message, damage, status);
+        var payload = new byte[1 + body.Length];
+        payload[0] = (byte)PacketId.MeleeAttackResult;
+        body.CopyTo(payload.AsSpan(1));
         return session.SendFrameAsync(payload, cancellationToken);
     }
 

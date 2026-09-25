@@ -10,6 +10,9 @@ public enum CombatFxKind : byte
     Kill = 2,
     Miss = 3,
     Crit = 4,
+
+    /// <summary>Nombre flottant d'un tic de poison. Pas un opcode.</summary>
+    Poison = 5,
 }
 
 /// <summary>Cue client : texte français, flash sprite, taille. Testable sans WinForms.</summary>
@@ -42,6 +45,14 @@ public static class CombatFx
     /// <summary>Rouge saturé — critique plus fort que le jaune, sans lueur.</summary>
     public const int CritArgb = unchecked((int)0xFFFF2020);
 
+    /// <summary>Vert toxique du tic de poison — pas un or d'interface.</summary>
+    public const int PoisonArgb = unchecked((int)0xFF3DDC3D);
+
+    /// <summary>Bleu clair de l'étourdissement — pas un chrome DA.</summary>
+    public const int StunArgb = unchecked((int)0xFF66CCFF);
+
+    public const int StatusIconPx = 8;
+
     public const int OutlineArgb = unchecked((int)0xFF000000);
 
     /// <summary>Clignotement blanc du sprite (une frame classique), pas un flash d'interface.</summary>
@@ -72,6 +83,20 @@ public static class CombatFx
         return new CombatFxCue(CombatFxKind.Hit, text, Flash: true, HitEmSize);
     }
 
+    public static CombatFxCue PoisonTick(int damage)
+        => new(
+            CombatFxKind.Poison,
+            "-" + damage.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Flash: false,
+            HitEmSize);
+
+    public static int StatusArgb(StatusEffectKind kind) => kind switch
+    {
+        StatusEffectKind.Poison => PoisonArgb,
+        StatusEffectKind.Stun => StunArgb,
+        _ => 0,
+    };
+
     /// <summary>
     /// Coup qui ne porte pas (portée / orientation). Recharge, mort et cible invalide ne sont pas un « Raté ».
     /// </summary>
@@ -97,6 +122,7 @@ public static class CombatFx
         CombatFxKind.Crit => CritArgb,
         CombatFxKind.Kill => KillArgb,
         CombatFxKind.Miss => MissArgb,
+        CombatFxKind.Poison => PoisonArgb,
         _ => HitArgb,
     };
 

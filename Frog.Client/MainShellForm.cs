@@ -282,6 +282,7 @@ public sealed class MainShellForm : Form
     private readonly ClientEconomyHub _economyHub = new();
     private readonly ClientInstanceHub _instanceHub = new();
     private readonly ClientCombatHud _combatHud = new();
+    private readonly ToolTip _statusTips = new() { ShowAlways = true };
     private readonly SocialHubPanel _socialHub = new() { Dock = DockStyle.Fill };
     private readonly HudWindowChrome _windowChrome = new("Inventaire");
     private string _windowTitleHint = "Inventaire";
@@ -1719,6 +1720,11 @@ public sealed class MainShellForm : Form
         _client.TradeSnapshotReceived += OnTradeSnapshot;
         _client.MeleeAttackResultReceived += (hit, tgt, msg) =>
         {
+            if (StatusEffectText.IsPulseMessage(msg))
+            {
+                return;
+            }
+
             var label = _client.LastResolvedAttackStyle == AttackStyle.Ranged ? "Distance" : "Mêlée";
             AppendLog($"{label} → {tgt}: {(hit ? "touche" : "raté")} — {msg}");
             if (CombatFx.IsSwingMiss(hit, msg))
@@ -1732,6 +1738,7 @@ public sealed class MainShellForm : Form
             }
         };
         _client.DamageEventReceived += OnDamageEvent;
+        _client.StatusEffectReceived += OnStatusEffect;
         _client.CharacterListReceived += OnCharacterListJson;
         _client.CharacterSelectResultReceived += OnCharacterSelectResult;
         _client.CharacterCreateResultReceived += OnCharacterCreateResult;
@@ -2043,6 +2050,22 @@ public sealed class MainShellForm : Form
             : ev.Crit
                 ? $"Critique {ev.Damage} → {ev.TargetName}{hpSuffix}"
                 : $"Dégâts {ev.Damage} → {ev.TargetName}{hpSuffix}");
+        if (_phase == ClientUiPhase.Playing)
+        {
+            RedrawMap();
+        }
+    }
+
+    private void OnStatusEffect(StatusEffectEvent ev, DamageEvent? damage)
+    {
+        _combatHud.ApplyStatus(ev, DateTime.UtcNow, damage);
+        _statusTips.SetToolTip(_picMap, _combatHud.StatusTooltip);
+        var line = StatusEffectText.Log(ev, damage);
+        if (line.Length > 0)
+        {
+            AppendLog(line);
+        }
+
         if (_phase == ClientUiPhase.Playing)
         {
             RedrawMap();
@@ -3817,11 +3840,20 @@ public sealed class MainShellForm : Form
         var kind = string.Equals(t, CombatMvpLimits.DummyName, StringComparison.OrdinalIgnoreCase)
             ? CombatTargetKind.Dummy
             : CombatTargetKind.None;
+        var apply = kind == CombatTargetKind.Dummy
+            ? style == AttackStyle.Ranged ? StatusEffectKind.Stun : StatusEffectKind.Poison
+            : StatusEffectKind.None;
         var label = style == AttackStyle.Ranged ? "Distance" : "Mêlée";
         BeginLocalAttack();
         try
         {
-            await _client.SendMeleeAttackAsync(t, kind, _localFacing, Guid.Empty, style: style).ConfigureAwait(true);
+            await _client.SendMeleeAttackAsync(
+                t,
+                kind,
+                _localFacing,
+                Guid.Empty,
+                style: style,
+                applyStatus: apply).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -4127,7 +4159,8 @@ public sealed class MainShellForm : Form
             lcx,
             lcy,
             _localFacing,
-            _combatHud.Sparks);
+            _combatHud.Sparks,
+            _combatHud.Statuses);
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
@@ -5657,6 +5690,8 @@ public sealed class MainShellForm : Form
     internal ClientCombatHud CombatHudForTest => _combatHud;
 
     internal void OnDamageEventForTest(DamageEvent ev) => OnDamageEvent(ev);
+
+    internal void OnStatusEffectForTest(StatusEffectEvent ev, DamageEvent? damage) => OnStatusEffect(ev, damage);
 
     internal void OnInstanceHubSnapshotForTest(InstanceHubSnapshotWire snap) => OnInstanceHubSnapshot(snap);
 
