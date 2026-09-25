@@ -193,9 +193,28 @@ public sealed class HudFriendsDock : HudModulePanel
             IntegralHeight = false;
             BorderStyle = BorderStyle.FixedSingle;
             TabStop = false;
+            DrawMode = DrawMode.OwnerDrawFixed;
+            ItemHeight = 18;
             BackColor = UiTheme.BgInput;
             ForeColor = UiTheme.TextPrimary;
             AccessibleName = "Liste des amis";
+        }
+
+        protected override void OnDrawItem(DrawItemEventArgs e)
+        {
+            e.DrawBackground();
+            if (e.Index < 0 || e.Index >= Items.Count)
+            {
+                return;
+            }
+
+            var item = Items[e.Index];
+            var online = item is FriendLine line && line.Row.Online;
+            var color = online ? Color.FromArgb(0x66, 0xBB, 0x6A) : UiTheme.TextMuted;
+            var text = item?.ToString() ?? string.Empty;
+            using var brush = new SolidBrush(color);
+            var font = e.Font ?? Font;
+            e.Graphics.DrawString(text, font, brush, e.Bounds);
         }
 
         protected override void WndProc(ref Message m)

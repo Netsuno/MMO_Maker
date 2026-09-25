@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Frog.Core.Chat;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Protocol;
@@ -85,8 +86,10 @@ public sealed class FriendsStickyTests
         Assert.Equal(2, view.Rows.Count);
         Assert.Equal("Bruno", view.Rows[0].DisplayName);
         Assert.True(view.Rows[0].Online);
+        Assert.Contains("●", view.Rows[0].Text, StringComparison.Ordinal);
         Assert.Contains("en ligne", view.Rows[0].Text, StringComparison.Ordinal);
         Assert.Equal("Aline", view.Rows[1].DisplayName);
+        Assert.Contains("○", view.Rows[1].Text, StringComparison.Ordinal);
         Assert.Contains("hors ligne", view.Rows[1].Text, StringComparison.Ordinal);
         Assert.Contains("1 en ligne.", view.Status, StringComparison.Ordinal);
         Assert.Contains("demande en attente", view.Status, StringComparison.Ordinal);
@@ -127,6 +130,47 @@ public sealed class FriendsStickyTests
         Assert.False(skipped.FillName);
         Assert.False(skipped.FocusChatInput);
         Assert.Contains("Sélectionnez un ami", skipped.Notice, StringComparison.Ordinal);
+
+        Assert.True(FriendsSticky.TryArmWhisper(online, "compte", "Héros", out var target, out var notice, out var focus));
+        Assert.Equal("Bruno", target);
+        Assert.False(focus);
+        Assert.Contains("Chuchoter à Bruno", notice, StringComparison.Ordinal);
+
+        Assert.True(FriendsSticky.TryArmWhisper(away, "compte", "Héros", out target, out notice, out focus));
+        Assert.Equal("Aline", target);
+        Assert.False(focus);
+        Assert.Contains("hors ligne", notice, StringComparison.Ordinal);
+
+        Assert.False(FriendsSticky.TryArmWhisper(online, "bruno", null, out _, out notice, out focus));
+        Assert.False(focus);
+        Assert.Equal(ChatWhisper.Self, notice);
+        Assert.False(FriendsSticky.TryArmWhisper(nameless, "compte", "Héros", out _, out notice, out focus));
+        Assert.False(focus);
+    }
+
+    [Fact]
+    public void MapChangeAndChatFocus_KeepTheOpenList()
+    {
+        var sticky = new FriendsSticky();
+        sticky.Show();
+        Assert.True(sticky.RetainOnMapChange());
+        Assert.False(sticky.TryDismiss(chatFocused: false, mapChanged: true));
+        Assert.True(sticky.Visible);
+        Assert.True(sticky.RetainDuringChatFocus(true));
+        Assert.False(sticky.TryDismiss(chatFocused: true, mapChanged: false));
+        Assert.True(sticky.Visible);
+
+        sticky.Pin();
+        Assert.False(sticky.TryDismiss(chatFocused: false, mapChanged: true));
+        Assert.False(sticky.TryDismiss(chatFocused: true, mapChanged: false));
+        Assert.True(sticky.Pinned);
+        Assert.True(sticky.Visible);
+
+        sticky.Unpin();
+        Assert.True(sticky.TryDismiss(chatFocused: false, mapChanged: false));
+        Assert.False(sticky.Visible);
+        Assert.False(sticky.RetainOnMapChange());
+        Assert.False(sticky.RetainDuringChatFocus(true));
     }
 
     [Fact]
@@ -143,11 +187,12 @@ public sealed class FriendsStickyTests
         Assert.Contains("FriendsSticky _friendsSticky", shell, StringComparison.Ordinal);
         Assert.Contains("HudFriendsDock _hudFriends", shell, StringComparison.Ordinal);
         Assert.Contains("_friendsSticky.Pin()", shell, StringComparison.Ordinal);
-        Assert.Contains("DismissIfUnpinned", shell, StringComparison.Ordinal);
         Assert.Contains("OnFriendsDockFriend", shell, StringComparison.Ordinal);
-        Assert.Contains("FriendsSticky.Arm", shell, StringComparison.Ordinal);
-        Assert.Contains("_txtWhisperTo.Text = arm.Name", shell, StringComparison.Ordinal);
-        Assert.Contains("arm.FocusChatInput", shell, StringComparison.Ordinal);
+        Assert.Contains("FriendsSticky.TryArmWhisper", shell, StringComparison.Ordinal);
+        Assert.Contains("_txtWhisperTo.Text = target", shell, StringComparison.Ordinal);
+        Assert.Contains("focusChat", shell, StringComparison.Ordinal);
+        Assert.Contains("KeepFriendsDockAcrossMap", shell, StringComparison.Ordinal);
+        Assert.Contains("TryDismiss", shell, StringComparison.Ordinal);
         Assert.Contains("ReleaseChatFocus", shell, StringComparison.Ordinal);
         Assert.Contains("ChatCompose.OnWorldClick", shell, StringComparison.Ordinal);
         Assert.Contains("TryHandleChatComposeKey", shell, StringComparison.Ordinal);
@@ -155,10 +200,23 @@ public sealed class FriendsStickyTests
 
         var world = Slice(shell, "private void OnWorldSurfaceClick()", "private bool ChatComposeFocused()");
         Assert.Contains("ReleaseChatFocus", world, StringComparison.Ordinal);
-        Assert.Contains("DismissIfUnpinned", world, StringComparison.Ordinal);
+        Assert.Contains("TryDismiss(chatFocused, mapChanged: false)", world, StringComparison.Ordinal);
+        Assert.True(world.IndexOf("var chatFocused", StringComparison.Ordinal) < world.IndexOf("ReleaseChatFocus", StringComparison.Ordinal));
+
+        var map = Slice(shell, "private void OnMapData(", "private void OnMapAlreadySynced");
+        Assert.Contains("KeepFriendsDockAcrossMap(mapId)", map, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReleaseChatFocus", map, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryDismiss", map, StringComparison.Ordinal);
+        var synced = Slice(shell, "private void OnMapAlreadySynced(", "private void OnMapEventsResult");
+        Assert.Contains("KeepFriendsDockAcrossMap(mapId)", synced, StringComparison.Ordinal);
+
+        var keys = Slice(shell, "private void MainShell_KeyDown", "private void PrimeMoveNetworkPulse");
+        Assert.True(keys.IndexOf("TryHandleChatComposeKey", StringComparison.Ordinal) < keys.IndexOf("Keys.Escape", StringComparison.Ordinal));
+        Assert.Contains("TryDismiss(chatFocused, mapChanged: false)", keys, StringComparison.Ordinal);
 
         var friendClick = Slice(shell, "private void OnFriendsDockFriend", "private string? SelectedFriendName");
-        Assert.Contains("arm.FocusChatInput", friendClick, StringComparison.Ordinal);
+        Assert.Contains("TryArmWhisper", friendClick, StringComparison.Ordinal);
+        Assert.Contains("focusChat", friendClick, StringComparison.Ordinal);
         Assert.DoesNotContain("ReleaseChatFocus", friendClick, StringComparison.Ordinal);
         Assert.DoesNotContain("SendChatAsync", friendClick, StringComparison.Ordinal);
 
@@ -167,10 +225,18 @@ public sealed class FriendsStickyTests
         Assert.Contains("FriendsSticky.PinText", dock, StringComparison.Ordinal);
         Assert.Contains("FriendsSticky.CloseText", dock, StringComparison.Ordinal);
         Assert.Contains("FriendsSticky.EmptyText", dock, StringComparison.Ordinal);
+        Assert.Contains("OwnerDrawFixed", dock, StringComparison.Ordinal);
+        Assert.Contains("Row.Online", dock, StringComparison.Ordinal);
         var sticky = File.ReadAllText(Path.Combine(root, "Frog.Core", "Social", "FriendsSticky.cs"));
         Assert.Contains("Aucun ami.", sticky, StringComparison.Ordinal);
         Assert.Contains("Aucun ami en ligne.", sticky, StringComparison.Ordinal);
         Assert.Contains("hors ligne", sticky, StringComparison.Ordinal);
+        Assert.Contains("en ligne", sticky, StringComparison.Ordinal);
+        Assert.Contains("DismissIfUnpinned", sticky, StringComparison.Ordinal);
+        Assert.Contains("TryResolveTarget", sticky, StringComparison.Ordinal);
+        Assert.Contains("IsSelf", sticky, StringComparison.Ordinal);
+        Assert.Contains("●", sticky, StringComparison.Ordinal);
+        Assert.Contains("○", sticky, StringComparison.Ordinal);
         Assert.DoesNotContain("TextBox", dock, StringComparison.Ordinal);
         Assert.DoesNotContain("PacketId", dock, StringComparison.Ordinal);
 

@@ -1,3 +1,4 @@
+using Frog.Core.Chat;
 using Frog.Core.Enums;
 
 namespace Frog.Core.Social;
@@ -49,8 +50,15 @@ public sealed class FriendsSticky
         Pinned = false;
     }
 
+    /// <summary>La liste ouverte reste ouverte quand la carte change.</summary>
+    public bool RetainOnMapChange() => Visible;
+
+    /// <summary>Entrée / Échap du chat ne ferment pas la liste pendant la saisie.</summary>
+    public bool RetainDuringChatFocus(bool chatFocused) => Visible && chatFocused;
+
     /// <summary>
-    /// Clic carte ou Échap hors saisie. La liste épinglée reste visible pendant le déplacement.
+    /// Clic carte ou Échap hors saisie. La liste épinglée reste. Un changement de carte
+    /// ou le focus du chat (Entrée / Échap) ne la ferme pas.
     /// </summary>
     public bool DismissIfUnpinned()
     {
@@ -61,6 +69,16 @@ public sealed class FriendsSticky
 
         Visible = false;
         return true;
+    }
+
+    public bool TryDismiss(bool chatFocused, bool mapChanged)
+    {
+        if (chatFocused || mapChanged)
+        {
+            return false;
+        }
+
+        return DismissIfUnpinned();
     }
 
     public readonly record struct Row(
@@ -102,8 +120,9 @@ public sealed class FriendsSticky
             var name = item.DisplayName.Trim();
             var canWhisper = name.Length > 0;
             var presence = item.Online ? "en ligne" : "hors ligne";
+            var marker = item.Online ? "●" : "○";
             var label = canWhisper ? name : "Ami";
-            rows.Add(new Row(item.CharacterId, name, item.Online, canWhisper, label + " — " + presence));
+            rows.Add(new Row(item.CharacterId, name, item.Online, canWhisper, marker + " " + label + " — " + presence));
         }
 
         rows.Sort(static (a, b) =>
@@ -131,6 +150,42 @@ public sealed class FriendsSticky
         var name = row.DisplayName.Trim();
         var notice = row.Online ? "Chuchoter à " + name + "." : name + " est hors ligne.";
         return new WhisperArm(true, name, false, notice);
+    }
+
+    /// <summary>
+    /// Prépare le chuchotement #81 (<see cref="ChatWhisper.TryResolveTarget"/>). Ne prend pas le focus.
+    /// </summary>
+    public static bool TryArmWhisper(
+        Row row,
+        string? username,
+        string? characterName,
+        out string target,
+        out string notice,
+        out bool focusChatInput)
+    {
+        focusChatInput = false;
+        target = string.Empty;
+        var arm = Arm(row);
+        if (!arm.FillName)
+        {
+            notice = arm.Notice;
+            return false;
+        }
+
+        if (ChatWhisper.IsSelf(arm.Name, username, characterName))
+        {
+            notice = ChatWhisper.Self;
+            return false;
+        }
+
+        if (!ChatWhisper.TryResolveTarget(arm.Name, null, null, null, out target))
+        {
+            notice = ChatWhisper.EmptyTarget;
+            return false;
+        }
+
+        notice = arm.Notice;
+        return true;
     }
 
     private static string StatusText(List<Row> rows, int pending)

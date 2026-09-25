@@ -3618,6 +3618,7 @@ public sealed class MainShellForm : Form
         _ = RequestMapEventsFromServerAsync();
         TryEnterPlayingPhaseAfterMapReady();
         RefreshInteractHint();
+        KeepFriendsDockAcrossMap(mapId);
         if (_playtestOptions is { IsPlaytest: true })
         {
             _playtestReady.ObserveLoadedMap(mapId);
@@ -3642,6 +3643,7 @@ public sealed class MainShellForm : Form
 
         _ = RequestMapEventsFromServerAsync();
         TryEnterPlayingPhaseAfterMapReady();
+        KeepFriendsDockAcrossMap(mapId);
         if (_playtestOptions is { IsPlaytest: true })
         {
             TryEmitPlaytestReady();
@@ -4545,8 +4547,9 @@ public sealed class MainShellForm : Form
 
         if (e.KeyCode == Keys.Escape)
         {
+            var chatFocused = ChatComposeFocused();
             SetWindowLayerVisible(false);
-            if (_friendsSticky.DismissIfUnpinned())
+            if (_friendsSticky.TryDismiss(chatFocused, mapChanged: false))
             {
                 ApplyFriendsDock();
             }
@@ -5463,8 +5466,9 @@ public sealed class MainShellForm : Form
 
     private void OnWorldSurfaceClick()
     {
+        var chatFocused = ChatComposeFocused();
         StopMovementForChat();
-        if (ChatCompose.OnWorldClick(ChatComposeFocused()).ReleaseFocus)
+        if (ChatCompose.OnWorldClick(chatFocused).ReleaseFocus)
         {
             ReleaseChatFocus();
         }
@@ -5474,7 +5478,7 @@ public sealed class MainShellForm : Form
         }
 
         DismissWindowLayerFromMap();
-        if (_friendsSticky.DismissIfUnpinned())
+        if (_friendsSticky.TryDismiss(chatFocused, mapChanged: false))
         {
             ApplyFriendsDock();
         }
@@ -5612,6 +5616,16 @@ public sealed class MainShellForm : Form
         }
     }
 
+    private void KeepFriendsDockAcrossMap(int mapId)
+    {
+        if (mapId < 0 || !_friendsSticky.RetainOnMapChange())
+        {
+            return;
+        }
+
+        ApplyFriendsDock();
+    }
+
     private void ApplyFriendsDock()
     {
         _hudFriends.Bind(FriendsSticky.Build(_socialRoster), _friendsSticky.PinLabel, _friendsSticky.TitleText);
@@ -5626,21 +5640,26 @@ public sealed class MainShellForm : Form
 
     private void OnFriendsDockFriend(FriendsSticky.Row row)
     {
-        var arm = FriendsSticky.Arm(row);
-        if (!arm.FillName)
+        if (!FriendsSticky.TryArmWhisper(
+                row,
+                _username,
+                _activeCharacterName,
+                out var target,
+                out var notice,
+                out var focusChat))
         {
-            ShowPlayerStatus(arm.Notice);
+            ShowPlayerStatus(notice);
             return;
         }
 
-        _txtWhisperTo.Text = arm.Name;
+        _txtWhisperTo.Text = target;
         if (_cmbChannel.Items.Count > 2 && _cmbChannel.SelectedIndex != 2)
         {
             _cmbChannel.SelectedIndex = 2;
         }
 
-        ShowPlayerStatus(arm.Notice);
-        if (arm.FocusChatInput)
+        ShowPlayerStatus(notice);
+        if (focusChat)
         {
             FocusChatInput();
         }
