@@ -60,9 +60,8 @@ internal sealed class LoadTcpClient : IAsyncDisposable
 
     public async Task<byte[]> ReadFrameAsync(TimeSpan timeout)
     {
-        using var cts = new CancellationTokenSource(timeout);
         var lenBuf = new byte[4];
-        await ReadExactAsync(lenBuf, cts.Token).ConfigureAwait(false);
+        await ReadExactAsync(lenBuf, timeout).ConfigureAwait(false);
         var len = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
         if (len <= 0 || len > 1024 * 1024)
         {
@@ -70,7 +69,10 @@ internal sealed class LoadTcpClient : IAsyncDisposable
         }
 
         var payload = new byte[len];
-        await ReadExactAsync(payload, cts.Token).ConfigureAwait(false);
+        // The length prefix is already consumed. Finish the body even when the caller's
+        // budget was only long enough to start the frame, or the next read desyncs.
+        var bodyBudget = timeout < TimeSpan.FromSeconds(8) ? TimeSpan.FromSeconds(8) : timeout;
+        await ReadExactAsync(payload, bodyBudget).ConfigureAwait(false);
         return payload;
     }
 
@@ -100,20 +102,48 @@ internal sealed class LoadTcpClient : IAsyncDisposable
         var deadline = DateTime.UtcNow + budget;
         while (DateTime.UtcNow < deadline)
         {
-            var remaining = deadline - DateTime.UtcNow;
-            if (remaining <= TimeSpan.Zero)
+            if (!InboundQueued())
             {
-                break;
+                var left = deadline - DateTime.UtcNow;
+                if (left <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var wait = left > TimeSpan.FromMilliseconds(20) ? TimeSpan.FromMilliseconds(20) : left;
+                await Task.Delay(wait).ConfigureAwait(false);
+                continue;
             }
 
             try
             {
-                _ = await ReadFrameAsync(remaining).ConfigureAwait(false);
+                // A post-login catalog (or select snapshot) can still be arriving when the
+                // drain budget ends. Cancelling mid-frame made the next read parse JSON as
+                // a length prefix and drop that session before character select.
+                _ = await ReadFrameAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex) when (ex is EndOfStreamException or IOException or InvalidOperationException or TimeoutException or OperationCanceledException)
             {
                 break;
             }
+        }
+    }
+
+    private bool InboundQueued()
+    {
+        try
+        {
+            if (_stream is NetworkStream network && network.DataAvailable)
+            {
+                return true;
+            }
+
+            var socket = _tcp?.Client;
+            return socket is { Connected: true } && socket.Available > 0;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
         }
     }
 
@@ -129,13 +159,47 @@ internal sealed class LoadTcpClient : IAsyncDisposable
         }
     }
 
-    private async Task ReadExactAsync(byte[] buffer, CancellationToken ct)
+    private async Task ReadExactAsync(byte[] buffer, TimeSpan timeout)
     {
         var read = 0;
+        var deadline = DateTime.UtcNow + timeout;
+        DateTime? completionDeadline = null;
         while (read < buffer.Length)
         {
-            var n = await _stream!.ReadAsync(buffer.AsMemory(read, buffer.Length - read), ct)
-                .ConfigureAwait(false);
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                if (read == 0)
+                {
+                    throw new TimeoutException("timed out waiting for frame bytes");
+                }
+
+                completionDeadline ??= DateTime.UtcNow.AddSeconds(15);
+                remaining = completionDeadline.Value - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    throw new TimeoutException("timed out finishing frame");
+                }
+            }
+
+            using var cts = new CancellationTokenSource(remaining);
+            int n;
+            try
+            {
+                n = await _stream!.ReadAsync(buffer.AsMemory(read, buffer.Length - read), cts.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (read == 0)
+            {
+                throw new TimeoutException("timed out waiting for frame bytes");
+            }
+            catch (OperationCanceledException)
+            {
+                completionDeadline ??= DateTime.UtcNow.AddSeconds(15);
+                deadline = completionDeadline.Value;
+                continue;
+            }
+
             if (n == 0)
             {
                 throw new EndOfStreamException();

@@ -76,7 +76,14 @@ public sealed class Phase9OpsMetricsTests
         Assert.Equal(4, report.Client.TcpConnectOk);
         Assert.Equal(4, report.Client.RegisterOk);
         Assert.Equal(4, report.Client.LoginOk);
-        Assert.Equal(4, report.Client.CharacterSelectOk);
+        Assert.True(
+            report.Client.CharacterSelectOk == 4,
+            "CharacterSelectOk=" + report.Client.CharacterSelectOk
+            + " createOk=" + report.Client.CharacterCreateOk
+            + " createFail=" + report.Client.CharacterCreateFail
+            + " selectFail=" + report.Client.CharacterSelectFail
+            + " authEx=" + report.Client.AuthenticateException
+            + " loginOk=" + report.Client.LoginOk);
         Assert.True(report.Client.ChatRateLimited >= 4, "each session should exceed 8/10s chat cap");
         Assert.True(report.Client.MoveRateLimited >= 4, "each session should exceed 50/s movement cap");
         Assert.Equal(1, report.Client.OversizeDropped);
