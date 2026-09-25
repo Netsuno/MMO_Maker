@@ -291,6 +291,46 @@ public sealed class MapCanvas : Control
     /// <summary>Le spawn a été posé ou restauré (UI / workstate).</summary>
     public event Action<Point>? PlaytestSpawnChanged;
 
+    /// <summary>Type posé par le prochain clic de l’outil Entités. Défaut : PNJ.</summary>
+    public MapPlacedKind PlaceKind { get; set; } = MapPlacedKind.Npc;
+
+    private readonly List<MapPlacedEntity> _placedEntities = new();
+
+    public IReadOnlyList<MapPlacedEntity> PlacedEntities => _placedEntities;
+
+    public Guid? SelectedPlacedEntityId { get; private set; }
+
+    public MapPlacedEntity? SelectedPlacedEntity
+    {
+        get
+        {
+            if (SelectedPlacedEntityId is not Guid id)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < _placedEntities.Count; i++)
+            {
+                if (_placedEntities[i].Id == id)
+                {
+                    return _placedEntities[i];
+                }
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>Liste des entités posées modifiée (pose, déplacement, suppression, restauration).</summary>
+    public event Action? PlacedEntitiesChanged;
+
+    /// <summary>Sélection d’entité posée modifiée.</summary>
+    public event Action? PlacedEntitySelectionChanged;
+
+    private Guid? _draggingPlacedId;
+    private Point _placedDragOrigin;
+    private bool _placedDragMoved;
+
     /// <summary>Catalogue utilisé pour poser / dessiner les prefabs.</summary>
     public PrefabCatalog PrefabCatalog { get; set; } = BuiltInPrefabCatalog.Create();
 
@@ -553,6 +593,11 @@ public sealed class MapCanvas : Control
             case Keys.V when !ctrl && !alt:
                 return TryTransformSelection(TileSelectionTransformKind.MirrorVertical, activeLayerOnly: shift);
             case Keys.Delete when !ctrl && !alt:
+                if (ActiveTool == EditorTool.Place && TryRemoveSelectedPlacedEntity())
+                {
+                    return true;
+                }
+
                 return TryDeleteSelectedTiles(activeLayerOnly: shift);
             case Keys.Q when !ctrl && !alt:
                 return TryTransformSelection(TileSelectionTransformKind.Rotate90Clockwise, activeLayerOnly: shift);
@@ -707,11 +752,17 @@ public sealed class MapCanvas : Control
                 DrawMapEventMarkerOverlay(g, tx0, ty0, tx1, ty1);
                 DrawTransferIssueOverlay(g, tx0, ty0, tx1, ty1);
                 DrawPlaytestSpawnMarker(g, tx0, ty0, tx1, ty1);
+                DrawPlacedEntities(g, tx0, ty0, tx1, ty1);
             }
 
             if (Map is not null && ActiveTool == EditorTool.Spawn)
             {
                 DrawTileRectPixels(g, _hoverTile.X, _hoverTile.Y, _hoverTile.X, _hoverTile.Y, Color.DeepSkyBlue, dash: true);
+            }
+
+            if (Map is not null && ActiveTool == EditorTool.Place)
+            {
+                DrawPlaceGhost(g);
             }
 
             if (Map is not null && ActiveTool == EditorTool.Prefab)
@@ -1331,6 +1382,323 @@ public sealed class MapCanvas : Control
         Invalidate();
     }
 
+    public void ReplacePlacedEntities(IReadOnlyList<MapPlacedEntity>? entities)
+    {
+        _placedEntities.Clear();
+        _draggingPlacedId = null;
+        _placedDragMoved = false;
+        if (Map is not null)
+        {
+            var seen = new HashSet<Guid>();
+            foreach (var entity in MapPlacedEntityEdit.Clone(entities))
+            {
+                if (!seen.Add(entity.Id) || !MapPlacedEntityEdit.TryValidate(entity, Map, out _))
+                {
+                    continue;
+                }
+
+                if (MapPlacedEntityEdit.FindAt(_placedEntities, entity.TileX, entity.TileY) is not null)
+                {
+                    continue;
+                }
+
+                _placedEntities.Add(entity);
+            }
+        }
+
+        if (SelectedPlacedEntityId is Guid selected && SelectedPlacedEntity is null)
+        {
+            SelectedPlacedEntityId = null;
+        }
+
+        PlacedEntitiesChanged?.Invoke();
+        PlacedEntitySelectionChanged?.Invoke();
+        Invalidate();
+    }
+
+    public void SelectPlacedEntity(Guid id)
+    {
+        MapPlacedEntity? match = null;
+        for (var i = 0; i < _placedEntities.Count; i++)
+        {
+            if (_placedEntities[i].Id == id)
+            {
+                match = _placedEntities[i];
+                break;
+            }
+        }
+
+        if (match is null)
+        {
+            return;
+        }
+
+        if (SelectedPlacedEntityId == id)
+        {
+            Invalidate();
+            return;
+        }
+
+        SelectedPlacedEntityId = id;
+        PlacedEntitySelectionChanged?.Invoke();
+        Invalidate();
+    }
+
+    public bool TryUpdateSelectedPlacedEntity(
+        MapPlacedKind kind,
+        string? name,
+        string? notes,
+        MapPlacedFacing facing,
+        int respawnSeconds,
+        int level,
+        out string? error)
+    {
+        error = "Aucune entité sélectionnée.";
+        if (Map is null || SelectedPlacedEntity is not { } entity)
+        {
+            return false;
+        }
+
+        if (!MapPlacedEntityEdit.TryApply(entity, Map, kind, name, notes, facing, respawnSeconds, level, out error))
+        {
+            return false;
+        }
+
+        PlacedEntitiesChanged?.Invoke();
+        PlacedEntitySelectionChanged?.Invoke();
+        Invalidate();
+        return true;
+    }
+
+    public bool TryRemoveSelectedPlacedEntity()
+    {
+        if (SelectedPlacedEntity is not { } entity)
+        {
+            return false;
+        }
+
+        return TryRemovePlacedEntityAt(entity.TileX, entity.TileY);
+    }
+
+    public int ClipPlacedEntitiesToMap()
+    {
+        if (Map is null)
+        {
+            return 0;
+        }
+
+        var removed = MapPlacedEntityEdit.DropOutside(_placedEntities, Map);
+        if (removed == 0)
+        {
+            return 0;
+        }
+
+        if (SelectedPlacedEntityId is Guid && SelectedPlacedEntity is null)
+        {
+            SelectedPlacedEntityId = null;
+            PlacedEntitySelectionChanged?.Invoke();
+        }
+
+        PlacedEntitiesChanged?.Invoke();
+        Invalidate();
+        return removed;
+    }
+
+    internal bool TryApplyPlaceToolAtTileForTest(int tileX, int tileY)
+    {
+        if (Map is null)
+        {
+            return false;
+        }
+
+        ActiveTool = EditorTool.Place;
+        return TryBeginPlaceGesture(tileX, tileY);
+    }
+
+    internal bool TryHandlePlaceToolRightClickForTest(int tileX, int tileY, bool control)
+    {
+        if (Map is null || tileX < 0 || tileY < 0 || tileX >= Map.Width || tileY >= Map.Height)
+        {
+            return false;
+        }
+
+        ActiveTool = EditorTool.Place;
+        if (control)
+        {
+            _suppressRightButtonErase = true;
+            TileContextMenuRequested?.Invoke(new Point(tileX, tileY));
+            return true;
+        }
+
+        return TryRemovePlacedEntityAt(tileX, tileY);
+    }
+
+    internal bool TryMovePlacedEntityForTest(Guid id, int tileX, int tileY)
+    {
+        if (Map is null || !MapPlacedEntityEdit.TryMove(_placedEntities, Map, id, tileX, tileY))
+        {
+            return false;
+        }
+
+        PlacedEntitiesChanged?.Invoke();
+        Invalidate();
+        return true;
+    }
+
+    private bool TryBeginPlaceGesture(int tileX, int tileY)
+    {
+        if (Map is null)
+        {
+            return false;
+        }
+
+        if (!MapPlacedEntityEdit.TryPlace(_placedEntities, Map, PlaceKind, tileX, tileY, out var entity, out var created))
+        {
+            return false;
+        }
+
+        var selectionChanged = SelectedPlacedEntityId != entity.Id;
+        SelectedPlacedEntityId = entity.Id;
+        _draggingPlacedId = entity.Id;
+        _placedDragOrigin = new Point(entity.TileX, entity.TileY);
+        _placedDragMoved = false;
+        if (created)
+        {
+            PlacedEntitiesChanged?.Invoke();
+        }
+
+        if (selectionChanged || created)
+        {
+            PlacedEntitySelectionChanged?.Invoke();
+        }
+
+        Invalidate();
+        return true;
+    }
+
+    private bool TryRemovePlacedEntityAt(int tileX, int tileY)
+    {
+        if (!MapPlacedEntityEdit.TryRemoveAt(_placedEntities, tileX, tileY, out var removed) || removed is null)
+        {
+            return false;
+        }
+
+        if (SelectedPlacedEntityId == removed.Id)
+        {
+            SelectedPlacedEntityId = null;
+            PlacedEntitySelectionChanged?.Invoke();
+        }
+
+        if (_draggingPlacedId == removed.Id)
+        {
+            _draggingPlacedId = null;
+            _placedDragMoved = false;
+        }
+
+        PlacedEntitiesChanged?.Invoke();
+        Invalidate();
+        return true;
+    }
+
+    private void DrawPlacedEntities(Graphics g, int tx0, int ty0, int tx1, int ty1)
+    {
+        if (Map is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _placedEntities.Count; i++)
+        {
+            var entity = _placedEntities[i];
+            if (entity.TileX < tx0 || entity.TileX > tx1 || entity.TileY < ty0 || entity.TileY > ty1)
+            {
+                continue;
+            }
+
+            if (entity.TileX < 0 || entity.TileX >= Map.Width || entity.TileY < 0 || entity.TileY >= Map.Height)
+            {
+                continue;
+            }
+
+            DrawPlacedEntityMarker(g, entity, selected: entity.Id == SelectedPlacedEntityId);
+        }
+    }
+
+    private void DrawPlacedEntityMarker(Graphics g, MapPlacedEntity entity, bool selected)
+    {
+        var ts = TileSize;
+        var rect = new Rectangle(entity.TileX * ts, entity.TileY * ts, ts, ts);
+        var accent = entity.Kind switch
+        {
+            MapPlacedKind.Spawn => Color.FromArgb(255, 80, 200, 255),
+            MapPlacedKind.Npc => Color.FromArgb(255, 130, 170, 255),
+            _ => Color.FromArgb(255, 176, 196, 214),
+        };
+        var glyph = entity.Kind switch
+        {
+            MapPlacedKind.Spawn => "A",
+            MapPlacedKind.Npc => "P",
+            _ => "O",
+        };
+
+        using (var fill = new SolidBrush(Color.FromArgb(selected ? 120 : 70, accent)))
+        using (var pen = new Pen(selected ? Color.White : accent, Math.Max(1.5f, ts / 14f)))
+        {
+            g.FillRectangle(fill, rect);
+            g.DrawRectangle(pen, rect);
+        }
+
+        var prev = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            var inset = Math.Max(4, ts / 5);
+            var bubble = Rectangle.Inflate(rect, -inset, -inset);
+            using var brush = new SolidBrush(Color.FromArgb(230, accent));
+            g.FillEllipse(brush, bubble);
+            using var font = new Font(Font.FontFamily, Math.Max(8f, bubble.Height * 0.62f), FontStyle.Bold, GraphicsUnit.Pixel);
+            using var text = new SolidBrush(Color.FromArgb(18, 22, 28));
+            using var format = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+            };
+            g.DrawString(glyph, font, text, bubble, format);
+        }
+        finally
+        {
+            g.SmoothingMode = prev;
+        }
+    }
+
+    private void DrawPlaceGhost(Graphics g)
+    {
+        if (Map is null)
+        {
+            return;
+        }
+
+        var tx = _hoverTile.X;
+        var ty = _hoverTile.Y;
+        if (tx < 0 || ty < 0 || tx >= Map.Width || ty >= Map.Height)
+        {
+            return;
+        }
+
+        if (MapPlacedEntityEdit.FindAt(_placedEntities, tx, ty) is not null)
+        {
+            return;
+        }
+
+        var color = PlaceKind switch
+        {
+            MapPlacedKind.Spawn => Color.FromArgb(255, 80, 200, 255),
+            MapPlacedKind.Npc => Color.FromArgb(255, 130, 170, 255),
+            _ => Color.FromArgb(255, 176, 196, 214),
+        };
+        DrawTileRectPixels(g, tx, ty, tx, ty, color, dash: true);
+    }
+
     internal bool TryHandleSpawnToolRightClickForTest(int tileX, int tileY, bool control)
     {
         if (Map is null || tileX < 0 || tileY < 0 || tileX >= Map.Width || tileY >= Map.Height)
@@ -1927,6 +2295,20 @@ public sealed class MapCanvas : Control
                 return;
             }
 
+            if (ActiveTool == EditorTool.Place)
+            {
+                if ((ModifierKeys & Keys.Control) == Keys.Control)
+                {
+                    _suppressRightButtonErase = true;
+                    TileContextMenuRequested?.Invoke(new Point(tx, ty));
+                    return;
+                }
+
+                TryRemovePlacedEntityAt(tx, ty);
+                Capture = true;
+                return;
+            }
+
             if (ActiveTool == EditorTool.Prefab)
             {
                 if ((ModifierKeys & Keys.Control) == Keys.Control)
@@ -2106,6 +2488,15 @@ public sealed class MapCanvas : Control
                     RaiseTileClicked(tx, ty);
                     break;
 
+                case EditorTool.Place:
+                    if (TryBeginPlaceGesture(tx, ty))
+                    {
+                        Capture = true;
+                    }
+
+                    RaiseTileClicked(tx, ty);
+                    break;
+
                 case EditorTool.Prefab:
                     if ((ModifierKeys & Keys.Alt) == Keys.Alt)
                     {
@@ -2177,8 +2568,14 @@ public sealed class MapCanvas : Control
         var ty = (int)Math.Floor(w.Y / TileSize);
         if (tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
         {
-            HoveredTileChanged?.Invoke(new Point(tx, ty));
-            _hoverTile = new Point(tx, ty);
+            var nextHover = new Point(tx, ty);
+            var hoverMoved = nextHover != _hoverTile;
+            HoveredTileChanged?.Invoke(nextHover);
+            _hoverTile = nextHover;
+            if (hoverMoved && ActiveTool == EditorTool.Place && (e.Button & MouseButtons.Left) == 0)
+            {
+                Invalidate();
+            }
         }
 
         UpdateEditCursorForHover();
@@ -2222,6 +2619,22 @@ public sealed class MapCanvas : Control
                     Invalidate();
                 }
             }
+            else if (ActiveTool == EditorTool.Place
+                     && _draggingPlacedId is Guid dragId
+                     && tx >= 0
+                     && ty >= 0
+                     && tx < Map.Width
+                     && ty < Map.Height
+                     && MapPlacedEntityEdit.TryMove(_placedEntities, Map, dragId, tx, ty))
+            {
+                var moved = SelectedPlacedEntity;
+                if (moved is not null && (moved.TileX != _placedDragOrigin.X || moved.TileY != _placedDragOrigin.Y))
+                {
+                    _placedDragMoved = true;
+                }
+
+                Invalidate();
+            }
             else if (ActiveTool is EditorTool.Rectangle or EditorTool.Selection or EditorTool.Line
                      && (_rectPaintOrigin is not null || _selectionMarqueeAnchor is not null || _linePaintOrigin is not null))
             {
@@ -2255,8 +2668,20 @@ public sealed class MapCanvas : Control
         }
 
         if (!_suppressRightButtonErase &&
+            ActiveTool == EditorTool.Place &&
+            (e.Button & MouseButtons.Right) != 0 &&
+            tx >= 0 &&
+            ty >= 0 &&
+            tx < Map.Width &&
+            ty < Map.Height)
+        {
+            TryRemovePlacedEntityAt(tx, ty);
+        }
+
+        if (!_suppressRightButtonErase &&
             ActiveTool != EditorTool.Spawn &&
             ActiveTool != EditorTool.Prefab &&
+            ActiveTool != EditorTool.Place &&
             ActiveTool != EditorTool.Line &&
             ActiveTool != EditorTool.Fill &&
             ActiveTool != EditorTool.Rectangle &&
@@ -2301,6 +2726,19 @@ public sealed class MapCanvas : Control
             {
                 EndPrefabMove();
                 Capture = false;
+            }
+
+            if (_draggingPlacedId is not null && e.Button == MouseButtons.Left)
+            {
+                var moved = _placedDragMoved;
+                _draggingPlacedId = null;
+                _placedDragMoved = false;
+                Capture = false;
+                if (moved)
+                {
+                    PlacedEntitiesChanged?.Invoke();
+                    PlacedEntitySelectionChanged?.Invoke();
+                }
             }
 
             if (e.Button == MouseButtons.Right)
@@ -2389,9 +2827,11 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection or EditorTool.Spawn)
+        if (ActiveTool is EditorTool.Cursor or EditorTool.Selection or EditorTool.Spawn or EditorTool.Place)
         {
-            Cursor = Cursors.Cross;
+            Cursor = ActiveTool == EditorTool.Place && _draggingPlacedId is not null
+                ? Cursors.SizeAll
+                : Cursors.Cross;
             return;
         }
 
@@ -2777,6 +3217,7 @@ public sealed class MapCanvas : Control
         {
             EditorTool.Fill => EditorToolHotkeys.FormatFillStatus(FillVisibleUnlockedLayers, FillRespectAttributes),
             EditorTool.Rectangle => EditorToolHotkeys.FormatRectangleStatus(RectangleOutline, RectangleEllipse),
+            EditorTool.Place => EditorToolHotkeys.FormatPlaceStatus(PlaceKind, SelectedPlacedEntity?.Name),
             _ => EditorToolHotkeys.StatusHint(ActiveTool),
         };
         if (IsTileAssetMap)

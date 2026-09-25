@@ -50,6 +50,7 @@ public sealed class MainForm : Form
     private bool _suspendLayerListEvents;
     private readonly PropertyGrid _propGrid;
     private readonly MapPropertiesBar _mapPropertiesBar;
+    private readonly MapPlacedEntityPropertiesPanel _placedEntityPanel;
     private readonly TransferIssuesPanel _transferIssuesPanel;
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
@@ -120,6 +121,14 @@ public sealed class MainForm : Form
     internal EditorTool GetActiveToolForTest() => _canvas.ActiveTool;
 
     internal Point? GetPlaytestSpawnForTest() => _canvas.PlaytestSpawnTile;
+
+    internal IReadOnlyList<MapPlacedEntity> GetPlacedEntitiesForTest() => _canvas.PlacedEntities;
+
+    internal MapPlacedEntity? SelectedPlacedEntityForTest => _canvas.SelectedPlacedEntity;
+
+    internal string PlacedEntitySelectionTextForTest => _placedEntityPanel.SelectionTextForTest;
+
+    internal void SetPlaceKindForTest(MapPlacedKind kind) => _placedEntityPanel.SetKindToPlaceForTest(kind);
 
     internal bool TrySetPlaytestSpawnForTest(int tileX, int tileY) =>
         PersistPlaytestSpawnFromUser(tileX, tileY);
@@ -426,6 +435,7 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Outil ligne (L)", null, (_, _) => SelectEditorTool(EditorTool.Line));
             mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
             mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
+            mMap.DropDownItems.Add("Outil entités (N)", null, (_, _) => SelectEditorTool(EditorTool.Place));
             mMap.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("PNJ rapide…", null, (_, _) => OpenQuickTalkingNpc());
@@ -851,6 +861,8 @@ public sealed class MainForm : Form
             {
                 MapEditOperations.ClampDimensions(map);
                 MapEditOperations.ClipTilesOutsideBounds(map);
+                _canvas.ClipPlacedEntitiesToMap();
+                EditorMapPlacedEntityWorkstate.Write(_workspace?.CurrentMapId, map, _canvas.PlacedEntities);
                 UpdateMapChromeLabels();
                 _propGrid.Refresh();
             }
@@ -872,8 +884,29 @@ public sealed class MainForm : Form
         _transferIssuesPanel.IssueActivated += FocusTransferIssue;
         _mapPropertiesBar = new MapPropertiesBar { Dock = DockStyle.Top };
         _mapPropertiesBar.EditRequested += (_, _) => ShowMapProperties();
+        _placedEntityPanel = new MapPlacedEntityPropertiesPanel { Dock = DockStyle.Top };
+        _placedEntityPanel.PlaceKindChanged += (_, _) =>
+        {
+            _canvas.PlaceKind = _placedEntityPanel.KindToPlace;
+            if (_canvas.ActiveTool != EditorTool.Place)
+            {
+                SelectEditorTool(EditorTool.Place);
+            }
+            else
+            {
+                _canvas.Invalidate();
+                PushEditorStatusLine();
+            }
+        };
+        _placedEntityPanel.Edited += (_, _) => ApplyPlacedEntityProperties();
+        _placedEntityPanel.DeleteRequested += (_, _) => _canvas.TryRemoveSelectedPlacedEntity();
+        _placedEntityPanel.RosterPicked += (_, id) => _canvas.SelectPlacedEntity(id);
+        _canvas.PlaceKind = _placedEntityPanel.KindToPlace;
+        _canvas.PlacedEntitiesChanged += OnPlacedEntitiesChanged;
+        _canvas.PlacedEntitySelectionChanged += OnPlacedEntitySelectionChanged;
         var propsBody = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
         propsBody.Controls.Add(_propGrid);
+        propsBody.Controls.Add(_placedEntityPanel);
         propsBody.Controls.Add(_mapPropertiesBar);
         var propsHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
         propsHost.Controls.Add(_transferIssuesPanel);
@@ -1150,6 +1183,7 @@ public sealed class MainForm : Form
             RefreshMapEventMarkers();
             RestorePlaytestSpawnFromWorkstate();
             RestorePrefabPlacementsFromWorkstate();
+            RestorePlacedEntitiesFromWorkstate();
             SyncPaletteModeToMap();
         }
         finally
@@ -1236,6 +1270,7 @@ public sealed class MainForm : Form
 
     private bool _suppressSpawnPersist;
     private bool _suppressPrefabPersist;
+    private bool _suppressPlacedPersist;
     private EditorTool _toolBeforePrefab = EditorTool.Brush;
     private int _prefabEscapeTick;
 
@@ -1326,6 +1361,69 @@ public sealed class MainForm : Form
         _leftToolsWpf.SetSpawnDisplay(tile.X, tile.Y);
         RefreshMapPropertiesBar();
         PushEditorStatusLine();
+    }
+
+    private void OnPlacedEntitiesChanged()
+    {
+        if (!_suppressPlacedPersist && _canvas.Map is { } map)
+        {
+            EditorMapPlacedEntityWorkstate.Write(_workspace?.CurrentMapId, map, _canvas.PlacedEntities);
+        }
+
+        SyncPlacedEntityPanel();
+        PushEditorStatusLine();
+    }
+
+    private void OnPlacedEntitySelectionChanged()
+    {
+        SyncPlacedEntityPanel();
+        PushEditorStatusLine();
+    }
+
+    private void SyncPlacedEntityPanel()
+    {
+        _placedEntityPanel.Sync(_canvas.PlacedEntities, _canvas.SelectedPlacedEntity, _canvas.PlaceKind);
+    }
+
+    private void ApplyPlacedEntityProperties()
+    {
+        if (!_placedEntityPanel.TryReadEdit(out var kind, out var name, out var notes, out var facing, out var respawn, out var level))
+        {
+            return;
+        }
+
+        if (_canvas.TryUpdateSelectedPlacedEntity(kind, name, notes, facing, respawn, level, out var error))
+        {
+            _placedEntityPanel.ShowError(null);
+            return;
+        }
+
+        _placedEntityPanel.ShowError(error);
+    }
+
+    private void RestorePlacedEntitiesFromWorkstate()
+    {
+        if (_canvas.Map is not { } map)
+        {
+            return;
+        }
+
+        _suppressPlacedPersist = true;
+        try
+        {
+            if (EditorMapPlacedEntityWorkstate.TryRead(_workspace?.CurrentMapId, map, out var entities))
+            {
+                _canvas.ReplacePlacedEntities(entities);
+            }
+            else
+            {
+                _canvas.ReplacePlacedEntities(Array.Empty<MapPlacedEntity>());
+            }
+        }
+        finally
+        {
+            _suppressPlacedPersist = false;
+        }
     }
 
     private void RestorePlaytestSpawnFromWorkstate()
@@ -1643,6 +1741,9 @@ public sealed class MainForm : Form
         var prefabPlace = _canvas.ActiveTool == EditorTool.Prefab
             ? $"    ·    {_leftToolsWpf.SelectedPrefabSummary} — clic pour placer"
             : "";
+        var placedCount = _canvas.PlacedEntities.Count > 0
+            ? $"    ·    entités {_canvas.PlacedEntities.Count}"
+            : "";
         var eventCaption = _canvas.ActiveMapEventCaption;
         var eventKind = _canvas.ActiveMapEventTriggerLabel;
         var eventText = string.IsNullOrEmpty(eventCaption)
@@ -1667,7 +1768,7 @@ public sealed class MainForm : Form
                 : $"    ·    {transferCount} transferts à corriger";
         var notice = string.IsNullOrEmpty(_statusNotice) ? "" : _statusNotice + "    ·    ";
         var text =
-            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}{FormatActiveLayerStatus()}{toolHint}{animToggle}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{eventText}{transferText}    ·    catalogue {backend}";
+            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}{FormatActiveLayerStatus()}{toolHint}{animToggle}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{placedCount}{eventText}{transferText}    ·    catalogue {backend}";
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -1977,6 +2078,12 @@ public sealed class MainForm : Form
         }
 
         ReconcileSpawnMemoAfterMapMetaChange();
+        _canvas.ClipPlacedEntitiesToMap();
+        if (_canvas.Map is { } placedMap)
+        {
+            EditorMapPlacedEntityWorkstate.Write(_workspace?.CurrentMapId, placedMap, _canvas.PlacedEntities);
+        }
+
         _canvas.Invalidate();
         UpdateMapChromeLabels();
         OnMapEdited();
@@ -2269,6 +2376,7 @@ public sealed class MainForm : Form
         RefreshMapEventMarkers();
         RestorePlaytestSpawnFromWorkstate();
         RestorePrefabPlacementsFromWorkstate();
+        RestorePlacedEntitiesFromWorkstate();
         SyncPaletteModeToMap();
         PushEditorStatusLine();
     }
@@ -2541,6 +2649,7 @@ public sealed class MainForm : Form
                 if (_canvas.Map is { } prefabMap)
                 {
                     EditorMapPrefabWorkstate.Write(success.MapId, prefabMap, _canvas.PrefabPlacements);
+                    EditorMapPlacedEntityWorkstate.Write(success.MapId, prefabMap, _canvas.PlacedEntities);
                 }
 
                 SyncMapsTree();
@@ -3673,6 +3782,7 @@ public sealed class MainForm : Form
         RefreshMapEventMarkers();
         RestorePlaytestSpawnFromWorkstate();
         TryApplyPrefabSidecarFromMapPath(mapPath);
+        RestorePlacedEntitiesFromWorkstate();
         SyncPaletteModeToMap();
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)

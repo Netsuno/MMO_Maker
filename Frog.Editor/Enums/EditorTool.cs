@@ -17,6 +17,8 @@ namespace Frog.Editor.Enums
         /// <summary>Clic = tuile de spawn playtest / départ (mémo locale, pas de peinture).</summary>
         Spawn = 7,
         /// <summary>Clic = poser un prefab (sidecar / workstate, pas de peinture tuile).</summary>
-        Prefab = 8
+        Prefab = 8,
+        /// <summary>Clic = poser une apparition, un PNJ ou un objet (mémo locale, pas de SQL ni de peinture).</summary>
+        Place = 9
     }
 }

@@ -17,6 +17,7 @@ public sealed class EditorToolHotkeysTests
     [InlineData(Keys.M, EditorTool.Selection)]
     [InlineData(Keys.D, EditorTool.Spawn)]
     [InlineData(Keys.P, EditorTool.Prefab)]
+    [InlineData(Keys.N, EditorTool.Place)]
     public void LetterKeys_SelectExpectedTool(Keys key, EditorTool expected)
     {
         Assert.True(EditorToolHotkeys.TryResolve(key, out var tool));
@@ -71,6 +72,7 @@ public sealed class EditorToolHotkeysTests
         Assert.Contains("L ligne", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("D", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("P", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
+        Assert.Contains("N entités", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("I", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
         Assert.Contains("Q", EditorToolHotkeys.SelectionHint, StringComparison.Ordinal);
         Assert.Contains("pipette", EditorToolHotkeys.SelectionHint, StringComparison.OrdinalIgnoreCase);
@@ -119,6 +121,14 @@ public sealed class EditorToolHotkeysTests
         Assert.DoesNotContain("frame", EditorToolHotkeys.FormatAnimatedTilePreview(4, true), StringComparison.OrdinalIgnoreCase);
         Assert.Equal("D", EditorToolHotkeys.ShortcutGlyph(EditorTool.Spawn));
         Assert.Equal("P", EditorToolHotkeys.ShortcutGlyph(EditorTool.Prefab));
+        Assert.Equal("N", EditorToolHotkeys.ShortcutGlyph(EditorTool.Place));
+        Assert.Contains("Entités (N)", EditorToolHotkeys.StatusHint(EditorTool.Place), StringComparison.Ordinal);
+        Assert.Contains("PNJ", EditorToolHotkeys.FormatPlaceStatus(Frog.Application.Maps.MapPlacedKind.Npc, "Garde"), StringComparison.Ordinal);
+        Assert.Contains("Garde", EditorToolHotkeys.FormatPlaceStatus(Frog.Application.Maps.MapPlacedKind.Npc, "Garde"), StringComparison.Ordinal);
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.Control | Keys.N, out _));
+        Assert.True(EditorToolHotkeys.TryResolveWpf(Key.N, ModifierKeys.None, out var placeTool));
+        Assert.Equal(EditorTool.Place, placeTool);
+        Assert.False(EditorToolHotkeys.TryResolveWpf(Key.N, ModifierKeys.Control, out _));
     }
 
     [Fact]

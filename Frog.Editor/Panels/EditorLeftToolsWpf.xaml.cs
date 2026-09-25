@@ -673,6 +673,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         StyleDrawChip(BtnToolRectangle, tool == EditorTool.Rectangle);
         StyleDrawChip(BtnToolLine, tool == EditorTool.Line);
         StyleDrawChip(BtnToolSelection, tool == EditorTool.Selection);
+        StyleDrawChip(BtnToolPlace, tool == EditorTool.Place);
         if (FillOptionsPanel is not null)
         {
             FillOptionsPanel.Visibility = tool == EditorTool.Fill
@@ -737,6 +738,8 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     }
 
     internal string RectangleButtonTextForTest => BtnToolRectangle.Content as string ?? string.Empty;
+
+    internal string PlaceButtonTextForTest => BtnToolPlace.Content as string ?? string.Empty;
 
     internal bool RectangleOptionsVisibleForTest => RectangleOptionsPanel.Visibility == System.Windows.Visibility.Visible;
 

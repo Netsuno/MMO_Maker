@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Frog.Application.Maps;
 using Frog.Application.Prefabs;
 using Frog.Core.Models;
 
@@ -34,6 +35,11 @@ public static class EditorLocalWorkstate
         /// <summary>Placements prefab par carte (même clé que le spawn). Additif, hors <c>.fmap</c>.</summary>
         public Dictionary<string, MapPrefabPlacementsDto>? MapPrefabPlacements { get; set; }
 
+        /// <summary>
+        /// Apparitions, PNJ et objets posés (même clé que le spawn). Mémo éditeur, hors SQL et hors <c>.fmap</c>.
+        /// </summary>
+        public Dictionary<string, MapPlacedEntitiesDto>? MapPlacedEntities { get; set; }
+
         public string? LastPrefabId { get; set; }
 
         public PrefabFacing LastPrefabFacing { get; set; } = PrefabFacing.South;
@@ -48,6 +54,11 @@ public static class EditorLocalWorkstate
     public sealed class MapPrefabPlacementsDto
     {
         public List<PrefabPlacement> Placements { get; set; } = new();
+    }
+
+    public sealed class MapPlacedEntitiesDto
+    {
+        public List<MapPlacedEntity> Entities { get; set; } = new();
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -248,6 +259,40 @@ public static class EditorLocalWorkstate
         dto.MapPrefabPlacements[key] = new MapPrefabPlacementsDto
         {
             Placements = PrefabPlacementService.ClonePlacements(placements),
+        };
+        Save(dto);
+    }
+
+    public static bool TryReadMapPlacedEntities(string key, out List<MapPlacedEntity> entities)
+    {
+        entities = new List<MapPlacedEntity>();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var map = LoadOrDefault().MapPlacedEntities;
+        if (map is null || !map.TryGetValue(key, out var entry) || entry?.Entities is null)
+        {
+            return false;
+        }
+
+        entities = MapPlacedEntityEdit.Clone(entry.Entities);
+        return true;
+    }
+
+    public static void WriteMapPlacedEntities(string key, IReadOnlyList<MapPlacedEntity> entities)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var dto = LoadOrDefault();
+        dto.MapPlacedEntities ??= new Dictionary<string, MapPlacedEntitiesDto>(StringComparer.Ordinal);
+        dto.MapPlacedEntities[key] = new MapPlacedEntitiesDto
+        {
+            Entities = MapPlacedEntityEdit.Clone(entities),
         };
         Save(dto);
     }
