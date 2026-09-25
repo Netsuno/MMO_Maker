@@ -83,7 +83,7 @@ public static class UiTheme
 
         for (var parent = control.Parent; parent is not null; parent = parent.Parent)
         {
-            if (parent is HudHotbar or HudMenuRing or LoginShell or SocialHubPanel)
+            if (parent is HudHotbar or HudMenuRing or LoginShell or SocialHubPanel or HudFriendsDock)
             {
                 return true;
             }
