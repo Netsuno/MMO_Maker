@@ -3,6 +3,25 @@ using Frog.Core.Models;
 
 namespace Frog.Application.Maps;
 
+/// <summary>
+/// Options du pot de peinture. Défaut : couche active seulement, sans filtre de collision.
+/// La diffusion est 4-connexe (haut, bas, gauche, droite), jamais en diagonale.
+/// </summary>
+public readonly record struct FloodFillOptions
+{
+    /// <summary>
+    /// Écrit la même région sur les autres couches visibles et déverrouillées.
+    /// La couche Attributs n’est peinte que si elle est la couche active.
+    /// </summary>
+    public bool VisibleUnlockedLayers { get; init; }
+
+    /// <summary>
+    /// N’englobe pas une case dont la collision ou les attributs diffèrent de la graine
+    /// (attributs portés par la tuile, et tuile de la couche Attributs lorsqu’elle est distincte).
+    /// </summary>
+    public bool RespectAttributes { get; init; }
+}
+
 /// <summary>Opérations d’édition carte testables sans UI ni rendu.</summary>
 public static class MapEditOperations
 {
@@ -119,57 +138,93 @@ public static class MapEditOperations
         return dx >= dy ? (x1, y0) : (x0, y1);
     }
 
-    /// <summary>Remplissage par diffusion, borné aux dimensions de la carte.</summary>
-    public static void FloodFill(Map map, int layerIndex, int sx, int sy, Tile replacement)
+    /// <summary>
+    /// Remplissage 4-connexe par file (pas de récursion), borné à la carte.
+    /// <paramref name="replacement"/> null efface la région (sélection vide ou gomme).
+    /// Retourne le nombre de cases réellement modifiées. Couche active verrouillée,
+    /// masquée ou hors carte : 0, sans mutation.
+    /// <paramref name="beforeMutate"/> est appelé une seule fois, avant toute écriture,
+    /// et seulement s’il y a au moins une case à changer (un pas d’annulation).
+    /// </summary>
+    public static int FloodFill(
+        Map map,
+        int layerIndex,
+        int sx,
+        int sy,
+        Tile? replacement,
+        FloodFillOptions options = default,
+        Action? beforeMutate = null)
     {
         ArgumentNullException.ThrowIfNull(map);
-        ArgumentNullException.ThrowIfNull(replacement);
-        if (!IsLayerEditable(map, layerIndex) || !IsInBounds(map, sx, sy))
+        if (!IsInBounds(map, sx, sy))
         {
-            return;
+            return 0;
         }
 
-        var layer = map.Layers[layerIndex];
-        var start = layer.Tiles.FirstOrDefault(t => t.X == sx && t.Y == sy);
-        var matchEmpty = start is null;
-
-        var q = new Queue<(int x, int y)>();
-        var seen = new HashSet<(int, int)>();
-        q.Enqueue((sx, sy));
-        var toPaint = new List<(int x, int y)>();
-
-        while (q.Count > 0)
+        var targets = ResolveFloodTargets(map, layerIndex, options.VisibleUnlockedLayers);
+        if (targets.Count == 0)
         {
-            var (x, y) = q.Dequeue();
-            if (!seen.Add((x, y)) || !IsInBounds(map, x, y))
-            {
-                continue;
-            }
+            return 0;
+        }
 
-            var here = layer.Tiles.FirstOrDefault(t => t.X == x && t.Y == y);
-            if (matchEmpty)
+        var externalAttributes = -1;
+        if (options.RespectAttributes && map.Layers[layerIndex].LayerType != LayerType.Attributes)
+        {
+            externalAttributes = FindAttributesLayerIndex(map);
+        }
+
+        var region = CollectFloodRegion(
+            map,
+            map.Layers[layerIndex],
+            sx,
+            sy,
+            options.RespectAttributes,
+            externalAttributes);
+        if (region.Count == 0)
+        {
+            return 0;
+        }
+
+        var writes = new List<(int Layer, int X, int Y)>();
+        foreach (var target in targets)
+        {
+            var index = IndexTiles(map.Layers[target]);
+            foreach (var (x, y) in region)
             {
-                if (here is not null)
+                index.TryGetValue((x, y), out var existing);
+                if (replacement is null)
                 {
-                    continue;
+                    if (existing is not null)
+                    {
+                        writes.Add((target, x, y));
+                    }
+                }
+                else if (!SamePlacedTile(existing, replacement))
+                {
+                    writes.Add((target, x, y));
                 }
             }
-            else if (start is null || !SameVisualTile(start, here))
-            {
-                continue;
-            }
-
-            toPaint.Add((x, y));
-            q.Enqueue((x - 1, y));
-            q.Enqueue((x + 1, y));
-            q.Enqueue((x, y - 1));
-            q.Enqueue((x, y + 1));
         }
 
-        foreach (var (x, y) in toPaint)
+        if (writes.Count == 0)
         {
-            PaintTile(map, layerIndex, x, y, replacement);
+            return 0;
         }
+
+        beforeMutate?.Invoke();
+        foreach (var (layer, x, y) in writes)
+        {
+            if (replacement is null)
+            {
+                EraseTile(map, layer, x, y);
+            }
+            else
+            {
+                PaintTile(map, layer, x, y, replacement);
+            }
+        }
+
+        return writes.Count;
     }
 
     public static void SetBlockTile(Map map, int layerIndex, int x, int y)
@@ -439,6 +494,211 @@ public static class MapEditOperations
         ArgumentNullException.ThrowIfNull(source);
         return CloneTile(source, x, y);
     }
+
+    /// <summary>Visible et déverrouillée. Le pot ne peint jamais une couche masquée ou verrouillée.</summary>
+    private static bool IsFloodPaintable(Map map, int layerIndex)
+        => layerIndex >= 0
+           && layerIndex < map.Layers.Count
+           && map.Layers[layerIndex].Visible
+           && !map.Layers[layerIndex].Locked;
+
+    private static List<int> ResolveFloodTargets(Map map, int activeLayer, bool visibleUnlockedLayers)
+    {
+        if (!IsFloodPaintable(map, activeLayer))
+        {
+            return new List<int>();
+        }
+
+        // La couche Attributs n’est remplie que lorsqu’elle est la couche active,
+        // même si l’option multi-couches est cochée.
+        if (!visibleUnlockedLayers || map.Layers[activeLayer].LayerType == LayerType.Attributes)
+        {
+            return new List<int> { activeLayer };
+        }
+
+        var targets = new List<int>();
+        for (var i = 0; i < map.Layers.Count; i++)
+        {
+            if (map.Layers[i].LayerType == LayerType.Attributes || !IsFloodPaintable(map, i))
+            {
+                continue;
+            }
+
+            targets.Add(i);
+        }
+
+        return targets;
+    }
+
+    private static int FindAttributesLayerIndex(Map map)
+    {
+        for (var i = 0; i < map.Layers.Count; i++)
+        {
+            if (map.Layers[i].LayerType == LayerType.Attributes)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static Dictionary<(int X, int Y), Tile> IndexTiles(Layer layer)
+    {
+        var index = new Dictionary<(int X, int Y), Tile>(layer.Tiles.Count);
+        foreach (var tile in layer.Tiles)
+        {
+            index[(tile.X, tile.Y)] = tile;
+        }
+
+        return index;
+    }
+
+    /// <summary>Région 4-connexe de la couche graine. Les voisins hors carte ne sont pas enfilés.</summary>
+    private static List<(int X, int Y)> CollectFloodRegion(
+        Map map,
+        Layer layer,
+        int sx,
+        int sy,
+        bool respectAttributes,
+        int externalAttributesLayer)
+    {
+        var cells = IndexTiles(layer);
+        cells.TryGetValue((sx, sy), out var seed);
+
+        Dictionary<(int X, int Y), Tile>? attrCells = null;
+        Tile? attrSeed = null;
+        if (respectAttributes && externalAttributesLayer >= 0)
+        {
+            attrCells = IndexTiles(map.Layers[externalAttributesLayer]);
+            attrCells.TryGetValue((sx, sy), out attrSeed);
+        }
+
+        var region = new List<(int X, int Y)>();
+        var pending = new Queue<(int X, int Y)>();
+        var seen = new HashSet<(int X, int Y)>();
+        Enqueue(sx, sy);
+
+        while (pending.Count > 0)
+        {
+            var (x, y) = pending.Dequeue();
+            cells.TryGetValue((x, y), out var here);
+            if (!MatchesSeed(seed, here, respectAttributes))
+            {
+                continue;
+            }
+
+            if (attrCells is not null)
+            {
+                attrCells.TryGetValue((x, y), out var attrHere);
+                if (!SameCollisionBarrier(attrSeed, attrHere))
+                {
+                    continue;
+                }
+            }
+
+            region.Add((x, y));
+            Enqueue(x - 1, y);
+            Enqueue(x + 1, y);
+            Enqueue(x, y - 1);
+            Enqueue(x, y + 1);
+        }
+
+        return region;
+
+        void Enqueue(int x, int y)
+        {
+            if ((uint)x >= (uint)map.Width || (uint)y >= (uint)map.Height)
+            {
+                return;
+            }
+
+            if (seen.Add((x, y)))
+            {
+                pending.Enqueue((x, y));
+            }
+        }
+    }
+
+    private static bool MatchesSeed(Tile? seed, Tile? here, bool respectAttributes)
+    {
+        if (seed is null)
+        {
+            return here is null;
+        }
+
+        if (!SameVisualTile(seed, here))
+        {
+            return false;
+        }
+
+        return !respectAttributes || SameCollisionBarrier(seed, here);
+    }
+
+    private static bool SamePlacedTile(Tile? existing, Tile stamp)
+        => existing is not null && SameVisualTile(stamp, existing) && SameCollisionBarrier(stamp, existing);
+
+    /// <summary>
+    /// Signature de collision : type, script, warp et attributs. Le graphique (Src / AssetId) n’entre pas en compte,
+    /// pour que la couche Attributs bloque le pot même si deux blocages n’ont pas la même image.
+    /// </summary>
+    private static bool SameCollisionBarrier(Tile? a, Tile? b)
+    {
+        if (a is null || b is null)
+        {
+            return a is null && b is null;
+        }
+
+        if (a.Type != b.Type)
+        {
+            return false;
+        }
+
+        if (!string.Equals(a.ScriptId ?? string.Empty, b.ScriptId ?? string.Empty, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (a.Type == TileType.Warp
+            && (a.WarpTargetMapId != b.WarpTargetMapId
+                || a.WarpTargetX != b.WarpTargetX
+                || a.WarpTargetY != b.WarpTargetY))
+        {
+            return false;
+        }
+
+        if (a.Attributes.Count != b.Attributes.Count)
+        {
+            return false;
+        }
+
+        if (a.Attributes.Count == 0)
+        {
+            return true;
+        }
+
+        var left = a.Attributes.Select(AttributeKey).ToArray();
+        var right = b.Attributes.Select(AttributeKey).ToArray();
+        Array.Sort(left, StringComparer.Ordinal);
+        Array.Sort(right, StringComparer.Ordinal);
+        for (var i = 0; i < left.Length; i++)
+        {
+            if (!string.Equals(left[i], right[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string AttributeKey(ITileAttribute attribute) => attribute switch
+    {
+        BlockAttribute => "block",
+        WarpAttribute warp => $"warp:{warp.TargetMapId:N}:{warp.TargetX}:{warp.TargetY}",
+        ResourceAttribute resource => $"res:{resource.ResourceId}",
+        _ => attribute.GetType().FullName ?? attribute.GetType().Name,
+    };
 
     private static bool IsInBounds(Map map, int x, int y)
         => x >= 0 && y >= 0 && x < map.Width && y < map.Height;

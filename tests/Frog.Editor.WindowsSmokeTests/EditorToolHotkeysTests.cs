@@ -85,7 +85,12 @@ public sealed class EditorToolHotkeysTests
         Assert.Equal("Ligne", EditorToolHotkeys.DisplayName(EditorTool.Line));
         Assert.Contains("Ligne (L)", EditorToolHotkeys.StatusHint(EditorTool.Line), StringComparison.Ordinal);
         Assert.Contains("Maj", EditorToolHotkeys.StatusHint(EditorTool.Line), StringComparison.Ordinal);
-        Assert.Contains("Pot (F)", EditorToolHotkeys.StatusHint(EditorTool.Fill), StringComparison.Ordinal);
+        Assert.Contains("Remplissage (F)", EditorToolHotkeys.StatusHint(EditorTool.Fill), StringComparison.Ordinal);
+        Assert.Contains("4 directions", EditorToolHotkeys.StatusHint(EditorTool.Fill), StringComparison.Ordinal);
+        Assert.Contains("efface", EditorToolHotkeys.StatusHint(EditorTool.Fill), StringComparison.Ordinal);
+        Assert.Contains("couches visibles", EditorToolHotkeys.FormatFillStatus(true, false), StringComparison.Ordinal);
+        Assert.Contains("collisions", EditorToolHotkeys.FormatFillStatus(false, true), StringComparison.Ordinal);
+        Assert.Equal("Remplissage", EditorToolHotkeys.DisplayName(EditorTool.Fill));
         Assert.Contains("Rectangle (R)", EditorToolHotkeys.StatusHint(EditorTool.Rectangle), StringComparison.Ordinal);
         var gesture = EditorToolHotkeys.FormatLineGesture(0, 0, 4, 2, 5, axisLocked: false);
         Assert.Contains("(0, 0) → (4, 2)", gesture, StringComparison.Ordinal);

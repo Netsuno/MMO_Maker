@@ -265,6 +265,17 @@ public sealed class MapCanvas : Control
 
     public EditorTool ActiveTool { get; set; } = EditorTool.Brush;
 
+    /// <summary>
+    /// Pot : écrire la région sur les couches visibles et déverrouillées (pas Attributs, sauf si elle est active).
+    /// Défaut faux. Ctrl+clic active aussi cette passe pour le clic en cours.
+    /// </summary>
+    public bool FillVisibleUnlockedLayers { get; set; }
+
+    /// <summary>
+    /// Pot : ne pas franchir une case dont la collision ou les attributs diffèrent de la graine. Défaut faux.
+    /// </summary>
+    public bool FillRespectAttributes { get; set; }
+
     /// <summary>Tuile de spawn playtest / départ affichée sur le canevas (mémo éditeur).</summary>
     public Point? PlaytestSpawnTile { get; private set; }
 
@@ -1889,6 +1900,26 @@ public sealed class MapCanvas : Control
                 return;
             }
 
+            if (ActiveTool == EditorTool.Fill)
+            {
+                if ((ModifierKeys & Keys.Control) == Keys.Control)
+                {
+                    _suppressRightButtonErase = true;
+                    TileContextMenuRequested?.Invoke(new Point(tx, ty));
+                    return;
+                }
+
+                if (!IsActiveLayerPaintable())
+                {
+                    return;
+                }
+
+                FloodFill(tx, ty, erase: true);
+                Invalidate();
+                RaiseTileClicked(tx, ty);
+                return;
+            }
+
             if ((ModifierKeys & Keys.Control) == Keys.Control)
             {
                 _suppressRightButtonErase = true;
@@ -1944,13 +1975,12 @@ public sealed class MapCanvas : Control
                     break;
 
                 case EditorTool.Fill:
-                    if (!IsActiveLayerEditable())
+                    if (!IsActiveLayerPaintable())
                     {
                         break;
                     }
 
-                    BeginEditTransaction();
-                    FloodFill(tx, ty);
+                    FloodFill(tx, ty, erase: false);
                     Invalidate();
                     RaiseTileClicked(tx, ty);
                     break;
@@ -2127,6 +2157,7 @@ public sealed class MapCanvas : Control
             ActiveTool != EditorTool.Spawn &&
             ActiveTool != EditorTool.Prefab &&
             ActiveTool != EditorTool.Line &&
+            ActiveTool != EditorTool.Fill &&
             (e.Button & MouseButtons.Right) != 0 &&
             tx >= 0 &&
             ty >= 0 &&
@@ -2234,6 +2265,17 @@ public sealed class MapCanvas : Control
         }
 
         return !Map.Layers[ActiveLayerIndex].Locked;
+    }
+
+    /// <summary>Le pot refuse une couche masquée (œil) ou verrouillée (cadenas).</summary>
+    private bool IsActiveLayerPaintable()
+    {
+        if (!IsActiveLayerEditable() || Map is null)
+        {
+            return false;
+        }
+
+        return Map.Layers[ActiveLayerIndex].Visible;
     }
 
     private void UpdateEditCursorForHover()
@@ -2560,7 +2602,9 @@ public sealed class MapCanvas : Control
             return EditorToolHotkeys.FormatSelectionCommitted(selection.Width, selection.Height);
         }
 
-        var hint = EditorToolHotkeys.StatusHint(ActiveTool);
+        var hint = ActiveTool == EditorTool.Fill
+            ? EditorToolHotkeys.FormatFillStatus(FillVisibleUnlockedLayers, FillRespectAttributes)
+            : EditorToolHotkeys.StatusHint(ActiveTool);
         if (IsTileAssetMap)
         {
             hint += ActiveTileAssetId.IsNone
@@ -2720,27 +2764,68 @@ public sealed class MapCanvas : Control
         MapEditOperations.PaintLine(Map, ActiveLayerIndex, x0, y0, x1, y1, CreateBrushTile(x0, y0, sx, sy));
     }
 
-    private void FloodFill(int sx, int sy)
+    /// <summary>
+    /// Pot de peinture. <paramref name="erase"/> vrai (clic droit) efface la région.
+    /// Un clic gauche sans tuile sélectionnée (TileAsset vide, ou feuille hors tampon) efface aussi.
+    /// Un seul pas d'annulation, posé seulement si au moins une case change.
+    /// </summary>
+    private int FloodFill(int sx, int sy, bool erase)
     {
-        if (Map is null || !IsActiveLayerEditable())
+        if (Map is null || !IsActiveLayerPaintable())
         {
-            return;
+            return 0;
         }
 
+        if (sx < 0 || sy < 0 || sx >= Map.Width || sy >= Map.Height)
+        {
+            return 0;
+        }
+
+        var replacement = erase ? null : TryCreateFillStamp();
+        var multi = FillVisibleUnlockedLayers || (ModifierKeys & Keys.Control) == Keys.Control;
+        var options = new FloodFillOptions
+        {
+            VisibleUnlockedLayers = multi,
+            RespectAttributes = FillRespectAttributes,
+        };
+        return MapEditOperations.FloodFill(
+            Map,
+            ActiveLayerIndex,
+            sx,
+            sy,
+            replacement,
+            options,
+            BeginEditTransaction);
+    }
+
+    /// <summary>Tampon courant, ou null si la sélection est vide (le pot efface alors la région).</summary>
+    private Tile? TryCreateFillStamp()
+    {
         if (IsTileAssetMap)
         {
-            if (!HasTileAssetBrush())
-            {
-                return;
-            }
-
-            EnsureLayerExists();
-            MapEditOperations.FloodFill(Map, ActiveLayerIndex, sx, sy, CreateTileAssetBrushTile(sx, sy));
-            return;
+            return HasTileAssetBrush() ? CreateTileAssetBrushTile(0, 0) : null;
         }
 
-        EnsureLayerExists();
-        MapEditOperations.FloodFill(Map, ActiveLayerIndex, sx, sy, CreateBrushTile(sx, sy, SelectedSrc.X, SelectedSrc.Y));
+        if (ActiveTilesetId <= 0 || !TilesetCache.TryGet(ActiveTilesetId, out var bmp) || bmp is null)
+        {
+            return null;
+        }
+
+        var ts = TileSize;
+        var srcX = SelectedSrc.X;
+        var srcY = SelectedSrc.Y;
+        if (srcX < 0 || srcY < 0 || srcX + ts > bmp.Width || srcY + ts > bmp.Height)
+        {
+            return null;
+        }
+
+        return CreateBrushTile(0, 0, srcX, srcY);
+    }
+
+    internal int TryFloodFillForTest(int x, int y, bool erase = false)
+    {
+        ActiveTool = EditorTool.Fill;
+        return FloodFill(x, y, erase);
     }
 
     internal bool TryPaintTileForTest(int x, int y)

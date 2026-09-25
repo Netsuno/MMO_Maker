@@ -29,6 +29,8 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     private PrefabCatalog _catalog = new();
 
     public event Action<EditorTool>? ToolChanged;
+    public event Action<bool>? FillVisibleUnlockedLayersChanged;
+    public event Action<bool>? FillRespectAttributesChanged;
     public event Action<TileType>? TileTypeChanged;
     public event Action<string, PrefabFacing>? PrefabSelectionChanged;
     public event Action? PipetteRequested;
@@ -669,6 +671,42 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         StyleDrawChip(BtnToolRectangle, tool == EditorTool.Rectangle);
         StyleDrawChip(BtnToolLine, tool == EditorTool.Line);
         StyleDrawChip(BtnToolSelection, tool == EditorTool.Selection);
+        if (FillOptionsPanel is not null)
+        {
+            FillOptionsPanel.Visibility = tool == EditorTool.Fill
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
+        }
+    }
+
+    private void OnFillOptionChanged(object sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, ChkFillVisibleLayers))
+        {
+            FillVisibleUnlockedLayersChanged?.Invoke(ChkFillVisibleLayers.IsChecked == true);
+            return;
+        }
+
+        if (ReferenceEquals(sender, ChkFillRespectAttrs))
+        {
+            FillRespectAttributesChanged?.Invoke(ChkFillRespectAttrs.IsChecked == true);
+        }
+    }
+
+    internal string FillButtonTextForTest => BtnToolFill.Content as string ?? string.Empty;
+
+    internal bool FillOptionsVisibleForTest => FillOptionsPanel.Visibility == System.Windows.Visibility.Visible;
+
+    internal bool FillVisibleLayersForTest
+    {
+        get => ChkFillVisibleLayers.IsChecked == true;
+        set => ChkFillVisibleLayers.IsChecked = value;
+    }
+
+    internal bool FillRespectAttributesForTest
+    {
+        get => ChkFillRespectAttrs.IsChecked == true;
+        set => ChkFillRespectAttrs.IsChecked = value;
     }
 
     private static void StyleDrawChip(System.Windows.Controls.Button? button, bool active)

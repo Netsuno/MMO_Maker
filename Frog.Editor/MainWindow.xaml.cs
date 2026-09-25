@@ -122,6 +122,11 @@ public partial class MainWindow : Window
         nameof(CmdShowTransferIssues),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdFillTool = new(
+        "Outil remplissage",
+        nameof(CmdFillTool),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdLineTool = new(
         "Outil ligne",
         nameof(CmdLineTool),
@@ -258,6 +263,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdShowTransferIssues, (_, _) => _editor.ShowTransferIssues()));
+        CommandBindings.Add(new CommandBinding(CmdFillTool, (_, _) => _editor.SelectEditorTool(EditorTool.Fill)));
         CommandBindings.Add(new CommandBinding(CmdLineTool, (_, _) => _editor.SelectEditorTool(EditorTool.Line)));
         CommandBindings.Add(new CommandBinding(CmdSpawnTool, (_, _) => _editor.SelectEditorTool(EditorTool.Spawn)));
         CommandBindings.Add(new CommandBinding(CmdPrefabTool, (_, _) => _editor.SelectEditorTool(EditorTool.Prefab)));

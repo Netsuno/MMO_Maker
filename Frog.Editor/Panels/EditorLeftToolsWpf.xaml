@@ -206,11 +206,11 @@
                     ToolTip="Gomme (E) — effacer"
                     Click="OnDrawToolClick" />
             <Button x:Name="BtnToolFill"
-                    Content="Pot"
+                    Content="Remplissage"
                     Tag="Fill"
                     Margin="2"
                     Padding="8,5"
-                    ToolTip="Pot de peinture (F) — remplissage"
+                    ToolTip="Remplissage (F) — pot de peinture, 4 directions. Clic droit ou tuile vide : efface la région."
                     Click="OnDrawToolClick" />
             <Button x:Name="BtnToolRectangle"
                     Content="Rectangle"
@@ -234,6 +234,28 @@
                     ToolTip="Sélection (M) — rectangle. Ctrl+C/X/V copie toutes les couches, Ctrl+Maj = couche active."
                     Click="OnDrawToolClick" />
         </UniformGrid>
+        <StackPanel x:Name="FillOptionsPanel" Visibility="Collapsed" Margin="8,0,2,8">
+            <CheckBox x:Name="ChkFillVisibleLayers"
+                      Content="Couches visibles déverrouillées"
+                      Foreground="#FFEBEEF5"
+                      FontFamily="Segoe UI"
+                      FontSize="12"
+                      Margin="0,2,0,4"
+                      IsChecked="False"
+                      ToolTip="Défaut : couche active seulement. Cochez, ou Ctrl+clic, pour peindre la même région sur les couches visibles et déverrouillées. La couche Attributs n’est peinte que si elle est active. Les couches masquées ou verrouillées sont ignorées."
+                      Checked="OnFillOptionChanged"
+                      Unchecked="OnFillOptionChanged" />
+            <CheckBox x:Name="ChkFillRespectAttrs"
+                      Content="Respecter collisions / attrs"
+                      Foreground="#FFEBEEF5"
+                      FontFamily="Segoe UI"
+                      FontSize="12"
+                      Margin="0,0,0,2"
+                      IsChecked="False"
+                      ToolTip="N’écrase pas une case dont le blocage, le warp, la ressource, le script ou la tuile de la couche Attributs diffère de la case cliquée."
+                      Checked="OnFillOptionChanged"
+                      Unchecked="OnFillOptionChanged" />
+        </StackPanel>
         <TextBlock Text="{x:Static enums:EditorToolHotkeys.PaletteHint}"
                    TextWrapping="Wrap"
                    Foreground="#FF949BAA"
