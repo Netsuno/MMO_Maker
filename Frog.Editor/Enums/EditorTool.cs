@@ -7,7 +7,7 @@ namespace Frog.Editor.Enums
         Cursor = 2,
         /// <summary>Remplissage 4-connexe (pot). Clic droit ou sélection vide : efface la région.</summary>
         Fill = 3,
-        /// <summary>Rectangle plein entre deux cases (clic départ, clic fin).</summary>
+        /// <summary>Rectangle ou ellipse entre deux cases. Défaut : rectangle plein. Maj ou case Contour : bord seulement.</summary>
         Rectangle = 4,
         /// <summary>Trait d'une tuile de large (Bresenham) entre deux cases. Majuscule : axe horizontal ou vertical.</summary>
         Line = 5,

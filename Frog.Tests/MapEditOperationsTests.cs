@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Frog.Application.Maps;
@@ -159,6 +160,131 @@ public sealed class MapEditOperationsTests
         var stamp = new Tile { Type = TileType.Ground };
         MapEditOperations.PaintRectangle(map, 0, 0, 0, 2, 2, stamp);
         Assert.Equal(9, map.Layers[0].Tiles.Count);
+    }
+
+    [Fact]
+    public void EnumerateShape_RectangleBounds_OutlineAndReversedCorners()
+    {
+        Assert.Equal(11, FrogWireProtocol.Version);
+        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+
+        var filled = MapEditOperations.EnumerateShape(0, 0, 3, 2);
+        Assert.Equal(12, filled.Count);
+        Assert.Contains((0, 0), filled);
+        Assert.Contains((3, 2), filled);
+        Assert.Contains((1, 1), filled);
+        Assert.Equal(
+            filled.OrderBy(c => c.Y).ThenBy(c => c.X),
+            MapEditOperations.EnumerateShape(3, 2, 0, 0).OrderBy(c => c.Y).ThenBy(c => c.X));
+
+        var outline = MapEditOperations.EnumerateShape(0, 0, 3, 2, new ShapeStampOptions { Outline = true });
+        Assert.Equal(10, outline.Count);
+        Assert.Contains((0, 0), outline);
+        Assert.Contains((3, 2), outline);
+        Assert.DoesNotContain((1, 1), outline);
+        Assert.DoesNotContain((2, 1), outline);
+        Assert.Equal(new[] { (4, 4) }, MapEditOperations.EnumerateShape(4, 4, 4, 4, new ShapeStampOptions { Outline = true }));
+    }
+
+    [Fact]
+    public void EnumerateShape_EllipseIsInsideRectangle_AndOutlineDropsInterior()
+    {
+        var box = new HashSet<(int X, int Y)>(MapEditOperations.EnumerateShape(0, 0, 4, 2));
+        var ellipse = MapEditOperations.EnumerateShape(0, 0, 4, 2, new ShapeStampOptions { Ellipse = true });
+        Assert.NotEmpty(ellipse);
+        Assert.All(ellipse, cell => Assert.Contains(cell, box));
+        Assert.Contains((2, 1), ellipse);
+        Assert.Contains((0, 1), ellipse);
+        Assert.DoesNotContain((0, 0), ellipse);
+        Assert.DoesNotContain((4, 2), ellipse);
+        Assert.True(ellipse.Count < box.Count);
+
+        var rim = MapEditOperations.EnumerateShape(0, 0, 4, 2, new ShapeStampOptions { Ellipse = true, Outline = true });
+        Assert.Contains((0, 1), rim);
+        Assert.DoesNotContain((2, 1), rim);
+        Assert.DoesNotContain((0, 0), rim);
+        Assert.All(rim, cell => Assert.Contains(cell, ellipse));
+        Assert.True(rim.Count < ellipse.Count);
+    }
+
+    [Fact]
+    public void PaintShape_ClipsToMap_OneCallback_SkipsLockedHiddenAndOtherLayers()
+    {
+        var map = CreateMap();
+        map.Layers.Add(new Layer { LayerType = LayerType.Fringe });
+        MapEditOperations.PaintTile(map, 1, 0, 0, Sheet(9));
+
+        var callbacks = 0;
+        var changed = MapEditOperations.PaintShape(
+            map,
+            0,
+            -2,
+            -2,
+            1,
+            1,
+            Sheet(4),
+            default,
+            () => callbacks++);
+        Assert.Equal(1, callbacks);
+        Assert.Equal(4, changed);
+        Assert.Equal(4, map.Layers[0].Tiles.Count);
+        Assert.DoesNotContain(map.Layers[0].Tiles, t => t.X < 0 || t.Y < 0);
+        Assert.All(map.Layers[0].Tiles, t => Assert.Equal(4, t.SrcX));
+        Assert.Equal(9, map.Layers[1].Tiles.Single().SrcX);
+
+        map.Layers[0].Locked = true;
+        Assert.Equal(0, MapEditOperations.PaintShape(map, 0, 0, 0, 2, 2, Sheet(7), default, () => callbacks++));
+        Assert.Equal(1, callbacks);
+        Assert.Equal(4, map.Layers[0].Tiles.Single(t => t.X == 0 && t.Y == 0).SrcX);
+
+        map.Layers[0].Locked = false;
+        map.Layers[0].Visible = false;
+        Assert.Equal(0, MapEditOperations.PaintShape(map, 0, 0, 0, 2, 2, Sheet(7), default, () => callbacks++));
+        Assert.Equal(1, callbacks);
+        Assert.DoesNotContain(map.Layers[0].Tiles, t => t.SrcX == 7);
+    }
+
+    [Fact]
+    public void PaintShape_OutlineAndEllipse_DoNotFillInterior_TileAssetIdKept()
+    {
+        var map = CreateMap();
+        var callbacks = 0;
+        var outline = MapEditOperations.PaintShape(
+            map,
+            0,
+            0,
+            0,
+            3,
+            2,
+            Sheet(3),
+            new ShapeStampOptions { Outline = true },
+            () => callbacks++);
+        Assert.Equal(1, callbacks);
+        Assert.Equal(10, outline);
+        Assert.Null(FindTile(map, 0, 1, 1));
+        Assert.Null(FindTile(map, 0, 2, 1));
+        Assert.Equal(3, TileAt(map, 0, 0, 0).SrcX);
+        Assert.Equal(3, TileAt(map, 0, 3, 2).SrcX);
+
+        var red = TileAssetId.FromStraightRgba(SolidRgba(255, 0, 0, 255));
+        var assets = MapFormat.CreateTileAssetMap("ellipse", 5, 3);
+        assets.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        var painted = MapEditOperations.PaintShape(
+            assets,
+            0,
+            0,
+            0,
+            4,
+            2,
+            new Tile { AssetId = red, Type = TileType.Ground },
+            new ShapeStampOptions { Ellipse = true });
+        Assert.True(painted > 0);
+        Assert.Equal(red, TileAt(assets, 0, 2, 1).AssetId);
+        Assert.Equal(0, TileAt(assets, 0, 2, 1).TilesetId);
+        Assert.Null(FindTile(assets, 0, 0, 0));
+        Assert.Equal(TileAssetMetrics.TargetTileSizePixels, assets.TileSizePixels);
+        Assert.DoesNotContain(assets.Layers[0].Tiles, t => t.X < 0 || t.Y < 0 || t.X >= assets.Width || t.Y >= assets.Height);
     }
 
     [Fact]

@@ -4,6 +4,19 @@ using Frog.Core.Models;
 namespace Frog.Application.Maps;
 
 /// <summary>
+/// Tampon rectangle ou ellipse. Défaut : rectangle plein.
+/// <see cref="Outline"/> ne peint que le bord. <see cref="Ellipse"/> inscrit l’ellipse dans le rectangle.
+/// </summary>
+public readonly record struct ShapeStampOptions
+{
+    /// <summary>Contour seulement. Faux = plein.</summary>
+    public bool Outline { get; init; }
+
+    /// <summary>Ellipse inscrite dans le rectangle tracé. Faux = rectangle.</summary>
+    public bool Ellipse { get; init; }
+}
+
+/// <summary>
 /// Options du pot de peinture. Défaut : couche active seulement, sans filtre de collision.
 /// La diffusion est 4-connexe (haut, bas, gauche, droite), jamais en diagonale.
 /// </summary>
@@ -27,6 +40,10 @@ public static class MapEditOperations
 {
     public static bool IsLayerEditable(Map map, int layerIndex)
         => layerIndex >= 0 && layerIndex < map.Layers.Count && !map.Layers[layerIndex].Locked;
+
+    /// <summary>Visible et déverrouillée. Le rectangle, l’ellipse et le pot ne peignent pas une couche masquée.</summary>
+    public static bool IsLayerPaintable(Map map, int layerIndex)
+        => IsLayerEditable(map, layerIndex) && map.Layers[layerIndex].Visible;
 
     public static void PaintTile(Map map, int layerIndex, int x, int y, Tile tile)
     {
@@ -54,25 +71,116 @@ public static class MapEditOperations
     }
 
     public static void PaintRectangle(Map map, int layerIndex, int x0, int y0, int x1, int y1, Tile stamp)
-    {
-        ArgumentNullException.ThrowIfNull(map);
-        ArgumentNullException.ThrowIfNull(stamp);
-        if (!IsLayerEditable(map, layerIndex))
-        {
-            return;
-        }
+        => PaintShape(map, layerIndex, x0, y0, x1, y1, stamp);
 
+    /// <summary>
+    /// Cases du rectangle (ou de l’ellipse inscrite), extrémités comprises.
+    /// Le contour est le bord de la forme pleine : une case pleine dont un voisin 4-connexe est dehors.
+    /// Une case seule est à la fois le plein et le contour.
+    /// </summary>
+    public static IReadOnlyList<(int X, int Y)> EnumerateShape(int x0, int y0, int x1, int y1, ShapeStampOptions options = default)
+    {
         var minX = Math.Min(x0, x1);
         var maxX = Math.Max(x0, x1);
         var minY = Math.Min(y0, y1);
         var maxY = Math.Max(y0, y1);
+        var width = maxX - minX + 1;
+        var height = maxY - minY + 1;
+        var filled = new List<(int X, int Y)>(width * height);
+        var inside = new HashSet<(int X, int Y)>();
         for (var y = minY; y <= maxY; y++)
         {
             for (var x = minX; x <= maxX; x++)
             {
-                PaintTile(map, layerIndex, x, y, stamp);
+                if (options.Ellipse && !ContainsEllipse(x, y, minX, minY, width, height))
+                {
+                    continue;
+                }
+
+                filled.Add((x, y));
+                inside.Add((x, y));
             }
         }
+
+        if (!options.Outline)
+        {
+            return filled;
+        }
+
+        var outline = new List<(int X, int Y)>(filled.Count);
+        foreach (var (x, y) in filled)
+        {
+            if (!inside.Contains((x - 1, y))
+                || !inside.Contains((x + 1, y))
+                || !inside.Contains((x, y - 1))
+                || !inside.Contains((x, y + 1)))
+            {
+                outline.Add((x, y));
+            }
+        }
+
+        return outline;
+    }
+
+    /// <summary>
+    /// Peint la forme sur une seule couche. Défaut : rectangle plein.
+    /// Couche masquée, verrouillée, ou entièrement hors carte : 0, sans mutation.
+    /// <paramref name="beforeMutate"/> est appelé une seule fois, avant toute écriture,
+    /// et seulement s’il y a au moins une case dans la carte (un pas d’annulation).
+    /// </summary>
+    public static int PaintShape(
+        Map map,
+        int layerIndex,
+        int x0,
+        int y0,
+        int x1,
+        int y1,
+        Tile stamp,
+        ShapeStampOptions options = default,
+        Action? beforeMutate = null)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(stamp);
+        if (!IsLayerPaintable(map, layerIndex))
+        {
+            return 0;
+        }
+
+        var writes = new List<(int X, int Y)>();
+        foreach (var (x, y) in EnumerateShape(x0, y0, x1, y1, options))
+        {
+            if (IsInBounds(map, x, y))
+            {
+                writes.Add((x, y));
+            }
+        }
+
+        if (writes.Count == 0)
+        {
+            return 0;
+        }
+
+        beforeMutate?.Invoke();
+        foreach (var (x, y) in writes)
+        {
+            PaintTile(map, layerIndex, x, y, stamp);
+        }
+
+        return writes.Count;
+    }
+
+    /// <summary>
+    /// Centre de la case dans l’ellipse inscrite dans le rectangle de cases.
+    /// (2·dx + 1 − w)² · h² + (2·dy + 1 − h)² · w² ≤ w² · h².
+    /// </summary>
+    private static bool ContainsEllipse(int x, int y, int minX, int minY, int width, int height)
+    {
+        long w = width;
+        long h = height;
+        long dx = (2L * (x - minX)) + 1 - w;
+        long dy = (2L * (y - minY)) + 1 - h;
+        var limit = w * w * h * h;
+        return (dx * dx * h * h) + (dy * dy * w * w) <= limit;
     }
 
     /// <summary>Trait d'une tuile de large (Bresenham), extrémités comprises. Hors carte : ignoré.</summary>
@@ -496,11 +604,7 @@ public static class MapEditOperations
     }
 
     /// <summary>Visible et déverrouillée. Le pot ne peint jamais une couche masquée ou verrouillée.</summary>
-    private static bool IsFloodPaintable(Map map, int layerIndex)
-        => layerIndex >= 0
-           && layerIndex < map.Layers.Count
-           && map.Layers[layerIndex].Visible
-           && !map.Layers[layerIndex].Locked;
+    private static bool IsFloodPaintable(Map map, int layerIndex) => IsLayerPaintable(map, layerIndex);
 
     private static List<int> ResolveFloodTargets(Map map, int activeLayer, bool visibleUnlockedLayers)
     {

@@ -92,6 +92,17 @@ public sealed class EditorToolHotkeysTests
         Assert.Contains("collisions", EditorToolHotkeys.FormatFillStatus(false, true), StringComparison.Ordinal);
         Assert.Equal("Remplissage", EditorToolHotkeys.DisplayName(EditorTool.Fill));
         Assert.Contains("Rectangle (R)", EditorToolHotkeys.StatusHint(EditorTool.Rectangle), StringComparison.Ordinal);
+        Assert.Contains("plein", EditorToolHotkeys.StatusHint(EditorTool.Rectangle), StringComparison.Ordinal);
+        Assert.Contains("Contour", EditorToolHotkeys.StatusHint(EditorTool.Rectangle), StringComparison.Ordinal);
+        Assert.Contains("Ellipse", EditorToolHotkeys.StatusHint(EditorTool.Rectangle), StringComparison.Ordinal);
+        Assert.Contains("Maj = contour", EditorToolHotkeys.PaletteHint, StringComparison.Ordinal);
+        Assert.Contains("contour", EditorToolHotkeys.FormatRectangleGesture(0, 0, 3, 2, outline: true), StringComparison.Ordinal);
+        Assert.Contains("ellipse", EditorToolHotkeys.FormatRectangleGesture(0, 0, 4, 2, ellipse: true), StringComparison.Ordinal);
+        Assert.Contains("plein", EditorToolHotkeys.FormatRectangleStatus(false, false), StringComparison.Ordinal);
+        Assert.False(EditorToolHotkeys.TryResolve(Keys.Shift | Keys.R, out _));
+        Assert.True(EditorToolHotkeys.TryResolveWpf(Key.R, ModifierKeys.None, out var rectangleTool));
+        Assert.Equal(EditorTool.Rectangle, rectangleTool);
+        Assert.False(EditorToolHotkeys.TryResolveWpf(Key.R, ModifierKeys.Shift, out _));
         var gesture = EditorToolHotkeys.FormatLineGesture(0, 0, 4, 2, 5, axisLocked: false);
         Assert.Contains("(0, 0) → (4, 2)", gesture, StringComparison.Ordinal);
         Assert.Contains("5 cases", gesture, StringComparison.Ordinal);

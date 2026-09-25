@@ -217,7 +217,7 @@
                     Tag="Rectangle"
                     Margin="2"
                     Padding="8,5"
-                    ToolTip="Rectangle (R) — clic, glisser, relâcher"
+                    ToolTip="Rectangle (R) — plein par défaut. Maj ou case Contour : bord seulement. Case Ellipse : ellipse inscrite. Couche active visible et déverrouillée."
                     Click="OnDrawToolClick" />
             <Button x:Name="BtnToolLine"
                     Content="Ligne"
@@ -255,6 +255,28 @@
                       ToolTip="N’écrase pas une case dont le blocage, le warp, la ressource, le script ou la tuile de la couche Attributs diffère de la case cliquée."
                       Checked="OnFillOptionChanged"
                       Unchecked="OnFillOptionChanged" />
+        </StackPanel>
+        <StackPanel x:Name="RectangleOptionsPanel" Visibility="Collapsed" Margin="8,0,2,8">
+            <CheckBox x:Name="ChkRectangleOutline"
+                      Content="Contour seulement"
+                      Foreground="#FFEBEEF5"
+                      FontFamily="Segoe UI"
+                      FontSize="12"
+                      Margin="0,2,0,4"
+                      IsChecked="False"
+                      ToolTip="Défaut : rectangle plein. Cochez, ou maintenez Maj pendant le tracé, pour ne peindre que le bord. La couche active doit être visible et déverrouillée."
+                      Checked="OnRectangleOptionChanged"
+                      Unchecked="OnRectangleOptionChanged" />
+            <CheckBox x:Name="ChkRectangleEllipse"
+                      Content="Ellipse"
+                      Foreground="#FFEBEEF5"
+                      FontFamily="Segoe UI"
+                      FontSize="12"
+                      Margin="0,0,0,2"
+                      IsChecked="False"
+                      ToolTip="Ellipse inscrite dans le rectangle tracé. Décochez pour un rectangle. Le contour s’applique aussi à l’ellipse."
+                      Checked="OnRectangleOptionChanged"
+                      Unchecked="OnRectangleOptionChanged" />
         </StackPanel>
         <TextBlock Text="{x:Static enums:EditorToolHotkeys.PaletteHint}"
                    TextWrapping="Wrap"

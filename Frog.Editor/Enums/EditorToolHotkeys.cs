@@ -118,7 +118,7 @@ public static class EditorToolHotkeys
     }
 
     public const string PaletteHint =
-        "B pinceau · E gomme · C curseur · F remplissage · R rectangle · L ligne (Maj = axe) · M sélection · D départ · P prefab · I pipette";
+        "B pinceau · E gomme · C curseur · F remplissage · R rectangle (Maj = contour) · L ligne (Maj = axe) · M sélection · D départ · P prefab · I pipette";
 
     /// <summary>Phrase d'aide affichée dans la barre d'état et le panneau d'outils.</summary>
     public static string StatusHint(EditorTool tool) =>
@@ -128,7 +128,7 @@ public static class EditorToolHotkeys
             EditorTool.Eraser => "Gomme (E) · clic ou glisser pour effacer",
             EditorTool.Cursor => "Curseur (C) · clic pour inspecter la tuile",
             EditorTool.Fill => FormatFillStatus(visibleUnlockedLayers: false, respectAttributes: false),
-            EditorTool.Rectangle => "Rectangle (R) · cliquez un coin, glissez, relâchez pour peindre",
+            EditorTool.Rectangle => FormatRectangleStatus(outline: false, ellipse: false),
             EditorTool.Line => "Ligne (L) · cliquez le départ, glissez, relâchez · Maj = axe",
             EditorTool.Selection => "Sélection (M) · tracez un rectangle · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr",
             EditorTool.Spawn => "Départ (D) · clic pour poser le spawn playtest",
@@ -158,12 +158,25 @@ public static class EditorToolHotkeys
         return $"Ligne (L) · ({x0}, {y0}) → ({x1}, {y1}) · {count} {noun} · relâchez pour peindre · {axis}";
     }
 
-    /// <summary>Mesure du rectangle en cours (barre d'état).</summary>
-    public static string FormatRectangleGesture(int x0, int y0, int x1, int y1)
+    /// <summary>
+    /// Barre d'état du rectangle. Défaut : rectangle plein sur la couche active.
+    /// Maj pendant le tracé, ou la case Contour, ne peint que le bord. La case Ellipse inscrit l'ellipse.
+    /// </summary>
+    public static string FormatRectangleStatus(bool outline, bool ellipse)
+    {
+        var shape = ellipse ? "ellipse" : "rectangle";
+        var mode = outline ? "contour" : "plein";
+        return $"Rectangle (R) · {shape} {mode} · clic, glisser, relâcher · Maj ou case Contour = contour · case Ellipse · couche active";
+    }
+
+    /// <summary>Mesure du rectangle ou de l'ellipse en cours (barre d'état).</summary>
+    public static string FormatRectangleGesture(int x0, int y0, int x1, int y1, bool outline = false, bool ellipse = false)
     {
         var w = Math.Abs(x1 - x0) + 1;
         var h = Math.Abs(y1 - y0) + 1;
-        return $"Rectangle (R) · ({x0}, {y0}) → ({x1}, {y1}) · {w}×{h} · relâchez pour peindre";
+        var shape = ellipse ? "ellipse" : "rectangle";
+        var mode = outline ? "contour" : "plein";
+        return $"Rectangle (R) · {shape} {mode} · ({x0}, {y0}) → ({x1}, {y1}) · {w}×{h} · relâchez pour peindre";
     }
 
     /// <summary>Rectangle de sélection en cours de tracé (barre d'état).</summary>

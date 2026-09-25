@@ -31,6 +31,8 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     public event Action<EditorTool>? ToolChanged;
     public event Action<bool>? FillVisibleUnlockedLayersChanged;
     public event Action<bool>? FillRespectAttributesChanged;
+    public event Action<bool>? RectangleOutlineChanged;
+    public event Action<bool>? RectangleEllipseChanged;
     public event Action<TileType>? TileTypeChanged;
     public event Action<string, PrefabFacing>? PrefabSelectionChanged;
     public event Action? PipetteRequested;
@@ -677,6 +679,27 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
         }
+
+        if (RectangleOptionsPanel is not null)
+        {
+            RectangleOptionsPanel.Visibility = tool == EditorTool.Rectangle
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
+        }
+    }
+
+    private void OnRectangleOptionChanged(object sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, ChkRectangleOutline))
+        {
+            RectangleOutlineChanged?.Invoke(ChkRectangleOutline.IsChecked == true);
+            return;
+        }
+
+        if (ReferenceEquals(sender, ChkRectangleEllipse))
+        {
+            RectangleEllipseChanged?.Invoke(ChkRectangleEllipse.IsChecked == true);
+        }
     }
 
     private void OnFillOptionChanged(object sender, RoutedEventArgs e)
@@ -707,6 +730,22 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     {
         get => ChkFillRespectAttrs.IsChecked == true;
         set => ChkFillRespectAttrs.IsChecked = value;
+    }
+
+    internal string RectangleButtonTextForTest => BtnToolRectangle.Content as string ?? string.Empty;
+
+    internal bool RectangleOptionsVisibleForTest => RectangleOptionsPanel.Visibility == System.Windows.Visibility.Visible;
+
+    internal bool RectangleOutlineForTest
+    {
+        get => ChkRectangleOutline.IsChecked == true;
+        set => ChkRectangleOutline.IsChecked = value;
+    }
+
+    internal bool RectangleEllipseForTest
+    {
+        get => ChkRectangleEllipse.IsChecked == true;
+        set => ChkRectangleEllipse.IsChecked = value;
     }
 
     private static void StyleDrawChip(System.Windows.Controls.Button? button, bool active)
