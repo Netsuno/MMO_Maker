@@ -107,9 +107,11 @@ public sealed class PostgresGroundItemRepository : IGroundItemRepository
 
             db.PlayerGroundItems.Add(entity);
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
-            return new GroundItemMutationResult(
-                GroundItemMutationStatus.Ok,
-                PlayerEntityMapper.ToGroundItemRecord(entity));
+            var record = PlayerEntityMapper.ToGroundItemRecord(entity);
+            // The shared context must not keep TakenAtUtc null after the INSERT.
+            // A later raw UPDATE would otherwise be hidden by this tracked instance.
+            db.ChangeTracker.Clear();
+            return new GroundItemMutationResult(GroundItemMutationStatus.Ok, record);
         }, cancellationToken);
 
     public Task<GroundItemMutationResult> TryPickupAsync(
@@ -122,11 +124,17 @@ public sealed class PostgresGroundItemRepository : IGroundItemRepository
         => _gate.ExecuteAsync(async (db, ct) =>
         {
             _ = pickerCharacterId;
+            // One shared DbContext: a row tracked by DropAsync still has TakenAtUtc null
+            // after a raw UPDATE. Clear before the claim and before any read so the loser
+            // observes the committed taken_at_utc and returns AlreadyTaken.
+            db.ChangeTracker.Clear();
+
             var rangeSq = (long)rangePixels * rangePixels;
             var now = _clock.GetUtcNow();
             var cutoff = GroundLootLifetime.Cutoff(now);
 
-            // Atomic claim: exactly one concurrent UPDATE wins when taken_at_utc IS NULL.
+            await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+            // Atomic claim: exactly one concurrent UPDATE wins while the row is still present.
             var claimed = await db.Database.ExecuteSqlInterpolatedAsync(
                     $"""
                     UPDATE player.ground_items AS g
@@ -141,6 +149,8 @@ public sealed class PostgresGroundItemRepository : IGroundItemRepository
                     """,
                     ct)
                 .ConfigureAwait(false);
+            await transaction.CommitAsync(ct).ConfigureAwait(false);
+            db.ChangeTracker.Clear();
 
             if (claimed == 1)
             {
@@ -154,6 +164,7 @@ public sealed class PostgresGroundItemRepository : IGroundItemRepository
             }
 
             var existing = await db.PlayerGroundItems
+                .AsNoTracking()
                 .FirstOrDefaultAsync(i => i.Id == groundItemId, ct)
                 .ConfigureAwait(false);
             if (existing is null)
@@ -168,8 +179,14 @@ public sealed class PostgresGroundItemRepository : IGroundItemRepository
 
             if (GroundLootLifetime.IsExpired(existing.CreatedAtUtc, now))
             {
-                existing.TakenAtUtc = now;
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                        $"""
+                        UPDATE player.ground_items
+                        SET taken_at_utc = {now}
+                        WHERE id = {groundItemId} AND taken_at_utc IS NULL
+                        """,
+                        ct)
+                    .ConfigureAwait(false);
                 return new GroundItemMutationResult(GroundItemMutationStatus.NotFound);
             }
 

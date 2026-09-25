@@ -162,67 +162,6 @@ public sealed partial class PacketDispatcher
 
         var mapId = dropped[0].MapId;
         await _groundNotifier.BroadcastAsync(mapId, cancellationToken).ConfigureAwait(false);
-        if (await PickupDeathLootUnderfootAsync(mapId, dropped, cancellationToken).ConfigureAwait(false))
-        {
-            await _groundNotifier.BroadcastAsync(mapId, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private async Task<bool> PickupDeathLootUnderfootAsync(
-        int mapId,
-        IReadOnlyList<GroundItemRecord> dropped,
-        CancellationToken cancellationToken)
-    {
-        var tiles = new HashSet<(int X, int Y)>();
-        foreach (var item in dropped)
-        {
-            tiles.Add(GroundLootPlacement.PixelToTile(item.PixelX, item.PixelY));
-        }
-
-        var pickedAny = false;
-        foreach (var session in _connectionManager.GetActiveSessions())
-        {
-            if (session.CurrentMapId != mapId || session.IsDead || !session.HasActiveCharacter())
-            {
-                continue;
-            }
-
-            if (!tiles.Contains(GroundLootPlacement.PixelToTile(session.PixelX, session.PixelY)))
-            {
-                continue;
-            }
-
-            if (!_clientRegistry.TryGet(session.Id, out var client) || client is null)
-            {
-                continue;
-            }
-
-            var picks = await _groundLoot.PickupOnCurrentTileAsync(session, cancellationToken).ConfigureAwait(false);
-            if (!picks.Any(pick => pick.Success))
-            {
-                continue;
-            }
-
-            pickedAny = true;
-            await PushSuccessfulPickupsAsync(client, session, picks, cancellationToken).ConfigureAwait(false);
-        }
-
-        return pickedAny;
-    }
-
-    private async Task TryPickupGroundOnStepAsync(
-        ClientSession clientSession,
-        Session session,
-        CancellationToken cancellationToken)
-    {
-        var picks = await _groundLoot.PickupOnCurrentTileAsync(session, cancellationToken).ConfigureAwait(false);
-        if (!picks.Any(pick => pick.Success))
-        {
-            return;
-        }
-
-        await PushSuccessfulPickupsAsync(clientSession, session, picks, cancellationToken).ConfigureAwait(false);
-        await _groundNotifier.BroadcastAsync(session.CurrentMapId, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task PushSuccessfulPickupsAsync(

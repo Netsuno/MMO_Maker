@@ -304,6 +304,7 @@ public sealed class MainShellForm : Form
     private readonly ListBox _lstGround = new() { Dock = DockStyle.Fill, IntegralHeight = false, Height = 70 };
     private readonly Button _btnPickup = new() { Text = "Ramasser", AutoSize = true, Enabled = false };
     private GroundItemsSnapshotWire? _groundSnapshot;
+    private readonly HashSet<Guid> _walkOnPickupSent = new();
     private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _heartbeatTimer = new() { Interval = 45_000 };
@@ -1924,6 +1925,60 @@ public sealed class MainShellForm : Form
         {
             RedrawMap();
         }
+
+        TryRequestWalkOnPickup();
+    }
+
+    /// <summary>
+    /// Graal-style walk-on: the client asks to pick up stacks on the local tile.
+    /// The server still validates range and inventory. Headless tests send PickupItemRequest themselves.
+    /// </summary>
+    private void TryRequestWalkOnPickup()
+    {
+        if (_client is null || !_client.IsConnected || _groundSnapshot is null)
+        {
+            return;
+        }
+
+        if (_sessionDisplayedMapId != 0 && _groundSnapshot.MapId != _sessionDisplayedMapId)
+        {
+            return;
+        }
+
+        var tile = GroundLootPlacement.PixelToTile(_srvPixelX, _srvPixelY);
+        foreach (var item in _groundSnapshot.Items)
+        {
+            if (GroundLootPlacement.PixelToTile(item.PixelX, item.PixelY) != tile)
+            {
+                continue;
+            }
+
+            if (!_walkOnPickupSent.Add(item.GroundItemId))
+            {
+                continue;
+            }
+
+            var groundItemId = item.GroundItemId;
+            _ = SendWalkOnPickupAsync(groundItemId);
+        }
+    }
+
+    private async Task SendWalkOnPickupAsync(Guid groundItemId)
+    {
+        if (_client is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _client.SendPickupItemAsync(groundItemId).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _walkOnPickupSent.Remove(groundItemId);
+            AppendLog("Ramasser: " + ex.Message);
+        }
     }
 
     private void OnDialogueStatePush(DialogueStateWire state)
@@ -2449,6 +2504,7 @@ public sealed class MainShellForm : Form
         _lstBank.Items.Clear();
         _lstGround.Items.Clear();
         _groundSnapshot = null;
+        _walkOnPickupSent.Clear();
         _craftPanel.ClearRecipes();
         // Keep ItemNameLookup wired to ResolveItemName (handles null catalog).
     }
@@ -3095,6 +3151,8 @@ public sealed class MainShellForm : Form
                 _srvPixelY = (int)MathF.Round(sy);
                 _movementMeasure.NoteLocalCorrection();
             }
+
+            TryRequestWalkOnPickup();
         }
         else
         {

@@ -1203,7 +1203,6 @@ public sealed partial class PacketDispatcher(
             await _phase8.NotifyVisitProgressAndPushJournalAsync(clientSession, session, cancellationToken)
                 .ConfigureAwait(false);
 
-            await TryPickupGroundOnStepAsync(clientSession, session, cancellationToken);
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
         }
     }
@@ -1295,7 +1294,6 @@ public sealed partial class PacketDispatcher(
             await _phase8.NotifyVisitProgressAndPushJournalAsync(clientSession, session, cancellationToken)
                 .ConfigureAwait(false);
 
-            await TryPickupGroundOnStepAsync(clientSession, session, cancellationToken);
             await TryFireStepOnMapEventsAsync(clientSession, session, cancellationToken);
 
             if (cellAfter.CurrentMapId == cellBefore.CurrentMapId)
