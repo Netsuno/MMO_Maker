@@ -61,10 +61,28 @@
     <EmbeddedResource Include="Assets\World\player-walk-armor.png" />
     <EmbeddedResource Include="Assets\World\player-walk-hat.png" />
     <EmbeddedResource Include="Assets\World\player-walk-weapon.png" />
+    <EmbeddedResource Include="Assets\World\player-attack.png" />
+    <EmbeddedResource Include="Assets\World\player-attack-body.png" />
+    <EmbeddedResource Include="Assets\World\player-attack-head.png" />
+    <EmbeddedResource Include="Assets\World\player-attack-tunic.png" />
+    <EmbeddedResource Include="Assets\World\player-attack-armor.png" />
+    <EmbeddedResource Include="Assets\World\player-attack-hat.png" />
+    <EmbeddedResource Include="Assets\World\player-attack-weapon.png" />
+    <EmbeddedResource Include="Assets\World\player-death.png" />
+    <EmbeddedResource Include="Assets\World\player-death-body.png" />
+    <EmbeddedResource Include="Assets\World\player-death-head.png" />
+    <EmbeddedResource Include="Assets\World\player-death-tunic.png" />
+    <EmbeddedResource Include="Assets\World\player-death-armor.png" />
+    <EmbeddedResource Include="Assets\World\player-death-hat.png" />
+    <EmbeddedResource Include="Assets\World\player-death-weapon.png" />
     <EmbeddedResource Include="Assets\World\npc.png" />
     <EmbeddedResource Include="Assets\World\npc-walk.png" />
+    <EmbeddedResource Include="Assets\World\npc-attack.png" />
+    <EmbeddedResource Include="Assets\World\npc-death.png" />
     <EmbeddedResource Include="Assets\World\monster.png" />
     <EmbeddedResource Include="Assets\World\monster-walk.png" />
+    <EmbeddedResource Include="Assets\World\monster-attack.png" />
+    <EmbeddedResource Include="Assets\World\monster-death.png" />
   </ItemGroup>
 
 </Project>

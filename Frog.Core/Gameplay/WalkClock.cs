@@ -65,11 +65,18 @@ public enum WorldEntityKind : byte
 }
 
 /// <summary>NPC / monster pose passed into <c>MapViewRenderer</c>. Same sheet math as <see cref="PlayerSpritePose"/>.</summary>
-public readonly record struct WorldSpritePose(Direction Facing, bool Walking, int ElapsedMs = 0)
+public readonly record struct WorldSpritePose(
+    Direction Facing,
+    bool Walking,
+    int ElapsedMs = 0,
+    SpriteAction Action = SpriteAction.Walk,
+    int ActionElapsedMs = 0)
 {
     public static WorldSpritePose IdleDown { get; } = new(Direction.Down, false);
 
-    public int SheetColumn => WalkClock.Column(Walking, ElapsedMs);
+    public int SheetColumn => Action == SpriteAction.Walk
+        ? WalkClock.Column(Walking, ElapsedMs)
+        : ActionClock.Column(Action, ActionElapsedMs);
 
     public int SheetRow => WalkClock.Row(Facing);
 }

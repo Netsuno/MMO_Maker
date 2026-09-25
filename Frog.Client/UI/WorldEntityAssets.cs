@@ -15,8 +15,12 @@ internal static class WorldEntityAssets
 {
     public const string NpcRelativePath = "Assets/World/npc.png";
     public const string NpcWalkRelativePath = "Assets/World/npc-walk.png";
+    public const string NpcAttackRelativePath = "Assets/World/npc-attack.png";
+    public const string NpcDeathRelativePath = "Assets/World/npc-death.png";
     public const string MonsterRelativePath = "Assets/World/monster.png";
     public const string MonsterWalkRelativePath = "Assets/World/monster-walk.png";
+    public const string MonsterAttackRelativePath = "Assets/World/monster-attack.png";
+    public const string MonsterDeathRelativePath = "Assets/World/monster-death.png";
     public const int NativeSize = 32;
     public const int DrawScale = 1;
     public const int WalkSheetWidth = WalkClock.SheetColumns * NativeSize;
@@ -24,13 +28,21 @@ internal static class WorldEntityAssets
 
     private const string EmbeddedNpcName = "Frog.Client.Assets.World.npc.png";
     private const string EmbeddedNpcWalkName = "Frog.Client.Assets.World.npc-walk.png";
+    private const string EmbeddedNpcAttackName = "Frog.Client.Assets.World.npc-attack.png";
+    private const string EmbeddedNpcDeathName = "Frog.Client.Assets.World.npc-death.png";
     private const string EmbeddedMonsterName = "Frog.Client.Assets.World.monster.png";
     private const string EmbeddedMonsterWalkName = "Frog.Client.Assets.World.monster-walk.png";
+    private const string EmbeddedMonsterAttackName = "Frog.Client.Assets.World.monster-attack.png";
+    private const string EmbeddedMonsterDeathName = "Frog.Client.Assets.World.monster-death.png";
 
     private static readonly object Gate = new();
     private static bool _resolved;
-    private static Bitmap?[,] _npcFrames = new Bitmap?[WalkClock.SheetRows, WalkClock.SheetColumns];
-    private static Bitmap?[,] _monsterFrames = new Bitmap?[WalkClock.SheetRows, WalkClock.SheetColumns];
+    private static readonly Bitmap?[,] _npcFrames = new Bitmap?[WalkClock.SheetRows, WalkClock.SheetColumns];
+    private static readonly Bitmap?[,] _npcAttackFrames = new Bitmap?[WalkClock.SheetRows, WalkClock.SheetColumns];
+    private static readonly Bitmap?[,] _npcDeathFrames = new Bitmap?[WalkClock.SheetRows, WalkClock.SheetColumns];
+    private static readonly Bitmap?[,] _monsterFrames = new Bitmap?[WalkClock.SheetRows, WalkClock.SheetColumns];
+    private static readonly Bitmap?[,] _monsterAttackFrames = new Bitmap?[WalkClock.SheetRows, WalkClock.SheetColumns];
+    private static readonly Bitmap?[,] _monsterDeathFrames = new Bitmap?[WalkClock.SheetRows, WalkClock.SheetColumns];
     private static Bitmap? _npcIdle;
     private static Bitmap? _monsterIdle;
 
@@ -39,11 +51,17 @@ internal static class WorldEntityAssets
     internal static Bitmap FrameFor(WorldEntityKind kind, WorldSpritePose pose)
     {
         EnsureLoaded();
-        var frames = kind == WorldEntityKind.Monster ? _monsterFrames : _npcFrames;
+        var walk = kind == WorldEntityKind.Monster ? _monsterFrames : _npcFrames;
+        var actionFrames = pose.Action switch
+        {
+            SpriteAction.Attack => kind == WorldEntityKind.Monster ? _monsterAttackFrames : _npcAttackFrames,
+            SpriteAction.Death => kind == WorldEntityKind.Monster ? _monsterDeathFrames : _npcDeathFrames,
+            _ => walk,
+        };
         var fallback = kind == WorldEntityKind.Monster ? _monsterIdle : _npcIdle;
         var row = pose.SheetRow;
         var col = pose.SheetColumn;
-        return frames[row, col] ?? fallback!;
+        return actionFrames[row, col] ?? walk[row, col] ?? fallback!;
     }
 
     /// <summary>Feet / bottom-center of the sprite on <paramref name="centerXPx"/>, <paramref name="centerYPx"/>.</summary>
@@ -113,6 +131,10 @@ internal static class WorldEntityAssets
                 _monsterFrames,
                 CreateMonsterFallback,
                 out _monsterIdle);
+            LoadActionSheet(NpcAttackRelativePath, EmbeddedNpcAttackName, _npcAttackFrames);
+            LoadActionSheet(NpcDeathRelativePath, EmbeddedNpcDeathName, _npcDeathFrames);
+            LoadActionSheet(MonsterAttackRelativePath, EmbeddedMonsterAttackName, _monsterAttackFrames);
+            LoadActionSheet(MonsterDeathRelativePath, EmbeddedMonsterDeathName, _monsterDeathFrames);
             _resolved = true;
         }
     }
@@ -151,6 +173,23 @@ internal static class WorldEntityAssets
         }
 
         idle = single;
+    }
+
+    private static void LoadActionSheet(string relativePath, string embeddedName, Bitmap?[,] frames)
+    {
+        using var sheet = TryLoadNamedPng(relativePath, embeddedName, WalkSheetWidth, WalkSheetHeight);
+        if (sheet is null)
+        {
+            return;
+        }
+
+        for (var row = 0; row < WalkClock.SheetRows; row++)
+        {
+            for (var col = 0; col < WalkClock.SheetColumns; col++)
+            {
+                frames[row, col] = CropCell(sheet, col * NativeSize, row * NativeSize);
+            }
+        }
     }
 
     private static Bitmap CropCell(Bitmap sheet, int srcX, int srcY)

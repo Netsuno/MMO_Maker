@@ -170,6 +170,39 @@ public sealed class MapViewRendererSmokeTests
     }
 
     [Fact]
+    public void AttackAndDeathPose_FourDirsStayThirtyTwo_NotGold()
+    {
+        var idle = PlayerWorldAssets.FrameFor(PlayerSpritePose.IdleDown);
+        var attack = PlayerWorldAssets.FrameFor(
+            new PlayerSpritePose(Direction.Right, Walking: false, Action: SpriteAction.Attack, ActionElapsedMs: 90));
+        var death = PlayerWorldAssets.FrameFor(
+            new PlayerSpritePose(Direction.Down, Walking: false, Action: SpriteAction.Death, ActionElapsedMs: 280));
+        Assert.Equal(32, attack.Width);
+        Assert.Equal(32, attack.Height);
+        Assert.Equal(32, death.Width);
+        Assert.Equal(32, death.Height);
+        Assert.True(FramesDiffer(idle, attack), "attack frame must differ from south idle");
+        Assert.True(FramesDiffer(idle, death), "death frame must differ from south idle");
+        Assert.True(FramesDiffer(attack, death), "attack and death must not share a cell");
+        var strike = attack.GetPixel(16, 16);
+        Assert.NotEqual(Color.FromArgb(240, 200, 60).ToArgb(), strike.ToArgb());
+
+        var npcIdle = WorldEntityAssets.FrameFor(WorldEntityKind.Npc, WorldSpritePose.IdleDown);
+        var npcDeath = WorldEntityAssets.FrameFor(
+            WorldEntityKind.Npc,
+            new WorldSpritePose(Direction.Left, Walking: false, Action: SpriteAction.Death, ActionElapsedMs: 0));
+        var monsterIdle = WorldEntityAssets.FrameFor(WorldEntityKind.Monster, WorldSpritePose.IdleDown);
+        var monsterAttack = WorldEntityAssets.FrameFor(
+            WorldEntityKind.Monster,
+            new WorldSpritePose(Direction.Up, Walking: false, Action: SpriteAction.Attack, ActionElapsedMs: 0));
+        Assert.Equal(32, npcDeath.Width);
+        Assert.Equal(32, monsterAttack.Height);
+        Assert.True(FramesDiffer(npcIdle, npcDeath), "NPC death frame must differ from south idle");
+        Assert.True(FramesDiffer(monsterIdle, monsterAttack), "monster attack frame must differ from south idle");
+        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+    }
+
+    [Fact]
     public void NpcAndMonsterWalkPose_DrawFeetAnchored_StayThirtyTwoAndNotGold()
     {
         Assert.Equal(96, WorldEntityAssets.WalkSheetWidth);
