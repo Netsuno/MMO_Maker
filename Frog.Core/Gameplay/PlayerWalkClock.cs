@@ -23,12 +23,22 @@ public static class PlayerWalkClock
         => WalkClock.FacingFromVector(vx, vy, fallback);
 }
 
-/// <summary>World-sprite pose passed into <c>MapViewRenderer</c>. Default = south idle.</summary>
-public readonly record struct PlayerSpritePose(Direction Facing, bool Walking, int ElapsedMs = 0)
+/// <summary>
+/// World-sprite pose passed into <c>MapViewRenderer</c>. Default = south idle.
+/// <see cref="Action"/> selects the walk, attack, or death sheet; the row stays the facing.
+/// </summary>
+public readonly record struct PlayerSpritePose(
+    Direction Facing,
+    bool Walking,
+    int ElapsedMs = 0,
+    SpriteAction Action = SpriteAction.Walk,
+    int ActionElapsedMs = 0)
 {
     public static PlayerSpritePose IdleDown { get; } = new(Direction.Down, false);
 
-    public int SheetColumn => PlayerWalkClock.Column(Walking, ElapsedMs);
+    public int SheetColumn => Action == SpriteAction.Walk
+        ? PlayerWalkClock.Column(Walking, ElapsedMs)
+        : ActionClock.Column(Action, ActionElapsedMs);
 
     public int SheetRow => PlayerWalkClock.Row(Facing);
 }

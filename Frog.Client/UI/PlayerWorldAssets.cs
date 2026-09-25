@@ -9,7 +9,7 @@ namespace Frog.Client.UI;
 
 /// <summary>
 /// Eldiran CC0 32×32 top-down player (blue knight) plus original paperdoll overlays.
-/// Idle + 4-dir walk composite each cell in <see cref="CompositeDrawOrder"/>:
+/// Idle + 4-dir walk, attack, and death composite each cell in <see cref="CompositeDrawOrder"/>:
 /// body → tunic → armor → head → hat → weapon.
 /// Combined <c>player.png</c> is south idle for fallback. Never Graal sheets.
 /// Hat / weapon stay on that order for every walk frame (the up-facing blade
@@ -31,6 +31,18 @@ internal static class PlayerWorldAssets
     public const string WalkArmorRelativePath = "Assets/World/player-walk-armor.png";
     public const string WalkHatRelativePath = "Assets/World/player-walk-hat.png";
     public const string WalkWeaponRelativePath = "Assets/World/player-walk-weapon.png";
+    public const string AttackBodyRelativePath = "Assets/World/player-attack-body.png";
+    public const string AttackHeadRelativePath = "Assets/World/player-attack-head.png";
+    public const string AttackTunicRelativePath = "Assets/World/player-attack-tunic.png";
+    public const string AttackArmorRelativePath = "Assets/World/player-attack-armor.png";
+    public const string AttackHatRelativePath = "Assets/World/player-attack-hat.png";
+    public const string AttackWeaponRelativePath = "Assets/World/player-attack-weapon.png";
+    public const string DeathBodyRelativePath = "Assets/World/player-death-body.png";
+    public const string DeathHeadRelativePath = "Assets/World/player-death-head.png";
+    public const string DeathTunicRelativePath = "Assets/World/player-death-tunic.png";
+    public const string DeathArmorRelativePath = "Assets/World/player-death-armor.png";
+    public const string DeathHatRelativePath = "Assets/World/player-death-hat.png";
+    public const string DeathWeaponRelativePath = "Assets/World/player-death-weapon.png";
     public const int NativeSize = 32;
     public const int DrawScale = 1;
     public const int HeadRows = 14;
@@ -61,20 +73,25 @@ internal static class PlayerWorldAssets
     private const string EmbeddedWalkArmorName = "Frog.Client.Assets.World.player-walk-armor.png";
     private const string EmbeddedWalkHatName = "Frog.Client.Assets.World.player-walk-hat.png";
     private const string EmbeddedWalkWeaponName = "Frog.Client.Assets.World.player-walk-weapon.png";
+    private const string EmbeddedAttackBodyName = "Frog.Client.Assets.World.player-attack-body.png";
+    private const string EmbeddedAttackHeadName = "Frog.Client.Assets.World.player-attack-head.png";
+    private const string EmbeddedAttackTunicName = "Frog.Client.Assets.World.player-attack-tunic.png";
+    private const string EmbeddedAttackArmorName = "Frog.Client.Assets.World.player-attack-armor.png";
+    private const string EmbeddedAttackHatName = "Frog.Client.Assets.World.player-attack-hat.png";
+    private const string EmbeddedAttackWeaponName = "Frog.Client.Assets.World.player-attack-weapon.png";
+    private const string EmbeddedDeathBodyName = "Frog.Client.Assets.World.player-death-body.png";
+    private const string EmbeddedDeathHeadName = "Frog.Client.Assets.World.player-death-head.png";
+    private const string EmbeddedDeathTunicName = "Frog.Client.Assets.World.player-death-tunic.png";
+    private const string EmbeddedDeathArmorName = "Frog.Client.Assets.World.player-death-armor.png";
+    private const string EmbeddedDeathHatName = "Frog.Client.Assets.World.player-death-hat.png";
+    private const string EmbeddedDeathWeaponName = "Frog.Client.Assets.World.player-death-weapon.png";
 
     private static readonly object Gate = new();
     private static Bitmap? _sprite;
-    private static Bitmap?[,] _frames = new Bitmap?[PlayerWalkClock.SheetRows, PlayerWalkClock.SheetColumns];
-    private static Bitmap?[,,]? _overlayFrames;
-    private static Bitmap? _bodySheet;
-    private static Bitmap? _headSheet;
-    private static Bitmap? _tunicSheet;
-    private static Bitmap? _armorSheet;
-    private static Bitmap? _hatSheet;
-    private static Bitmap? _weaponSheet;
+    private static readonly PoseSheets _walk = new();
+    private static readonly PoseSheets _attack = new();
+    private static readonly PoseSheets _death = new();
     private static Bitmap?[]? _layerIcons;
-    private static readonly Dictionary<(PlayerSpriteSlot Slot, byte Index), Bitmap> _styledSheets = new();
-    private static readonly Dictionary<long, Bitmap> _styledFrames = new();
     private static bool _resolved;
     private static string? _resolvedPath;
 
@@ -139,30 +156,31 @@ internal static class PlayerWorldAssets
     {
         EnsureLoaded();
         look = look.Normalized();
+        var sheets = ResolveSheets(pose.Action);
         var row = pose.SheetRow;
         var col = pose.SheetColumn;
         if (NeedsPalette(appearance, look))
         {
-            return StyledFrame(col, row, appearance, look);
+            return StyledFrame(sheets, col, row, appearance, look);
         }
 
         if (appearance.Equals(default(PaperdollOverlaySet)))
         {
-            return _frames[row, col] ?? _sprite!;
+            return sheets.Frames[row, col] ?? _sprite!;
         }
 
         lock (Gate)
         {
-            _overlayFrames ??= new Bitmap?[16, PlayerWalkClock.SheetRows, PlayerWalkClock.SheetColumns];
+            sheets.OverlayFrames ??= new Bitmap?[16, PlayerWalkClock.SheetRows, PlayerWalkClock.SheetColumns];
             var index = OverlayIndex(appearance);
-            var cached = _overlayFrames[index, row, col];
+            var cached = sheets.OverlayFrames[index, row, col];
             if (cached is not null)
             {
                 return cached;
             }
 
-            cached = RenderCell(col, row, appearance, CharacterLook.Default);
-            _overlayFrames[index, row, col] = cached;
+            cached = RenderCell(sheets, col, row, appearance, CharacterLook.Default);
+            sheets.OverlayFrames[index, row, col] = cached;
             return cached;
         }
     }
@@ -189,7 +207,7 @@ internal static class PlayerWorldAssets
                 return cached;
             }
 
-            cached = CropIdleSouth(SheetFor(slot));
+            cached = CropIdleSouth(SheetFor(_walk, slot));
             _layerIcons[index] = cached;
             return cached;
         }
@@ -282,35 +300,123 @@ internal static class PlayerWorldAssets
                 return;
             }
 
-            _bodySheet = LoadWalkOrIdle(WalkBodyRelativePath, EmbeddedWalkBodyName, BodyRelativePath, EmbeddedBodyName);
-            _headSheet = LoadWalkOrIdle(WalkHeadRelativePath, EmbeddedWalkHeadName, HeadRelativePath, EmbeddedHeadName);
-            _tunicSheet = LoadWalkOrIdle(WalkTunicRelativePath, EmbeddedWalkTunicName, TunicRelativePath, EmbeddedTunicName);
-            _armorSheet = LoadWalkOrIdle(WalkArmorRelativePath, EmbeddedWalkArmorName, ArmorRelativePath, EmbeddedArmorName);
-            _hatSheet = LoadWalkOrIdle(WalkHatRelativePath, EmbeddedWalkHatName, HatRelativePath, EmbeddedHatName);
-            _weaponSheet = LoadWalkOrIdle(WalkWeaponRelativePath, EmbeddedWalkWeaponName, WeaponRelativePath, EmbeddedWeaponName);
+            LoadWalkBundle();
+            LoadActionBundle(
+                _attack,
+                AttackBodyRelativePath,
+                EmbeddedAttackBodyName,
+                AttackHeadRelativePath,
+                EmbeddedAttackHeadName,
+                AttackTunicRelativePath,
+                EmbeddedAttackTunicName,
+                AttackArmorRelativePath,
+                EmbeddedAttackArmorName,
+                AttackHatRelativePath,
+                EmbeddedAttackHatName,
+                AttackWeaponRelativePath,
+                EmbeddedAttackWeaponName);
+            LoadActionBundle(
+                _death,
+                DeathBodyRelativePath,
+                EmbeddedDeathBodyName,
+                DeathHeadRelativePath,
+                EmbeddedDeathHeadName,
+                DeathTunicRelativePath,
+                EmbeddedDeathTunicName,
+                DeathArmorRelativePath,
+                EmbeddedDeathArmorName,
+                DeathHatRelativePath,
+                EmbeddedDeathHatName,
+                DeathWeaponRelativePath,
+                EmbeddedDeathWeaponName);
 
-            if (_bodySheet is { Width: WalkSheetWidth } bodySheet
-                && _headSheet is { Width: WalkSheetWidth } headSheet)
-            {
-                for (var row = 0; row < PlayerWalkClock.SheetRows; row++)
-                {
-                    for (var col = 0; col < PlayerWalkClock.SheetColumns; col++)
-                    {
-                        _frames[row, col] = ComposeCell(bodySheet, headSheet, col * NativeSize, row * NativeSize);
-                    }
-                }
-            }
-            else
-            {
-                var idle = TryComposeBodyAndHead()
-                    ?? TryLoadNamedPng(RelativePath, EmbeddedName, NativeSize, NativeSize)
-                    ?? CreateFallbackRaster();
-                FillAllFrames(idle);
-            }
-
-            _sprite = _frames[0, PlayerWalkClock.IdleColumn] ?? CreateFallbackRaster();
+            _sprite = _walk.Frames[0, PlayerWalkClock.IdleColumn] ?? CreateFallbackRaster();
             _resolved = true;
         }
+    }
+
+    private static PoseSheets ResolveSheets(SpriteAction action)
+    {
+        if (action == SpriteAction.Attack && _attack.Ready)
+        {
+            return _attack;
+        }
+
+        if (action == SpriteAction.Death && _death.Ready)
+        {
+            return _death;
+        }
+
+        return _walk;
+    }
+
+    private static void LoadWalkBundle()
+    {
+        _walk.Body = LoadWalkOrIdle(WalkBodyRelativePath, EmbeddedWalkBodyName, BodyRelativePath, EmbeddedBodyName);
+        _walk.Head = LoadWalkOrIdle(WalkHeadRelativePath, EmbeddedWalkHeadName, HeadRelativePath, EmbeddedHeadName);
+        _walk.Tunic = LoadWalkOrIdle(WalkTunicRelativePath, EmbeddedWalkTunicName, TunicRelativePath, EmbeddedTunicName);
+        _walk.Armor = LoadWalkOrIdle(WalkArmorRelativePath, EmbeddedWalkArmorName, ArmorRelativePath, EmbeddedArmorName);
+        _walk.Hat = LoadWalkOrIdle(WalkHatRelativePath, EmbeddedWalkHatName, HatRelativePath, EmbeddedHatName);
+        _walk.Weapon = LoadWalkOrIdle(WalkWeaponRelativePath, EmbeddedWalkWeaponName, WeaponRelativePath, EmbeddedWeaponName);
+
+        if (_walk.Body is { Width: WalkSheetWidth } bodySheet
+            && _walk.Head is { Width: WalkSheetWidth } headSheet)
+        {
+            for (var row = 0; row < PlayerWalkClock.SheetRows; row++)
+            {
+                for (var col = 0; col < PlayerWalkClock.SheetColumns; col++)
+                {
+                    _walk.Frames[row, col] = ComposeCell(bodySheet, headSheet, col * NativeSize, row * NativeSize);
+                }
+            }
+
+            _walk.Ready = true;
+            return;
+        }
+
+        var idle = TryComposeBodyAndHead()
+            ?? TryLoadNamedPng(RelativePath, EmbeddedName, NativeSize, NativeSize)
+            ?? CreateFallbackRaster();
+        FillAllFrames(_walk, idle);
+        _walk.Ready = true;
+    }
+
+    private static void LoadActionBundle(
+        PoseSheets sheets,
+        string bodyPath,
+        string bodyEmbedded,
+        string headPath,
+        string headEmbedded,
+        string tunicPath,
+        string tunicEmbedded,
+        string armorPath,
+        string armorEmbedded,
+        string hatPath,
+        string hatEmbedded,
+        string weaponPath,
+        string weaponEmbedded)
+    {
+        sheets.Body = TryLoadNamedPng(bodyPath, bodyEmbedded, WalkSheetWidth, WalkSheetHeight);
+        sheets.Head = TryLoadNamedPng(headPath, headEmbedded, WalkSheetWidth, WalkSheetHeight);
+        sheets.Tunic = TryLoadNamedPng(tunicPath, tunicEmbedded, WalkSheetWidth, WalkSheetHeight);
+        sheets.Armor = TryLoadNamedPng(armorPath, armorEmbedded, WalkSheetWidth, WalkSheetHeight);
+        sheets.Hat = TryLoadNamedPng(hatPath, hatEmbedded, WalkSheetWidth, WalkSheetHeight);
+        sheets.Weapon = TryLoadNamedPng(weaponPath, weaponEmbedded, WalkSheetWidth, WalkSheetHeight);
+        if (sheets.Body is not { Width: WalkSheetWidth } body
+            || sheets.Head is not { Width: WalkSheetWidth } head)
+        {
+            return;
+        }
+
+        for (var row = 0; row < PlayerWalkClock.SheetRows; row++)
+        {
+            for (var col = 0; col < PlayerWalkClock.SheetColumns; col++)
+            {
+                sheets.Frames[row, col] = ComposeCell(body, head, col * NativeSize, row * NativeSize);
+            }
+        }
+
+        sheets.Ready = true;
     }
 
     private static Bitmap? LoadWalkOrIdle(string walkPath, string walkEmbedded, string idlePath, string idleEmbedded)
@@ -320,21 +426,21 @@ internal static class PlayerWorldAssets
     private static bool NeedsPalette(PaperdollOverlaySet appearance, CharacterLook look) =>
         look.Body != 0 || look.Hair != 0 || (appearance.Tunic && look.Tunic >= 2);
 
-    private static Bitmap StyledFrame(int col, int row, PaperdollOverlaySet set, CharacterLook look)
+    private static Bitmap StyledFrame(PoseSheets sheets, int col, int row, PaperdollOverlaySet set, CharacterLook look)
     {
         var key = StyleKey(col, row, set, look);
         lock (Gate)
         {
-            if (_styledFrames.TryGetValue(key, out var cached))
+            if (sheets.StyledFrames.TryGetValue(key, out var cached))
             {
                 return cached;
             }
 
-            cached = RenderCell(col, row, set, look);
-            _styledFrames[key] = cached;
-            if (_styledFrames.Count > 768)
+            cached = RenderCell(sheets, col, row, set, look);
+            sheets.StyledFrames[key] = cached;
+            if (sheets.StyledFrames.Count > 768)
             {
-                foreach (var pair in _styledFrames.ToArray())
+                foreach (var pair in sheets.StyledFrames.ToArray())
                 {
                     if (pair.Key == key)
                     {
@@ -342,7 +448,7 @@ internal static class PlayerWorldAssets
                     }
 
                     pair.Value.Dispose();
-                    _styledFrames.Remove(pair.Key);
+                    sheets.StyledFrames.Remove(pair.Key);
                 }
             }
 
@@ -361,9 +467,9 @@ internal static class PlayerWorldAssets
             | look.Tunic;
     }
 
-    private static Bitmap? StyledSheet(PlayerSpriteSlot slot, CharacterLook look)
+    private static Bitmap? StyledSheet(PoseSheets sheets, PlayerSpriteSlot slot, CharacterLook look)
     {
-        var source = SheetFor(slot);
+        var source = SheetFor(sheets, slot);
         if (source is null)
         {
             return null;
@@ -383,7 +489,7 @@ internal static class PlayerWorldAssets
         }
 
         var key = (slot, index);
-        if (_styledSheets.TryGetValue(key, out var cached))
+        if (sheets.StyledSheets.TryGetValue(key, out var cached))
         {
             return cached;
         }
@@ -395,7 +501,7 @@ internal static class PlayerWorldAssets
             _ => CharacterLookSlot.Tunic,
         };
         cached = RecolorSheet(source, kind, index);
-        _styledSheets[key] = cached;
+        sheets.StyledSheets[key] = cached;
         return cached;
     }
 
@@ -415,11 +521,11 @@ internal static class PlayerWorldAssets
         return clone;
     }
 
-    private static Bitmap RenderCell(int col, int row, PaperdollOverlaySet set, CharacterLook look)
+    private static Bitmap RenderCell(PoseSheets sheets, int col, int row, PaperdollOverlaySet set, CharacterLook look)
     {
-        if (_bodySheet is null || _headSheet is null)
+        if (sheets.Body is null || sheets.Head is null)
         {
-            return _frames[row, col] ?? _sprite ?? CreateFallbackRaster();
+            return sheets.Frames[row, col] ?? _sprite ?? CreateFallbackRaster();
         }
 
         look = look.Normalized();
@@ -436,7 +542,7 @@ internal static class PlayerWorldAssets
                 continue;
             }
 
-            var sheet = StyledSheet(slot, look);
+            var sheet = StyledSheet(sheets, slot, look);
             if (sheet is null)
             {
                 continue;
@@ -453,14 +559,14 @@ internal static class PlayerWorldAssets
         return composed;
     }
 
-    private static Bitmap? SheetFor(PlayerSpriteSlot slot) => slot switch
+    private static Bitmap? SheetFor(PoseSheets sheets, PlayerSpriteSlot slot) => slot switch
     {
-        PlayerSpriteSlot.Body => _bodySheet,
-        PlayerSpriteSlot.Tunic => _tunicSheet,
-        PlayerSpriteSlot.Armor => _armorSheet,
-        PlayerSpriteSlot.Head => _headSheet,
-        PlayerSpriteSlot.Hat => _hatSheet,
-        PlayerSpriteSlot.Weapon => _weaponSheet,
+        PlayerSpriteSlot.Body => sheets.Body,
+        PlayerSpriteSlot.Tunic => sheets.Tunic,
+        PlayerSpriteSlot.Armor => sheets.Armor,
+        PlayerSpriteSlot.Head => sheets.Head,
+        PlayerSpriteSlot.Hat => sheets.Hat,
+        PlayerSpriteSlot.Weapon => sheets.Weapon,
         _ => null,
     };
 
@@ -502,27 +608,42 @@ internal static class PlayerWorldAssets
         return new Point(col * NativeSize, row * NativeSize);
     }
 
-    private static void FillAllFrames(Bitmap idle)
+    private static void FillAllFrames(PoseSheets sheets, Bitmap idle)
     {
         for (var row = 0; row < PlayerWalkClock.SheetRows; row++)
         {
             for (var col = 0; col < PlayerWalkClock.SheetColumns; col++)
             {
-                _frames[row, col] = idle;
+                sheets.Frames[row, col] = idle;
             }
         }
     }
 
     private static Bitmap? TryComposeBodyAndHead()
     {
-        _bodySheet ??= TryLoadNamedPng(BodyRelativePath, EmbeddedBodyName, NativeSize, NativeSize);
-        _headSheet ??= TryLoadNamedPng(HeadRelativePath, EmbeddedHeadName, NativeSize, NativeSize);
-        if (_bodySheet is null || _headSheet is null)
+        _walk.Body ??= TryLoadNamedPng(BodyRelativePath, EmbeddedBodyName, NativeSize, NativeSize);
+        _walk.Head ??= TryLoadNamedPng(HeadRelativePath, EmbeddedHeadName, NativeSize, NativeSize);
+        if (_walk.Body is null || _walk.Head is null)
         {
             return null;
         }
 
-        return ComposeCell(_bodySheet, _headSheet, 0, 0);
+        return ComposeCell(_walk.Body, _walk.Head, 0, 0);
+    }
+
+    private sealed class PoseSheets
+    {
+        public Bitmap? Body;
+        public Bitmap? Head;
+        public Bitmap? Tunic;
+        public Bitmap? Armor;
+        public Bitmap? Hat;
+        public Bitmap? Weapon;
+        public readonly Bitmap?[,] Frames = new Bitmap?[PlayerWalkClock.SheetRows, PlayerWalkClock.SheetColumns];
+        public Bitmap?[,,]? OverlayFrames;
+        public readonly Dictionary<(PlayerSpriteSlot Slot, byte Index), Bitmap> StyledSheets = new();
+        public readonly Dictionary<long, Bitmap> StyledFrames = new();
+        public bool Ready;
     }
 
     private static Bitmap ComposeCell(Bitmap body, Bitmap head, int srcX, int srcY)

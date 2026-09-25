@@ -121,9 +121,13 @@ public sealed class MainShellForm : Form
         public bool Walking;
 
         public int WalkElapsedMs;
+
+        public SpriteAction Action;
+
+        public int ActionElapsedMs;
     }
 
-    /// <summary>Client-only NPC / monster visual (walk clock). Combat / fil inchangés.</summary>
+    /// <summary>Client-only NPC / monster visual (walk / attack / death). Combat / fil inchangés.</summary>
     private sealed class WorldEntityView
     {
         public int ServerPixelX = 0;
@@ -139,6 +143,10 @@ public sealed class MainShellForm : Form
         public bool Walking;
 
         public int WalkElapsedMs;
+
+        public SpriteAction Action;
+
+        public int ActionElapsedMs;
     }
 
     private readonly ConcurrentDictionary<string, WorldEntityView> _worldNpcs = new(StringComparer.OrdinalIgnoreCase);
@@ -164,10 +172,14 @@ public sealed class MainShellForm : Form
     private readonly SoundService _sound = new();
     private readonly HashSet<Keys> _keysDown = new();
 
-    /// <summary>Facing + walk clock for the local world sprite (client-only, no protocol field).</summary>
+    /// <summary>Facing + walk / attack / death clock for the local world sprite (client-only, no protocol field).</summary>
     private Direction _localFacing = Direction.Down;
 
     private int _localWalkElapsedMs;
+
+    private SpriteAction _localAction;
+
+    private int _localActionElapsedMs;
 
     /// <summary>Touches direction maintenues (prédiction client + boucle réseau).</summary>
     private bool _holdLeft;
@@ -787,6 +799,8 @@ public sealed class MainShellForm : Form
         _pendingIdlePositionSync = false;
         _localFacing = Direction.Down;
         _localWalkElapsedMs = 0;
+        _localAction = SpriteAction.Walk;
+        _localActionElapsedMs = 0;
         ReleaseAllMoveKeys();
     }
 
@@ -1016,7 +1030,11 @@ public sealed class MainShellForm : Form
             var hasMove = TryGetHeldMoveNormalized(out var pvx, out var pvy);
             if (hasMove)
             {
-                _localFacing = PlayerWalkClock.FacingFromVector(pvx, pvy, _localFacing);
+                if (_localAction == SpriteAction.Walk)
+                {
+                    _localFacing = PlayerWalkClock.FacingFromVector(pvx, pvy, _localFacing);
+                }
+
                 // Walk sheet stays on raw dt (anim MVP unchanged). Predict uses capped visual dt.
                 _localWalkElapsedMs += (int)(rawDt * 1000f);
                 TryApplyLocalPredictStep(pvx, pvy, visualDt);
@@ -1043,6 +1061,11 @@ public sealed class MainShellForm : Form
             {
                 dirty = true;
             }
+
+            if (TickSpriteAction(ref _localAction, ref _localActionElapsedMs, rawDt))
+            {
+                dirty = true;
+            }
         }
 
         foreach (var kv in _others.ToArray())
@@ -1064,7 +1087,11 @@ public sealed class MainShellForm : Form
                 otherMaxStep);
             if (MathF.Abs(nx - o.VisCx) > moveEps || MathF.Abs(ny - o.VisCy) > moveEps)
             {
-                o.Facing = PlayerWalkClock.FacingFromVector(nx - o.VisCx, ny - o.VisCy, o.Facing);
+                if (o.Action == SpriteAction.Walk)
+                {
+                    o.Facing = PlayerWalkClock.FacingFromVector(nx - o.VisCx, ny - o.VisCy, o.Facing);
+                }
+
                 o.Walking = true;
                 o.WalkElapsedMs += (int)(rawDt * 1000f);
                 o.VisCx = nx;
@@ -1075,6 +1102,11 @@ public sealed class MainShellForm : Form
             {
                 o.Walking = false;
                 o.WalkElapsedMs = 0;
+                dirty = true;
+            }
+
+            if (TickSpriteAction(ref o.Action, ref o.ActionElapsedMs, rawDt))
+            {
                 dirty = true;
             }
         }
@@ -1114,7 +1146,11 @@ public sealed class MainShellForm : Form
                 otherMaxStep);
             if (MathF.Abs(nx - e.VisCx) > moveEps || MathF.Abs(ny - e.VisCy) > moveEps)
             {
-                e.Facing = WalkClock.FacingFromVector(nx - e.VisCx, ny - e.VisCy, e.Facing);
+                if (e.Action == SpriteAction.Walk)
+                {
+                    e.Facing = WalkClock.FacingFromVector(nx - e.VisCx, ny - e.VisCy, e.Facing);
+                }
+
                 e.Walking = true;
                 e.WalkElapsedMs += (int)(rawDt * 1000f);
                 e.VisCx = nx;
@@ -1127,9 +1163,45 @@ public sealed class MainShellForm : Form
                 e.WalkElapsedMs = 0;
                 dirty = true;
             }
+
+            if (TickSpriteAction(ref e.Action, ref e.ActionElapsedMs, rawDt))
+            {
+                dirty = true;
+            }
         }
 
         return dirty;
+    }
+
+    /// <summary>Avance attaque (retour à la marche) ou mort (fige sur la dernière case).</summary>
+    private static bool TickSpriteAction(ref SpriteAction action, ref int elapsedMs, float rawDt)
+    {
+        if (action == SpriteAction.Walk)
+        {
+            return false;
+        }
+
+        var before = elapsedMs;
+        var step = (int)(rawDt * 1000f);
+        if (step < 0)
+        {
+            step = 0;
+        }
+
+        elapsedMs = before > int.MaxValue - step ? int.MaxValue : before + step;
+        if (action == SpriteAction.Attack && ActionClock.AttackFinished(elapsedMs))
+        {
+            action = SpriteAction.Walk;
+            elapsedMs = 0;
+            return true;
+        }
+
+        if (action == SpriteAction.Death && ActionClock.DeathSettled(before))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static void StyleToolbarButton(Button b)
@@ -1634,6 +1706,11 @@ public sealed class MainShellForm : Form
             {
                 OnMeleeMiss();
             }
+
+            if (ActionClock.IsIncomingAttack(msg))
+            {
+                BeginNamedAttack(tgt);
+            }
         };
         _client.DamageEventReceived += OnDamageEvent;
         _client.CharacterListReceived += OnCharacterListJson;
@@ -1659,7 +1736,11 @@ public sealed class MainShellForm : Form
         _client.RespawnResultReceived += (ok, msg) => AppendLog(ok ? "Respawn: " + msg : "Respawn refusé: " + msg);
         _client.ExperienceGainReceived += gain =>
             AppendLog($"XP +{gain.Amount} (niv {gain.Level}, total {gain.Experience})");
-        _client.DeathNotifyReceived += () => AppendLog("Mort signalée par le serveur.");
+        _client.DeathNotifyReceived += () =>
+        {
+            AppendLog("Mort signalée par le serveur.");
+            BeginLocalDeath();
+        };
         _client.PublishedCatalogReceived += OnPublishedCatalogReceived;
         _client.DialogueStatePushReceived += OnDialogueStatePush;
         _client.DialogueChoiceResultReceived += (ok, msg) =>
@@ -1931,6 +2012,11 @@ public sealed class MainShellForm : Form
     private void OnDamageEvent(DamageEvent ev)
     {
         _combatHud.Apply(ev, DateTime.UtcNow, _localFacing);
+        if (ev.Killed)
+        {
+            BeginNamedDeath(ev.TargetName, ev.TargetKind);
+        }
+
         var hpSuffix = ev.Killed ? " (vaincu)" : $" ({ev.RemainingHp}/{ev.MaxHp})";
         AppendLog(!ev.Hit
             ? $"Raté → {ev.TargetName}"
@@ -1954,7 +2040,12 @@ public sealed class MainShellForm : Form
         SyncStatusPortrait();
         if (state.IsDead)
         {
+            BeginLocalDeath();
             LayoutGameHud();
+        }
+        else if (_localAction == SpriteAction.Death)
+        {
+            ClearLocalAction();
         }
     }
 
@@ -3521,6 +3612,108 @@ public sealed class MainShellForm : Form
         }
     }
 
+    private void BeginLocalAttack()
+    {
+        if (_localAction == SpriteAction.Death)
+        {
+            return;
+        }
+
+        _localAction = SpriteAction.Attack;
+        _localActionElapsedMs = 0;
+        if (_phase == ClientUiPhase.Playing && _map is not null)
+        {
+            RedrawMap();
+        }
+    }
+
+    private void BeginLocalDeath()
+    {
+        if (_localAction == SpriteAction.Death)
+        {
+            return;
+        }
+
+        _localAction = SpriteAction.Death;
+        _localActionElapsedMs = 0;
+        if (_phase == ClientUiPhase.Playing && _map is not null)
+        {
+            RedrawMap();
+        }
+    }
+
+    private void ClearLocalAction()
+    {
+        if (_localAction == SpriteAction.Walk && _localActionElapsedMs == 0)
+        {
+            return;
+        }
+
+        _localAction = SpriteAction.Walk;
+        _localActionElapsedMs = 0;
+        if (_phase == ClientUiPhase.Playing && _map is not null)
+        {
+            RedrawMap();
+        }
+    }
+
+    private void BeginNamedAttack(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || !_others.TryGetValue(name, out var other))
+        {
+            return;
+        }
+
+        if (other.Action == SpriteAction.Death)
+        {
+            return;
+        }
+
+        other.Action = SpriteAction.Attack;
+        other.ActionElapsedMs = 0;
+        if (_phase == ClientUiPhase.Playing && _map is not null)
+        {
+            RedrawMap();
+        }
+    }
+
+    private void BeginNamedDeath(string name, CombatTargetKind kind)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        if (kind == CombatTargetKind.Player)
+        {
+            if (string.Equals(name, _username, StringComparison.OrdinalIgnoreCase))
+            {
+                BeginLocalDeath();
+                return;
+            }
+
+            if (_others.TryGetValue(name, out var other) && other.Action != SpriteAction.Death)
+            {
+                other.Action = SpriteAction.Death;
+                other.ActionElapsedMs = 0;
+            }
+
+            return;
+        }
+
+        var table = kind switch
+        {
+            CombatTargetKind.Monster => _worldMonsters,
+            CombatTargetKind.Npc => _worldNpcs,
+            _ => null,
+        };
+        if (table is not null && table.TryGetValue(name, out var entity) && entity.Action != SpriteAction.Death)
+        {
+            entity.Action = SpriteAction.Death;
+            entity.ActionElapsedMs = 0;
+        }
+    }
+
     private Task MeleeAsync() => SendAttackAsync(AttackStyle.Melee);
 
     private Task RangedAsync() => SendAttackAsync(AttackStyle.Ranged);
@@ -3542,6 +3735,7 @@ public sealed class MainShellForm : Form
             ? CombatTargetKind.Dummy
             : CombatTargetKind.None;
         var label = style == AttackStyle.Ranged ? "Distance" : "Mêlée";
+        BeginLocalAttack();
         try
         {
             await _client.SendMeleeAttackAsync(t, kind, _localFacing, Guid.Empty, style: style).ConfigureAwait(true);
@@ -3767,7 +3961,12 @@ public sealed class MainShellForm : Form
         foreach (var kv in _others)
         {
             otherPx[kv.Key] = (kv.Value.VisCx, kv.Value.VisCy);
-            otherPoses[kv.Key] = new PlayerSpritePose(kv.Value.Facing, kv.Value.Walking, kv.Value.WalkElapsedMs);
+            otherPoses[kv.Key] = new PlayerSpritePose(
+                kv.Value.Facing,
+                kv.Value.Walking,
+                kv.Value.WalkElapsedMs,
+                kv.Value.Action,
+                kv.Value.ActionElapsedMs);
         }
 
         var npcPx = new Dictionary<string, (float CxPx, float CyPx)>(_worldNpcs.Count, StringComparer.OrdinalIgnoreCase);
@@ -3775,7 +3974,12 @@ public sealed class MainShellForm : Form
         foreach (var kv in _worldNpcs)
         {
             npcPx[kv.Key] = (kv.Value.VisCx, kv.Value.VisCy);
-            npcPoses[kv.Key] = new WorldSpritePose(kv.Value.Facing, kv.Value.Walking, kv.Value.WalkElapsedMs);
+            npcPoses[kv.Key] = new WorldSpritePose(
+                kv.Value.Facing,
+                kv.Value.Walking,
+                kv.Value.WalkElapsedMs,
+                kv.Value.Action,
+                kv.Value.ActionElapsedMs);
         }
 
         var monsterPx = new Dictionary<string, (float CxPx, float CyPx)>(_worldMonsters.Count, StringComparer.OrdinalIgnoreCase);
@@ -3783,11 +3987,21 @@ public sealed class MainShellForm : Form
         foreach (var kv in _worldMonsters)
         {
             monsterPx[kv.Key] = (kv.Value.VisCx, kv.Value.VisCy);
-            monsterPoses[kv.Key] = new WorldSpritePose(kv.Value.Facing, kv.Value.Walking, kv.Value.WalkElapsedMs);
+            monsterPoses[kv.Key] = new WorldSpritePose(
+                kv.Value.Facing,
+                kv.Value.Walking,
+                kv.Value.WalkElapsedMs,
+                kv.Value.Action,
+                kv.Value.ActionElapsedMs);
         }
 
         var localWalking = TryGetHeldMoveDiscrete(out _, out _);
-        var localPose = new PlayerSpritePose(_localFacing, localWalking, _localWalkElapsedMs);
+        var localPose = new PlayerSpritePose(
+            _localFacing,
+            localWalking,
+            _localWalkElapsedMs,
+            _localAction,
+            _localActionElapsedMs);
         IReadOnlyList<(int PixelX, int PixelY)>? groundLoot = null;
         if (_groundSnapshot is { } groundSnap
             && groundSnap.MapId == _sessionDisplayedMapId
