@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using Frog.Client;
+using Frog.Client.UI;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
@@ -171,7 +172,13 @@ public sealed class GameplayClientSmokeTests
                           && form.LogContainsForTest("Achat: Achat reussi."),
                     "shop buy visible in fiche bag");
 
+                // EnterPlayingPhase leaves Inventaire selected. PerformClick on Équiper is a no-op
+                // until the Fiche tab is visible (Button.CanSelect walks the parent chain).
+                form.InvokeHudMenuCommandForTest(HudMenuCommand.Character);
+                Assert.True(form.IsCharacterSheetTabSelectedForTest, "Perso shows the fiche before equip");
                 form.CharacterSheetForTest.SelectBagIndexForTest(0);
+                Assert.True(form.CharacterSheetForTest.EquipBagEnabledForTest, "Équiper enabled for the bought weapon");
+                Assert.NotNull(form.CharacterSheetForTest.SelectedBagSlotForTest);
                 form.CharacterSheetForTest.ClickEquipBagForTest();
                 Pump(
                     form,

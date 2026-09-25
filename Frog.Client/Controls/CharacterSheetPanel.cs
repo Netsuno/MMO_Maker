@@ -299,7 +299,20 @@ public sealed class CharacterSheetPanel : UserControl
 
     internal void ClearBagSelectionForTest() => _bagList.ClearSelected();
 
-    internal void ClickEquipBagForTest() => _btnEquipBag.PerformClick();
+    internal void ClickEquipBagForTest()
+    {
+        if (!_btnEquipBag.Enabled || SelectedBagSlot is null)
+        {
+            throw new InvalidOperationException("Équiper est désactivé : aucune ligne de sac.");
+        }
+
+        if (!_btnEquipBag.CanSelect)
+        {
+            throw new InvalidOperationException("Équiper n'est pas cliquable : l'onglet Fiche n'est pas visible.");
+        }
+
+        _btnEquipBag.PerformClick();
+    }
 
     internal bool EquipBagEnabledForTest => _btnEquipBag.Enabled;
 
