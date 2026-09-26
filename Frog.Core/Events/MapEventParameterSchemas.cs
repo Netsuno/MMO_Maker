@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Frog.Core.Character;
 using Frog.Core.Models;
+using Frog.Core.Weather;
 
 namespace Frog.Core.Events;
 
@@ -581,6 +582,47 @@ public static class MapEventParameterSchemas
             return false;
         }
     }
+
+    public static bool TryParseSetWeather(string parameterJson, out string weatherKind, out string? error)
+    {
+        weatherKind = string.Empty;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!doc.RootElement.TryGetProperty("weatherKind", out var kindEl)
+                || kindEl.ValueKind != JsonValueKind.String)
+            {
+                error = "set_weather: propriété 'weatherKind' (string) requise.";
+                return false;
+            }
+
+            var raw = kindEl.GetString();
+            if (!WeatherKindId.TryCanonical(raw, out weatherKind))
+            {
+                error = "set_weather: kind inconnu.";
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "weatherKind" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "set_weather: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool IsUnknownWeatherKind(string? error) =>
+        error is not null && error.Contains("kind inconnu", StringComparison.OrdinalIgnoreCase);
 
     public static bool TryParseLearnProfession(string parameterJson, out Guid professionId, out string? error)
     {

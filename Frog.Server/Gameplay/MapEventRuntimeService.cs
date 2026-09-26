@@ -345,7 +345,8 @@ public sealed class MapEventRuntimeService
             professionsChanged: state.ProfessionsChanged,
             recipesChanged: state.RecipesChanged,
             switchChanges: state.SwitchChanges,
-            openShopId: state.OpenShopId);
+            openShopId: state.OpenShopId,
+            weatherChanged: state.WeatherChanged);
     }
 
     private async Task<MapEventExecutionResult> CompleteCommittedMutationAsync(
@@ -392,7 +393,8 @@ public sealed class MapEventRuntimeService
             applied.DialogueSummary,
             applied.DialogueState,
             applied.OpenShopId,
-            applied.ShowText);
+            applied.ShowText,
+            applied.WeatherChanged);
     }
 
     private void RegisterLedgerWaitIfNeeded(
@@ -462,7 +464,8 @@ public sealed class MapEventRuntimeService
             state.ProfessionsChanged,
             state.RecipesChanged,
             state.SwitchChanges,
-            state.OpenShopId);
+            state.OpenShopId,
+            state.WeatherChanged);
     }
 
     private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)

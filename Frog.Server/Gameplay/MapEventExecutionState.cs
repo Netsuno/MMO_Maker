@@ -40,6 +40,9 @@ public sealed class MapEventExecutionState
 
     public bool TeleportApplied { get; set; }
 
+    /// <summary>Un <c>set_weather</c> connu a posé l'override, ou un changement de carte l'a retiré.</summary>
+    public bool WeatherChanged { get; set; }
+
     public string? DialogueSummary { get; set; }
 
     public string? QuestSummary { get; set; }

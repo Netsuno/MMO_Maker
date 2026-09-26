@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Frog.Core.Models;
+using Frog.Core.Weather;
 
 namespace Frog.Core.Events;
 
@@ -60,7 +61,16 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.CallCommonEvent => "Événement commun",
         MapEventCommandDiscriminators.LearnProfession => "Apprendre métier",
         MapEventCommandDiscriminators.OpenShop => "Ouvrir boutique",
+        MapEventCommandDiscriminators.SetWeather => "Changer météo",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
+    };
+
+    public static string WeatherKind(string? kind) => kind switch
+    {
+        WeatherKindId.Clear => "Clair",
+        WeatherKindId.Rain => "Pluie",
+        WeatherKindId.Fog => "Brouillard",
+        _ => string.IsNullOrWhiteSpace(kind) ? "Météo" : kind.Trim(),
     };
 
     public static string Field(string? key) => key switch
@@ -92,6 +102,7 @@ public static class MapEventEditorLabels
         "shopId" => "Identifiant",
         "shopName" => "Nom",
         "shopPick" => "Boutique",
+        "weatherKind" => "Météo",
         "condition" => "Si",
         "thenCommands" => "Alors",
         "elseCommands" => "Sinon",
@@ -231,6 +242,8 @@ public static class MapEventEditorLabels
             MapEventCommandDiscriminators.LearnProfession =>
                 $"Apprendre métier {ShortId(ReadString(root, "professionId"))}",
             MapEventCommandDiscriminators.OpenShop => SummarizeOpenShop(root),
+            MapEventCommandDiscriminators.SetWeather =>
+                $"Changer météo : {WeatherKind(ReadString(root, "weatherKind"))}",
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };

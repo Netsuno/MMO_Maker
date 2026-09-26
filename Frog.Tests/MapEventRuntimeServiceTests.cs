@@ -11,11 +11,13 @@ using Frog.Core.Events;
 using Frog.Application.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Weather;
 using Frog.Server.Database;
 using Frog.Server.Gameplay;
 using Frog.Server.Models;
 using Frog.Server.Persistence;
 using Frog.Server.Services;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using ServerPlanner = Frog.Server.Gameplay.MapEventExecutionPlanner;
@@ -784,6 +786,94 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Equal(4, session.PositionX);
         Assert.Equal(1, session.PositionY);
         Assert.Equal("before-teleport", result.ShowText);
+    }
+
+    [Fact]
+    public async Task ExecuteInteract_SetWeather_OverridesSessionAndFlagsPush()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Meteo",
+            EditorAliasId = 74,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetWeather,
+                            ParameterJson = """{"weatherKind":"rain"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"il pleut"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(74));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.True(result.WeatherChanged);
+        Assert.Equal(WeatherKindId.Rain, session.WeatherKindOverride);
+        Assert.Equal("il pleut", result.ShowText);
+        Assert.Equal(MapEventCommandDiscriminators.SetWeather, repo.Plans[0].Effects[0].Discriminator);
+        Assert.True(ServerPlanner.AreEffectsTransactional(repo.Plans[0].Effects));
+        Assert.Equal(
+            MapEventEffectCommitKind.SessionSide,
+            MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.SetWeather));
+    }
+
+    [Fact]
+    public async Task ExecuteCommands_UnknownWeatherKind_IsLoggedAndDoesNotStopTheRunner()
+    {
+        var logger = new WarningListLogger();
+        var executor = CreateExecutor(
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            logger: logger);
+        var session = CreateSession(Guid.NewGuid());
+        var state = new MapEventExecutionState();
+
+        var err = await executor.ExecuteCommandsAsync(
+            session,
+            session.CharacterGuid!.Value,
+            [
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.SetWeather,
+                    ParameterJson = """{"weatherKind":"snow"}""",
+                },
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.ShowText,
+                    ParameterJson = """{"text":"toujours"}""",
+                },
+            ],
+            state,
+            CancellationToken.None);
+
+        Assert.Null(err);
+        Assert.Null(session.WeatherKindOverride);
+        Assert.False(state.WeatherChanged);
+        Assert.Equal("toujours", state.ShowText);
+        Assert.Contains(logger.Warnings, warning => warning.Contains("kind inconnu", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -1682,6 +1772,24 @@ public sealed class MapEventRuntimeServiceTests
     {
         var phase8 = new Phase8InMemoryPublishedContent();
         configureContent?.Invoke(phase8);
+        var executor = CreateExecutor(worldState, payload, phase8);
+        return new MapEventRuntimeService(
+            catalog,
+            phase8,
+            new CharacterMutationCoordinator(),
+            executor,
+            tracker ?? new MapEventExecutionTracker(),
+            NullLogger<MapEventRuntimeService>.Instance,
+            mutationRepository);
+    }
+
+    private static MapEventCommandExecutor CreateExecutor(
+        InMemoryCharacterWorldStateRepository worldState,
+        InMemoryCharacterPayloadReader payload,
+        Phase8InMemoryPublishedContent? phase8 = null,
+        ILogger<MapEventCommandExecutor>? logger = null)
+    {
+        phase8 ??= new Phase8InMemoryPublishedContent();
         var characters = new InMemoryCharacterRepository();
         var items = new Phase7PublishedContent();
         var inventoryRepo = new InMemoryInventoryRepository();
@@ -1697,7 +1805,7 @@ public sealed class MapEventRuntimeServiceTests
             questRepo,
             new InMemoryQuestMutationRepository(questRepo, characters, inventory, phase8));
         var dialogSessions = new DialogSessionService(phase8, quests);
-        var executor = new MapEventCommandExecutor(
+        return new MapEventCommandExecutor(
             worldState,
             characters,
             inventory,
@@ -1712,15 +1820,7 @@ public sealed class MapEventRuntimeServiceTests
             payload,
             new MovementService(MapTestHelpers.CreateMapService(), new ConnectionManager()),
             items,
-            NullLogger<MapEventCommandExecutor>.Instance);
-        return new MapEventRuntimeService(
-            catalog,
-            phase8,
-            new CharacterMutationCoordinator(),
-            executor,
-            tracker ?? new MapEventExecutionTracker(),
-            NullLogger<MapEventRuntimeService>.Instance,
-            mutationRepository);
+            logger ?? NullLogger<MapEventCommandExecutor>.Instance);
     }
 
     private static Session CreateSession(Guid characterId) =>
@@ -1885,6 +1985,16 @@ public sealed class MapEventRuntimeServiceTests
                         }
 
                         break;
+                    case MapEventCommandDiscriminators.SetWeather:
+                        if (MapEventParameterSchemas.TryParseSetWeather(
+                                cmd.ParameterJson,
+                                out var weatherKind,
+                                out _))
+                        {
+                            snap.RecordWeather(weatherKind);
+                        }
+
+                        break;
                     case MapEventCommandDiscriminators.Wait:
                         if (MapEventParameterSchemas.TryParseWait(cmd.ParameterJson, out var waitMs, out _))
                         {
@@ -1898,6 +2008,38 @@ public sealed class MapEventRuntimeServiceTests
             }
 
             return snap;
+        }
+    }
+
+    private sealed class WarningListLogger : ILogger<MapEventCommandExecutor>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull => NullScope.Instance;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Warning)
+            {
+                Warnings.Add(formatter(state, exception));
+            }
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public static NullScope Instance { get; } = new();
+
+            public void Dispose()
+            {
+            }
         }
     }
 }

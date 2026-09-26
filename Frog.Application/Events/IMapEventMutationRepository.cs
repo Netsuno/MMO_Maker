@@ -101,6 +101,9 @@ public sealed class MapEventExecutionSnapshot
 
     public int? TeleportTileY { get; set; }
 
+    /// <summary>Intent <c>set_weather</c> enregistré dans la TX (appliqué sur la session après commit).</summary>
+    public string? WeatherKind { get; set; }
+
     public (int MapId, int TileX, int TileY)? Teleport =>
         TeleportMapId is int mapId && TeleportTileX is int tileX && TeleportTileY is int tileY
             ? (mapId, tileX, tileY)
@@ -116,6 +119,8 @@ public sealed class MapEventExecutionSnapshot
         TeleportTileX = tileX;
         TeleportTileY = tileY;
     }
+
+    public void RecordWeather(string weatherKind) => WeatherKind = weatherKind;
 
     public void RecordSwitch(string switchId, bool value)
     {

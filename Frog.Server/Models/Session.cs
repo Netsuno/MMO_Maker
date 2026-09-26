@@ -26,7 +26,36 @@ public sealed class Session
     public int PixelY { get; set; }
 
     /// <summary>Carte monde courante (overworld ou template instance).</summary>
-    public int CurrentMapId { get; set; } = 1;
+    public int CurrentMapId
+    {
+        get => _currentMapId;
+        set
+        {
+            if (value != _currentMapId && WeatherKindOverride is not null)
+            {
+                WeatherKindOverride = null;
+                WeatherOverrideDroppedByMapChange = true;
+            }
+
+            _currentMapId = value;
+        }
+    }
+
+    private int _currentMapId = 1;
+
+    /// <summary>
+    /// Météo forcée par <c>set_weather</c> sur la carte courante.
+    /// Gagne sur le profil de région jusqu'au changement de carte.
+    /// </summary>
+    public string? WeatherKindOverride { get; set; }
+
+    /// <summary>
+    /// Le changement de carte a retiré <see cref="WeatherKindOverride"/>.
+    /// Le prochain <c>EnvironmentStatePush</c> l'acquitte.
+    /// </summary>
+    public bool WeatherOverrideDroppedByMapChange { get; private set; }
+
+    public void AcknowledgeWeatherOverrideDrop() => WeatherOverrideDroppedByMapChange = false;
 
     /// <summary>Run donjon/raid courant ; <see cref="Guid.Empty"/> = overworld.</summary>
     public Guid InstanceId { get; set; }
