@@ -58,6 +58,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<ShopEntity> Shops => Set<ShopEntity>();
     public DbSet<ShopPublishedSnapshotEntity> ShopPublishedSnapshots => Set<ShopPublishedSnapshotEntity>();
     public DbSet<ShopPublicationHistoryEntity> ShopPublicationHistory => Set<ShopPublicationHistoryEntity>();
+    public DbSet<SystemDocumentEntity> SystemDocuments => Set<SystemDocumentEntity>();
+    public DbSet<SystemPublishedSnapshotEntity> SystemPublishedSnapshots => Set<SystemPublishedSnapshotEntity>();
+    public DbSet<SystemPublicationHistoryEntity> SystemPublicationHistory => Set<SystemPublicationHistoryEntity>();
     public DbSet<ResourceEntity> Resources => Set<ResourceEntity>();
     public DbSet<ResourcePublishedSnapshotEntity> ResourcePublishedSnapshots =>
         Set<ResourcePublishedSnapshotEntity>();
@@ -701,6 +704,44 @@ public sealed class FrogDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.ShopId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SystemDocumentEntity>(e =>
+        {
+            e.ToTable("system_documents", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.SwitchesJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.VariablesJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+                t.HasCheckConstraint("ck_system_documents_non_negative_revision", "revision >= 0"));
+        });
+
+        modelBuilder.Entity<SystemPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("system_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SystemDocumentId, x.Revision }).IsUnique();
+            e.Property(x => x.SwitchesJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.VariablesJson).HasColumnType("jsonb").IsRequired();
+            e.HasOne(x => x.Document)
+                .WithMany()
+                .HasForeignKey(x => x.SystemDocumentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_system_snapshots_document");
+        });
+
+        modelBuilder.Entity<SystemPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("system_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SystemDocumentId);
+            e.HasOne(x => x.Document)
+                .WithMany()
+                .HasForeignKey(x => x.SystemDocumentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_system_history_document");
         });
 
         modelBuilder.Entity<ResourceEntity>(e =>

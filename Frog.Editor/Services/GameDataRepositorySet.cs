@@ -16,6 +16,7 @@ public sealed class GameDataRepositorySet : IDisposable
         EditorClassRepositoryBundle classBundle,
         EditorActorRepositoryBundle actor,
         EditorShopRepositoryBundle shop,
+        EditorSystemRepositoryBundle system,
         EditorResourceRepositoryBundle resource,
         EditorResourceSpawnRepositoryBundle resourceSpawn,
         EditorPostgreSqlScope? databaseScope)
@@ -28,6 +29,7 @@ public sealed class GameDataRepositorySet : IDisposable
         Class = classBundle;
         Actor = actor;
         Shop = shop;
+        System = system;
         Resource = resource;
         ResourceSpawn = resourceSpawn;
         DatabaseScope = databaseScope;
@@ -48,6 +50,8 @@ public sealed class GameDataRepositorySet : IDisposable
     public EditorActorRepositoryBundle Actor { get; }
 
     public EditorShopRepositoryBundle Shop { get; }
+
+    public EditorSystemRepositoryBundle System { get; }
 
     public EditorResourceRepositoryBundle Resource { get; }
 

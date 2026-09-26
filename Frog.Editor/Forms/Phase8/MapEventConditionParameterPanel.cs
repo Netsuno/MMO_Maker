@@ -79,6 +79,8 @@ internal sealed class MapEventConditionParameterPanel : UserControl
 
     internal Control? FieldForTest(string key) => FindFieldControl(key);
 
+    internal string CatalogHintForTest(string key) => SystemCatalogFieldHint.Read(FindFieldControl(key));
+
     public void LoadCondition(MapEventConditionDefinition condition)
     {
         _binding = true;
@@ -218,6 +220,7 @@ internal sealed class MapEventConditionParameterPanel : UserControl
         row.Tag = key;
         _fieldsHost.Controls.Add(row);
         _dynamicFields.Add(row);
+        SystemCatalogFieldHint.Attach(row, key, control);
         if (control is TextBox tb)
         {
             tb.TextChanged += (_, _) => NotifyChanged();

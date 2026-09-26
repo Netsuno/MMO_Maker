@@ -4,8 +4,10 @@ using System.Drawing.Imaging;
 using System.Windows.Forms;
 using Frog.Application.Content;
 using Frog.Core.Enums;
+using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Editor.Forms.GameData;
+using Frog.Editor.Forms.Phase8;
 using Frog.Editor.Services;
 
 namespace Frog.Editor;
@@ -1276,6 +1278,114 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    public static void RunSystemScenario(MainWindow window, TimeSpan timeout)
+    {
+        var form = OpenViaMainWindowCommand(window, timeout);
+        form.SelectCategoryForTest(GameDataForm.SystemCategoryIndex);
+        var panel = form.SystemForTest;
+        PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+        if (!form.HostPanelForTest.Controls.Contains(panel) || !panel.Visible)
+        {
+            throw new InvalidOperationException("La fiche Système n’est pas affichée.");
+        }
+
+        Click(panel.BtnAddSwitchForTest);
+        SetText(panel.SwitchIdForTest, "gate_open");
+        SetText(panel.SwitchLabelForTest, "Porte ouverte");
+        SetText(panel.SwitchNoteForTest, "Coffre du hall");
+        Click(panel.BtnAddVariableForTest);
+        SetText(panel.VariableIdForTest, "nuits");
+        SetText(panel.VariableLabelForTest, "Nuits passées");
+        SetText(panel.VariableNoteForTest, "Compteur d’auberge");
+
+        ClickAndWait(panel.BtnSaveForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+        ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+        if (panel.CurrentStatusForTest != ContentPublishStatus.Published || panel.PublishedRevisionForTest is null)
+        {
+            throw new InvalidOperationException("Le document Système n’a pas été publié.");
+        }
+
+        AssertListContains(panel.SwitchListForTest, "gate_open", "Porte ouverte");
+        AssertListContains(panel.VariableListForTest, "nuits", "Nuits passées");
+        if (panel.SwitchNoteForTest.Text != "Coffre du hall")
+        {
+            throw new InvalidOperationException("La note d’interrupteur n’a pas été conservée.");
+        }
+
+        var publishedBefore = panel.PublishedRevisionForTest;
+        var previousBox = EditorTestHooks.OverrideMessageBoxResult;
+        EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
+        try
+        {
+            SetText(panel.SwitchIdForTest, "bad id");
+            PumpUntil(() => panel.IsDirty, timeout);
+            PumpUntil(() => !string.IsNullOrWhiteSpace(panel.ValidationForTest.Text), timeout);
+            Click(panel.BtnPublishForTest);
+            PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+            if (!panel.IsDirty || string.IsNullOrWhiteSpace(panel.ValidationForTest.Text))
+            {
+                throw new InvalidOperationException("Une publication invalide doit rester en brouillon sale.");
+            }
+
+            if (!Equals(publishedBefore, panel.PublishedRevisionForTest))
+            {
+                throw new InvalidOperationException("La révision publiée ne doit pas changer après un refus.");
+            }
+        }
+        finally
+        {
+            EditorTestHooks.OverrideMessageBoxResult = previousBox;
+        }
+
+        SetText(panel.SwitchIdForTest, "gate_open");
+        ClickAndWait(panel.BtnSaveForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+
+        using (var host = new Form { Width = 640, Height = 320 })
+        {
+            var command = new MapEventCommandParameterPanel { Dock = DockStyle.Fill };
+            host.Controls.Add(command);
+            host.Show();
+            command.LoadCommand(new MapEventCommandDefinition
+            {
+                Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                ParameterJson = """{"switchId":"gate_open","value":true}""",
+            });
+            if (command.CatalogHintForTest("switchId") != "Porte ouverte")
+            {
+                throw new InvalidOperationException(
+                    "Le libellé d’interrupteur doit apparaître à côté de la commande d’événement.");
+            }
+
+            command.LoadCommand(new MapEventCommandDefinition
+            {
+                Discriminator = MapEventCommandDiscriminators.SetVariable,
+                ParameterJson = """{"variableId":"nuits","value":3}""",
+            });
+            if (command.CatalogHintForTest("variableId") != "Nuits passées")
+            {
+                throw new InvalidOperationException(
+                    "Le libellé de variable doit apparaître à côté de la commande d’événement.");
+            }
+        }
+
+        CloseForm(form, timeout);
+        CloseReopenAndVerify(
+            window,
+            timeout,
+            GameDataForm.SystemCategoryIndex,
+            reopened =>
+            {
+                var reopenedPanel = reopened.SystemForTest;
+                PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
+                PumpUntil(() => reopenedPanel.SwitchListForTest.Items.Count >= 1, timeout);
+                if (reopenedPanel.SwitchLabelForTest.Text != "Porte ouverte"
+                    || reopenedPanel.VariableLabelForTest.Text != "Nuits passées")
+                {
+                    throw new InvalidOperationException("Les libellés Système n’ont pas été rechargés.");
+                }
+            });
+    }
+
     public static void RunShopScenario(MainWindow window, TimeSpan timeout)
     {
         var assetRoot = CreateSmokeAssetRoot("icons/items/smoke-shop-ui.png");
@@ -1289,7 +1399,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-shop-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(7);
+            form.SelectCategoryForTest(8);
             WaitForTask(form.ShopsForTest.InitializeAsync(), timeout);
             var panel = form.ShopsForTest;
             Click(panel.BtnNewForTest);
@@ -1362,7 +1472,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                7,
+                8,
                 reopened =>
                 {
                     WaitForTask(reopened.ShopsForTest.InitializeAsync(), timeout);
@@ -1390,7 +1500,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(8);
+            form.SelectCategoryForTest(9);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);
@@ -1601,7 +1711,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                8,
+                9,
                 reopened =>
                 {
                     WaitForTask(reopened.ResourcesForTest.InitializeAsync(), timeout);
@@ -1633,7 +1743,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-filter-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(8);
+            form.SelectCategoryForTest(9);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);

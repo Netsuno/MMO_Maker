@@ -81,6 +81,7 @@ public static class GameDataInitializationService
            || EditorTestHooks.OverrideClassRepository is not null
            || EditorTestHooks.OverrideActorRepository is not null
            || EditorTestHooks.OverrideShopRepository is not null
+           || EditorTestHooks.OverrideSystemRepository is not null
            || EditorTestHooks.OverrideResourceRepository is not null
            || EditorTestHooks.OverrideResourceSpawnRepository is not null;
 
@@ -98,6 +99,7 @@ public static class GameDataInitializationService
             classBundle.Repository,
             item.PublishedCatalog);
         var shop = EditorShopRepositoryFactory.CreateBundle(item.PublishedCatalog);
+        var system = EditorSystemRepositoryFactory.CreateBundle();
         var resource = EditorResourceRepositoryFactory.CreateBundle(item.PublishedCatalog);
         var spawn = EditorResourceSpawnRepositoryFactory.CreateBundle(
             map.Repository,
@@ -112,6 +114,7 @@ public static class GameDataInitializationService
             classBundle,
             actorBundle,
             shop,
+            system,
             resource,
             spawn,
             databaseScope: null);
@@ -146,6 +149,9 @@ public static class GameDataInitializationService
         var shopMem = new InMemoryShopRepository(itemMem, capabilities);
         var shop = new EditorShopRepositoryBundle(shopMem, shopMem, shopMem.Capabilities);
 
+        var systemMem = new InMemorySystemRepository(capabilities);
+        var system = new EditorSystemRepositoryBundle(systemMem, systemMem, systemMem.Capabilities);
+
         var resourceMem = new InMemoryResourceRepository(itemMem, capabilities);
         var resource = new EditorResourceRepositoryBundle(resourceMem, resourceMem, resourceMem.Capabilities);
 
@@ -161,6 +167,7 @@ public static class GameDataInitializationService
             classBundle,
             actorBundle,
             shop,
+            system,
             resource,
             spawn,
             databaseScope: null);
@@ -193,6 +200,9 @@ public static class GameDataInitializationService
         var shopRepo = new PostgresShopRepository(gate, itemRepo);
         var shop = new EditorShopRepositoryBundle(shopRepo, shopRepo, shopRepo.Capabilities);
 
+        var systemRepo = new PostgresSystemRepository(gate);
+        var system = new EditorSystemRepositoryBundle(systemRepo, systemRepo, systemRepo.Capabilities);
+
         var resourceRepo = new PostgresResourceRepository(gate, itemRepo);
         var resource = new EditorResourceRepositoryBundle(resourceRepo, resourceRepo, resourceRepo.Capabilities);
 
@@ -208,6 +218,7 @@ public static class GameDataInitializationService
             classBundle,
             actorBundle,
             shop,
+            system,
             resource,
             spawn,
             scope);

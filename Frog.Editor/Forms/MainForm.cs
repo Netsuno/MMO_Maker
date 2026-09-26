@@ -3947,6 +3947,30 @@ public sealed class MainForm : Form
         Func<int, int, string> Placed,
         string CancelledStatus);
 
+    private void RefreshSystemCatalogForEvents()
+    {
+        try
+        {
+            ISystemRepository? repository = EditorTestHooks.OverrideSystemRepository;
+            if (repository is null && _mapEventDatabaseScope is { IsDisposed: false } scope)
+            {
+                repository = new PostgresSystemRepository(scope.Gate);
+            }
+
+            if (repository is null)
+            {
+                return;
+            }
+
+            var stored = repository.LoadAsync().GetAwaiter().GetResult();
+            EditorSystemNameCatalog.Replace(stored?.Definition);
+        }
+        catch (Exception)
+        {
+            // Libellés optionnels : l’éditeur d’événements reste ouvert sans le catalogue.
+        }
+    }
+
     internal void BrowseMapEvents()
     {
         if (_mapEventService is null || !_mapEventService.IsAvailable)
@@ -3961,6 +3985,7 @@ public sealed class MainForm : Form
         }
 
         var mapId = _workspace?.CurrentMapId ?? Guid.Empty;
+        RefreshSystemCatalogForEvents();
         if (_mapEventsDialog is { IsDisposed: false })
         {
             _mapEventsDialog.SetMapContext(mapId, _lastHoverTile.X, _lastHoverTile.Y);
