@@ -520,10 +520,12 @@ public sealed class LoginShell : Panel
     /// <summary>
     /// Page 2 (sélection perso) : même carte DA, pas un second thème.
     /// Rangées contraintes à la largeur interne pour que <see cref="FlowLayoutPanel.WrapContents"/>
-    /// wrap réellement (sinon AutoSize élargit la rangée et « Créer perso » / « Entrer dans le jeu »
-    /// sortent du clip 520 px). AutoScroll vertical si la carte dépasse la hauteur utile.
+    /// wrap réellement (sinon AutoSize élargit la rangée et les CTA
+    /// sortent du clip 520 px). <see cref="StackRow"/> reste en colonne.
+    /// <paramref name="fitInnerWidth"/> aligne champs et CTA sur cette largeur.
+    /// AutoScroll vertical si la carte dépasse la hauteur utile.
     /// </summary>
-    public static void HostCenteredCard(Panel page, params Control[] sections)
+    public static void HostCenteredCard(Panel page, Action<int>? fitInnerWidth, params Control[] sections)
     {
         ArgumentNullException.ThrowIfNull(page);
         var state = new CardScaleState();
@@ -545,20 +547,11 @@ public sealed class LoginShell : Panel
             Width = cardWidth,
             MaximumSize = new Size(cardWidth, 0),
         };
+        fitInnerWidth?.Invoke(innerWidth);
         foreach (var section in sections)
         {
             ArgumentNullException.ThrowIfNull(section);
-            section.Margin = new Padding(0, 0, 0, 10);
-            section.Dock = DockStyle.None;
-            if (section is FlowLayoutPanel row)
-            {
-                row.WrapContents = true;
-                row.AutoSize = true;
-                row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                row.Width = innerWidth;
-                row.MaximumSize = new Size(innerWidth, 0);
-            }
-
+            ConstrainCardSection(section, innerWidth);
             body.Controls.Add(section);
         }
 
@@ -589,13 +582,10 @@ public sealed class LoginShell : Panel
                 body.Padding = new Padding(scaledPad);
                 body.Width = scaledCard;
                 body.MaximumSize = new Size(scaledCard, 0);
+                fitInnerWidth?.Invoke(scaledInner);
                 foreach (Control section in body.Controls)
                 {
-                    if (section is FlowLayoutPanel row)
-                    {
-                        row.Width = scaledInner;
-                        row.MaximumSize = new Size(scaledInner, 0);
-                    }
+                    ConstrainCardSection(section, scaledInner);
                 }
 
                 body.PerformLayout();
@@ -633,6 +623,42 @@ public sealed class LoginShell : Panel
         page.Controls.Add(host);
         state.Relayout = LayoutCard;
         LayoutCard();
+    }
+
+    private static void ConstrainCardSection(Control section, int innerWidth)
+    {
+        section.Margin = new Padding(0, 0, 0, 6);
+        section.Dock = DockStyle.None;
+        if (section is not FlowLayoutPanel row)
+        {
+            return;
+        }
+
+        var stack = row is StackRow;
+        row.WrapContents = !stack;
+        row.AutoSize = true;
+        row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        row.Width = innerWidth;
+        row.MaximumSize = new Size(innerWidth, 0);
+        if (!stack)
+        {
+            row.FlowDirection = FlowDirection.LeftToRight;
+        }
+    }
+
+    /// <summary>Colonne de la carte perso (titre, nom, classe). Ne wrap pas en rangées horizontales.</summary>
+    internal sealed class StackRow : FlowLayoutPanel
+    {
+        public StackRow()
+        {
+            FlowDirection = FlowDirection.TopDown;
+            WrapContents = false;
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            Margin = Padding.Empty;
+            Padding = Padding.Empty;
+            BackColor = Color.Transparent;
+        }
     }
 
     /// <summary>Carte « choisir un personnage ». 100 % laisse la largeur 520 déjà posée.</summary>

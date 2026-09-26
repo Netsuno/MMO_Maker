@@ -10,7 +10,7 @@ using Xunit;
 namespace Frog.Editor.WindowsSmokeTests;
 
 /// <summary>
-/// Production clip : « Entrer dans le jeu » / « Créer perso » hors carte 520 px.
+/// Production clip : « Entrer dans le jeu » / « Créer le personnage » hors carte 520 px.
 /// Échoue si un CTA sort de la zone cliente ou d'un ancêtre clip.
 /// </summary>
 [Collection(UiSmokeCollectionDefinition.Name)]
@@ -34,8 +34,11 @@ public sealed class ClientCharacterSelectLayoutSmokeTests
                 form.ShowCharacterSelectForTest();
 
                 Assert.Equal("Entrer dans le jeu", form.EnterGameButtonForTest.Text);
-                Assert.Equal("Créer perso", form.CharCreateButtonForTest.Text);
+                Assert.Equal("Créer le personnage", form.CharCreateButtonForTest.Text);
                 Assert.Equal("Liste persos", form.CharRefreshButtonForTest.Text);
+                Assert.Equal("Lettres, chiffres, espaces, tiret ou souligné · 32 caractères max.", form.CreateHintTextForTest);
+                Assert.False(form.CharCreateButtonForTest.Enabled);
+                Assert.False(form.EnterGameButtonForTest.Enabled);
                 Assert.Equal("Retour à la connexion (fermer la session)", form.BackDisconnectButtonForTest.Text);
                 Assert.Equal("Apparence", form.AppearancePickerForTest.AccessibleName);
                 Assert.Equal("Chevalier", form.AppearancePickerForTest.ValueForTest(CharacterLookSlot.Body));

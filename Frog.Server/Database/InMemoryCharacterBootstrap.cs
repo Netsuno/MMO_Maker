@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Frog.Core.Character;
 using Frog.Core.Models;
 
 namespace Frog.Server.Database;

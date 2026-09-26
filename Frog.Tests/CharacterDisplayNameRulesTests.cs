@@ -1,5 +1,5 @@
 using System;
-using Frog.Server.Database;
+using Frog.Core.Character;
 using Frog.Server.Network;
 using System.Text;
 using Xunit;

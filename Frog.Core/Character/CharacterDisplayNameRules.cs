@@ -1,9 +1,8 @@
-using System.Globalization;
 using System.Text;
 
-namespace Frog.Server.Database;
+namespace Frog.Core.Character;
 
-/// <summary>Règles serveur pour <c>frog_character.display_name</c> (slots additionnels).</summary>
+/// <summary>Règles partagées pour <c>frog_character.display_name</c> (slots additionnels).</summary>
 public static class CharacterDisplayNameRules
 {
     public const int MaxLength = 32;
