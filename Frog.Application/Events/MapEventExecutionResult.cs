@@ -43,7 +43,7 @@ public sealed class MapEventExecutionResult
     /// <summary>Boutique publiée à ouvrir chez le joueur (commande <c>open_shop</c>).</summary>
     public Guid? OpenShopId { get; init; }
 
-    /// <summary>Images à afficher ou effacer chez le joueur (commandes <c>show_picture</c> / <c>erase_picture</c>).</summary>
+    /// <summary>Images à afficher, déplacer, teinter ou effacer chez le joueur.</summary>
     public IReadOnlyList<MapEventPictureOp> PictureOps { get; init; } = Array.Empty<MapEventPictureOp>();
 
     /// <summary>Effets d'écran à jouer chez le joueur (fondu, teinte, tremblement, flash).</summary>

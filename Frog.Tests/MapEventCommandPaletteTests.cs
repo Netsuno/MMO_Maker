@@ -27,6 +27,8 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.BranchVariableId,
                 MapEventCommandPalette.SetWeatherId,
                 MapEventCommandPalette.ShowPictureId,
+                MapEventCommandPalette.MovePictureId,
+                MapEventCommandPalette.TintPictureId,
                 MapEventCommandPalette.ErasePictureId,
                 MapEventCommandPalette.FadeOutScreenId,
                 MapEventCommandPalette.FadeInScreenId,
@@ -44,6 +46,8 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Si variable");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer météo");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Afficher image");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Déplacer image");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Teinter image");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Effacer image");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Fondu en fermeture");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Fondu en ouverture");

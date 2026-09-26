@@ -4,7 +4,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, fondu, teinte, tremblement, flash, audio, boutique, interrupteur, variable, branche, météo.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, audio, boutique, interrupteur, variable, branche, météo.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -27,6 +27,8 @@ public static class MapEventCommandPalette
     public const string BranchVariableId = "branch_variable";
     public const string SetWeatherId = "set_weather";
     public const string ShowPictureId = "show_picture";
+    public const string MovePictureId = "move_picture";
+    public const string TintPictureId = "tint_picture";
     public const string ErasePictureId = "erase_picture";
     public const string FadeOutScreenId = "fadeout_screen";
     public const string FadeInScreenId = "fadein_screen";
@@ -52,6 +54,8 @@ public static class MapEventCommandPalette
         new(BranchVariableId, "Si variable"),
         new(SetWeatherId, "Changer météo"),
         new(ShowPictureId, "Afficher image"),
+        new(MovePictureId, "Déplacer image"),
+        new(TintPictureId, "Teinter image"),
         new(ErasePictureId, "Effacer image"),
         new(FadeOutScreenId, "Fondu en fermeture"),
         new(FadeInScreenId, "Fondu en ouverture"),
@@ -128,6 +132,26 @@ public static class MapEventCommandPalette
                     y = 0,
                     opacity = MapEventPicture.MaxOpacity,
                     blend = MapEventPicture.BlendNormal,
+                }),
+            MovePictureId => Command(
+                MapEventCommandDiscriminators.MovePicture,
+                new
+                {
+                    pictureId = 1,
+                    x = 0,
+                    y = 0,
+                    opacity = MapEventPicture.MaxOpacity,
+                    blend = MapEventPicture.BlendNormal,
+                }),
+            TintPictureId => Command(
+                MapEventCommandDiscriminators.TintPicture,
+                new
+                {
+                    pictureId = 1,
+                    red = MapEventScreen.DefaultTintRed,
+                    green = MapEventScreen.DefaultTintGreen,
+                    blue = MapEventScreen.DefaultTintBlue,
+                    opacity = MapEventScreen.DefaultTintOpacity,
                 }),
             ErasePictureId => Command(
                 MapEventCommandDiscriminators.ErasePicture,

@@ -63,6 +63,49 @@ public sealed class EventPictureSmokeTests
                 Assert.InRange(py, 0, bmp.Height - 1);
                 Assert.Equal(EventPictureDraw.PlaceholderColor.ToArgb(), bmp.GetPixel(px, py).ToArgb());
 
+                var shift = 48;
+                var movedX = screenX + shift;
+                var movedPxGuess = px + shift;
+                if (movedPxGuess < 0 || movedPxGuess >= bmp.Width)
+                {
+                    shift = EventPictureDraw.PlaceholderWidth + 8;
+                    movedX = screenX - shift;
+                }
+                var move = MapEventPictureWire.Compose(
+                    new[] { MapEventPictureOp.ForMove(1, movedX, screenY, 255, MapEventPicture.BlendNormal) },
+                    null,
+                    null,
+                    null);
+                form.ApplyInteractResultForTest(true, move);
+                Assert.Equal(1, form.EventPictureCountForTest);
+                Assert.True(form.TryGetEventPictureForTest(1, out var mx, out var my, out var mOpacity, out var mBlend));
+                Assert.Equal(movedX, mx);
+                Assert.Equal(screenY, my);
+                Assert.Equal(255, mOpacity);
+                Assert.Equal(MapEventPicture.BlendNormal, mBlend);
+                var movedBmp = Assert.IsType<Bitmap>(form.MapPictureForTest.Image);
+                var movedPx = movedX + 4 - loc.X;
+                Assert.InRange(movedPx, 0, movedBmp.Width - 1);
+                Assert.NotEqual(EventPictureDraw.PlaceholderColor.ToArgb(), movedBmp.GetPixel(px, py).ToArgb());
+                Assert.Equal(EventPictureDraw.PlaceholderColor.ToArgb(), movedBmp.GetPixel(movedPx, py).ToArgb());
+
+                var tint = MapEventPictureWire.Compose(
+                    new[] { MapEventPictureOp.ForTint(1, 255, 0, 0, 255) },
+                    null,
+                    null,
+                    null);
+                form.ApplyInteractResultForTest(true, tint);
+                Assert.True(form.TryGetEventPictureTintForTest(1, out var red, out var green, out var blue, out var tintOpacity));
+                Assert.Equal(255, red);
+                Assert.Equal(0, green);
+                Assert.Equal(0, blue);
+                Assert.Equal(255, tintOpacity);
+                var tinted = Assert.IsType<Bitmap>(form.MapPictureForTest.Image);
+                var tintedPixel = tinted.GetPixel(movedPx, py);
+                Assert.True(tintedPixel.R > 200, $"R={tintedPixel.R}");
+                Assert.True(tintedPixel.G < 40, $"G={tintedPixel.G}");
+                Assert.True(tintedPixel.B < 40, $"B={tintedPixel.B}");
+
                 var erase = MapEventPictureWire.Compose(
                     new[] { MapEventPictureOp.ForErase(1) },
                     null,

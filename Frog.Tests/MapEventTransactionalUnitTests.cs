@@ -265,6 +265,63 @@ public sealed class MapEventTransactionalUnitTests
     }
 
     [Fact]
+    public void Sandbox_MoveAndTintPicture_UpdateTheSlotAndRollBack()
+    {
+        var sandbox = new MapEventTransactionalCommitSandbox();
+        var shown = Unit(
+        [
+            Cmd(
+                MapEventCommandDiscriminators.ShowPicture,
+                """{"pictureId":3,"asset":"Assets/Pictures/placeholder.png","x":8,"y":12,"opacity":180,"blend":"add"}"""),
+        ]);
+        Assert.Equal(MapEventCommitDisposition.Committed, sandbox.TryCommit(shown).Disposition);
+
+        var moved = MapEventTransactionalUnit.FromPlan(MapEventExecutionPlan.Ok(
+            MapEventExecutionIdentity.Create(
+                CharacterId,
+                placementId: 101,
+                catalogAliasId: 3,
+                Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")),
+            [
+                Cmd(MapEventCommandDiscriminators.MovePicture, """{"pictureId":3,"x":20,"y":4,"opacity":255,"blend":"normal"}"""),
+                Cmd(MapEventCommandDiscriminators.TintPicture, """{"pictureId":3,"red":9,"green":8,"blue":7,"opacity":60}"""),
+                SetSwitch("gate", true),
+            ]));
+        Assert.True(moved.IsSuccess, moved.Error);
+        Assert.Equal(
+            MapEventEffectCommitKind.SessionSide,
+            MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.MovePicture));
+        Assert.Equal(
+            MapEventEffectCommitKind.SessionSide,
+            MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.TintPicture));
+        Assert.Equal(MapEventCommitDisposition.Committed, sandbox.TryCommit(moved).Disposition);
+        Assert.True(sandbox.World.Pictures.TryGetValue(3, out var picture));
+        Assert.Equal(MapEventPicture.DefaultAsset, picture.Asset);
+        Assert.Equal(20, picture.X);
+        Assert.Equal(4, picture.Y);
+        Assert.Equal(MapEventPicture.BlendNormal, picture.Blend);
+        Assert.Equal(9, picture.TintRed);
+        Assert.Equal(60, picture.TintOpacity);
+        Assert.True(sandbox.World.Switches["gate"]);
+
+        var rollback = new MapEventTransactionalCommitSandbox();
+        Assert.Equal(MapEventCommitDisposition.Committed, rollback.TryCommit(shown).Disposition);
+        var broken = MapEventTransactionalUnit.FromPlan(MapEventExecutionPlan.Ok(
+            MapEventExecutionIdentity.Create(
+                CharacterId,
+                placementId: 101,
+                catalogAliasId: 3,
+                Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc")),
+            [
+                Cmd(MapEventCommandDiscriminators.MovePicture, """{"pictureId":3,"x":1,"y":1,"opacity":10,"blend":"subtract"}"""),
+                Cmd(MapEventCommandDiscriminators.GiveItem, """{"itemId":"00000000-0000-0000-0000-000000000000","quantity":1}"""),
+            ]));
+        Assert.Equal(MapEventCommitDisposition.RolledBack, rollback.TryCommit(broken).Disposition);
+        Assert.Equal(8, rollback.World.Pictures[3].X);
+        Assert.Equal(0, rollback.World.Pictures[3].TintOpacity);
+    }
+
+    [Fact]
     public void Sandbox_FadeAndTint_RecordSettledStateAndRollBack()
     {
         var sandbox = new MapEventTransactionalCommitSandbox();

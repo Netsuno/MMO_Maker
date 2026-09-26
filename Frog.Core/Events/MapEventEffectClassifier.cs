@@ -46,7 +46,9 @@ public static class MapEventEffectClassifier
                 or MapEventCommandDiscriminators.Teleport
                 or MapEventCommandDiscriminators.OpenShop
                 or MapEventCommandDiscriminators.SetWeather
-                or             MapEventCommandDiscriminators.ShowPicture
+                or MapEventCommandDiscriminators.ShowPicture
+                or MapEventCommandDiscriminators.MovePicture
+                or MapEventCommandDiscriminators.TintPicture
                 or MapEventCommandDiscriminators.ErasePicture
                 or MapEventCommandDiscriminators.FadeOutScreen
                 or MapEventCommandDiscriminators.FadeInScreen

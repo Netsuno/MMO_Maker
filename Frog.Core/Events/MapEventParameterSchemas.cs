@@ -649,22 +649,11 @@ public static class MapEventParameterSchemas
                 return false;
             }
 
-            if (!TryReadPictureCoord(root, "x", out var x, out error)
-                || !TryReadPictureCoord(root, "y", out var y, out error)
-                || !TryReadPictureOpacity(root, out var opacity, out error))
+            if (!TryReadPictureCoord(root, "show_picture", "x", out var x, out error)
+                || !TryReadPictureCoord(root, "show_picture", "y", out var y, out error)
+                || !TryReadPictureOpacity(root, "show_picture", out var opacity, out error)
+                || !TryReadPictureBlend(root, "show_picture", out var blend, out error))
             {
-                return false;
-            }
-
-            if (!root.TryGetProperty("blend", out var blendEl) || blendEl.ValueKind != JsonValueKind.String)
-            {
-                error = "show_picture: propriété 'blend' (string) requise.";
-                return false;
-            }
-
-            if (!MapEventPicture.TryCanonicalBlend(blendEl.GetString(), out var blend))
-            {
-                error = "show_picture: synthèse inconnue.";
                 return false;
             }
 
@@ -714,6 +703,82 @@ public static class MapEventParameterSchemas
         catch (JsonException ex)
         {
             error = "erase_picture: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseMovePicture(string parameterJson, out MapEventPictureOp op, out string? error)
+    {
+        op = MapEventPictureOp.ForMove(1, 0, 0, 0, MapEventPicture.BlendNormal);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryReadPictureId(root, "move_picture", out var pictureId, out error)
+                || !TryReadPictureCoord(root, "move_picture", "x", out var x, out error)
+                || !TryReadPictureCoord(root, "move_picture", "y", out var y, out error)
+                || !TryReadPictureOpacity(root, "move_picture", out var opacity, out error)
+                || !TryReadPictureBlend(root, "move_picture", out var blend, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal)
+                    {
+                        "pictureId", "x", "y", "opacity", "blend",
+                    },
+                    out error))
+            {
+                return false;
+            }
+
+            op = MapEventPictureOp.ForMove(pictureId, x, y, opacity, blend);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "move_picture: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseTintPicture(string parameterJson, out MapEventPictureOp op, out string? error)
+    {
+        op = MapEventPictureOp.ForTint(1, 0, 0, 0, 0);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryReadPictureId(root, "tint_picture", out var pictureId, out error)
+                || !TryReadChannel(root, "tint_picture", "red", out var red, out error)
+                || !TryReadChannel(root, "tint_picture", "green", out var green, out error)
+                || !TryReadChannel(root, "tint_picture", "blue", out var blue, out error)
+                || !TryReadChannel(root, "tint_picture", "opacity", out var opacity, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal)
+                    {
+                        "pictureId", "red", "green", "blue", "opacity",
+                    },
+                    out error))
+            {
+                return false;
+            }
+
+            op = MapEventPictureOp.ForTint(pictureId, red, green, blue, opacity);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "tint_picture: JSON invalide: " + ex.Message;
             return false;
         }
     }
@@ -1468,7 +1533,12 @@ public static class MapEventParameterSchemas
         return true;
     }
 
-    private static bool TryReadPictureCoord(JsonElement root, string name, out int value, out string? error)
+    private static bool TryReadPictureCoord(
+        JsonElement root,
+        string label,
+        string name,
+        out int value,
+        out string? error)
     {
         value = 0;
         error = null;
@@ -1476,13 +1546,13 @@ public static class MapEventParameterSchemas
             || el.ValueKind != JsonValueKind.Number
             || !el.TryGetInt32(out value))
         {
-            error = $"show_picture: propriété '{name}' (int) requise.";
+            error = $"{label}: propriété '{name}' (int) requise.";
             return false;
         }
 
         if (value is < MapEventPicture.MinCoord or > MapEventPicture.MaxCoord)
         {
-            error = $"show_picture: {name} hors limites.";
+            error = $"{label}: {name} hors limites.";
             return false;
         }
 
@@ -1564,7 +1634,7 @@ public static class MapEventParameterSchemas
         return true;
     }
 
-    private static bool TryReadPictureOpacity(JsonElement root, out int opacity, out string? error)
+    private static bool TryReadPictureOpacity(JsonElement root, string label, out int opacity, out string? error)
     {
         opacity = 0;
         error = null;
@@ -1572,13 +1642,32 @@ public static class MapEventParameterSchemas
             || el.ValueKind != JsonValueKind.Number
             || !el.TryGetInt32(out opacity))
         {
-            error = "show_picture: propriété 'opacity' (int) requise.";
+            error = $"{label}: propriété 'opacity' (int) requise.";
             return false;
         }
 
         if (opacity is < MapEventPicture.MinOpacity or > MapEventPicture.MaxOpacity)
         {
-            error = "show_picture: opacité entre 0 et 255.";
+            error = $"{label}: opacité entre 0 et 255.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadPictureBlend(JsonElement root, string label, out string blend, out string? error)
+    {
+        blend = string.Empty;
+        error = null;
+        if (!root.TryGetProperty("blend", out var blendEl) || blendEl.ValueKind != JsonValueKind.String)
+        {
+            error = $"{label}: propriété 'blend' (string) requise.";
+            return false;
+        }
+
+        if (!MapEventPicture.TryCanonicalBlend(blendEl.GetString(), out blend))
+        {
+            error = $"{label}: synthèse inconnue.";
             return false;
         }
 

@@ -21,15 +21,39 @@ internal sealed class ShownEventPicture : IDisposable
         Image = image;
     }
 
-    public int X { get; }
+    public int X { get; private set; }
 
-    public int Y { get; }
+    public int Y { get; private set; }
 
-    public int Opacity { get; }
+    public int Opacity { get; private set; }
 
-    public string Blend { get; }
+    public string Blend { get; private set; }
+
+    public int TintRed { get; private set; }
+
+    public int TintGreen { get; private set; }
+
+    public int TintBlue { get; private set; }
+
+    public int TintOpacity { get; private set; }
 
     public Bitmap Image { get; }
+
+    public void MoveTo(int x, int y, int opacity, string blend)
+    {
+        X = x;
+        Y = y;
+        Opacity = opacity;
+        Blend = blend;
+    }
+
+    public void Tint(int red, int green, int blue, int opacity)
+    {
+        TintRed = red;
+        TintGreen = green;
+        TintBlue = blue;
+        TintOpacity = opacity;
+    }
 
     public void Dispose() => Image.Dispose();
 }
@@ -61,7 +85,19 @@ internal static class EventPictureDraw
         return CreatePlaceholder();
     }
 
-    internal static void Paint(Graphics g, Bitmap image, int screenX, int screenY, int cameraX, int cameraY, int opacity, string blend)
+    internal static void Paint(
+        Graphics g,
+        Bitmap image,
+        int screenX,
+        int screenY,
+        int cameraX,
+        int cameraY,
+        int opacity,
+        string blend,
+        int tintRed = 0,
+        int tintGreen = 0,
+        int tintBlue = 0,
+        int tintOpacity = 0)
     {
         var destX = screenX - cameraX;
         var destY = screenY - cameraY;
@@ -71,14 +107,19 @@ internal static class EventPictureDraw
             return;
         }
 
-        if (alpha >= 1f && string.Equals(blend, MapEventPicture.BlendNormal, StringComparison.Ordinal))
+        if (alpha >= 1f
+            && tintOpacity <= 0
+            && string.Equals(blend, MapEventPicture.BlendNormal, StringComparison.Ordinal))
         {
             g.DrawImageUnscaled(image, destX, destY);
             return;
         }
 
         using var attributes = new ImageAttributes();
-        attributes.SetColorMatrix(MatrixFor(alpha, blend), ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+        attributes.SetColorMatrix(
+            MatrixFor(alpha, blend, tintRed, tintGreen, tintBlue, tintOpacity),
+            ColorMatrixFlag.Default,
+            ColorAdjustType.Bitmap);
         g.DrawImage(
             image,
             new Rectangle(destX, destY, image.Width, image.Height),
@@ -90,23 +131,43 @@ internal static class EventPictureDraw
             attributes);
     }
 
-    private static ColorMatrix MatrixFor(float alpha, string blend)
+    private static ColorMatrix MatrixFor(
+        float alpha,
+        string blend,
+        int tintRed,
+        int tintGreen,
+        int tintBlue,
+        int tintOpacity)
     {
-        var matrix = new ColorMatrix { Matrix33 = alpha };
+        var strength = Math.Clamp(tintOpacity, 0, 255) / 255f;
+        var keep = 1f - strength;
+        var red = tintRed / 255f * strength;
+        var green = tintGreen / 255f * strength;
+        var blue = tintBlue / 255f * strength;
+        var matrix = new ColorMatrix
+        {
+            Matrix00 = keep,
+            Matrix11 = keep,
+            Matrix22 = keep,
+            Matrix33 = alpha,
+            Matrix40 = red,
+            Matrix41 = green,
+            Matrix42 = blue,
+        };
         if (string.Equals(blend, MapEventPicture.BlendAdd, StringComparison.Ordinal))
         {
-            matrix.Matrix40 = 0.25f;
-            matrix.Matrix41 = 0.25f;
-            matrix.Matrix42 = 0.25f;
+            matrix.Matrix40 += 0.25f;
+            matrix.Matrix41 += 0.25f;
+            matrix.Matrix42 += 0.25f;
         }
         else if (string.Equals(blend, MapEventPicture.BlendSubtract, StringComparison.Ordinal))
         {
-            matrix.Matrix00 = -1f;
-            matrix.Matrix11 = -1f;
-            matrix.Matrix22 = -1f;
-            matrix.Matrix40 = 1f;
-            matrix.Matrix41 = 1f;
-            matrix.Matrix42 = 1f;
+            matrix.Matrix00 = -keep;
+            matrix.Matrix11 = -keep;
+            matrix.Matrix22 = -keep;
+            matrix.Matrix40 = keep + red;
+            matrix.Matrix41 = keep + green;
+            matrix.Matrix42 = keep + blue;
         }
 
         return matrix;

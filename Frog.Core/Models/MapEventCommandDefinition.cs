@@ -70,6 +70,8 @@ public static class MapEventCommandDiscriminators
     public const string OpenShop = "open_shop";
     public const string SetWeather = "set_weather";
     public const string ShowPicture = "show_picture";
+    public const string MovePicture = "move_picture";
+    public const string TintPicture = "tint_picture";
     public const string ErasePicture = "erase_picture";
     public const string FadeOutScreen = "fadeout_screen";
     public const string FadeInScreen = "fadein_screen";
@@ -83,7 +85,7 @@ public static class MapEventCommandDiscriminators
         SetSwitch, SetVariable, AddVariable, SubVariable,
         GiveItem, TakeItem, GiveGold, TakeGold, StartQuest, AdvanceQuest, TurnInQuest,
         Teleport, Wait, CallCommonEvent, LearnProfession, OpenShop, SetWeather,
-        ShowPicture, ErasePicture, FadeOutScreen, FadeInScreen, TintScreen,
+        ShowPicture, MovePicture, TintPicture, ErasePicture, FadeOutScreen, FadeInScreen, TintScreen,
         ShakeScreen, FlashScreen,
     };
 

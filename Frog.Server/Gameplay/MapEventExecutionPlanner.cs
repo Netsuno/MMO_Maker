@@ -170,6 +170,8 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.PlaySe
                 or MapEventCommandDiscriminators.SetWeather
                 or MapEventCommandDiscriminators.ShowPicture
+                or MapEventCommandDiscriminators.MovePicture
+                or MapEventCommandDiscriminators.TintPicture
                 or MapEventCommandDiscriminators.ErasePicture
                 or MapEventCommandDiscriminators.FadeOutScreen
                 or MapEventCommandDiscriminators.FadeInScreen
