@@ -52,6 +52,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<ClassEntity> Classes => Set<ClassEntity>();
     public DbSet<ClassPublishedSnapshotEntity> ClassPublishedSnapshots => Set<ClassPublishedSnapshotEntity>();
     public DbSet<ClassPublicationHistoryEntity> ClassPublicationHistory => Set<ClassPublicationHistoryEntity>();
+    public DbSet<ActorEntity> Actors => Set<ActorEntity>();
+    public DbSet<ActorPublishedSnapshotEntity> ActorPublishedSnapshots => Set<ActorPublishedSnapshotEntity>();
+    public DbSet<ActorPublicationHistoryEntity> ActorPublicationHistory => Set<ActorPublicationHistoryEntity>();
     public DbSet<ShopEntity> Shops => Set<ShopEntity>();
     public DbSet<ShopPublishedSnapshotEntity> ShopPublishedSnapshots => Set<ShopPublishedSnapshotEntity>();
     public DbSet<ShopPublicationHistoryEntity> ShopPublicationHistory => Set<ShopPublicationHistoryEntity>();
@@ -538,6 +541,99 @@ public sealed class FrogDbContext : DbContext
             e.HasOne(x => x.Class)
                 .WithMany()
                 .HasForeignKey(x => x.ClassId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ActorEntity>(e =>
+        {
+            e.ToTable("actors", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(ActorDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(ActorDefinition.MaxDescriptionLength);
+            e.Property(x => x.FaceLogicalPath).HasMaxLength(ActorDefinition.MaxLogicalPathLength);
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasIndex(x => x.ClassId);
+            e.HasIndex(x => x.StartingWeaponItemId);
+            e.HasIndex(x => x.StartingArmorItemId);
+            e.HasOne<ClassEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.StartingWeaponItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.StartingArmorItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_actors_positive_resources", "base_hp > 0 AND base_mp > 0");
+                t.HasCheckConstraint(
+                    "ck_actors_stats",
+                    "str >= 1 AND str <= 99 AND agi >= 1 AND agi <= 99 "
+                    + "AND vit >= 1 AND vit <= 99 AND int >= 1 AND int <= 99 "
+                    + "AND dex >= 1 AND dex <= 99 AND luck >= 1 AND luck <= 99");
+                t.HasCheckConstraint(
+                    "ck_actors_look",
+                    "body >= 0 AND body < 4 AND hair >= 0 AND hair < 5 AND tunic >= 0 AND tunic < 4");
+                t.HasCheckConstraint("ck_actors_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<ActorPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("actor_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ActorId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(ActorDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(ActorDefinition.MaxDescriptionLength);
+            e.Property(x => x.FaceLogicalPath).HasMaxLength(ActorDefinition.MaxLogicalPathLength);
+            e.HasIndex(x => x.ClassId);
+            e.HasIndex(x => x.StartingWeaponItemId);
+            e.HasIndex(x => x.StartingArmorItemId);
+            e.HasOne(x => x.Actor)
+                .WithMany()
+                .HasForeignKey(x => x.ActorId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ClassEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.StartingWeaponItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.StartingArmorItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_actor_published_snapshots_positive_resources",
+                    "base_hp > 0 AND base_mp > 0");
+                t.HasCheckConstraint(
+                    "ck_actor_published_snapshots_stats",
+                    "str >= 1 AND str <= 99 AND agi >= 1 AND agi <= 99 "
+                    + "AND vit >= 1 AND vit <= 99 AND int >= 1 AND int <= 99 "
+                    + "AND dex >= 1 AND dex <= 99 AND luck >= 1 AND luck <= 99");
+                t.HasCheckConstraint(
+                    "ck_actor_published_snapshots_look",
+                    "body >= 0 AND body < 4 AND hair >= 0 AND hair < 5 AND tunic >= 0 AND tunic < 4");
+            });
+        });
+
+        modelBuilder.Entity<ActorPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("actor_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ActorId);
+            e.HasOne(x => x.Actor)
+                .WithMany()
+                .HasForeignKey(x => x.ActorId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

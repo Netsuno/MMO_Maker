@@ -63,6 +63,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideItemRepository = null;
         EditorTestHooks.OverrideSpellRepository = null;
         EditorTestHooks.OverrideClassRepository = null;
+        EditorTestHooks.OverrideActorRepository = null;
         EditorTestHooks.OverrideShopRepository = null;
         EditorTestHooks.OverrideResourceRepository = null;
         EditorTestHooks.OverrideResourceSpawnRepository = null;
@@ -115,9 +116,14 @@ internal static class EditorSmokeTestAccess
         var spellRepository = new Frog.Application.Content.InMemorySpellRepository(
             Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideSpellRepository = spellRepository;
-        EditorTestHooks.OverrideClassRepository =
-            new Frog.Application.Content.InMemoryClassRepository(
-                spellRepository,
+        var classRepository = new Frog.Application.Content.InMemoryClassRepository(
+            spellRepository,
+            Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideClassRepository = classRepository;
+        EditorTestHooks.OverrideActorRepository =
+            new Frog.Application.Content.InMemoryActorRepository(
+                classRepository,
+                itemRepository,
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideShopRepository =
             new Frog.Application.Content.InMemoryShopRepository(
@@ -164,6 +170,12 @@ internal static class EditorSmokeTestAccess
     public static Task OpenGameDataAndSaveSampleClassAsync(MainWindow window)
     {
         GameDataSmokeUiDriver.RunClassScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
+    }
+
+    public static Task OpenGameDataAndSaveSampleActorAsync(MainWindow window)
+    {
+        GameDataSmokeUiDriver.RunActorScenario(window, DefaultTimeout);
         return Task.CompletedTask;
     }
 

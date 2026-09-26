@@ -23,6 +23,7 @@ public abstract record DeleteClassResult
 {
     public sealed record Success : DeleteClassResult;
     public sealed record NotFound : DeleteClassResult;
+    public sealed record Referenced(string Error) : DeleteClassResult;
     public sealed record PersistenceFailed(string Error) : DeleteClassResult;
 }
 

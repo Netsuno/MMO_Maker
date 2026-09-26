@@ -11,6 +11,7 @@ public sealed class InMemoryClassRepository :
     private readonly ISpellRepository _spells;
     private readonly ConcurrentDictionary<Guid, DraftRecord> _drafts = new();
     private readonly ConcurrentDictionary<Guid, PublishedRecord> _published = new();
+    private IActorClassReferenceCatalog? _actorReferences;
 
     public InMemoryClassRepository(
         ISpellRepository spells,
@@ -22,6 +23,11 @@ public sealed class InMemoryClassRepository :
         {
             spellRepository.RegisterClassReferences(this);
         }
+    }
+
+    internal void RegisterActorReferences(IActorClassReferenceCatalog actorReferences)
+    {
+        _actorReferences = actorReferences ?? throw new ArgumentNullException(nameof(actorReferences));
     }
 
     public ContentRepositoryCapabilities Capabilities { get; }
@@ -187,17 +193,25 @@ public sealed class InMemoryClassRepository :
         return Task.FromResult<IReadOnlyList<ClassCatalogEntry>>(list);
     }
 
-    public Task<DeleteClassResult> DeleteAsync(
+    public async Task<DeleteClassResult> DeleteAsync(
         Guid classId,
         CancellationToken cancellationToken = default)
     {
+        if (_actorReferences is not null
+            && await _actorReferences.IsClassReferencedAsync(classId, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            return new DeleteClassResult.Referenced(
+                "La classe est référencée par un brouillon ou un snapshot publié de héros.");
+        }
+
         if (!_drafts.TryRemove(classId, out _))
         {
-            return Task.FromResult<DeleteClassResult>(new DeleteClassResult.NotFound());
+            return new DeleteClassResult.NotFound();
         }
 
         _published.TryRemove(classId, out _);
-        return Task.FromResult<DeleteClassResult>(new DeleteClassResult.Success());
+        return new DeleteClassResult.Success();
     }
 
     public Task<IReadOnlyList<ClassDefinition>> ListPublishedAsync(

@@ -299,6 +299,71 @@ public sealed class ClassPublicationHistoryEntity
     public ClassEntity Class { get; set; } = null!;
 }
 
+public sealed class ActorEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public Guid? ClassId { get; set; }
+    public string? FaceLogicalPath { get; set; }
+    public byte Body { get; set; }
+    public byte Hair { get; set; }
+    public byte Tunic { get; set; }
+    public Guid? StartingWeaponItemId { get; set; }
+    public Guid? StartingArmorItemId { get; set; }
+    public int BaseHp { get; set; }
+    public int BaseMp { get; set; }
+    public int Str { get; set; }
+    public int Agi { get; set; }
+    public int Vit { get; set; }
+    public int Int { get; set; }
+    public int Dex { get; set; }
+    public int Luck { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’un héros publié.</summary>
+public sealed class ActorPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid ActorId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public Guid? ClassId { get; set; }
+    public string? FaceLogicalPath { get; set; }
+    public byte Body { get; set; }
+    public byte Hair { get; set; }
+    public byte Tunic { get; set; }
+    public Guid? StartingWeaponItemId { get; set; }
+    public Guid? StartingArmorItemId { get; set; }
+    public int BaseHp { get; set; }
+    public int BaseMp { get; set; }
+    public int Str { get; set; }
+    public int Agi { get; set; }
+    public int Vit { get; set; }
+    public int Int { get; set; }
+    public int Dex { get; set; }
+    public int Luck { get; set; }
+    public ActorEntity Actor { get; set; } = null!;
+}
+
+public sealed class ActorPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid ActorId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public ActorEntity Actor { get; set; } = null!;
+}
+
 public sealed class ShopEntity
 {
     public Guid Id { get; set; }
