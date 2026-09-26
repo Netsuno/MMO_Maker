@@ -370,6 +370,11 @@ public sealed class PostgresMapEventMutationRepository(
             case MapEventCommandDiscriminators.TakeGold:
                 return await ApplyGoldMutationAsync(db, character, command, snapshot, ct).ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.ChangeLevel:
+            case MapEventCommandDiscriminators.ChangeExp:
+            case MapEventCommandDiscriminators.ChangeParam:
+                return ApplyProgression(character, command, snapshot);
+
             case MapEventCommandDiscriminators.StartQuest:
             case MapEventCommandDiscriminators.AdvanceQuest:
             case MapEventCommandDiscriminators.TurnInQuest:
@@ -819,6 +824,59 @@ public sealed class PostgresMapEventMutationRepository(
         return null;
     }
 
+    private static string? ApplyProgression(
+        CharacterEntity character,
+        MapEventCommandDefinition command,
+        MapEventExecutionSnapshot snapshot)
+    {
+        var current = new CharacterVitals
+        {
+            Level = character.Level,
+            Experience = character.Experience,
+            Hp = character.Hp,
+            MaxHp = character.MaxHp,
+            Mp = character.Mp,
+            MaxMp = character.MaxMp,
+            Str = character.Str,
+            Agi = character.Agi,
+            Vit = character.Vit,
+            Int = character.Int,
+            Dex = character.Dex,
+            Luck = character.Luck,
+        };
+        if (!CharacterProgressionCommands.TryApply(
+                command.Discriminator,
+                command.ParameterJson,
+                current,
+                out var next,
+                out var vitalsChanged,
+                out var statsChanged,
+                out var error))
+        {
+            return error;
+        }
+
+        if (!vitalsChanged && !statsChanged)
+        {
+            return null;
+        }
+
+        character.Level = next.Level;
+        character.Experience = next.Experience;
+        character.Hp = next.Hp;
+        character.MaxHp = next.MaxHp;
+        character.Mp = next.Mp;
+        character.MaxMp = next.MaxMp;
+        character.Str = next.Str;
+        character.Agi = next.Agi;
+        character.Vit = next.Vit;
+        character.Int = next.Int;
+        character.Dex = next.Dex;
+        character.Luck = next.Luck;
+        snapshot.RecordProgression(next, vitalsChanged, statsChanged);
+        return null;
+    }
+
     private async Task<string?> ApplyQuestCommandAsync(
         FrogDbContext db,
         CharacterEntity character,
@@ -1257,6 +1315,20 @@ public sealed class PostgresMapEventMutationRepository(
             VariablesChanged = snapshot.VariablesChanged,
             InventoryChanged = snapshot.InventoryChanged,
             GoldChanged = snapshot.GoldChanged,
+            ProgressionChanged = snapshot.ProgressionChanged,
+            StatsChanged = snapshot.StatsChanged,
+            ResultLevel = snapshot.ResultLevel,
+            ResultExperience = snapshot.ResultExperience,
+            ResultHp = snapshot.ResultHp,
+            ResultMaxHp = snapshot.ResultMaxHp,
+            ResultMp = snapshot.ResultMp,
+            ResultMaxMp = snapshot.ResultMaxMp,
+            ResultStr = snapshot.ResultStr,
+            ResultAgi = snapshot.ResultAgi,
+            ResultVit = snapshot.ResultVit,
+            ResultInt = snapshot.ResultInt,
+            ResultDex = snapshot.ResultDex,
+            ResultLuck = snapshot.ResultLuck,
             QuestsChanged = snapshot.QuestsChanged,
             ProfessionsChanged = snapshot.ProfessionsChanged,
             RecipesChanged = snapshot.RecipesChanged,
@@ -1297,6 +1369,20 @@ public sealed class PostgresMapEventMutationRepository(
                 VariablesChanged = stored.VariablesChanged,
                 InventoryChanged = stored.InventoryChanged,
                 GoldChanged = stored.GoldChanged,
+                ProgressionChanged = stored.ProgressionChanged,
+                StatsChanged = stored.StatsChanged,
+                ResultLevel = stored.ResultLevel,
+                ResultExperience = stored.ResultExperience,
+                ResultHp = stored.ResultHp,
+                ResultMaxHp = stored.ResultMaxHp,
+                ResultMp = stored.ResultMp,
+                ResultMaxMp = stored.ResultMaxMp,
+                ResultStr = stored.ResultStr,
+                ResultAgi = stored.ResultAgi,
+                ResultVit = stored.ResultVit,
+                ResultInt = stored.ResultInt,
+                ResultDex = stored.ResultDex,
+                ResultLuck = stored.ResultLuck,
                 QuestsChanged = stored.QuestsChanged,
                 ProfessionsChanged = stored.ProfessionsChanged,
                 RecipesChanged = stored.RecipesChanged,
@@ -1337,6 +1423,34 @@ public sealed class PostgresMapEventMutationRepository(
         public bool InventoryChanged { get; set; }
 
         public bool GoldChanged { get; set; }
+
+        public bool ProgressionChanged { get; set; }
+
+        public bool StatsChanged { get; set; }
+
+        public int? ResultLevel { get; set; }
+
+        public long? ResultExperience { get; set; }
+
+        public int? ResultHp { get; set; }
+
+        public int? ResultMaxHp { get; set; }
+
+        public int? ResultMp { get; set; }
+
+        public int? ResultMaxMp { get; set; }
+
+        public int? ResultStr { get; set; }
+
+        public int? ResultAgi { get; set; }
+
+        public int? ResultVit { get; set; }
+
+        public int? ResultInt { get; set; }
+
+        public int? ResultDex { get; set; }
+
+        public int? ResultLuck { get; set; }
 
         public bool QuestsChanged { get; set; }
 

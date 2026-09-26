@@ -1,4 +1,5 @@
 using Frog.Core.Events;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 
@@ -66,6 +67,36 @@ public sealed class MapEventExecutionSnapshot
     public bool InventoryChanged { get; set; }
 
     public bool GoldChanged { get; set; }
+
+    /// <summary>Niveau, EXP ou jauges HP/MP ont changé : pousser <c>CombatState</c> (opcode 50).</summary>
+    public bool ProgressionChanged { get; set; }
+
+    /// <summary>STR…LUCK ont changé : pousser <c>CharacterPayload</c> (opcode 20) avec le bloc <c>stats</c>.</summary>
+    public bool StatsChanged { get; set; }
+
+    public int? ResultLevel { get; set; }
+
+    public long? ResultExperience { get; set; }
+
+    public int? ResultHp { get; set; }
+
+    public int? ResultMaxHp { get; set; }
+
+    public int? ResultMp { get; set; }
+
+    public int? ResultMaxMp { get; set; }
+
+    public int? ResultStr { get; set; }
+
+    public int? ResultAgi { get; set; }
+
+    public int? ResultVit { get; set; }
+
+    public int? ResultInt { get; set; }
+
+    public int? ResultDex { get; set; }
+
+    public int? ResultLuck { get; set; }
 
     public bool QuestsChanged { get; set; }
 
@@ -138,6 +169,37 @@ public sealed class MapEventExecutionSnapshot
     }
 
     public void RecordWeather(string weatherKind) => WeatherKind = weatherKind;
+
+    public void RecordProgression(CharacterVitals vitals, bool vitalsChanged, bool statsChanged)
+    {
+        if (vitalsChanged)
+        {
+            ProgressionChanged = true;
+        }
+
+        if (statsChanged)
+        {
+            StatsChanged = true;
+        }
+
+        if (!vitalsChanged && !statsChanged)
+        {
+            return;
+        }
+
+        ResultLevel = vitals.Level;
+        ResultExperience = vitals.Experience;
+        ResultHp = vitals.Hp;
+        ResultMaxHp = vitals.MaxHp;
+        ResultMp = vitals.Mp;
+        ResultMaxMp = vitals.MaxMp;
+        ResultStr = vitals.Str;
+        ResultAgi = vitals.Agi;
+        ResultVit = vitals.Vit;
+        ResultInt = vitals.Int;
+        ResultDex = vitals.Dex;
+        ResultLuck = vitals.Luck;
+    }
 
     public void RecordPicture(MapEventPictureOp op)
     {

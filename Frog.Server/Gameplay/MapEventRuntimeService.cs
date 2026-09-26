@@ -1,5 +1,6 @@
 using Frog.Application.Content;
 using Frog.Application.Events;
+using Frog.Application.Gameplay;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -347,6 +348,8 @@ public sealed class MapEventRuntimeService
             variablesChanged: state.VariablesChanged,
             inventoryChanged: state.InventoryChanged,
             goldChanged: state.GoldChanged,
+            progressionChanged: state.ProgressionChanged,
+            statsChanged: state.StatsChanged,
             teleportApplied: state.TeleportApplied,
             dialogueSummary: state.DialogueSummary,
             questSummary: state.QuestSummary,
@@ -383,6 +386,8 @@ public sealed class MapEventRuntimeService
         {
             session.Gold = gold;
         }
+
+        ApplyRecordedProgression(session, snap);
 
         var applied = new MapEventExecutionState();
         if (snap is not null)
@@ -499,7 +504,33 @@ public sealed class MapEventRuntimeService
             state.WeatherChanged,
             state.PictureOps,
             state.ScreenOps,
-            state.VisualOps);
+            state.VisualOps,
+            state.ProgressionChanged,
+            state.StatsChanged);
+    }
+
+    private static void ApplyRecordedProgression(Session session, MapEventExecutionSnapshot? snap)
+    {
+        if (snap?.ResultLevel is not int level)
+        {
+            return;
+        }
+
+        session.Level = level;
+        session.Experience = snap.ResultExperience ?? session.Experience;
+        session.Hp = snap.ResultHp ?? session.Hp;
+        session.MaxHp = snap.ResultMaxHp ?? session.MaxHp;
+        session.Mp = snap.ResultMp ?? session.Mp;
+        session.MaxMp = snap.ResultMaxMp ?? session.MaxMp;
+        if (snap.ResultStr is int str
+            && snap.ResultAgi is int agi
+            && snap.ResultVit is int vit
+            && snap.ResultInt is int intel
+            && snap.ResultDex is int dex
+            && snap.ResultLuck is int luck)
+        {
+            session.Stats = new CharacterStats(str, agi, vit, intel, dex, luck);
+        }
     }
 
     private void RegisterWaitIfNeeded(

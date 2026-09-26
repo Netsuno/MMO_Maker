@@ -5,6 +5,7 @@ using Frog.Application.Gameplay;
 using Frog.Core;
 using Frog.Core.Character;
 using Frog.Core.Events;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
 using Frog.Core.Weather;
@@ -296,6 +297,12 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.GiveGold:
             case MapEventCommandDiscriminators.TakeGold:
                 return await ExecuteGoldMutationAsync(session, characterId, command, state, cancellationToken)
+                    .ConfigureAwait(false);
+
+            case MapEventCommandDiscriminators.ChangeLevel:
+            case MapEventCommandDiscriminators.ChangeExp:
+            case MapEventCommandDiscriminators.ChangeParam:
+                return await ExecuteProgressionAsync(session, characterId, command, state, cancellationToken)
                     .ConfigureAwait(false);
 
             case MapEventCommandDiscriminators.Teleport:
@@ -612,6 +619,82 @@ public sealed class MapEventCommandExecutor
         await _characters.SaveAsync(saved, cancellationToken).ConfigureAwait(false);
         session.Gold = updatedGold;
         state.GoldChanged = true;
+
+        return null;
+    }
+
+    private async Task<string?> ExecuteProgressionAsync(
+        Session session,
+        Guid characterId,
+        MapEventCommandDefinition command,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        var character = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+        if (character is null)
+        {
+            return "Personnage introuvable.";
+        }
+
+        var current = new CharacterVitals
+        {
+            Level = character.Level,
+            Experience = character.Experience,
+            Hp = character.Hp,
+            MaxHp = character.MaxHp,
+            Mp = character.Mp,
+            MaxMp = character.MaxMp,
+            Str = character.Stats.Str,
+            Agi = character.Stats.Agi,
+            Vit = character.Stats.Vit,
+            Int = character.Stats.Int,
+            Dex = character.Stats.Dex,
+            Luck = character.Stats.Luck,
+        };
+        if (!CharacterProgressionCommands.TryApply(
+                command.Discriminator,
+                command.ParameterJson,
+                current,
+                out var next,
+                out var vitalsChanged,
+                out var statsChanged,
+                out var error))
+        {
+            return error;
+        }
+
+        if (!vitalsChanged && !statsChanged)
+        {
+            return null;
+        }
+
+        var saved = character with
+        {
+            Level = next.Level,
+            Experience = next.Experience,
+            Hp = next.Hp,
+            MaxHp = next.MaxHp,
+            Mp = next.Mp,
+            MaxMp = next.MaxMp,
+            Stats = new CharacterStats(next.Str, next.Agi, next.Vit, next.Int, next.Dex, next.Luck),
+        };
+        await _characters.SaveAsync(saved, cancellationToken).ConfigureAwait(false);
+        session.Level = next.Level;
+        session.Experience = next.Experience;
+        session.Hp = next.Hp;
+        session.MaxHp = next.MaxHp;
+        session.Mp = next.Mp;
+        session.MaxMp = next.MaxMp;
+        session.Stats = saved.Stats;
+        if (vitalsChanged)
+        {
+            state.ProgressionChanged = true;
+        }
+
+        if (statsChanged)
+        {
+            state.StatsChanged = true;
+        }
 
         return null;
     }

@@ -2204,6 +2204,101 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Equal(true, await world.GetSwitchAsync(characterId, "shop_missing"));
     }
 
+    [Fact]
+    public async Task ChangeLevelExpAndParam_UpdatesCharacterAndSession()
+    {
+        var characterId = Guid.NewGuid();
+        var characters = new InMemoryCharacterRepository();
+        var now = DateTimeOffset.UtcNow;
+        await characters.SaveAsync(new CharacterRecord(
+            characterId,
+            Guid.NewGuid(),
+            "Hero",
+            Phase7ContentSeed.DefaultClassId,
+            1,
+            0,
+            0,
+            1,
+            0,
+            100,
+            100,
+            40,
+            40,
+            0,
+            0,
+            false,
+            new CharacterStats(10, 10, 10, 10, 10, 10),
+            null,
+            null,
+            null,
+            now,
+            now));
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Mentor",
+            EditorAliasId = 81,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeLevel,
+                            ParameterJson = """{"delta":2}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeExp,
+                            ParameterJson = """{"delta":40}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeParam,
+                            ParameterJson = """{"stat":"STR","delta":3}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeParam,
+                            ParameterJson = """{"stat":"HP","delta":-10}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            characters: characters);
+        var session = CreateSession(characterId);
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(81));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.True(result.ProgressionChanged);
+        Assert.True(result.StatsChanged);
+        Assert.Equal(3, session.Level);
+        Assert.Equal(40, session.Experience);
+        Assert.Equal(90, session.Hp);
+        Assert.Equal(100, session.MaxHp);
+        Assert.Equal(13, session.Stats!.Str);
+        var saved = await characters.FindByIdAsync(characterId);
+        Assert.NotNull(saved);
+        Assert.Equal(3, saved!.Level);
+        Assert.Equal(40, saved.Experience);
+        Assert.Equal(90, saved.Hp);
+        Assert.Equal(13, saved.Stats.Str);
+        Assert.Equal(10, saved.Stats.Agi);
+        var published = await catalog.ListPublishedAsync();
+        Assert.True(ServerPlanner.CanExecuteTransactionally(published[0].Pages[0].Commands));
+        Assert.Equal(MapEventEffectCommitKind.Persistent, MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.ChangeLevel));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+    }
+
     private static QuickEventPresetDraft RequirePreset(string name, QuickEventPresetKind kind)
     {
         Assert.True(QuickEventPresetDraft.TryCreate(name, kind, out var draft, out var error), error);
@@ -2216,11 +2311,12 @@ public sealed class MapEventRuntimeServiceTests
         InMemoryCharacterPayloadReader payload,
         MapEventExecutionTracker? tracker = null,
         IMapEventMutationRepository? mutationRepository = null,
-        Action<Phase8InMemoryPublishedContent>? configureContent = null)
+        Action<Phase8InMemoryPublishedContent>? configureContent = null,
+        InMemoryCharacterRepository? characters = null)
     {
         var phase8 = new Phase8InMemoryPublishedContent();
         configureContent?.Invoke(phase8);
-        var executor = CreateExecutor(worldState, payload, phase8);
+        var executor = CreateExecutor(worldState, payload, phase8, characters: characters);
         return new MapEventRuntimeService(
             catalog,
             phase8,
@@ -2235,10 +2331,11 @@ public sealed class MapEventRuntimeServiceTests
         InMemoryCharacterWorldStateRepository worldState,
         InMemoryCharacterPayloadReader payload,
         Phase8InMemoryPublishedContent? phase8 = null,
-        ILogger<MapEventCommandExecutor>? logger = null)
+        ILogger<MapEventCommandExecutor>? logger = null,
+        InMemoryCharacterRepository? characters = null)
     {
         phase8 ??= new Phase8InMemoryPublishedContent();
-        var characters = new InMemoryCharacterRepository();
+        characters ??= new InMemoryCharacterRepository();
         var items = new Phase7PublishedContent();
         var inventoryRepo = new InMemoryInventoryRepository();
         var inventory = new InventoryGameplayService(

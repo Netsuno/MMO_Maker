@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Frog.Core.Character;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Weather;
 
@@ -563,6 +564,113 @@ public static class MapEventParameterSchemas
             SchemaVersion = 1,
             ParameterJson = JsonSerializer.Serialize(new { itemId = itemId.ToString("D"), quantity }),
         };
+        return true;
+    }
+
+    public static bool TryParseLevelChange(string parameterJson, out int delta, out string? error) =>
+        TryParseSignedDelta(parameterJson, "change_level", CharacterProgressionAdjust.MaxLevelDelta, out delta, out error);
+
+    public static bool TryParseExpChange(string parameterJson, out int delta, out string? error) =>
+        TryParseSignedDelta(parameterJson, "change_exp", CharacterProgressionAdjust.MaxExpDelta, out delta, out error);
+
+    public static bool TryParseParamChange(string parameterJson, out string stat, out int delta, out string? error)
+    {
+        stat = string.Empty;
+        delta = 0;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!doc.RootElement.TryGetProperty("stat", out var statEl) || statEl.ValueKind != JsonValueKind.String)
+            {
+                error = "change_param: stat requis.";
+                return false;
+            }
+
+            stat = statEl.GetString()?.Trim() ?? string.Empty;
+            if (!CharacterProgressionAdjust.IsParam(stat))
+            {
+                error = "change_param: stat inconnu.";
+                return false;
+            }
+
+            if (!TryReadSignedDelta(doc.RootElement, "change_param", CharacterProgressionAdjust.MaxParamDelta, out delta, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "stat", "delta" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryParseSignedDelta(
+        string parameterJson,
+        string command,
+        int maxAbs,
+        out int delta,
+        out string? error)
+    {
+        delta = 0;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!TryReadSignedDelta(doc.RootElement, command, maxAbs, out delta, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "delta" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryReadSignedDelta(
+        JsonElement root,
+        string command,
+        int maxAbs,
+        out int delta,
+        out string? error)
+    {
+        delta = 0;
+        error = null;
+        if (!root.TryGetProperty("delta", out var el) || !el.TryGetInt32(out delta) || delta == 0)
+        {
+            error = $"{command}: delta (int ≠ 0) requis.";
+            return false;
+        }
+
+        if (delta > maxAbs || delta < -maxAbs)
+        {
+            error = $"{command}: delta hors plage (±{maxAbs}).";
+            return false;
+        }
+
         return true;
     }
 

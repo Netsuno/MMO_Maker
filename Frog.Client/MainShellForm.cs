@@ -433,6 +433,8 @@ public sealed class MainShellForm : Form
     /// <summary>Dernier <see cref="CombatStateWire"/> reçu (ForTest : HP/mort observables sans re-parcourir le log).</summary>
     private CombatStateWire? _lastCombatState;
 
+    private string? _primaryStatLine;
+
     public MainShellForm()
         : this(null)
     {
@@ -2514,8 +2516,8 @@ public sealed class MainShellForm : Form
         _tradeForm.SetWallet(state.Gold);
         _shopBank.SetWallet(state.Gold);
         _lblBank.Text = _shopBank.BankLine;
-        _lblCombat.Text =
-            $"Niv {state.Level} · XP {state.Experience} · HP {state.Hp}/{state.MaxHp} · MP {state.Mp}/{state.MaxMp} · Or {state.Gold}";
+        _lblCombat.Text = FormatCombatLine(state);
+        _characterSheet.ApplyIdentity(_username, state.Level);
         _btnRespawn.Visible = state.IsDead;
         _btnRespawn.Enabled = state.IsDead;
         _hudStatus.ApplyCombat(state, _username);
@@ -4265,12 +4267,48 @@ public sealed class MainShellForm : Form
             {
                 AppendLog("Stats: " + stats.ToString());
                 ApplyStatsUiFromJson(stats);
+                RememberPrimaryStats(stats);
             }
         }
         catch
         {
             // JSON optionnel / évolutif
         }
+    }
+
+    private string FormatCombatLine(CombatStateWire state)
+    {
+        var line =
+            $"Niv {state.Level} · XP {state.Experience} · HP {state.Hp}/{state.MaxHp} · MP {state.Mp}/{state.MaxMp} · Or {state.Gold}";
+        return string.IsNullOrEmpty(_primaryStatLine) ? line : line + " · " + _primaryStatLine;
+    }
+
+    private void RememberPrimaryStats(JsonElement stats)
+    {
+        if (!TryStat(stats, "STR", out var str)
+            || !TryStat(stats, "AGI", out var agi)
+            || !TryStat(stats, "DEX", out var dex)
+            || !TryStat(stats, "INT", out var intel)
+            || !TryStat(stats, "VIT", out var vit)
+            || !TryStat(stats, "LUCK", out var luck))
+        {
+            return;
+        }
+
+        _primaryStatLine = CharacterProgressionAdjust.FormatPrimaryStats(str, agi, dex, intel, vit, luck);
+        _characterSheet.ApplyPrimaryStats(str, agi, dex, intel, vit, luck);
+        if (_lastCombatState is { } state)
+        {
+            _lblCombat.Text = FormatCombatLine(state);
+        }
+    }
+
+    private static bool TryStat(JsonElement stats, string key, out int value)
+    {
+        value = 0;
+        return stats.TryGetProperty(key, out var el)
+            && el.ValueKind == JsonValueKind.Number
+            && el.TryGetInt32(out value);
     }
 
     private void ApplyStatsUiFromJson(JsonElement stats)

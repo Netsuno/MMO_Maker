@@ -23,6 +23,12 @@ public sealed class MapEventExecutionResult
 
     public bool GoldChanged { get; init; }
 
+    /// <summary>Niveau, EXP ou HP/MP à renvoyer dans <c>CombatState</c>.</summary>
+    public bool ProgressionChanged { get; init; }
+
+    /// <summary>STR…LUCK à renvoyer dans <c>CharacterPayload</c>.</summary>
+    public bool StatsChanged { get; init; }
+
     public bool QuestsChanged { get; init; }
 
     public bool ProfessionsChanged { get; init; }
@@ -82,7 +88,9 @@ public sealed class MapEventExecutionResult
         bool weatherChanged = false,
         IReadOnlyList<MapEventPictureOp>? pictureOps = null,
         IReadOnlyList<MapEventScreenOp>? screenOps = null,
-        IReadOnlyList<MapEventVisualOp>? visualOps = null) =>
+        IReadOnlyList<MapEventVisualOp>? visualOps = null,
+        bool progressionChanged = false,
+        bool statsChanged = false) =>
         new()
         {
             Success = true,
@@ -95,6 +103,8 @@ public sealed class MapEventExecutionResult
             VariablesChanged = variablesChanged,
             InventoryChanged = inventoryChanged,
             GoldChanged = goldChanged,
+            ProgressionChanged = progressionChanged,
+            StatsChanged = statsChanged,
             QuestsChanged = questsChanged,
             ProfessionsChanged = professionsChanged,
             RecipesChanged = recipesChanged,
@@ -137,6 +147,8 @@ public sealed class MapEventExecutionResult
             variablesChanged: snap?.VariablesChanged ?? false,
             inventoryChanged: snap?.InventoryChanged ?? false,
             goldChanged: snap?.GoldChanged ?? false,
+            progressionChanged: snap?.ProgressionChanged ?? false,
+            statsChanged: snap?.StatsChanged ?? false,
             teleportApplied: teleportApplied,
             weatherChanged: weatherChanged,
             dialogueSummary: dialogueSummary,
