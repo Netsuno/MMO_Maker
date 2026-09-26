@@ -5,6 +5,7 @@ using System.IO;
 using Frog.Application.Maps;
 using Frog.Application.Prefabs;
 using Frog.Client.Assets;
+using Frog.Core.Chat;
 using Frog.Core.Constants;
 using Frog.Core.Distribution;
 using Frog.Core.Enums;
@@ -45,6 +46,7 @@ internal static class MapViewRenderer
     /// <param name="groundLootCentersPx">Ancres du butin (centre du sac). Même tri vertical que les acteurs.</param>
     /// <param name="playtestPlacedEntities">Apparitions, PNJ et objets du sidecar playtest. Absent en partie normale.</param>
     /// <param name="localDisplayName">Nom du personnage local s’il diffère du pseudo. Vide : le pseudo.</param>
+    /// <param name="expressionBubbles">Bulles d’expression encore visibles (fondu inclus). Positions lues à l’instant du dessin.</param>
     public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
@@ -71,7 +73,8 @@ internal static class MapViewRenderer
         IDictionary<TileAssetId, Bitmap>? tileAssetBitmaps = null,
         IReadOnlyList<(int PixelX, int PixelY)>? groundLootCentersPx = null,
         IReadOnlyList<MapPlacedEntity>? playtestPlacedEntities = null,
-        string? localDisplayName = null)
+        string? localDisplayName = null,
+        IReadOnlyList<ExpressionBubbleBoard.Visible>? expressionBubbles = null)
     {
         var tw = MapTileSizePixels(map);
         var w = map.Width * tw;
@@ -201,6 +204,7 @@ internal static class MapViewRenderer
 
         WeatherOverlayRenderer.Draw(g, bmp.Size, weatherPlan, weatherTickMs);
         DrawNameplates(g, tw, actors, mapEvents, npcCentersPx, playtestPlacedEntities, map.Width, map.Height);
+        DrawExpressionBubbles(g, expressionBubbles, localUsername, localCenterXPx, localCenterYPx, otherPlayerCentersPx);
         return bmp;
     }
 
@@ -848,6 +852,75 @@ internal static class MapViewRenderer
 
             NameplatePainter.DrawAbove(g, actor.X, actor.Y - height + 1f, actor.Name);
         }
+    }
+
+    /// <summary>
+    /// Bulle au-dessus du joueur local ou d’un autre déjà placé. Le jeton vient du chat carte.
+    /// </summary>
+    private static void DrawExpressionBubbles(
+        Graphics g,
+        IReadOnlyList<ExpressionBubbleBoard.Visible>? bubbles,
+        string? localUsername,
+        float localCenterXPx,
+        float localCenterYPx,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx)
+    {
+        if (bubbles is not { Count: > 0 })
+        {
+            return;
+        }
+
+        var height = PlayerWorldAssets.NativeSize * PlayerWorldAssets.DrawScale;
+        foreach (var bubble in bubbles)
+        {
+            if (string.IsNullOrEmpty(bubble.Glyph) || bubble.Opacity <= 0f)
+            {
+                continue;
+            }
+
+            if (!TryPlayerFeet(
+                    bubble.Username,
+                    localUsername,
+                    localCenterXPx,
+                    localCenterYPx,
+                    otherPlayerCentersPx,
+                    out var feetX,
+                    out var feetY))
+            {
+                continue;
+            }
+
+            ExpressionBubblePainter.DrawAbove(g, feetX, feetY, height, bubble.Glyph, bubble.Opacity);
+        }
+    }
+
+    private static bool TryPlayerFeet(
+        string username,
+        string? localUsername,
+        float localCenterXPx,
+        float localCenterYPx,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
+        out float feetX,
+        out float feetY)
+    {
+        if (localUsername is not null
+            && string.Equals(username, localUsername, StringComparison.OrdinalIgnoreCase))
+        {
+            feetX = localCenterXPx;
+            feetY = localCenterYPx;
+            return true;
+        }
+
+        if (otherPlayerCentersPx.TryGetValue(username, out var center))
+        {
+            feetX = center.CxPx;
+            feetY = center.CyPx;
+            return true;
+        }
+
+        feetX = 0f;
+        feetY = 0f;
+        return false;
     }
 
     private static int NameplateSpriteHeight(WorldDepth.ActorSlot slot) =>

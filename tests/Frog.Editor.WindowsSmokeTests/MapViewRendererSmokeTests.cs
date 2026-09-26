@@ -1,6 +1,7 @@
 using System.Drawing;
 using Frog.Application.Maps;
 using Frog.Client.UI;
+using Frog.Core.Chat;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
@@ -608,6 +609,98 @@ public sealed class MapViewRendererSmokeTests
         Assert.Equal(spriteTop + 17, (int)feetCy - 14);
         Assert.NotEqual(groundArgb, body.ToArgb());
         Assert.True(body.B > body.R, $"armor under the nameplate stays the sprite, got {body}");
+    }
+
+    [Fact]
+    public void Render_DrawsExpressionBubblesAboveLocalAndRemote_NotGold()
+    {
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var map = new Map { Name = "bubbles", Width = 2, Height = 4 };
+        var groundLayer = new Layer { LayerType = LayerType.Ground };
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                groundLayer.Tiles.Add(new Tile { X = x, Y = y, Type = TileType.Ground });
+            }
+        }
+
+        map.Layers.Add(groundLayer);
+
+        var feetY = (3 * tw) + (tw / 2f);
+        var localX = tw / 2f;
+        var remoteX = tw + (tw / 2f);
+        var others = new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Bob"] = (remoteX, feetY),
+        };
+        var panel = UiTheme.BgPanel.ToArgb();
+        var gold = UiTheme.AccentGold.ToArgb();
+        var spriteTop = (int)feetY - PlayerWorldAssets.NativeSize + 1;
+
+        using var plain = MapViewRenderer.Render(
+            map,
+            others,
+            localUsername: "Ada",
+            localCenterXPx: localX,
+            localCenterYPx: feetY,
+            tilesetBitmaps: null);
+        Assert.Equal(0, CountArgb(plain, 0, 0, plain.Width, spriteTop, panel));
+        Assert.Equal(0, CountArgb(plain, 0, 0, plain.Width, spriteTop, gold));
+
+        using var painted = MapViewRenderer.Render(
+            map,
+            others,
+            localUsername: "Ada",
+            localCenterXPx: localX,
+            localCenterYPx: feetY,
+            tilesetBitmaps: null,
+            expressionBubbles:
+            [
+                new ExpressionBubbleBoard.Visible("ada", ":-)", 1f),
+                new ExpressionBubbleBoard.Visible("Bob", "Salut", 1f),
+            ]);
+
+        Assert.True(
+            CountArgb(painted, (int)localX - 24, 0, 48, spriteTop, panel) > 4,
+            "local bubble should use the panel chrome above the name");
+        Assert.True(
+            CountArgb(painted, (int)remoteX - 24, 0, 48, spriteTop, panel) > 4,
+            "remote bubble should use the panel chrome above the name");
+        Assert.Equal(0, CountArgb(painted, 0, 0, painted.Width, spriteTop, gold));
+
+        var body = painted.GetPixel((int)localX, spriteTop + 17);
+        Assert.True(body.B > body.R, $"bubble stays above the sprite, got {body}");
+
+        using var hidden = MapViewRenderer.Render(
+            map,
+            others,
+            localUsername: "Ada",
+            localCenterXPx: localX,
+            localCenterYPx: feetY,
+            tilesetBitmaps: null,
+            expressionBubbles: [new ExpressionBubbleBoard.Visible("Zoe", ":-)", 1f)]);
+        Assert.Equal(0, CountArgb(hidden, 0, 0, hidden.Width, spriteTop, panel));
+    }
+
+    private static int CountArgb(Bitmap bmp, int x, int y, int width, int height, int argb)
+    {
+        var count = 0;
+        var x1 = Math.Min(bmp.Width, x + width);
+        var y1 = Math.Min(bmp.Height, y + height);
+        for (var py = Math.Max(0, y); py < y1; py++)
+        {
+            for (var px = Math.Max(0, x); px < x1; px++)
+            {
+                if (bmp.GetPixel(px, py).ToArgb() == argb)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
     }
 
     private static int CountNotGround(Bitmap bmp, int x, int y, int width, int height, int groundArgb)

@@ -90,6 +90,9 @@ public sealed class MainShellForm : Form
     private int _srvPixelY;
     private readonly ConcurrentDictionary<string, OtherPlayerView> _others = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Bulles d'expression (chat carte). Une par joueur, fondu inclus.</summary>
+    private readonly ExpressionBubbleBoard _expressionBubbles = new();
+
     /// <summary>Position affichée locale : prédiction continue + réconciliation avec la position réseau autoritaire.</summary>
     private float _visLocalCx;
 
@@ -897,6 +900,11 @@ public sealed class MainShellForm : Form
         }
 
         if (AdvanceScreenTone(_smoothTimer.Interval))
+        {
+            redraw = true;
+        }
+
+        if (_expressionBubbles.Advance(DateTime.UtcNow))
         {
             redraw = true;
         }
@@ -3558,6 +3566,7 @@ public sealed class MainShellForm : Form
         _rtt.Clear();
         _sessionDisplayedMapId = 0;
         _others.Clear();
+        _expressionBubbles.Clear();
         _worldMonsters.Clear();
         _worldNpcs.Clear();
         ResetLocalMotionState();
@@ -3786,6 +3795,7 @@ public sealed class MainShellForm : Form
         _mapBlockedTiles = null;
         _sessionDisplayedMapId = 0;
         _others.Clear();
+        _expressionBubbles.Clear();
         _worldMonsters.Clear();
         _worldNpcs.Clear();
         ResetLocalMotionState();
@@ -3878,6 +3888,7 @@ public sealed class MainShellForm : Form
         _map = map;
         AttachRuntimeTileFlags(map);
         _mapBlockedTiles = MapCollision.IndexBlockedTiles(map);
+        _expressionBubbles.Clear();
         _others.Clear();
         _worldMonsters.Clear();
         _worldNpcs.Clear();
@@ -4659,6 +4670,7 @@ public sealed class MainShellForm : Form
     private void OnPlayerLeave(string user)
     {
         _others.TryRemove(user, out _);
+        _expressionBubbles.Remove(user);
         AppendLog("Parti: " + user);
         RedrawMap();
     }
@@ -4677,6 +4689,11 @@ public sealed class MainShellForm : Form
         var target = string.IsNullOrEmpty(to) ? string.Empty : $"→{to} ";
         AppendLog($"{prefix} {from} {target}: {message}");
         _hudChat.AppendChat(ch, from, to, message);
+        if (ExpressionEmote.TryParseWire(message, out var emote))
+        {
+            _expressionBubbles.Show(from, emote, DateTime.UtcNow);
+            RedrawMap();
+        }
         if (ch == ChatChannel.Whisper
             && !string.IsNullOrEmpty(_username)
             && string.Equals(from, _username, StringComparison.OrdinalIgnoreCase))
@@ -4700,6 +4717,35 @@ public sealed class MainShellForm : Form
         var text = _txtChat.Text.Trim();
         if (string.IsNullOrEmpty(text))
         {
+            return;
+        }
+
+        var emoteSlash = ExpressionEmote.ParseSlash(text, out var emote);
+        if (emoteSlash == ExpressionEmote.Slash.Incomplete)
+        {
+            ShowChatNotice(ExpressionEmote.IncompleteHint);
+            return;
+        }
+
+        if (emoteSlash == ExpressionEmote.Slash.Unknown)
+        {
+            ShowChatNotice(ExpressionEmote.UnknownHint);
+            return;
+        }
+
+        if (emoteSlash == ExpressionEmote.Slash.Ready)
+        {
+            try
+            {
+                await _client.SendChatAsync(ChatChannel.Map, string.Empty, emote.Wire).ConfigureAwait(true);
+                _txtChat.Clear();
+                FocusChatInput();
+            }
+            catch (Exception ex)
+            {
+                AppendLog("Emote: " + ex.Message);
+            }
+
             return;
         }
 
@@ -5296,6 +5342,18 @@ public sealed class MainShellForm : Form
         }
     }
 
+    private List<ExpressionBubbleBoard.Visible>? CopyExpressionBubbles()
+    {
+        if (_expressionBubbles.Count == 0)
+        {
+            return null;
+        }
+
+        var visible = new List<ExpressionBubbleBoard.Visible>(_expressionBubbles.Count);
+        _expressionBubbles.CopyVisible(DateTime.UtcNow, visible);
+        return visible.Count == 0 ? null : visible;
+    }
+
     private void RedrawMap()
     {
         if (_map is null)
@@ -5391,7 +5449,8 @@ public sealed class MainShellForm : Form
             tileAssetBitmaps: _tileAssetBitmaps,
             groundLootCentersPx: groundLoot,
             playtestPlacedEntities: _playtestPlacedEntities,
-            localDisplayName: _activeCharacterName);
+            localDisplayName: _activeCharacterName,
+            expressionBubbles: CopyExpressionBubbles());
         _combatHud.Tick(DateTime.UtcNow);
         CombatEffect.Draw(
             bmp,
