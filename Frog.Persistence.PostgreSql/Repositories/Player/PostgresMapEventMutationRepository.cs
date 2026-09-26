@@ -77,7 +77,8 @@ public sealed class PostgresMapEventMutationRepository(
         foreach (var cmd in plan.Effects)
         {
             if (cmd.Discriminator is MapEventCommandDiscriminators.Branch
-                or MapEventCommandDiscriminators.CallCommonEvent)
+                or MapEventCommandDiscriminators.CallCommonEvent
+                or MapEventCommandDiscriminators.ShowChoices)
             {
                 return new MapEventMutationResult(
                     MapEventMutationStatus.Failed,
@@ -388,6 +389,16 @@ public sealed class PostgresMapEventMutationRepository(
 
                 snapshot.RecordTeleport(mapId, tileX, tileY);
                 return null;
+
+            case MapEventCommandDiscriminators.PlayBgm:
+            case MapEventCommandDiscriminators.PlaySe:
+                // No-op ledger : piste validée, pas d'opcode audio (Hello 11).
+                return MapEventDeferredPresentation.TryAcceptPlayAudio(
+                    command.Discriminator,
+                    command.ParameterJson,
+                    out var audioErr)
+                    ? null
+                    : audioErr;
 
             default:
                 return $"Commande non supportée en transaction atomique: {command.Discriminator}.";

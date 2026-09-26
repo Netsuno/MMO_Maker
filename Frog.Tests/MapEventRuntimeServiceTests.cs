@@ -148,6 +148,68 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_ShowChoices_DoesNotRunBranches_AndFollowingSwitchStillApplies()
+    {
+        var characterId = Guid.NewGuid();
+        var choices = new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.ShowChoices,
+            ParameterJson = MapEventParameterSchemas.SerializeShowChoices(
+                ["Oui", "Non"],
+                MapEventShowChoices.CancelDisallow,
+                [
+                    [new MapEventCommandDefinition
+                    {
+                        Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                        ParameterJson = """{"switchId":"inside_choice","value":true}""",
+                    }],
+                    [],
+                ],
+                []),
+        };
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Choice",
+            EditorAliasId = 11,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        choices,
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.PlayBgm,
+                            ParameterJson = """{"asset":"Assets/Audio/music-loop.wav","volume":70,"fadeMs":0}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.PlaySe,
+                            ParameterJson = """{"asset":"Assets/Audio/ui-click.wav","volume":100,"fadeMs":0}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = """{"switchId":"after_choice","value":true}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var worldState = new InMemoryCharacterWorldStateRepository();
+        var service = CreateService(catalog, worldState, new InMemoryCharacterPayloadReader());
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(11));
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.NotEqual(true, await worldState.GetSwitchAsync(characterId, "inside_choice"));
+        Assert.True(await worldState.GetSwitchAsync(characterId, "after_choice"));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+    }
+
+    [Fact]
     public async Task WaitResume_ExecutesDeferredSetSwitchAfterDelay()
     {
         var characterId = Guid.NewGuid();

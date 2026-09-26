@@ -570,6 +570,56 @@ public sealed class MapEventExecutionPlannerTests
     }
 
     [Fact]
+    public async Task PlanAsync_ShowChoices_SkipsBranchesAndKeepsFollowingCommands()
+    {
+        Assert.True(MapEventCommandPalette.TryCreate(MapEventCommandPalette.ShowChoicesId, out var choices));
+        var withBranch = new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.ShowChoices,
+            ParameterJson = MapEventParameterSchemas.SerializeShowChoices(
+                ["Oui", "Non"],
+                MapEventShowChoices.CancelBranch,
+                [[SetSwitch("inside_choice", true)], []],
+                [SetSwitch("on_cancel", true)]),
+        };
+        var plan = await MapEventExecutionPlanner.PlanAsync(
+            [withBranch, ShowText("after"), SetSwitch("after_switch", true)],
+            InMemoryCommonEventSource.Empty,
+            _ => Task.FromResult(true),
+            Identity());
+
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.Equal(2, plan.Effects.Count);
+        Assert.DoesNotContain(plan.Effects, effect => effect.ParameterJson.Contains("inside_choice", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Effects, effect => effect.Discriminator == MapEventCommandDiscriminators.ShowChoices);
+        Assert.Equal(MapEventCommandDiscriminators.ShowText, plan.Effects[0].Discriminator);
+        Assert.Equal(MapEventCommandDiscriminators.SetSwitch, plan.Effects[1].Discriminator);
+        Assert.True(MapEventExecutionPlanner.IsUnifiedTransactionalUnit(plan.Effects));
+        Assert.True(ServerPlanner.CanExecuteTransactionally(
+            [choices, withBranch, Cmd(MapEventCommandDiscriminators.PlayBgm, """{"asset":"Assets/Audio/music-loop.wav","volume":100,"fadeMs":0}""")]));
+    }
+
+    [Fact]
+    public async Task PlanAsync_PlayBgmAndPlaySe_StayInTheTransactionalUnit()
+    {
+        Assert.True(MapEventCommandPalette.TryCreate(MapEventCommandPalette.PlayBgmId, out var bgm));
+        Assert.True(MapEventCommandPalette.TryCreate(MapEventCommandPalette.PlaySeId, out var se));
+        var plan = await ServerPlanner.PlanAsync(
+            [bgm, se, ShowText("cue")],
+            new FakePublishedCommonEventCatalog([]),
+            _ => Task.FromResult(true),
+            Identity());
+
+        Assert.True(plan.IsSuccess, plan.Error);
+        Assert.Equal(
+            [MapEventCommandDiscriminators.PlayBgm, MapEventCommandDiscriminators.PlaySe, MapEventCommandDiscriminators.ShowText],
+            plan.Effects.Select(effect => effect.Discriminator).ToArray());
+        Assert.True(ServerPlanner.AreEffectsTransactional(plan.Effects));
+        Assert.Equal(MapEventEffectCommitKind.Persistent, MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.PlayBgm));
+        Assert.Equal(MapEventEffectCommitKind.UnresolvedControlFlow, MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.ShowChoices));
+    }
+
+    [Fact]
     public async Task ServerPlanner_ResolveCommandsAsync_ExpandsCommonEventViaCore()
     {
         var commonId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");

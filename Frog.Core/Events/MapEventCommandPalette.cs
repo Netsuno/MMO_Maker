@@ -4,12 +4,15 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette MVP : texte, interrupteur, variable, branche (interrupteur ou variable).
-/// Les discriminators et le JSON restent ceux du catalogue Phase 8 (Postgres inchangé).
+/// Palette : texte, choix, audio, interrupteur, variable, branche (interrupteur ou variable).
+/// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
 {
     public const string ShowTextId = "show_text";
+    public const string ShowChoicesId = "show_choices";
+    public const string PlayBgmId = "play_bgm";
+    public const string PlaySeId = "play_se";
     public const string SetSwitchId = "set_switch";
     public const string SetVariableId = "set_variable";
     public const string AddVariableId = "add_variable";
@@ -23,6 +26,9 @@ public static class MapEventCommandPalette
     public static readonly IReadOnlyList<Entry> Entries = new Entry[]
     {
         new(ShowTextId, "Texte"),
+        new(ShowChoicesId, "Afficher choix"),
+        new(PlayBgmId, "Jouer BGM"),
+        new(PlaySeId, "Jouer SE"),
         new(SetSwitchId, "Interrupteur"),
         new(SetVariableId, "Variable ="),
         new(AddVariableId, "Variable +"),
@@ -46,6 +52,21 @@ public static class MapEventCommandPalette
             ShowTextId => Command(
                 MapEventCommandDiscriminators.ShowText,
                 new { text = "Bonjour." }),
+            ShowChoicesId => Command(
+                MapEventCommandDiscriminators.ShowChoices,
+                new
+                {
+                    choices = new[] { "Oui", "Non" },
+                    cancel = MapEventShowChoices.CancelDisallow,
+                    branches = new[] { Array.Empty<object>(), Array.Empty<object>() },
+                    cancelCommands = Array.Empty<object>(),
+                }),
+            PlayBgmId => Command(
+                MapEventCommandDiscriminators.PlayBgm,
+                new { asset = "Assets/Audio/music-loop.wav", volume = MapAudioTrack.DefaultVolume, fadeMs = 0 }),
+            PlaySeId => Command(
+                MapEventCommandDiscriminators.PlaySe,
+                new { asset = "Assets/Audio/ui-click.wav", volume = MapAudioTrack.DefaultVolume, fadeMs = 0 }),
             SetSwitchId => Command(
                 MapEventCommandDiscriminators.SetSwitch,
                 new { switchId = DefaultSwitchId, value = true }),

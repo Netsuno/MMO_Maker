@@ -809,6 +809,217 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseShowChoices(
+        string parameterJson,
+        out IReadOnlyList<string> choices,
+        out string cancel,
+        out IReadOnlyList<IReadOnlyList<MapEventCommandDefinition>> branches,
+        out IReadOnlyList<MapEventCommandDefinition> cancelCommands,
+        out string? error)
+    {
+        choices = Array.Empty<string>();
+        cancel = string.Empty;
+        branches = Array.Empty<IReadOnlyList<MapEventCommandDefinition>>();
+        cancelCommands = Array.Empty<MapEventCommandDefinition>();
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("choices", out var choicesEl) || choicesEl.ValueKind != JsonValueKind.Array)
+            {
+                error = "show_choices: propriété 'choices' (array) requise.";
+                return false;
+            }
+
+            var labels = new List<string>();
+            foreach (var item in choicesEl.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                {
+                    error = "show_choices: chaque choix doit être une chaîne.";
+                    return false;
+                }
+
+                var label = item.GetString()?.Trim() ?? string.Empty;
+                if (label.Length is 0 or > MapEventShowChoices.MaxLabelLength)
+                {
+                    error = $"show_choices: libellé vide ou trop long (max {MapEventShowChoices.MaxLabelLength}).";
+                    return false;
+                }
+
+                foreach (var ch in label)
+                {
+                    if (char.IsControl(ch))
+                    {
+                        error = "show_choices: libellé invalide.";
+                        return false;
+                    }
+                }
+
+                labels.Add(label);
+            }
+
+            if (labels.Count is < MapEventShowChoices.MinCount or > MapEventShowChoices.MaxCount)
+            {
+                error = $"show_choices: entre {MapEventShowChoices.MinCount} et {MapEventShowChoices.MaxCount} choix.";
+                return false;
+            }
+
+            if (!root.TryGetProperty("cancel", out var cancelEl) || cancelEl.ValueKind != JsonValueKind.String)
+            {
+                error = "show_choices: propriété 'cancel' (string) requise.";
+                return false;
+            }
+
+            cancel = cancelEl.GetString()?.Trim() ?? string.Empty;
+            if (!MapEventShowChoices.IsKnownCancel(cancel))
+            {
+                error = "show_choices: annulation inconnue.";
+                return false;
+            }
+
+            var cancelIndex = MapEventShowChoices.CancelChoiceIndex(cancel);
+            if (cancelIndex >= labels.Count)
+            {
+                error = "show_choices: l'annulation désigne un choix absent.";
+                return false;
+            }
+
+            if (!root.TryGetProperty("branches", out var branchesEl) || branchesEl.ValueKind != JsonValueKind.Array)
+            {
+                error = "show_choices: propriété 'branches' (array) requise.";
+                return false;
+            }
+
+            var parsedBranches = new List<IReadOnlyList<MapEventCommandDefinition>>();
+            var branchIndex = 0;
+            foreach (var branchEl in branchesEl.EnumerateArray())
+            {
+                if (!TryParseCommandArrayElement(branchEl, out var branchCommands, out error))
+                {
+                    error = $"show_choices branche {branchIndex + 1}: {error}";
+                    return false;
+                }
+
+                parsedBranches.Add(branchCommands);
+                branchIndex++;
+            }
+
+            if (parsedBranches.Count != labels.Count)
+            {
+                error = "show_choices: une page de branche par choix.";
+                return false;
+            }
+
+            if (!TryParseCommandArray(root, "cancelCommands", out cancelCommands, out error))
+            {
+                error = "show_choices annulation: " + error;
+                return false;
+            }
+
+            if (cancel != MapEventShowChoices.CancelBranch && cancelCommands.Count > 0)
+            {
+                error = "show_choices: cancelCommands réservé à l'annulation « branch ».";
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "choices", "cancel", "branches", "cancelCommands" },
+                    out error))
+            {
+                return false;
+            }
+
+            choices = labels;
+            branches = parsedBranches;
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "show_choices: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static string SerializeShowChoices(
+        IReadOnlyList<string> choices,
+        string cancel,
+        IReadOnlyList<IReadOnlyList<MapEventCommandDefinition>> branches,
+        IReadOnlyList<MapEventCommandDefinition> cancelCommands) =>
+        JsonSerializer.Serialize(new
+        {
+            choices,
+            cancel,
+            branches = branches.Select(ProjectCommands).ToArray(),
+            cancelCommands = ProjectCommands(cancelCommands),
+        });
+
+    /// <summary>
+    /// Piste BGM ou SE. Volume et fondu suivent <see cref="MapAudioTrack"/> ;
+    /// le modèle carte n’a pas de pitch, donc la commande n’en stocke pas.
+    /// </summary>
+    public static bool TryParsePlayAudio(
+        string parameterJson,
+        string discriminator,
+        out MapAudioTrack track,
+        out string? error)
+    {
+        track = new MapAudioTrack();
+        error = null;
+        var label = discriminator == MapEventCommandDiscriminators.PlaySe ? "play_se" : "play_bgm";
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("asset", out var assetEl) || assetEl.ValueKind != JsonValueKind.String)
+            {
+                error = $"{label}: propriété 'asset' (string) requise.";
+                return false;
+            }
+
+            if (!root.TryGetProperty("volume", out var volumeEl) || !volumeEl.TryGetInt32(out var volume))
+            {
+                error = $"{label}: propriété 'volume' (int) requise.";
+                return false;
+            }
+
+            if (!root.TryGetProperty("fadeMs", out var fadeEl) || !fadeEl.TryGetInt32(out var fadeMs))
+            {
+                error = $"{label}: propriété 'fadeMs' (int) requise.";
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "asset", "volume", "fadeMs" },
+                    out error))
+            {
+                return false;
+            }
+
+            var trackLabel = discriminator == MapEventCommandDiscriminators.PlaySe ? "Jouer SE" : "Jouer BGM";
+            if (!MapAudioTrack.TryCreate(assetEl.GetString(), volume, fadeMs, trackLabel, out track, out error))
+            {
+                return false;
+            }
+
+            if (track.IsNone)
+            {
+                error = $"{label}: fichier audio requis.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = $"{label}: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     public static bool EvaluateVariableCompare(int actual, string op, int expected) =>
         op switch
         {
@@ -829,9 +1040,25 @@ public static class MapEventParameterSchemas
     {
         commands = Array.Empty<MapEventCommandDefinition>();
         error = null;
-        if (!root.TryGetProperty(propertyName, out var arr) || arr.ValueKind != JsonValueKind.Array)
+        if (!root.TryGetProperty(propertyName, out var arr))
         {
             error = $"propriété '{propertyName}' (array) requise.";
+            return false;
+        }
+
+        return TryParseCommandArrayElement(arr, out commands, out error);
+    }
+
+    private static bool TryParseCommandArrayElement(
+        JsonElement arr,
+        out IReadOnlyList<MapEventCommandDefinition> commands,
+        out string? error)
+    {
+        commands = Array.Empty<MapEventCommandDefinition>();
+        error = null;
+        if (arr.ValueKind != JsonValueKind.Array)
+        {
+            error = "tableau de commandes requis.";
             return false;
         }
 
@@ -863,6 +1090,13 @@ public static class MapEventParameterSchemas
         commands = list;
         return true;
     }
+
+    private static object[] ProjectCommands(IReadOnlyList<MapEventCommandDefinition> commands) =>
+        commands.Select(command => new
+        {
+            discriminator = command.Discriminator,
+            parameterJson = command.ParameterJson,
+        }).ToArray();
 
     private static bool TryParseGuidProperty(JsonElement root, string name, out Guid value, out string? error)
     {

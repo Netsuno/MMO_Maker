@@ -148,4 +148,57 @@ public sealed class CommonEventCycleDetectorTests
         Assert.NotNull(CommonEventCycleDetector.DetectCycles(events, idB));
         Assert.Null(CommonEventCycleDetector.DetectCycles(events, Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc")));
     }
+
+    [Fact]
+    public void DetectCycles_ReportsCycle_WhenCallIsInsideShowChoices()
+    {
+        var idA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa11");
+        var idB = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb22");
+        var call = new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+            ParameterJson = $$$"""{"commonEventId":"{{{idA}}}"}""",
+        };
+        var choices = new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.ShowChoices,
+            ParameterJson = MapEventParameterSchemas.SerializeShowChoices(
+                ["Oui", "Non"],
+                MapEventShowChoices.CancelDisallow,
+                [[call], []],
+                []),
+        };
+        var events = new List<CommonEventDefinition>
+        {
+            new()
+            {
+                Id = idA,
+                Name = "Alpha",
+                Pages = [new MapEventPageDefinition { Commands = [choices] }],
+            },
+            new()
+            {
+                Id = idB,
+                Name = "Beta",
+                Pages =
+                [
+                    new MapEventPageDefinition
+                    {
+                        Commands =
+                        [
+                            new MapEventCommandDefinition
+                            {
+                                Discriminator = MapEventCommandDiscriminators.CallCommonEvent,
+                                ParameterJson = $$$"""{"commonEventId":"{{{idA}}}"}""",
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+
+        var error = CommonEventCycleDetector.DetectCycles(events);
+        Assert.NotNull(error);
+        Assert.Contains("Alpha", error, StringComparison.Ordinal);
+    }
 }

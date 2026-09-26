@@ -380,6 +380,16 @@ public sealed class MapEventTransactionalCommitSandbox
                 world.DialogueId = dialogueId;
                 return null;
 
+            case MapEventCommandDiscriminators.PlayBgm:
+            case MapEventCommandDiscriminators.PlaySe:
+                // No-op : piste persistée, pas de lecture (Hello 11). Voir MapEventDeferredPresentation.
+                return MapEventDeferredPresentation.TryAcceptPlayAudio(
+                    command.Discriminator,
+                    command.ParameterJson,
+                    out var audioErr)
+                    ? null
+                    : audioErr;
+
             default:
                 return $"Commande non supportée en unité transactionnelle: {command.Discriminator}.";
         }

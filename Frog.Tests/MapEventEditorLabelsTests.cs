@@ -76,6 +76,9 @@ public sealed class MapEventEditorLabelsTests
 
     [Theory]
     [InlineData(MapEventCommandDiscriminators.ShowText, "Texte")]
+    [InlineData(MapEventCommandDiscriminators.ShowChoices, "Afficher choix")]
+    [InlineData(MapEventCommandDiscriminators.PlayBgm, "Jouer BGM")]
+    [InlineData(MapEventCommandDiscriminators.PlaySe, "Jouer SE")]
     [InlineData(MapEventCommandDiscriminators.SetSwitch, "Régler interrupteur")]
     [InlineData(MapEventCommandDiscriminators.Teleport, "Téléportation")]
     [InlineData(MapEventCommandDiscriminators.CallCommonEvent, "Événement commun")]

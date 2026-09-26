@@ -161,6 +161,9 @@ public sealed class MapEventPagesEditorSmokeTests
 
     [Theory]
     [InlineData(MapEventCommandDiscriminators.ShowText)]
+    [InlineData(MapEventCommandDiscriminators.ShowChoices)]
+    [InlineData(MapEventCommandDiscriminators.PlayBgm)]
+    [InlineData(MapEventCommandDiscriminators.PlaySe)]
     [InlineData(MapEventCommandDiscriminators.SetSwitch)]
     [InlineData(MapEventCommandDiscriminators.SetVariable)]
     [InlineData(MapEventCommandDiscriminators.AddVariable)]
@@ -502,6 +505,13 @@ public sealed class MapEventPagesEditorSmokeTests
         discriminator switch
         {
             MapEventCommandDiscriminators.ShowText => ShowText("before"),
+            MapEventCommandDiscriminators.ShowChoices => ShowChoicesSeed(),
+            MapEventCommandDiscriminators.PlayBgm => Command(
+                discriminator,
+                """{"asset":"Assets/Audio/music-loop.wav","volume":100,"fadeMs":0}"""),
+            MapEventCommandDiscriminators.PlaySe => Command(
+                discriminator,
+                """{"asset":"Assets/Audio/ui-click.wav","volume":100,"fadeMs":0}"""),
             MapEventCommandDiscriminators.SetSwitch => Command(discriminator, """{"switchId":"gate_open","value":true}"""),
             MapEventCommandDiscriminators.SetVariable => Command(discriminator, """{"variableId":"var1","value":0}"""),
             MapEventCommandDiscriminators.AddVariable => Command(discriminator, """{"variableId":"var1","delta":1}"""),
@@ -584,6 +594,18 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.ShowText:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("text"), "mutated-text");
                 expectedFragment = "mutated-text";
+                break;
+            case MapEventCommandDiscriminators.ShowChoices:
+                panel.CommandParamsForTest.ShowChoicesForTest!.ChoiceTextForTest(0).Text = "Plutot";
+                expectedFragment = "Plutot";
+                break;
+            case MapEventCommandDiscriminators.PlayBgm:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("asset"), "Assets/Audio/fanfare.wav");
+                expectedFragment = "fanfare.wav";
+                break;
+            case MapEventCommandDiscriminators.PlaySe:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("volume"), "40");
+                expectedFragment = "\"volume\":40";
                 break;
             case MapEventCommandDiscriminators.SetSwitch:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("switchId"), "gate_closed");
@@ -680,6 +702,18 @@ public sealed class MapEventPagesEditorSmokeTests
                 throw new InvalidOperationException($"Unsupported field type {field.GetType().Name}.");
         }
     }
+
+    private static MapEventCommandDefinition ShowChoicesSeed() =>
+        new()
+        {
+            Discriminator = MapEventCommandDiscriminators.ShowChoices,
+            SchemaVersion = 1,
+            ParameterJson = MapEventParameterSchemas.SerializeShowChoices(
+                ["Oui", "Non"],
+                MapEventShowChoices.CancelDisallow,
+                [[], []],
+                []),
+        };
 
     private static MapEventCommandDefinition ShowText(string text) =>
         new()

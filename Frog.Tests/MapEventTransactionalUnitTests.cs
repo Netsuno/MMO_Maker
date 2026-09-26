@@ -337,6 +337,24 @@ public sealed class MapEventTransactionalUnitTests
     }
 
     [Fact]
+    public void Sandbox_PlayAudio_IsPersistOnlyAndDoesNotRollBack()
+    {
+        var sandbox = new MapEventTransactionalCommitSandbox();
+        var unit = Unit(
+        [
+            Cmd(MapEventCommandDiscriminators.PlayBgm, """{"asset":"Assets/Audio/music-loop.wav","volume":80,"fadeMs":100}"""),
+            Cmd(MapEventCommandDiscriminators.PlaySe, """{"asset":"Assets/Audio/ui-click.wav","volume":40,"fadeMs":0}"""),
+            ShowText("après audio"),
+        ]);
+
+        var outcome = sandbox.TryCommit(unit);
+
+        Assert.Equal(MapEventCommitDisposition.Committed, outcome.Disposition);
+        Assert.Equal("après audio", sandbox.World.ShowText);
+        Assert.Equal(1, sandbox.LedgerCount);
+    }
+
+    [Fact]
     public void Sandbox_RejectedFailedPlan_DoesNotBeginTransaction()
     {
         var sandbox = new MapEventTransactionalCommitSandbox();
