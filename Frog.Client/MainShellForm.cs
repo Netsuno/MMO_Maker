@@ -5119,7 +5119,8 @@ public sealed class MainShellForm : Form
             tileAssets: _tilePacks.Lookup,
             tileAssetBitmaps: _tileAssetBitmaps,
             groundLootCentersPx: groundLoot,
-            playtestPlacedEntities: _playtestPlacedEntities);
+            playtestPlacedEntities: _playtestPlacedEntities,
+            localDisplayName: _activeCharacterName);
         _combatHud.Tick(DateTime.UtcNow);
         CombatEffect.Draw(
             bmp,
