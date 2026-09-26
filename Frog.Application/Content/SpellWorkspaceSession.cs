@@ -35,11 +35,23 @@ public sealed class SpellWorkspaceSession
 
     public ContentPublishStatus? StatusFilter { get; set; }
 
+    /// <summary>
+    /// Quand il est fixé, la session ne liste et n’enregistre que ce type
+    /// (fiche Compétences : <see cref="Frog.Core.Enums.SpellKind.Skill"/>).
+    /// </summary>
+    public Frog.Core.Enums.SpellKind? KindFilter { get; set; }
+
     public async Task RefreshCatalogAsync(CancellationToken cancellationToken = default)
     {
-        Catalog = await _repository
+        var catalog = await _repository
             .ListSummariesAsync(SearchFilter, StatusFilter, cancellationToken)
             .ConfigureAwait(false);
+        if (KindFilter is Frog.Core.Enums.SpellKind kind)
+        {
+            catalog = catalog.Where(entry => entry.Kind == kind).ToArray();
+        }
+
+        Catalog = catalog;
     }
 
     public async Task<bool> OpenAsync(Guid spellId, CancellationToken cancellationToken = default)
@@ -67,7 +79,9 @@ public sealed class SpellWorkspaceSession
             definition.Id = Guid.NewGuid();
         }
 
-        Current = Clone(definition);
+        var draft = Clone(definition);
+        ApplyKindFilter(draft);
+        Current = draft;
         CurrentId = null;
         CurrentRevision = 0;
         CurrentStatus = ContentPublishStatus.Draft;
@@ -97,10 +111,13 @@ public sealed class SpellWorkspaceSession
         SaveContentIntent intent,
         CancellationToken cancellationToken = default)
     {
-        if (Current is null)
+        var current = Current;
+        if (current is null)
         {
             return new SaveSpellResult.ValidationFailed("Aucun sort ou compétence ouvert.");
         }
+
+        ApplyKindFilter(current);
 
         if (!Capabilities.AllowsSave)
         {
@@ -120,7 +137,7 @@ public sealed class SpellWorkspaceSession
                     new SaveSpellRequest
                     {
                         SpellId = CurrentId,
-                        Definition = Clone(Current),
+                        Definition = Clone(current),
                         ExpectedRevision = CurrentRevision,
                         Intent = intent,
                     },
@@ -174,6 +191,14 @@ public sealed class SpellWorkspaceSession
         }
 
         return result;
+    }
+
+    private void ApplyKindFilter(SpellDefinition definition)
+    {
+        if (KindFilter is Frog.Core.Enums.SpellKind kind)
+        {
+            definition.Kind = kind;
+        }
     }
 
     private void ApplyStored(StoredSpell stored)
