@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Frog.Application.Content;
 using Frog.Application.Prefabs;
 using Frog.Core.Enums;
 using Frog.Core.Models;
@@ -29,6 +30,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     private PrefabCatalog _catalog = new();
 
     public event Action<EditorTool>? ToolChanged;
+    public event Action<QuickEventPresetKind>? QuickEventPresetRequested;
     public event Action<bool>? FillVisibleUnlockedLayersChanged;
     public event Action<bool>? FillRespectAttributesChanged;
     public event Action<bool>? RectangleOutlineChanged;
@@ -145,6 +147,17 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     {
         SetSelectedTool(EditorTool.Spawn);
         ToolChanged?.Invoke(EditorTool.Spawn);
+    }
+
+    private void OnQuickEventPresetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { Tag: string tag }
+            || !Enum.TryParse(tag, out QuickEventPresetKind kind))
+        {
+            return;
+        }
+
+        QuickEventPresetRequested?.Invoke(kind);
     }
 
     private void OnPipetteClick(object sender, RoutedEventArgs e) => PipetteRequested?.Invoke();

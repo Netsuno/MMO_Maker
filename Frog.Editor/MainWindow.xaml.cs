@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Threading;
+using Frog.Application.Content;
 using Frog.Editor.Config;
 using Frog.Editor.Enums;
 using Frog.Editor.Forms;
@@ -212,6 +213,21 @@ public partial class MainWindow : Window
         nameof(CmdQuickTalkingNpc),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdQuickChest = new(
+        "Coffre…",
+        nameof(CmdQuickChest),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdQuickDoor = new(
+        "Porte…",
+        nameof(CmdQuickDoor),
+        typeof(MainWindow));
+
+    public static readonly RoutedUICommand CmdQuickInn = new(
+        "Auberge…",
+        nameof(CmdQuickInn),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdBrowseMapEvents = new(
         "Événements carte…",
         nameof(CmdBrowseMapEvents),
@@ -315,6 +331,9 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdSaveMapTemplate, (_, _) => _editor.SaveCurrentMapAsTemplate()));
         CommandBindings.Add(new CommandBinding(CmdStampTemplate, (_, _) => _editor.PromptStampMapTemplate()));
         CommandBindings.Add(new CommandBinding(CmdQuickTalkingNpc, (_, _) => _editor.OpenQuickTalkingNpc()));
+        CommandBindings.Add(new CommandBinding(CmdQuickChest, (_, _) => _editor.OpenQuickEventPreset(QuickEventPresetKind.Chest)));
+        CommandBindings.Add(new CommandBinding(CmdQuickDoor, (_, _) => _editor.OpenQuickEventPreset(QuickEventPresetKind.Door)));
+        CommandBindings.Add(new CommandBinding(CmdQuickInn, (_, _) => _editor.OpenQuickEventPreset(QuickEventPresetKind.Inn)));
         CommandBindings.Add(new CommandBinding(CmdBrowseMapEvents, (_, _) => _editor.BrowseMapEvents()));
         CommandBindings.Add(new CommandBinding(CmdBrowsePhase8Content, (_, _) => _editor.BrowsePhase8Content()));
         CommandBindings.Add(new CommandBinding(CmdRefreshMapEventMarkers, (_, _) => _editor.RefreshMapEventMarkers()));

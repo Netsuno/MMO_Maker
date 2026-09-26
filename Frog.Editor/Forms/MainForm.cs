@@ -72,7 +72,7 @@ public sealed class MainForm : Form
     private MapEventsBrowseDialog? _mapEventsDialog;
     private bool _syncingMapEventOverlay;
     private Phase8ContentPostgreSqlService? _phase8ContentService;
-    private PendingQuickNpc? _pendingQuickNpc;
+    private PendingQuickPlacement? _pendingQuickPlacement;
     private string? _statusNotice;
     private List<MapTransferIssue> _transferIssues = new();
     private IReadOnlyList<MapTransferLink> _eventTransferLinks = Array.Empty<MapTransferLink>();
@@ -446,6 +446,9 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("PNJ rapide…", null, (_, _) => OpenQuickTalkingNpc());
+            mMap.DropDownItems.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Chest), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Chest));
+            mMap.DropDownItems.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Door), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Door));
+            mMap.DropDownItems.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Inn), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Inn));
             mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
             mMap.DropDownItems.Add("Contenu Phase 8…", null, (_, _) => BrowsePhase8Content());
             mMap.DropDownItems.Add("Actualiser marqueurs événements", null, (_, _) => RefreshMapEventMarkers());
@@ -606,6 +609,7 @@ public sealed class MainForm : Form
 
         _leftToolsWpf = new EditorLeftToolsWpf();
         _leftToolsWpf.ToolChanged += tool => SelectEditorTool(tool);
+        _leftToolsWpf.QuickEventPresetRequested += OpenQuickEventPreset;
         _leftToolsWpf.FillVisibleUnlockedLayersChanged += enabled =>
         {
             _canvas.FillVisibleUnlockedLayers = enabled;
@@ -3298,6 +3302,9 @@ public sealed class MainForm : Form
         var menu = new ContextMenuStrip();
         menu.Closed += (_, _) => menu.Dispose();
         menu.Items.Add("PNJ rapide…", null, (_, _) => OpenQuickTalkingNpc());
+        menu.Items.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Chest), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Chest));
+        menu.Items.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Door), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Door));
+        menu.Items.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Inn), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Inn));
         menu.Items.Add("Événements carte (cette tuile)…", null, (_, _) => BrowseMapEvents());
         menu.Show(Cursor.Position);
     }
@@ -3346,7 +3353,59 @@ public sealed class MainForm : Form
         ArmQuickNpcPlacement(created.EventId, created.TriggerKind, created.DisplayName);
     }
 
-    internal bool IsQuickNpcPlacementArmedForTest => _pendingQuickNpc is not null;
+    internal void OpenQuickEventPreset(QuickEventPresetKind kind)
+    {
+        if (_mapEventService is null || !_mapEventService.IsAvailable)
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                QuickEventPresetMessages.PostgresRequired(kind),
+                QuickEventPresetMessages.Title(kind),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        CancelQuickNpcPlacement(userInitiated: false);
+        using var dlg = new QuickEventPresetDialog(_mapEventService, kind);
+        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK || dlg.Result is not { Success: true } created)
+        {
+            return;
+        }
+
+        var mapId = _workspace?.CurrentMapId ?? Guid.Empty;
+        if (_canvas.Map is null || mapId == Guid.Empty)
+        {
+            _statusNotice = QuickEventPresetMessages.NeedsCatalogStatus(created.DisplayName);
+            PushEditorStatusLine();
+            MessageBox.Show(
+                GetDialogOwner(),
+                QuickEventPresetMessages.NeedsCatalogMap(created.DisplayName),
+                QuickEventPresetMessages.Title(kind),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        MessageBox.Show(
+            GetDialogOwner(),
+            QuickEventPresetMessages.CreatedPlacementPrompt(created.DisplayName, kind),
+            QuickEventPresetMessages.Title(kind),
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+        var name = created.DisplayName;
+        ArmQuickPlacement(
+            created.EventId,
+            created.TriggerKind,
+            name,
+            QuickEventPresetMessages.Title(kind),
+            QuickEventPresetMessages.StatusPlacementPrompt(name),
+            () => QuickEventPresetMessages.NeedsCatalogMap(name),
+            (x, y) => QuickEventPresetMessages.Placed(name, x, y),
+            QuickEventPresetMessages.PlacementCancelled);
+    }
+
+    internal bool IsQuickNpcPlacementArmedForTest => _pendingQuickPlacement is not null;
 
     internal string? StatusNoticeForTest => _statusNotice;
 
@@ -3358,29 +3417,58 @@ public sealed class MainForm : Form
 
     private void ArmQuickNpcPlacement(Guid eventId, string triggerKind, string displayName)
     {
-        _pendingQuickNpc = new PendingQuickNpc(eventId, triggerKind, displayName);
+        ArmQuickPlacement(
+            eventId,
+            triggerKind,
+            displayName,
+            "PNJ rapide",
+            QuickTalkingNpcMessages.StatusPlacementPrompt(displayName),
+            () => QuickTalkingNpcMessages.NeedsCatalogMap(displayName),
+            (x, y) => QuickTalkingNpcMessages.Placed(displayName, x, y),
+            QuickTalkingNpcMessages.PlacementCancelled);
+    }
+
+    private void ArmQuickPlacement(
+        Guid eventId,
+        string triggerKind,
+        string displayName,
+        string dialogTitle,
+        string statusPrompt,
+        Func<string> needsCatalog,
+        Func<int, int, string> placed,
+        string cancelledStatus)
+    {
+        _pendingQuickPlacement = new PendingQuickPlacement(
+            eventId,
+            triggerKind,
+            displayName,
+            dialogTitle,
+            needsCatalog,
+            placed,
+            cancelledStatus);
         _canvas.QuickNpcPlacementClick = TryConsumeQuickNpcPlacement;
-        _statusNotice = QuickTalkingNpcMessages.StatusPlacementPrompt(displayName);
+        _statusNotice = statusPrompt;
         PushEditorStatusLine();
     }
 
     internal bool CancelQuickNpcPlacement(bool userInitiated)
     {
-        if (_pendingQuickNpc is null)
+        if (_pendingQuickPlacement is null)
         {
             return false;
         }
 
-        _pendingQuickNpc = null;
+        var cancelled = _pendingQuickPlacement.CancelledStatus;
+        _pendingQuickPlacement = null;
         _canvas.QuickNpcPlacementClick = null;
-        _statusNotice = userInitiated ? QuickTalkingNpcMessages.PlacementCancelled : null;
+        _statusNotice = userInitiated ? cancelled : null;
         PushEditorStatusLine();
         return true;
     }
 
     private bool TryConsumeQuickNpcPlacement(Point tile)
     {
-        var pending = _pendingQuickNpc;
+        var pending = _pendingQuickPlacement;
         if (pending is null || _mapEventService is null)
         {
             return false;
@@ -3391,8 +3479,8 @@ public sealed class MainForm : Form
         {
             MessageBox.Show(
                 GetDialogOwner(),
-                QuickTalkingNpcMessages.NeedsCatalogMap(pending.DisplayName),
-                "PNJ rapide",
+                pending.NeedsCatalog(),
+                pending.DialogTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
             return true;
@@ -3403,21 +3491,28 @@ public sealed class MainForm : Form
             MessageBox.Show(
                 GetDialogOwner(),
                 string.IsNullOrWhiteSpace(err) ? "Placement impossible." : err,
-                "PNJ rapide",
+                pending.DialogTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
             return true;
         }
 
-        _pendingQuickNpc = null;
+        _pendingQuickPlacement = null;
         _canvas.QuickNpcPlacementClick = null;
-        _statusNotice = QuickTalkingNpcMessages.Placed(pending.DisplayName, tile.X, tile.Y);
+        _statusNotice = pending.Placed(tile.X, tile.Y);
         RefreshMapEventMarkers();
         PushEditorStatusLine();
         return true;
     }
 
-    private sealed record PendingQuickNpc(Guid EventId, string TriggerKind, string DisplayName);
+    private sealed record PendingQuickPlacement(
+        Guid EventId,
+        string TriggerKind,
+        string DisplayName,
+        string DialogTitle,
+        Func<string> NeedsCatalog,
+        Func<int, int, string> Placed,
+        string CancelledStatus);
 
     internal void BrowseMapEvents()
     {
@@ -3457,6 +3552,7 @@ public sealed class MainForm : Form
         dlg.FormClosed += (_, _) =>
         {
             var openQuick = dlg.QuickNpcRequested;
+            var preset = dlg.RequestedPreset;
             if (ReferenceEquals(_mapEventsDialog, dlg))
             {
                 _mapEventsDialog = null;
@@ -3471,6 +3567,10 @@ public sealed class MainForm : Form
             if (openQuick)
             {
                 OpenQuickTalkingNpc();
+            }
+            else if (preset is QuickEventPresetKind kind)
+            {
+                OpenQuickEventPreset(kind);
             }
         };
         _mapEventsDialog = dlg;

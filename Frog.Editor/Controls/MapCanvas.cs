@@ -98,8 +98,8 @@ public sealed class MapCanvas : Control
     public event Action<Point>? TileContextMenuRequested;
 
     /// <summary>
-    /// Si défini, le clic gauche sur une tuile place le PNJ rapide et n'applique pas l'outil courant.
-    /// Le rappel retourne true quand le clic est consommé.
+    /// Si défini, le clic gauche sur une tuile place l'événement rapide (PNJ, coffre, porte, auberge)
+    /// et n'applique pas l'outil courant. Le rappel retourne true quand le clic est consommé.
     /// </summary>
     public Func<Point, bool>? QuickNpcPlacementClick { get; set; }
     public event Action? MapReplaced;
