@@ -13,9 +13,21 @@ public static class MapEventPictureWire
 
     public static string FormatLine(MapEventPictureOp op)
     {
-        if (op.Erase)
+        if (op.IsErase)
         {
             return "pic:erase:" + op.PictureId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (op.IsMove)
+        {
+            return FormattableString.Invariant(
+                $"pic:move:{op.PictureId}:{op.X}:{op.Y}:{op.Opacity}:{op.Blend}");
+        }
+
+        if (op.IsTint)
+        {
+            return FormattableString.Invariant(
+                $"pic:tint:{op.PictureId}:{op.Red}:{op.Green}:{op.Blue}:{op.TintOpacity}");
         }
 
         return FormattableString.Invariant(
@@ -146,6 +158,16 @@ public static class MapEventPictureWire
             return true;
         }
 
+        if (line.StartsWith("pic:move:", StringComparison.Ordinal))
+        {
+            return TryParseMove(line, out op);
+        }
+
+        if (line.StartsWith("pic:tint:", StringComparison.Ordinal))
+        {
+            return TryParseTint(line, out op);
+        }
+
         const string prefix = "pic:show:";
         if (!line.StartsWith(prefix, StringComparison.Ordinal))
         {
@@ -175,6 +197,63 @@ public static class MapEventPictureWire
         }
 
         op = MapEventPictureOp.ForShow(pictureId, asset, x, y, opacity, blend);
+        return true;
+    }
+
+    private static bool TryParseMove(string line, out MapEventPictureOp op)
+    {
+        op = MapEventPictureOp.ForErase(0);
+        var parts = line.Split(':');
+        if (parts.Length != 7
+            || parts[0] != "pic"
+            || parts[1] != "move"
+            || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var pictureId)
+            || !int.TryParse(parts[3], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var x)
+            || !int.TryParse(parts[4], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var y)
+            || !int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out var opacity)
+            || !MapEventPicture.TryCanonicalBlend(parts[6], out var blend))
+        {
+            return false;
+        }
+
+        if (pictureId is < MapEventPicture.MinId or > MapEventPicture.MaxId
+            || x is < MapEventPicture.MinCoord or > MapEventPicture.MaxCoord
+            || y is < MapEventPicture.MinCoord or > MapEventPicture.MaxCoord
+            || opacity is < MapEventPicture.MinOpacity or > MapEventPicture.MaxOpacity)
+        {
+            return false;
+        }
+
+        op = MapEventPictureOp.ForMove(pictureId, x, y, opacity, blend);
+        return true;
+    }
+
+    private static bool TryParseTint(string line, out MapEventPictureOp op)
+    {
+        op = MapEventPictureOp.ForErase(0);
+        var parts = line.Split(':');
+        if (parts.Length != 7
+            || parts[0] != "pic"
+            || parts[1] != "tint"
+            || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var pictureId)
+            || !int.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out var red)
+            || !int.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out var green)
+            || !int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out var blue)
+            || !int.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out var tintOpacity))
+        {
+            return false;
+        }
+
+        if (pictureId is < MapEventPicture.MinId or > MapEventPicture.MaxId
+            || !MapEventScreen.IsChannel(red)
+            || !MapEventScreen.IsChannel(green)
+            || !MapEventScreen.IsChannel(blue)
+            || !MapEventScreen.IsChannel(tintOpacity))
+        {
+            return false;
+        }
+
+        op = MapEventPictureOp.ForTint(pictureId, red, green, blue, tintOpacity);
         return true;
     }
 

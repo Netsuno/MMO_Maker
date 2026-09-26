@@ -342,6 +342,12 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.ShowPicture:
                 return ApplyShowPicture(session, command.ParameterJson, state);
 
+            case MapEventCommandDiscriminators.MovePicture:
+                return ApplyMovePicture(session, command.ParameterJson, state);
+
+            case MapEventCommandDiscriminators.TintPicture:
+                return ApplyTintPicture(session, command.ParameterJson, state);
+
             case MapEventCommandDiscriminators.ErasePicture:
                 return ApplyErasePicture(session, command.ParameterJson, state);
 
@@ -777,6 +783,30 @@ public sealed class MapEventCommandExecutor
         }
 
         var op = MapEventPictureOp.ForErase(pictureId);
+        session.ApplyPictureOp(op);
+        state.RecordPicture(op);
+        return null;
+    }
+
+    private string? ApplyMovePicture(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseMovePicture(parameterJson, out var op, out var err))
+        {
+            return err ?? "move_picture invalide.";
+        }
+
+        session.ApplyPictureOp(op);
+        state.RecordPicture(op);
+        return null;
+    }
+
+    private string? ApplyTintPicture(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseTintPicture(parameterJson, out var op, out var err))
+        {
+            return err ?? "tint_picture invalide.";
+        }
+
         session.ApplyPictureOp(op);
         state.RecordPicture(op);
         return null;

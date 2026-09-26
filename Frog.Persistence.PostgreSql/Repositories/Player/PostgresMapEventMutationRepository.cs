@@ -444,6 +444,30 @@ public sealed class PostgresMapEventMutationRepository(
                     shown.Blend));
                 return null;
 
+            case MapEventCommandDiscriminators.MovePicture:
+                if (!MapEventParameterSchemas.TryParseMovePicture(
+                        command.ParameterJson,
+                        out var movePicture,
+                        out var movePictureErr))
+                {
+                    return movePictureErr;
+                }
+
+                snapshot.RecordPicture(movePicture);
+                return null;
+
+            case MapEventCommandDiscriminators.TintPicture:
+                if (!MapEventParameterSchemas.TryParseTintPicture(
+                        command.ParameterJson,
+                        out var tintPicture,
+                        out var tintPictureErr))
+                {
+                    return tintPictureErr;
+                }
+
+                snapshot.RecordPicture(tintPicture);
+                return null;
+
             case MapEventCommandDiscriminators.ErasePicture:
                 if (!MapEventParameterSchemas.TryParseErasePicture(
                         command.ParameterJson,

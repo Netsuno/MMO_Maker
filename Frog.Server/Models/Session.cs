@@ -59,21 +59,12 @@ public sealed class Session
     public void AcknowledgeWeatherOverrideDrop() => WeatherOverrideDroppedByMapChange = false;
 
     /// <summary>
-    /// Images d'écran de la session (<c>show_picture</c> / <c>erase_picture</c>).
+    /// Images d'écran de la session (<c>show_picture</c>, <c>move_picture</c>, <c>tint_picture</c>, <c>erase_picture</c>).
     /// Elles restent jusqu'à effacement. Pas un champ du Hello.
     /// </summary>
     public Dictionary<int, MapEventShownPicture> Pictures { get; } = new();
 
-    public void ApplyPictureOp(MapEventPictureOp op)
-    {
-        if (op.Erase)
-        {
-            Pictures.Remove(op.PictureId);
-            return;
-        }
-
-        Pictures[op.PictureId] = op.ToShown();
-    }
+    public void ApplyPictureOp(MapEventPictureOp op) => MapEventPictureSlots.Apply(Pictures, op);
 
     /// <summary>Noir de fondu (0 clair, 255 fermé). Pas un champ du Hello.</summary>
     public int ScreenFade { get; private set; }

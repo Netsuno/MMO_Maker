@@ -4099,11 +4099,31 @@ public sealed class MainShellForm : Form
 
     private void ApplyOnePicture(MapEventPictureOp op)
     {
-        if (op.Erase)
+        if (op.IsErase)
         {
             if (_eventPictures.Remove(op.PictureId, out var removed))
             {
                 removed.Dispose();
+            }
+
+            return;
+        }
+
+        if (op.IsMove)
+        {
+            if (_eventPictures.TryGetValue(op.PictureId, out var moving))
+            {
+                moving.MoveTo(op.X, op.Y, op.Opacity, op.Blend);
+            }
+
+            return;
+        }
+
+        if (op.IsTint)
+        {
+            if (_eventPictures.TryGetValue(op.PictureId, out var tinted))
+            {
+                tinted.Tint(op.Red, op.Green, op.Blue, op.TintOpacity);
             }
 
             return;
@@ -5367,7 +5387,11 @@ public sealed class MainShellForm : Form
                     cameraX,
                     cameraY,
                     picture.Opacity,
-                    picture.Blend);
+                    picture.Blend,
+                    picture.TintRed,
+                    picture.TintGreen,
+                    picture.TintBlue,
+                    picture.TintOpacity);
             }
 
             ScreenToneDraw.Paint(overlay, bmp.Width, bmp.Height, _screenFrame);
@@ -7891,6 +7915,29 @@ public sealed class MainShellForm : Form
         y = picture.Y;
         opacity = picture.Opacity;
         blend = picture.Blend;
+        return true;
+    }
+
+    internal bool TryGetEventPictureTintForTest(
+        int pictureId,
+        out int red,
+        out int green,
+        out int blue,
+        out int opacity)
+    {
+        if (!_eventPictures.TryGetValue(pictureId, out var picture))
+        {
+            red = 0;
+            green = 0;
+            blue = 0;
+            opacity = 0;
+            return false;
+        }
+
+        red = picture.TintRed;
+        green = picture.TintGreen;
+        blue = picture.TintBlue;
+        opacity = picture.TintOpacity;
         return true;
     }
 

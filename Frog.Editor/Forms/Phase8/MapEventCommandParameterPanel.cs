@@ -293,22 +293,22 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddLabeled("asset", new TextBox { Width = 360, Text = MapEventPicture.DefaultAsset });
                 AddLabeled("x", CoordBox());
                 AddLabeled("y", CoordBox());
-                AddLabeled("opacity", new NumericUpDown
-                {
-                    Width = 80,
-                    Minimum = MapEventPicture.MinOpacity,
-                    Maximum = MapEventPicture.MaxOpacity,
-                    Value = MapEventPicture.MaxOpacity,
-                });
-                var blend = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
-                foreach (var kind in MapEventPicture.Blends)
-                {
-                    blend.Items.Add(kind);
-                }
-
-                blend.SelectedIndex = 0;
-                EditorListDraw.UseReadableChoices(blend, MapEventEditorLabels.PictureBlend);
-                AddLabeled("blend", blend);
+                AddPictureOpacityField();
+                AddPictureBlendField();
+                break;
+            case MapEventCommandDiscriminators.MovePicture:
+                AddPictureIdField();
+                AddLabeled("x", CoordBox());
+                AddLabeled("y", CoordBox());
+                AddPictureOpacityField();
+                AddPictureBlendField();
+                break;
+            case MapEventCommandDiscriminators.TintPicture:
+                AddPictureIdField();
+                AddChannelField("red", MapEventScreen.DefaultTintRed);
+                AddChannelField("green", MapEventScreen.DefaultTintGreen);
+                AddChannelField("blue", MapEventScreen.DefaultTintBlue);
+                AddChannelField("opacity", MapEventScreen.DefaultTintOpacity);
                 break;
             case MapEventCommandDiscriminators.ErasePicture:
                 AddPictureIdField();
@@ -636,7 +636,19 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
                     break;
                 case MapEventCommandDiscriminators.ShowPicture:
+                case MapEventCommandDiscriminators.MovePicture:
                     ApplyShowPicture(root);
+                    break;
+                case MapEventCommandDiscriminators.TintPicture:
+                    if (root.TryGetProperty("pictureId", out var tintPictureId) && tintPictureId.TryGetInt32(out var tintSlot))
+                    {
+                        SetInt("pictureId", tintSlot);
+                    }
+
+                    ApplyChannel(root, "red");
+                    ApplyChannel(root, "green");
+                    ApplyChannel(root, "blue");
+                    ApplyChannel(root, "opacity");
                     break;
                 case MapEventCommandDiscriminators.ErasePicture:
                     if (root.TryGetProperty("pictureId", out var eraseId) && eraseId.TryGetInt32(out var erasePictureId))
@@ -811,6 +823,24 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                         opacity = GetInt("opacity"),
                         blend = GetChoice("blend"),
                     }),
+                MapEventCommandDiscriminators.MovePicture =>
+                    JsonSerializer.Serialize(new
+                    {
+                        pictureId = GetInt("pictureId"),
+                        x = GetInt("x"),
+                        y = GetInt("y"),
+                        opacity = GetInt("opacity"),
+                        blend = GetChoice("blend"),
+                    }),
+                MapEventCommandDiscriminators.TintPicture =>
+                    JsonSerializer.Serialize(new
+                    {
+                        pictureId = GetInt("pictureId"),
+                        red = GetInt("red"),
+                        green = GetInt("green"),
+                        blue = GetInt("blue"),
+                        opacity = GetInt("opacity"),
+                    }),
                 MapEventCommandDiscriminators.ErasePicture =>
                     JsonSerializer.Serialize(new { pictureId = GetInt("pictureId") }),
                 MapEventCommandDiscriminators.FadeOutScreen or MapEventCommandDiscriminators.FadeInScreen =>
@@ -904,6 +934,30 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             Maximum = MapEventPicture.MaxId,
             Value = MapEventPicture.MinId,
         });
+    }
+
+    private void AddPictureOpacityField()
+    {
+        AddLabeled("opacity", new NumericUpDown
+        {
+            Width = 80,
+            Minimum = MapEventPicture.MinOpacity,
+            Maximum = MapEventPicture.MaxOpacity,
+            Value = MapEventPicture.MaxOpacity,
+        });
+    }
+
+    private void AddPictureBlendField()
+    {
+        var blend = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+        foreach (var kind in MapEventPicture.Blends)
+        {
+            blend.Items.Add(kind);
+        }
+
+        blend.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(blend, MapEventEditorLabels.PictureBlend);
+        AddLabeled("blend", blend);
     }
 
     private static NumericUpDown CoordBox() => new()

@@ -183,6 +183,8 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.OpenShop)]
     [InlineData(MapEventCommandDiscriminators.SetWeather)]
     [InlineData(MapEventCommandDiscriminators.ShowPicture)]
+    [InlineData(MapEventCommandDiscriminators.MovePicture)]
+    [InlineData(MapEventCommandDiscriminators.TintPicture)]
     [InlineData(MapEventCommandDiscriminators.ErasePicture)]
     [InlineData(MapEventCommandDiscriminators.FadeOutScreen)]
     [InlineData(MapEventCommandDiscriminators.FadeInScreen)]
@@ -790,6 +792,12 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.ShowPicture => Command(
                 discriminator,
                 """{"pictureId":1,"asset":"Assets/Pictures/placeholder.png","x":0,"y":0,"opacity":255,"blend":"normal"}"""),
+            MapEventCommandDiscriminators.MovePicture => Command(
+                discriminator,
+                """{"pictureId":1,"x":0,"y":0,"opacity":255,"blend":"normal"}"""),
+            MapEventCommandDiscriminators.TintPicture => Command(
+                discriminator,
+                """{"pictureId":1,"red":0,"green":0,"blue":64,"opacity":128}"""),
             MapEventCommandDiscriminators.ErasePicture => Command(discriminator, """{"pictureId":1}"""),
             MapEventCommandDiscriminators.FadeOutScreen or MapEventCommandDiscriminators.FadeInScreen =>
                 Command(discriminator, """{"durationMs":1000}"""),
@@ -951,8 +959,13 @@ public sealed class MapEventPagesEditorSmokeTests
                 expectedFragment = "\"weatherKind\":\"rain\"";
                 break;
             case MapEventCommandDiscriminators.ShowPicture:
+            case MapEventCommandDiscriminators.MovePicture:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("x"), "48");
                 expectedFragment = "\"x\":48";
+                break;
+            case MapEventCommandDiscriminators.TintPicture:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("opacity"), "200");
+                expectedFragment = "\"opacity\":200";
                 break;
             case MapEventCommandDiscriminators.ErasePicture:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("pictureId"), "7");

@@ -55,7 +55,7 @@ public sealed class MapEventWorldScratch
     /// <summary>Intent <c>set_weather</c> (kind canonique). Null = pas de changement.</summary>
     public string? WeatherKind { get; set; }
 
-    /// <summary>Images d'écran après <c>show_picture</c> / <c>erase_picture</c> (numéro → image).</summary>
+    /// <summary>Images d'écran après show / move / tint / erase (numéro → image).</summary>
     public Dictionary<int, MapEventShownPicture> Pictures { get; private set; } = new();
 
     /// <summary>Noir de fondu (0 clair, 255 fermé) après <c>fadeout_screen</c> / <c>fadein_screen</c>.</summary>
@@ -450,6 +450,30 @@ public sealed class MapEventTransactionalCommitSandbox
                 }
 
                 world.Pictures[shown.PictureId] = shown;
+                return null;
+
+            case MapEventCommandDiscriminators.MovePicture:
+                if (!MapEventParameterSchemas.TryParseMovePicture(
+                        command.ParameterJson,
+                        out var moveOp,
+                        out var moveErr))
+                {
+                    return moveErr;
+                }
+
+                MapEventPictureSlots.Apply(world.Pictures, moveOp);
+                return null;
+
+            case MapEventCommandDiscriminators.TintPicture:
+                if (!MapEventParameterSchemas.TryParseTintPicture(
+                        command.ParameterJson,
+                        out var pictureTintOp,
+                        out var pictureTintErr))
+                {
+                    return pictureTintErr;
+                }
+
+                MapEventPictureSlots.Apply(world.Pictures, pictureTintOp);
                 return null;
 
             case MapEventCommandDiscriminators.ErasePicture:

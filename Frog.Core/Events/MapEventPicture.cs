@@ -1,10 +1,12 @@
+using System.Text.Json.Serialization;
 using Frog.Core.Models;
 
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Image d'écran style VX (commande <c>show_picture</c> / <c>erase_picture</c>).
+/// Image d'écran style VX (<c>show_picture</c>, <c>move_picture</c>, <c>tint_picture</c>, <c>erase_picture</c>).
 /// Le numéro est un slot 1–100. Le fichier est un chemin relatif projet, pas une planche.
+/// Déplacer et teinter s'appliquent au slot déjà affiché ; un slot vide est ignoré.
 /// </summary>
 public static class MapEventPicture
 {
@@ -78,17 +80,122 @@ public static class MapEventPicture
     }
 }
 
-/// <summary>Image actuellement affichée sur un numéro.</summary>
-public sealed record MapEventShownPicture(int PictureId, string Asset, int X, int Y, int Opacity, string Blend);
+/// <summary>Image actuellement affichée sur un numéro. Teinte à opacité 0 = couleurs d'origine.</summary>
+public sealed record MapEventShownPicture(
+    int PictureId,
+    string Asset,
+    int X,
+    int Y,
+    int Opacity,
+    string Blend,
+    int TintRed = 0,
+    int TintGreen = 0,
+    int TintBlue = 0,
+    int TintOpacity = 0);
 
-/// <summary>Une opération <c>show_picture</c> ou <c>erase_picture</c>, dans l'ordre de la page.</summary>
-public sealed record MapEventPictureOp(bool Erase, int PictureId, string Asset, int X, int Y, int Opacity, string Blend)
+/// <summary>
+/// Une opération image, dans l'ordre de la page.
+/// <see cref="Erase"/> reste le drapeau historique ; <see cref="Kind"/> distingue show, move et tint.
+/// </summary>
+public sealed record MapEventPictureOp(
+    bool Erase,
+    int PictureId,
+    string Asset,
+    int X,
+    int Y,
+    int Opacity,
+    string Blend,
+    string Kind = MapEventPictureOp.ShowKind,
+    int Red = 0,
+    int Green = 0,
+    int Blue = 0,
+    int TintOpacity = 0)
 {
+    public const string ShowKind = "show";
+    public const string EraseKind = "erase";
+    public const string MoveKind = "move";
+    public const string TintKind = "tint";
+
+    [JsonIgnore]
+    public bool IsErase => Erase || string.Equals(Kind, EraseKind, StringComparison.Ordinal);
+
+    [JsonIgnore]
+    public bool IsMove => !IsErase && string.Equals(Kind, MoveKind, StringComparison.Ordinal);
+
+    [JsonIgnore]
+    public bool IsTint => !IsErase && string.Equals(Kind, TintKind, StringComparison.Ordinal);
+
     public static MapEventPictureOp ForShow(int pictureId, string asset, int x, int y, int opacity, string blend) =>
-        new(false, pictureId, asset, x, y, opacity, blend);
+        new(false, pictureId, asset, x, y, opacity, blend, ShowKind);
 
     public static MapEventPictureOp ForErase(int pictureId) =>
-        new(true, pictureId, string.Empty, 0, 0, MapEventPicture.MaxOpacity, MapEventPicture.BlendNormal);
+        new(true, pictureId, string.Empty, 0, 0, MapEventPicture.MaxOpacity, MapEventPicture.BlendNormal, EraseKind);
+
+    public static MapEventPictureOp ForMove(int pictureId, int x, int y, int opacity, string blend) =>
+        new(false, pictureId, string.Empty, x, y, opacity, blend, MoveKind);
+
+    public static MapEventPictureOp ForTint(int pictureId, int red, int green, int blue, int tintOpacity) =>
+        new(
+            false,
+            pictureId,
+            string.Empty,
+            0,
+            0,
+            0,
+            MapEventPicture.BlendNormal,
+            TintKind,
+            red,
+            green,
+            blue,
+            tintOpacity);
 
     public MapEventShownPicture ToShown() => new(PictureId, Asset, X, Y, Opacity, Blend);
+}
+
+/// <summary>Applique une opération au dictionnaire de slots (session ou bac à sable).</summary>
+public static class MapEventPictureSlots
+{
+    public static void Apply(IDictionary<int, MapEventShownPicture> pictures, MapEventPictureOp op)
+    {
+        ArgumentNullException.ThrowIfNull(pictures);
+        if (op.IsErase)
+        {
+            pictures.Remove(op.PictureId);
+            return;
+        }
+
+        if (op.IsMove)
+        {
+            if (pictures.TryGetValue(op.PictureId, out var moving))
+            {
+                pictures[op.PictureId] = moving with
+                {
+                    X = op.X,
+                    Y = op.Y,
+                    Opacity = op.Opacity,
+                    Blend = op.Blend,
+                };
+            }
+
+            return;
+        }
+
+        if (op.IsTint)
+        {
+            if (pictures.TryGetValue(op.PictureId, out var tinted))
+            {
+                pictures[op.PictureId] = tinted with
+                {
+                    TintRed = op.Red,
+                    TintGreen = op.Green,
+                    TintBlue = op.Blue,
+                    TintOpacity = op.TintOpacity,
+                };
+            }
+
+            return;
+        }
+
+        pictures[op.PictureId] = op.ToShown();
+    }
 }

@@ -104,7 +104,7 @@ public sealed class MapEventExecutionSnapshot
     /// <summary>Intent <c>set_weather</c> enregistré dans la TX (appliqué sur la session après commit).</summary>
     public string? WeatherKind { get; set; }
 
-    /// <summary>Opérations <c>show_picture</c> / <c>erase_picture</c> de cette TX, dans l'ordre.</summary>
+    /// <summary>Opérations image (afficher, déplacer, teinter, effacer) de cette TX, dans l'ordre.</summary>
     public List<MapEventPictureOp> PictureOps { get; set; } = [];
 
     /// <summary>Opérations d'écran de cette TX, dans l'ordre.</summary>

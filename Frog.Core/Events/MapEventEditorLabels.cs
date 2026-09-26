@@ -100,6 +100,8 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.OpenShop => "Ouvrir boutique",
         MapEventCommandDiscriminators.SetWeather => "Changer météo",
         MapEventCommandDiscriminators.ShowPicture => "Afficher image",
+        MapEventCommandDiscriminators.MovePicture => "Déplacer image",
+        MapEventCommandDiscriminators.TintPicture => "Teinter image",
         MapEventCommandDiscriminators.ErasePicture => "Effacer image",
         MapEventCommandDiscriminators.FadeOutScreen => "Fondu en fermeture",
         MapEventCommandDiscriminators.FadeInScreen => "Fondu en ouverture",
@@ -362,6 +364,10 @@ public static class MapEventEditorLabels
             MapEventCommandDiscriminators.SetWeather =>
                 $"Changer météo : {WeatherKind(ReadString(root, "weatherKind"))}",
             MapEventCommandDiscriminators.ShowPicture => SummarizeShowPicture(root),
+            MapEventCommandDiscriminators.MovePicture =>
+                $"Déplacer image {ReadInt(root, "pictureId")} ({ReadInt(root, "x")}, {ReadInt(root, "y")}) · {PictureBlend(ReadString(root, "blend"))}",
+            MapEventCommandDiscriminators.TintPicture =>
+                $"Teinter image {ReadInt(root, "pictureId")} : R{ReadInt(root, "red")} V{ReadInt(root, "green")} B{ReadInt(root, "blue")} · op. {ReadInt(root, "opacity")}",
             MapEventCommandDiscriminators.ErasePicture =>
                 $"Effacer image {ReadInt(root, "pictureId")}",
             MapEventCommandDiscriminators.FadeOutScreen =>

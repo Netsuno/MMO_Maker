@@ -976,6 +976,133 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_MoveAndTintPicture_UpdatesTheShownSlot()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Image",
+            EditorAliasId = 83,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowPicture,
+                            ParameterJson = """{"pictureId":2,"asset":"Assets/Pictures/placeholder.png","x":16,"y":32,"opacity":200,"blend":"add"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.MovePicture,
+                            ParameterJson = """{"pictureId":2,"x":40,"y":8,"opacity":255,"blend":"normal"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.TintPicture,
+                            ParameterJson = """{"pictureId":2,"red":255,"green":10,"blue":20,"opacity":180}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"bouge"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(83));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.True(session.Pictures.TryGetValue(2, out var shown));
+        Assert.Equal(MapEventPicture.DefaultAsset, shown.Asset);
+        Assert.Equal(40, shown.X);
+        Assert.Equal(8, shown.Y);
+        Assert.Equal(255, shown.Opacity);
+        Assert.Equal(MapEventPicture.BlendNormal, shown.Blend);
+        Assert.Equal(255, shown.TintRed);
+        Assert.Equal(10, shown.TintGreen);
+        Assert.Equal(20, shown.TintBlue);
+        Assert.Equal(180, shown.TintOpacity);
+        Assert.Equal("bouge", result.ShowText);
+        Assert.True(MapEventPictureWire.TryTakeInteractMessage(result.ClientInteractMessage, out var ops, out var rest));
+        Assert.Equal("bouge", rest);
+        Assert.Equal(3, ops.Count);
+        Assert.False(ops[0].IsMove);
+        Assert.True(ops[1].IsMove);
+        Assert.Equal(40, ops[1].X);
+        Assert.True(ops[2].IsTint);
+        Assert.Equal(180, ops[2].TintOpacity);
+        Assert.Equal(MapEventCommandDiscriminators.MovePicture, repo.Plans[0].Effects[1].Discriminator);
+        Assert.True(ServerPlanner.AreEffectsTransactional(repo.Plans[0].Effects));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+    }
+
+    [Fact]
+    public async Task ExecuteCommands_MoveAndTint_KeepTheAsset_MissingSlotIsIgnored()
+    {
+        var executor = CreateExecutor(
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader());
+        var session = CreateSession(Guid.NewGuid());
+        var state = new MapEventExecutionState();
+
+        var err = await executor.ExecuteCommandsAsync(
+            session,
+            session.CharacterGuid!.Value,
+            [
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.MovePicture,
+                    ParameterJson = """{"pictureId":4,"x":9,"y":9,"opacity":255,"blend":"normal"}""",
+                },
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.ShowPicture,
+                    ParameterJson = """{"pictureId":4,"asset":"Assets/Pictures/placeholder.png","x":0,"y":0,"opacity":128,"blend":"subtract"}""",
+                },
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.TintPicture,
+                    ParameterJson = """{"pictureId":4,"red":1,"green":2,"blue":3,"opacity":40}""",
+                },
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.MovePicture,
+                    ParameterJson = """{"pictureId":4,"x":12,"y":-4,"opacity":255,"blend":"add"}""",
+                },
+            ],
+            state,
+            CancellationToken.None);
+
+        Assert.Null(err);
+        Assert.True(session.Pictures.TryGetValue(4, out var shown));
+        Assert.Equal(MapEventPicture.DefaultAsset, shown.Asset);
+        Assert.Equal(12, shown.X);
+        Assert.Equal(-4, shown.Y);
+        Assert.Equal(MapEventPicture.BlendAdd, shown.Blend);
+        Assert.Equal(1, shown.TintRed);
+        Assert.Equal(40, shown.TintOpacity);
+        Assert.Equal(4, state.PictureOps.Count);
+        Assert.True(state.PictureOps[0].IsMove);
+        Assert.True(state.PictureOps[2].IsTint);
+        Assert.True(state.PictureOps[3].IsMove);
+    }
+
+    [Fact]
     public async Task ExecuteInteract_FadeAndTint_AppliesSessionAndInteractTrailer()
     {
         var characterId = Guid.NewGuid();
@@ -2267,6 +2394,20 @@ public sealed class MapEventRuntimeServiceTests
                                 shown.Y,
                                 shown.Opacity,
                                 shown.Blend));
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.MovePicture:
+                        if (MapEventParameterSchemas.TryParseMovePicture(cmd.ParameterJson, out var movePicture, out _))
+                        {
+                            snap.RecordPicture(movePicture);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.TintPicture:
+                        if (MapEventParameterSchemas.TryParseTintPicture(cmd.ParameterJson, out var tintPicture, out _))
+                        {
+                            snap.RecordPicture(tintPicture);
                         }
 
                         break;
