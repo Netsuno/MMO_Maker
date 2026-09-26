@@ -407,6 +407,65 @@ public sealed class SystemFlagPublicationHistoryEntity
     public SystemFlagEntity Flag { get; set; } = null!;
 }
 
+/// <summary>Document unique Système (monnaie, groupe, carte, musiques, termes).</summary>
+public sealed class SystemSettingsEntity
+{
+    public Guid Id { get; set; }
+    public string CurrencyUnit { get; set; } = "Or";
+    public string TermHp { get; set; } = "HP";
+    public string TermMp { get; set; } = "MP";
+    public Guid? PartyActor1 { get; set; }
+    public Guid? PartyActor2 { get; set; }
+    public Guid? PartyActor3 { get; set; }
+    public Guid? PartyActor4 { get; set; }
+    public Guid? StartMapId { get; set; }
+    public string TitleBgmAsset { get; set; } = string.Empty;
+    public int TitleBgmVolume { get; set; } = 100;
+    public int TitleBgmFadeMs { get; set; }
+    public string StartBgmAsset { get; set; } = string.Empty;
+    public int StartBgmVolume { get; set; } = 100;
+    public int StartBgmFadeMs { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+public sealed class SystemSettingsPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid SettingsId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string CurrencyUnit { get; set; } = "Or";
+    public string TermHp { get; set; } = "HP";
+    public string TermMp { get; set; } = "MP";
+    public Guid? PartyActor1 { get; set; }
+    public Guid? PartyActor2 { get; set; }
+    public Guid? PartyActor3 { get; set; }
+    public Guid? PartyActor4 { get; set; }
+    public Guid? StartMapId { get; set; }
+    public string TitleBgmAsset { get; set; } = string.Empty;
+    public int TitleBgmVolume { get; set; } = 100;
+    public int TitleBgmFadeMs { get; set; }
+    public string StartBgmAsset { get; set; } = string.Empty;
+    public int StartBgmVolume { get; set; } = 100;
+    public int StartBgmFadeMs { get; set; }
+    public SystemSettingsEntity Settings { get; set; } = null!;
+}
+
+public sealed class SystemSettingsPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid SettingsId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public SystemSettingsEntity Settings { get; set; } = null!;
+}
+
 public sealed class ShopEntity
 {
     public Guid Id { get; set; }

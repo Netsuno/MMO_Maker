@@ -1384,6 +1384,25 @@ internal static class GameDataSmokeUiDriver
             "Interrupteur a supprimer",
             timeout);
 
+        panel.SelectSettingsForTest();
+        PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+        SetText(panel.CurrencyForTest, "Écus");
+        SetText(panel.TermHpForTest, "PV");
+        SetText(panel.TermMpForTest, "PM");
+        SetText(panel.TitleBgmAssetForTest, "Assets/Audio/titre.ogg");
+        panel.TitleBgmVolumeForTest = 80;
+        panel.TitleBgmFadeForTest = 250;
+        SetText(panel.StartBgmAssetForTest, "Assets/Audio/depart.ogg");
+        panel.StartBgmVolumeForTest = 60;
+        panel.StartBgmFadeForTest = 1000;
+        ClickAndWait(panel.BtnSaveSettingsForTest, () => !panel.IsDirty, timeout);
+        ClickAndWait(
+            panel.BtnPublishSettingsForTest,
+            () => panel.LifecycleForTest.IsIdle
+                  && !panel.IsDirty
+                  && panel.SettingsPublishedRevisionForTest is not null,
+            timeout);
+
         CloseForm(form, timeout);
 
         CloseReopenAndVerify(
@@ -1405,6 +1424,18 @@ internal static class GameDataSmokeUiDriver
                 PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
                 AssertListContains(reopenedPanel.ListForTest, "nuits_auberge");
                 AssertListMissing(reopenedPanel.ListForTest, "porte_nord");
+                reopenedPanel.SelectSettingsForTest();
+                PumpUntil(
+                    () => reopenedPanel.CurrencyForTest.Text == "Écus"
+                          && reopenedPanel.TermHpForTest.Text == "PV"
+                          && reopenedPanel.TermMpForTest.Text == "PM"
+                          && reopenedPanel.TitleBgmAssetForTest.Text == "Assets/Audio/titre.ogg"
+                          && reopenedPanel.TitleBgmVolumeForTest == 80
+                          && reopenedPanel.TitleBgmFadeForTest == 250
+                          && reopenedPanel.StartBgmAssetForTest.Text == "Assets/Audio/depart.ogg"
+                          && reopenedPanel.StartBgmVolumeForTest == 60
+                          && reopenedPanel.StartBgmFadeForTest == 1000,
+                    timeout);
             });
     }
 

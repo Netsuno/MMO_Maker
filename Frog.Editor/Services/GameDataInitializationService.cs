@@ -81,6 +81,7 @@ public static class GameDataInitializationService
            || EditorTestHooks.OverrideClassRepository is not null
            || EditorTestHooks.OverrideActorRepository is not null
            || EditorTestHooks.OverrideSystemFlagRepository is not null
+           || EditorTestHooks.OverrideSystemSettingsRepository is not null
            || EditorTestHooks.OverrideShopRepository is not null
            || EditorTestHooks.OverrideResourceRepository is not null
            || EditorTestHooks.OverrideResourceSpawnRepository is not null;
@@ -99,6 +100,9 @@ public static class GameDataInitializationService
             classBundle.Repository,
             item.PublishedCatalog);
         var systemFlag = EditorSystemFlagRepositoryFactory.CreateBundle();
+        var systemSettings = EditorSystemSettingsRepositoryFactory.CreateBundle(
+            actorBundle.PublishedCatalog,
+            map.Repository);
         var shop = EditorShopRepositoryFactory.CreateBundle(item.PublishedCatalog);
         var resource = EditorResourceRepositoryFactory.CreateBundle(item.PublishedCatalog);
         var spawn = EditorResourceSpawnRepositoryFactory.CreateBundle(
@@ -114,6 +118,7 @@ public static class GameDataInitializationService
             classBundle,
             actorBundle,
             systemFlag,
+            systemSettings,
             shop,
             resource,
             spawn,
@@ -152,6 +157,12 @@ public static class GameDataInitializationService
             systemFlagMem,
             systemFlagMem.Capabilities);
 
+        var settingsMem = new InMemorySystemSettingsRepository(actorMem, mapRepo, capabilities);
+        var systemSettings = new EditorSystemSettingsRepositoryBundle(
+            settingsMem,
+            settingsMem,
+            settingsMem.Capabilities);
+
         var shopMem = new InMemoryShopRepository(itemMem, capabilities);
         var shop = new EditorShopRepositoryBundle(shopMem, shopMem, shopMem.Capabilities);
 
@@ -170,6 +181,7 @@ public static class GameDataInitializationService
             classBundle,
             actorBundle,
             systemFlag,
+            systemSettings,
             shop,
             resource,
             spawn,
@@ -206,6 +218,12 @@ public static class GameDataInitializationService
             systemFlagRepo,
             systemFlagRepo.Capabilities);
 
+        var settingsRepo = new PostgresSystemSettingsRepository(gate, actorRepo, mapRepo);
+        var systemSettings = new EditorSystemSettingsRepositoryBundle(
+            settingsRepo,
+            settingsRepo,
+            settingsRepo.Capabilities);
+
         var shopRepo = new PostgresShopRepository(gate, itemRepo);
         var shop = new EditorShopRepositoryBundle(shopRepo, shopRepo, shopRepo.Capabilities);
 
@@ -224,6 +242,7 @@ public static class GameDataInitializationService
             classBundle,
             actorBundle,
             systemFlag,
+            systemSettings,
             shop,
             resource,
             spawn,

@@ -16,6 +16,7 @@ public sealed class GameDataRepositorySet : IDisposable
         EditorClassRepositoryBundle classBundle,
         EditorActorRepositoryBundle actor,
         EditorSystemFlagRepositoryBundle systemFlag,
+        EditorSystemSettingsRepositoryBundle systemSettings,
         EditorShopRepositoryBundle shop,
         EditorResourceRepositoryBundle resource,
         EditorResourceSpawnRepositoryBundle resourceSpawn,
@@ -29,6 +30,7 @@ public sealed class GameDataRepositorySet : IDisposable
         Class = classBundle;
         Actor = actor;
         SystemFlag = systemFlag;
+        SystemSettings = systemSettings;
         Shop = shop;
         Resource = resource;
         ResourceSpawn = resourceSpawn;
@@ -50,6 +52,8 @@ public sealed class GameDataRepositorySet : IDisposable
     public EditorActorRepositoryBundle Actor { get; }
 
     public EditorSystemFlagRepositoryBundle SystemFlag { get; }
+
+    public EditorSystemSettingsRepositoryBundle SystemSettings { get; }
 
     public EditorShopRepositoryBundle Shop { get; }
 
