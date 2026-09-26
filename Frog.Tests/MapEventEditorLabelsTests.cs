@@ -82,6 +82,7 @@ public sealed class MapEventEditorLabelsTests
     [InlineData(MapEventCommandDiscriminators.SetSwitch, "Régler interrupteur")]
     [InlineData(MapEventCommandDiscriminators.Teleport, "Téléportation")]
     [InlineData(MapEventCommandDiscriminators.CallCommonEvent, "Événement commun")]
+    [InlineData(MapEventCommandDiscriminators.OpenShop, "Ouvrir boutique")]
     public void CommandKind_UsesFrenchWithoutRenamingDiscriminator(string discriminator, string french)
     {
         Assert.Equal(french, MapEventEditorLabels.CommandKind(discriminator));

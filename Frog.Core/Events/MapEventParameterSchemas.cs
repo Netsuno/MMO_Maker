@@ -487,6 +487,58 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseOpenShop(
+        string parameterJson,
+        out Guid shopId,
+        out string? shopName,
+        out string? error)
+    {
+        shopId = Guid.Empty;
+        shopName = null;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!TryParseGuidProperty(doc.RootElement, "shopId", out shopId, out error))
+            {
+                error = "open_shop: " + (error ?? "shopId requis.");
+                return false;
+            }
+
+            if (doc.RootElement.TryGetProperty("shopName", out var nameEl))
+            {
+                if (nameEl.ValueKind != JsonValueKind.String)
+                {
+                    error = "open_shop: shopName (string) invalide.";
+                    return false;
+                }
+
+                shopName = nameEl.GetString()?.Trim() ?? string.Empty;
+                if (shopName.Length is 0 or > ShopDefinition.MaxNameLength)
+                {
+                    error = "open_shop: shopName vide ou trop long.";
+                    return false;
+                }
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "shopId", "shopName" },
+                    out error))
+            {
+                error = "open_shop: " + error;
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "open_shop: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     public static bool TryParseStartDialogue(string parameterJson, out Guid dialogueId, out string? error)
     {
         dialogueId = Guid.Empty;

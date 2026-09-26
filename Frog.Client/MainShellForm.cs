@@ -3798,6 +3798,12 @@ public sealed class MainShellForm : Form
     private void OnInteractResult(bool ok, string message, Guid activationId)
     {
         _ = activationId;
+        if (ok && MapEventShopOpen.TryTakeInteractMessage(message, out var shopId, out var remainder))
+        {
+            OpenShopWindow(shopId, showForm: true);
+            message = remainder;
+        }
+
         AppendLog(ok ? "Interaction: " + message : "Interaction refusée: " + message);
         TryPresentEventMessage(ok, message);
     }

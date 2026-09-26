@@ -59,6 +59,7 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.Wait => "Attendre",
         MapEventCommandDiscriminators.CallCommonEvent => "Événement commun",
         MapEventCommandDiscriminators.LearnProfession => "Apprendre métier",
+        MapEventCommandDiscriminators.OpenShop => "Ouvrir boutique",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
     };
 
@@ -88,6 +89,9 @@ public static class MapEventEditorLabels
         "commonEventId" => "Événement commun",
         "editorAliasId" => "Alias éditeur",
         "professionId" => "Métier",
+        "shopId" => "Identifiant",
+        "shopName" => "Nom",
+        "shopPick" => "Boutique",
         "condition" => "Si",
         "thenCommands" => "Alors",
         "elseCommands" => "Sinon",
@@ -226,6 +230,7 @@ public static class MapEventEditorLabels
             MapEventCommandDiscriminators.CallCommonEvent => SummarizeCommonEvent(root),
             MapEventCommandDiscriminators.LearnProfession =>
                 $"Apprendre métier {ShortId(ReadString(root, "professionId"))}",
+            MapEventCommandDiscriminators.OpenShop => SummarizeOpenShop(root),
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };
@@ -268,6 +273,23 @@ public static class MapEventEditorLabels
         }
 
         return $"{title} : {Clip(file, 28)} · vol. {ReadInt(root, "volume")}";
+    }
+
+    private static string SummarizeOpenShop(JsonElement root)
+    {
+        var name = ReadString(root, "shopName").Trim();
+        if (name.Length > 0)
+        {
+            return $"Ouvrir boutique : {Clip(name, 32)}";
+        }
+
+        var id = ReadString(root, "shopId");
+        if (Guid.TryParse(id, out var shopId) && shopId == Guid.Empty)
+        {
+            return "Ouvrir boutique";
+        }
+
+        return $"Ouvrir boutique {ShortId(id)}";
     }
 
     private static string SummarizeBranch(JsonElement root)

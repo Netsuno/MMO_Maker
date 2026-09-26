@@ -30,6 +30,7 @@ public sealed class MapEventCommandExecutor
     private readonly ICharacterPayloadReader _payloadReader;
     private readonly ICharacterPayloadWriter _payloadWriter;
     private readonly MovementService _movement;
+    private readonly IPublishedShopCatalog _shops;
     private readonly ILogger<MapEventCommandExecutor> _logger;
 
     public MapEventCommandExecutor(
@@ -46,6 +47,7 @@ public sealed class MapEventCommandExecutor
         ICharacterPayloadReader payloadReader,
         ICharacterPayloadWriter payloadWriter,
         MovementService movement,
+        IPublishedShopCatalog shops,
         ILogger<MapEventCommandExecutor> logger)
     {
         _worldState = worldState;
@@ -61,6 +63,7 @@ public sealed class MapEventCommandExecutor
         _payloadReader = payloadReader;
         _payloadWriter = payloadWriter;
         _movement = movement;
+        _shops = shops;
         _logger = logger;
     }
 
@@ -328,6 +331,10 @@ public sealed class MapEventCommandExecutor
                 return await ExecuteLearnProfessionAsync(characterId, command.ParameterJson, state, cancellationToken)
                     .ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.OpenShop:
+                return await ExecuteOpenShopAsync(command.ParameterJson, state, cancellationToken)
+                    .ConfigureAwait(false);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -558,8 +565,8 @@ public sealed class MapEventCommandExecutor
     }
 
     /// <summary>
-    /// Applique les intents <c>teleport</c> / <c>start_dialogue</c> enregistrés dans
-    /// le snapshot PG <em>après</em> commit de la TX.
+    /// Applique les intents <c>teleport</c> / <c>start_dialogue</c> / <c>open_shop</c>
+    /// enregistrés dans le snapshot PG <em>après</em> commit de la TX.
     /// </summary>
     public async Task ApplyCommittedSessionIntentsAsync(
         Session session,
@@ -605,6 +612,42 @@ public sealed class MapEventCommandExecutor
                     dialogueErr);
             }
         }
+
+        if (snap.ShopId is Guid shopId && shopId != Guid.Empty)
+        {
+            await ApplyOpenShopIntentAsync(shopId, state, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<string?> ExecuteOpenShopAsync(
+        string parameterJson,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        if (!MapEventParameterSchemas.TryParseOpenShop(parameterJson, out var shopId, out _, out var err))
+        {
+            return err ?? "open_shop invalide.";
+        }
+
+        await ApplyOpenShopIntentAsync(shopId, state, cancellationToken).ConfigureAwait(false);
+        return null;
+    }
+
+    private async Task ApplyOpenShopIntentAsync(
+        Guid shopId,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        var published = await _shops.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
+        var shop = published.FirstOrDefault(s => s.Id == shopId);
+        if (shop is null)
+        {
+            _logger.LogWarning("open_shop: boutique {ShopId} absente du catalogue publié.", shopId);
+            state.ShowText ??= MapEventShopOpen.UnavailableMessage;
+            return;
+        }
+
+        state.OpenShopId = shopId;
     }
 
     private string? ExecuteTeleport(Session session, string parameterJson, MapEventExecutionState state)

@@ -18,6 +18,7 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.ShowChoicesId,
                 MapEventCommandPalette.PlayBgmId,
                 MapEventCommandPalette.PlaySeId,
+                MapEventCommandPalette.OpenShopId,
                 MapEventCommandPalette.SetSwitchId,
                 MapEventCommandPalette.SetVariableId,
                 MapEventCommandPalette.AddVariableId,
@@ -31,6 +32,7 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Afficher choix");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Jouer BGM");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Jouer SE");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Ouvrir boutique");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Si variable");
     }
 
@@ -40,8 +42,16 @@ public sealed class MapEventCommandPaletteTests
     {
         Assert.True(MapEventCommandPalette.TryCreate(id, out var command));
         Assert.True(command.Validate(out var error), error);
-        Assert.True(MapEventCommandParameterValidator.ValidateParameters(command, out error), error);
         Assert.Equal(1, command.SchemaVersion);
+        if (id == MapEventCommandPalette.OpenShopId)
+        {
+            // Placeholder Guid.Empty until the author picks a shop. See TryCreate_OpenShop_UsesEmptyGuidPlaceholder.
+            Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out error));
+            Assert.Contains("shopId", error, StringComparison.OrdinalIgnoreCase);
+            return;
+        }
+
+        Assert.True(MapEventCommandParameterValidator.ValidateParameters(command, out error), error);
     }
 
     [Fact]
@@ -157,6 +167,40 @@ public sealed class MapEventCommandPaletteTests
         Assert.True(MapEventParameterSchemas.EvaluateVariableCompare(1, op, expected));
         Assert.False(MapEventParameterSchemas.EvaluateVariableCompare(0, op, expected));
         Assert.Contains("Variable", MapEventEditorLabels.CommandSummary(variable.Discriminator, variable.ParameterJson), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryCreate_OpenShop_UsesEmptyGuidPlaceholder()
+    {
+        Assert.Equal(Guid.Empty, MapEventCommandPalette.OpenShopPlaceholderId);
+        Assert.True(MapEventCommandPalette.TryCreate(MapEventCommandPalette.OpenShopId, out var command));
+        Assert.Equal(MapEventCommandDiscriminators.OpenShop, command.Discriminator);
+        Assert.Contains(Guid.Empty.ToString("D"), command.ParameterJson, StringComparison.OrdinalIgnoreCase);
+        Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out var error));
+        Assert.Contains("shopId", error, StringComparison.OrdinalIgnoreCase);
+
+        var picked = Guid.Parse("aaaaaaaa-0005-4000-8000-000000000001");
+        var ready = new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.OpenShop,
+            ParameterJson = $$"""{"shopId":"{{picked:D}}","shopName":"Échoppe"}""",
+        };
+        Assert.True(MapEventCommandParameterValidator.ValidateParameters(ready, out var readyError), readyError);
+        Assert.True(
+            MapEventParameterSchemas.TryParseOpenShop(ready.ParameterJson, out var parsed, out var parsedName, out readyError),
+            readyError);
+        Assert.Equal(picked, parsed);
+        Assert.Equal("Échoppe", parsedName);
+        Assert.Equal(
+            "Ouvrir boutique : Échoppe",
+            MapEventEditorLabels.CommandSummary(ready.Discriminator, ready.ParameterJson));
+        Assert.Equal(
+            "Ouvrir boutique " + picked.ToString("D")[..8] + "…",
+            MapEventEditorLabels.CommandSummary(
+                MapEventCommandDiscriminators.OpenShop,
+                $$"""{"shopId":"{{picked:D}}"}"""));
+        Assert.Equal("Ouvrir boutique", MapEventEditorLabels.CommandKind(MapEventCommandDiscriminators.OpenShop));
+        Assert.Equal("Boutique", MapEventEditorLabels.Field("shopPick"));
     }
 
     [Fact]

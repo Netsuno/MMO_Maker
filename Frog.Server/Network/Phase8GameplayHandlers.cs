@@ -588,10 +588,32 @@ public sealed class Phase8GameplayHandlers(
             .ConfigureAwait(false);
         foreach (var runtimeResult in results)
         {
-            // No InteractResult: heartbeat collectors (wait-resume → parallel pulse)
-            // must not see a leftover InteractResult from the wait suffix.
+            // No InteractResult for the wait suffix in general: heartbeat collectors
+            // (wait-resume → parallel pulse) must not see a leftover InteractResult.
+            // open_shop is the exception: the existing InteractResult string carries shop:<guid>.
             await ApplyCommittedSessionClientEffectsAsync(client, session, runtimeResult, cancellationToken)
                 .ConfigureAwait(false);
+            if (runtimeResult.OpenShopId is Guid shopId && shopId != Guid.Empty)
+            {
+                await packetSender.SendInteractResultAsync(
+                        client,
+                        runtimeResult.Success,
+                        MapEventShopOpen.FormatInteractMessage(shopId, runtimeResult.ShowText),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else if (string.Equals(
+                         runtimeResult.ShowText,
+                         MapEventShopOpen.UnavailableMessage,
+                         StringComparison.Ordinal))
+            {
+                await packetSender.SendInteractResultAsync(
+                        client,
+                        runtimeResult.Success,
+                        MapEventShopOpen.UnavailableMessage,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
     }
 
@@ -604,7 +626,7 @@ public sealed class Phase8GameplayHandlers(
         await ApplyCommittedSessionClientEffectsAsync(client, session, runtimeResult, cancellationToken)
             .ConfigureAwait(false);
 
-        var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+        var clientMessage = runtimeResult.ClientInteractMessage;
         await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
             .ConfigureAwait(false);
     }

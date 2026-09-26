@@ -59,6 +59,8 @@ public static class MapEventCommandParameterValidator
                     command.Discriminator,
                     out _,
                     out error),
+            MapEventCommandDiscriminators.OpenShop =>
+                MapEventParameterSchemas.TryParseOpenShop(command.ParameterJson, out _, out _, out error),
             _ => false,
         };
 

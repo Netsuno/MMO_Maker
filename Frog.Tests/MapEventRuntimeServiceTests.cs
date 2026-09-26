@@ -341,6 +341,7 @@ public sealed class MapEventRuntimeServiceTests
             payload,
             payload,
             new MovementService(MapTestHelpers.CreateMapService(), new ConnectionManager()),
+            items,
             NullLogger<MapEventCommandExecutor>.Instance);
         var service = new MapEventRuntimeService(
             catalog,
@@ -1576,6 +1577,95 @@ public sealed class MapEventRuntimeServiceTests
         }
     }
 
+    [Fact]
+    public async Task OpenShop_PublishedShop_OpensThroughExistingShopToken()
+    {
+        var shopId = Phase7ContentSeed.DefaultShopId;
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Marchand",
+            EditorAliasId = 77,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.OpenShop,
+                            ParameterJson = $$"""{"shopId":"{{shopId:D}}","shopName":"Échoppe"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"Bienvenue."}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var service = CreateService(catalog, new InMemoryCharacterWorldStateRepository(), new InMemoryCharacterPayloadReader());
+        var result = await service.TryExecuteInteractAsync(CreateSession(Guid.NewGuid()), CreatePlacement(77));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.Equal(shopId, result.OpenShopId);
+        Assert.Equal("Bienvenue.", result.ShowText);
+        Assert.True(MapEventShopOpen.TryTakeInteractMessage(result.ClientInteractMessage, out var parsed, out var rest));
+        Assert.Equal(shopId, parsed);
+        Assert.Equal("Bienvenue.", rest);
+        Assert.Equal(MapEventEffectCommitKind.SessionSide, MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.OpenShop));
+        var published = await catalog.ListPublishedAsync();
+        Assert.True(ServerPlanner.CanExecuteTransactionally(published[0].Pages[0].Commands));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+    }
+
+    [Fact]
+    public async Task OpenShop_MissingShop_ContinuesAndReportsUnavailable()
+    {
+        var missing = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var world = new InMemoryCharacterWorldStateRepository();
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Comptoir vide",
+            EditorAliasId = 78,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.OpenShop,
+                            ParameterJson = $$"""{"shopId":"{{missing:D}}"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.SetSwitch,
+                            ParameterJson = """{"switchId":"shop_missing","value":true}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var service = CreateService(catalog, world, new InMemoryCharacterPayloadReader());
+        var result = await service.TryExecuteInteractAsync(CreateSession(characterId), CreatePlacement(78));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.Null(result.OpenShopId);
+        Assert.Equal(MapEventShopOpen.UnavailableMessage, result.ShowText);
+        Assert.Equal(MapEventShopOpen.UnavailableMessage, result.ClientInteractMessage);
+        Assert.Equal(true, await world.GetSwitchAsync(characterId, "shop_missing"));
+    }
+
     private static QuickEventPresetDraft RequirePreset(string name, QuickEventPresetKind kind)
     {
         Assert.True(QuickEventPresetDraft.TryCreate(name, kind, out var draft, out var error), error);
@@ -1621,6 +1711,7 @@ public sealed class MapEventRuntimeServiceTests
             payload,
             payload,
             new MovementService(MapTestHelpers.CreateMapService(), new ConnectionManager()),
+            items,
             NullLogger<MapEventCommandExecutor>.Instance);
         return new MapEventRuntimeService(
             catalog,

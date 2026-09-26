@@ -10,7 +10,7 @@ public interface IMapEventMutationRepository
     /// <summary>
     /// Applique <paramref name="plan"/> comme <see cref="MapEventTransactionalUnit.FromPlan"/>
     /// dans une seule transaction PostgreSQL (mutations persistantes + intents
-    /// <c>start_dialogue</c> / <c>teleport</c> dans le snapshot). Les effets de session
+    /// <c>start_dialogue</c> / <c>teleport</c> / <c>open_shop</c> dans le snapshot). Les effets de session
     /// ne sont pas appliqués ici : le serveur les rejoue après commit.
     /// La clé ledger est <see cref="MapEventExecutionIdentity.LedgerKey"/> (CharacterId + RequestId).
     /// Une reprise wait utilise <see cref="MapEventExecutionIdentity.ForWaitResume"/> (nouvelle ligne).
@@ -91,6 +91,9 @@ public sealed class MapEventExecutionSnapshot
     /// <summary>Intent <c>start_dialogue</c> enregistré dans la TX (appliqué côté session après commit).</summary>
     public Guid? DialogueId { get; set; }
 
+    /// <summary>Intent <c>open_shop</c> enregistré dans la TX (boutique publiée ouverte après commit).</summary>
+    public Guid? ShopId { get; set; }
+
     /// <summary>Intent <c>teleport</c> enregistré dans la TX (appliqué côté session après commit).</summary>
     public int? TeleportMapId { get; set; }
 
@@ -104,6 +107,8 @@ public sealed class MapEventExecutionSnapshot
             : null;
 
     public void RecordDialogue(Guid dialogueId) => DialogueId = dialogueId;
+
+    public void RecordShop(Guid shopId) => ShopId = shopId;
 
     public void RecordTeleport(int mapId, int tileX, int tileY)
     {
