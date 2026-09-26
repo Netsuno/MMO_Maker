@@ -20,8 +20,8 @@ internal static class EditorListDraw
 
             var raw = list.Items[e.Index]?.ToString() ?? string.Empty;
             var text = label is null ? raw : label(raw);
-            var selected = (e.State & WinForms.DrawItemState.Selected) != 0;
-            DrawRow(e, selected ? "●  " + text : "    " + text);
+            var selected = (e.State & WinForms.DrawItemState.Selected) != 0 || e.Index == list.SelectedIndex;
+            DrawRow(e, selected ? "●  " + text : "    " + text, selected);
         };
     }
 
@@ -55,9 +55,8 @@ internal static class EditorListDraw
         };
     }
 
-    private static void DrawRow(WinForms.DrawItemEventArgs e, string text)
+    private static void DrawRow(WinForms.DrawItemEventArgs e, string text, bool selected)
     {
-        var selected = (e.State & WinForms.DrawItemState.Selected) != 0;
         var bg = selected ? Color.FromArgb(26, 61, 88) : Color.White;
         var fg = selected ? Color.FromArgb(235, 238, 245) : Color.FromArgb(32, 34, 40);
         using var brush = new SolidBrush(bg);
