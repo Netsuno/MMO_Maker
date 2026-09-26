@@ -31,6 +31,7 @@
         <Compile Include="..\Frog.Client\Config\SavedServerList.cs" Link="ClientTilePack\SavedServerList.cs" />
         <Compile Include="..\Frog.Client\Config\ClientSettingsStore.cs" Link="ClientTilePack\ClientSettingsStore.cs" />
         <Compile Include="..\Frog.Client\Services\PlayerFacingMessages.cs" Link="ClientTilePack\PlayerFacingMessages.cs" />
+        <Compile Include="..\Frog.Client\Services\ClientDiagnosticLight.cs" Link="ClientTilePack\ClientDiagnosticLight.cs" />
     </ItemGroup>
 
     <ItemGroup>
