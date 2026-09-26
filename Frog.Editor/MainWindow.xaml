@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Frog.Editor"
+        xmlns:maps="clr-namespace:Frog.Core.Maps;assembly=Frog.Core"
         xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
         Title="MMO Maker — Éditeur"
         Width="1200"
@@ -120,6 +121,8 @@
                 <Separator />
                 <MenuItem Header="Animer la sélection de tuiles" Command="{x:Static local:MainWindow.CmdMarkTilesAnimated}" />
                 <MenuItem Header="Retirer l’animation de la sélection" Command="{x:Static local:MainWindow.CmdClearTilesAnimated}" />
+                <MenuItem Header="{x:Static maps:TileAssetFlagLabels.EditMenu}"
+                          Command="{x:Static local:MainWindow.CmdEditAutotile}" />
             </MenuItem>
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
@@ -194,6 +197,12 @@
                           IsChecked="True"
                           ToolTip="Fait défiler les tuiles animées sur la carte et dans la palette."
                           Click="OnToggleAnimPreview" />
+                <MenuItem x:Name="MnuAutotileJoin"
+                          Header="{x:Static maps:TileAssetFlagLabels.JoinMenu}"
+                          IsCheckable="True"
+                          IsChecked="True"
+                          ToolTip="En peignant une tuile d’un groupe, les voisins du même groupe prennent le rôle qui correspond (centre, bords, coins)."
+                          Click="OnToggleAutotileJoin" />
             </MenuItem>
         </Menu>
         <ToolBarTray DockPanel.Dock="Top" Background="#FF2A2E36">

@@ -344,7 +344,16 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
             return true;
         }
 
-        _flags.Set(id, flags);
+        try
+        {
+            _flags.Set(id, flags);
+        }
+        catch (ArgumentException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+
         PersistFlagsQuietly();
         Changed?.Invoke();
         error = null;

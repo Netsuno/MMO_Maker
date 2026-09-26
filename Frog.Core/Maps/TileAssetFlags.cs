@@ -11,6 +11,11 @@ namespace Frog.Core.Maps;
 /// </summary>
 public readonly record struct TileAssetFlags
 {
+    public TileAssetFlags()
+    {
+        AutotileGroup = string.Empty;
+    }
+
     public const byte MaxPriority = 5;
 
     /// <summary>Numéro de terrain VX : 0–7.</summary>
@@ -38,6 +43,14 @@ public readonly record struct TileAssetFlags
     /// <summary>Numéro de terrain, 0–7.</summary>
     public byte Terrain { get; init; }
 
+    /// <summary>Groupe d’autotile (eau, mur…). Vide : tuile ordinaire. Ne change pas le hash des pixels.</summary>
+    public string AutotileGroup { get; init; }
+
+    /// <summary>Rôle dans <see cref="AutotileGroup"/>. <see cref="AutotileRole.None"/> si la tuile ne raccorde pas.</summary>
+    public AutotileRole AutotileRole { get; init; }
+
+    public const int MaxAutotileGroupLength = 40;
+
     /// <summary>○ — quatre directions ouvertes, priorité 0, sans buisson, comptoir ni dégâts.</summary>
     public static TileAssetFlags Default { get; } = new()
     {
@@ -52,7 +65,9 @@ public readonly record struct TileAssetFlags
 
     public bool IsDefault =>
         PassageNorth && PassageEast && PassageSouth && PassageWest
-        && Priority == 0 && !Bush && !Counter && !Damage && !Star && Terrain == 0;
+        && Priority == 0 && !Bush && !Counter && !Damage && !Star && Terrain == 0
+        && AutotileRole == AutotileRole.None
+        && string.IsNullOrEmpty(AutotileGroup);
 
     /// <summary>○ tout ouvert, × tout bloqué, ★ au-dessus.</summary>
     public string PassageMark => Star ? "★" : BlocksAllPassage ? "×" : "○";
@@ -151,6 +166,53 @@ public readonly record struct TileAssetFlags
     public TileAssetFlags CyclePriority() => WithPriority((Priority + 1) % (MaxPriority + 1));
 
     public TileAssetFlags CycleTerrain() => WithTerrain((Terrain + 1) % (MaxTerrain + 1));
+
+    /// <summary>
+    /// Groupe et rôle ensemble. Nom vide et rôle <see cref="AutotileRole.None"/> retirent l’autotile.
+    /// L’un sans l’autre est refusé.
+    /// </summary>
+    public TileAssetFlags WithAutotile(string? group, AutotileRole role)
+    {
+        var normalized = NormalizeAutotileGroup(group, role);
+        return this with { AutotileGroup = normalized, AutotileRole = role == AutotileRole.None ? AutotileRole.None : role };
+    }
+
+    internal static string NormalizeAutotileGroup(string? group, AutotileRole role)
+    {
+        var trimmed = (group ?? string.Empty).Trim();
+        var hasGroup = trimmed.Length > 0;
+        var hasRole = role != AutotileRole.None;
+        if (hasGroup != hasRole)
+        {
+            throw new ArgumentException("Un groupe d’autotile exige un nom et un rôle.");
+        }
+
+        if (!hasGroup)
+        {
+            return string.Empty;
+        }
+
+        if (!Enum.IsDefined(role))
+        {
+            throw new ArgumentException("Rôle d’autotile inconnu.");
+        }
+
+        if (trimmed.Length > MaxAutotileGroupLength)
+        {
+            throw new ArgumentException(
+                $"Le nom du groupe d’autotile fait entre 1 et {MaxAutotileGroupLength} caractères.");
+        }
+
+        foreach (var c in trimmed)
+        {
+            if (char.IsControl(c))
+            {
+                throw new ArgumentException("Le nom du groupe d’autotile ne contient pas de caractère de contrôle.");
+            }
+        }
+
+        return trimmed;
+    }
 
     /// <summary>
     /// Un pas VX : on quitte <paramref name="from"/> dans <paramref name="direction"/>

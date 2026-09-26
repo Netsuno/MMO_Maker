@@ -52,6 +52,30 @@ public sealed class TileAssetFlagTable
             throw new ArgumentOutOfRangeException(nameof(flags), "Numéro de terrain hors 0–7.");
         }
 
+        var group = TileAssetFlags.NormalizeAutotileGroup(flags.AutotileGroup, flags.AutotileRole);
+        if (!string.Equals(group, flags.AutotileGroup, StringComparison.Ordinal))
+        {
+            flags = flags with { AutotileGroup = group };
+        }
+
+        if (flags.AutotileRole != AutotileRole.None)
+        {
+            foreach (var pair in _byId)
+            {
+                if (pair.Key.Equals(id))
+                {
+                    continue;
+                }
+
+                if (pair.Value.AutotileRole == flags.AutotileRole
+                    && string.Equals(pair.Value.AutotileGroup, flags.AutotileGroup, StringComparison.Ordinal))
+                {
+                    throw new ArgumentException(
+                        $"Le groupe « {flags.AutotileGroup} » a déjà le rôle {TileAssetFlagLabels.RoleLabel(flags.AutotileRole)}.");
+                }
+            }
+        }
+
         if (flags.IsDefault)
         {
             _byId.Remove(id);
@@ -111,6 +135,10 @@ public sealed class TileAssetFlagTable
                 Damage = flags.Damage,
                 Star = flags.Star,
                 Terrain = flags.Terrain,
+                AutotileGroup = string.IsNullOrEmpty(flags.AutotileGroup) ? null : flags.AutotileGroup,
+                AutotileRole = flags.AutotileRole == AutotileRole.None
+                    ? null
+                    : AutotileRoles.ToToken(flags.AutotileRole),
             };
         }
 
@@ -148,7 +176,14 @@ public sealed class TileAssetFlagTable
             }
 
             var dto = pair.Value ?? throw new InvalidDataException("Drapeaux manquants dans tile-flags.json.");
-            table.Set(id, FromDto(dto));
+            try
+            {
+                table.Set(id, FromDto(dto));
+            }
+            catch (ArgumentException ex)
+            {
+                throw new InvalidDataException(ex.Message, ex);
+            }
         }
 
         return table;
@@ -262,7 +297,38 @@ public sealed class TileAssetFlagTable
             Damage = dto.Damage ?? false,
             Star = dto.Star ?? false,
             Terrain = (byte)terrain,
+            AutotileGroup = ParseAutotileGroup(dto),
+            AutotileRole = ParseAutotileRole(dto),
         };
+    }
+
+    private static string ParseAutotileGroup(FlagDto dto)
+    {
+        var group = dto.AutotileGroup?.Trim() ?? string.Empty;
+        var role = ParseAutotileRole(dto);
+        try
+        {
+            return TileAssetFlags.NormalizeAutotileGroup(group, role);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidDataException(ex.Message, ex);
+        }
+    }
+
+    private static AutotileRole ParseAutotileRole(FlagDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.AutotileRole))
+        {
+            return AutotileRole.None;
+        }
+
+        if (!AutotileRoles.TryParse(dto.AutotileRole.Trim(), out var role) || role == AutotileRole.None)
+        {
+            throw new InvalidDataException("Rôle d’autotile inconnu.");
+        }
+
+        return role;
     }
 
     private sealed class FlagFile
@@ -293,5 +359,9 @@ public sealed class TileAssetFlagTable
         public bool? Star { get; set; }
 
         public int? Terrain { get; set; }
+
+        public string? AutotileGroup { get; set; }
+
+        public string? AutotileRole { get; set; }
     }
 }
