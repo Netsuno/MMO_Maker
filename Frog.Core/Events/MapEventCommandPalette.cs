@@ -1,10 +1,11 @@
 using System.Text.Json;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -43,6 +44,9 @@ public static class MapEventCommandPalette
     public const string ShakeScreenId = "shake_screen";
     public const string FlashScreenId = "flash_screen";
     public const string ShowAnimationId = "show_animation";
+    public const string ChangeLevelId = "change_level";
+    public const string ChangeExpId = "change_exp";
+    public const string ChangeParamId = "change_param";
 
     public const string DefaultSwitchId = "interrupteur_1";
     public const string DefaultVariableId = "variable_1";
@@ -73,6 +77,9 @@ public static class MapEventCommandPalette
         new(ShakeScreenId, "Tremblement écran"),
         new(FlashScreenId, "Flash écran"),
         new(ShowAnimationId, "Afficher animation"),
+        new(ChangeLevelId, "Changer niveau"),
+        new(ChangeExpId, "Changer EXP"),
+        new(ChangeParamId, "Changer paramètre"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -220,6 +227,15 @@ public static class MapEventCommandPalette
                     target = MapEventAnimation.TargetEvent,
                     durationMs = MapEventScreen.DefaultDurationMs,
                 }),
+            ChangeLevelId => Command(
+                MapEventCommandDiscriminators.ChangeLevel,
+                new { delta = 1 }),
+            ChangeExpId => Command(
+                MapEventCommandDiscriminators.ChangeExp,
+                new { delta = 10 }),
+            ChangeParamId => Command(
+                MapEventCommandDiscriminators.ChangeParam,
+                new { stat = CharacterProgressionAdjust.StatStr, delta = 1 }),
             _ => null,
         };
 

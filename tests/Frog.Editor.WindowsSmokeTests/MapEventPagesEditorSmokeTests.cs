@@ -194,6 +194,9 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.ShakeScreen)]
     [InlineData(MapEventCommandDiscriminators.FlashScreen)]
     [InlineData(MapEventCommandDiscriminators.ShowAnimation)]
+    [InlineData(MapEventCommandDiscriminators.ChangeLevel)]
+    [InlineData(MapEventCommandDiscriminators.ChangeExp)]
+    [InlineData(MapEventCommandDiscriminators.ChangeParam)]
     [InlineData(MapEventCommandDiscriminators.Branch)]
     public void MapEventPagesEditor_AllCommandFamilies_TypedFieldMutation(string discriminator)
     {
@@ -820,6 +823,9 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.ShowAnimation => Command(
                 discriminator,
                 """{"animationId":1,"target":"event","durationMs":1000}"""),
+            MapEventCommandDiscriminators.ChangeLevel => Command(discriminator, """{"delta":1}"""),
+            MapEventCommandDiscriminators.ChangeExp => Command(discriminator, """{"delta":10}"""),
+            MapEventCommandDiscriminators.ChangeParam => Command(discriminator, """{"stat":"STR","delta":1}"""),
             MapEventCommandDiscriminators.Branch => BranchCommand(
                 new MapEventConditionDefinition
                 {
@@ -1009,6 +1015,18 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.ShowAnimation:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("target"), "player");
                 expectedFragment = "\"target\":\"player\"";
+                break;
+            case MapEventCommandDiscriminators.ChangeLevel:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("delta"), "2");
+                expectedFragment = "\"delta\":2";
+                break;
+            case MapEventCommandDiscriminators.ChangeExp:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("delta"), "25");
+                expectedFragment = "\"delta\":25";
+                break;
+            case MapEventCommandDiscriminators.ChangeParam:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("stat"), "AGI");
+                expectedFragment = "\"stat\":\"AGI\"";
                 break;
             case MapEventCommandDiscriminators.Branch:
                 var thenText = Assert.IsType<TextBox>(

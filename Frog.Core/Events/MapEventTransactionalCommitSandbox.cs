@@ -1,3 +1,4 @@
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 
 namespace Frog.Core.Events;
@@ -44,6 +45,9 @@ public sealed class MapEventWorldScratch
 
     public int Gold { get; set; }
 
+    /// <summary>Niveau, EXP et paramètres du bac à sable (commandes de progression).</summary>
+    public CharacterVitals Vitals { get; set; } = CharacterVitals.Default;
+
     public string? ShowText { get; set; }
 
     public (int MapId, int TileX, int TileY)? Teleport { get; set; }
@@ -73,6 +77,7 @@ public sealed class MapEventWorldScratch
             StartedQuests = new HashSet<Guid>(StartedQuests),
             LearnedProfessions = new HashSet<Guid>(LearnedProfessions),
             Gold = Gold,
+            Vitals = Vitals,
             ShowText = ShowText,
             Teleport = Teleport,
             DialogueId = DialogueId,
@@ -92,6 +97,7 @@ public sealed class MapEventWorldScratch
         StartedQuests = new HashSet<Guid>(other.StartedQuests);
         LearnedProfessions = new HashSet<Guid>(other.LearnedProfessions);
         Gold = other.Gold;
+        Vitals = other.Vitals;
         ShowText = other.ShowText;
         Teleport = other.Teleport;
         DialogueId = other.DialogueId;
@@ -364,6 +370,24 @@ public sealed class MapEventTransactionalCommitSandbox
                 }
 
                 world.Gold += amount;
+                return null;
+
+            case MapEventCommandDiscriminators.ChangeLevel:
+            case MapEventCommandDiscriminators.ChangeExp:
+            case MapEventCommandDiscriminators.ChangeParam:
+                if (!CharacterProgressionCommands.TryApply(
+                        command.Discriminator,
+                        command.ParameterJson,
+                        world.Vitals,
+                        out var vitals,
+                        out _,
+                        out _,
+                        out var progressionErr))
+                {
+                    return progressionErr;
+                }
+
+                world.Vitals = vitals;
                 return null;
 
             case MapEventCommandDiscriminators.StartQuest:

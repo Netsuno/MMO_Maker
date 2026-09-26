@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Frog.Application.Assets;
 using Frog.Core.Events;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Weather;
 using Frog.Editor.Services;
@@ -251,6 +252,15 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddOperationField();
                 AddLabeled("quantity", new NumericUpDown { Width = 80, Minimum = 1, Maximum = 9999, Value = 1 });
                 break;
+            case MapEventCommandDiscriminators.ChangeLevel:
+                AddDeltaField(CharacterProgressionAdjust.MaxLevelDelta, 1);
+                break;
+            case MapEventCommandDiscriminators.ChangeExp:
+                AddDeltaField(CharacterProgressionAdjust.MaxExpDelta, 10);
+                break;
+            case MapEventCommandDiscriminators.ChangeParam:
+                AddParamFields();
+                break;
             case MapEventCommandDiscriminators.StartDialogue:
                 AddLabeled("dialogueId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
                 break;
@@ -363,6 +373,31 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddLabeled("parameterJson", new TextBox { Width = 360, Text = "{}" });
                 break;
         }
+    }
+
+    private void AddDeltaField(int maxAbs, int value)
+    {
+        AddLabeled("delta", new NumericUpDown
+        {
+            Width = 100,
+            Minimum = -maxAbs,
+            Maximum = maxAbs,
+            Value = value,
+        });
+    }
+
+    private void AddParamFields()
+    {
+        var stat = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
+        foreach (var key in CharacterProgressionAdjust.ParamKeys)
+        {
+            stat.Items.Add(key);
+        }
+
+        stat.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(stat, CharacterProgressionAdjust.ParamLabel);
+        AddLabeled("stat", stat);
+        AddDeltaField(CharacterProgressionAdjust.MaxParamDelta, 1);
     }
 
     private void AddLabeled(string key, Control control)
@@ -585,6 +620,26 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     if (root.TryGetProperty("quantity", out var changeQty) && changeQty.TryGetInt32(out var changeQuantity))
                     {
                         SetInt("quantity", changeQuantity);
+                    }
+
+                    break;
+                case MapEventCommandDiscriminators.ChangeLevel:
+                case MapEventCommandDiscriminators.ChangeExp:
+                    if (root.TryGetProperty("delta", out var levelDelta) && levelDelta.TryGetInt32(out var levelDeltaValue))
+                    {
+                        SetInt("delta", levelDeltaValue);
+                    }
+
+                    break;
+                case MapEventCommandDiscriminators.ChangeParam:
+                    if (root.TryGetProperty("stat", out var statEl))
+                    {
+                        SetChoice("stat", statEl.GetString() ?? CharacterProgressionAdjust.StatStr);
+                    }
+
+                    if (root.TryGetProperty("delta", out var paramDelta) && paramDelta.TryGetInt32(out var paramDeltaValue))
+                    {
+                        SetInt("delta", paramDeltaValue);
                     }
 
                     break;
@@ -847,6 +902,10 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                         operation = GetChoice("operation"),
                         quantity = GetInt("quantity"),
                     }),
+                MapEventCommandDiscriminators.ChangeLevel or MapEventCommandDiscriminators.ChangeExp =>
+                    JsonSerializer.Serialize(new { delta = GetInt("delta") }),
+                MapEventCommandDiscriminators.ChangeParam =>
+                    JsonSerializer.Serialize(new { stat = GetChoice("stat"), delta = GetInt("delta") }),
                 MapEventCommandDiscriminators.StartDialogue =>
                     JsonSerializer.Serialize(new { dialogueId = GetText("dialogueId") }),
                 MapEventCommandDiscriminators.StartQuest or MapEventCommandDiscriminators.TurnInQuest =>

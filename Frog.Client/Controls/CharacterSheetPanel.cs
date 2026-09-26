@@ -218,6 +218,16 @@ public sealed class CharacterSheetPanel : UserControl
         return $"{who} · Niv {niv}";
     }
 
+    public void ApplyIdentity(string? playerName, int? level)
+    {
+        _identity.Text = FormatIdentity(playerName, level);
+    }
+
+    public void ApplyPrimaryStats(int str, int agi, int dex, int intel, int vit, int luck)
+    {
+        _tips.SetToolTip(_identity, CharacterProgressionAdjust.FormatPrimaryStats(str, agi, dex, intel, vit, luck));
+    }
+
     public void ApplyLook(CharacterLook look) => _look = look.Normalized();
 
     public void ApplyLoadout(Equipment equipment, Func<Guid, string>? nameLookup, string? playerName, int? level)

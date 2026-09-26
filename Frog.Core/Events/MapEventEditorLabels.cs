@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Frog.Core.Weather;
 
@@ -111,6 +112,9 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.ShakeScreen => "Tremblement écran",
         MapEventCommandDiscriminators.FlashScreen => "Flash écran",
         MapEventCommandDiscriminators.ShowAnimation => "Afficher animation",
+        MapEventCommandDiscriminators.ChangeLevel => "Changer niveau",
+        MapEventCommandDiscriminators.ChangeExp => "Changer EXP",
+        MapEventCommandDiscriminators.ChangeParam => "Changer paramètre",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
     };
 
@@ -204,6 +208,7 @@ public static class MapEventEditorLabels
         "regionId" => "Région",
         "op" => "Comparaison",
         "status" => "Statut",
+        "stat" => "Paramètre",
         _ => string.IsNullOrWhiteSpace(key) ? "" : key,
     };
 
@@ -414,6 +419,12 @@ public static class MapEventEditorLabels
                 $"Flash écran : R{ReadInt(root, "red")} V{ReadInt(root, "green")} B{ReadInt(root, "blue")} · op. {ReadInt(root, "opacity")} ({ReadInt(root, "durationMs")} ms)",
             MapEventCommandDiscriminators.ShowAnimation =>
                 $"Afficher animation : {AnimationName(ReadInt(root, "animationId").ToString())} sur {AnimationTarget(ReadString(root, "target"))} ({ReadInt(root, "durationMs")} ms)",
+            MapEventCommandDiscriminators.ChangeLevel =>
+                $"Changer niveau : {Signed(ReadInt(root, "delta"))}",
+            MapEventCommandDiscriminators.ChangeExp =>
+                $"Changer EXP : {Signed(ReadInt(root, "delta"))}",
+            MapEventCommandDiscriminators.ChangeParam =>
+                $"Changer paramètre : {CharacterProgressionAdjust.ParamLabel(ReadString(root, "stat"))} {Signed(ReadInt(root, "delta"))}",
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };
@@ -580,6 +591,9 @@ public static class MapEventEditorLabels
             _ => string.Empty,
         };
     }
+
+    private static string Signed(int value) =>
+        value < 0 ? "−" + (-value).ToString() : "+" + value.ToString();
 
     private static int ReadInt(JsonElement root, string name)
     {

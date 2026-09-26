@@ -1397,9 +1397,14 @@ public sealed partial class PacketDispatcher(
             await SendInventorySnapshotAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         }
 
-        if (result.GoldChanged && UsesAccountGameplay(session))
+        if ((result.GoldChanged || result.ProgressionChanged) && UsesAccountGameplay(session))
         {
             await SendCombatStateAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (result.StatsChanged && UsesAccountGameplay(session))
+        {
+            await SendPrimaryStatsPayloadAsync(clientSession, session, cancellationToken).ConfigureAwait(false);
         }
 
         if (result.QuestsChanged)
@@ -2204,6 +2209,34 @@ public sealed partial class PacketDispatcher(
 
         AfterTryGetActiveSession?.Invoke(clientSession, active);
         return active;
+    }
+
+    private async Task SendPrimaryStatsPayloadAsync(
+        ClientSession clientSession,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(session.CharacterId) || session.Stats is not { } stats)
+        {
+            return;
+        }
+
+        var json = CharacterProgressionAdjust.StatsPayloadJson(
+            stats.Str,
+            stats.Agi,
+            stats.Dex,
+            stats.Int,
+            stats.Vit,
+            stats.Luck);
+        try
+        {
+            await _packetSender.SendCharacterPayloadAsync(clientSession, session.CharacterId, json, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Impossible d'envoyer les paramètres pour {CharacterId}", session.CharacterId);
+        }
     }
 
     private async Task TrySendCharacterPayloadAsync(
