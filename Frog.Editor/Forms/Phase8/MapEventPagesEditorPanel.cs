@@ -202,6 +202,9 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         Span(condButtons);
 
         Span(Section("Commandes — exécutées dans l'ordre"));
+        var palette = new MapEventCommandPaletteBar();
+        palette.EntryChosen += InsertPaletteCommand;
+        Span(palette);
         var cmdButtons = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
         var btnAddCmd = new Button { Text = "Ajouter une commande", AutoSize = true };
         var btnRemoveCmd = new Button { Text = "Retirer", AutoSize = true };
@@ -595,6 +598,22 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             var cond = _conditionModels[i];
             _conditions.Items.Add(MapEventEditorLabels.ConditionListLine(i, cond.Kind, cond.ParameterJson));
         }
+    }
+
+    internal void InsertPaletteForTest(string id) => InsertPaletteCommand(id);
+
+    private void InsertPaletteCommand(string id)
+    {
+        if (!MapEventCommandPalette.TryCreate(id, out var command))
+        {
+            return;
+        }
+
+        FlushCurrentCommand();
+        _commandModels.Add(command);
+        RefreshCommandList();
+        _commands.SelectedIndex = _commandModels.Count - 1;
+        OnPageFieldChanged();
     }
 
     private void AddCommand()

@@ -17,6 +17,7 @@ using Frog.Client.UI;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Core.Chat;
+using Frog.Core.Events;
 using Frog.Core.Character;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
@@ -323,6 +324,7 @@ public sealed class MainShellForm : Form
     private readonly HudHotbar _hudHotbar = new();
     private readonly HudMenuRing _hudMenu = new();
     private readonly InteractHintBadge _interactHint = new();
+    private readonly EventMessageBox _eventMessage = new();
     /// <summary>Dialogue poussé tant que le joueur reste sur la tuile où il a commencé.</summary>
     private bool _dialogueSessionOpen;
     private int _dialogueAnchorTileX;
@@ -1548,6 +1550,7 @@ public sealed class MainShellForm : Form
         _worldHost.Controls.Add(_hudHotbar);
         _worldHost.Controls.Add(_hudMenu);
         _worldHost.Controls.Add(_interactHint);
+        _worldHost.Controls.Add(_eventMessage);
         _txtChat.Enter += (_, _) =>
         {
             StopMovementForChat();
@@ -3303,6 +3306,7 @@ public sealed class MainShellForm : Form
         _playtestPlacedEntities.Clear();
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
+        DismissEventMessage();
         _awaitingPlayingPhase = false;
         _btnBackDisconnect.Enabled = false;
         SetPhase(ClientUiPhase.Login);
@@ -3715,7 +3719,31 @@ public sealed class MainShellForm : Form
     {
         _ = activationId;
         AppendLog(ok ? "Interaction: " + message : "Interaction refusée: " + message);
+        TryPresentEventMessage(ok, message);
     }
+
+    private bool TryPresentEventMessage(bool success, string? message)
+    {
+        var placements = _mapEvents.Select(entry =>
+            new EventShowTextPresentation.Placement(entry.DisplayName, entry.Slug));
+        if (!EventShowTextPresentation.ShouldOpen(
+                success,
+                message,
+                _dialoguePanel.HasActiveDialogue,
+                _dialoguePanel.ActiveSpeaker,
+                _dialoguePanel.ActiveBody,
+                placements)
+            || string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        _eventMessage.ShowMessage(message.Trim());
+        LayoutGameHud();
+        return true;
+    }
+
+    private void DismissEventMessage() => _eventMessage.Dismiss();
 
     private async Task SendInteractAsync()
     {
@@ -3985,6 +4013,7 @@ public sealed class MainShellForm : Form
         {
             if (_sessionDisplayedMapId != 0 && mapId != _sessionDisplayedMapId)
             {
+                DismissEventMessage();
                 TryScheduleMapRequestAfterWarp(mapId);
             }
 
@@ -4508,6 +4537,11 @@ public sealed class MainShellForm : Form
                 e.SuppressKeyPress = true;
             }
 
+            return;
+        }
+
+        if (TryHandleEventMessageKey(e))
+        {
             return;
         }
 
@@ -5406,6 +5440,23 @@ public sealed class MainShellForm : Form
         _hudHotbar.BringToFront();
         _hudMenu.BringToFront();
         _interactHint.BringToFront();
+        if (_eventMessage.IsOpen)
+        {
+            var width = Math.Min(480, Math.Max(280, host.Width - tabW - (gap * 2)));
+            _eventMessage.Width = width;
+            _eventMessage.Reflow();
+            var messageY = _hudHotbar.Top - _eventMessage.Height - gap;
+            if (messageY < gap)
+            {
+                messageY = gap;
+            }
+
+            _eventMessage.Location = new Point(
+                Math.Max(gap, (host.Width - tabW - width) / 2),
+                messageY);
+            _eventMessage.BringToFront();
+        }
+
         if (_windowLayerVisible)
         {
             _windowChrome.BringToFront();
@@ -5413,6 +5464,10 @@ public sealed class MainShellForm : Form
 
         ApplyMapViewportCamera();
         PositionInteractHint();
+        if (_eventMessage.IsOpen)
+        {
+            _eventMessage.BringToFront();
+        }
     }
 
     private void SetWindowLayerVisible(bool visible)
@@ -5477,11 +5532,29 @@ public sealed class MainShellForm : Form
             RefreshInteractHint();
         }
 
+        DismissEventMessage();
         DismissWindowLayerFromMap();
         if (_friendsSticky.TryDismiss(chatFocused, mapChanged: false))
         {
             ApplyFriendsDock();
         }
+    }
+
+    private bool TryHandleEventMessageKey(KeyEventArgs e)
+    {
+        if (!_eventMessage.IsOpen || ChatComposeFocused() || InputService.IsTextInputFocus(ActiveControl))
+        {
+            return false;
+        }
+
+        e.Handled = true;
+        e.SuppressKeyPress = true;
+        if (e.KeyCode is Keys.Enter or Keys.Space or Keys.Escape || _input.IsInteract(e.KeyCode))
+        {
+            DismissEventMessage();
+        }
+
+        return true;
     }
 
     private bool ChatComposeFocused() => _txtChat.ContainsFocus || _txtWhisperTo.ContainsFocus;
@@ -6919,6 +6992,18 @@ public sealed class MainShellForm : Form
     internal void SetWindowLayerVisibleForTest(bool visible) => SetWindowLayerVisible(visible);
 
     internal void LayoutGameHudForTest() => LayoutGameHud();
+
+    internal bool PresentInteractForTest(bool success, string message) => TryPresentEventMessage(success, message);
+
+    internal bool EventMessageOpenForTest => _eventMessage.IsOpen;
+
+    internal string EventMessageTextForTest => _eventMessage.BodyText;
+
+    internal Rectangle EventMessageBoundsForTest => _eventMessage.Bounds;
+
+    internal void PressPlayingKeyForTest(Keys key) => MainShell_KeyDown(this, new KeyEventArgs(key));
+
+    internal void ClickWorldForTest() => OnWorldSurfaceClick();
 
     internal bool InteractHintVisibleForTest => _interactHint.Visible;
 

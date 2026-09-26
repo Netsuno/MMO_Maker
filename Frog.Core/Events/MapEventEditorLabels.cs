@@ -204,9 +204,21 @@ public static class MapEventEditorLabels
             MapEventCommandDiscriminators.CallCommonEvent => SummarizeCommonEvent(root),
             MapEventCommandDiscriminators.LearnProfession =>
                 $"Apprendre métier {ShortId(ReadString(root, "professionId"))}",
-            MapEventCommandDiscriminators.Branch => "Branche si / alors / sinon",
+            MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };
+    }
+
+    private static string SummarizeBranch(JsonElement root)
+    {
+        var kind = ReadString(root, "conditionKind");
+        if (string.IsNullOrWhiteSpace(kind))
+        {
+            return "Branche si / alors / sinon";
+        }
+
+        var param = ReadString(root, "conditionParameterJson");
+        return "Branche — " + ConditionSummary(kind, param);
     }
 
     private static string SummarizeMapOrRegion(JsonElement root)
