@@ -1306,6 +1306,200 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    public static void RunWeaponAndArmorScenario(MainWindow window, TimeSpan timeout)
+    {
+        var assetRoot = CreateSmokeAssetRoot("icons/items/smoke-equip-ui.png");
+        try
+        {
+            var form = OpenViaMainWindowCommand(window, timeout);
+            form.SelectCategoryForTest(2);
+            var items = form.ItemsForTest;
+            Click(items.BtnNewForTest);
+            SetText(items.NameForTest, "SmokeEquipPotionUi");
+            SetText(items.IconPathForTest, "icons/items/smoke-equip-ui.png");
+            ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
+
+            form.SelectCategoryForTest(GameDataForm.WeaponCategoryIndex);
+            var weapons = form.WeaponsForTest;
+            PumpUntil(() => weapons.LifecycleForTest.IsIdle, timeout);
+            AssertListMissing(weapons.ListForTest, "SmokeEquipPotionUi");
+            if (weapons.TypeLabelForTest.Text != "Arme" || weapons.SlotLabelForTest.Text != "Arme")
+            {
+                throw new InvalidOperationException("La fiche Armes doit afficher le type et l’emplacement Arme.");
+            }
+
+            if (weapons.EquipKindForTest != ItemType.Weapon)
+            {
+                throw new InvalidOperationException("La fiche Armes doit verrouiller le type Weapon.");
+            }
+
+            Click(weapons.BtnNewForTest);
+            SetText(weapons.NameForTest, "SmokeSwordUi");
+            SetText(weapons.DescriptionForTest, "Lame courte.");
+            SetText(weapons.IconPathForTest, "icons/items/smoke-equip-ui.png");
+            weapons.BuyPriceForTest.Value = 120;
+            weapons.SellPriceForTest.Value = 40;
+            PumpUntil(() => weapons.PreviewForTest.PreviewState == AssetPreviewState.Loaded, timeout);
+            SavePreviewScreenshot(weapons.PreviewForTest, "weapon-preview-smoke.png");
+
+            ClickAndWait(weapons.BtnSaveForTest, () => !weapons.IsDirty, timeout);
+            ClickPublishAndWait(
+                weapons.BtnPublishForTest,
+                weapons.ListForTest,
+                "SmokeSwordUi",
+                () => weapons.LifecycleForTest.IsIdle,
+                timeout);
+            AssertListContains(weapons.ListForTest, "SmokeSwordUi", "Published");
+            AssertListContains(weapons.ListForTest, "Arme");
+            AssertListMissing(weapons.ListForTest, "SmokeEquipPotionUi");
+            if (weapons.BuyPriceForTest.Value != 120 || weapons.SellPriceForTest.Value != 40)
+            {
+                throw new InvalidOperationException("Les prix de l’arme n’ont pas été conservés.");
+            }
+
+            if (weapons.DescriptionForTest.Text != "Lame courte.")
+            {
+                throw new InvalidOperationException("La description de l’arme n’a pas été conservée.");
+            }
+
+            SelectListItemContaining(weapons.ListForTest, "SmokeSwordUi");
+            Click(weapons.BtnDupForTest);
+            SetText(weapons.NameForTest, "SmokeSwordUiCopy");
+            ClickAndWait(weapons.BtnPublishForTest, () => weapons.LifecycleForTest.IsIdle && !weapons.IsDirty, timeout);
+            AssertListContains(weapons.ListForTest, "SmokeSwordUiCopy", "Published");
+
+            SelectListItemContaining(weapons.ListForTest, "SmokeSwordUi");
+            RejectInvalidPublication(
+                weapons.NameForTest,
+                weapons.ValidationForTest,
+                weapons.BtnPublishForTest,
+                () => weapons.IsDirty,
+                () => weapons.PublishedRevisionForTest,
+                () => weapons.ListForTest.Items.Cast<object>().Any(i =>
+                    (i.ToString() ?? string.Empty).Contains("Smoke", StringComparison.Ordinal)
+                    && (i.ToString() ?? string.Empty).Contains("Published", StringComparison.Ordinal)),
+                timeout);
+            SetText(weapons.NameForTest, "SmokeSwordUi");
+            ClickAndWait(weapons.BtnSaveForTest, () => !weapons.IsDirty, timeout);
+
+            SeedAndVerifySearchStatusFilter(
+                weapons.BtnNewForTest,
+                weapons.NameForTest,
+                weapons.BtnSaveForTest,
+                weapons.BtnPublishForTest,
+                weapons.SearchForTest,
+                weapons.StatusFilterForTest,
+                weapons.ListForTest,
+                () => weapons.IsDirty,
+                "SmokeSwordUi",
+                "SmokeSwordOther",
+                "SmokeSwordDraft",
+                timeout,
+                configureNewRecord: () => SetText(weapons.IconPathForTest, "icons/items/smoke-equip-ui.png"));
+
+            Click(weapons.BtnNewForTest);
+            SetText(weapons.NameForTest, "SmokeSwordDeleteUi");
+            SetText(weapons.IconPathForTest, "icons/items/smoke-equip-ui.png");
+            ClickAndWait(weapons.BtnPublishForTest, () => weapons.LifecycleForTest.IsIdle && !weapons.IsDirty, timeout);
+
+            CancelDirtyListNavigation(
+                weapons.ListForTest,
+                weapons.NameForTest,
+                () => weapons.IsDirty,
+                "SmokeSwordUi",
+                "SmokeSwordUiCopy",
+                timeout);
+
+            DeleteAllowedRecord(
+                weapons.ListForTest,
+                weapons.NameForTest,
+                weapons.BtnDeleteForTest,
+                weapons.LifecycleForTest,
+                "SmokeSwordDeleteUi",
+                timeout);
+
+            form.SelectCategoryForTest(GameDataForm.ArmorCategoryIndex);
+            var armors = form.ArmorsForTest;
+            PumpUntil(() => armors.LifecycleForTest.IsIdle, timeout);
+            AssertListMissing(armors.ListForTest, "SmokeSwordUi");
+            AssertListMissing(armors.ListForTest, "SmokeEquipPotionUi");
+            if (armors.TypeLabelForTest.Text != "Armure" || armors.SlotLabelForTest.Text != "Armure")
+            {
+                throw new InvalidOperationException("La fiche Armures doit afficher le type et l’emplacement Armure.");
+            }
+
+            if (armors.EquipKindForTest != ItemType.Armor)
+            {
+                throw new InvalidOperationException("La fiche Armures doit verrouiller le type Armor.");
+            }
+
+            Click(armors.BtnNewForTest);
+            SetText(armors.NameForTest, "SmokeMailUi");
+            SetText(armors.DescriptionForTest, "Cotte légère.");
+            SetText(armors.IconPathForTest, "icons/items/smoke-equip-ui.png");
+            armors.BuyPriceForTest.Value = 200;
+            armors.SellPriceForTest.Value = 60;
+            ClickAndWait(armors.BtnSaveForTest, () => !armors.IsDirty, timeout);
+            ClickPublishAndWait(
+                armors.BtnPublishForTest,
+                armors.ListForTest,
+                "SmokeMailUi",
+                () => armors.LifecycleForTest.IsIdle,
+                timeout);
+            AssertListContains(armors.ListForTest, "SmokeMailUi", "Published");
+            if (armors.DescriptionForTest.Text != "Cotte légère." || armors.BuyPriceForTest.Value != 200)
+            {
+                throw new InvalidOperationException("La fiche Armures n’a pas conservé le brouillon publié.");
+            }
+
+            form.SelectCategoryForTest(GameDataForm.WeaponCategoryIndex);
+            PumpUntil(() => weapons.LifecycleForTest.IsIdle, timeout);
+            AssertListMissing(weapons.ListForTest, "SmokeMailUi");
+            AssertListContains(weapons.ListForTest, "SmokeSwordUi", "Published");
+
+            CloseForm(form, timeout);
+
+            CloseReopenAndVerify(
+                window,
+                timeout,
+                GameDataForm.WeaponCategoryIndex,
+                reopened =>
+                {
+                    var reopenedWeapons = reopened.WeaponsForTest;
+                    PumpUntil(() => reopenedWeapons.LifecycleForTest.IsIdle, timeout);
+                    PumpUntil(() => reopenedWeapons.ListForTest.Items.Count >= 1, timeout);
+                    SelectListItemContaining(reopenedWeapons.ListForTest, "SmokeSwordUi");
+                    PumpUntil(
+                        () => reopenedWeapons.NameForTest.Text == "SmokeSwordUi"
+                              && reopenedWeapons.BuyPriceForTest.Value == 120
+                              && reopenedWeapons.DescriptionForTest.Text == "Lame courte.",
+                        timeout);
+                    AssertListMissing(reopenedWeapons.ListForTest, "SmokeEquipPotionUi");
+                    AssertListMissing(reopenedWeapons.ListForTest, "SmokeMailUi");
+                });
+
+            CloseReopenAndVerify(
+                window,
+                timeout,
+                GameDataForm.ArmorCategoryIndex,
+                reopened =>
+                {
+                    var reopenedArmors = reopened.ArmorsForTest;
+                    PumpUntil(() => reopenedArmors.LifecycleForTest.IsIdle, timeout);
+                    SelectListItemContaining(reopenedArmors.ListForTest, "SmokeMailUi");
+                    PumpUntil(
+                        () => reopenedArmors.NameForTest.Text == "SmokeMailUi"
+                              && reopenedArmors.SellPriceForTest.Value == 60,
+                        timeout);
+                    AssertListMissing(reopenedArmors.ListForTest, "SmokeSwordUi");
+                });
+        }
+        finally
+        {
+            CleanupAssetRoot(assetRoot);
+        }
+    }
+
     public static void RunSystemScenario(MainWindow window, TimeSpan timeout)
     {
         var form = OpenViaMainWindowCommand(window, timeout);
