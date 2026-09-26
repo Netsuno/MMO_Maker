@@ -58,6 +58,12 @@ public sealed class MapEventWorldScratch
     /// <summary>Images d'écran après <c>show_picture</c> / <c>erase_picture</c> (numéro → image).</summary>
     public Dictionary<int, MapEventShownPicture> Pictures { get; private set; } = new();
 
+    /// <summary>Noir de fondu (0 clair, 255 fermé) après <c>fadeout_screen</c> / <c>fadein_screen</c>.</summary>
+    public int ScreenFade { get; set; }
+
+    /// <summary>Teinte posée par <c>tint_screen</c>. Opacité 0 = pas de voile.</summary>
+    public MapEventScreenTone ScreenTint { get; set; } = MapEventScreenTone.Clear;
+
     public MapEventWorldScratch Clone() =>
         new()
         {
@@ -73,6 +79,8 @@ public sealed class MapEventWorldScratch
             ShopId = ShopId,
             WeatherKind = WeatherKind,
             Pictures = new Dictionary<int, MapEventShownPicture>(Pictures),
+            ScreenFade = ScreenFade,
+            ScreenTint = ScreenTint,
         };
 
     public void ReplaceWith(MapEventWorldScratch other)
@@ -90,6 +98,8 @@ public sealed class MapEventWorldScratch
         ShopId = other.ShopId;
         WeatherKind = other.WeatherKind;
         Pictures = new Dictionary<int, MapEventShownPicture>(other.Pictures);
+        ScreenFade = other.ScreenFade;
+        ScreenTint = other.ScreenTint;
     }
 }
 
@@ -454,8 +464,55 @@ public sealed class MapEventTransactionalCommitSandbox
                 world.Pictures.Remove(eraseId);
                 return null;
 
+            case MapEventCommandDiscriminators.FadeOutScreen:
+                if (!MapEventParameterSchemas.TryParseFadeScreen(
+                        command.ParameterJson,
+                        fadeOut: true,
+                        out var fadeOutOp,
+                        out var fadeOutErr))
+                {
+                    return fadeOutErr;
+                }
+
+                ApplyScreen(world, fadeOutOp);
+                return null;
+
+            case MapEventCommandDiscriminators.FadeInScreen:
+                if (!MapEventParameterSchemas.TryParseFadeScreen(
+                        command.ParameterJson,
+                        fadeOut: false,
+                        out var fadeInOp,
+                        out var fadeInErr))
+                {
+                    return fadeInErr;
+                }
+
+                ApplyScreen(world, fadeInOp);
+                return null;
+
+            case MapEventCommandDiscriminators.TintScreen:
+                if (!MapEventParameterSchemas.TryParseTintScreen(
+                        command.ParameterJson,
+                        out var tintOp,
+                        out var tintErr))
+                {
+                    return tintErr;
+                }
+
+                ApplyScreen(world, tintOp);
+                return null;
+
             default:
                 return $"Commande non supportée en unité transactionnelle: {command.Discriminator}.";
         }
+    }
+
+    private static void ApplyScreen(MapEventWorldScratch world, MapEventScreenOp op)
+    {
+        var fade = world.ScreenFade;
+        var tint = world.ScreenTint;
+        op.ApplySettled(ref fade, ref tint);
+        world.ScreenFade = fade;
+        world.ScreenTint = tint;
     }
 }

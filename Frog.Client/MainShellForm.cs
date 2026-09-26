@@ -207,6 +207,16 @@ public sealed class MainShellForm : Form
 
     private readonly Dictionary<int, ShownEventPicture> _eventPictures = new();
 
+    private readonly Queue<MapEventVisualOp> _visualQueue = new();
+
+    private MapEventScreenOp? _playingScreen;
+
+    private MapEventScreenFrame _screenFrom;
+
+    private int _screenElapsedMs;
+
+    private MapEventScreenFrame _screenFrame;
+
     private WeatherOverlayPlan _weatherPlan = WeatherCatalog.Clear;
 
     private WeatherDebugOverride _weatherDebug;
@@ -834,17 +844,24 @@ public sealed class MainShellForm : Form
             return;
         }
 
-        if (AdvanceMovementSmoothing())
-        {
-            RedrawMap();
-        }
-        else if (_weatherPlan.ParticleCount > 0 || _combatHud.HasFloats || _combatHud.SparksVisible(DateTime.UtcNow))
+        var redraw = AdvanceMovementSmoothing();
+        if (!redraw && (_weatherPlan.ParticleCount > 0 || _combatHud.HasFloats || _combatHud.SparksVisible(DateTime.UtcNow)))
         {
             if (_weatherPlan.ParticleCount > 0)
             {
                 _weatherTickMs += _smoothTimer.Interval;
             }
 
+            redraw = true;
+        }
+
+        if (AdvanceScreenTone(_smoothTimer.Interval))
+        {
+            redraw = true;
+        }
+
+        if (redraw)
+        {
             RedrawMap();
         }
 
@@ -3387,6 +3404,7 @@ public sealed class MainShellForm : Form
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
         ClearEventPictures();
+        ClearScreenTone();
         DismissEventMessage();
         _awaitingPlayingPhase = false;
         _btnBackDisconnect.Enabled = false;
@@ -3617,6 +3635,7 @@ public sealed class MainShellForm : Form
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
         ClearEventPictures();
+        ClearScreenTone();
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
         _btnRanged.Enabled = false;
@@ -3803,10 +3822,10 @@ public sealed class MainShellForm : Form
     private void OnInteractResult(bool ok, string message, Guid activationId)
     {
         _ = activationId;
-        if (ok && MapEventPictureWire.TryTakeInteractMessage(message, out var pictures, out var afterPictures))
+        if (ok && MapEventScreenWire.TryTakeInteractMessage(message, out var visuals, out var afterVisuals))
         {
-            ApplyEventPictures(pictures);
-            message = afterPictures;
+            EnqueueVisuals(visuals);
+            message = afterVisuals;
         }
 
         if (ok && MapEventShopOpen.TryTakeInteractMessage(message, out var shopId, out var remainder))
@@ -3819,33 +3838,43 @@ public sealed class MainShellForm : Form
         TryPresentEventMessage(ok, message);
     }
 
-    private void ApplyEventPictures(IReadOnlyList<MapEventPictureOp> ops)
+    private void EnqueueVisuals(IReadOnlyList<MapEventVisualOp> ops)
     {
-        var changed = false;
         foreach (var op in ops)
         {
-            if (op.Erase)
-            {
-                if (_eventPictures.Remove(op.PictureId, out var removed))
-                {
-                    removed.Dispose();
-                    changed = true;
-                }
+            _visualQueue.Enqueue(op);
+        }
 
+        PumpVisualQueue();
+    }
+
+    private void PumpVisualQueue()
+    {
+        var changed = false;
+        while (_playingScreen is null && _visualQueue.TryDequeue(out var step))
+        {
+            if (step.Picture is { } picture)
+            {
+                ApplyOnePicture(picture);
+                changed = true;
                 continue;
             }
 
-            if (_eventPictures.Remove(op.PictureId, out var previous))
+            if (step.Screen is not { } screen)
             {
-                previous.Dispose();
+                continue;
             }
 
-            _eventPictures[op.PictureId] = new ShownEventPicture(
-                op.X,
-                op.Y,
-                op.Opacity,
-                op.Blend,
-                EventPictureDraw.Load(op.Asset));
+            if (screen.DurationMs <= 0)
+            {
+                _screenFrame = MapEventScreenPlayback.EndState(screen, _screenFrame);
+                changed = true;
+                continue;
+            }
+
+            _playingScreen = screen;
+            _screenFrom = _screenFrame;
+            _screenElapsedMs = 0;
             changed = true;
         }
 
@@ -3853,6 +3882,62 @@ public sealed class MainShellForm : Form
         {
             RedrawMap();
         }
+    }
+
+    private bool AdvanceScreenTone(int deltaMs)
+    {
+        if (_playingScreen is not { } screen)
+        {
+            return false;
+        }
+
+        _screenElapsedMs += Math.Max(0, deltaMs);
+        var done = _screenElapsedMs >= screen.DurationMs;
+        _screenFrame = done
+            ? MapEventScreenPlayback.EndState(screen, _screenFrom)
+            : MapEventScreenPlayback.Sample(screen, _screenFrom, _screenElapsedMs);
+        if (!done)
+        {
+            return true;
+        }
+
+        _playingScreen = null;
+        PumpVisualQueue();
+        return true;
+    }
+
+    private void ApplyOnePicture(MapEventPictureOp op)
+    {
+        if (op.Erase)
+        {
+            if (_eventPictures.Remove(op.PictureId, out var removed))
+            {
+                removed.Dispose();
+            }
+
+            return;
+        }
+
+        if (_eventPictures.Remove(op.PictureId, out var previous))
+        {
+            previous.Dispose();
+        }
+
+        _eventPictures[op.PictureId] = new ShownEventPicture(
+            op.X,
+            op.Y,
+            op.Opacity,
+            op.Blend,
+            EventPictureDraw.Load(op.Asset));
+    }
+
+    private void ClearScreenTone()
+    {
+        _visualQueue.Clear();
+        _playingScreen = null;
+        _screenElapsedMs = 0;
+        _screenFrom = default;
+        _screenFrame = default;
     }
 
     private void ClearEventPictures()
@@ -5018,7 +5103,7 @@ public sealed class MainShellForm : Form
             _localFacing,
             _combatHud.Sparks,
             _combatHud.Statuses);
-        if (_eventPictures.Count > 0)
+        if (_eventPictures.Count > 0 || !_screenFrame.IsClear)
         {
             var (cameraX, cameraY) = PreviewMapCameraOffset(bmp.Width, bmp.Height);
             using var overlay = Graphics.FromImage(bmp);
@@ -5039,6 +5124,8 @@ public sealed class MainShellForm : Form
                     picture.Opacity,
                     picture.Blend);
             }
+
+            ScreenToneDraw.Paint(overlay, bmp.Width, bmp.Height, _screenFrame);
         }
 
         var previous = _picMap.Image;
@@ -7320,6 +7407,26 @@ public sealed class MainShellForm : Form
         OnInteractResult(ok, message, Guid.Empty);
 
     internal int EventPictureCountForTest => _eventPictures.Count;
+
+    internal int ScreenFadeForTest => _screenFrame.Fade;
+
+    internal int ScreenTintRedForTest => _screenFrame.Red;
+
+    internal int ScreenTintGreenForTest => _screenFrame.Green;
+
+    internal int ScreenTintBlueForTest => _screenFrame.Blue;
+
+    internal int ScreenTintOpacityForTest => _screenFrame.Opacity;
+
+    internal bool ScreenTonePlayingForTest => _playingScreen is not null;
+
+    internal void AdvanceScreenToneForTest(int deltaMs)
+    {
+        if (AdvanceScreenTone(deltaMs))
+        {
+            RedrawMap();
+        }
+    }
 
     internal bool TryGetEventPictureForTest(int pictureId, out int x, out int y, out int opacity, out string blend)
     {

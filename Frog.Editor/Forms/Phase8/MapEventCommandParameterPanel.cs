@@ -313,6 +313,17 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             case MapEventCommandDiscriminators.ErasePicture:
                 AddPictureIdField();
                 break;
+            case MapEventCommandDiscriminators.FadeOutScreen:
+            case MapEventCommandDiscriminators.FadeInScreen:
+                AddDurationField();
+                break;
+            case MapEventCommandDiscriminators.TintScreen:
+                AddChannelField("red", MapEventScreen.DefaultTintRed);
+                AddChannelField("green", MapEventScreen.DefaultTintGreen);
+                AddChannelField("blue", MapEventScreen.DefaultTintBlue);
+                AddChannelField("opacity", MapEventScreen.DefaultTintOpacity);
+                AddDurationField();
+                break;
             case MapEventCommandDiscriminators.Branch:
                 _branchCondition = new MapEventConditionParameterPanel();
                 _branchThen = new MapEventCommandListPanel();
@@ -622,6 +633,17 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }
 
                     break;
+                case MapEventCommandDiscriminators.FadeOutScreen:
+                case MapEventCommandDiscriminators.FadeInScreen:
+                    ApplyDuration(root);
+                    break;
+                case MapEventCommandDiscriminators.TintScreen:
+                    ApplyChannel(root, "red");
+                    ApplyChannel(root, "green");
+                    ApplyChannel(root, "blue");
+                    ApplyChannel(root, "opacity");
+                    ApplyDuration(root);
+                    break;
                 case MapEventCommandDiscriminators.Branch:
                     if (_branchCondition is not null
                         && root.TryGetProperty("conditionKind", out var condKindEl))
@@ -767,6 +789,17 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }),
                 MapEventCommandDiscriminators.ErasePicture =>
                     JsonSerializer.Serialize(new { pictureId = GetInt("pictureId") }),
+                MapEventCommandDiscriminators.FadeOutScreen or MapEventCommandDiscriminators.FadeInScreen =>
+                    JsonSerializer.Serialize(new { durationMs = GetInt("durationMs") }),
+                MapEventCommandDiscriminators.TintScreen =>
+                    JsonSerializer.Serialize(new
+                    {
+                        red = GetInt("red"),
+                        green = GetInt("green"),
+                        blue = GetInt("blue"),
+                        opacity = GetInt("opacity"),
+                        durationMs = GetInt("durationMs"),
+                    }),
                 _ => GetText("parameterJson"),
             };
             return true;
@@ -776,6 +809,44 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             json = "{}";
             error = ex.Message;
             return false;
+        }
+    }
+
+    private void AddDurationField()
+    {
+        AddLabeled("durationMs", new NumericUpDown
+        {
+            Width = 100,
+            Minimum = MapEventScreen.MinDurationMs,
+            Maximum = MapEventScreen.MaxDurationMs,
+            Value = MapEventScreen.DefaultDurationMs,
+        });
+    }
+
+    private void AddChannelField(string key, int value)
+    {
+        AddLabeled(key, new NumericUpDown
+        {
+            Width = 80,
+            Minimum = MapEventScreen.MinChannel,
+            Maximum = MapEventScreen.MaxChannel,
+            Value = value,
+        });
+    }
+
+    private void ApplyDuration(JsonElement root)
+    {
+        if (root.TryGetProperty("durationMs", out var duration) && duration.TryGetInt32(out var ms))
+        {
+            SetInt("durationMs", ms);
+        }
+    }
+
+    private void ApplyChannel(JsonElement root, string key)
+    {
+        if (root.TryGetProperty(key, out var channel) && channel.TryGetInt32(out var value))
+        {
+            SetInt(key, value);
         }
     }
 

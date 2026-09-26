@@ -265,6 +265,46 @@ public sealed class MapEventTransactionalUnitTests
     }
 
     [Fact]
+    public void Sandbox_FadeAndTint_RecordSettledStateAndRollBack()
+    {
+        var sandbox = new MapEventTransactionalCommitSandbox();
+        var unit = Unit(
+        [
+            Cmd(MapEventCommandDiscriminators.FadeOutScreen, """{"durationMs":800}"""),
+            Cmd(MapEventCommandDiscriminators.TintScreen, """{"red":10,"green":20,"blue":30,"opacity":90,"durationMs":400}"""),
+            SetSwitch("gate", true),
+        ]);
+
+        Assert.True(unit.IsSuccess, unit.Error);
+        Assert.Contains(unit.SessionSideEffects, c => c.Discriminator == MapEventCommandDiscriminators.FadeOutScreen);
+        Assert.Contains(unit.SessionSideEffects, c => c.Discriminator == MapEventCommandDiscriminators.TintScreen);
+        Assert.Equal(
+            MapEventEffectCommitKind.SessionSide,
+            MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.FadeInScreen));
+
+        var outcome = sandbox.TryCommit(unit);
+        Assert.Equal(MapEventCommitDisposition.Committed, outcome.Disposition);
+        Assert.Equal(MapEventScreen.MaxChannel, sandbox.World.ScreenFade);
+        Assert.Equal(new MapEventScreenTone(10, 20, 30, 90), sandbox.World.ScreenTint);
+        Assert.True(sandbox.World.Switches["gate"]);
+
+        var opened = new MapEventTransactionalCommitSandbox();
+        var fadeIn = Unit([Cmd(MapEventCommandDiscriminators.FadeInScreen, """{"durationMs":0}""")]);
+        Assert.Equal(MapEventCommitDisposition.Committed, opened.TryCommit(fadeIn).Disposition);
+        Assert.Equal(0, opened.World.ScreenFade);
+        Assert.Equal(MapEventScreenTone.Clear, opened.World.ScreenTint);
+
+        var rollback = new MapEventTransactionalCommitSandbox();
+        var broken = Unit(
+        [
+            Cmd(MapEventCommandDiscriminators.FadeOutScreen, """{"durationMs":1000}"""),
+            Cmd(MapEventCommandDiscriminators.GiveItem, """{"itemId":"00000000-0000-0000-0000-000000000000","quantity":1}"""),
+        ]);
+        Assert.Equal(MapEventCommitDisposition.RolledBack, rollback.TryCommit(broken).Disposition);
+        Assert.Equal(0, rollback.World.ScreenFade);
+    }
+
+    [Fact]
     public void Sandbox_MixedPage_CommitsAsOneUnitIncludingSessionSide()
     {
         var sandbox = new MapEventTransactionalCommitSandbox();

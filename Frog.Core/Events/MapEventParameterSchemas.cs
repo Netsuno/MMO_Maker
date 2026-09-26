@@ -718,6 +718,79 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseFadeScreen(
+        string parameterJson,
+        bool fadeOut,
+        out MapEventScreenOp op,
+        out string? error)
+    {
+        var label = fadeOut ? "fadeout_screen" : "fadein_screen";
+        op = fadeOut ? MapEventScreenOp.ForFadeOut(0) : MapEventScreenOp.ForFadeIn(0);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!TryReadDuration(doc.RootElement, label, out var durationMs, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "durationMs" },
+                    out error))
+            {
+                return false;
+            }
+
+            op = fadeOut ? MapEventScreenOp.ForFadeOut(durationMs) : MapEventScreenOp.ForFadeIn(durationMs);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = label + ": JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseTintScreen(string parameterJson, out MapEventScreenOp op, out string? error)
+    {
+        op = MapEventScreenOp.ForTint(0, 0, 0, 0, 0);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryReadChannel(root, "tint_screen", "red", out var red, out error)
+                || !TryReadChannel(root, "tint_screen", "green", out var green, out error)
+                || !TryReadChannel(root, "tint_screen", "blue", out var blue, out error)
+                || !TryReadChannel(root, "tint_screen", "opacity", out var opacity, out error)
+                || !TryReadDuration(root, "tint_screen", out var durationMs, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal)
+                    {
+                        "red", "green", "blue", "opacity", "durationMs",
+                    },
+                    out error))
+            {
+                return false;
+            }
+
+            op = MapEventScreenOp.ForTint(red, green, blue, opacity, durationMs);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "tint_screen: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     public static bool IsUnknownWeatherKind(string? error) =>
         error is not null && error.Contains("kind inconnu", StringComparison.OrdinalIgnoreCase);
 
@@ -1325,6 +1398,53 @@ public static class MapEventParameterSchemas
         if (value is < MapEventPicture.MinCoord or > MapEventPicture.MaxCoord)
         {
             error = $"show_picture: {name} hors limites.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadDuration(JsonElement root, string label, out int durationMs, out string? error)
+    {
+        durationMs = 0;
+        error = null;
+        if (!root.TryGetProperty("durationMs", out var el)
+            || el.ValueKind != JsonValueKind.Number
+            || !el.TryGetInt32(out durationMs))
+        {
+            error = $"{label}: propriété 'durationMs' (int) requise.";
+            return false;
+        }
+
+        if (!MapEventScreen.IsDuration(durationMs))
+        {
+            error = $"{label}: durée entre {MapEventScreen.MinDurationMs} et {MapEventScreen.MaxDurationMs}.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadChannel(
+        JsonElement root,
+        string label,
+        string name,
+        out int value,
+        out string? error)
+    {
+        value = 0;
+        error = null;
+        if (!root.TryGetProperty(name, out var el)
+            || el.ValueKind != JsonValueKind.Number
+            || !el.TryGetInt32(out value))
+        {
+            error = $"{label}: propriété '{name}' (int) requise.";
+            return false;
+        }
+
+        if (!MapEventScreen.IsChannel(value))
+        {
+            error = $"{label}: {name} entre 0 et 255.";
             return false;
         }
 

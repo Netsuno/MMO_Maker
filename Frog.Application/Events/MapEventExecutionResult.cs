@@ -46,12 +46,21 @@ public sealed class MapEventExecutionResult
     /// <summary>Images à afficher ou effacer chez le joueur (commandes <c>show_picture</c> / <c>erase_picture</c>).</summary>
     public IReadOnlyList<MapEventPictureOp> PictureOps { get; init; } = Array.Empty<MapEventPictureOp>();
 
+    /// <summary>Fondus et teintes à jouer chez le joueur (<c>fadeout_screen</c>, <c>fadein_screen</c>, <c>tint_screen</c>).</summary>
+    public IReadOnlyList<MapEventScreenOp> ScreenOps { get; init; } = Array.Empty<MapEventScreenOp>();
+
+    /// <summary>Images et effets d'écran dans l'ordre de la page. Vide : seules les images partent.</summary>
+    public IReadOnlyList<MapEventVisualOp> VisualOps { get; init; } = Array.Empty<MapEventVisualOp>();
+
     /// <summary>
     /// Message <c>InteractResult</c>. Une boutique ouverte préfixe <c>shop:&lt;guid&gt;</c>
     /// sans remplacer un <c>show_text</c> déjà produit. Les images préfixent des lignes <c>pic:</c>.
+    /// Fondu et teinte partagent ce préfixe (<c>fade:</c>, <c>tint:</c>), Hello 11.
     /// </summary>
     public string ClientInteractMessage =>
-        MapEventPictureWire.Compose(PictureOps, OpenShopId, ShowText, Message);
+        VisualOps.Count > 0
+            ? MapEventScreenWire.Compose(VisualOps, OpenShopId, ShowText, Message)
+            : MapEventPictureWire.Compose(PictureOps, OpenShopId, ShowText, Message);
 
     public static MapEventExecutionResult Ok(
         string message,
@@ -70,7 +79,9 @@ public sealed class MapEventExecutionResult
         IReadOnlyList<WorldSwitchWire>? switchChanges = null,
         Guid? openShopId = null,
         bool weatherChanged = false,
-        IReadOnlyList<MapEventPictureOp>? pictureOps = null) =>
+        IReadOnlyList<MapEventPictureOp>? pictureOps = null,
+        IReadOnlyList<MapEventScreenOp>? screenOps = null,
+        IReadOnlyList<MapEventVisualOp>? visualOps = null) =>
         new()
         {
             Success = true,
@@ -95,6 +106,12 @@ public sealed class MapEventExecutionResult
             PictureOps = pictureOps is { Count: > 0 } pictures
                 ? pictures
                 : Array.Empty<MapEventPictureOp>(),
+            ScreenOps = screenOps is { Count: > 0 } screens
+                ? screens
+                : Array.Empty<MapEventScreenOp>(),
+            VisualOps = visualOps is { Count: > 0 } visuals
+                ? visuals
+                : Array.Empty<MapEventVisualOp>(),
         };
 
     /// <summary>
@@ -128,7 +145,9 @@ public sealed class MapEventExecutionResult
             professionsChanged: snap?.ProfessionsChanged ?? false,
             recipesChanged: snap?.RecipesChanged ?? false,
             openShopId: openShopId,
-            pictureOps: snap?.PictureOps);
+            pictureOps: snap?.PictureOps,
+            screenOps: snap?.ScreenOps,
+            visualOps: snap?.ExpandVisuals());
 
     public static MapEventExecutionResult Fail(string message) =>
         new() { Success = false, Message = message };

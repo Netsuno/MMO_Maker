@@ -4,7 +4,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, audio, boutique, interrupteur, variable, branche, météo.
+/// Palette : texte, choix, image, fondu, teinte, audio, boutique, interrupteur, variable, branche, météo.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -28,6 +28,9 @@ public static class MapEventCommandPalette
     public const string SetWeatherId = "set_weather";
     public const string ShowPictureId = "show_picture";
     public const string ErasePictureId = "erase_picture";
+    public const string FadeOutScreenId = "fadeout_screen";
+    public const string FadeInScreenId = "fadein_screen";
+    public const string TintScreenId = "tint_screen";
 
     public const string DefaultSwitchId = "interrupteur_1";
     public const string DefaultVariableId = "variable_1";
@@ -48,6 +51,9 @@ public static class MapEventCommandPalette
         new(SetWeatherId, "Changer météo"),
         new(ShowPictureId, "Afficher image"),
         new(ErasePictureId, "Effacer image"),
+        new(FadeOutScreenId, "Fondu en fermeture"),
+        new(FadeInScreenId, "Fondu en ouverture"),
+        new(TintScreenId, "Teinte écran"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -122,6 +128,22 @@ public static class MapEventCommandPalette
             ErasePictureId => Command(
                 MapEventCommandDiscriminators.ErasePicture,
                 new { pictureId = 1 }),
+            FadeOutScreenId => Command(
+                MapEventCommandDiscriminators.FadeOutScreen,
+                new { durationMs = MapEventScreen.DefaultDurationMs }),
+            FadeInScreenId => Command(
+                MapEventCommandDiscriminators.FadeInScreen,
+                new { durationMs = MapEventScreen.DefaultDurationMs }),
+            TintScreenId => Command(
+                MapEventCommandDiscriminators.TintScreen,
+                new
+                {
+                    red = MapEventScreen.DefaultTintRed,
+                    green = MapEventScreen.DefaultTintGreen,
+                    blue = MapEventScreen.DefaultTintBlue,
+                    opacity = MapEventScreen.DefaultTintOpacity,
+                    durationMs = MapEventScreen.DefaultDurationMs,
+                }),
             _ => null,
         };
 

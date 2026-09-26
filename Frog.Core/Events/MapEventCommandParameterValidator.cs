@@ -67,6 +67,12 @@ public static class MapEventCommandParameterValidator
                 MapEventParameterSchemas.TryParseShowPicture(command.ParameterJson, out _, out error),
             MapEventCommandDiscriminators.ErasePicture =>
                 MapEventParameterSchemas.TryParseErasePicture(command.ParameterJson, out _, out error),
+            MapEventCommandDiscriminators.FadeOutScreen =>
+                MapEventParameterSchemas.TryParseFadeScreen(command.ParameterJson, fadeOut: true, out _, out error),
+            MapEventCommandDiscriminators.FadeInScreen =>
+                MapEventParameterSchemas.TryParseFadeScreen(command.ParameterJson, fadeOut: false, out _, out error),
+            MapEventCommandDiscriminators.TintScreen =>
+                MapEventParameterSchemas.TryParseTintScreen(command.ParameterJson, out _, out error),
             _ => false,
         };
 

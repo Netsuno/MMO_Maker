@@ -101,6 +101,9 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.SetWeather => "Changer météo",
         MapEventCommandDiscriminators.ShowPicture => "Afficher image",
         MapEventCommandDiscriminators.ErasePicture => "Effacer image",
+        MapEventCommandDiscriminators.FadeOutScreen => "Fondu en fermeture",
+        MapEventCommandDiscriminators.FadeInScreen => "Fondu en ouverture",
+        MapEventCommandDiscriminators.TintScreen => "Teinte écran",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
     };
 
@@ -155,6 +158,10 @@ public static class MapEventEditorLabels
         "y" => "Y",
         "opacity" => "Opacité",
         "blend" => "Synthèse",
+        "durationMs" => "Durée (ms)",
+        "red" => "Rouge",
+        "green" => "Vert",
+        "blue" => "Bleu",
         "condition" => "Si",
         "thenCommands" => "Alors",
         "elseCommands" => "Sinon",
@@ -305,6 +312,12 @@ public static class MapEventEditorLabels
             MapEventCommandDiscriminators.ShowPicture => SummarizeShowPicture(root),
             MapEventCommandDiscriminators.ErasePicture =>
                 $"Effacer image {ReadInt(root, "pictureId")}",
+            MapEventCommandDiscriminators.FadeOutScreen =>
+                $"Fondu en fermeture : {ReadInt(root, "durationMs")} ms",
+            MapEventCommandDiscriminators.FadeInScreen =>
+                $"Fondu en ouverture : {ReadInt(root, "durationMs")} ms",
+            MapEventCommandDiscriminators.TintScreen =>
+                $"Teinte écran : R{ReadInt(root, "red")} V{ReadInt(root, "green")} B{ReadInt(root, "blue")} · op. {ReadInt(root, "opacity")} ({ReadInt(root, "durationMs")} ms)",
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };

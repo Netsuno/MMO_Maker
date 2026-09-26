@@ -37,23 +37,46 @@ public static class MapEventPictureWire
             return Bare(shopId, showText, fallbackMessage);
         }
 
-        var lines = new List<string>(ops.Count);
-        var pictureBytes = 0;
-        foreach (var op in ops)
+        var lines = new string[ops.Count];
+        for (var i = 0; i < ops.Count; i++)
         {
-            var line = FormatLine(op);
+            lines[i] = FormatLine(ops[i]);
+        }
+
+        return ComposeLines(lines, shopId, showText, fallbackMessage);
+    }
+
+    /// <summary>
+    /// Préfixe des lignes déjà formatées (<c>pic:</c>, <c>fade:</c>, <c>tint:</c>), puis le corps.
+    /// Une liste vide laisse le message boutique / texte tel quel.
+    /// </summary>
+    public static string ComposeLines(
+        IReadOnlyList<string>? lines,
+        Guid? shopId,
+        string? showText,
+        string? fallbackMessage)
+    {
+        if (lines is null || lines.Count == 0)
+        {
+            return Bare(shopId, showText, fallbackMessage);
+        }
+
+        var kept = new List<string>(lines.Count);
+        var pictureBytes = 0;
+        foreach (var line in lines)
+        {
             var lineBytes = Encoding.UTF8.GetByteCount(line);
-            var separator = lines.Count == 0 ? 0 : 1;
+            var separator = kept.Count == 0 ? 0 : 1;
             if (pictureBytes + separator + lineBytes > MaxInteractUtf8Bytes)
             {
                 break;
             }
 
-            lines.Add(line);
+            kept.Add(line);
             pictureBytes += separator + lineBytes;
         }
 
-        var block = string.Join('\n', lines);
+        var block = string.Join('\n', kept);
         var room = MaxInteractUtf8Bytes - pictureBytes - (block.Length > 0 ? 1 : 0);
         var body = ClipBody(shopId, showText, fallbackMessage, Math.Max(0, room));
         if (block.Length == 0)
