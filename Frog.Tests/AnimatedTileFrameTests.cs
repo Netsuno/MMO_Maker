@@ -296,6 +296,10 @@ public sealed class AnimatedTileFrameTests
         var status = File.ReadAllText(Path.Combine(root, "docs", "progress", "editor-tile-anim", "STATUS.md"));
         Assert.Contains("MapFileFormatVersion", status, StringComparison.Ordinal);
         Assert.Contains("reste 5", status, StringComparison.Ordinal);
+
+        var canvas = File.ReadAllText(Path.Combine(root, "Frog.Editor", "Controls", "MapCanvas.cs"));
+        Assert.Contains("PreviewSource(PlacedAnimTilesetId(t)", canvas, StringComparison.Ordinal);
+        Assert.Contains("AutotileJoin.PreviewStamp", canvas, StringComparison.Ordinal);
     }
 
     private static string RepoRoot()

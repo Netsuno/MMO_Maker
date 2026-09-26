@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -169,6 +170,76 @@ public sealed class AutotileJoinTests
         Assert.Equal(isolated, At(map, 0, 0));
     }
 
+    [Fact]
+    public void PreviewStamp_MatchesPaint_WithoutMutating()
+    {
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        Assert.Equal((byte)5, MapSerializer.MapFileFormatVersion);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+        Assert.Equal("aperçu raccord · Isolée", TileAssetFlagLabels.FormatJoinPreview(AutotileRole.Isolated));
+        Assert.Equal("aperçu raccord · Bord ouest", TileAssetFlagLabels.FormatJoinPreview(AutotileRole.West));
+        Assert.DoesNotContain("frame", TileAssetFlagLabels.FormatJoinPreview(AutotileRole.North), StringComparison.OrdinalIgnoreCase);
+
+        var center = Id(1);
+        var west = Id(2);
+        var east = Id(3);
+        var isolated = Id(4);
+        var northWest = Id(5);
+        var northEast = Id(6);
+        var southWest = Id(7);
+        var southEast = Id(8);
+        var table = new TileAssetFlagTable();
+        table.Set(center, TileAssetFlags.Default.WithAutotile("eau", AutotileRole.Center));
+        table.Set(west, TileAssetFlags.Default.WithAutotile("eau", AutotileRole.West));
+        table.Set(east, TileAssetFlags.Default.WithAutotile("eau", AutotileRole.East));
+        table.Set(isolated, TileAssetFlags.Default.WithAutotile("eau", AutotileRole.Isolated));
+        table.Set(northWest, TileAssetFlags.Default.WithAutotile("eau", AutotileRole.NorthWest));
+        table.Set(northEast, TileAssetFlags.Default.WithAutotile("eau", AutotileRole.NorthEast));
+        table.Set(southWest, TileAssetFlags.Default.WithAutotile("eau", AutotileRole.SouthWest));
+        table.Set(southEast, TileAssetFlags.Default.WithAutotile("eau", AutotileRole.SouthEast));
+
+        var shore = MapFormat.CreateTileAssetMap("Rive", 3, 1);
+        shore.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        shore.TileFlags = table;
+        var alone = AutotileJoin.PreviewStamp(shore, 0, center, new[] { (1, 0) });
+        var aloneCell = Assert.Single(alone);
+        Assert.Equal(isolated, aloneCell.Id);
+        Assert.Empty(shore.Layers[0].Tiles);
+
+        Paint(shore, 1, 0, center);
+        Assert.Equal(isolated, At(shore, 1, 0));
+        var preview = AutotileJoin.PreviewStamp(shore, 0, center, new[] { (0, 0) });
+        Assert.Contains(preview, cell => cell.X == 0 && cell.Y == 0 && cell.Id == west);
+        Assert.Contains(preview, cell => cell.X == 1 && cell.Y == 0 && cell.Id == east);
+        Assert.Equal(isolated, At(shore, 1, 0));
+        Assert.Single(shore.Layers[0].Tiles);
+
+        var block = MapFormat.CreateTileAssetMap("Bloc", 2, 2);
+        block.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        block.TileFlags = table;
+        var stamp = new[] { (0, 0), (1, 0), (0, 1), (1, 1) };
+        var joined = AutotileJoin.PreviewStamp(block, 0, center, stamp);
+        Assert.Equal(northWest, PreviewAt(joined, 0, 0));
+        Assert.Equal(northEast, PreviewAt(joined, 1, 0));
+        Assert.Equal(southWest, PreviewAt(joined, 0, 1));
+        Assert.Equal(southEast, PreviewAt(joined, 1, 1));
+        Assert.Empty(block.Layers[0].Tiles);
+        foreach (var (x, y) in stamp)
+        {
+            Paint(block, x, y, center);
+        }
+
+        Assert.Equal(northWest, At(block, 0, 0));
+        Assert.Equal(northEast, At(block, 1, 0));
+        Assert.Equal(southWest, At(block, 0, 1));
+        Assert.Equal(southEast, At(block, 1, 1));
+
+        var bare = MapFormat.CreateTileAssetMap("Nu", 1, 1);
+        bare.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        Assert.Equal(center, Assert.Single(AutotileJoin.PreviewStamp(bare, 0, center, new[] { (0, 0) })).Id);
+        Assert.Empty(AutotileJoin.PreviewStamp(bare, 0, center, new[] { (-1, 0) }));
+    }
+
     private static void Paint(Map map, int x, int y, TileAssetId id)
     {
         MapEditOperations.PaintTile(map, 0, x, y, new Tile { X = x, Y = y, AssetId = id, Type = TileType.Ground });
@@ -177,6 +248,9 @@ public sealed class AutotileJoinTests
 
     private static TileAssetId At(Map map, int x, int y)
         => map.Layers[0].Tiles.Single(tile => tile.X == x && tile.Y == y).AssetId;
+
+    private static TileAssetId PreviewAt(IReadOnlyList<AutotilePreviewCell> cells, int x, int y)
+        => cells.Single(cell => cell.X == x && cell.Y == y).Id;
 
     private static TileAssetId Id(byte mark)
     {

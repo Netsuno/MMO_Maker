@@ -22,14 +22,15 @@ Le modèle carte ne stocke pas de frames d’animation. Une tuile posée garde `
 3. **Marquage** — sélection d’au moins 2 cases horizontales, bouton ou menu **Animer la sélection**. Le pinceau revient sur la 1re colonne. Peindre la bande entière pose l’origine, pas les frames suivantes.
 4. **Aperçu** — la 1re case défile dans la palette (les frames suivantes sont assombries) et sur la carte, y compris le fantôme du pinceau. Menu **Affichage → Aperçu des tuiles animées** pour figer la 1re frame.
 5. **Fichiers** — `{image}.anim.json` à côté du PNG, et `{carte}.anims.json` à l’export `.fmap` (plus `{id}.anim.json` à côté des PNG exportés). Relecture à l’ouverture. Aucun champ nouveau dans le blob carte.
+6. **Raccord** — avec **Affichage → Raccorder les autotiles**, le fantôme (pinceau, ligne, rectangle) montre le rôle qu’`AutotileJoin` poserait, et les rives voisines se mettent à jour dans l’aperçu. La carte n’est écrite qu’au clic. Un rôle reste une tuile 48×48 : pas de frame supplémentaire dans le blob. Les bandes continuent sur la même horloge, y compris pour une tuile dont le tileset n’est pas celui du pinceau.
 
 ## Hors scope
 
-- Animation des tuiles dans le client / le monde en jeu.
+- Animation des tuiles dans le client / le monde en jeu (bandes et raccords).
 - Bump protocole, bump `.fmap`, rips Graal, docs Exemple.
-- Autotiles (bords d’eau), pas seulement le défilement de frames.
+- Feuilles autotile A1–A5. Le raccord est le groupe de `TileAssetId`, pas une découpe VX.
 
 ## Tests
 
-- Linux : `Frog.Tests/AnimatedTileFrameTests.cs` (index de frame, source, canonique, JSON, version `.fmap` inchangée, libellés FR). 24 tests verts sur cette branche.
-- Windows : `MapCanvasTileAnimSmokeTests` — marquage palette, peinture de l’origine, frame suivante, sidecar image. Le projet compile (`net8.0-windows`) ; l’exécution WinForms reste sur le CI Windows.
+- Linux : `Frog.Tests/AnimatedTileFrameTests.cs` (index de frame, source, canonique, JSON, version `.fmap` inchangée, libellés FR) et `AutotileJoinTests` (aperçu de raccord sans mutation).
+- Windows : `MapCanvasTileAnimSmokeTests` — marquage palette, peinture de l’origine, frame suivante même si un autre tileset est actif, sidecar image, fantôme d’autotile (rive) sans écrire la carte. Le projet compile (`net8.0-windows`) ; l’exécution WinForms reste sur le CI Windows.
