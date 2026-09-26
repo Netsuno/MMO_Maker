@@ -2061,10 +2061,12 @@ public sealed class MapCanvas : Control
 
     public void ReplacePrefabPlacements(IEnumerable<PrefabPlacement>? placements)
     {
+        // Cloner avant Clear : l’appelant peut passer la liste vivante (PrefabPlacements).
+        var cloned = PrefabPlacementService.ClonePlacements(placements);
         _prefabPlacements.Clear();
         _selectedPrefabPlacement = null;
         _draggingPrefab = null;
-        _prefabPlacements.AddRange(PrefabPlacementService.ClonePlacements(placements));
+        _prefabPlacements.AddRange(cloned);
         PrefabPlacementsChanged?.Invoke();
         Invalidate();
     }
