@@ -52,6 +52,24 @@ public static class CharacterSheetGear
         _ => false,
     };
 
+    /// <summary>Arme ou armure publiée. Les autres types du catalogue restent dans le sac.</summary>
+    public static bool IsEquippable(ItemType? type) =>
+        type is ItemType kind && EquipPaperdollSlot.TryResolve(kind, out _, out _);
+
+    /// <summary>
+    /// Ligne de sac. Une arme ou une armure du catalogue porte le même libellé que l'emplacement (Arme, Armure).
+    /// </summary>
+    public static string FormatBagRow(byte slotIndex, string? name, int quantity, ItemType? type)
+    {
+        var shown = string.IsNullOrWhiteSpace(name) ? "—" : name.Trim();
+        if (type is ItemType kind && IsEquippable(kind))
+        {
+            return $"[{slotIndex}] {shown} · {EquipPaperdollSlot.French(kind)} ×{quantity}";
+        }
+
+        return $"[{slotIndex}] {shown} ×{quantity}";
+    }
+
     public static EquipmentSlotKind ServerSlot(PaperdollLayer layer) => layer switch
     {
         PaperdollLayer.Weapon => EquipmentSlotKind.Weapon,

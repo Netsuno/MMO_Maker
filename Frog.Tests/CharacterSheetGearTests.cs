@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
@@ -114,5 +115,72 @@ public sealed class CharacterSheetGearTests
         Assert.True(CharacterSheetGear.TypeFits(EquipmentSlotKind.Weapon, ItemType.Weapon));
         Assert.False(CharacterSheetGear.TypeFits(EquipmentSlotKind.Weapon, ItemType.Armor));
         Assert.False(CharacterSheetGear.TypeFits(EquipmentSlotKind.None, ItemType.Weapon));
+    }
+
+    [Fact]
+    public void PublishedCatalogTypes_LabelBagRows_AndOnlyEquipWeaponOrArmor()
+    {
+        var weaponId = Guid.Parse("aaaaaaaa-0003-4000-8000-000000000002");
+        var armorId = Guid.Parse("aaaaaaaa-0003-4000-8000-000000000003");
+        var potionId = Guid.Parse("aaaaaaaa-0003-4000-8000-000000000001");
+        var catalog = new (Guid Id, string Name, string Type)[]
+        {
+            (weaponId, "Épée courte", ItemType.Weapon.ToString()),
+            (armorId, "Tunique", ItemType.Armor.ToString()),
+            (potionId, "Potion", ItemType.Consumable.ToString()),
+        };
+
+        ItemType? Resolve(Guid id)
+        {
+            foreach (var row in catalog)
+            {
+                if (row.Id == id && CharacterSheetGear.TryParseItemType(row.Type, out var type))
+                {
+                    return type;
+                }
+            }
+
+            return null;
+        }
+
+        Assert.Equal(ItemType.Weapon, Resolve(weaponId));
+        Assert.Equal(ItemType.Armor, Resolve(armorId));
+        Assert.Equal(
+            "[0] Épée courte · Arme ×1",
+            CharacterSheetGear.FormatBagRow(0, catalog[0].Name, 1, Resolve(weaponId)));
+        Assert.Equal(
+            "[1] Tunique · Armure ×1",
+            CharacterSheetGear.FormatBagRow(1, catalog[1].Name, 1, Resolve(armorId)));
+        Assert.Equal(
+            "[2] Potion ×3",
+            CharacterSheetGear.FormatBagRow(2, catalog[2].Name, 3, Resolve(potionId)));
+        Assert.True(CharacterSheetGear.IsEquippable(Resolve(weaponId)));
+        Assert.True(CharacterSheetGear.IsEquippable(Resolve(armorId)));
+        Assert.False(CharacterSheetGear.IsEquippable(Resolve(potionId)));
+        Assert.False(CharacterSheetGear.IsEquippable(null));
+
+        var bag = new List<EquipBagEntry>
+        {
+            new(2, Resolve(potionId)),
+            new(0, Resolve(weaponId)),
+            new(1, Resolve(armorId)),
+        };
+
+        var weapon = CharacterSheetGear.FromBagEquip(0);
+        Assert.Equal(CharacterSheetGearAction.Equip, weapon.Action);
+        Assert.Equal((byte)0, weapon.InventorySlot);
+        Assert.Equal(EquipmentSlotKind.Weapon, CharacterSheetGear.ServerSlot(PaperdollLayer.Weapon));
+
+        var armor = CharacterSheetGear.FromSlotClick(PaperdollLayer.Armor, occupied: false, selectedSlot: null, bag);
+        Assert.Equal(CharacterSheetGearAction.Equip, armor.Action);
+        Assert.Equal((byte)1, armor.InventorySlot);
+        Assert.Equal(EquipmentSlotKind.Armor, CharacterSheetGear.ServerSlot(PaperdollLayer.Armor));
+
+        var blocked = CharacterSheetGear.FromSlotClick(PaperdollLayer.Weapon, occupied: false, selectedSlot: 2, bag);
+        Assert.Equal(CharacterSheetGearAction.None, blocked.Action);
+
+        var unequip = CharacterSheetGear.FromSlotClick(PaperdollLayer.Armor, occupied: true, selectedSlot: null, bag: []);
+        Assert.Equal(CharacterSheetGearAction.Unequip, unequip.Action);
+        Assert.Equal(EquipmentSlotKind.Armor, unequip.UnequipSlot);
     }
 }

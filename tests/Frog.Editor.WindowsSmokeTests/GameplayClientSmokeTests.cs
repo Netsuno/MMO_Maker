@@ -67,7 +67,10 @@ public sealed class GameplayClientSmokeTests
                 var weaponRowText = form.InventoryPanelForTest.SelectedItemTextForTest;
                 Assert.NotNull(weaponRowText);
                 Assert.DoesNotContain(weaponId!.Value.ToString("N"), weaponRowText!, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Épée", weaponRowText!, StringComparison.Ordinal);
+                Assert.Contains("Arme", weaponRowText!, StringComparison.Ordinal);
                 Assert.Contains('×', weaponRowText!);
+                Assert.True(form.InventoryPanelForTest.EquipEnabledForTest);
 
                 form.InventoryPanelForTest.ClickEquipForTest();
                 Pump(
@@ -206,8 +209,46 @@ public sealed class GameplayClientSmokeTests
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
-                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon),
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon)
+                          && form.CharacterSheetForTest.BagCountForTest == 0,
                     "empty weapon slot equips the bag weapon");
+
+                harness.SetCharacterGoldForTest(200);
+                form.SelectGameplayTabForTest();
+                Pump(form, () => form.TrySelectArmorFromCatalogForTest(), "select armor from catalog");
+                var armorId = form.SelectedCatalogArmorIdForTest;
+                Assert.NotNull(armorId);
+                form.ConfirmShopBuyForTest();
+                Pump(
+                    form,
+                    () => form.CharacterSheetForTest.BagCountForTest > 0
+                          && (form.CharacterSheetForTest.BagTextAtForTest(0)?.Contains("Armure", StringComparison.Ordinal) ?? false),
+                    "shop buy puts catalog armor in the fiche bag");
+                form.InvokeHudMenuCommandForTest(HudMenuCommand.Character);
+                Assert.True(form.IsCharacterSheetTabSelectedForTest, "Perso shows the fiche before armor equip");
+                Assert.Contains(
+                    "Tunique",
+                    form.CharacterSheetForTest.BagTextAtForTest(0),
+                    StringComparison.Ordinal);
+                form.CharacterSheetForTest.SelectBagIndexForTest(0);
+                Assert.True(form.CharacterSheetForTest.EquipBagEnabledForTest, "Équiper enabled for the bought armor");
+                form.CharacterSheetForTest.ClickEquipBagForTest();
+                Pump(
+                    form,
+                    () => form.InventoryPanelForTest.EquippedArmorItemId == armorId
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Armor)
+                          && form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Armor) != "—",
+                    "fiche equip updates armor snapshot and paperdoll");
+                Assert.StartsWith("Armure: ", form.EquipmentPanelForTest.ArmorLabelTextForTest);
+                Assert.Contains(
+                    "Tunique",
+                    form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Armor),
+                    StringComparison.Ordinal);
+                Assert.Contains(
+                    "Tunique",
+                    form.EquipmentPanelForTest.ArmorLabelTextForTest,
+                    StringComparison.Ordinal);
+                Assert.True(form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon));
 
                 form.DisconnectForTest();
                 Pump(form, () => form.ConnectButtonForTest.Enabled && form.ConnectButtonForTest.Visible, "disconnect complete");
@@ -225,7 +266,10 @@ public sealed class GameplayClientSmokeTests
                 Pump(
                     form,
                     () => form.InventoryPanelForTest.EquippedWeaponItemId == weaponId
-                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon),
+                          && form.InventoryPanelForTest.EquippedArmorItemId == armorId
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Weapon)
+                          && form.CharacterSheetForTest.SlotOccupiedForTest(PaperdollLayer.Armor)
+                          && form.CharacterSheetForTest.SlotDetailForTest(PaperdollLayer.Armor).Contains("Tunique", StringComparison.Ordinal),
                     "fiche equipment persisted across reconnect",
                     TimeSpan.FromSeconds(120));
             }
@@ -693,6 +737,11 @@ public sealed class GameplayClientSmokeTests
             var record = chars.FindByIdAsync(charId).GetAwaiter().GetResult();
             Assert.NotNull(record);
             chars.SaveAsync(record! with { Gold = gold }).GetAwaiter().GetResult();
+            var connections = _host.Services.GetRequiredService<ConnectionManager>();
+            if (connections.TryGetSessionByUsername(User, out var session) && session is not null)
+            {
+                session.Gold = gold;
+            }
         }
 
         /// <summary>
