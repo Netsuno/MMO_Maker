@@ -64,6 +64,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideSpellRepository = null;
         EditorTestHooks.OverrideClassRepository = null;
         EditorTestHooks.OverrideActorRepository = null;
+        EditorTestHooks.OverrideGameSystemRepository = null;
         EditorTestHooks.OverrideShopRepository = null;
         EditorTestHooks.OverrideResourceRepository = null;
         EditorTestHooks.OverrideResourceSpawnRepository = null;
@@ -121,10 +122,14 @@ internal static class EditorSmokeTestAccess
             Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest,
             itemRepository);
         EditorTestHooks.OverrideClassRepository = classRepository;
-        EditorTestHooks.OverrideActorRepository =
-            new Frog.Application.Content.InMemoryActorRepository(
-                classRepository,
-                itemRepository,
+        var actorRepository = new Frog.Application.Content.InMemoryActorRepository(
+            classRepository,
+            itemRepository,
+            Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideActorRepository = actorRepository;
+        EditorTestHooks.OverrideGameSystemRepository =
+            new Frog.Application.Content.InMemoryGameSystemRepository(
+                actorRepository,
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideShopRepository =
             new Frog.Application.Content.InMemoryShopRepository(
@@ -183,6 +188,12 @@ internal static class EditorSmokeTestAccess
     public static Task OpenGameDataAndSaveSampleSkillAsync(MainWindow window)
     {
         GameDataSmokeUiDriver.RunSkillScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
+    }
+
+    public static Task OpenGameDataAndSaveSampleSystemAsync(MainWindow window)
+    {
+        GameDataSmokeUiDriver.RunSystemScenario(window, DefaultTimeout);
         return Task.CompletedTask;
     }
 

@@ -1276,6 +1276,141 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    public static void RunSystemScenario(MainWindow window, TimeSpan timeout)
+    {
+        var form = OpenViaMainWindowCommand(window, timeout);
+        try
+        {
+            form.SelectCategoryForTest(5);
+            var actors = form.ActorsForTest;
+            PumpUntil(() => actors.LifecycleForTest.IsIdle, timeout);
+            Click(actors.BtnNewForTest);
+            SetText(actors.NameForTest, "SmokeSystemHeroUi");
+            ClickAndWait(actors.BtnPublishForTest, () => actors.LifecycleForTest.IsIdle && !actors.IsDirty, timeout);
+
+            form.SelectCategoryForTest(GameDataForm.CategorySystem);
+            var panel = form.SystemForTest;
+            PumpUntil(
+                () => panel.LifecycleForTest.IsIdle && panel.PartyChoiceCountForTest >= 1,
+                timeout);
+
+            Click(panel.BtnNewForTest);
+            SetText(panel.NameForTest, "SmokeSystemUi");
+            SetText(panel.TitleForTest, "Smoke Monde");
+            SetText(panel.CurrencyForTest, "Écu");
+            SetText(panel.DescriptionForTest, "Termes du projet.");
+            Click(panel.BtnAddSwitchForTest);
+            panel.SwitchesForTest.Rows[0].Cells[0].Value = "door_open";
+            panel.SwitchesForTest.Rows[0].Cells[1].Value = "Porte ouverte";
+            Click(panel.BtnAddVariableForTest);
+            panel.VariablesForTest.Rows[0].Cells[0].Value = "quest_step";
+            panel.VariablesForTest.Rows[0].Cells[1].Value = "Étape de quête";
+            Click(panel.BtnAddPartyForTest);
+            PumpUntil(() => panel.IsDirty, timeout);
+
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(
+                panel.BtnPublishForTest,
+                panel.ListForTest,
+                "SmokeSystemUi",
+                () => panel.LifecycleForTest.IsIdle,
+                timeout);
+            AssertListContains(panel.ListForTest, "SmokeSystemUi", "Published");
+            AssertListContains(panel.ListForTest, "Smoke Monde");
+            if (panel.CurrencyForTest.Text != "Écu")
+            {
+                throw new InvalidOperationException("L’unité monétaire n’a pas été conservée.");
+            }
+
+            if (Convert.ToString(panel.SwitchesForTest.Rows[0].Cells[0].Value) != "door_open"
+                || Convert.ToString(panel.VariablesForTest.Rows[0].Cells[0].Value) != "quest_step"
+                || panel.PartyForTest.Rows.Count != 1)
+            {
+                throw new InvalidOperationException("Interrupteur, variable ou groupe de départ non conservés.");
+            }
+
+            SelectListItemContaining(panel.ListForTest, "SmokeSystemUi");
+            Click(panel.BtnDupForTest);
+            SetText(panel.NameForTest, "SmokeSystemUiCopy");
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+            AssertListContains(panel.ListForTest, "SmokeSystemUiCopy", "Published");
+
+            SelectListItemContaining(panel.ListForTest, "SmokeSystemUi");
+            RejectInvalidPublication(
+                panel.NameForTest,
+                panel.ValidationForTest,
+                panel.BtnPublishForTest,
+                () => panel.IsDirty,
+                () => panel.PublishedRevisionForTest,
+                () => panel.ListForTest.Items.Cast<object>().Any(i =>
+                    (i.ToString() ?? string.Empty).Contains("Smoke", StringComparison.Ordinal)
+                    && (i.ToString() ?? string.Empty).Contains("Published", StringComparison.Ordinal)),
+                timeout);
+            SetText(panel.NameForTest, "SmokeSystemUi");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+
+            SeedAndVerifySearchStatusFilter(
+                panel.BtnNewForTest,
+                panel.NameForTest,
+                panel.BtnSaveForTest,
+                panel.BtnPublishForTest,
+                panel.SearchForTest,
+                panel.StatusFilterForTest,
+                panel.ListForTest,
+                () => panel.IsDirty,
+                "SmokeSystemUi",
+                "SmokeSystemOther",
+                "SmokeSystemDraft",
+                timeout);
+
+            Click(panel.BtnNewForTest);
+            SetText(panel.NameForTest, "SmokeSystemDeleteUi");
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+
+            CancelDirtyListNavigation(
+                panel.ListForTest,
+                panel.NameForTest,
+                () => panel.IsDirty,
+                "SmokeSystemUi",
+                "SmokeSystemUiCopy",
+                timeout);
+
+            DeleteAllowedRecord(
+                panel.ListForTest,
+                panel.NameForTest,
+                panel.BtnDeleteForTest,
+                panel.LifecycleForTest,
+                "SmokeSystemDeleteUi",
+                timeout);
+
+            CloseForm(form, timeout);
+
+            CloseReopenAndVerify(
+                window,
+                timeout,
+                GameDataForm.CategorySystem,
+                reopened =>
+                {
+                    var reopenedPanel = reopened.SystemForTest;
+                    PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
+                    PumpUntil(() => reopenedPanel.ListForTest.Items.Count >= 1, timeout);
+                    SelectListItemContaining(reopenedPanel.ListForTest, "SmokeSystemUi");
+                    PumpUntil(
+                        () => reopenedPanel.TitleForTest.Text == "Smoke Monde"
+                              && reopenedPanel.CurrencyForTest.Text == "Écu"
+                              && Convert.ToString(reopenedPanel.SwitchesForTest.Rows[0].Cells[0].Value) == "door_open",
+                        timeout);
+                });
+        }
+        finally
+        {
+            if (!form.IsDisposed)
+            {
+                CloseForm(form, timeout);
+            }
+        }
+    }
+
     public static void RunShopScenario(MainWindow window, TimeSpan timeout)
     {
         var assetRoot = CreateSmokeAssetRoot("icons/items/smoke-shop-ui.png");
@@ -1289,7 +1424,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-shop-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(7);
+            form.SelectCategoryForTest(GameDataForm.CategoryShops);
             WaitForTask(form.ShopsForTest.InitializeAsync(), timeout);
             var panel = form.ShopsForTest;
             Click(panel.BtnNewForTest);
@@ -1362,7 +1497,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                7,
+                GameDataForm.CategoryShops,
                 reopened =>
                 {
                     WaitForTask(reopened.ShopsForTest.InitializeAsync(), timeout);
@@ -1390,7 +1525,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(8);
+            form.SelectCategoryForTest(GameDataForm.CategoryResources);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);
@@ -1601,7 +1736,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                8,
+                GameDataForm.CategoryResources,
                 reopened =>
                 {
                     WaitForTask(reopened.ResourcesForTest.InitializeAsync(), timeout);
@@ -1633,7 +1768,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-filter-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(8);
+            form.SelectCategoryForTest(GameDataForm.CategoryResources);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);

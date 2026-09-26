@@ -637,6 +637,51 @@ public sealed class MapEventPlacementEntity
     public MapEntity Map { get; set; } = null!;
 }
 
+public sealed class GameSystemEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string CurrencyUnit { get; set; } = GameSystemDefinition.DefaultCurrencyUnit;
+    public string SwitchesJson { get; set; } = "[]";
+    public string VariablesJson { get; set; } = "[]";
+    public string StartingPartyJson { get; set; } = "[]";
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’une fiche Système publiée. Catalogue de noms, pas l’état joueur.</summary>
+public sealed class GameSystemPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid GameSystemId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string CurrencyUnit { get; set; } = GameSystemDefinition.DefaultCurrencyUnit;
+    public string SwitchesJson { get; set; } = "[]";
+    public string VariablesJson { get; set; } = "[]";
+    public string StartingPartyJson { get; set; } = "[]";
+    public GameSystemEntity GameSystem { get; set; } = null!;
+}
+
+public sealed class GameSystemPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid GameSystemId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public GameSystemEntity GameSystem { get; set; } = null!;
+}
+
 public sealed class MapPublishedEventPlacementEntity
 {
     public Guid Id { get; set; }

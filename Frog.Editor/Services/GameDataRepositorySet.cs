@@ -15,6 +15,7 @@ public sealed class GameDataRepositorySet : IDisposable
         EditorSpellRepositoryBundle spell,
         EditorClassRepositoryBundle classBundle,
         EditorActorRepositoryBundle actor,
+        EditorGameSystemRepositoryBundle gameSystem,
         EditorShopRepositoryBundle shop,
         EditorResourceRepositoryBundle resource,
         EditorResourceSpawnRepositoryBundle resourceSpawn,
@@ -27,6 +28,7 @@ public sealed class GameDataRepositorySet : IDisposable
         Spell = spell;
         Class = classBundle;
         Actor = actor;
+        GameSystem = gameSystem;
         Shop = shop;
         Resource = resource;
         ResourceSpawn = resourceSpawn;
@@ -46,6 +48,8 @@ public sealed class GameDataRepositorySet : IDisposable
     public EditorClassRepositoryBundle Class { get; }
 
     public EditorActorRepositoryBundle Actor { get; }
+
+    public EditorGameSystemRepositoryBundle GameSystem { get; }
 
     public EditorShopRepositoryBundle Shop { get; }
 

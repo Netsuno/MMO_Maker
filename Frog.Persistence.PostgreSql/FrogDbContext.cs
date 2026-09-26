@@ -55,6 +55,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<ActorEntity> Actors => Set<ActorEntity>();
     public DbSet<ActorPublishedSnapshotEntity> ActorPublishedSnapshots => Set<ActorPublishedSnapshotEntity>();
     public DbSet<ActorPublicationHistoryEntity> ActorPublicationHistory => Set<ActorPublicationHistoryEntity>();
+    public DbSet<GameSystemEntity> GameSystems => Set<GameSystemEntity>();
+    public DbSet<GameSystemPublishedSnapshotEntity> GameSystemPublishedSnapshots => Set<GameSystemPublishedSnapshotEntity>();
+    public DbSet<GameSystemPublicationHistoryEntity> GameSystemPublicationHistory => Set<GameSystemPublicationHistoryEntity>();
     public DbSet<ShopEntity> Shops => Set<ShopEntity>();
     public DbSet<ShopPublishedSnapshotEntity> ShopPublishedSnapshots => Set<ShopPublishedSnapshotEntity>();
     public DbSet<ShopPublicationHistoryEntity> ShopPublicationHistory => Set<ShopPublicationHistoryEntity>();
@@ -662,6 +665,71 @@ public sealed class FrogDbContext : DbContext
             e.HasOne(x => x.Actor)
                 .WithMany()
                 .HasForeignKey(x => x.ActorId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Tables créées par 20260926120000_GameSystemDraftPublish (migration écrite à la main, hors snapshot).
+        // ExcludeFromMigrations évite un second CREATE TABLE au prochain `dotnet ef migrations add`.
+        modelBuilder.Entity<GameSystemEntity>(e =>
+        {
+            e.ToTable("game_systems", "content", t =>
+            {
+                t.ExcludeFromMigrations();
+                t.HasCheckConstraint("ck_game_systems_non_negative_revision", "revision >= 0");
+                t.HasCheckConstraint(
+                    "ck_game_systems_title",
+                    "char_length(title) >= 1 AND char_length(title) <= 120");
+                t.HasCheckConstraint(
+                    "ck_game_systems_currency",
+                    "char_length(currency_unit) >= 1 AND char_length(currency_unit) <= 24");
+            });
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(GameSystemDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(GameSystemDefinition.MaxDescriptionLength);
+            e.Property(x => x.Title).HasMaxLength(GameSystemDefinition.MaxTitleLength).IsRequired();
+            e.Property(x => x.CurrencyUnit).HasMaxLength(GameSystemDefinition.MaxCurrencyLength).IsRequired();
+            e.Property(x => x.SwitchesJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.VariablesJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.StartingPartyJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<GameSystemPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("game_system_published_snapshots", "content", t =>
+            {
+                t.ExcludeFromMigrations();
+                t.HasCheckConstraint(
+                    "ck_game_system_published_snapshots_title",
+                    "char_length(title) >= 1 AND char_length(title) <= 120");
+                t.HasCheckConstraint(
+                    "ck_game_system_published_snapshots_currency",
+                    "char_length(currency_unit) >= 1 AND char_length(currency_unit) <= 24");
+            });
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.GameSystemId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(GameSystemDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(GameSystemDefinition.MaxDescriptionLength);
+            e.Property(x => x.Title).HasMaxLength(GameSystemDefinition.MaxTitleLength).IsRequired();
+            e.Property(x => x.CurrencyUnit).HasMaxLength(GameSystemDefinition.MaxCurrencyLength).IsRequired();
+            e.Property(x => x.SwitchesJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.VariablesJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.StartingPartyJson).HasColumnType("jsonb").IsRequired();
+            e.HasOne(x => x.GameSystem)
+                .WithMany()
+                .HasForeignKey(x => x.GameSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GameSystemPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("game_system_publication_history", "content", t => t.ExcludeFromMigrations());
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.GameSystemId);
+            e.HasOne(x => x.GameSystem)
+                .WithMany()
+                .HasForeignKey(x => x.GameSystemId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
