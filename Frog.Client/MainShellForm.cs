@@ -53,7 +53,7 @@ public sealed class MainShellForm : Form
     private readonly Panel _hostPages = new() { Dock = DockStyle.Fill };
     private readonly Panel _panelLogin = new() { Dock = DockStyle.Fill, Padding = new Padding(0), AutoScroll = true };
     private readonly LoginShell _loginShell = new();
-    private readonly Panel _panelCharacter = new() { Dock = DockStyle.Fill, Padding = new Padding(32), AutoScroll = true, Visible = false };
+    private readonly Panel _panelCharacter = new() { Dock = DockStyle.Fill, Padding = new Padding(0), AutoScroll = true, Visible = false };
     private readonly Panel _panelGame = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly Button _btnSwitchCharacter = new() { Text = "Changer de personnage", AutoSize = true };
     private readonly Button _btnBackDisconnect = new() { Text = "Retour à la connexion (fermer la session)", AutoSize = true, Enabled = false };
@@ -248,12 +248,45 @@ public sealed class MainShellForm : Form
     private string? _storedAuthToken;
     private readonly Button _btnMap = new() { Text = "Demander map", Enabled = false };
     private readonly Button _btnLogout = new() { Text = "Logout", Enabled = false };
-    private readonly ComboBox _cmbCharacters = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Enabled = false };
-    private readonly Button _btnCharRefresh = new() { Text = "Liste persos", Width = 95, Enabled = false };
-    private readonly Button _btnEnterGame = new() { Text = "Entrer dans le jeu", Width = 220, Enabled = false };
-    private readonly TextBox _txtNewCharName = new() { Width = 100, PlaceholderText = "Nouveau perso" };
-    private readonly Button _btnCharCreate = new() { Text = "Créer perso", Width = 95, Enabled = false };
-    private readonly ComboBox _cmbClass = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Enabled = false };
+    private readonly ComboBox _cmbCharacters = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        Width = 280,
+        Enabled = false,
+        IntegralHeight = false,
+        MaxDropDownItems = 12,
+    };
+    private readonly Button _btnCharRefresh = new() { Text = CharacterCreateUx.RefreshButton, Width = 110, Enabled = false };
+    private readonly Button _btnEnterGame = new() { Text = CharacterCreateUx.EnterButton, Width = 220, Enabled = false };
+    private readonly TextBox _txtNewCharName = new()
+    {
+        Width = 280,
+        PlaceholderText = CharacterCreateUx.NamePlaceholder,
+        MaxLength = CharacterDisplayNameRules.MaxLength,
+    };
+    private readonly Button _btnCharCreate = new() { Text = CharacterCreateUx.CreateButton, Width = 220, Enabled = false };
+    private readonly ComboBox _cmbClass = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        Width = 280,
+        Enabled = false,
+        IntegralHeight = false,
+        MaxDropDownItems = 12,
+    };
+    private readonly Label _lblCreateHint = new()
+    {
+        AutoSize = true,
+        Text = CharacterCreateUx.HintRules,
+        ForeColor = UiTheme.TextMuted,
+        BackColor = Color.Transparent,
+        Margin = new Padding(0, 0, 0, 2),
+        MaximumSize = new Size(480, 0),
+    };
+    private readonly FlowLayoutPanel _rowPickCharacters = CreateInlineFieldRow();
+    private readonly FlowLayoutPanel _rowNewCharName = CreateInlineFieldRow();
+    private readonly FlowLayoutPanel _rowNewCharClass = CreateInlineFieldRow();
+    private bool _characterSessionOpen;
+    private bool _characterCreateBusy;
     private readonly ComboBox _cmbShop = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Enabled = false };
     private readonly ComboBox _cmbShopItem = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280, Enabled = false };
     private readonly ComboBox _cmbSpell = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, Enabled = false };
@@ -1361,6 +1394,107 @@ public sealed class MainShellForm : Form
         };
     }
 
+    private static FlowLayoutPanel CreateInlineFieldRow()
+    {
+        return new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(0, 2, 0, 2),
+            Padding = new Padding(0),
+            BackColor = Color.Transparent,
+        };
+    }
+
+    private static Label SectionHeading(string text)
+        => new()
+        {
+            Text = text,
+            AutoSize = true,
+            Font = UiTheme.UiFont(10f, FontStyle.Bold),
+            Margin = new Padding(0, 2, 0, 4),
+            BackColor = Color.Transparent,
+        };
+
+    private static Label FieldLbl(string text)
+        => new()
+        {
+            Text = text,
+            AutoSize = true,
+            Font = UiTheme.UiFont(8.5f),
+            Margin = new Padding(0, 6, 8, 0),
+            BackColor = Color.Transparent,
+        };
+
+    private static void PrepareCharacterCta(Button button)
+    {
+        button.AutoSize = false;
+        button.Size = new Size(220, 36);
+        button.MinimumSize = new Size(180, 34);
+        button.Margin = new Padding(0, 2, 0, 0);
+        button.TextAlign = ContentAlignment.MiddleCenter;
+    }
+
+    private void FitCharacterCard(int innerWidth)
+    {
+        var inner = Math.Max(160, innerWidth);
+        _rowPickCharacters.Width = inner;
+        _rowPickCharacters.MaximumSize = new Size(inner, 0);
+        _rowNewCharName.Width = inner;
+        _rowNewCharName.MaximumSize = new Size(inner, 0);
+        _rowNewCharClass.Width = inner;
+        _rowNewCharClass.MaximumSize = new Size(inner, 0);
+        _lblCreateHint.MaximumSize = new Size(inner, 0);
+
+        var refreshW = Math.Max(96, _btnCharRefresh.PreferredSize.Width);
+        var rosterW = Math.Max(140, inner - refreshW - 8);
+        _cmbCharacters.Width = rosterW;
+        FitDropDownWidth(_cmbCharacters, rosterW);
+
+        var labelW = 0;
+        foreach (Control child in _rowNewCharName.Controls)
+        {
+            if (child is Label label)
+            {
+                labelW = Math.Max(labelW, TextRenderer.MeasureText(label.Text, label.Font).Width);
+            }
+        }
+
+        foreach (Control child in _rowNewCharClass.Controls)
+        {
+            if (child is Label label)
+            {
+                labelW = Math.Max(labelW, TextRenderer.MeasureText(label.Text, label.Font).Width);
+            }
+        }
+
+        var fieldW = Math.Max(120, inner - labelW - 16);
+        _txtNewCharName.Width = fieldW;
+        _cmbClass.Width = fieldW;
+        FitDropDownWidth(_cmbClass, fieldW);
+        _btnEnterGame.Width = inner;
+        _btnCharCreate.Width = inner;
+    }
+
+    private static void FitDropDownWidth(ComboBox combo, int minimum)
+    {
+        var width = Math.Max(minimum, combo.Width);
+        foreach (var item in combo.Items)
+        {
+            var text = item?.ToString() ?? string.Empty;
+            if (text.Length == 0)
+            {
+                continue;
+            }
+
+            width = Math.Max(width, TextRenderer.MeasureText(text, combo.Font).Width + 28);
+        }
+
+        combo.DropDownWidth = width;
+    }
+
     private static Label Lbl(string text, int topPad = 8)
         => new()
         {
@@ -1410,35 +1544,40 @@ public sealed class MainShellForm : Form
             p.AutoScroll = true;
         }
 
-        // Keep the combo + « Liste persos » on one 520 px card row; CTAs go on their own rows
-        // so they cannot overflow the gold frame (production clip: « on voit pas tout les boutons »).
-        _cmbCharacters.MinimumSize = new Size(180, 0);
-        _cmbCharacters.Width = 240;
-        _txtNewCharName.MinimumSize = new Size(120, 0);
-        _txtNewCharName.Width = Math.Max(_txtNewCharName.Width, 140);
+        // Combo + « Liste persos » sur une ligne ; CTA sur des rangées dédiées
+        // pour rester dans le cadre 520 px (clip production : boutons coupés).
+        _cmbCharacters.MinimumSize = new Size(140, 24);
+        _txtNewCharName.MinimumSize = new Size(120, 24);
+        _cmbClass.MinimumSize = new Size(120, 24);
         _cmbMeleeTarget.Margin = new Padding(2, 4, 8, 4);
+        PrepareCharacterCta(_btnEnterGame);
+        PrepareCharacterCta(_btnCharCreate);
+        _btnCharRefresh.Margin = new Padding(0, 2, 0, 2);
+        _cmbCharacters.Margin = new Padding(0, 2, 8, 2);
+        _txtNewCharName.Margin = new Padding(0, 2, 0, 2);
+        _cmbClass.Margin = new Padding(0, 2, 0, 2);
+        _lblCreateHint.Font = UiTheme.UiFont(8f);
 
-        var rowCharPick = CreateToolbarRow();
-        rowCharPick.WrapContents = true;
-        rowCharPick.Dock = DockStyle.None;
-        rowCharPick.Controls.Add(Lbl("Personnage", topPad: 8));
-        rowCharPick.Controls.Add(_cmbCharacters);
-        rowCharPick.Controls.Add(_btnCharRefresh);
+        _rowPickCharacters.Controls.Add(_cmbCharacters);
+        _rowPickCharacters.Controls.Add(_btnCharRefresh);
+        var pickStack = new LoginShell.StackRow();
+        pickStack.Controls.Add(SectionHeading(CharacterCreateUx.ExistingHeading));
+        pickStack.Controls.Add(_rowPickCharacters);
 
         var rowEnter = CreateToolbarRow();
         rowEnter.WrapContents = true;
         rowEnter.Dock = DockStyle.None;
-        _btnEnterGame.AutoSize = true;
-        _btnEnterGame.MinimumSize = new Size(220, 34);
         rowEnter.Controls.Add(_btnEnterGame);
 
-        var rowCreate = CreateToolbarRow();
-        rowCreate.WrapContents = true;
-        rowCreate.Dock = DockStyle.None;
-        rowCreate.Controls.Add(Lbl("Nouveau personnage", topPad: 8));
-        rowCreate.Controls.Add(_txtNewCharName);
-        rowCreate.Controls.Add(Lbl("Classe", topPad: 8));
-        rowCreate.Controls.Add(_cmbClass);
+        _rowNewCharName.Controls.Add(FieldLbl(CharacterCreateUx.NameLabel));
+        _rowNewCharName.Controls.Add(_txtNewCharName);
+        _rowNewCharClass.Controls.Add(FieldLbl(CharacterCreateUx.ClassLabel));
+        _rowNewCharClass.Controls.Add(_cmbClass);
+        var rowCreate = new LoginShell.StackRow();
+        rowCreate.Controls.Add(SectionHeading(CharacterCreateUx.CreateHeading));
+        rowCreate.Controls.Add(_rowNewCharName);
+        rowCreate.Controls.Add(_lblCreateHint);
+        rowCreate.Controls.Add(_rowNewCharClass);
 
         var rowCreateAction = CreateToolbarRow();
         rowCreateAction.WrapContents = true;
@@ -1477,14 +1616,21 @@ public sealed class MainShellForm : Form
 
         LoginShell.HostCenteredCard(
             _panelCharacter,
-            TitleLbl("Choisir votre personnage"),
-            rowCharPick,
+            FitCharacterCard,
+            TitleLbl(CharacterCreateUx.PageTitle),
+            pickStack,
             rowEnter,
             rowCreate,
             _appearancePicker,
             rowCreateAction,
             rowStats,
             rowCharNav);
+        _txtNewCharName.TextChanged += (_, _) => RefreshCharacterActions();
+        _cmbCharacters.SelectedIndexChanged += (_, _) => RefreshCharacterActions();
+        _cmbClass.SelectedIndexChanged += (_, _) => RefreshCharacterActions();
+        _btnEnterGame.EnabledChanged += (_, _) => LoginShell.StylePrimaryCta(_btnEnterGame);
+        _btnCharCreate.EnabledChanged += (_, _) => LoginShell.StylePrimaryCta(_btnCharCreate);
+        _btnCharRefresh.EnabledChanged += (_, _) => LoginShell.StyleSecondaryCta(_btnCharRefresh);
 
         _mapScroll.Controls.Add(_picMap);
 
@@ -2129,10 +2275,7 @@ public sealed class MainShellForm : Form
             _cmbMeleeTarget.Text = defaultTarget;
         }
 
-        if (_btnCharCreate.Enabled)
-        {
-            _cmbClass.Enabled = _cmbClass.Items.Count > 0;
-        }
+        RefreshCharacterActions();
 
         if (_btnShopBuy.Enabled)
         {
@@ -2791,13 +2934,7 @@ public sealed class MainShellForm : Form
         _username = _txtUser.Text.Trim();
         _btnMap.Enabled = true;
         _btnLogout.Enabled = true;
-        _cmbCharacters.Enabled = true;
-        _btnCharRefresh.Enabled = true;
-        _btnEnterGame.Enabled = true;
-        _txtNewCharName.Enabled = true;
-        _btnCharCreate.Enabled = true;
-        _cmbClass.Enabled = true;
-        _btnBackDisconnect.Enabled = true;
+        SetCharacterSessionOpen(true);
         _heartbeatTimer.Start();
         // Mirror login: preload map so Enter Game can reach Playing via MapAlreadySynced.
         SetGameplayControlsEnabled(false);
@@ -3445,6 +3582,7 @@ public sealed class MainShellForm : Form
         _shopForm.HideShop();
         _shopBank.CloseSilent();
         _cmbClass.Items.Clear();
+        RefreshCharacterActions();
         _cmbShop.Items.Clear();
         _cmbShopItem.Items.Clear();
         _cmbSpell.Items.Clear();
@@ -3541,13 +3679,7 @@ public sealed class MainShellForm : Form
         _btnLogout.Enabled = true;
         _btnMelee.Enabled = false;
         _btnRanged.Enabled = false;
-        _cmbCharacters.Enabled = true;
-        _btnCharRefresh.Enabled = true;
-        _btnEnterGame.Enabled = true;
-        _txtNewCharName.Enabled = true;
-        _btnCharCreate.Enabled = true;
-        _cmbClass.Enabled = true;
-        _btnBackDisconnect.Enabled = true;
+        SetCharacterSessionOpen(true);
         _heartbeatTimer.Start();
         _ = RefreshCharacterListAsync();
         _ = MapRequestAsync();
@@ -3679,13 +3811,43 @@ public sealed class MainShellForm : Form
     private void ResetCharacterPickUi()
     {
         _cmbCharacters.Items.Clear();
-        _cmbCharacters.Enabled = false;
-        _btnCharRefresh.Enabled = false;
-        _btnEnterGame.Enabled = false;
-        _txtNewCharName.Enabled = false;
-        _btnCharCreate.Enabled = false;
-        _cmbClass.Enabled = false;
+        SetCharacterSessionOpen(false);
         SetStatsControlsEnabled(false);
+    }
+
+    private void SetCharacterSessionOpen(bool open)
+    {
+        _characterSessionOpen = open;
+        _cmbCharacters.Enabled = open;
+        _btnCharRefresh.Enabled = open;
+        _txtNewCharName.Enabled = open;
+        _btnBackDisconnect.Enabled = open;
+        if (!open)
+        {
+            _btnEnterGame.Enabled = false;
+            _btnCharCreate.Enabled = false;
+            _cmbClass.Enabled = false;
+        }
+
+        RefreshCharacterActions();
+    }
+
+    private void RefreshCharacterActions()
+    {
+        var classesAvailable = _cmbClass.Items.Count > 0;
+        var classSelected = _characterSessionOpen && _cmbClass.SelectedItem is ClassPickRow;
+        _cmbClass.Enabled = _characterSessionOpen && classesAvailable;
+        _btnCharCreate.Enabled = !_characterCreateBusy
+            && CharacterCreateUx.CanCreate(_txtNewCharName.Text, classSelected, _characterSessionOpen);
+        _btnEnterGame.Enabled = CharacterCreateUx.CanEnter(
+            _characterSessionOpen,
+            _cmbCharacters.SelectedItem is CharacterPickRow);
+        var feedback = CharacterCreateUx.Describe(_txtNewCharName.Text, classSelected);
+        _lblCreateHint.Text = CharacterCreateUx.HintFor(_txtNewCharName.Text, classSelected, classesAvailable, _characterSessionOpen);
+        _lblCreateHint.ForeColor = feedback.IsError ? UiTheme.TextDanger : UiTheme.TextMuted;
+        _btnCharCreate.AccessibleDescription = _lblCreateHint.Text;
+        FitDropDownWidth(_cmbClass, Math.Max(120, _cmbClass.Width));
+        FitDropDownWidth(_cmbCharacters, Math.Max(140, _cmbCharacters.Width));
     }
 
     private void SetStatsControlsEnabled(bool enabled)
@@ -4119,6 +4281,7 @@ public sealed class MainShellForm : Form
             if (entries is null || entries.Count == 0)
             {
                 AppendLog("Liste persos vide.");
+                RefreshCharacterActions();
                 return;
             }
 
@@ -4139,10 +4302,12 @@ public sealed class MainShellForm : Form
             }
 
             AppendLog($"{_cmbCharacters.Items.Count} perso(s) listé(s).");
+            RefreshCharacterActions();
         }
         catch (Exception ex)
         {
             AppendLog("Liste persos JSON: " + ex.Message);
+            RefreshCharacterActions();
         }
     }
 
@@ -4170,6 +4335,8 @@ public sealed class MainShellForm : Form
         if (ok)
         {
             AppendLog("Perso créé — id: " + message);
+            ShowPlayerStatus(CharacterCreateUx.CreatedStatus);
+            _txtNewCharName.Clear();
             if (!string.IsNullOrWhiteSpace(_pendingLookName))
             {
                 CharacterLookBook.BindCreatedId(_settings.CharacterLooks, _pendingLookName, message.Trim());
@@ -4190,38 +4357,55 @@ public sealed class MainShellForm : Form
         else
         {
             AppendLog("Création perso refusée: " + message);
+            var human = string.IsNullOrWhiteSpace(message)
+                ? CharacterCreateUx.CreateRejectedStatus
+                : PlayerFacingMessages.FromServerOrNetwork(message);
+            ShowPlayerStatus(human);
         }
     }
 
     private async Task CreateCharacterAsync()
     {
+        if (_characterCreateBusy)
+        {
+            return;
+        }
+
         if (_client is null || !_client.IsConnected)
         {
+            ShowPlayerStatus(CharacterCreateUx.NeedConnectionStatus);
             return;
         }
 
-        var name = _txtNewCharName.Text.Trim();
-        if (name.Length == 0)
+        var classSelected = _cmbClass.SelectedItem is ClassPickRow;
+        var feedback = CharacterCreateUx.Describe(_txtNewCharName.Text, classSelected);
+        if (!feedback.Ok || _cmbClass.SelectedItem is not ClassPickRow row)
         {
-            AppendLog("Saisir un nom pour le nouveau perso.");
+            RefreshCharacterActions();
+            ShowPlayerStatus(CharacterCreateUx.BlockedCreateMessage(_txtNewCharName.Text, classSelected));
             return;
         }
 
+        _characterCreateBusy = true;
+        RefreshCharacterActions();
         try
         {
-            if (_cmbClass.SelectedItem is not ClassPickRow row)
-            {
-                AppendLog("Catalogue classes non chargé — attendez après login.");
-                return;
-            }
-
-            RememberNamedLook(name, _appearancePicker.Look);
-            _pendingLookName = name;
-            await _client.SendCharacterCreateAsync(name, row.Id).ConfigureAwait(true);
+            RememberNamedLook(feedback.Normalized, _appearancePicker.Look);
+            _pendingLookName = feedback.Normalized;
+            await _client.SendCharacterCreateAsync(feedback.Normalized, row.Id).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
             AppendLog("CharacterCreate: " + ex.Message);
+            ShowPlayerStatus(PlayerFacingMessages.FromException(ex));
+        }
+        finally
+        {
+            _characterCreateBusy = false;
+            if (!IsDisposed)
+            {
+                RefreshCharacterActions();
+            }
         }
     }
 
@@ -4234,7 +4418,8 @@ public sealed class MainShellForm : Form
 
         if (_cmbCharacters.SelectedItem is not CharacterPickRow row)
         {
-            AppendLog("Choisir un personnage dans la liste.");
+            AppendLog(CharacterCreateUx.NeedPickStatus);
+            ShowPlayerStatus(CharacterCreateUx.NeedPickStatus);
             return;
         }
 
@@ -4949,9 +5134,17 @@ public sealed class MainShellForm : Form
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        var key = keyData & Keys.KeyCode;
+        if (_phase == ClientUiPhase.CharacterSelect
+            && key == Keys.Enter
+            && (keyData & Keys.Modifiers) == Keys.None
+            && TryHandleCharacterPageEnter())
+        {
+            return true;
+        }
+
         if (_phase == ClientUiPhase.Playing && ChatComposeFocused())
         {
-            var key = keyData & Keys.KeyCode;
             if (key is Keys.Up or Keys.Down)
             {
                 // Flèches haut/bas d'une zone mono-ligne : ne pas donner le focus au monde.
@@ -4960,6 +5153,28 @@ public sealed class MainShellForm : Form
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private bool TryHandleCharacterPageEnter()
+    {
+        var action = CharacterCreateUx.DecideEnter(
+            nameFocused: _txtNewCharName.ContainsFocus,
+            classFocused: _cmbClass.ContainsFocus,
+            classDroppedDown: _cmbClass.DroppedDown,
+            characterFocused: _cmbCharacters.ContainsFocus,
+            characterDroppedDown: _cmbCharacters.DroppedDown,
+            buttonFocused: ActiveControl is Button);
+        switch (action)
+        {
+            case CharacterCreateUx.EnterAction.Create:
+                _ = CreateCharacterAsync();
+                return true;
+            case CharacterCreateUx.EnterAction.EnterGame:
+                _ = ApplySelectedCharacterAsync();
+                return true;
+            default:
+                return false;
+        }
     }
 
     private void MainShell_KeyUp(object? sender, KeyEventArgs e)
@@ -5738,6 +5953,10 @@ public sealed class MainShellForm : Form
         LoginShell.StyleSecondaryCta(_btnDisconnect);
         LoginShell.StyleSecondaryCta(_btnRetry);
         LoginShell.StyleSecondaryCta(_btnAddServer);
+        LoginShell.StylePrimaryCta(_btnEnterGame);
+        LoginShell.StylePrimaryCta(_btnCharCreate);
+        LoginShell.StyleSecondaryCta(_btnCharRefresh);
+        RefreshCharacterActions();
         _mapScroll.BackColor = MapSurfaceBackColor;
         _picMap.BackColor = MapSurfaceBackColor;
         _worldHost.BackColor = MapSurfaceBackColor;
@@ -6932,7 +7151,7 @@ public sealed class MainShellForm : Form
 
         public string Label { get; } = label;
 
-        public override string ToString() => Label;
+        public override string ToString() => string.IsNullOrWhiteSpace(Label) ? Id.ToString() : Label;
     }
 
     private sealed class ShopPickRow
@@ -7132,6 +7351,10 @@ public sealed class MainShellForm : Form
     }
 
     internal TextBox NewCharNameTextBoxForTest => _txtNewCharName;
+
+    internal string CreateHintTextForTest => _lblCreateHint.Text;
+
+    internal bool CharacterCreateEnabledForTest => _btnCharCreate.Enabled;
 
     internal ComboBox CharactersComboForTest => _cmbCharacters;
 

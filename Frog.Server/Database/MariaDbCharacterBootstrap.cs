@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Frog.Core;
+using Frog.Core.Character;
 using Frog.Core.Models;
 using MySqlConnector;
 

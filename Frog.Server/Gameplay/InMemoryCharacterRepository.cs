@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Frog.Application.Gameplay;
+using Frog.Core.Character;
 using Frog.Core.Gameplay;
 using Frog.Server.Database;
 
