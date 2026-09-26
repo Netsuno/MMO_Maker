@@ -10,26 +10,34 @@ internal sealed class Phase8CommonEventEditorPanel : Phase8EditorPanelBase
     private readonly TextBox _name = new() { Width = 320 };
     private readonly MapEventPagesEditorPanel _pages = new() { Dock = DockStyle.Fill };
 
-    public Phase8CommonEventEditorPanel()
+    public Phase8CommonEventEditorPanel(bool showName = true)
     {
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = showName ? 2 : 1,
             Padding = new Padding(4),
         };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var nameRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Padding = new Padding(4) };
-        nameRow.Controls.Add(new Label { Text = "Nom", AutoSize = true, Margin = new Padding(0, 8, 8, 0) });
-        nameRow.Controls.Add(_name);
-        root.Controls.Add(nameRow, 0, 0);
-        root.Controls.Add(_pages, 0, 1);
+        if (showName)
+        {
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var nameRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Padding = new Padding(4) };
+            nameRow.Controls.Add(new Label { Text = "Nom", AutoSize = true, Margin = new Padding(0, 8, 8, 0) });
+            nameRow.Controls.Add(_name);
+            root.Controls.Add(nameRow, 0, 0);
+            root.Controls.Add(_pages, 0, 1);
+            _name.TextChanged += (_, _) => NotifyChanged();
+        }
+        else
+        {
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.Controls.Add(_pages, 0, 0);
+        }
+
         Controls.Add(root);
-
-        _name.TextChanged += (_, _) => NotifyChanged();
         _pages.PagesChanged += () => NotifyChanged();
     }
 

@@ -455,6 +455,7 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Inn), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Inn));
             mMap.DropDownItems.Add("Événements carte…", null, (_, _) => BrowseMapEvents());
             mMap.DropDownItems.Add("Contenu Phase 8…", null, (_, _) => BrowsePhase8Content());
+            mMap.DropDownItems.Add("Événements communs…", null, (_, _) => BrowseCommonEvents());
             mMap.DropDownItems.Add("Actualiser marqueurs événements", null, (_, _) => RefreshMapEventMarkers());
             mMap.DropDownItems.Add(
                 new ToolStripMenuItem("Astuce : Ctrl+clic droit sur la carte = menu événements (tuile sous curseur)")
@@ -4039,6 +4040,23 @@ public sealed class MainForm : Form
         }
 
         using var dlg = new Phase8.Phase8ContentBrowseDialog(_phase8ContentService);
+        dlg.ShowDialog(GetDialogOwner());
+    }
+
+    internal void BrowseCommonEvents()
+    {
+        if (_phase8ContentService is null || !_phase8ContentService.IsAvailable)
+        {
+            MessageBox.Show(
+                GetDialogOwner(),
+                "Événements communs nécessitent PostgreSQL (FROG_POSTGRES_CONNECTION_STRING ou appsettings.Local.json).",
+                "Événements communs",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        using var dlg = new Phase8.CommonEventsEditorDialog(_phase8ContentService);
         dlg.ShowDialog(GetDialogOwner());
     }
 
