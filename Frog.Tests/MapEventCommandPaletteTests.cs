@@ -26,6 +26,8 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.BranchSwitchId,
                 MapEventCommandPalette.BranchVariableId,
                 MapEventCommandPalette.SetWeatherId,
+                MapEventCommandPalette.ShowPictureId,
+                MapEventCommandPalette.ErasePictureId,
             ],
             ids);
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
@@ -36,6 +38,8 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Ouvrir boutique");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Si variable");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer météo");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Afficher image");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Effacer image");
     }
 
     [Theory]

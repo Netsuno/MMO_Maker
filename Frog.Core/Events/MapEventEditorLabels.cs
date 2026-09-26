@@ -62,7 +62,17 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.LearnProfession => "Apprendre métier",
         MapEventCommandDiscriminators.OpenShop => "Ouvrir boutique",
         MapEventCommandDiscriminators.SetWeather => "Changer météo",
+        MapEventCommandDiscriminators.ShowPicture => "Afficher image",
+        MapEventCommandDiscriminators.ErasePicture => "Effacer image",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
+    };
+
+    public static string PictureBlend(string? blend) => blend switch
+    {
+        MapEventPicture.BlendNormal => "Normal",
+        MapEventPicture.BlendAdd => "Addition",
+        MapEventPicture.BlendSubtract => "Soustraction",
+        _ => string.IsNullOrWhiteSpace(blend) ? "Synthèse" : blend.Trim(),
     };
 
     public static string WeatherKind(string? kind) => kind switch
@@ -103,6 +113,11 @@ public static class MapEventEditorLabels
         "shopName" => "Nom",
         "shopPick" => "Boutique",
         "weatherKind" => "Météo",
+        "pictureId" => "Numéro",
+        "x" => "X",
+        "y" => "Y",
+        "opacity" => "Opacité",
+        "blend" => "Synthèse",
         "condition" => "Si",
         "thenCommands" => "Alors",
         "elseCommands" => "Sinon",
@@ -244,6 +259,9 @@ public static class MapEventEditorLabels
             MapEventCommandDiscriminators.OpenShop => SummarizeOpenShop(root),
             MapEventCommandDiscriminators.SetWeather =>
                 $"Changer météo : {WeatherKind(ReadString(root, "weatherKind"))}",
+            MapEventCommandDiscriminators.ShowPicture => SummarizeShowPicture(root),
+            MapEventCommandDiscriminators.ErasePicture =>
+                $"Effacer image {ReadInt(root, "pictureId")}",
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };
@@ -286,6 +304,22 @@ public static class MapEventEditorLabels
         }
 
         return $"{title} : {Clip(file, 28)} · vol. {ReadInt(root, "volume")}";
+    }
+
+    private static string SummarizeShowPicture(JsonElement root)
+    {
+        var asset = ReadString(root, "asset");
+        var file = asset;
+        var slash = asset.LastIndexOf('/');
+        if (slash >= 0 && slash < asset.Length - 1)
+        {
+            file = asset[(slash + 1)..];
+        }
+
+        var where = $"({ReadInt(root, "x")}, {ReadInt(root, "y")})";
+        return string.IsNullOrWhiteSpace(file)
+            ? $"Afficher image {ReadInt(root, "pictureId")} {where}"
+            : $"Afficher image {ReadInt(root, "pictureId")} : {Clip(file, 28)} {where} · {PictureBlend(ReadString(root, "blend"))}";
     }
 
     private static string SummarizeOpenShop(JsonElement root)

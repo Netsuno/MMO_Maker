@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Frog.Application.Gameplay;
 using Frog.Core.Enums;
+using Frog.Core.Events;
 using Frog.Server.Services;
 
 namespace Frog.Server.Models;
@@ -56,6 +57,23 @@ public sealed class Session
     public bool WeatherOverrideDroppedByMapChange { get; private set; }
 
     public void AcknowledgeWeatherOverrideDrop() => WeatherOverrideDroppedByMapChange = false;
+
+    /// <summary>
+    /// Images d'écran de la session (<c>show_picture</c> / <c>erase_picture</c>).
+    /// Elles restent jusqu'à effacement. Pas un champ du Hello.
+    /// </summary>
+    public Dictionary<int, MapEventShownPicture> Pictures { get; } = new();
+
+    public void ApplyPictureOp(MapEventPictureOp op)
+    {
+        if (op.Erase)
+        {
+            Pictures.Remove(op.PictureId);
+            return;
+        }
+
+        Pictures[op.PictureId] = op.ToShown();
+    }
 
     /// <summary>Run donjon/raid courant ; <see cref="Guid.Empty"/> = overworld.</summary>
     public Guid InstanceId { get; set; }

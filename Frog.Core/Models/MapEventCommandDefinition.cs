@@ -69,6 +69,8 @@ public static class MapEventCommandDiscriminators
     public const string LearnProfession = "learn_profession";
     public const string OpenShop = "open_shop";
     public const string SetWeather = "set_weather";
+    public const string ShowPicture = "show_picture";
+    public const string ErasePicture = "erase_picture";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -76,6 +78,7 @@ public static class MapEventCommandDiscriminators
         SetSwitch, SetVariable, AddVariable, SubVariable,
         GiveItem, TakeItem, GiveGold, TakeGold, StartQuest, AdvanceQuest, TurnInQuest,
         Teleport, Wait, CallCommonEvent, LearnProfession, OpenShop, SetWeather,
+        ShowPicture, ErasePicture,
     };
 
     public static bool IsKnown(string discriminator) => All.Contains(discriminator);

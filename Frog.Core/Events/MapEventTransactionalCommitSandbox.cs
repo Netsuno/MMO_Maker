@@ -55,6 +55,9 @@ public sealed class MapEventWorldScratch
     /// <summary>Intent <c>set_weather</c> (kind canonique). Null = pas de changement.</summary>
     public string? WeatherKind { get; set; }
 
+    /// <summary>Images d'écran après <c>show_picture</c> / <c>erase_picture</c> (numéro → image).</summary>
+    public Dictionary<int, MapEventShownPicture> Pictures { get; private set; } = new();
+
     public MapEventWorldScratch Clone() =>
         new()
         {
@@ -69,6 +72,7 @@ public sealed class MapEventWorldScratch
             DialogueId = DialogueId,
             ShopId = ShopId,
             WeatherKind = WeatherKind,
+            Pictures = new Dictionary<int, MapEventShownPicture>(Pictures),
         };
 
     public void ReplaceWith(MapEventWorldScratch other)
@@ -85,6 +89,7 @@ public sealed class MapEventWorldScratch
         DialogueId = other.DialogueId;
         ShopId = other.ShopId;
         WeatherKind = other.WeatherKind;
+        Pictures = new Dictionary<int, MapEventShownPicture>(other.Pictures);
     }
 }
 
@@ -423,6 +428,30 @@ public sealed class MapEventTransactionalCommitSandbox
                 }
 
                 world.WeatherKind = weatherKind;
+                return null;
+
+            case MapEventCommandDiscriminators.ShowPicture:
+                if (!MapEventParameterSchemas.TryParseShowPicture(
+                        command.ParameterJson,
+                        out var shown,
+                        out var showPictureErr))
+                {
+                    return showPictureErr;
+                }
+
+                world.Pictures[shown.PictureId] = shown;
+                return null;
+
+            case MapEventCommandDiscriminators.ErasePicture:
+                if (!MapEventParameterSchemas.TryParseErasePicture(
+                        command.ParameterJson,
+                        out var eraseId,
+                        out var eraseErr))
+                {
+                    return eraseErr;
+                }
+
+                world.Pictures.Remove(eraseId);
                 return null;
 
             default:

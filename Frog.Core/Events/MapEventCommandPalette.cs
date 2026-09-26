@@ -4,7 +4,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, audio, boutique, interrupteur, variable, branche (interrupteur ou variable).
+/// Palette : texte, choix, image, audio, boutique, interrupteur, variable, branche, météo.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -26,6 +26,8 @@ public static class MapEventCommandPalette
     public const string BranchSwitchId = "branch_switch";
     public const string BranchVariableId = "branch_variable";
     public const string SetWeatherId = "set_weather";
+    public const string ShowPictureId = "show_picture";
+    public const string ErasePictureId = "erase_picture";
 
     public const string DefaultSwitchId = "interrupteur_1";
     public const string DefaultVariableId = "variable_1";
@@ -44,6 +46,8 @@ public static class MapEventCommandPalette
         new(BranchSwitchId, "Si interrupteur"),
         new(BranchVariableId, "Si variable"),
         new(SetWeatherId, "Changer météo"),
+        new(ShowPictureId, "Afficher image"),
+        new(ErasePictureId, "Effacer image"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -104,6 +108,20 @@ public static class MapEventCommandPalette
             SetWeatherId => Command(
                 MapEventCommandDiscriminators.SetWeather,
                 new { weatherKind = "clear" }),
+            ShowPictureId => Command(
+                MapEventCommandDiscriminators.ShowPicture,
+                new
+                {
+                    pictureId = 1,
+                    asset = MapEventPicture.DefaultAsset,
+                    x = 0,
+                    y = 0,
+                    opacity = MapEventPicture.MaxOpacity,
+                    blend = MapEventPicture.BlendNormal,
+                }),
+            ErasePictureId => Command(
+                MapEventCommandDiscriminators.ErasePicture,
+                new { pictureId = 1 }),
             _ => null,
         };
 
