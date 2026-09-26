@@ -1,6 +1,10 @@
 namespace Frog.Core.Models;
 
-/// <summary>Définition éditable d’une classe de personnage avec identité stable.</summary>
+/// <summary>
+/// Classe / métier éditable : nom, notes (description), PV/PM, caractéristiques 1–99,
+/// sort de départ optionnel et équipement par défaut (arme, armure).
+/// Les emplacements suivent <c>EquipmentSlotKind</c> déjà en jeu. Pas un champ de protocole.
+/// </summary>
 public sealed class ClassDefinition
 {
     public const int MaxNameLength = 120;
@@ -31,6 +35,12 @@ public sealed class ClassDefinition
     public int Luck { get; set; }
 
     public Guid? StartingSpellId { get; set; }
+
+    /// <summary>Objet publié de type arme, indice d’équipement par défaut. Vide : aucun.</summary>
+    public Guid? DefaultWeaponItemId { get; set; }
+
+    /// <summary>Objet publié de type armure, indice d’équipement par défaut. Vide : aucun.</summary>
+    public Guid? DefaultArmorItemId { get; set; }
 
     public bool Validate(out string? error)
     {
@@ -72,6 +82,26 @@ public sealed class ClassDefinition
         if (StartingSpellId == Guid.Empty)
         {
             error = "L’identifiant du sort de départ est invalide.";
+            return false;
+        }
+
+        if (DefaultWeaponItemId == Guid.Empty)
+        {
+            error = "L’identifiant de l’arme par défaut est invalide.";
+            return false;
+        }
+
+        if (DefaultArmorItemId == Guid.Empty)
+        {
+            error = "L’identifiant de l’armure par défaut est invalide.";
+            return false;
+        }
+
+        if (DefaultWeaponItemId is Guid weapon
+            && DefaultArmorItemId is Guid armor
+            && weapon == armor)
+        {
+            error = "L’arme et l’armure par défaut doivent être des objets distincts.";
             return false;
         }
 

@@ -71,3 +71,9 @@ public interface IPublishedClassCatalog
 {
     Task<IReadOnlyList<ClassDefinition>> ListPublishedAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>Empêche de supprimer un objet encore posé comme équipement par défaut d’une classe.</summary>
+public interface IClassItemReferenceCatalog
+{
+    Task<bool> IsItemReferencedAsync(Guid itemId, CancellationToken cancellationToken = default);
+}

@@ -1,4 +1,5 @@
 using Frog.Application.Content;
+using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
 {
     private readonly FrogDbContextGate _gate;
     private readonly ISpellRepository _spells;
+    private readonly IPublishedItemCatalog _items;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
 
@@ -18,10 +20,12 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
     public PostgresClassRepository(
         FrogDbContextGate gate,
         ISpellRepository? spells = null,
+        IPublishedItemCatalog? items = null,
         TimeProvider? clock = null)
     {
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _spells = spells ?? new PostgresSpellRepository(gate);
+        _items = items ?? new PostgresItemRepository(gate);
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -45,6 +49,12 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
         {
             return new SaveClassResult.ValidationFailed(
                 "Le sort de départ doit exister dans le catalogue publié.");
+        }
+
+        var equipmentError = await ValidateEquipmentAsync(request.Definition, ct).ConfigureAwait(false);
+        if (equipmentError is not null)
+        {
+            return new SaveClassResult.ValidationFailed(equipmentError);
         }
 
         if (!await _saveGate.WaitAsync(0, ct).ConfigureAwait(false))
@@ -116,6 +126,8 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
                             .SetProperty(c => c.Dex, request.Definition.Dex)
                             .SetProperty(c => c.Luck, request.Definition.Luck)
                             .SetProperty(c => c.StartingSpellId, request.Definition.StartingSpellId)
+                            .SetProperty(c => c.DefaultWeaponItemId, request.Definition.DefaultWeaponItemId)
+                            .SetProperty(c => c.DefaultArmorItemId, request.Definition.DefaultArmorItemId)
                             .SetProperty(c => c.Status, ContentPublishStatus.Draft)
                             .SetProperty(c => c.UpdatedAtUtc, now),
                         cancellationToken)
@@ -182,6 +194,8 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             Dex = entity.Dex,
             Luck = entity.Luck,
             StartingSpellId = entity.StartingSpellId,
+            DefaultWeaponItemId = entity.DefaultWeaponItemId,
+            DefaultArmorItemId = entity.DefaultArmorItemId,
         });
         db.ClassPublicationHistory.Add(new ClassPublicationHistoryEntity
         {
@@ -391,6 +405,8 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
         Dex = definition.Dex,
         Luck = definition.Luck,
         StartingSpellId = definition.StartingSpellId,
+        DefaultWeaponItemId = definition.DefaultWeaponItemId,
+        DefaultArmorItemId = definition.DefaultArmorItemId,
         CreatedAtUtc = now,
         UpdatedAtUtc = now,
     };
@@ -412,6 +428,8 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             Dex = entity.Dex,
             Luck = entity.Luck,
             StartingSpellId = entity.StartingSpellId,
+            DefaultWeaponItemId = entity.DefaultWeaponItemId,
+            DefaultArmorItemId = entity.DefaultArmorItemId,
         },
         Revision = entity.Revision,
         Status = entity.Status,
@@ -432,7 +450,36 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
         Dex = snapshot.Dex,
         Luck = snapshot.Luck,
         StartingSpellId = snapshot.StartingSpellId,
+        DefaultWeaponItemId = snapshot.DefaultWeaponItemId,
+        DefaultArmorItemId = snapshot.DefaultArmorItemId,
     };
+
+    private async Task<string?> ValidateEquipmentAsync(
+        ClassDefinition definition,
+        CancellationToken cancellationToken)
+    {
+        if (definition.DefaultWeaponItemId is Guid weaponId)
+        {
+            var weapon = await _items.LoadPublishedByIdAsync(weaponId, cancellationToken)
+                .ConfigureAwait(false);
+            if (weapon is null || weapon.Kind != ItemType.Weapon)
+            {
+                return "L’arme par défaut doit être un objet publié de type arme.";
+            }
+        }
+
+        if (definition.DefaultArmorItemId is Guid armorId)
+        {
+            var armor = await _items.LoadPublishedByIdAsync(armorId, cancellationToken)
+                .ConfigureAwait(false);
+            if (armor is null || armor.Kind != ItemType.Armor)
+            {
+                return "L’armure par défaut doit être un objet publié de type armure.";
+            }
+        }
+
+        return null;
+    }
 
     private static string? NormalizeDescription(string? description)
         => string.IsNullOrWhiteSpace(description) ? null : description.Trim();

@@ -10,6 +10,7 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
     private IShopItemReferenceCatalog? _shopReferences;
     private IResourceItemReferenceCatalog? _resourceReferences;
     private IActorItemReferenceCatalog? _actorReferences;
+    private IClassItemReferenceCatalog? _classReferences;
 
     public InMemoryItemRepository(ContentRepositoryCapabilities? capabilities = null)
     {
@@ -32,6 +33,11 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
     internal void RegisterActorReferences(IActorItemReferenceCatalog actorReferences)
     {
         _actorReferences = actorReferences ?? throw new ArgumentNullException(nameof(actorReferences));
+    }
+
+    internal void RegisterClassReferences(IClassItemReferenceCatalog classReferences)
+    {
+        _classReferences = classReferences ?? throw new ArgumentNullException(nameof(classReferences));
     }
 
     public Task<SaveItemResult> SaveAsync(
@@ -217,6 +223,14 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
         {
             return new DeleteItemResult.Referenced(
                 "L’objet est référencé comme équipement de départ par un héros.");
+        }
+
+        if (_classReferences is not null
+            && await _classReferences.IsItemReferencedAsync(itemId, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            return new DeleteItemResult.Referenced(
+                "L’objet est référencé comme équipement par défaut par une classe.");
         }
 
         if (!_drafts.TryRemove(itemId, out _))

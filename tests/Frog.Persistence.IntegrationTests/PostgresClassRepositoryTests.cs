@@ -213,5 +213,7 @@ public sealed class PostgresClassRepositoryTests
         Assert.Equal(expected.Dex, actual.Dex);
         Assert.Equal(expected.Luck, actual.Luck);
         Assert.Equal(expected.StartingSpellId, actual.StartingSpellId);
+        Assert.Equal(expected.DefaultWeaponItemId, actual.DefaultWeaponItemId);
+        Assert.Equal(expected.DefaultArmorItemId, actual.DefaultArmorItemId);
     }
 }

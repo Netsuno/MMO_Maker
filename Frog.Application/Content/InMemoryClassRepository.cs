@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Frog.Core.Enums;
 using Frog.Core.Models;
 
 namespace Frog.Application.Content;
@@ -6,22 +7,31 @@ namespace Frog.Application.Content;
 public sealed class InMemoryClassRepository :
     IClassRepository,
     IPublishedClassCatalog,
-    IClassSpellReferenceCatalog
+    IClassSpellReferenceCatalog,
+    IClassItemReferenceCatalog
 {
     private readonly ISpellRepository _spells;
+    private readonly IPublishedItemCatalog? _items;
     private readonly ConcurrentDictionary<Guid, DraftRecord> _drafts = new();
     private readonly ConcurrentDictionary<Guid, PublishedRecord> _published = new();
     private IActorClassReferenceCatalog? _actorReferences;
 
     public InMemoryClassRepository(
         ISpellRepository spells,
-        ContentRepositoryCapabilities? capabilities = null)
+        ContentRepositoryCapabilities? capabilities = null,
+        IPublishedItemCatalog? items = null)
     {
         _spells = spells ?? throw new ArgumentNullException(nameof(spells));
+        _items = items;
         Capabilities = capabilities ?? ContentRepositoryCapabilities.InMemoryTest;
         if (spells is InMemorySpellRepository spellRepository)
         {
             spellRepository.RegisterClassReferences(this);
+        }
+
+        if (items is InMemoryItemRepository itemRepository)
+        {
+            itemRepository.RegisterClassReferences(this);
         }
     }
 
@@ -53,6 +63,13 @@ public sealed class InMemoryClassRepository :
         {
             return new SaveClassResult.ValidationFailed(
                 "Le sort de départ doit exister dans le catalogue publié.");
+        }
+
+        var equipmentError = await ValidateEquipmentAsync(request.Definition, cancellationToken)
+            .ConfigureAwait(false);
+        if (equipmentError is not null)
+        {
+            return new SaveClassResult.ValidationFailed(equipmentError);
         }
 
         Guid id;
@@ -232,6 +249,55 @@ public sealed class InMemoryClassRepository :
             || _published.Values.Any(published => published.Definition.StartingSpellId == spellId);
         return Task.FromResult(referenced);
     }
+
+    public Task<bool> IsItemReferencedAsync(
+        Guid itemId,
+        CancellationToken cancellationToken = default)
+    {
+        var referenced = _drafts.Values.Any(draft => ReferencesItem(draft.Definition, itemId))
+            || _published.Values.Any(published => ReferencesItem(published.Definition, itemId));
+        return Task.FromResult(referenced);
+    }
+
+    private async Task<string?> ValidateEquipmentAsync(
+        ClassDefinition definition,
+        CancellationToken cancellationToken)
+    {
+        if (definition.DefaultWeaponItemId is null && definition.DefaultArmorItemId is null)
+        {
+            return null;
+        }
+
+        if (_items is null)
+        {
+            return "Le catalogue d’objets est requis pour l’équipement par défaut.";
+        }
+
+        if (definition.DefaultWeaponItemId is Guid weaponId)
+        {
+            var weapon = await _items.LoadPublishedByIdAsync(weaponId, cancellationToken)
+                .ConfigureAwait(false);
+            if (weapon is null || weapon.Kind != ItemType.Weapon)
+            {
+                return "L’arme par défaut doit être un objet publié de type arme.";
+            }
+        }
+
+        if (definition.DefaultArmorItemId is Guid armorId)
+        {
+            var armor = await _items.LoadPublishedByIdAsync(armorId, cancellationToken)
+                .ConfigureAwait(false);
+            if (armor is null || armor.Kind != ItemType.Armor)
+            {
+                return "L’armure par défaut doit être un objet publié de type armure.";
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ReferencesItem(ClassDefinition definition, Guid itemId)
+        => definition.DefaultWeaponItemId == itemId || definition.DefaultArmorItemId == itemId;
 
     private sealed record DraftRecord(
         Guid Id,

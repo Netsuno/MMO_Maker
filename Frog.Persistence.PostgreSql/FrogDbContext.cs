@@ -489,9 +489,19 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.Description).HasMaxLength(ClassDefinition.MaxDescriptionLength);
             e.Property(x => x.Status).HasConversion<byte>();
             e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasIndex(x => x.DefaultWeaponItemId);
+            e.HasIndex(x => x.DefaultArmorItemId);
             e.HasOne<SpellEntity>()
                 .WithMany()
                 .HasForeignKey(x => x.StartingSpellId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.DefaultWeaponItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.DefaultArmorItemId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.ToTable(t =>
             {
@@ -502,6 +512,10 @@ public sealed class FrogDbContext : DbContext
                     + "AND vit >= 1 AND vit <= 99 AND int >= 1 AND int <= 99 "
                     + "AND dex >= 1 AND dex <= 99 AND luck >= 1 AND luck <= 99");
                 t.HasCheckConstraint("ck_classes_non_negative_revision", "revision >= 0");
+                t.HasCheckConstraint(
+                    "ck_classes_default_equipment_distinct",
+                    "default_weapon_item_id IS NULL OR default_armor_item_id IS NULL "
+                    + "OR default_weapon_item_id <> default_armor_item_id");
             });
         });
 
@@ -516,9 +530,19 @@ public sealed class FrogDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.ClassId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.DefaultWeaponItemId);
+            e.HasIndex(x => x.DefaultArmorItemId);
             e.HasOne<SpellEntity>()
                 .WithMany()
                 .HasForeignKey(x => x.StartingSpellId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.DefaultWeaponItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ItemEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.DefaultArmorItemId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.ToTable(t =>
             {
@@ -530,6 +554,10 @@ public sealed class FrogDbContext : DbContext
                     "str >= 1 AND str <= 99 AND agi >= 1 AND agi <= 99 "
                     + "AND vit >= 1 AND vit <= 99 AND int >= 1 AND int <= 99 "
                     + "AND dex >= 1 AND dex <= 99 AND luck >= 1 AND luck <= 99");
+                t.HasCheckConstraint(
+                    "ck_class_published_snapshots_default_equipment_distinct",
+                    "default_weapon_item_id IS NULL OR default_armor_item_id IS NULL "
+                    + "OR default_weapon_item_id <> default_armor_item_id");
             });
         });
 

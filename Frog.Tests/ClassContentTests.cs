@@ -1,7 +1,10 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Frog.Application.Content;
+using Frog.Core.Constants;
 using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.Models;
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -47,6 +50,16 @@ public sealed class ClassDefinitionValidationTests
 
         definition = ClassWorkspaceSessionTests.CreateDefinition("Sort invalide");
         definition.StartingSpellId = Guid.Empty;
+        Assert.False(definition.Validate(out _));
+
+        definition = ClassWorkspaceSessionTests.CreateDefinition("Arme vide");
+        definition.DefaultWeaponItemId = Guid.Empty;
+        Assert.False(definition.Validate(out _));
+
+        definition = ClassWorkspaceSessionTests.CreateDefinition("Même objet");
+        var same = Guid.NewGuid();
+        definition.DefaultWeaponItemId = same;
+        definition.DefaultArmorItemId = same;
         Assert.False(definition.Validate(out _));
     }
 }
@@ -228,5 +241,154 @@ public sealed class PublishedClassConsumerTests
         var loaded = await consumer.LoadPublishedAsync();
 
         Assert.Equal("Paladin publié", Assert.Single(loaded).Name);
+    }
+}
+
+/// <summary>
+/// Équipement par défaut des classes. Hello reste 11. Tuiles TileAsset restent 48.
+/// </summary>
+public sealed class ClassDefaultEquipmentTests
+{
+    [Fact]
+    public void Protocol_Stays11_TileAssetStays48_AndClassSheetLabelsExist()
+    {
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+        Assert.Equal(EquipmentSlotKind.Weapon, (EquipmentSlotKind)1);
+        Assert.Equal(EquipmentSlotKind.Armor, (EquipmentSlotKind)2);
+
+        var root = RepoRoot();
+        var protocol = File.ReadAllText(Path.Combine(root, "Frog.Core", "Constants", "FrogWireProtocol.cs"));
+        var tiles = File.ReadAllText(Path.Combine(root, "Frog.Core", "Constants", "TileAssetMetrics.cs"));
+        var form = File.ReadAllText(Path.Combine(root, "Frog.Editor", "Forms", "GameData", "GameDataForm.cs"));
+        Assert.Contains("Version = 11", protocol, StringComparison.Ordinal);
+        Assert.DoesNotContain("Version = 12", protocol, StringComparison.Ordinal);
+        Assert.Contains("TargetTileSizePixels = 48", tiles, StringComparison.Ordinal);
+        Assert.Contains("\"Classes\"", form, StringComparison.Ordinal);
+        Assert.Contains("Notes", form, StringComparison.Ordinal);
+        Assert.Contains("Arme par défaut", form, StringComparison.Ordinal);
+        Assert.Contains("Armure par défaut", form, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SaveDraft_Publish_RoundTrip_KeepsDefaultEquipment_AndBlocksItemDelete()
+    {
+        var spells = new InMemorySpellRepository();
+        var items = new InMemoryItemRepository();
+        var classes = new InMemoryClassRepository(spells, items: items);
+        var weaponId = await PublishItemAsync(items, "Épée de classe", ItemType.Weapon);
+        var armorId = await PublishItemAsync(items, "Cotte de classe", ItemType.Armor);
+        var session = new ClassWorkspaceSession(classes);
+        var definition = ClassWorkspaceSessionTests.CreateDefinition("Guerrier équipé");
+        definition.Description = "Notes de la classe.";
+        definition.DefaultWeaponItemId = weaponId;
+        definition.DefaultArmorItemId = armorId;
+        session.AdoptNewDraft(definition);
+
+        var saved = Assert.IsType<SaveClassResult.Success>(
+            await session.SaveCurrentAsync(SaveContentIntent.SaveDraft));
+        var published = Assert.IsType<SaveClassResult.Success>(
+            await session.SaveCurrentAsync(SaveContentIntent.Publish));
+        Assert.Equal(2, published.PublishedRevision);
+
+        session.Current!.Description = "Notes brouillon.";
+        session.Current.DefaultArmorItemId = null;
+        session.MarkDirty();
+        Assert.IsType<SaveClassResult.Success>(
+            await session.SaveCurrentAsync(SaveContentIntent.SaveDraft));
+
+        var draft = (await classes.LoadByIdAsync(saved.ClassId))!.Definition;
+        var snapshot = (await classes.LoadPublishedByIdAsync(saved.ClassId))!.Definition;
+        Assert.Equal("Notes brouillon.", draft.Description);
+        Assert.Equal(weaponId, draft.DefaultWeaponItemId);
+        Assert.Null(draft.DefaultArmorItemId);
+        Assert.Equal("Notes de la classe.", snapshot.Description);
+        Assert.Equal(weaponId, snapshot.DefaultWeaponItemId);
+        Assert.Equal(armorId, snapshot.DefaultArmorItemId);
+
+        session.DuplicateCurrent();
+        Assert.Equal(weaponId, session.Current!.DefaultWeaponItemId);
+        Assert.Null(session.Current.DefaultArmorItemId);
+
+        Assert.IsType<DeleteItemResult.Referenced>(await items.DeleteAsync(weaponId));
+        Assert.IsType<DeleteItemResult.Referenced>(await items.DeleteAsync(armorId));
+
+        Assert.True(await session.OpenAsync(saved.ClassId));
+        Assert.IsType<DeleteClassResult.Success>(await session.DeleteCurrentAsync());
+        Assert.IsType<DeleteItemResult.Success>(await items.DeleteAsync(weaponId));
+        Assert.IsType<DeleteItemResult.Success>(await items.DeleteAsync(armorId));
+    }
+
+    [Fact]
+    public async Task Save_RejectsWrongItemKind_UnpublishedGear_AndMissingCatalog()
+    {
+        var spells = new InMemorySpellRepository();
+        var items = new InMemoryItemRepository();
+        var classes = new InMemoryClassRepository(spells, items: items);
+        var potionId = await PublishItemAsync(items, "Potion", ItemType.Consumable);
+        var definition = ClassWorkspaceSessionTests.CreateDefinition("Mauvaise arme");
+        definition.DefaultWeaponItemId = potionId;
+        Assert.IsType<SaveClassResult.ValidationFailed>(await classes.SaveAsync(new SaveClassRequest
+        {
+            Definition = definition,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }));
+
+        definition.DefaultWeaponItemId = Guid.NewGuid();
+        Assert.IsType<SaveClassResult.ValidationFailed>(await classes.SaveAsync(new SaveClassRequest
+        {
+            Definition = definition,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.SaveDraft,
+        }));
+
+        var bare = new InMemoryClassRepository(spells);
+        definition.DefaultWeaponItemId = potionId;
+        Assert.IsType<SaveClassResult.ValidationFailed>(await bare.SaveAsync(new SaveClassRequest
+        {
+            Definition = definition,
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.SaveDraft,
+        }));
+    }
+
+    private static async Task<Guid> PublishItemAsync(
+        InMemoryItemRepository items,
+        string name,
+        ItemType kind)
+    {
+        var saved = Assert.IsType<SaveItemResult.Success>(await items.SaveAsync(new SaveItemRequest
+        {
+            Definition = new ItemDefinition
+            {
+                Id = Guid.NewGuid(),
+                Name = name,
+                Kind = kind,
+                IconLogicalPath = $"icons/items/{Guid.NewGuid():N}.png",
+                MaxStack = 1,
+                BuyPrice = 10,
+                SellPrice = 4,
+            },
+            ExpectedRevision = 0,
+            Intent = SaveContentIntent.Publish,
+        }));
+        return saved.ItemId;
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "Frog.Creator.sln")))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Frog.Creator.sln introuvable.");
     }
 }

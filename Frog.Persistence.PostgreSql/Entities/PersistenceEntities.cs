@@ -260,6 +260,8 @@ public sealed class ClassEntity
     public int Dex { get; set; }
     public int Luck { get; set; }
     public Guid? StartingSpellId { get; set; }
+    public Guid? DefaultWeaponItemId { get; set; }
+    public Guid? DefaultArmorItemId { get; set; }
     public ContentPublishStatus Status { get; set; }
     public long Revision { get; set; }
     public long? PublishedRevision { get; set; }
@@ -286,6 +288,8 @@ public sealed class ClassPublishedSnapshotEntity
     public int Dex { get; set; }
     public int Luck { get; set; }
     public Guid? StartingSpellId { get; set; }
+    public Guid? DefaultWeaponItemId { get; set; }
+    public Guid? DefaultArmorItemId { get; set; }
     public ClassEntity Class { get; set; } = null!;
 }
 
