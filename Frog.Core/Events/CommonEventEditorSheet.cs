@@ -285,14 +285,9 @@ public static class CommonEventEditorSheet
         Priority = page.Priority,
         TriggerKind = page.TriggerKind,
         MovementKind = page.MovementKind,
-        RouteWaypoints = page.RouteWaypoints
-            .Select(w => new MapEventRouteWaypoint
-            {
-                TileX = w.TileX,
-                TileY = w.TileY,
-                WaitMs = w.WaitMs,
-            })
-            .ToList(),
+        RouteWaypoints = page.RouteWaypoints.Select(w => w.Copy()).ToList(),
+        RouteRepeat = page.RouteRepeat,
+        RouteSkipIfBlocked = page.RouteSkipIfBlocked,
         AppearanceGraphicId = page.AppearanceGraphicId,
         AppearanceDirection = page.AppearanceDirection,
         BlocksCollision = page.BlocksCollision,

@@ -26,6 +26,9 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     private readonly NumericUpDown _priority = new() { Width = 80, Minimum = 0, Maximum = 9999 };
     private readonly ComboBox _trigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Font = EditorChrome.BodyFont };
     private readonly ComboBox _movement = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Font = EditorChrome.BodyFont };
+    private readonly ComboBox _addStepKind = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Font = EditorChrome.BodyFont };
+    private readonly CheckBox _routeRepeat = new() { Text = "Répéter le trajet", Checked = true, AutoSize = true };
+    private readonly CheckBox _routeSkipIfBlocked = new() { Text = "Ignorer si bloqué", AutoSize = true };
     private readonly DataGridView _waypoints = CreateWaypointGrid();
     private readonly NumericUpDown _appearanceGraphic = new() { Width = 60, Minimum = 0, Maximum = 255 };
     private readonly NumericUpDown _appearanceDirection = new() { Width = 60, Minimum = 0, Maximum = 7 };
@@ -80,11 +83,22 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             _movement.SelectedIndex = 0;
         }
 
+        foreach (var step in MapEventRouteStepKinds.All)
+        {
+            _addStepKind.Items.Add(step);
+        }
+
+        if (_addStepKind.Items.Count > 0)
+        {
+            _addStepKind.SelectedIndex = 0;
+        }
+
         EditorListDraw.UseReadableSelection(_pages);
         EditorListDraw.UseReadableSelection(_conditions);
         EditorListDraw.UseReadableSelection(_commands);
         EditorListDraw.UseReadableChoices(_trigger, MapEventEditorLabels.Trigger);
         EditorListDraw.UseReadableChoices(_movement, MapEventEditorLabels.Movement);
+        EditorListDraw.UseReadableChoices(_addStepKind, MapEventEditorLabels.RouteStep);
         _activePageCaption.Text = MapEventEditorLabels.ActivePageCaption(-1, 0, null);
 
         var root = new TableLayoutPanel
@@ -153,10 +167,15 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         Span(Section("Déplacement"));
         Row("Mouvement", _movement);
 
-        var wpButtons = new FlowLayoutPanel { AutoSize = true };
         var btnAddWp = new Button { Text = "Ajouter une étape", AutoSize = true };
         var btnRemoveWp = new Button { Text = "Retirer l'étape", AutoSize = true };
-        btnAddWp.Click += (_, _) => { _waypoints.Rows.Add(0, 0, 250); OnPageFieldChanged(); };
+        btnAddWp.Click += (_, _) =>
+        {
+            var kind = _addStepKind.SelectedItem as string ?? MapEventRouteStepKinds.Move;
+            var wait = kind == MapEventRouteStepKinds.Wait ? 500 : 250;
+            _waypoints.Rows.Add(0, 0, wait, MapEventEditorLabels.RouteStep(kind));
+            OnPageFieldChanged();
+        };
         btnRemoveWp.Click += (_, _) =>
         {
             if (_waypoints.CurrentRow is { IsNewRow: false } row)
@@ -165,10 +184,29 @@ internal sealed class MapEventPagesEditorPanel : UserControl
                 OnPageFieldChanged();
             }
         };
-        wpButtons.Controls.Add(_waypoints);
-        wpButtons.Controls.Add(btnAddWp);
-        wpButtons.Controls.Add(btnRemoveWp);
-        Row("Trajet", wpButtons);
+        var addRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        addRow.Controls.Add(_addStepKind);
+        addRow.Controls.Add(btnAddWp);
+        addRow.Controls.Add(btnRemoveWp);
+        var routeHint = new Label
+        {
+            AutoSize = true,
+            MaximumSize = new Size(520, 0),
+            ForeColor = Color.DimGray,
+            Text = "Le premier jalon est le départ. Les pas suivants se jouent dans l’ordre : tuile, attente, ou un pas d’une case.",
+        };
+        var routePanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+        };
+        routePanel.Controls.Add(_waypoints);
+        routePanel.Controls.Add(addRow);
+        routePanel.Controls.Add(_routeRepeat);
+        routePanel.Controls.Add(_routeSkipIfBlocked);
+        routePanel.Controls.Add(routeHint);
+        Row("Trajet", routePanel);
 
         Span(Section("Apparence"));
         var appearance = new FlowLayoutPanel { AutoSize = true };
@@ -238,6 +276,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         _priority.ValueChanged += (_, _) => OnPageFieldChanged();
         _trigger.SelectedIndexChanged += (_, _) => OnPageFieldChanged();
         _movement.SelectedIndexChanged += (_, _) => OnPageFieldChanged();
+        _routeRepeat.CheckedChanged += (_, _) => OnPageFieldChanged();
+        _routeSkipIfBlocked.CheckedChanged += (_, _) => OnPageFieldChanged();
         _appearanceGraphic.ValueChanged += (_, _) => OnPageFieldChanged();
         _appearanceDirection.ValueChanged += (_, _) => OnPageFieldChanged();
         _blocksCollision.CheckedChanged += (_, _) => OnPageFieldChanged();
@@ -289,6 +329,12 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     internal NumericUpDown PriorityForTest => _priority;
 
     internal ComboBox MovementForTest => _movement;
+
+    internal ComboBox AddStepKindForTest => _addStepKind;
+
+    internal CheckBox RouteRepeatForTest => _routeRepeat;
+
+    internal CheckBox RouteSkipIfBlockedForTest => _routeSkipIfBlocked;
 
     internal DataGridView WaypointsForTest => _waypoints;
 
@@ -420,6 +466,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             _trigger.SelectedIndex = triggerIndex >= 0 ? triggerIndex : 0;
             var moveIndex = _movement.Items.IndexOf(page.MovementKind);
             _movement.SelectedIndex = moveIndex >= 0 ? moveIndex : 0;
+            _routeRepeat.Checked = page.RouteRepeat != false;
+            _routeSkipIfBlocked.Checked = page.RouteSkipIfBlocked;
             _appearanceGraphic.Value = page.AppearanceGraphicId;
             _appearanceDirection.Value = page.AppearanceDirection;
             _blocksCollision.Checked = page.BlocksCollision;
@@ -427,7 +475,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             _waypoints.Rows.Clear();
             foreach (var wp in page.RouteWaypoints)
             {
-                _waypoints.Rows.Add(wp.TileX, wp.TileY, wp.WaitMs);
+                _waypoints.Rows.Add(wp.TileX, wp.TileY, wp.WaitMs, MapEventEditorLabels.RouteStep(wp.StepKind));
             }
 
             _conditionModels.Clear();
@@ -751,6 +799,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             TriggerKind = _trigger.SelectedItem as string ?? Phase8MapEventTriggerKinds.Action,
             MovementKind = _movement.SelectedItem as string ?? MapEventMovementKinds.Fixed,
             RouteWaypoints = waypoints,
+            RouteRepeat = _routeRepeat.Checked,
+            RouteSkipIfBlocked = _routeSkipIfBlocked.Checked,
             AppearanceGraphicId = (byte)_appearanceGraphic.Value,
             AppearanceDirection = (byte)_appearanceDirection.Value,
             BlocksCollision = _blocksCollision.Checked,
@@ -840,7 +890,9 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             Priority = page.Priority,
             TriggerKind = page.TriggerKind,
             MovementKind = page.MovementKind,
-            RouteWaypoints = page.RouteWaypoints.ToList(),
+            RouteWaypoints = page.RouteWaypoints.Select(w => w.Copy()).ToList(),
+            RouteRepeat = page.RouteRepeat,
+            RouteSkipIfBlocked = page.RouteSkipIfBlocked,
             AppearanceGraphicId = page.AppearanceGraphicId,
             AppearanceDirection = page.AppearanceDirection,
             BlocksCollision = page.BlocksCollision,
@@ -861,8 +913,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     {
         var grid = new DataGridView
         {
-            Width = 360,
-            Height = 90,
+            Width = 460,
+            Height = 110,
             AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
             RowHeadersVisible = false,
@@ -870,6 +922,18 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "X", Width = 60 });
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Y", Width = 60 });
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Attente (ms)", Width = 100 });
+        var type = new DataGridViewComboBoxColumn
+        {
+            HeaderText = "Type",
+            Width = 120,
+            FlatStyle = FlatStyle.Flat,
+        };
+        foreach (var kind in MapEventRouteStepKinds.All)
+        {
+            type.Items.Add(MapEventEditorLabels.RouteStep(kind));
+        }
+
+        grid.Columns.Add(type);
         grid.DataError += (_, e) => e.ThrowException = false;
         return grid;
     }
@@ -881,13 +945,20 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         out string error)
     {
         waypoint = new MapEventRouteWaypoint();
-        if (!TryParseWaypointInt(row.Cells[0].Value, min: 0, max: null, out var tileX, out var xError))
+        if (!MapEventEditorLabels.TryParseRouteStep(Convert.ToString(row.Cells[3].Value), out var stepKind))
+        {
+            error = $"Étape {waypointNumber} : type de pas inconnu.";
+            return false;
+        }
+
+        var absolute = MapEventRouteStepKinds.UsesAbsoluteTile(stepKind);
+        if (!TryParseWaypointInt(row.Cells[0].Value, min: 0, max: null, out var tileX, out var xError, allowEmpty: !absolute))
         {
             error = $"Étape {waypointNumber} : X invalide ({xError}).";
             return false;
         }
 
-        if (!TryParseWaypointInt(row.Cells[1].Value, min: 0, max: null, out var tileY, out var yError))
+        if (!TryParseWaypointInt(row.Cells[1].Value, min: 0, max: null, out var tileY, out var yError, allowEmpty: !absolute))
         {
             error = $"Étape {waypointNumber} : Y invalide ({yError}).";
             return false;
@@ -904,16 +975,40 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             return false;
         }
 
-        waypoint = new MapEventRouteWaypoint { TileX = tileX, TileY = tileY, WaitMs = waitMs };
+        waypoint = new MapEventRouteWaypoint
+        {
+            TileX = tileX,
+            TileY = tileY,
+            WaitMs = waitMs,
+            StepKind = stepKind == MapEventRouteStepKinds.Move ? null : stepKind,
+        };
         error = string.Empty;
         return true;
     }
 
-    private static bool TryParseWaypointInt(object? value, int min, int? max, out int parsed, out string error)
+    private static bool TryParseWaypointInt(
+        object? value,
+        int min,
+        int? max,
+        out int parsed,
+        out string error,
+        bool allowEmpty = false)
     {
         parsed = 0;
         var raw = Convert.ToString(value)?.Trim();
-        if (string.IsNullOrEmpty(raw) || !int.TryParse(raw, out parsed))
+        if (string.IsNullOrEmpty(raw))
+        {
+            if (allowEmpty)
+            {
+                error = string.Empty;
+                return true;
+            }
+
+            error = "entier requis";
+            return false;
+        }
+
+        if (!int.TryParse(raw, out parsed))
         {
             error = "entier requis";
             return false;

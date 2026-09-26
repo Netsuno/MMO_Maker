@@ -77,16 +77,17 @@ internal static class MapEventPersistenceMapper
         long placementWireId)
     {
         var blocksCollision = true;
+        MapEventPageDefinition? page = null;
         if (MapEventPagesCodec.TryDeserializePages(catalogSnapshot.PagesJson, out var pages, out _))
         {
-            var page = pages.OrderByDescending(p => p.Priority).FirstOrDefault();
+            page = pages.OrderByDescending(p => p.Priority).FirstOrDefault();
             if (page is not null)
             {
                 blocksCollision = page.BlocksCollision;
             }
         }
 
-        return new MapEventWireEntry
+        var entry = new MapEventWireEntry
         {
             PlacementId = placementWireId,
             CatalogId = PostgresMapEventRepository.StableCatalogWireId(
@@ -101,6 +102,8 @@ internal static class MapEventPersistenceMapper
             RouteWaypoints = DeserializeRouteWaypoints(placement.RouteWaypointsJson),
             BlocksCollision = blocksCollision,
         };
+        MapEventRouteBinding.ApplyPageRoute(entry, page);
+        return entry;
     }
 
     public static string SerializeRouteWaypoints(IReadOnlyList<MapEventRouteWaypoint> waypoints) =>

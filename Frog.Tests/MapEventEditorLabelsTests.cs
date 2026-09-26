@@ -39,6 +39,12 @@ public sealed class MapEventEditorLabelsTests
         Assert.Equal("Action", MapEventEditorLabels.Trigger(Phase8MapEventTriggerKinds.Action));
         Assert.Equal("Contact joueur", MapEventEditorLabels.Trigger(Phase8MapEventTriggerKinds.PlayerContact));
         Assert.Equal("Trajet", MapEventEditorLabels.Movement(MapEventMovementKinds.Route));
+        Assert.Equal("Attente", MapEventEditorLabels.RouteStep(MapEventRouteStepKinds.Wait));
+        Assert.Equal("Bas", MapEventEditorLabels.RouteStep(MapEventRouteStepKinds.Down));
+        Assert.True(MapEventEditorLabels.TryParseRouteStep("Attente", out var waitKind));
+        Assert.Equal(MapEventRouteStepKinds.Wait, waitKind);
+        Assert.True(MapEventEditorLabels.TryParseRouteStep("Déplacement", out var moveKind));
+        Assert.Equal(MapEventRouteStepKinds.Move, moveKind);
         Assert.Equal("Interrupteur", MapEventEditorLabels.Field("switchId"));
         Assert.Equal("≥ supérieur ou égal", MapEventEditorLabels.CompareOp("gte"));
 

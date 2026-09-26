@@ -41,6 +41,15 @@ public sealed class MapEventWireEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<MapEventRouteWaypoint>? RouteWaypoints { get; set; }
 
+    /// <summary>Null : répéter (trajets déjà publiés). false : le trajet s’arrête après le dernier pas.</summary>
+    [JsonPropertyName("routeRepeat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RouteRepeat { get; set; }
+
+    [JsonPropertyName("routeSkipIfBlocked")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RouteSkipIfBlocked { get; set; }
+
     [JsonPropertyName("blocksCollision")]
     public bool BlocksCollision { get; set; } = true;
 }

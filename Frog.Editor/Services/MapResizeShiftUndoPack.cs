@@ -89,6 +89,7 @@ public sealed class MapResizeShiftAnchorSnapshot
                         TileX = waypoint.TileX,
                         TileY = waypoint.TileY,
                         WaitMs = waypoint.WaitMs,
+                        StepKind = waypoint.StepKind,
                     });
                 }
             }
@@ -139,6 +140,7 @@ public sealed class MapResizeShiftAnchorSnapshot
                         TileX = waypoint.TileX,
                         TileY = waypoint.TileY,
                         WaitMs = waypoint.WaitMs,
+                        StepKind = waypoint.StepKind,
                     });
                 }
             }
@@ -186,4 +188,6 @@ public sealed class MapResizeShiftWaypointSnapshot
     public int TileY { get; set; }
 
     public int WaitMs { get; set; }
+
+    public string? StepKind { get; set; }
 }

@@ -17,7 +17,10 @@ public sealed class MapEventMovementService
         string MovementKind,
         IReadOnlyList<MapEventRouteWaypoint> RouteWaypoints,
         int WaypointIndex,
-        DateTimeOffset NextAdvanceUtc);
+        DateTimeOffset NextAdvanceUtc,
+        bool RouteRepeat,
+        bool RouteSkipIfBlocked,
+        bool RouteFinished);
 
     private sealed record MapSnapshot
     {
@@ -352,19 +355,39 @@ public sealed class MapEventMovementService
                 placement.MovementKind ?? MapEventMovementKinds.Fixed,
                 placement.RouteWaypoints ?? Array.Empty<MapEventRouteWaypoint>(),
                 0,
-                DateTimeOffset.MinValue),
+                DateTimeOffset.MinValue,
+                MapEventRouteBinding.Repeats(placement.RouteRepeat),
+                placement.RouteSkipIfBlocked,
+                false),
             placement);
 
     private static PlacementSnapshot RefreshConfig(PlacementSnapshot state, MapEventWireEntry placement)
     {
         var movementKind = placement.MovementKind ?? MapEventMovementKinds.Fixed;
         var waypoints = placement.RouteWaypoints ?? Array.Empty<MapEventRouteWaypoint>();
+        var repeat = MapEventRouteBinding.Repeats(placement.RouteRepeat);
+        var skip = placement.RouteSkipIfBlocked;
         var tileX = state.TileX;
         var tileY = state.TileY;
-        if (movementKind != MapEventMovementKinds.Route || waypoints.Count < 2)
+        var runnable = movementKind == MapEventMovementKinds.Route && waypoints.Count >= 2;
+        if (!runnable)
         {
             tileX = placement.TileX;
             tileY = placement.TileY;
+        }
+
+        var same = SameRoute(state, movementKind, waypoints, repeat, skip);
+        var index = state.WaypointIndex;
+        var finished = state.RouteFinished && !repeat;
+        if (!same || !runnable)
+        {
+            index = 0;
+            finished = false;
+        }
+
+        if (waypoints.Count == 0 || index < 0 || index >= waypoints.Count)
+        {
+            index = 0;
         }
 
         return state with
@@ -374,7 +397,45 @@ public sealed class MapEventMovementService
             BlocksCollision = placement.BlocksCollision,
             TileX = tileX,
             TileY = tileY,
+            RouteRepeat = repeat,
+            RouteSkipIfBlocked = skip,
+            RouteFinished = finished,
+            WaypointIndex = index,
         };
+    }
+
+    private static bool SameRoute(
+        PlacementSnapshot state,
+        string movementKind,
+        IReadOnlyList<MapEventRouteWaypoint> waypoints,
+        bool repeat,
+        bool skip)
+    {
+        if (!string.Equals(state.MovementKind, movementKind, StringComparison.Ordinal)
+            || state.RouteRepeat != repeat
+            || state.RouteSkipIfBlocked != skip
+            || state.RouteWaypoints.Count != waypoints.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < waypoints.Count; i++)
+        {
+            var left = state.RouteWaypoints[i];
+            var right = waypoints[i];
+            if (left.TileX != right.TileX
+                || left.TileY != right.TileY
+                || left.WaitMs != right.WaitMs
+                || !string.Equals(
+                    MapEventRouteStepKinds.Canonical(left.StepKind),
+                    MapEventRouteStepKinds.Canonical(right.StepKind),
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static PlacementSnapshot AdvanceRoute(
@@ -384,7 +445,9 @@ public sealed class MapEventMovementService
         IReadOnlySet<(int TileX, int TileY)>? occupiedPlayerTiles,
         ImmutableDictionary<long, PlacementSnapshot> allPlacements)
     {
-        if (state.MovementKind != MapEventMovementKinds.Route || state.RouteWaypoints.Count < 2)
+        if (state.RouteFinished
+            || state.MovementKind != MapEventMovementKinds.Route
+            || state.RouteWaypoints.Count < 2)
         {
             return state;
         }
@@ -394,24 +457,77 @@ public sealed class MapEventMovementService
             return state;
         }
 
-        var nextIndex = (state.WaypointIndex + 1) % state.RouteWaypoints.Count;
-        var target = state.RouteWaypoints[nextIndex];
-        if (IsTileBlockedBySnapshot(allPlacements, mapId, target.TileX, target.TileY, state.PlacementId)
-            || IsTileOccupiedByPlayer(target.TileX, target.TileY, occupiedPlayerTiles))
+        var nextIndex = state.WaypointIndex + 1;
+        if (nextIndex >= state.RouteWaypoints.Count)
         {
-            return state with
+            if (!state.RouteRepeat)
             {
-                NextAdvanceUtc = nowUtc.AddMilliseconds(Math.Max(250, target.WaitMs)),
-            };
+                return state with { RouteFinished = true };
+            }
+
+            nextIndex = 0;
+        }
+
+        var target = state.RouteWaypoints[nextIndex];
+        var kind = MapEventRouteStepKinds.Canonical(target.StepKind);
+        var waitUntil = nowUtc.AddMilliseconds(Math.Max(250, target.WaitMs));
+        if (!TryResolveStep(state, target, kind, out var tileX, out var tileY)
+            || ((tileX != state.TileX || tileY != state.TileY)
+                && (IsTileBlockedBySnapshot(allPlacements, mapId, tileX, tileY, state.PlacementId)
+                    || IsTileOccupiedByPlayer(tileX, tileY, occupiedPlayerTiles))))
+        {
+            if (state.RouteSkipIfBlocked && kind != MapEventRouteStepKinds.Wait)
+            {
+                return state with
+                {
+                    WaypointIndex = nextIndex,
+                    NextAdvanceUtc = waitUntil,
+                };
+            }
+
+            return state with { NextAdvanceUtc = waitUntil };
         }
 
         return state with
         {
             WaypointIndex = nextIndex,
-            TileX = target.TileX,
-            TileY = target.TileY,
-            NextAdvanceUtc = nowUtc.AddMilliseconds(Math.Max(250, target.WaitMs)),
+            TileX = tileX,
+            TileY = tileY,
+            NextAdvanceUtc = waitUntil,
         };
+    }
+
+    private static bool TryResolveStep(
+        PlacementSnapshot state,
+        MapEventRouteWaypoint target,
+        string kind,
+        out int tileX,
+        out int tileY)
+    {
+        if (kind == MapEventRouteStepKinds.Wait)
+        {
+            tileX = state.TileX;
+            tileY = state.TileY;
+            return true;
+        }
+
+        if (MapEventRouteStepKinds.TryDelta(kind, out var deltaX, out var deltaY))
+        {
+            tileX = state.TileX + deltaX;
+            tileY = state.TileY + deltaY;
+            return tileX >= 0 && tileY >= 0;
+        }
+
+        if (!MapEventRouteStepKinds.UsesAbsoluteTile(kind))
+        {
+            tileX = state.TileX;
+            tileY = state.TileY;
+            return false;
+        }
+
+        tileX = target.TileX;
+        tileY = target.TileY;
+        return tileX >= 0 && tileY >= 0;
     }
 
     private static bool IsTileBlockedBySnapshot(
@@ -495,6 +611,8 @@ public sealed class MapEventMovementService
                 ScriptKey = placement.ScriptKey,
                 MovementKind = placement.MovementKind,
                 RouteWaypoints = placement.RouteWaypoints,
+                RouteRepeat = placement.RouteRepeat,
+                RouteSkipIfBlocked = placement.RouteSkipIfBlocked,
                 BlocksCollision = placement.BlocksCollision,
             });
         }

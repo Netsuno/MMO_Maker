@@ -324,6 +324,52 @@ public sealed class MapResizeShiftTests
     }
 
     [Fact]
+    public void ShiftPlacements_KeepsWaitAndDirectionSteps()
+    {
+        var placement = new MapEventPlacementDefinition
+        {
+            Id = Guid.NewGuid(),
+            MapId = Guid.NewGuid(),
+            EventDefinitionId = Guid.NewGuid(),
+            TileX = 2,
+            TileY = 2,
+            TriggerKind = Phase8MapEventTriggerKinds.Action,
+            RouteWaypoints =
+            [
+                new MapEventRouteWaypoint { TileX = 2, TileY = 2, WaitMs = 10 },
+                new MapEventRouteWaypoint { WaitMs = 400, StepKind = MapEventRouteStepKinds.Wait },
+                new MapEventRouteWaypoint { WaitMs = 250, StepKind = MapEventRouteStepKinds.Down },
+                new MapEventRouteWaypoint { TileX = 0, TileY = 0, WaitMs = 10 },
+            ],
+        };
+        var cloned = MapResizeShift.CloneEvents([placement]);
+        Assert.Equal(MapEventRouteStepKinds.Wait, cloned[0].RouteWaypoints[1].StepKind);
+        Assert.Equal(MapEventRouteStepKinds.Down, cloned[0].RouteWaypoints[2].StepKind);
+
+        var events = new List<MapEventPlacementDefinition> { placement };
+        MapResizeShift.ShiftPlacements(
+            events,
+            deltaX: -1,
+            deltaY: -1,
+            width: 8,
+            height: 8,
+            out var kept,
+            out var removed,
+            out var waypointsKept,
+            out var waypointsRemoved);
+
+        Assert.Equal(1, kept);
+        Assert.Equal(0, removed);
+        Assert.Equal(3, waypointsKept);
+        Assert.Equal(1, waypointsRemoved);
+        Assert.Equal(1, placement.RouteWaypoints[0].TileX);
+        Assert.Equal(1, placement.RouteWaypoints[0].TileY);
+        Assert.Equal(MapEventRouteStepKinds.Wait, placement.RouteWaypoints[1].StepKind);
+        Assert.Equal(400, placement.RouteWaypoints[1].WaitMs);
+        Assert.Equal(MapEventRouteStepKinds.Down, placement.RouteWaypoints[2].StepKind);
+    }
+
+    [Fact]
     public void InvalidOrNoOp_DoesNotMutate_SheetMapStaysV5()
     {
         var map = new Map { Name = "Feuille", Width = 4, Height = 4 };
