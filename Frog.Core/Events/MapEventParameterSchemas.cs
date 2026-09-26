@@ -428,6 +428,144 @@ public static class MapEventParameterSchemas
     public static bool TryParseGoldMutation(string parameterJson, out int amount, out string? error) =>
         TryParseGoldMutation(parameterJson, out amount, out _, out error);
 
+    public static bool TryParseChangeGold(
+        string parameterJson,
+        out string operation,
+        out int amount,
+        out string? error)
+    {
+        operation = string.Empty;
+        amount = 0;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!TryParseChangeOperation(doc.RootElement, "change_gold", out operation, out error))
+            {
+                return false;
+            }
+
+            if (!doc.RootElement.TryGetProperty("amount", out var amtEl) || !amtEl.TryGetInt32(out amount) || amount <= 0)
+            {
+                error = "change_gold: propriété 'amount' (int > 0) requise.";
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "operation", "amount" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "change_gold: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseChangeItems(
+        string parameterJson,
+        out Guid itemId,
+        out string operation,
+        out int quantity,
+        out string? error)
+    {
+        itemId = Guid.Empty;
+        operation = string.Empty;
+        quantity = 0;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!TryParseGuidProperty(doc.RootElement, "itemId", out itemId, out error))
+            {
+                error = "change_items: " + (error ?? "propriété 'itemId' (guid) requise.");
+                return false;
+            }
+
+            if (!TryParseChangeOperation(doc.RootElement, "change_items", out operation, out error))
+            {
+                return false;
+            }
+
+            if (!doc.RootElement.TryGetProperty("quantity", out var qtyEl) || !qtyEl.TryGetInt32(out quantity) || quantity <= 0)
+            {
+                error = "change_items: propriété 'quantity' (int > 0) requise.";
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "itemId", "operation", "quantity" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "change_items: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Réécrit <c>change_gold</c> en <c>give_gold</c> ou <c>take_gold</c> (même application à l'interaction).
+    /// </summary>
+    public static bool TryRewriteChangeGold(
+        MapEventCommandDefinition command,
+        out MapEventCommandDefinition rewritten,
+        out string? error)
+    {
+        rewritten = command;
+        if (!TryParseChangeGold(command.ParameterJson, out var operation, out var amount, out error))
+        {
+            return false;
+        }
+
+        rewritten = new MapEventCommandDefinition
+        {
+            Discriminator = operation == MapEventChangeOperation.Decrease
+                ? MapEventCommandDiscriminators.TakeGold
+                : MapEventCommandDiscriminators.GiveGold,
+            SchemaVersion = 1,
+            ParameterJson = JsonSerializer.Serialize(new { amount }),
+        };
+        return true;
+    }
+
+    /// <summary>
+    /// Réécrit <c>change_items</c> en <c>give_item</c> ou <c>take_item</c> (même application à l'interaction).
+    /// </summary>
+    public static bool TryRewriteChangeItems(
+        MapEventCommandDefinition command,
+        out MapEventCommandDefinition rewritten,
+        out string? error)
+    {
+        rewritten = command;
+        if (!TryParseChangeItems(command.ParameterJson, out var itemId, out var operation, out var quantity, out error))
+        {
+            return false;
+        }
+
+        rewritten = new MapEventCommandDefinition
+        {
+            Discriminator = operation == MapEventChangeOperation.Decrease
+                ? MapEventCommandDiscriminators.TakeItem
+                : MapEventCommandDiscriminators.GiveItem,
+            SchemaVersion = 1,
+            ParameterJson = JsonSerializer.Serialize(new { itemId = itemId.ToString("D"), quantity }),
+        };
+        return true;
+    }
+
     public static bool TryParseTeleport(string parameterJson, out int mapId, out int tileX, out int tileY, out string? error)
     {
         mapId = 0;
@@ -1729,6 +1867,25 @@ public static class MapEventParameterSchemas
         if (!MapEventPicture.TryCanonicalBlend(blendEl.GetString(), out blend))
         {
             error = $"{label}: synthèse inconnue.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryParseChangeOperation(JsonElement root, string commandName, out string operation, out string? error)
+    {
+        operation = string.Empty;
+        error = null;
+        if (!root.TryGetProperty("operation", out var opEl) || opEl.ValueKind != JsonValueKind.String)
+        {
+            error = $"{commandName}: propriété 'operation' (increase|decrease) requise.";
+            return false;
+        }
+
+        if (!MapEventChangeOperation.TryCanonical(opEl.GetString(), out operation))
+        {
+            error = $"{commandName}: opération inconnue.";
             return false;
         }
 

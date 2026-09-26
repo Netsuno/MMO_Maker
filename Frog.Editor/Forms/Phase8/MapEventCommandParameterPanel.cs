@@ -242,6 +242,15 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddLabeled("amount", new NumericUpDown { Width = 100, Minimum = 0, Maximum = int.MaxValue, Value = 10 });
                 AddLabeled("onceKey", new TextBox { Width = 200, Text = string.Empty });
                 break;
+            case MapEventCommandDiscriminators.ChangeGold:
+                AddOperationField();
+                AddLabeled("amount", new NumericUpDown { Width = 100, Minimum = 1, Maximum = int.MaxValue, Value = 1 });
+                break;
+            case MapEventCommandDiscriminators.ChangeItems:
+                AddLabeled("itemId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
+                AddOperationField();
+                AddLabeled("quantity", new NumericUpDown { Width = 80, Minimum = 1, Maximum = 9999, Value = 1 });
+                break;
             case MapEventCommandDiscriminators.StartDialogue:
                 AddLabeled("dialogueId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
                 break;
@@ -558,6 +567,27 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }
 
                     break;
+                case MapEventCommandDiscriminators.ChangeGold:
+                    ApplyChangeOperation(root);
+                    if (root.TryGetProperty("amount", out var changeAmount) && changeAmount.TryGetInt32(out var changeGoldAmount))
+                    {
+                        SetInt("amount", changeGoldAmount);
+                    }
+
+                    break;
+                case MapEventCommandDiscriminators.ChangeItems:
+                    if (root.TryGetProperty("itemId", out var changeItemId))
+                    {
+                        SetText("itemId", changeItemId.GetString() ?? string.Empty);
+                    }
+
+                    ApplyChangeOperation(root);
+                    if (root.TryGetProperty("quantity", out var changeQty) && changeQty.TryGetInt32(out var changeQuantity))
+                    {
+                        SetInt("quantity", changeQuantity);
+                    }
+
+                    break;
                 case MapEventCommandDiscriminators.StartDialogue:
                     if (root.TryGetProperty("dialogueId", out var dlg))
                     {
@@ -808,6 +838,15 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     BuildItemMutationJson(),
                 MapEventCommandDiscriminators.GiveGold or MapEventCommandDiscriminators.TakeGold =>
                     BuildGoldMutationJson(),
+                MapEventCommandDiscriminators.ChangeGold =>
+                    JsonSerializer.Serialize(new { operation = GetChoice("operation"), amount = GetInt("amount") }),
+                MapEventCommandDiscriminators.ChangeItems =>
+                    JsonSerializer.Serialize(new
+                    {
+                        itemId = GetText("itemId"),
+                        operation = GetChoice("operation"),
+                        quantity = GetInt("quantity"),
+                    }),
                 MapEventCommandDiscriminators.StartDialogue =>
                     JsonSerializer.Serialize(new { dialogueId = GetText("dialogueId") }),
                 MapEventCommandDiscriminators.StartQuest or MapEventCommandDiscriminators.TurnInQuest =>
@@ -929,6 +968,28 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         EditorListDraw.UseReadableChoices(target, MapEventEditorLabels.AnimationTarget);
         AddLabeled("target", target);
         AddDurationField();
+    }
+
+    private void AddOperationField()
+    {
+        var operation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+        foreach (var kind in MapEventChangeOperation.All)
+        {
+            operation.Items.Add(kind);
+        }
+
+        operation.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(operation, MapEventEditorLabels.ChangeOperation);
+        AddLabeled("operation", operation);
+    }
+
+    private void ApplyChangeOperation(JsonElement root)
+    {
+        if (root.TryGetProperty("operation", out var operation)
+            && MapEventChangeOperation.TryCanonical(operation.GetString(), out var canonical))
+        {
+            SetChoice("operation", canonical);
+        }
     }
 
     private void AddDurationField()

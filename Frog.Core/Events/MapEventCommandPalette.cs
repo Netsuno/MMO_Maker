@@ -4,7 +4,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, interrupteur, variable, branche, météo.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -14,11 +14,18 @@ public static class MapEventCommandPalette
     public const string PlayBgmId = "play_bgm";
     public const string PlaySeId = "play_se";
     public const string OpenShopId = "open_shop";
+    public const string ChangeGoldId = "change_gold";
+    public const string ChangeItemsId = "change_items";
 
     /// <summary>
     /// Guid vide jusqu'au choix d'une boutique. La validation des paramètres le refuse.
     /// </summary>
     public static readonly Guid OpenShopPlaceholderId = Guid.Empty;
+
+    /// <summary>
+    /// Guid vide jusqu'au choix d'un objet. La validation des paramètres le refuse.
+    /// </summary>
+    public static readonly Guid ChangeItemsPlaceholderId = Guid.Empty;
     public const string SetSwitchId = "set_switch";
     public const string SetVariableId = "set_variable";
     public const string AddVariableId = "add_variable";
@@ -47,6 +54,8 @@ public static class MapEventCommandPalette
         new(PlayBgmId, "Jouer BGM"),
         new(PlaySeId, "Jouer SE"),
         new(OpenShopId, "Ouvrir boutique"),
+        new(ChangeGoldId, "Changer or"),
+        new(ChangeItemsId, "Changer objets"),
         new(SetSwitchId, "Interrupteur"),
         new(SetVariableId, "Variable ="),
         new(AddVariableId, "Variable +"),
@@ -99,6 +108,17 @@ public static class MapEventCommandPalette
             OpenShopId => Command(
                 MapEventCommandDiscriminators.OpenShop,
                 new { shopId = OpenShopPlaceholderId.ToString("D") }),
+            ChangeGoldId => Command(
+                MapEventCommandDiscriminators.ChangeGold,
+                new { operation = MapEventChangeOperation.Increase, amount = 1 }),
+            ChangeItemsId => Command(
+                MapEventCommandDiscriminators.ChangeItems,
+                new
+                {
+                    itemId = ChangeItemsPlaceholderId.ToString("D"),
+                    operation = MapEventChangeOperation.Increase,
+                    quantity = 1,
+                }),
             SetSwitchId => Command(
                 MapEventCommandDiscriminators.SetSwitch,
                 new { switchId = DefaultSwitchId, value = true }),
