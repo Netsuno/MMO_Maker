@@ -687,6 +687,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         StyleDrawChip(BtnToolLine, tool == EditorTool.Line);
         StyleDrawChip(BtnToolSelection, tool == EditorTool.Selection);
         StyleDrawChip(BtnToolPlace, tool == EditorTool.Place);
+        StyleDrawChip(BtnToolRegion, tool == EditorTool.Region);
         if (FillOptionsPanel is not null)
         {
             FillOptionsPanel.Visibility = tool == EditorTool.Fill

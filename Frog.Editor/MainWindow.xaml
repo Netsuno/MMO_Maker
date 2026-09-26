@@ -151,6 +151,9 @@
                 <MenuItem Header="Outil entités"
                           Command="{x:Static local:MainWindow.CmdPlaceTool}"
                           InputGestureText="N" />
+                <MenuItem Header="Outil région"
+                          Command="{x:Static local:MainWindow.CmdRegionTool}"
+                          InputGestureText="G" />
                 <MenuItem Header="Configurer warp sélectionné…" Command="{x:Static local:MainWindow.CmdEditWarp}" />
                 <MenuItem Header="Actualiser le catalogue (PostgreSQL / mémoire)"
                           Command="{x:Static local:MainWindow.CmdRefreshCatalog}"
@@ -238,6 +241,7 @@
                 <Button Content="Départ" Command="{x:Static local:MainWindow.CmdSpawnTool}" Padding="10,4" ToolTip="Outil point de départ playtest (D)" />
                 <Button Content="Prefab" Command="{x:Static local:MainWindow.CmdPrefabTool}" Padding="10,4" ToolTip="Poser un objet prefab (P)" />
                 <Button Content="Entités" Command="{x:Static local:MainWindow.CmdPlaceTool}" Padding="10,4" ToolTip="Poser une apparition, un PNJ ou un objet (N). Le panneau de droite édite les propriétés." />
+                <Button Content="Région" Command="{x:Static local:MainWindow.CmdRegionTool}" Padding="10,4" ToolTip="Peindre une région 1–63 (G). Le numéro s’affiche sur la carte. Les rencontres se règlent dans le panneau Régions." />
                 <Button Content="Pipette" Command="{x:Static local:MainWindow.CmdTilePipette}" Padding="10,4" ToolTip="Pipette tuile : I ou Alt+clic" />
                 <Separator />
                 <Button Content="PNJ rapide" Command="{x:Static local:MainWindow.CmdQuickTalkingNpc}" Padding="10,4" ToolTip="Créer un PNJ qui parle et le placer sur la carte" />

@@ -19,6 +19,8 @@ namespace Frog.Editor.Enums
         /// <summary>Clic = poser un prefab (sidecar / workstate, pas de peinture tuile).</summary>
         Prefab = 8,
         /// <summary>Clic = poser une apparition, un PNJ ou un objet (mémo locale, pas de SQL ni de peinture).</summary>
-        Place = 9
+        Place = 9,
+        /// <summary>Clic = peindre un numéro de région 0–63 (sidecar, pas de peinture de tuile).</summary>
+        Region = 10
     }
 }
