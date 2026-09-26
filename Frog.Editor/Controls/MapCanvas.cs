@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Linq;
 using System.Windows.Forms;
 using Frog.Application.Maps;
@@ -106,6 +107,46 @@ public sealed class MapCanvas : Control
     public Size SelectedStampInTiles { get; set; } = new(1, 1);
 
     public int ActiveLayerIndex { get; set; } = 0;
+
+    /// <summary>
+    /// Opacité d’aperçu et voile des autres couches. N’entre pas dans le .fmap ni dans l’annulation.
+    /// </summary>
+    private readonly LayerPreviewState _layerPreview = new();
+
+    public bool DimOtherLayers
+    {
+        get => _layerPreview.DimOthers;
+        set
+        {
+            if (_layerPreview.DimOthers == value)
+            {
+                return;
+            }
+
+            _layerPreview.DimOthers = value;
+            Invalidate();
+        }
+    }
+
+    public void SetLayerPreviewOpacity(int layerIndex, float opacity)
+    {
+        _layerPreview.Fit(Map?.Layers.Count ?? 0);
+        _layerPreview.SetOpacity(layerIndex, opacity);
+        Invalidate();
+    }
+
+    public float GetLayerPreviewOpacity(int layerIndex)
+    {
+        _layerPreview.Fit(Map?.Layers.Count ?? 0);
+        return _layerPreview.Opacity(layerIndex);
+    }
+
+    /// <summary>Remet l’aperçu à opaque, sans atténuation. À appeler quand on ouvre une autre carte.</summary>
+    public void ResetLayerPreview()
+    {
+        _layerPreview.Reset(Map?.Layers.Count ?? 0);
+        Invalidate();
+    }
     public event Action<Point>? HoveredTileChanged;
     public TileType SelectedTileType { get; set; } = TileType.Ground;
     public event Action<Tile?>? TileClicked;
@@ -879,14 +920,15 @@ public sealed class MapCanvas : Control
 
             if (Map is not null)
             {
-                foreach (var layer in Map.Layers)
+                for (var i = 0; i < Map.Layers.Count; i++)
                 {
-                    if (!layer.Visible)
+                    var alpha = LayerDrawAlpha(i);
+                    if (alpha <= 0.001f)
                     {
                         continue;
                     }
 
-                    DrawLayer(g, layer, tx0, ty0, tx1, ty1);
+                    DrawLayer(g, Map.Layers[i], tx0, ty0, tx1, ty1, alpha);
                 }
 
                 DrawPlacedPrefabs(g);
@@ -1088,8 +1130,23 @@ public sealed class MapCanvas : Control
         g.DrawRectangle(penMajor, 0, 0, mapW * ts, mapH * ts);
     }
 
-    private void DrawLayer(Graphics g, Layer layer, int tx0, int ty0, int tx1, int ty1)
+    private void DrawLayer(Graphics g, Layer layer, int tx0, int ty0, int tx1, int ty1, float alpha)
     {
+        if (alpha <= 0.001f)
+        {
+            return;
+        }
+
+        var fade = alpha < 0.999f;
+        using var attrs = fade ? new ImageAttributes() : null;
+        if (attrs is not null)
+        {
+            attrs.SetColorMatrix(
+                new ColorMatrix { Matrix33 = alpha },
+                ColorMatrixFlag.Default,
+                ColorAdjustType.Bitmap);
+        }
+
         foreach (var t in layer.Tiles)
         {
             if (t.X < tx0 || t.X > tx1 || t.Y < ty0 || t.Y > ty1)
@@ -1099,7 +1156,11 @@ public sealed class MapCanvas : Control
 
             if (!t.AssetId.IsNone)
             {
-                DrawTileAssetImage(g, t.AssetId, new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize));
+                DrawTileAssetImage(
+                    g,
+                    t.AssetId,
+                    new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize),
+                    fade ? alpha : null);
                 continue;
             }
 
@@ -1118,8 +1179,40 @@ public sealed class MapCanvas : Control
                 continue;
             }
 
-            g.DrawImage(bmp, dst, src, GraphicsUnit.Pixel);
+            if (attrs is not null)
+            {
+                g.DrawImage(bmp, dst, src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, attrs);
+            }
+            else
+            {
+                g.DrawImage(bmp, dst, src, GraphicsUnit.Pixel);
+            }
         }
+    }
+
+    private float LayerDrawAlpha(int index)
+    {
+        if (Map is null || (uint)index >= (uint)Map.Layers.Count)
+        {
+            return 0f;
+        }
+
+        _layerPreview.Fit(Map.Layers.Count);
+        var active = Math.Clamp(ActiveLayerIndex, 0, Map.Layers.Count - 1);
+        return _layerPreview.DrawAlpha(index, Map.Layers[index].Visible, active);
+    }
+
+    internal float LayerDrawAlphaForTest(int layerIndex) => LayerDrawAlpha(layerIndex);
+
+    private static int ScalePreviewAlpha(int alpha, float factor)
+    {
+        var scaled = (int)Math.Round(alpha * factor, MidpointRounding.AwayFromZero);
+        if (scaled < 0)
+        {
+            return 0;
+        }
+
+        return scaled > 255 ? 255 : scaled;
     }
 
     private void DrawTileTypeOverlay(Graphics g, int tx0, int ty0, int tx1, int ty1)
@@ -1129,13 +1222,15 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        foreach (var layer in Map.Layers)
+        for (var i = 0; i < Map.Layers.Count; i++)
         {
-            if (!layer.Visible)
+            var alpha = LayerDrawAlpha(i);
+            if (alpha <= 0.001f)
             {
                 continue;
             }
 
+            var layer = Map.Layers[i];
             foreach (var t in layer.Tiles)
             {
                 if (t.X < tx0 || t.X > tx1 || t.Y < ty0 || t.Y > ty1)
@@ -1147,7 +1242,7 @@ public sealed class MapCanvas : Control
                 switch (t.Type)
                 {
                     case TileType.Block:
-                        using (var b = new SolidBrush(Color.FromArgb(80, Color.Red)))
+                        using (var b = new SolidBrush(Color.FromArgb(ScalePreviewAlpha(80, alpha), Color.Red)))
                         {
                             g.FillRectangle(b, rect);
                         }
@@ -1156,13 +1251,13 @@ public sealed class MapCanvas : Control
 
                     case TileType.Warp:
                     {
-                        using var p = new Pen(Color.Lime, 2);
+                        using var p = new Pen(Color.FromArgb(ScalePreviewAlpha(255, alpha), Color.Lime), 2);
                         g.DrawRectangle(p, rect);
                         break;
                     }
 
                     case TileType.Resource:
-                        using (var br = new SolidBrush(Color.FromArgb(160, Color.Gold)))
+                        using (var br = new SolidBrush(Color.FromArgb(ScalePreviewAlpha(160, alpha), Color.Gold)))
                         {
                             var cx = rect.X + TileSize / 4;
                             var cy = rect.Y + TileSize / 4;

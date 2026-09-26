@@ -843,6 +843,56 @@ public sealed class MainForm : Form
             _canvas.Invalidate();
             PushEditorStatusLine();
         };
+        _layersProjectPanel.LayerLockChanged += (_, t) =>
+        {
+            if (_suspendLayerListEvents || _canvas.Map is null)
+            {
+                return;
+            }
+
+            if (t.index < 0 || t.index >= _canvas.Map.Layers.Count)
+            {
+                return;
+            }
+
+            if (_canvas.Map.Layers[t.index].Locked == t.locked)
+            {
+                return;
+            }
+
+            _canvas.History.PushBeforeChange(_canvas.Map);
+            _canvas.Map.Layers[t.index].Locked = t.locked;
+            OnMapEdited();
+            UpdateUndoRedoButtons();
+            RefreshLayersUi();
+            _canvas.Invalidate();
+            PushEditorStatusLine();
+        };
+        _layersProjectPanel.LayerPreviewOpacityChanged += (_, t) =>
+        {
+            if (_suspendLayerListEvents || _canvas.Map is null)
+            {
+                return;
+            }
+
+            if (t.index < 0 || t.index >= _canvas.Map.Layers.Count)
+            {
+                return;
+            }
+
+            _canvas.SetLayerPreviewOpacity(t.index, t.opacity);
+            PushEditorStatusLine();
+        };
+        _layersProjectPanel.DimOthersChanged += (_, on) =>
+        {
+            if (_suspendLayerListEvents)
+            {
+                return;
+            }
+
+            _canvas.DimOtherLayers = on;
+            PushEditorStatusLine();
+        };
         _layersProjectPanel.RenameLayerRequested += (_, _) => RenameLayerDisplay();
         _layersProjectPanel.AddLayerRequested = AddLayer;
         _layersProjectPanel.RemoveLayerRequested = RemoveLayer;
@@ -1214,6 +1264,7 @@ public sealed class MainForm : Form
             _canvas.ClearHistory();
             _canvas.Map = _workspace.CurrentMap;
             SyncRegionsPanel();
+            ResetLayerPreviewChrome();
             _canvas.DefaultWarpTargetMapId = _workspace.CurrentMapId;
             _propGrid.SelectedObject = _canvas.Map;
             RefreshLayersUi();
@@ -2040,7 +2091,10 @@ public sealed class MainForm : Form
         var hidden = layer.Visible ? "" : " · masquée";
         var locked = layer.Locked ? " · verrouillée" : "";
         var rankText = string.IsNullOrEmpty(rank) ? "" : $" · {rank}";
-        return $"    ·    peinture {layer.GetDisplayLabel()}{rankText}{hidden}{locked}";
+        var percent = LayerPreviewOpacity.ToPercent(_canvas.GetLayerPreviewOpacity(index));
+        var opacity = percent == 100 ? "" : $" · opacité {percent} %";
+        var dim = _canvas.DimOtherLayers ? " · autres atténuées" : "";
+        return $"    ·    peinture {layer.GetDisplayLabel()}{rankText}{hidden}{locked}{opacity}{dim}";
     }
 
     internal void ResetMapView() => _canvas.ResetViewTransform();
@@ -2749,6 +2803,12 @@ public sealed class MainForm : Form
         UndoRedoStateChanged?.Invoke(_canvas.History.CanUndo, _canvas.History.CanRedo);
     }
 
+    private void ResetLayerPreviewChrome()
+    {
+        _canvas.ResetLayerPreview();
+        _layersProjectPanel.SetDimOthersSilently(false);
+    }
+
     private void RefreshLayersUi()
     {
         _suspendLayerListEvents = true;
@@ -2762,23 +2822,29 @@ public sealed class MainForm : Form
             }
 
             var layerCount = _canvas.Map.Layers.Count;
+            var want = layerCount > 0
+                ? Math.Clamp(_canvas.ActiveLayerIndex, 0, layerCount - 1)
+                : -1;
             foreach (var i in LayerTypeLabels.TopFirstIndices(layerCount))
             {
                 var l = _canvas.Map.Layers[i];
+                var label = l.GetDisplayLabel();
                 rows.Add(new LayerListRow
                 {
                     Index = i,
                     Visible = l.Visible,
-                    Display = l.GetDisplayLabel(),
+                    Locked = l.Locked,
+                    Display = label,
                     OrderHint = LayerTypeLabels.OrderHint(i, layerCount, l.LayerType, l.DisplayName),
                     EngineType = LayerTypeLabels.French(l.LayerType),
                     LockLabel = LayerTypeLabels.LockCaption(l.Locked),
+                    OpacityPercent = LayerPreviewOpacity.ToPercent(_canvas.GetLayerPreviewOpacity(i)),
+                    IsPaintTarget = i == want,
+                    StripCaption = LayerTypeLabels.StripCaption(i, label),
+                    StripHint = LayerTypeLabels.StripHint(i, layerCount, label, l.Locked),
                 });
             }
 
-            var want = rows.Count > 0
-                ? Math.Clamp(_canvas.ActiveLayerIndex, 0, rows.Count - 1)
-                : -1;
             _layersProjectPanel.ApplyRows(rows, want);
         }
         finally
@@ -2921,6 +2987,7 @@ public sealed class MainForm : Form
         _canvas.ClearHistory();
         _canvas.Map = map;
         SyncRegionsPanel();
+        ResetLayerPreviewChrome();
         _propGrid.SelectedObject = map;
         RefreshLayersUi();
         _canvas.Invalidate();
@@ -4421,6 +4488,7 @@ public sealed class MainForm : Form
         _canvas.ClearHistory();
         _canvas.Map = map;
         SyncRegionsPanel();
+        ResetLayerPreviewChrome();
         _workspace?.AdoptLocalDraft(map);
         _canvas.ActiveTilesetId = 0;
         if (TilesetCache.ListRegistered().Count > 0)

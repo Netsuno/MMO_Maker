@@ -90,6 +90,52 @@ public static class LayerTypeLabels
 
     public static string LockCaption(bool locked) => locked ? "Verrouillée" : "Éditable";
 
+    public static string LockHint(bool locked) =>
+        locked
+            ? "Verrouillée — cliquer pour autoriser la peinture"
+            : "Éditable — cliquer pour verrouiller";
+
+    public const string PanelTitle = "COUCHES";
+
+    public const string PanelHint = "Dessus en haut · la couche marquée est peinte (1 = dessous)";
+
+    public const string DimOthersCaption = "Atténuer les autres";
+
+    public const string DimOthersHint =
+        "Les couches qui ne sont pas peintes s’affichent plus pâles. Le fichier .fmap ne change pas.";
+
+    public const string OpacityColumn = "Opacité";
+
+    public const string OpacityHint = "Aperçu dans l’éditeur. N’est pas enregistré dans la carte.";
+
+    public const string PaintBadge = "peinture";
+
+    public const string ViewColumn = "Vue";
+
+    public const string NameColumn = "Nom";
+
+    public const string EditColumn = "Édition";
+
+    /// <summary>Bouton numéroté du bandeau. L’index 0 (dessous) porte le numéro 1, comme un calque VX.</summary>
+    public static string StripCaption(int index, string? displayLabel)
+    {
+        if (index < 0)
+        {
+            return string.Empty;
+        }
+
+        var name = string.IsNullOrWhiteSpace(displayLabel) ? "Couche" : displayLabel.Trim();
+        return $"{index + 1} {name}";
+    }
+
+    public static string StripHint(int index, int count, string? displayLabel, bool locked)
+    {
+        var name = string.IsNullOrWhiteSpace(displayLabel) ? "Couche" : displayLabel.Trim();
+        var rank = StackRank(index, count);
+        var edit = LockHint(locked);
+        return string.IsNullOrEmpty(rank) ? $"{name}. {edit}" : $"{name} · {rank}. {edit}";
+    }
+
     public static bool TryParse(string? text, out LayerType type)
     {
         type = default;
