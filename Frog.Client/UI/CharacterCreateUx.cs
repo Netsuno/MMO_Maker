@@ -84,6 +84,13 @@ public static class CharacterCreateUx
     public static bool CanCreate(string? rawName, bool classSelected, bool sessionOpen)
         => sessionOpen && classSelected && CharacterDisplayNameRules.TryNormalize(rawName, out _, out _);
 
+    /// <summary>
+    /// Après login, « Créer le personnage » est proposé même si la liste est vide
+    /// et le nom pas encore saisi. Le clic valide le nom et la classe.
+    /// </summary>
+    public static bool IsCreateEnabled(bool sessionOpen, bool createBusy)
+        => sessionOpen && !createBusy;
+
     public static bool CanEnter(bool sessionOpen, bool hasSelection)
         => sessionOpen && hasSelection;
 

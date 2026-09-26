@@ -65,6 +65,15 @@ public sealed class CharacterCreateUxTests
     }
 
     [Fact]
+    public void IsCreateEnabled_after_login_even_when_roster_and_name_are_empty()
+    {
+        Assert.True(CharacterCreateUx.IsCreateEnabled(sessionOpen: true, createBusy: false));
+        Assert.False(CharacterCreateUx.IsCreateEnabled(sessionOpen: false, createBusy: false));
+        Assert.False(CharacterCreateUx.IsCreateEnabled(sessionOpen: true, createBusy: true));
+        Assert.False(CharacterCreateUx.CanCreate("", classSelected: false, sessionOpen: true));
+    }
+
+    [Fact]
     public void CanEnter_requires_session_and_selection()
     {
         Assert.False(CharacterCreateUx.CanEnter(sessionOpen: false, hasSelection: true));
@@ -126,6 +135,10 @@ public sealed class CharacterCreateUxTests
         Assert.Contains("TryHandleCharacterPageEnter", shell, StringComparison.Ordinal);
         Assert.Contains("SetCharacterSessionOpen", shell, StringComparison.Ordinal);
         Assert.Contains("RefreshCharacterActions", shell, StringComparison.Ordinal);
+        Assert.Contains(
+            "_btnCharCreate.Enabled = CharacterCreateUx.IsCreateEnabled(_characterSessionOpen, _characterCreateBusy)",
+            shell,
+            StringComparison.Ordinal);
         Assert.Contains("rowEnter.Controls.Add(_btnEnterGame)", shell, StringComparison.Ordinal);
         Assert.Contains("rowCreateAction.Controls.Add(_btnCharCreate)", shell, StringComparison.Ordinal);
         Assert.DoesNotContain("rowCreate.Controls.Add(_btnCharCreate)", shell, StringComparison.Ordinal);

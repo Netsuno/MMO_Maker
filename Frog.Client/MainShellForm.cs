@@ -3836,9 +3836,8 @@ public sealed class MainShellForm : Form
     {
         var classesAvailable = _cmbClass.Items.Count > 0;
         var classSelected = _characterSessionOpen && _cmbClass.SelectedItem is ClassPickRow;
-        _cmbClass.Enabled = _characterSessionOpen && classesAvailable;
-        _btnCharCreate.Enabled = !_characterCreateBusy
-            && CharacterCreateUx.CanCreate(_txtNewCharName.Text, classSelected, _characterSessionOpen);
+        _cmbClass.Enabled = _characterSessionOpen;
+        _btnCharCreate.Enabled = CharacterCreateUx.IsCreateEnabled(_characterSessionOpen, _characterCreateBusy);
         _btnEnterGame.Enabled = CharacterCreateUx.CanEnter(
             _characterSessionOpen,
             _cmbCharacters.SelectedItem is CharacterPickRow);
