@@ -127,6 +127,59 @@ public sealed class TileAssetEditorPhase2Tests : IDisposable
     }
 
     [Fact]
+    public void Flags_RoundTripOnCatalogue_AndMapSidecar()
+    {
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+
+        var catalogue = new TileAssetCatalogue { StoreDirectory = _store };
+        catalogue.ImportStraightRgba(Sheet(96, 48, (x, _) => x < 48
+            ? ((byte)255, (byte)0, (byte)0, (byte)255)
+            : ((byte)0, (byte)0, (byte)255, (byte)255)), 96, 48);
+        var wall = catalogue.Ids[0];
+        var grass = catalogue.Ids[1];
+        var edited = TileAssetFlags.Default
+            .WithPassage(TilePassageDirection.South, false)
+            .WithPriority(4)
+            .WithBush(true)
+            .WithCounter(true)
+            .WithDamage(true);
+        Assert.True(catalogue.TrySetFlags(wall, TileAssetFlags.Blocked, out var error), error);
+        Assert.True(catalogue.TrySetFlags(grass, edited, out error), error);
+        Assert.False(catalogue.TrySetFlags(TileAssetId.None, TileAssetFlags.Blocked, out error));
+        Assert.Contains("catalogue", error, StringComparison.OrdinalIgnoreCase);
+
+        catalogue.SaveToDirectory(_store);
+        var loaded = new TileAssetCatalogue();
+        loaded.LoadFromDirectory(_store);
+        Assert.True(loaded.GetFlags(wall).BlocksAllPassage);
+        Assert.Equal(edited, loaded.GetFlags(grass));
+        Assert.True(loaded.GetFlags(TileAssetId.None).IsDefault);
+        var json = File.ReadAllText(Path.Combine(_store, TileAssetFlagTable.FileName));
+        Assert.Contains(wall.ToHex(), json, StringComparison.Ordinal);
+        Assert.Contains("\"bush\": true", json, StringComparison.Ordinal);
+        Assert.Contains("\"damage\": true", json, StringComparison.Ordinal);
+        Assert.Contains("\"counter\": true", json, StringComparison.Ordinal);
+
+        var map = TileAssetMapEditing.CreateMap("Drapeaux", 2, 1);
+        Assert.True(TileAssetMapEditing.TryPaint(
+            map, 0, 0, 0, TileAssetMapEditing.CreateBrushTile(0, 0, wall, TileType.Ground)));
+        var sidecarDir = Path.Combine(_store, "map");
+        Directory.CreateDirectory(sidecarDir);
+        var mapPath = Path.Combine(sidecarDir, "drapeaux.fmap");
+        File.WriteAllBytes(mapPath, TileAssetMapEditing.Write(map));
+        loaded.WriteMapFlagSidecar(mapPath, map);
+        var fresh = new TileAssetCatalogue();
+        Assert.True(fresh.TryImportMapFlagSidecar(mapPath, out var importError), importError);
+        Assert.True(fresh.Flags.Get(wall).BlocksAllPassage);
+        Assert.False(fresh.Flags.TryGetExplicit(grass, out _));
+        var bytes = TileAssetMapEditing.Write(map);
+        map.TileFlags = loaded.Flags;
+        Assert.Equal(bytes, TileAssetMapEditing.Write(map));
+        Assert.Equal((byte)6, bytes[4]);
+    }
+
+    [Fact]
     public void PngCodec_RoundTripsStraightRgba_AndImportKeepsHash()
     {
         var red = Solid(255, 0, 0, 255);

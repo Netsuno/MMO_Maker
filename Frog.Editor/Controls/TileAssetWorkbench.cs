@@ -27,6 +27,7 @@ public sealed class TileAssetWorkbench : UserControl
     private readonly ComboBox _sets;
     private readonly ListBox _palette;
     private readonly Label _status;
+    private readonly TileAssetFlagsPanel _flags;
     private bool _suspend;
 
     public event Action<TileAssetId>? BrushTileChosen;
@@ -38,6 +39,7 @@ public sealed class TileAssetWorkbench : UserControl
         BackColor = EditorChrome.SidebarBg;
         Font = EditorChrome.BodyFont;
         ForeColor = EditorChrome.LabelPrimary;
+        _flags = new TileAssetFlagsPanel(_catalogue);
 
         var import = new FlowLayoutPanel
         {
@@ -86,11 +88,22 @@ public sealed class TileAssetWorkbench : UserControl
 
         _grid = new TileAssetThumbGrid { Dock = DockStyle.Fill };
         _grid.ImageProvider = id => TileAssetThumbnails.Get(_catalogue, id);
+        _grid.FlagsProvider = id => _catalogue.GetFlags(id);
+        _grid.ModeProvider = () => _flags.Mode;
+        _flags.ModeChanged += () =>
+        {
+            if (!IsDisposed)
+            {
+                _grid.Invalidate();
+            }
+        };
         _grid.TileChosen += id =>
         {
             BrushTileChosen?.Invoke(id);
             SetStatus(ShortId(id));
+            _flags.Bind(id);
         };
+        _grid.TileEdited += (id, localX, localY) => _flags.ApplyClick(id, localX, localY);
         _grid.TileActivated += id => AddSelected(id);
         var catalogueHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 8, 4) };
         var catalogueBanner = EditorChrome.BuildZoneBanner("Catalogue");
@@ -148,6 +161,7 @@ public sealed class TileAssetWorkbench : UserControl
             var id = set.Tiles[index];
             _grid.SelectId(id);
             BrushTileChosen?.Invoke(id);
+            _flags.Bind(id);
         };
 
         var add = SmallButton("Ajouter");
@@ -188,6 +202,7 @@ public sealed class TileAssetWorkbench : UserControl
         working.Controls.Add(EditorChrome.BuildZoneBanner("Tileset de travail"));
 
         Controls.Add(catalogueHost);
+        Controls.Add(_flags);
         Controls.Add(working);
         Controls.Add(_status);
         Controls.Add(searchHost);
@@ -267,6 +282,7 @@ public sealed class TileAssetWorkbench : UserControl
     public void SelectTile(TileAssetId id)
     {
         _grid.SelectId(id);
+        _flags.Bind(id);
         if (_catalogue.ActiveWorkingTileset is { } set)
         {
             var index = set.Tiles.IndexOf(id);
@@ -369,6 +385,7 @@ public sealed class TileAssetWorkbench : UserControl
         RefreshGrid();
         RefreshSets();
         RefreshPalette();
+        _flags.Bind(_grid.SelectedId);
     }
 
     private void RefreshGrid()
@@ -469,7 +486,14 @@ internal sealed class TileAssetThumbGrid : Control
 
     public Func<TileAssetId, Image?>? ImageProvider { get; set; }
 
+    public Func<TileAssetId, TileAssetFlags>? FlagsProvider { get; set; }
+
+    public Func<TileFlagEditMode>? ModeProvider { get; set; }
+
     public event Action<TileAssetId>? TileChosen;
+
+    /// <summary>Clic dans les 48×48 de la vignette (le trou de 4 px ne compte pas).</summary>
+    public event Action<TileAssetId, int, int>? TileEdited;
 
     public event Action<TileAssetId>? TileActivated;
 
@@ -487,18 +511,22 @@ internal sealed class TileAssetThumbGrid : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (e.Button == MouseButtons.Left && TryHit(e.X, e.Y, out var id))
+        if (e.Button == MouseButtons.Left && TryHit(e.X, e.Y, out var id, out var localX, out var localY, out var inThumb))
         {
             SelectedId = id;
             Invalidate();
             TileChosen?.Invoke(id);
+            if (inThumb)
+            {
+                TileEdited?.Invoke(id, localX, localY);
+            }
         }
     }
 
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
         base.OnMouseDoubleClick(e);
-        if (e.Button == MouseButtons.Left && TryHit(e.X, e.Y, out var id))
+        if (e.Button == MouseButtons.Left && TryHit(e.X, e.Y, out var id, out _, out _, out _))
         {
             TileActivated?.Invoke(id);
         }
@@ -546,8 +574,84 @@ internal sealed class TileAssetThumbGrid : Control
                     using var pen = new Pen(Color.FromArgb(255, 182, 72), 2);
                     e.Graphics.DrawRectangle(pen, dest);
                 }
+
+                PaintMode(e.Graphics, dest, FlagsProvider?.Invoke(id) ?? TileAssetFlags.Default);
             }
         }
+    }
+
+    private void PaintMode(Graphics graphics, Rectangle dest, TileAssetFlags flags)
+    {
+        var mode = ModeProvider?.Invoke() ?? TileFlagEditMode.PassageGlobal;
+        if (mode == TileFlagEditMode.PassageFourDirections)
+        {
+            PaintDirections(graphics, dest, flags);
+            return;
+        }
+
+        if (mode == TileFlagEditMode.Bush && flags.Bush)
+        {
+            using var shade = new SolidBrush(Color.FromArgb(140, 0, 0, 0));
+            var half = dest.Height / 2;
+            graphics.FillRectangle(shade, dest.Left, dest.Top + half, dest.Width, dest.Height - half);
+        }
+
+        var text = TileFlagEdit.OverlayText(flags, mode);
+        if (string.IsNullOrEmpty(text) || mode == TileFlagEditMode.Bush)
+        {
+            return;
+        }
+
+        using var font = new Font(FontFamily.GenericSansSerif, 14f, FontStyle.Bold, GraphicsUnit.Pixel);
+        var size = graphics.MeasureString(text, font);
+        var x = dest.Left + ((dest.Width - size.Width) / 2f);
+        var y = dest.Top + ((dest.Height - size.Height) / 2f);
+        graphics.DrawString(text, font, Brushes.Black, x + 1f, y + 1f);
+        graphics.DrawString(text, font, Brushes.White, x, y);
+    }
+
+    private static void PaintDirections(Graphics graphics, Rectangle dest, TileAssetFlags flags)
+    {
+        const int arm = 5;
+        var midX = dest.Left + (dest.Width / 2);
+        var midY = dest.Top + (dest.Height / 2);
+        DrawArrow(graphics, flags.PassageNorth, new[]
+        {
+            new Point(midX, dest.Top + 2),
+            new Point(midX - arm, dest.Top + 2 + arm),
+            new Point(midX + arm, dest.Top + 2 + arm),
+        });
+        DrawArrow(graphics, flags.PassageSouth, new[]
+        {
+            new Point(midX, dest.Bottom - 3),
+            new Point(midX - arm, dest.Bottom - 3 - arm),
+            new Point(midX + arm, dest.Bottom - 3 - arm),
+        });
+        DrawArrow(graphics, flags.PassageWest, new[]
+        {
+            new Point(dest.Left + 2, midY),
+            new Point(dest.Left + 2 + arm, midY - arm),
+            new Point(dest.Left + 2 + arm, midY + arm),
+        });
+        DrawArrow(graphics, flags.PassageEast, new[]
+        {
+            new Point(dest.Right - 3, midY),
+            new Point(dest.Right - 3 - arm, midY - arm),
+            new Point(dest.Right - 3 - arm, midY + arm),
+        });
+    }
+
+    private static void DrawArrow(Graphics graphics, bool open, Point[] points)
+    {
+        var shadow = new Point[points.Length];
+        for (var i = 0; i < points.Length; i++)
+        {
+            shadow[i] = new Point(points[i].X + 1, points[i].Y + 1);
+        }
+
+        graphics.FillPolygon(Brushes.Black, shadow);
+        using var brush = new SolidBrush(open ? Color.White : Color.FromArgb(180, 40, 32));
+        graphics.FillPolygon(brush, points);
     }
 
     private int Columns() => Math.Max(1, Math.Max(1, ClientSize.Width - _scroll.Width) / Cell);
@@ -567,11 +671,14 @@ internal sealed class TileAssetThumbGrid : Control
         }
     }
 
-    private bool TryHit(int x, int y, out TileAssetId id)
+    private bool TryHit(int x, int y, out TileAssetId id, out int localX, out int localY, out bool inThumb)
     {
         id = TileAssetId.None;
+        localX = 0;
+        localY = 0;
+        inThumb = false;
         var columns = Columns();
-        if (x < 0 || x >= columns * Cell)
+        if (x < 0 || y < 0 || x >= columns * Cell)
         {
             return false;
         }
@@ -579,11 +686,14 @@ internal sealed class TileAssetThumbGrid : Control
         var column = x / Cell;
         var row = (y + _scroll.Value) / Cell;
         var index = (row * columns) + column;
-        if ((uint)index >= (uint)_tiles.Count)
+        if ((uint)index >= (uint)_tiles.Count || row < 0)
         {
             return false;
         }
 
+        localX = x - (column * Cell);
+        localY = (y + _scroll.Value) - (row * Cell);
+        inThumb = localX < Thumb && localY < Thumb;
         id = _tiles[index];
         return true;
     }

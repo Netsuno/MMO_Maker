@@ -2708,6 +2708,7 @@ public sealed class MainForm : Form
         if (tileAsset)
         {
             _tileAssetMapPath = sfd.FileName;
+            _tileAssetCatalogue.WriteMapFlagSidecar(sfd.FileName, _canvas.Map);
             SavePrefabSidecarNextToMap(sfd.FileName);
         }
         else
@@ -2723,7 +2724,7 @@ public sealed class MainForm : Form
         MessageBox.Show(
             GetDialogOwner(),
             tileAsset
-                ? "Carte TileAsset enregistrée (format v6, tuiles 48 px). Le fichier stocke des TileAssetId, pas la position dans la palette."
+                ? "Carte TileAsset enregistrée (format v6, tuiles 48 px). Le fichier stocke des TileAssetId. Les drapeaux sont dans le sidecar .tileflags.json."
                 : "Carte, PNG tileset, manifeste (.tilesets.json), animations (.anims.json) et sidecar prefabs (.prefabs.json) exportés.",
             "Export",
             MessageBoxButtons.OK,
@@ -3049,7 +3050,10 @@ public sealed class MainForm : Form
             _playtestOrchestrator = new PlaytestOrchestrator(
                 preparer,
                 launcher,
-                new EditorPlaytestTilesetSidecar(() => _canvas.PrefabPlacements, () => _canvas.PlacedEntities));
+                new EditorPlaytestTilesetSidecar(
+                    () => _canvas.PrefabPlacements,
+                    () => _canvas.PlacedEntities,
+                    () => _tileAssetCatalogue.Flags));
 
             if (_workspace.CurrentMap is null)
             {
@@ -3934,6 +3938,10 @@ public sealed class MainForm : Form
         var data = File.ReadAllBytes(mapPath);
         var map = TileAssetMapEditing.ReadEditorMap(data);
         _tileAssetMapPath = TileAssetMapEditing.IsTileAssetMap(map) ? mapPath : null;
+        if (_tileAssetMapPath is not null && !_tileAssetCatalogue.TryImportMapFlagSidecar(mapPath, out var flagError) && flagError is not null)
+        {
+            _dialogService.ShowWarning(flagError, "Drapeaux de tuile");
+        }
 
         TilesetCache.Clear();
         var manifestOutcome = TryApplyTilesetManifestFromMapPath(mapPath);
@@ -4008,9 +4016,10 @@ public sealed class MainForm : Form
         var bytes = TileAssetMapEditing.Write(_canvas.Map);
         File.WriteAllBytes(path, bytes);
         _tileAssetMapPath = path;
+        _tileAssetCatalogue.WriteMapFlagSidecar(path, _canvas.Map);
         SavePrefabSidecarNextToMap(path);
         _workspace?.ClearDirty();
-        _statusNotice = "Carte TileAsset enregistrée (v6, 48 px).";
+        _statusNotice = "Carte TileAsset enregistrée (v6, 48 px, drapeaux).";
         UpdateMapChromeLabels();
         PushEditorStatusLine();
     }

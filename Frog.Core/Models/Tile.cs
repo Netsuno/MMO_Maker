@@ -68,6 +68,6 @@ public sealed class Tile
     [Description("Identifiant de script optionnel (futur moteur d’événements).")]
     public string? ScriptId { get; set; }
 
-    // #TODO (FR) : Drapeaux : collision, blocage NPC/joueur, zone/region id, identifiant d’attribut/script.
+    // Passage 4 dir., priorité, buisson, comptoir, dégâts : meta TileAssetFlags du TileAssetId, pas cette cellule.
 }
 

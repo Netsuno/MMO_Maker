@@ -46,6 +46,7 @@ public sealed class MapCanvas : Control
             }
 
             _map = value;
+            AttachTileFlags();
             NotifyViewTransformChanged();
             Invalidate();
         }
@@ -58,7 +59,27 @@ public sealed class MapCanvas : Control
     public Point SelectedSrc { get; set; } = new(0, 0);
 
     /// <summary>Catalogue TileAsset. Les cartes feuille continuent d’utiliser <see cref="TilesetCache"/>.</summary>
-    public TileAssetCatalogue? TileAssets { get; set; }
+    public TileAssetCatalogue? TileAssets
+    {
+        get => _tileAssets;
+        set
+        {
+            _tileAssets = value;
+            AttachTileFlags();
+        }
+    }
+
+    private TileAssetCatalogue? _tileAssets;
+
+    private void AttachTileFlags()
+    {
+        if (_map is not null
+            && _map.GraphicIdentity == TileGraphicIdentity.TileAsset
+            && _tileAssets is not null)
+        {
+            _map.TileFlags = _tileAssets.Flags;
+        }
+    }
 
     /// <summary>Pinceau v6. Ignoré tant que la carte n’est pas en identité TileAsset.</summary>
     public TileAssetId ActiveTileAssetId { get; set; }

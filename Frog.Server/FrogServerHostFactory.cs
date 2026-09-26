@@ -474,6 +474,7 @@ public static class FrogServerHostFactory
                 services.AddSingleton<ModerationService>();
                 services.AddSingleton<ConnectionManager>();
                 services.AddSingleton<ClientRegistry>();
+                services.AddSingleton(_ => TileAssetFlagBootstrap.Load(playtest));
                 services.AddSingleton<MapService>();
                 services.AddSingleton<MovementService>();
                 services.AddSingleton<PacketSender>();

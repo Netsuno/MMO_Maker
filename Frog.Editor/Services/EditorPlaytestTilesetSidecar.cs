@@ -4,6 +4,7 @@ using Frog.Application.Assets;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
 using Frog.Application.Prefabs;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Editor.Assets;
 
@@ -14,18 +15,22 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
 {
     private readonly Func<IReadOnlyList<PrefabPlacement>>? _prefabPlacements;
     private readonly Func<IReadOnlyList<MapPlacedEntity>>? _placedEntities;
+    private readonly Func<TileAssetFlagTable?>? _tileFlags;
 
     public EditorPlaytestTilesetSidecar(
         Func<IReadOnlyList<PrefabPlacement>>? prefabPlacements = null,
-        Func<IReadOnlyList<MapPlacedEntity>>? placedEntities = null)
+        Func<IReadOnlyList<MapPlacedEntity>>? placedEntities = null,
+        Func<TileAssetFlagTable?>? tileFlags = null)
     {
         _prefabPlacements = prefabPlacements;
         _placedEntities = placedEntities;
+        _tileFlags = tileFlags;
     }
 
     public void Write(PlaytestLaunchPlan plan, string? clientExecutablePath)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        WriteTileFlags(plan.WorkDirectory);
         var names = plan.Maps.Select(m => m.Name).ToArray();
         var files = CollectTilesetFiles(plan);
         if (files.Count > 0)
@@ -63,6 +68,7 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
         }
 
         var clientDir = Path.GetDirectoryName(clientExecutablePath);
+        WriteTileFlags(clientDir);
         if (string.IsNullOrWhiteSpace(clientDir))
         {
             return;
@@ -81,6 +87,22 @@ internal sealed class EditorPlaytestTilesetSidecar : IPlaytestAssetSidecar
         }
 
         PlaytestPlacedEntityPackage.WriteForPlan(clientDir, plan, placed);
+    }
+
+    private void WriteTileFlags(string? directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        var flags = _tileFlags?.Invoke();
+        if (flags is not { Count: > 0 })
+        {
+            return;
+        }
+
+        flags.Save(directory);
     }
 
     private static IReadOnlyList<MapTilesetFile> CollectTilesetFiles(PlaytestLaunchPlan plan)

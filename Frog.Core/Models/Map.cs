@@ -69,6 +69,14 @@ public sealed class Map : IValidatable
     public int TileSizePixels { get; set; }
 
     /// <summary>
+    /// Drapeaux TileAsset (passage 4 dir., priorité, buisson, comptoir, dégâts).
+    /// Absent du blob <c>.fmap</c> : catalogue <c>tile-flags.json</c> ou sidecar <c>.tileflags.json</c>.
+    /// Null : aucun drapeau, le blocage reste <see cref="Enums.TileType.Block"/>.
+    /// </summary>
+    [Browsable(false)]
+    public TileAssetFlagTable? TileFlags { get; set; }
+
+    /// <summary>
     /// Valide l’intégrité de la carte : dimensions, couches, tuiles dans les bornes, doublons par couche, warps.
     /// </summary>
     public bool Validate(out string? errorMessage)
