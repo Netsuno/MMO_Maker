@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Frog.Application.Content;
+using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql;
 
@@ -115,6 +116,7 @@ public class Phase8ContentPostgreSqlService : IDisposable
             {
                 Id = id,
                 Name = name,
+                Pages = CommonEventEditorSheet.CreateDefaultPages(),
             }),
             Phase8ContentKind.Profession => Serialize(new ProfessionDefinition
             {

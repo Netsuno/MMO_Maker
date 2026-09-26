@@ -116,6 +116,7 @@
             </MenuItem>
             <MenuItem Header="_Ressources" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Données de jeu…" Command="{x:Static local:MainWindow.CmdGameData}" />
+                <MenuItem Header="Événements communs…" Command="{x:Static local:MainWindow.CmdBrowseCommonEvents}" />
                 <MenuItem Header="Charger une image tuiles…" Command="{x:Static local:MainWindow.CmdOpenTileset}" />
                 <MenuItem Header="Importer une feuille TileAsset…" Command="{x:Static local:MainWindow.CmdImportTileAssetSheet}" />
                 <Separator />
@@ -171,6 +172,8 @@
                           Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
                 <MenuItem Header="Contenu Phase 8…"
                           Command="{x:Static local:MainWindow.CmdBrowsePhase8Content}" />
+                <MenuItem Header="Événements communs…"
+                          Command="{x:Static local:MainWindow.CmdBrowseCommonEvents}" />
                 <MenuItem Header="Actualiser marqueurs événements"
                           Command="{x:Static local:MainWindow.CmdRefreshMapEventMarkers}" />
             </MenuItem>
