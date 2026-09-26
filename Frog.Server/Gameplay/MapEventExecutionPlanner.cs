@@ -102,6 +102,35 @@ internal static class MapEventExecutionPlanner
                 continue;
             }
 
+            if (cmd.Discriminator == MapEventCommandDiscriminators.ShowChoices)
+            {
+                if (!MapEventParameterSchemas.TryParseShowChoices(
+                        cmd.ParameterJson,
+                        out _,
+                        out _,
+                        out var choiceBranches,
+                        out var cancelCommands,
+                        out error))
+                {
+                    return false;
+                }
+
+                foreach (var branch in choiceBranches)
+                {
+                    if (!ValidateCommandTree(branch, depth + 1, out error))
+                    {
+                        return false;
+                    }
+                }
+
+                if (!ValidateCommandTree(cancelCommands, depth + 1, out error))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
             if (cmd.Discriminator == MapEventCommandDiscriminators.CallCommonEvent)
             {
                 continue;
@@ -135,7 +164,9 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.TurnInQuest
                 or MapEventCommandDiscriminators.LearnProfession
                 or MapEventCommandDiscriminators.StartDialogue
-                or MapEventCommandDiscriminators.Teleport => true,
+                or MapEventCommandDiscriminators.Teleport
+                or MapEventCommandDiscriminators.PlayBgm
+                or MapEventCommandDiscriminators.PlaySe => true,
             _ => false,
         };
 }

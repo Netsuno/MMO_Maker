@@ -1,6 +1,8 @@
+using System.IO;
 using System.Text.Json;
 using Frog.Core.Events;
 using Frog.Core.Models;
+using Frog.Editor.Services;
 using Frog.Editor.Ui;
 
 namespace Frog.Editor.Forms.Phase8;
@@ -25,6 +27,8 @@ internal sealed class MapEventCommandParameterPanel : UserControl
     private MapEventConditionParameterPanel? _branchCondition;
     private MapEventCommandListPanel? _branchThen;
     private MapEventCommandListPanel? _branchElse;
+    private MapEventShowChoicesEditor? _showChoices;
+    private Button? _audioBrowse;
 
     public MapEventCommandParameterPanel()
     {
@@ -85,6 +89,21 @@ internal sealed class MapEventCommandParameterPanel : UserControl
     internal MapEventCommandListPanel? BranchThenForTest => _branchThen;
 
     internal MapEventCommandListPanel? BranchElseForTest => _branchElse;
+
+    internal MapEventShowChoicesEditor? ShowChoicesForTest => _showChoices;
+
+    internal Button? AudioBrowseForTest => _audioBrowse;
+
+    internal void ClickAudioBrowseForTest()
+    {
+        if (FindFieldControl("asset") is not TextBox asset)
+        {
+            return;
+        }
+
+        var discriminator = _discriminator.SelectedItem as string ?? MapEventCommandDiscriminators.PlayBgm;
+        BrowseAudio(asset, discriminator);
+    }
 
     internal Control? FieldForTest(string key) => FindFieldControl(key);
 
@@ -163,6 +182,8 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         _branchCondition = null;
         _branchThen = null;
         _branchElse = null;
+        _showChoices = null;
+        _audioBrowse = null;
         var discriminator = _discriminator.SelectedItem as string ?? MapEventCommandDiscriminators.ShowText;
         AddFieldsForDiscriminator(discriminator);
     }
@@ -173,6 +194,15 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         {
             case MapEventCommandDiscriminators.ShowText:
                 AddLabeled("text", new TextBox { Width = 360, Text = "…" });
+                break;
+            case MapEventCommandDiscriminators.ShowChoices:
+                _showChoices = new MapEventShowChoicesEditor();
+                _showChoices.ParametersChanged += () => NotifyChanged();
+                AddLabeled("choices", _showChoices);
+                break;
+            case MapEventCommandDiscriminators.PlayBgm:
+            case MapEventCommandDiscriminators.PlaySe:
+                AddAudioFields(discriminator);
                 break;
             case MapEventCommandDiscriminators.SetSwitch:
                 AddLabeled("switchId", new TextBox { Width = 200, Text = "gate_open" });
@@ -340,6 +370,27 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     if (root.TryGetProperty("text", out var textEl))
                     {
                         SetText("text", textEl.GetString() ?? string.Empty);
+                    }
+
+                    break;
+                case MapEventCommandDiscriminators.ShowChoices:
+                    _showChoices?.LoadChoices(json);
+                    break;
+                case MapEventCommandDiscriminators.PlayBgm:
+                case MapEventCommandDiscriminators.PlaySe:
+                    if (root.TryGetProperty("asset", out var assetEl))
+                    {
+                        SetText("asset", assetEl.GetString() ?? string.Empty);
+                    }
+
+                    if (root.TryGetProperty("volume", out var volumeEl) && volumeEl.TryGetInt32(out var volume))
+                    {
+                        SetInt("volume", volume);
+                    }
+
+                    if (root.TryGetProperty("fadeMs", out var fadeEl) && fadeEl.TryGetInt32(out var fadeMs))
+                    {
+                        SetInt("fadeMs", fadeMs);
                     }
 
                     break;
@@ -558,10 +609,29 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 return error is null;
             }
 
+            if (discriminator == MapEventCommandDiscriminators.ShowChoices)
+            {
+                if (_showChoices is null)
+                {
+                    json = "{}";
+                    error = "show_choices: éditeur incomplet.";
+                    return false;
+                }
+
+                return _showChoices.TryBuild(out json, out error);
+            }
+
             json = discriminator switch
             {
                 MapEventCommandDiscriminators.ShowText =>
                     JsonSerializer.Serialize(new { text = GetText("text") }),
+                MapEventCommandDiscriminators.PlayBgm or MapEventCommandDiscriminators.PlaySe =>
+                    JsonSerializer.Serialize(new
+                    {
+                        asset = GetText("asset"),
+                        volume = GetInt("volume"),
+                        fadeMs = GetInt("fadeMs"),
+                    }),
                 MapEventCommandDiscriminators.SetSwitch =>
                     JsonSerializer.Serialize(new { switchId = GetText("switchId"), value = GetBool("value") }),
                 MapEventCommandDiscriminators.SetVariable =>
@@ -602,6 +672,113 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             error = ex.Message;
             return false;
         }
+    }
+
+    private void AddAudioFields(string discriminator)
+    {
+        var asset = new TextBox
+        {
+            Width = 280,
+            Text = discriminator == MapEventCommandDiscriminators.PlaySe
+                ? "Assets/Audio/ui-click.wav"
+                : "Assets/Audio/music-loop.wav",
+        };
+        AddLabeled("asset", asset);
+        if (_dynamicFields[^1] is FlowLayoutPanel row)
+        {
+            _audioBrowse = new Button { Text = "Parcourir…", AutoSize = true, Margin = new Padding(8, 2, 0, 0) };
+            _audioBrowse.Click += (_, _) => BrowseAudio(asset, discriminator);
+            row.Controls.Add(_audioBrowse);
+        }
+
+        AddLabeled("volume", new NumericUpDown
+        {
+            Width = 72,
+            Minimum = MapAudioTrack.MinVolume,
+            Maximum = MapAudioTrack.MaxVolume,
+            Value = MapAudioTrack.DefaultVolume,
+        });
+        AddLabeled("fadeMs", new NumericUpDown
+        {
+            Width = 88,
+            Minimum = MapAudioTrack.MinFadeMs,
+            Maximum = MapAudioTrack.MaxFadeMs,
+            Value = 0,
+        });
+    }
+
+    private void BrowseAudio(TextBox target, string discriminator)
+    {
+        var title = discriminator == MapEventCommandDiscriminators.PlaySe
+            ? "Choisir le son (SE)"
+            : "Choisir la musique (BGM)";
+        var picked = EditorTestHooks.OverrideMapAudioPickPath;
+        if (string.IsNullOrWhiteSpace(picked))
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Filter = "Audio WAV (*.wav)|*.wav|Tous les fichiers (*.*)|*.*",
+                Title = title,
+                CheckFileExists = true,
+                RestoreDirectory = true,
+            };
+            var initial = FindAudioFolder();
+            if (initial is not null)
+            {
+                dialog.InitialDirectory = initial;
+            }
+
+            if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
+            {
+                return;
+            }
+
+            picked = dialog.FileName;
+        }
+
+        if (!MapAudioTrack.TryFromPickedFile(picked, FindRepositoryRoot(), out var stored, out var error))
+        {
+            MessageBox.Show(FindForm(), error ?? "Fichier audio refusé.", "Audio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        target.Text = stored;
+    }
+
+    private static string? FindRepositoryRoot()
+    {
+        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
+        {
+            if (string.IsNullOrWhiteSpace(start))
+            {
+                continue;
+            }
+
+            var dir = new DirectoryInfo(start);
+            while (dir is not null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "Frog.Creator.sln")))
+                {
+                    return dir.FullName;
+                }
+
+                dir = dir.Parent;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindAudioFolder()
+    {
+        var root = FindRepositoryRoot();
+        if (root is null)
+        {
+            return null;
+        }
+
+        var folder = Path.Combine(root, "Frog.Client", "Assets", "Audio");
+        return Directory.Exists(folder) ? folder : null;
     }
 
     private string BuildItemMutationJson()

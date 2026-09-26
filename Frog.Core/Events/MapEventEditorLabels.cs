@@ -39,6 +39,9 @@ public static class MapEventEditorLabels
     public static string CommandKind(string? discriminator) => discriminator switch
     {
         MapEventCommandDiscriminators.ShowText => "Texte",
+        MapEventCommandDiscriminators.ShowChoices => "Afficher choix",
+        MapEventCommandDiscriminators.PlayBgm => "Jouer BGM",
+        MapEventCommandDiscriminators.PlaySe => "Jouer SE",
         MapEventCommandDiscriminators.StartDialogue => "Dialogue",
         MapEventCommandDiscriminators.Branch => "Branche",
         MapEventCommandDiscriminators.SetSwitch => "Régler interrupteur",
@@ -62,6 +65,11 @@ public static class MapEventEditorLabels
     public static string Field(string? key) => key switch
     {
         "text" => "Texte",
+        "choices" => "Choix",
+        "cancel" => "Annulation",
+        "asset" => "Fichier",
+        "volume" => "Volume",
+        "fadeMs" => "Fondu (ms)",
         "switchId" => "Interrupteur",
         "value" => "Valeur",
         "variableId" => "Variable",
@@ -89,6 +97,17 @@ public static class MapEventEditorLabels
         "op" => "Comparaison",
         "status" => "Statut",
         _ => string.IsNullOrWhiteSpace(key) ? "" : key,
+    };
+
+    public static string CancelType(string? cancel) => cancel switch
+    {
+        MapEventShowChoices.CancelDisallow => "Interdit",
+        MapEventShowChoices.CancelChoice1 => "Choix 1",
+        MapEventShowChoices.CancelChoice2 => "Choix 2",
+        MapEventShowChoices.CancelChoice3 => "Choix 3",
+        MapEventShowChoices.CancelChoice4 => "Choix 4",
+        MapEventShowChoices.CancelBranch => "Branche",
+        _ => string.IsNullOrWhiteSpace(cancel) ? "Annulation" : cancel.Trim(),
     };
 
     public static string CompareOp(string? op) => op switch
@@ -173,6 +192,9 @@ public static class MapEventEditorLabels
         {
             MapEventCommandDiscriminators.ShowText =>
                 $"Texte : {Clip(ReadString(root, "text"), 42)}",
+            MapEventCommandDiscriminators.ShowChoices => SummarizeChoices(root),
+            MapEventCommandDiscriminators.PlayBgm => SummarizeAudio("Jouer BGM", root),
+            MapEventCommandDiscriminators.PlaySe => SummarizeAudio("Jouer SE", root),
             MapEventCommandDiscriminators.SetSwitch =>
                 $"Interrupteur « {Clip(ReadString(root, "switchId"), 24)} » ← {(ReadBool(root, "value") ? "oui" : "non")}",
             MapEventCommandDiscriminators.SetVariable =>
@@ -207,6 +229,45 @@ public static class MapEventEditorLabels
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };
+    }
+
+    private static string SummarizeChoices(JsonElement root)
+    {
+        if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array)
+        {
+            return "Afficher choix";
+        }
+
+        var labels = new List<string>();
+        foreach (var item in choices.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.String)
+            {
+                labels.Add(Clip(item.GetString(), 16));
+            }
+        }
+
+        return labels.Count == 0
+            ? "Afficher choix"
+            : "Afficher choix : " + string.Join(" / ", labels);
+    }
+
+    private static string SummarizeAudio(string title, JsonElement root)
+    {
+        var asset = ReadString(root, "asset");
+        var file = asset;
+        var slash = asset.LastIndexOf('/');
+        if (slash >= 0 && slash < asset.Length - 1)
+        {
+            file = asset[(slash + 1)..];
+        }
+
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            return title;
+        }
+
+        return $"{title} : {Clip(file, 28)} · vol. {ReadInt(root, "volume")}";
     }
 
     private static string SummarizeBranch(JsonElement root)

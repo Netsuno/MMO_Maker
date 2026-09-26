@@ -179,6 +179,34 @@ public static class MapEventExecutionPlanner
                 continue;
             }
 
+            if (command.Discriminator == MapEventCommandDiscriminators.ShowChoices)
+            {
+                if (!resolveBranches)
+                {
+                    output.Add(command);
+                    continue;
+                }
+
+                if (branchDepth >= MapEventRuntimeLimits.MaxBranchDepth)
+                {
+                    return "Profondeur de branche excessive.";
+                }
+
+                // Persistance seule : les pages restent dans le JSON, aucune n'est prise.
+                // Voir MapEventDeferredPresentation (Hello inchangé).
+                if (!command.Validate(out var choiceShapeErr))
+                {
+                    return choiceShapeErr;
+                }
+
+                if (!MapEventCommandParameterValidator.ValidateParameters(command, out var choiceParamErr))
+                {
+                    return choiceParamErr;
+                }
+
+                continue;
+            }
+
             if (command.Discriminator == MapEventCommandDiscriminators.CallCommonEvent)
             {
                 var commonErr = await ExpandCommonEventAsync(

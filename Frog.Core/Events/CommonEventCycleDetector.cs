@@ -109,6 +109,23 @@ public static class CommonEventCycleDetector
                 CollectCallTargets(thenCmds, byId, byAlias, targets);
                 CollectCallTargets(elseCmds, byId, byAlias, targets);
             }
+
+            if (string.Equals(command.Discriminator, MapEventCommandDiscriminators.ShowChoices, StringComparison.Ordinal)
+                && MapEventParameterSchemas.TryParseShowChoices(
+                    command.ParameterJson,
+                    out _,
+                    out _,
+                    out var choiceBranches,
+                    out var cancelCommands,
+                    out _))
+            {
+                foreach (var branch in choiceBranches)
+                {
+                    CollectCallTargets(branch, byId, byAlias, targets);
+                }
+
+                CollectCallTargets(cancelCommands, byId, byAlias, targets);
+            }
         }
     }
 

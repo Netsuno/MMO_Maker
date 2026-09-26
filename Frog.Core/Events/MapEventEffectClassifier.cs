@@ -22,7 +22,8 @@ public static class MapEventEffectClassifier
         discriminator switch
         {
             MapEventCommandDiscriminators.Branch
-                or MapEventCommandDiscriminators.CallCommonEvent =>
+                or MapEventCommandDiscriminators.CallCommonEvent
+                or MapEventCommandDiscriminators.ShowChoices =>
                 MapEventEffectCommitKind.UnresolvedControlFlow,
             MapEventCommandDiscriminators.ShowText
                 or MapEventCommandDiscriminators.SetSwitch
@@ -37,7 +38,9 @@ public static class MapEventEffectClassifier
                 or MapEventCommandDiscriminators.AdvanceQuest
                 or MapEventCommandDiscriminators.TurnInQuest
                 or MapEventCommandDiscriminators.LearnProfession
-                or MapEventCommandDiscriminators.Wait =>
+                or MapEventCommandDiscriminators.Wait
+                or MapEventCommandDiscriminators.PlayBgm
+                or MapEventCommandDiscriminators.PlaySe =>
                 MapEventEffectCommitKind.Persistent,
             MapEventCommandDiscriminators.StartDialogue
                 or MapEventCommandDiscriminators.Teleport =>

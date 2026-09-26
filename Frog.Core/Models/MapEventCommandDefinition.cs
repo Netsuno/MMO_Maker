@@ -49,6 +49,9 @@ public static class MapEventCommandDiscriminators
     public const string ShowText = "show_text";
     public const string StartDialogue = "start_dialogue";
     public const string Branch = "branch";
+    public const string ShowChoices = "show_choices";
+    public const string PlayBgm = "play_bgm";
+    public const string PlaySe = "play_se";
     public const string SetSwitch = "set_switch";
     public const string SetVariable = "set_variable";
     public const string AddVariable = "add_variable";
@@ -67,7 +70,8 @@ public static class MapEventCommandDiscriminators
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
-        ShowText, StartDialogue, Branch, SetSwitch, SetVariable, AddVariable, SubVariable,
+        ShowText, StartDialogue, Branch, ShowChoices, PlayBgm, PlaySe,
+        SetSwitch, SetVariable, AddVariable, SubVariable,
         GiveItem, TakeItem, GiveGold, TakeGold, StartQuest, AdvanceQuest, TurnInQuest,
         Teleport, Wait, CallCommonEvent, LearnProfession,
     };

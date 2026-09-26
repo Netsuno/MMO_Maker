@@ -199,6 +199,25 @@ public static class MapTransferScanner
                 continue;
             }
 
+            if (command.Discriminator == MapEventCommandDiscriminators.ShowChoices
+                && branchDepth < MapEventRuntimeLimits.MaxBranchDepth
+                && MapEventParameterSchemas.TryParseShowChoices(
+                    command.ParameterJson,
+                    out _,
+                    out _,
+                    out var choiceBranches,
+                    out var cancelCommands,
+                    out _))
+            {
+                foreach (var branch in choiceBranches)
+                {
+                    WalkCommands(links, sourceX, sourceY, label, branch, lookupCommonEvent, visited, branchDepth + 1, commonDepth);
+                }
+
+                WalkCommands(links, sourceX, sourceY, label, cancelCommands, lookupCommonEvent, visited, branchDepth + 1, commonDepth);
+                continue;
+            }
+
             if (command.Discriminator != MapEventCommandDiscriminators.CallCommonEvent
                 || commonDepth >= MapEventRuntimeLimits.MaxCommonEventRecursionDepth
                 || lookupCommonEvent is null

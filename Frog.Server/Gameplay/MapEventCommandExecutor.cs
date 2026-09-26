@@ -304,6 +304,22 @@ public sealed class MapEventCommandExecutor
                 return await ExecuteBranchAsync(session, characterId, command.ParameterJson, state, cancellationToken)
                     .ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.ShowChoices:
+                // Pages persistées, aucune branche prise. Voir MapEventDeferredPresentation.
+                return MapEventDeferredPresentation.TryAcceptShowChoices(command.ParameterJson, out var choicesErr)
+                    ? null
+                    : choicesErr ?? "show_choices invalide.";
+
+            case MapEventCommandDiscriminators.PlayBgm:
+            case MapEventCommandDiscriminators.PlaySe:
+                // Piste persistée, pas de lecture client. Voir MapEventDeferredPresentation.
+                return MapEventDeferredPresentation.TryAcceptPlayAudio(
+                    command.Discriminator,
+                    command.ParameterJson,
+                    out var audioErr)
+                    ? null
+                    : audioErr ?? "audio invalide.";
+
             case MapEventCommandDiscriminators.CallCommonEvent:
                 return await ExecuteCallCommonEventAsync(session, characterId, command.ParameterJson, state, cancellationToken)
                     .ConfigureAwait(false);

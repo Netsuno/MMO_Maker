@@ -15,6 +15,9 @@ public sealed class MapEventCommandPaletteTests
         Assert.Equal(
             [
                 MapEventCommandPalette.ShowTextId,
+                MapEventCommandPalette.ShowChoicesId,
+                MapEventCommandPalette.PlayBgmId,
+                MapEventCommandPalette.PlaySeId,
                 MapEventCommandPalette.SetSwitchId,
                 MapEventCommandPalette.SetVariableId,
                 MapEventCommandPalette.AddVariableId,
@@ -25,6 +28,9 @@ public sealed class MapEventCommandPaletteTests
             ids);
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Texte");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Afficher choix");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Jouer BGM");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Jouer SE");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Si variable");
     }
 
@@ -68,6 +74,45 @@ public sealed class MapEventCommandPaletteTests
 
         Assert.True(MapEventCommandPalette.TryCreate(MapEventCommandPalette.SubVariableId, out var sub));
         Assert.Equal(MapEventCommandDiscriminators.SubVariable, sub.Discriminator);
+    }
+
+    [Fact]
+    public void TryCreate_ShowChoicesAndAudio_RoundTrip()
+    {
+        Assert.True(MapEventCommandPalette.TryCreate(MapEventCommandPalette.ShowChoicesId, out var choices));
+        Assert.Equal(MapEventCommandDiscriminators.ShowChoices, choices.Discriminator);
+        Assert.True(
+            MapEventParameterSchemas.TryParseShowChoices(
+                choices.ParameterJson,
+                out var labels,
+                out var cancel,
+                out var branches,
+                out var cancelCommands,
+                out var choicesErr),
+            choicesErr);
+        Assert.Equal(["Oui", "Non"], labels);
+        Assert.Equal(MapEventShowChoices.CancelDisallow, cancel);
+        Assert.Equal(2, branches.Count);
+        Assert.All(branches, branch => Assert.Empty(branch));
+        Assert.Empty(cancelCommands);
+        Assert.Contains("Oui", MapEventEditorLabels.CommandSummary(choices.Discriminator, choices.ParameterJson), StringComparison.Ordinal);
+
+        Assert.True(MapEventCommandPalette.TryCreate(MapEventCommandPalette.PlayBgmId, out var bgm));
+        Assert.True(
+            MapEventParameterSchemas.TryParsePlayAudio(
+                bgm.ParameterJson,
+                bgm.Discriminator,
+                out var bgmTrack,
+                out var bgmErr),
+            bgmErr);
+        Assert.Equal("Assets/Audio/music-loop.wav", bgmTrack.Asset);
+        Assert.Equal(MapAudioTrack.DefaultVolume, bgmTrack.Volume);
+        Assert.Equal(0, bgmTrack.FadeMs);
+        Assert.Contains("Jouer BGM", MapEventEditorLabels.CommandSummary(bgm.Discriminator, bgm.ParameterJson), StringComparison.Ordinal);
+
+        Assert.True(MapEventCommandPalette.TryCreate(MapEventCommandPalette.PlaySeId, out var se));
+        Assert.Equal(MapEventCommandDiscriminators.PlaySe, se.Discriminator);
+        Assert.Contains("ui-click.wav", se.ParameterJson, StringComparison.Ordinal);
     }
 
     [Fact]

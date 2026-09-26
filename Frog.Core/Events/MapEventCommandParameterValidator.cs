@@ -52,6 +52,13 @@ public static class MapEventCommandParameterValidator
             MapEventCommandDiscriminators.LearnProfession =>
                 MapEventParameterSchemas.TryParseLearnProfession(command.ParameterJson, out _, out error),
             MapEventCommandDiscriminators.Branch => ValidateBranch(command.ParameterJson, 0, out error),
+            MapEventCommandDiscriminators.ShowChoices => ValidateShowChoices(command.ParameterJson, 0, out error),
+            MapEventCommandDiscriminators.PlayBgm or MapEventCommandDiscriminators.PlaySe =>
+                MapEventParameterSchemas.TryParsePlayAudio(
+                    command.ParameterJson,
+                    command.Discriminator,
+                    out _,
+                    out error),
             _ => false,
         };
 
@@ -89,23 +96,80 @@ public static class MapEventCommandParameterValidator
 
         foreach (var cmd in thenCommands.Concat(elseCommands))
         {
-            if (!cmd.Validate(out error))
-            {
-                return false;
-            }
-
-            if (!ValidateParameters(cmd, out error))
-            {
-                return false;
-            }
-
-            if (cmd.Discriminator == MapEventCommandDiscriminators.Branch
-                && !ValidateBranch(cmd.ParameterJson, depth + 1, out error))
+            if (!ValidateNested(cmd, depth + 1, out error))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static bool ValidateShowChoices(string parameterJson, int depth, out string? error)
+    {
+        error = null;
+        if (depth >= MapEventRuntimeLimits.MaxBranchDepth)
+        {
+            error = "Profondeur de branche maximale dépassée.";
+            return false;
+        }
+
+        if (!MapEventParameterSchemas.TryParseShowChoices(
+                parameterJson,
+                out _,
+                out _,
+                out var branches,
+                out var cancelCommands,
+                out error))
+        {
+            return false;
+        }
+
+        foreach (var branch in branches)
+        {
+            foreach (var cmd in branch)
+            {
+                if (!ValidateNested(cmd, depth + 1, out error))
+                {
+                    return false;
+                }
+            }
+        }
+
+        foreach (var cmd in cancelCommands)
+        {
+            if (!ValidateNested(cmd, depth + 1, out error))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ValidateNested(MapEventCommandDefinition cmd, int depth, out string? error)
+    {
+        if (!cmd.Validate(out error))
+        {
+            return false;
+        }
+
+        if (cmd.SchemaVersion != 1)
+        {
+            error = $"SchemaVersion non supportée: {cmd.SchemaVersion}.";
+            return false;
+        }
+
+        if (cmd.Discriminator == MapEventCommandDiscriminators.Branch)
+        {
+            return ValidateBranch(cmd.ParameterJson, depth, out error);
+        }
+
+        if (cmd.Discriminator == MapEventCommandDiscriminators.ShowChoices)
+        {
+            return ValidateShowChoices(cmd.ParameterJson, depth, out error);
+        }
+
+        return ValidateParameters(cmd, out error);
     }
 }
