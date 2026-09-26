@@ -1276,6 +1276,138 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    public static void RunSystemScenario(MainWindow window, TimeSpan timeout)
+    {
+        var form = OpenViaMainWindowCommand(window, timeout);
+        form.SelectCategoryForTest(7);
+        var panel = form.SystemForTest;
+        PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+        if (panel.TypeLabelForTest.Text != "Interrupteur")
+        {
+            throw new InvalidOperationException("La fiche Système doit ouvrir sur les interrupteurs.");
+        }
+
+        if (panel.KindFilterForTest.SelectedIndex != 0)
+        {
+            throw new InvalidOperationException("Le catalogue par défaut doit être Interrupteurs.");
+        }
+
+        Click(panel.BtnNewForTest);
+        SetText(panel.NameForTest, "Porte nord");
+        SetText(panel.KeyForTest, "porte_nord");
+        SetText(panel.NoteForTest, "Ouverture de la porte.");
+        ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+        ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "Porte nord", () => panel.LifecycleForTest.IsIdle, timeout);
+        AssertListContains(panel.ListForTest, "Porte nord", "Published");
+        AssertListContains(panel.ListForTest, "porte_nord");
+        if (panel.KeyForTest.Text != "porte_nord" || panel.NoteForTest.Text != "Ouverture de la porte.")
+        {
+            throw new InvalidOperationException("L’identifiant ou la note d’interrupteur n’a pas été conservé.");
+        }
+
+        SelectListItemContaining(panel.ListForTest, "Porte nord");
+        Click(panel.BtnDupForTest);
+        SetText(panel.NameForTest, "Porte nord copie");
+        if (panel.KeyForTest.Text != "porte_nord_copie")
+        {
+            throw new InvalidOperationException("La copie doit proposer un identifiant distinct.");
+        }
+
+        ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+        AssertListContains(panel.ListForTest, "Porte nord copie", "Published");
+
+        panel.KindFilterForTest.SelectedIndex = 1;
+        PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+        AssertListMissing(panel.ListForTest, "Porte nord");
+        if (panel.TypeLabelForTest.Text != "Variable")
+        {
+            throw new InvalidOperationException("Le catalogue Variables doit afficher le type Variable.");
+        }
+
+        Click(panel.BtnNewForTest);
+        SetText(panel.NameForTest, "Nuits auberge");
+        SetText(panel.KeyForTest, "nuits_auberge");
+        SetText(panel.NoteForTest, "Compteur de nuits.");
+        ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+        AssertListContains(panel.ListForTest, "Nuits auberge", "Published");
+        AssertListContains(panel.ListForTest, "nuits_auberge");
+        AssertListMissing(panel.ListForTest, "porte_nord");
+
+        panel.KindFilterForTest.SelectedIndex = 0;
+        PumpUntil(() => panel.LifecycleForTest.IsIdle && panel.ListForTest.Items.Count >= 1, timeout);
+        AssertListContains(panel.ListForTest, "porte_nord");
+        AssertListMissing(panel.ListForTest, "nuits_auberge");
+
+        SelectListItemContaining(panel.ListForTest, "Porte nord");
+        RejectInvalidPublication(
+            panel.NameForTest,
+            panel.ValidationForTest,
+            panel.BtnPublishForTest,
+            () => panel.IsDirty,
+            () => panel.PublishedRevisionForTest,
+            () => panel.ListForTest.Items.Cast<object>().Any(i => (i.ToString() ?? string.Empty).Contains("Porte", StringComparison.Ordinal) && (i.ToString() ?? string.Empty).Contains("Published", StringComparison.Ordinal)),
+            timeout);
+        SetText(panel.NameForTest, "Porte nord");
+        ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+
+        SeedAndVerifySearchStatusFilter(
+            panel.BtnNewForTest,
+            panel.NameForTest,
+            panel.BtnSaveForTest,
+            panel.BtnPublishForTest,
+            panel.SearchForTest,
+            panel.StatusFilterForTest,
+            panel.ListForTest,
+            () => panel.IsDirty,
+            "Porte nord",
+            "Autre interrupteur",
+            "Brouillon interrupteur",
+            timeout);
+
+        Click(panel.BtnNewForTest);
+        SetText(panel.NameForTest, "Interrupteur a supprimer");
+        ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+
+        CancelDirtyListNavigation(
+            panel.ListForTest,
+            panel.NameForTest,
+            () => panel.IsDirty,
+            "Porte nord",
+            "Porte nord copie",
+            timeout);
+
+        DeleteAllowedRecord(
+            panel.ListForTest,
+            panel.NameForTest,
+            panel.BtnDeleteForTest,
+            panel.LifecycleForTest,
+            "Interrupteur a supprimer",
+            timeout);
+
+        CloseForm(form, timeout);
+
+        CloseReopenAndVerify(
+            window,
+            timeout,
+            7,
+            reopened =>
+            {
+                var reopenedPanel = reopened.SystemForTest;
+                PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
+                PumpUntil(() => reopenedPanel.ListForTest.Items.Count >= 1, timeout);
+                SelectListItemContaining(reopenedPanel.ListForTest, "Porte nord");
+                PumpUntil(
+                    () => reopenedPanel.NameForTest.Text == "Porte nord"
+                          && reopenedPanel.KeyForTest.Text == "porte_nord"
+                          && reopenedPanel.NoteForTest.Text == "Ouverture de la porte.",
+                    timeout);
+                reopenedPanel.KindFilterForTest.SelectedIndex = 1;
+                PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
+                AssertListContains(reopenedPanel.ListForTest, "nuits_auberge");
+                AssertListMissing(reopenedPanel.ListForTest, "porte_nord");
+            });
+    }
+
     public static void RunShopScenario(MainWindow window, TimeSpan timeout)
     {
         var assetRoot = CreateSmokeAssetRoot("icons/items/smoke-shop-ui.png");
@@ -1289,7 +1421,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-shop-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(7);
+            form.SelectCategoryForTest(8);
             WaitForTask(form.ShopsForTest.InitializeAsync(), timeout);
             var panel = form.ShopsForTest;
             Click(panel.BtnNewForTest);
@@ -1362,7 +1494,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                7,
+                8,
                 reopened =>
                 {
                     WaitForTask(reopened.ShopsForTest.InitializeAsync(), timeout);
@@ -1390,7 +1522,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(8);
+            form.SelectCategoryForTest(9);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);
@@ -1601,7 +1733,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                8,
+                9,
                 reopened =>
                 {
                     WaitForTask(reopened.ResourcesForTest.InitializeAsync(), timeout);
@@ -1633,7 +1765,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-filter-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(8);
+            form.SelectCategoryForTest(9);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);

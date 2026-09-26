@@ -368,6 +368,45 @@ public sealed class ActorPublicationHistoryEntity
     public ActorEntity Actor { get; set; } = null!;
 }
 
+public sealed class SystemFlagEntity
+{
+    public Guid Id { get; set; }
+    public SystemFlagKind Kind { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string? Note { get; set; }
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+/// <summary>Snapshot immuable d’un interrupteur ou d’une variable publié.</summary>
+public sealed class SystemFlagPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid FlagId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public SystemFlagKind Kind { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string? Note { get; set; }
+    public SystemFlagEntity Flag { get; set; } = null!;
+}
+
+public sealed class SystemFlagPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid FlagId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public SystemFlagEntity Flag { get; set; } = null!;
+}
+
 public sealed class ShopEntity
 {
     public Guid Id { get; set; }
