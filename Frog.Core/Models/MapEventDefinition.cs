@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Frog.Core.Events;
 
 namespace Frog.Core.Models;
@@ -60,6 +61,14 @@ public sealed class MapEventPageDefinition
     public string TriggerKind { get; set; } = Phase8MapEventTriggerKinds.Action;
     public string MovementKind { get; set; } = MapEventMovementKinds.Fixed;
     public IReadOnlyList<MapEventRouteWaypoint> RouteWaypoints { get; set; } = Array.Empty<MapEventRouteWaypoint>();
+
+    /// <summary>Null ou true : le trajet boucle (comportement historique). false : une seule passe.</summary>
+    public bool? RouteRepeat { get; set; }
+
+    /// <summary>Pas VX « ignorer si impossible » : un pas bloqué est sauté au lieu d’être retenté.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RouteSkipIfBlocked { get; set; }
+
     public byte AppearanceGraphicId { get; set; }
     public byte AppearanceDirection { get; set; }
     public bool BlocksCollision { get; set; } = true;
@@ -92,6 +101,15 @@ public sealed class MapEventPageDefinition
             {
                 error = $"Route: entre 2 et {MapEventRuntimeLimits.MaxRouteWaypoints} waypoints.";
                 return false;
+            }
+
+            for (var w = 0; w < RouteWaypoints.Count; w++)
+            {
+                if (!MapEventRouteStepKinds.TryValidate(RouteWaypoints[w], out var stepError))
+                {
+                    error = $"Étape {w + 1}: {stepError}";
+                    return false;
+                }
             }
         }
 
@@ -138,6 +156,19 @@ public sealed class MapEventRouteWaypoint
     public int TileX { get; set; }
     public int TileY { get; set; }
     public int WaitMs { get; set; }
+
+    /// <summary>Null ou vide = <see cref="MapEventRouteStepKinds.Move"/> (tuile absolue).</summary>
+    [JsonPropertyName("stepKind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StepKind { get; set; }
+
+    public MapEventRouteWaypoint Copy() => new()
+    {
+        TileX = TileX,
+        TileY = TileY,
+        WaitMs = WaitMs,
+        StepKind = StepKind,
+    };
 }
 
 public sealed class MapEventPlacementDefinition

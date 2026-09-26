@@ -25,6 +25,43 @@ public static class MapEventEditorLabels
         _ => string.IsNullOrWhiteSpace(kind) ? "Fixe" : kind.Trim(),
     };
 
+    public static string RouteStep(string? kind) => MapEventRouteStepKinds.Canonical(kind) switch
+    {
+        MapEventRouteStepKinds.Wait => "Attente",
+        MapEventRouteStepKinds.Down => "Bas",
+        MapEventRouteStepKinds.Left => "Gauche",
+        MapEventRouteStepKinds.Right => "Droite",
+        MapEventRouteStepKinds.Up => "Haut",
+        _ => "Déplacement",
+    };
+
+    public static bool TryParseRouteStep(string? text, out string kind)
+    {
+        var raw = (text ?? string.Empty).Trim();
+        if (raw.Length == 0)
+        {
+            kind = MapEventRouteStepKinds.Move;
+            return true;
+        }
+
+        if (MapEventRouteStepKinds.TryNormalize(raw, out kind))
+        {
+            return true;
+        }
+
+        foreach (var known in MapEventRouteStepKinds.All)
+        {
+            if (string.Equals(RouteStep(known), raw, StringComparison.OrdinalIgnoreCase))
+            {
+                kind = known;
+                return true;
+            }
+        }
+
+        kind = MapEventRouteStepKinds.Move;
+        return false;
+    }
+
     public static string ConditionKind(string? kind) => kind switch
     {
         MapEventConditionKinds.CharacterSwitch => "Interrupteur",
@@ -149,7 +186,10 @@ public static class MapEventEditorLabels
     {
         ArgumentNullException.ThrowIfNull(page);
         var n = index + 1;
-        return $"Page {n}  ·  {Trigger(page.TriggerKind)}  ·  priorité {page.Priority}  ·  {CountPhrase(page.Conditions.Count, "condition", "conditions")}  ·  {CountPhrase(page.Commands.Count, "commande", "commandes")}";
+        var move = page.MovementKind == MapEventMovementKinds.Route
+            ? page.RouteRepeat == false ? "  ·  Trajet une fois" : "  ·  Trajet"
+            : string.Empty;
+        return $"Page {n}  ·  {Trigger(page.TriggerKind)}  ·  priorité {page.Priority}{move}  ·  {CountPhrase(page.Conditions.Count, "condition", "conditions")}  ·  {CountPhrase(page.Commands.Count, "commande", "commandes")}";
     }
 
     public static string ActivePageCaption(int index, int pageCount, MapEventPageDefinition? page)
@@ -159,7 +199,10 @@ public static class MapEventEditorLabels
             return "Aucune page active. Ajoutez une page pour régler le déclencheur, les conditions et les commandes.";
         }
 
-        return $"Page active : {index + 1} sur {pageCount} — {Trigger(page.TriggerKind)} — priorité {page.Priority} — {CountPhrase(page.Conditions.Count, "condition", "conditions")}, {CountPhrase(page.Commands.Count, "commande", "commandes")}";
+        var move = page.MovementKind == MapEventMovementKinds.Route
+            ? page.RouteRepeat == false ? " — trajet une fois" : " — trajet"
+            : string.Empty;
+        return $"Page active : {index + 1} sur {pageCount} — {Trigger(page.TriggerKind)} — priorité {page.Priority}{move} — {CountPhrase(page.Conditions.Count, "condition", "conditions")}, {CountPhrase(page.Commands.Count, "commande", "commandes")}";
     }
 
     public static string ConditionListLine(int index, string? kind, string? parameterJson) =>

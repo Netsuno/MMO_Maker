@@ -1,5 +1,6 @@
 using System.Globalization;
 using Frog.Application.Prefabs;
+using Frog.Core.Events;
 using Frog.Core.IO;
 using Frog.Core.Models;
 
@@ -293,8 +294,20 @@ public static class MapResizeShift
             var keptRoute = new List<MapEventRouteWaypoint>(route.Count);
             foreach (var waypoint in route)
             {
-                if (waypoint is null
-                    || !TryMove(waypoint.TileX, deltaX, out var wx)
+                if (waypoint is null)
+                {
+                    waypointsRemoved++;
+                    continue;
+                }
+
+                if (!MapEventRouteStepKinds.UsesAbsoluteTile(waypoint.StepKind))
+                {
+                    keptRoute.Add(waypoint);
+                    waypointsKept++;
+                    continue;
+                }
+
+                if (!TryMove(waypoint.TileX, deltaX, out var wx)
                     || !TryMove(waypoint.TileY, deltaY, out var wy)
                     || !Inside(wx, wy, width, height))
                 {
@@ -341,12 +354,7 @@ public static class MapResizeShift
                         continue;
                     }
 
-                    route.Add(new MapEventRouteWaypoint
-                    {
-                        TileX = waypoint.TileX,
-                        TileY = waypoint.TileY,
-                        WaitMs = waypoint.WaitMs,
-                    });
+                    route.Add(waypoint.Copy());
                 }
             }
 

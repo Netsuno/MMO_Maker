@@ -344,6 +344,64 @@ public sealed class MapEventPagesEditorSmokeTests
     }
 
     [Fact]
+    public void MapEventPagesEditor_RouteRepeatWaitAndDirection_RoundTrip()
+    {
+        StaTestRunner.Run(() =>
+        {
+            using var host = new Form { Width = 900, Height = 700 };
+            var panel = new MapEventPagesEditorPanel { Dock = DockStyle.Fill };
+            host.Controls.Add(panel);
+            host.Show();
+
+            var page = new MapEventPageDefinition
+            {
+                PageOrder = 0,
+                TriggerKind = Phase8MapEventTriggerKinds.Action,
+                MovementKind = MapEventMovementKinds.Route,
+                RouteRepeat = false,
+                RouteSkipIfBlocked = true,
+                RouteWaypoints =
+                [
+                    new MapEventRouteWaypoint { TileX = 2, TileY = 3, WaitMs = 250 },
+                    new MapEventRouteWaypoint { WaitMs = 800, StepKind = MapEventRouteStepKinds.Wait },
+                    new MapEventRouteWaypoint { WaitMs = 250, StepKind = MapEventRouteStepKinds.Down },
+                ],
+                Commands = [ShowText("trajet")],
+            };
+            panel.LoadPages([page]);
+
+            Assert.False(panel.RouteRepeatForTest.Checked);
+            Assert.True(panel.RouteSkipIfBlockedForTest.Checked);
+            Assert.Equal(3, panel.WaypointsForTest.Rows.Count);
+            Assert.Equal("Attente", panel.WaypointsForTest.Rows[1].Cells[3].Value);
+            Assert.Equal("Bas", panel.WaypointsForTest.Rows[2].Cells[3].Value);
+            Assert.Contains("Trajet une fois", panel.PagesForTest.Items[0]?.ToString(), StringComparison.Ordinal);
+
+            panel.AddStepKindForTest.SelectedItem = MapEventRouteStepKinds.Right;
+            Assert.Equal(MapEventRouteStepKinds.Right, panel.AddStepKindForTest.SelectedItem);
+            panel.RouteRepeatForTest.Checked = true;
+            Assert.True(panel.TryBuildPages(out var built, out var error), error);
+            Assert.Equal(true, built[0].RouteRepeat);
+            Assert.True(built[0].RouteSkipIfBlocked);
+            Assert.Equal(MapEventRouteStepKinds.Wait, built[0].RouteWaypoints[1].StepKind);
+            Assert.Equal(800, built[0].RouteWaypoints[1].WaitMs);
+            Assert.Equal(MapEventRouteStepKinds.Down, built[0].RouteWaypoints[2].StepKind);
+            Assert.Null(built[0].RouteWaypoints[0].StepKind);
+            Assert.True(built[0].Validate(out var validateError), validateError);
+
+            var json = MapEventPagesCodec.SerializePages(built);
+            Assert.True(MapEventPagesCodec.TryDeserializePages(json, out var reopened, out var jsonError), jsonError);
+            panel.LoadPages(reopened);
+            Assert.True(panel.RouteRepeatForTest.Checked);
+            Assert.True(panel.TryBuildPages(out var again, out var againError), againError);
+            Assert.Equal(MapEventRouteStepKinds.Wait, again[0].RouteWaypoints[1].StepKind);
+            Assert.Equal(MapEventRouteStepKinds.Down, again[0].RouteWaypoints[2].StepKind);
+
+            host.Close();
+        });
+    }
+
+    [Fact]
     public void MapEventPagesEditor_BranchThenElseNested_ValidateEditAndReopen()
     {
         StaTestRunner.Run(() =>

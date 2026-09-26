@@ -277,6 +277,113 @@ public sealed class MapEventMovementServiceTests
         Assert.True(service.HasOccupantForTest(1, remaining));
     }
 
+    [Fact]
+    public void TickMap_RouteRepeatFalse_DoesNotReturnToStart()
+    {
+        var clock = new SteppingClock();
+        var service = new MapEventMovementService(clock);
+        var placement = CreateRoutePlacement(4, 0);
+        placement.RouteRepeat = false;
+        service.SyncMapPlacements(1, [placement]);
+
+        Assert.True(service.TickMap(1));
+        clock.Advance(TimeSpan.FromMilliseconds(250));
+        Assert.False(service.TickMap(1));
+        Assert.Equal(1, service.ApplyRuntimePositions(1, [placement]).Single().TileY);
+
+        clock.Advance(TimeSpan.FromSeconds(2));
+        Assert.False(service.TickMap(1));
+        Assert.Equal(1, service.ApplyRuntimePositions(1, [placement]).Single().TileY);
+    }
+
+    [Fact]
+    public void TickMap_WaitStep_HoldsTileBeforeNextMove()
+    {
+        var clock = new SteppingClock();
+        var service = new MapEventMovementService(clock);
+        var placement = CreateRoutePlacement(
+            4,
+            0,
+            [
+                new MapEventRouteWaypoint { TileX = 4, TileY = 0, WaitMs = 250 },
+                new MapEventRouteWaypoint { WaitMs = 800, StepKind = MapEventRouteStepKinds.Wait },
+                new MapEventRouteWaypoint { TileX = 4, TileY = 1, WaitMs = 250 },
+            ]);
+        service.SyncMapPlacements(1, [placement]);
+
+        Assert.False(service.TickMap(1));
+        Assert.Equal(0, service.ApplyRuntimePositions(1, [placement]).Single().TileY);
+        clock.Advance(TimeSpan.FromMilliseconds(799));
+        Assert.False(service.TickMap(1));
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.True(service.TickMap(1));
+        Assert.Equal(1, service.ApplyRuntimePositions(1, [placement]).Single().TileY);
+    }
+
+    [Fact]
+    public void TickMap_DirectionStep_ThenDown_AfterWait()
+    {
+        var clock = new SteppingClock();
+        var service = new MapEventMovementService(clock);
+        var placement = CreateRoutePlacement(
+            4,
+            0,
+            [
+                new MapEventRouteWaypoint { TileX = 4, TileY = 0, WaitMs = 250 },
+                new MapEventRouteWaypoint { WaitMs = 250, StepKind = MapEventRouteStepKinds.Left },
+                new MapEventRouteWaypoint { WaitMs = 250, StepKind = MapEventRouteStepKinds.Down },
+            ]);
+        service.SyncMapPlacements(1, [placement]);
+        service.TickMap(1);
+        clock.Advance(TimeSpan.FromMilliseconds(250));
+        Assert.True(service.TickMap(1));
+        var runtime = service.ApplyRuntimePositions(1, [placement]).Single();
+        Assert.Equal(3, runtime.TileX);
+        Assert.Equal(1, runtime.TileY);
+    }
+
+    [Fact]
+    public void TickMap_SkipIfBlocked_AdvancesPastOccupiedTile()
+    {
+        var clock = new SteppingClock();
+        var service = new MapEventMovementService(clock);
+        var placement = CreateRoutePlacement(
+            4,
+            0,
+            [
+                new MapEventRouteWaypoint { TileX = 4, TileY = 0, WaitMs = 250 },
+                new MapEventRouteWaypoint { TileX = 4, TileY = 1, WaitMs = 250 },
+                new MapEventRouteWaypoint { TileX = 4, TileY = 2, WaitMs = 250 },
+            ]);
+        placement.RouteSkipIfBlocked = true;
+        service.SyncMapPlacements(1, [placement]);
+
+        service.TickMap(1, new HashSet<(int, int)> { (4, 1) });
+        Assert.Equal(0, service.ApplyRuntimePositions(1, [placement]).Single().TileY);
+
+        clock.Advance(TimeSpan.FromMilliseconds(250));
+        Assert.True(service.TickMap(1, new HashSet<(int, int)> { (4, 1) }));
+        Assert.Equal(2, service.ApplyRuntimePositions(1, [placement]).Single().TileY);
+    }
+
+    [Fact]
+    public void TickMap_UpFromOrigin_DoesNotLeaveTheMap()
+    {
+        var service = new MapEventMovementService(new SteppingClock());
+        var placement = CreateRoutePlacement(
+            0,
+            0,
+            [
+                new MapEventRouteWaypoint { TileX = 0, TileY = 0, WaitMs = 250 },
+                new MapEventRouteWaypoint { WaitMs = 250, StepKind = MapEventRouteStepKinds.Up },
+            ]);
+        service.SyncMapPlacements(1, [placement]);
+        Assert.False(service.TickMap(1));
+        var runtime = service.ApplyRuntimePositions(1, [placement]).Single();
+        Assert.Equal(0, runtime.TileX);
+        Assert.Equal(0, runtime.TileY);
+    }
+
     private static MapEventWireEntry CreateRoutePlacement(
         int startX,
         int startY,

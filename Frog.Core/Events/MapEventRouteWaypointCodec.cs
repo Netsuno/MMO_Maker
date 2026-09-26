@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Frog.Core.Models;
 
 namespace Frog.Core.Events;
@@ -12,6 +13,7 @@ public static class MapEventRouteWaypointCodec
     private static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
     public static string Serialize(IReadOnlyList<MapEventRouteWaypoint>? waypoints)
