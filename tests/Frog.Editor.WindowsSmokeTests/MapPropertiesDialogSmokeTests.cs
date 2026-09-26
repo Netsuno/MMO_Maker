@@ -58,13 +58,14 @@ public sealed class MapPropertiesDialogSmokeTests
             try
             {
                 dialog.ClickBgmBrowseForTest();
+                Assert.Equal(Path.GetFileName(picked), dialog.BgmAssetForTest);
+                dialog.ClickSeBrowseForTest();
+                Assert.Equal(Path.GetFileName(picked), dialog.SeAssetForTest);
             }
             finally
             {
                 EditorTestHooks.OverrideMapAudioPickPath = null;
             }
-
-            Assert.Equal(Path.GetFileName(picked), dialog.BgmAssetForTest);
             dialog.BgmVolumeForTest = 65;
             dialog.BgmFadeForTest = 250;
             dialog.SeAssetForTest = "Assets/Audio/music-loop.wav";

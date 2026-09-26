@@ -117,10 +117,10 @@ internal sealed class MapPropertiesDialog : Form
 
         var bgm = BuildTrackEditor(map.Bgm, out _bgmPath, out _bgmVolume, out _bgmFade, out _bgmBrowse, out _bgmClear);
         var se = BuildTrackEditor(map.Se, out _sePath, out _seVolume, out _seFade, out _seBrowse, out _seClear);
-        _bgmBrowse.Click += (_, _) => PickAudio("Choisir la musique (BGM)", _bgmPath);
-        _bgmClear.Click += (_, _) => ClearTrack(_bgmPath, _bgmVolume, _bgmFade);
-        _seBrowse.Click += (_, _) => PickAudio("Choisir l’ambiance (SE)", _sePath);
-        _seClear.Click += (_, _) => ClearTrack(_sePath, _seVolume, _seFade);
+        _bgmBrowse.Click += (_, _) => BrowseBgm();
+        _bgmClear.Click += (_, _) => ClearBgm();
+        _seBrowse.Click += (_, _) => BrowseSe();
+        _seClear.Click += (_, _) => ClearSe();
 
         AddRow(root, 0, "Nom", _txtName);
         AddRow(root, 1, "Largeur (tuiles)", _numW);
@@ -250,11 +250,23 @@ internal sealed class MapPropertiesDialog : Form
         set => _seFade.Value = value;
     }
 
-    internal void ClickBgmBrowseForTest() => _bgmBrowse.PerformClick();
+    // PerformClick est un no-op tant que le dialogue n’est pas visible (CanSelect).
+    // Les smokes appellent donc le même chemin que Parcourir… / Effacer.
+    internal void ClickBgmBrowseForTest() => BrowseBgm();
 
-    internal void ClickBgmClearForTest() => _bgmClear.PerformClick();
+    internal void ClickSeBrowseForTest() => BrowseSe();
 
-    internal void ClickSeClearForTest() => _seClear.PerformClick();
+    internal void ClickBgmClearForTest() => ClearBgm();
+
+    internal void ClickSeClearForTest() => ClearSe();
+
+    private void BrowseBgm() => PickAudio("Choisir la musique (BGM)", _bgmPath);
+
+    private void BrowseSe() => PickAudio("Choisir l’ambiance (SE)", _sePath);
+
+    private void ClearBgm() => ClearTrack(_bgmPath, _bgmVolume, _bgmFade);
+
+    private void ClearSe() => ClearTrack(_sePath, _seVolume, _seFade);
 
     internal string JoinedLabelsForTest
     {
