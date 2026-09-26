@@ -1276,6 +1276,135 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    public static void RunSystemScenario(MainWindow window, TimeSpan timeout)
+    {
+        var form = OpenViaMainWindowCommand(window, timeout);
+        form.SelectCategoryForTest(7);
+        var panel = form.SystemForTest;
+        PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+
+        SetText(panel.GameTitleForTest, "SmokeGameUi");
+        SetText(panel.StartingBgmForTest, "Assets/Audio/smoke-theme.wav");
+        panel.BgmVolumeForTest.Value = 80;
+        panel.BgmFadeForTest.Value = 250;
+        ClickAndWait(panel.BtnSaveOptionsForTest, () => !panel.OptionsDirtyForTest, timeout);
+        ClickAndWait(
+            panel.BtnPublishOptionsForTest,
+            () => panel.LifecycleForTest.IsIdle && !panel.OptionsDirtyForTest && panel.OptionsPublishedRevisionForTest is not null,
+            timeout);
+        if (panel.GameTitleForTest.Text != "SmokeGameUi"
+            || panel.StartingBgmForTest.Text != "Assets/Audio/smoke-theme.wav"
+            || panel.BgmVolumeForTest.Value != 80
+            || panel.BgmFadeForTest.Value != 250)
+        {
+            throw new InvalidOperationException("Les options du projet n’ont pas été conservées.");
+        }
+
+        Click(panel.BtnNewForTest);
+        if (!panel.KeyForTest.Text.StartsWith("interrupteur_", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Le nouvel interrupteur doit recevoir une clé d’événement.");
+        }
+
+        SetText(panel.NameForTest, "SmokeSwitchUi");
+        SetText(panel.NoteForTest, "Porte ouverte.");
+        ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+        ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeSwitchUi", () => panel.LifecycleForTest.IsIdle, timeout);
+        AssertListContains(panel.ListForTest, "SmokeSwitchUi", "Published");
+
+        SelectListItemContaining(panel.ListForTest, "SmokeSwitchUi");
+        Click(panel.BtnDupForTest);
+        SetText(panel.NameForTest, "SmokeSwitchUiCopy");
+        ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+        AssertListContains(panel.ListForTest, "SmokeSwitchUiCopy", "Published");
+
+        SelectListItemContaining(panel.ListForTest, "SmokeSwitchUi");
+        RejectInvalidPublication(
+            panel.NameForTest,
+            panel.ValidationForTest,
+            panel.BtnPublishForTest,
+            () => panel.IsDirty,
+            () => panel.PublishedRevisionForTest,
+            () => panel.ListForTest.Items.Cast<object>().Any(i =>
+                (i.ToString() ?? string.Empty).Contains("SmokeSwitchUi", StringComparison.Ordinal)
+                && (i.ToString() ?? string.Empty).Contains("Published", StringComparison.Ordinal)),
+            timeout);
+        SetText(panel.NameForTest, "SmokeSwitchUi");
+        ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+
+        SeedAndVerifySearchStatusFilter(
+            panel.BtnNewForTest,
+            panel.NameForTest,
+            panel.BtnSaveForTest,
+            panel.BtnPublishForTest,
+            panel.SearchForTest,
+            panel.StatusFilterForTest,
+            panel.ListForTest,
+            () => panel.IsDirty,
+            "SmokeSwitchUi",
+            "SmokeSwitchOther",
+            "SmokeSwitchDraft",
+            timeout);
+
+        panel.KindFilterForTest.SelectedIndex = 1;
+        PumpUntil(() => panel.LifecycleForTest.IsIdle && panel.KindFilterForTest.SelectedIndex == 1, timeout);
+        Click(panel.BtnNewForTest);
+        SetText(panel.NameForTest, "SmokeVariableUi");
+        ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+        AssertListContains(panel.ListForTest, "SmokeVariableUi", "Published");
+        AssertListMissing(panel.ListForTest, "SmokeSwitchUi");
+
+        panel.KindFilterForTest.SelectedIndex = 0;
+        PumpUntil(() => panel.LifecycleForTest.IsIdle && panel.KindFilterForTest.SelectedIndex == 0, timeout);
+        AssertListContains(panel.ListForTest, "SmokeSwitchUi");
+        AssertListMissing(panel.ListForTest, "SmokeVariableUi");
+
+        Click(panel.BtnNewForTest);
+        SetText(panel.NameForTest, "SmokeSwitchDeleteUi");
+        ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+        CancelDirtyListNavigation(
+            panel.ListForTest,
+            panel.NameForTest,
+            () => panel.IsDirty,
+            "SmokeSwitchUi",
+            "SmokeSwitchUiCopy",
+            timeout);
+        DeleteAllowedRecord(
+            panel.ListForTest,
+            panel.NameForTest,
+            panel.BtnDeleteForTest,
+            panel.LifecycleForTest,
+            "SmokeSwitchDeleteUi",
+            timeout);
+
+        CloseForm(form, timeout);
+
+        CloseReopenAndVerify(
+            window,
+            timeout,
+            7,
+            reopened =>
+            {
+                var reopenedPanel = reopened.SystemForTest;
+                PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
+                PumpUntil(() => reopenedPanel.GameTitleForTest.Text == "SmokeGameUi", timeout);
+                if (reopenedPanel.StartingBgmForTest.Text != "Assets/Audio/smoke-theme.wav"
+                    || reopenedPanel.BgmVolumeForTest.Value != 80
+                    || reopenedPanel.BgmFadeForTest.Value != 250)
+                {
+                    throw new InvalidOperationException("La musique de départ n’a pas été rechargée.");
+                }
+
+                PumpUntil(() => reopenedPanel.ListForTest.Items.Count >= 1, timeout);
+                SelectListItemContaining(reopenedPanel.ListForTest, "SmokeSwitchUi");
+                PumpUntil(
+                    () => reopenedPanel.NameForTest.Text == "SmokeSwitchUi"
+                          && reopenedPanel.NoteForTest.Text == "Porte ouverte.",
+                    timeout);
+                AssertListMissing(reopenedPanel.ListForTest, "SmokeVariableUi");
+            });
+    }
+
     public static void RunShopScenario(MainWindow window, TimeSpan timeout)
     {
         var assetRoot = CreateSmokeAssetRoot("icons/items/smoke-shop-ui.png");
@@ -1289,7 +1418,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-shop-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(7);
+            form.SelectCategoryForTest(8);
             WaitForTask(form.ShopsForTest.InitializeAsync(), timeout);
             var panel = form.ShopsForTest;
             Click(panel.BtnNewForTest);
@@ -1362,7 +1491,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                7,
+                8,
                 reopened =>
                 {
                     WaitForTask(reopened.ShopsForTest.InitializeAsync(), timeout);
@@ -1390,7 +1519,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(8);
+            form.SelectCategoryForTest(9);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);
@@ -1601,7 +1730,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                8,
+                9,
                 reopened =>
                 {
                     WaitForTask(reopened.ResourcesForTest.InitializeAsync(), timeout);
@@ -1633,7 +1762,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-filter-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(8);
+            form.SelectCategoryForTest(9);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);

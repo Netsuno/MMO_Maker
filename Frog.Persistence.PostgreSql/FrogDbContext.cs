@@ -49,6 +49,9 @@ public sealed class FrogDbContext : DbContext
     public DbSet<SpellEntity> Spells => Set<SpellEntity>();
     public DbSet<SpellPublishedSnapshotEntity> SpellPublishedSnapshots => Set<SpellPublishedSnapshotEntity>();
     public DbSet<SpellPublicationHistoryEntity> SpellPublicationHistory => Set<SpellPublicationHistoryEntity>();
+    public DbSet<GameSystemEntryEntity> GameSystemEntries => Set<GameSystemEntryEntity>();
+    public DbSet<GameSystemPublishedSnapshotEntity> GameSystemPublishedSnapshots => Set<GameSystemPublishedSnapshotEntity>();
+    public DbSet<GameSystemPublicationHistoryEntity> GameSystemPublicationHistory => Set<GameSystemPublicationHistoryEntity>();
     public DbSet<ClassEntity> Classes => Set<ClassEntity>();
     public DbSet<ClassPublishedSnapshotEntity> ClassPublishedSnapshots => Set<ClassPublishedSnapshotEntity>();
     public DbSet<ClassPublicationHistoryEntity> ClassPublicationHistory => Set<ClassPublicationHistoryEntity>();
@@ -479,6 +482,74 @@ public sealed class FrogDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SpellId);
             e.HasOne(x => x.Spell).WithMany().HasForeignKey(x => x.SpellId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GameSystemEntryEntity>(e =>
+        {
+            e.ToTable("game_system_entries", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.Key).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Label).HasMaxLength(GameSystemEntryDefinition.MaxLabelLength).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(GameSystemEntryDefinition.MaxNoteLength);
+            e.Property(x => x.StartingBgmAsset).HasMaxLength(MapAudioTrack.MaxAssetLength).IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasIndex(x => new { x.Kind, x.Key })
+                .IsUnique()
+                .HasFilter("kind IN (1, 2)");
+            e.HasIndex(x => x.Kind)
+                .IsUnique()
+                .HasFilter("kind = 3");
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_game_system_entries_kind", "kind >= 1 AND kind <= 3");
+                t.HasCheckConstraint(
+                    "ck_game_system_entries_key_shape",
+                    "(kind = 3 AND key = '') OR (kind IN (1, 2) AND key ~ '^[A-Za-z0-9_]{1,64}$')");
+                t.HasCheckConstraint(
+                    "ck_game_system_entries_label",
+                    "char_length(label) >= 1");
+                t.HasCheckConstraint("ck_game_system_entries_revision", "revision >= 0");
+                t.HasCheckConstraint(
+                    "ck_game_system_entries_bgm",
+                    "starting_bgm_volume >= 0 AND starting_bgm_volume <= 100 "
+                    + "AND starting_bgm_fade_ms >= 0 AND starting_bgm_fade_ms <= 60000 "
+                    + "AND (kind = 3 OR (starting_bgm_asset = '' AND starting_bgm_volume = 100 AND starting_bgm_fade_ms = 0))");
+            });
+        });
+
+        modelBuilder.Entity<GameSystemPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("game_system_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.EntryId, x.Revision }).IsUnique();
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.Key).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Label).HasMaxLength(GameSystemEntryDefinition.MaxLabelLength).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(GameSystemEntryDefinition.MaxNoteLength);
+            e.Property(x => x.StartingBgmAsset).HasMaxLength(MapAudioTrack.MaxAssetLength).IsRequired();
+            e.HasOne(x => x.Entry).WithMany().HasForeignKey(x => x.EntryId).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_game_system_snapshots_kind", "kind >= 1 AND kind <= 3");
+                t.HasCheckConstraint(
+                    "ck_game_system_snapshots_key_shape",
+                    "(kind = 3 AND key = '') OR (kind IN (1, 2) AND key ~ '^[A-Za-z0-9_]{1,64}$')");
+                t.HasCheckConstraint(
+                    "ck_game_system_snapshots_bgm",
+                    "starting_bgm_volume >= 0 AND starting_bgm_volume <= 100 "
+                    + "AND starting_bgm_fade_ms >= 0 AND starting_bgm_fade_ms <= 60000 "
+                    + "AND (kind = 3 OR (starting_bgm_asset = '' AND starting_bgm_volume = 100 AND starting_bgm_fade_ms = 0))");
+            });
+        });
+
+        modelBuilder.Entity<GameSystemPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("game_system_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.EntryId);
+            e.HasOne(x => x.Entry).WithMany().HasForeignKey(x => x.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ClassEntity>(e =>

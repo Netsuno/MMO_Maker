@@ -78,6 +78,7 @@ public static class GameDataInitializationService
            || EditorTestHooks.OverrideNpcRepository is not null
            || EditorTestHooks.OverrideItemRepository is not null
            || EditorTestHooks.OverrideSpellRepository is not null
+           || EditorTestHooks.OverrideGameSystemRepository is not null
            || EditorTestHooks.OverrideClassRepository is not null
            || EditorTestHooks.OverrideActorRepository is not null
            || EditorTestHooks.OverrideShopRepository is not null
@@ -91,6 +92,7 @@ public static class GameDataInitializationService
         var npc = EditorNpcRepositoryFactory.CreateBundle();
         var item = EditorItemRepositoryFactory.CreateBundle();
         var spell = EditorSpellRepositoryFactory.CreateBundle();
+        var gameSystem = EditorGameSystemRepositoryFactory.CreateBundle();
         var classBundle = EditorClassRepositoryFactory.CreateBundle(
             spell.Repository,
             item.PublishedCatalog);
@@ -109,6 +111,7 @@ public static class GameDataInitializationService
             npc,
             item,
             spell,
+            gameSystem,
             classBundle,
             actorBundle,
             shop,
@@ -137,6 +140,9 @@ public static class GameDataInitializationService
         var spellMem = new InMemorySpellRepository(capabilities);
         var spell = new EditorSpellRepositoryBundle(spellMem, spellMem, spellMem.Capabilities);
 
+        var systemMem = new InMemoryGameSystemRepository(capabilities);
+        var gameSystem = new EditorGameSystemRepositoryBundle(systemMem, systemMem, systemMem.Capabilities);
+
         var classMem = new InMemoryClassRepository(spellMem, capabilities, itemMem);
         var classBundle = new EditorClassRepositoryBundle(classMem, classMem, classMem.Capabilities);
 
@@ -158,6 +164,7 @@ public static class GameDataInitializationService
             npc,
             item,
             spell,
+            gameSystem,
             classBundle,
             actorBundle,
             shop,
@@ -184,6 +191,9 @@ public static class GameDataInitializationService
         var spellRepo = new PostgresSpellRepository(gate);
         var spell = new EditorSpellRepositoryBundle(spellRepo, spellRepo, spellRepo.Capabilities);
 
+        var systemRepo = new PostgresGameSystemRepository(gate);
+        var gameSystem = new EditorGameSystemRepositoryBundle(systemRepo, systemRepo, systemRepo.Capabilities);
+
         var classRepo = new PostgresClassRepository(gate, spellRepo, itemRepo);
         var classBundle = new EditorClassRepositoryBundle(classRepo, classRepo, classRepo.Capabilities);
 
@@ -205,6 +215,7 @@ public static class GameDataInitializationService
             npc,
             item,
             spell,
+            gameSystem,
             classBundle,
             actorBundle,
             shop,

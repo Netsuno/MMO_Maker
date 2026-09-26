@@ -19,6 +19,8 @@ internal static class EditorTestHooks
 
     public static ISpellRepository? OverrideSpellRepository { get; set; }
 
+    public static IGameSystemRepository? OverrideGameSystemRepository { get; set; }
+
     public static IClassRepository? OverrideClassRepository { get; set; }
 
     public static IActorRepository? OverrideActorRepository { get; set; }

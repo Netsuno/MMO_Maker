@@ -13,6 +13,7 @@ public sealed class GameDataRepositorySet : IDisposable
         EditorNpcRepositoryBundle npc,
         EditorItemRepositoryBundle item,
         EditorSpellRepositoryBundle spell,
+        EditorGameSystemRepositoryBundle gameSystem,
         EditorClassRepositoryBundle classBundle,
         EditorActorRepositoryBundle actor,
         EditorShopRepositoryBundle shop,
@@ -25,6 +26,7 @@ public sealed class GameDataRepositorySet : IDisposable
         Npc = npc;
         Item = item;
         Spell = spell;
+        GameSystem = gameSystem;
         Class = classBundle;
         Actor = actor;
         Shop = shop;
@@ -42,6 +44,8 @@ public sealed class GameDataRepositorySet : IDisposable
     public EditorItemRepositoryBundle Item { get; }
 
     public EditorSpellRepositoryBundle Spell { get; }
+
+    public EditorGameSystemRepositoryBundle GameSystem { get; }
 
     public EditorClassRepositoryBundle Class { get; }
 
