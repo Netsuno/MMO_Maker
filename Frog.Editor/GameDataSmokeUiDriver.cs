@@ -281,6 +281,17 @@ internal static class GameDataSmokeUiDriver
         throw new InvalidOperationException($"No combo item contains '{labelPart}'.");
     }
 
+    private static void AssertComboSelectionContains(ComboBox combo, string labelPart)
+    {
+        var selected = combo.SelectedItem?.ToString() ?? string.Empty;
+        if (!selected.Contains(labelPart, StringComparison.Ordinal))
+        {
+            var labels = combo.Items.Cast<object>().Select(item => item.ToString() ?? string.Empty);
+            throw new InvalidOperationException(
+                $"Combo selection '{selected}' does not contain '{labelPart}'. Items: {string.Join("; ", labels)}");
+        }
+    }
+
     private static void SeedAndVerifySearchStatusFilter(
         Button newButton,
         TextBox nameBox,
@@ -968,9 +979,23 @@ internal static class GameDataSmokeUiDriver
             SelectComboItemContaining(panel.StartingSpellForTest, "SmokeClassStarterUi");
             SelectComboItemContaining(panel.WeaponForTest, "SmokeClassSwordUi");
             SelectComboItemContaining(panel.ArmorForTest, "SmokeClassMailUi");
-            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+            Click(panel.BtnSaveForTest);
+            PumpUntil(
+                () => panel.LifecycleForTest.IsIdle
+                      && (!panel.IsDirty || !string.IsNullOrWhiteSpace(panel.ValidationForTest.Text)),
+                timeout);
+            if (panel.IsDirty)
+            {
+                throw new InvalidOperationException(
+                    $"Class draft save stayed dirty: {panel.ValidationForTest.Text}");
+            }
+
+            AssertComboSelectionContains(panel.WeaponForTest, "SmokeClassSwordUi");
+            AssertComboSelectionContains(panel.ArmorForTest, "SmokeClassMailUi");
             ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeWarriorUi", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeWarriorUi", "Published");
+            AssertComboSelectionContains(panel.WeaponForTest, "SmokeClassSwordUi");
+            AssertComboSelectionContains(panel.ArmorForTest, "SmokeClassMailUi");
 
             SelectListItemContaining(panel.ListForTest, "SmokeWarriorUi");
             Click(panel.BtnDupForTest);

@@ -2735,6 +2735,7 @@ public sealed class ClassEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveClassResult.ValidationFailed validation:
+                _validation.Text = validation.Error;
                 GameDataUiMessageBox.Show(
                     this,
                     validation.Error,
