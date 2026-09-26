@@ -9,6 +9,7 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
     private readonly ConcurrentDictionary<Guid, PublishedRecord> _published = new();
     private IShopItemReferenceCatalog? _shopReferences;
     private IResourceItemReferenceCatalog? _resourceReferences;
+    private IActorItemReferenceCatalog? _actorReferences;
 
     public InMemoryItemRepository(ContentRepositoryCapabilities? capabilities = null)
     {
@@ -26,6 +27,11 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
     {
         _resourceReferences =
             resourceReferences ?? throw new ArgumentNullException(nameof(resourceReferences));
+    }
+
+    internal void RegisterActorReferences(IActorItemReferenceCatalog actorReferences)
+    {
+        _actorReferences = actorReferences ?? throw new ArgumentNullException(nameof(actorReferences));
     }
 
     public Task<SaveItemResult> SaveAsync(
@@ -203,6 +209,14 @@ public sealed class InMemoryItemRepository : IItemRepository, IPublishedItemCata
         {
             return new DeleteItemResult.Referenced(
                 "L’objet est référencé par un brouillon ou un snapshot publié de ressource.");
+        }
+
+        if (_actorReferences is not null
+            && await _actorReferences.IsItemReferencedAsync(itemId, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            return new DeleteItemResult.Referenced(
+                "L’objet est référencé comme équipement de départ par un héros.");
         }
 
         if (!_drafts.TryRemove(itemId, out _))

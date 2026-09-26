@@ -79,6 +79,7 @@ public static class GameDataInitializationService
            || EditorTestHooks.OverrideItemRepository is not null
            || EditorTestHooks.OverrideSpellRepository is not null
            || EditorTestHooks.OverrideClassRepository is not null
+           || EditorTestHooks.OverrideActorRepository is not null
            || EditorTestHooks.OverrideShopRepository is not null
            || EditorTestHooks.OverrideResourceRepository is not null
            || EditorTestHooks.OverrideResourceSpawnRepository is not null;
@@ -91,6 +92,9 @@ public static class GameDataInitializationService
         var item = EditorItemRepositoryFactory.CreateBundle();
         var spell = EditorSpellRepositoryFactory.CreateBundle();
         var classBundle = EditorClassRepositoryFactory.CreateBundle(spell.Repository);
+        var actorBundle = EditorActorRepositoryFactory.CreateBundle(
+            classBundle.Repository,
+            item.PublishedCatalog);
         var shop = EditorShopRepositoryFactory.CreateBundle(item.PublishedCatalog);
         var resource = EditorResourceRepositoryFactory.CreateBundle(item.PublishedCatalog);
         var spawn = EditorResourceSpawnRepositoryFactory.CreateBundle(
@@ -104,6 +108,7 @@ public static class GameDataInitializationService
             item,
             spell,
             classBundle,
+            actorBundle,
             shop,
             resource,
             spawn,
@@ -133,6 +138,9 @@ public static class GameDataInitializationService
         var classMem = new InMemoryClassRepository(spellMem, capabilities);
         var classBundle = new EditorClassRepositoryBundle(classMem, classMem, classMem.Capabilities);
 
+        var actorMem = new InMemoryActorRepository(classMem, itemMem, capabilities);
+        var actorBundle = new EditorActorRepositoryBundle(actorMem, actorMem, actorMem.Capabilities);
+
         var shopMem = new InMemoryShopRepository(itemMem, capabilities);
         var shop = new EditorShopRepositoryBundle(shopMem, shopMem, shopMem.Capabilities);
 
@@ -149,6 +157,7 @@ public static class GameDataInitializationService
             item,
             spell,
             classBundle,
+            actorBundle,
             shop,
             resource,
             spawn,
@@ -176,6 +185,9 @@ public static class GameDataInitializationService
         var classRepo = new PostgresClassRepository(gate);
         var classBundle = new EditorClassRepositoryBundle(classRepo, classRepo, classRepo.Capabilities);
 
+        var actorRepo = new PostgresActorRepository(gate, classRepo, itemRepo);
+        var actorBundle = new EditorActorRepositoryBundle(actorRepo, actorRepo, actorRepo.Capabilities);
+
         var shopRepo = new PostgresShopRepository(gate, itemRepo);
         var shop = new EditorShopRepositoryBundle(shopRepo, shopRepo, shopRepo.Capabilities);
 
@@ -192,6 +204,7 @@ public static class GameDataInitializationService
             item,
             spell,
             classBundle,
+            actorBundle,
             shop,
             resource,
             spawn,

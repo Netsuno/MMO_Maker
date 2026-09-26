@@ -1025,6 +1025,93 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    public static void RunActorScenario(MainWindow window, TimeSpan timeout)
+    {
+        var assetRoot = CreateSmokeAssetRoot(
+            "icons/items/smoke-hero-sword.png",
+            "icons/items/smoke-hero-mail.png");
+        try
+        {
+            var form = OpenViaMainWindowCommand(window, timeout);
+            form.SelectCategoryForTest(4);
+            WaitForTask(form.ClassesForTest.InitializeAsync(), timeout);
+            var classes = form.ClassesForTest;
+            Click(classes.BtnNewForTest);
+            SetText(classes.NameForTest, "SmokeHeroClassUi");
+            ClickAndWait(classes.BtnPublishForTest, () => classes.LifecycleForTest.IsIdle && !classes.IsDirty, timeout);
+
+            form.SelectCategoryForTest(2);
+            var items = form.ItemsForTest;
+            Click(items.BtnNewForTest);
+            SetText(items.NameForTest, "SmokeHeroSwordUi");
+            SetText(items.IconPathForTest, "icons/items/smoke-hero-sword.png");
+            items.KindForTest.SelectedItem = Frog.Core.Enums.ItemType.Weapon;
+            ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
+
+            Click(items.BtnNewForTest);
+            SetText(items.NameForTest, "SmokeHeroMailUi");
+            SetText(items.IconPathForTest, "icons/items/smoke-hero-mail.png");
+            items.KindForTest.SelectedItem = Frog.Core.Enums.ItemType.Armor;
+            ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
+
+            form.SelectCategoryForTest(5);
+            var panel = form.ActorsForTest;
+            PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+            Click(panel.BtnNewForTest);
+            SetText(panel.NameForTest, "SmokeHeroUi");
+            SetText(panel.FacePathForTest, "faces/heros/smoke.png");
+            SelectComboItemContaining(panel.ClassForTest, "SmokeHeroClassUi");
+            SelectComboItemContaining(panel.BodyForTest, "Forêt");
+            SelectComboItemContaining(panel.WeaponForTest, "SmokeHeroSwordUi");
+            SelectComboItemContaining(panel.ArmorForTest, "SmokeHeroMailUi");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeHeroUi", () => panel.LifecycleForTest.IsIdle, timeout);
+            AssertListContains(panel.ListForTest, "SmokeHeroUi", "Published");
+
+            SelectListItemContaining(panel.ListForTest, "SmokeHeroUi");
+            Click(panel.BtnDupForTest);
+            SetText(panel.NameForTest, "SmokeHeroUiCopy");
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+
+            SeedAndVerifySearchStatusFilter(
+                panel.BtnNewForTest,
+                panel.NameForTest,
+                panel.BtnSaveForTest,
+                panel.BtnPublishForTest,
+                panel.SearchForTest,
+                panel.StatusFilterForTest,
+                panel.ListForTest,
+                () => panel.IsDirty,
+                "SmokeHeroUi",
+                "SmokeHeroOther",
+                "SmokeHeroDraft",
+                timeout);
+
+            Click(panel.BtnNewForTest);
+            SetText(panel.NameForTest, "SmokeHeroDeleteUi");
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+            DeleteAllowedRecord(panel.ListForTest, panel.NameForTest, panel.BtnDeleteForTest, panel.LifecycleForTest, "SmokeHeroDeleteUi", timeout);
+
+            CloseForm(form, timeout);
+
+            CloseReopenAndVerify(
+                window,
+                timeout,
+                5,
+                reopened =>
+                {
+                    var reopenedPanel = reopened.ActorsForTest;
+                    PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
+                    PumpUntil(() => reopenedPanel.ListForTest.Items.Count >= 1, timeout);
+                    SelectListItemContaining(reopenedPanel.ListForTest, "SmokeHeroUi");
+                });
+        }
+        finally
+        {
+            CleanupAssetRoot(assetRoot);
+        }
+    }
+
     public static void RunShopScenario(MainWindow window, TimeSpan timeout)
     {
         var assetRoot = CreateSmokeAssetRoot("icons/items/smoke-shop-ui.png");
@@ -1038,7 +1125,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-shop-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(5);
+            form.SelectCategoryForTest(6);
             WaitForTask(form.ShopsForTest.InitializeAsync(), timeout);
             var panel = form.ShopsForTest;
             Click(panel.BtnNewForTest);
@@ -1111,7 +1198,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                5,
+                6,
                 reopened =>
                 {
                     WaitForTask(reopened.ShopsForTest.InitializeAsync(), timeout);
@@ -1139,7 +1226,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(6);
+            form.SelectCategoryForTest(7);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);
@@ -1350,7 +1437,7 @@ internal static class GameDataSmokeUiDriver
             CloseReopenAndVerify(
                 window,
                 timeout,
-                6,
+                7,
                 reopened =>
                 {
                     WaitForTask(reopened.ResourcesForTest.InitializeAsync(), timeout);
@@ -1382,7 +1469,7 @@ internal static class GameDataSmokeUiDriver
             SetText(items.IconPathForTest, "icons/items/smoke-filter-yield-ui.png");
             ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
 
-            form.SelectCategoryForTest(6);
+            form.SelectCategoryForTest(7);
             WaitForTask(form.ResourcesForTest.InitializeAsync(), timeout);
             var resources = form.ResourcesForTest.ResourcesPanelForTest;
             Click(resources.BtnNewForTest);

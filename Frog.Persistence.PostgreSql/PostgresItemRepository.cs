@@ -328,6 +328,24 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
                     "L’objet est référencé par un brouillon ou un snapshot publié de ressource.");
             }
 
+            var actorReferenced = await db.Actors.AsNoTracking()
+                    .AnyAsync(
+                        actor =>
+                            actor.StartingWeaponItemId == itemId || actor.StartingArmorItemId == itemId,
+                        ct)
+                    .ConfigureAwait(false)
+                || await db.ActorPublishedSnapshots.AsNoTracking()
+                    .AnyAsync(
+                        snapshot =>
+                            snapshot.StartingWeaponItemId == itemId || snapshot.StartingArmorItemId == itemId,
+                        ct)
+                    .ConfigureAwait(false);
+            if (actorReferenced)
+            {
+                return new DeleteItemResult.Referenced(
+                    "L’objet est référencé comme équipement de départ par un héros.");
+            }
+
             await using var transaction = await db.Database
                 .BeginTransactionAsync(ct)
                 .ConfigureAwait(false);

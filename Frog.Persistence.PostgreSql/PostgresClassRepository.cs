@@ -307,6 +307,15 @@ public sealed class PostgresClassRepository : IClassRepository, IPublishedClassC
             return new DeleteClassResult.NotFound();
         }
 
+        if (await db.Actors.AsNoTracking().AnyAsync(a => a.ClassId == classId, ct).ConfigureAwait(false)
+            || await db.ActorPublishedSnapshots.AsNoTracking()
+                .AnyAsync(a => a.ClassId == classId, ct)
+                .ConfigureAwait(false))
+        {
+            return new DeleteClassResult.Referenced(
+                "La classe est référencée par un brouillon ou un snapshot publié de héros.");
+        }
+
         await using var transaction = await db.Database
             .BeginTransactionAsync(ct)
             .ConfigureAwait(false);

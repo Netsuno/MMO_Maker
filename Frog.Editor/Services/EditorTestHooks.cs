@@ -21,6 +21,8 @@ internal static class EditorTestHooks
 
     public static IClassRepository? OverrideClassRepository { get; set; }
 
+    public static IActorRepository? OverrideActorRepository { get; set; }
+
     public static IShopRepository? OverrideShopRepository { get; set; }
 
     public static IResourceRepository? OverrideResourceRepository { get; set; }
