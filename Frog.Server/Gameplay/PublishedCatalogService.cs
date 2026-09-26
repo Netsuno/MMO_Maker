@@ -64,6 +64,9 @@ public sealed class PublishedCatalogService(
                 Id = s.Id.ToString("D"),
                 Name = s.Name,
                 MpCost = s.ManaCost,
+                Kind = s.Kind.ToString(),
+                CooldownMs = s.CooldownMs,
+                TargetType = s.TargetType.ToString(),
             }).ToArray(),
             Shops = shopList.Select(s => new PublishedShopWireEntry
             {

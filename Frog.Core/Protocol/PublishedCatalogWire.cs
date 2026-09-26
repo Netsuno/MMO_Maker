@@ -206,6 +206,20 @@ public sealed class PublishedSpellWireEntry
 
     [JsonPropertyName("mpCost")]
     public int MpCost { get; init; }
+
+    /// <summary>
+    /// <c>Spell</c> ou <c>Skill</c>. Absent sur un catalogue ancien : le client traite l’entrée comme un sort.
+    /// </summary>
+    [JsonPropertyName("kind")]
+    public string Kind { get; init; } = string.Empty;
+
+    /// <summary>Recharge en millisecondes. 0 si le catalogue ancien ne l’envoie pas.</summary>
+    [JsonPropertyName("cooldownMs")]
+    public int CooldownMs { get; init; }
+
+    /// <summary>Nom de <see cref="Frog.Core.Enums.TargetType"/>. Vide si absent.</summary>
+    [JsonPropertyName("targetType")]
+    public string TargetType { get; init; } = string.Empty;
 }
 
 public sealed class PublishedShopWireEntry

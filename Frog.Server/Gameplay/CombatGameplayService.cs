@@ -208,21 +208,25 @@ public sealed class CombatGameplayService(
             return SpellCombatResult.Fail("Aucun personnage actif.");
         }
 
-        if (!caster.KnownSpellIds.Contains(spellId))
-        {
-            return SpellCombatResult.Fail("Sort inconnu.");
-        }
-
         var spell = await FindSpellAsync(spellId, ct).ConfigureAwait(false);
+        var known = caster.KnownSpellIds.Contains(spellId);
         if (spell is null)
         {
-            return SpellCombatResult.Fail("Sort invalide.");
+            return SpellCombatResult.Fail(known ? "Sort invalide." : "Sort inconnu.");
+        }
+
+        // Compétence publiée : lançable depuis la barre de sorts sans sort de départ.
+        // Un sort (Kind.Spell) reste réservé à KnownSpellIds.
+        var skill = spell.Kind == Frog.Core.Enums.SpellKind.Skill;
+        if (!known && !skill)
+        {
+            return SpellCombatResult.Fail("Sort inconnu.");
         }
 
         var now = DateTime.UtcNow;
         if (caster.SpellCooldownsUtc.TryGetValue(spellId, out var readyAt) && now < readyAt)
         {
-            return SpellCombatResult.Fail("Sort en recharge.");
+            return SpellCombatResult.Fail(skill ? "Compétence en recharge." : "Sort en recharge.");
         }
 
         if (caster.Mp < spell.ManaCost)
@@ -332,7 +336,7 @@ public sealed class CombatGameplayService(
         }
 
         await PersistCombatStateAsync(caster, ct).ConfigureAwait(false);
-        return SpellCombatResult.Cast(spell.Name, caster.Mp);
+        return SpellCombatResult.Cast(spell.Name, caster.Mp, skill);
     }
 
     public async Task<PlayerMeleeCombatResult> TryMeleeAttackPlayerAsync(
@@ -766,8 +770,8 @@ public sealed record SpellCombatResult(
     public static SpellCombatResult Fail(string message)
         => new(false, false, false, string.Empty, message, 0);
 
-    public static SpellCombatResult Cast(string spellName, int mp)
-        => new(true, false, false, spellName, "Sort lance.", 0, 0, mp);
+    public static SpellCombatResult Cast(string spellName, int mp, bool skill = false)
+        => new(true, false, false, spellName, skill ? "Compétence lancée." : "Sort lance.", 0, 0, mp);
 
     public static SpellCombatResult ForMonsterHit(
         string spellName,

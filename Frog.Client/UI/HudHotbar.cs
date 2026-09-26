@@ -2,11 +2,14 @@
 using System.Drawing;
 using System.Windows.Forms;
 using Frog.Client.Config;
+using Frog.Core.Gameplay;
 
 namespace Frog.Client.UI;
 
 /// <summary>
-/// Hotbar 10 slots (1–0). Chiffre dans la case ; libellé en tooltip. Slots 4–10 disabled.
+/// Hotbar 10 slots (1–0). Chiffre dans la case ; libellé en tooltip.
+/// Cases 1–4 : mêlée, sort, interaction, distance. Cases 5–0 : barre de sorts
+/// (compétences publiées), désactivées tant qu’aucune n’est liée.
 /// DA v2 step 1: <c>bg.slot</c> fill + gold border; cream digits/icons (no or-sur-or).
 /// </summary>
 public sealed class HudHotbar : Panel
@@ -15,13 +18,18 @@ public sealed class HudHotbar : Panel
 
     private readonly Button[] _slots = new Button[SlotCount];
     private readonly string[] _tooltips;
+    private readonly string[] _defaultTooltips;
     private readonly ToolTip _tips = new();
 
     public event Action<int>? SlotActivated;
 
+    /// <summary>Clic droit sur une case 5–0 : lier ou retirer une compétence.</summary>
+    public event Action<int>? SkillSlotMenuRequested;
+
     public HudHotbar()
     {
         SetStyle(ControlStyles.ResizeRedraw, true);
+        AccessibleName = "Barre de sorts";
         BackColor = UiTheme.BgPanel;
         Size = new Size(392, 52);
         MinimumSize = new Size(360, 48);
@@ -48,6 +56,7 @@ public sealed class HudHotbar : Panel
             "Slot 9 — non lié",
             "Slot 0 — non lié",
         };
+        _defaultTooltips = (string[])_tooltips.Clone();
         for (var i = 0; i < SlotCount; i++)
         {
             var index = i;
@@ -81,6 +90,13 @@ public sealed class HudHotbar : Panel
                 if (btn.Enabled)
                 {
                     SlotActivated?.Invoke(index);
+                }
+            };
+            btn.MouseUp += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Right && SkillHotbarBoard.IsSkillHudIndex(index) && btn.Enabled)
+                {
+                    SkillSlotMenuRequested?.Invoke(index);
                 }
             };
             _slots[i] = btn;
@@ -138,6 +154,8 @@ public sealed class HudHotbar : Panel
             && button.BackgroundImage is null;
     }
 
+    public bool IsSlotEnabled(int index) => (uint)index < SlotCount && _slots[index].Enabled;
+
     public void ActivateSlot(int index)
     {
         if ((uint)index >= SlotCount || !_slots[index].Enabled)
@@ -148,10 +166,55 @@ public sealed class HudHotbar : Panel
         SlotActivated?.Invoke(index);
     }
 
-    /// <summary>Flash court du slot mêlée (0) — restaure le chrome DA v2 ensuite.</summary>
-    public void FlashMeleeSlot()
+    /// <summary>
+    /// Case 5–0 de la barre de sorts. <paramref name="spellIcon"/> réutilise l’icône sort existante.
+    /// </summary>
+    public void PresentSkillSlot(int hudIndex, string tooltip, bool enabled, bool spellIcon)
     {
-        var btn = _slots[0];
+        if (!SkillHotbarBoard.IsSkillHudIndex(hudIndex))
+        {
+            return;
+        }
+
+        var btn = _slots[hudIndex];
+        _tooltips[hudIndex] = tooltip;
+        btn.Enabled = enabled;
+        btn.AccessibleName = tooltip;
+        UiTheme.StyleContrastHudButton(btn, enabled);
+        _tips.SetToolTip(btn, tooltip);
+        Image? icon = null;
+        if (spellIcon)
+        {
+            icon = UiPackAssets.CloneHotbarIcon(1);
+            btn.ImageAlign = ContentAlignment.TopCenter;
+            btn.TextAlign = ContentAlignment.BottomRight;
+            btn.TextImageRelation = TextImageRelation.Overlay;
+            btn.Padding = new Padding(1);
+        }
+
+        ReplaceSlotImage(btn, icon);
+    }
+
+    /// <summary>Rend les cases 5–0 à l’état d’origine (désactivées, sans compétence).</summary>
+    public void ResetSkillSlots()
+    {
+        for (var hud = SkillHotbarBoard.FirstHudIndex; hud < SlotCount; hud++)
+        {
+            PresentSkillSlot(hud, _defaultTooltips[hud], enabled: false, spellIcon: false);
+        }
+    }
+
+    /// <summary>Flash court du slot mêlée (0) — restaure le chrome DA v2 ensuite.</summary>
+    public void FlashMeleeSlot() => FlashSlot(0);
+
+    public void FlashSlot(int index)
+    {
+        if ((uint)index >= SlotCount)
+        {
+            return;
+        }
+
+        var btn = _slots[index];
         var restoreBack = btn.BackColor;
         var restoreFore = btn.ForeColor;
         btn.BackColor = Color.FromArgb(180, 70, 40);
@@ -161,10 +224,23 @@ public sealed class HudHotbar : Panel
         {
             timer.Stop();
             timer.Dispose();
-            btn.BackColor = restoreBack;
-            btn.ForeColor = restoreFore;
+            if (!btn.IsDisposed)
+            {
+                btn.BackColor = restoreBack;
+                btn.ForeColor = restoreFore;
+            }
         };
         timer.Start();
+    }
+
+    private static void ReplaceSlotImage(Button btn, Image? image)
+    {
+        var previous = btn.Image;
+        btn.Image = image;
+        if (previous is not null && !ReferenceEquals(previous, image))
+        {
+            previous.Dispose();
+        }
     }
 
     private void DrawChrome(object? sender, PaintEventArgs e)
