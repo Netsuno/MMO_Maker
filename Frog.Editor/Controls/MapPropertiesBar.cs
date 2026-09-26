@@ -15,8 +15,8 @@ internal sealed class MapPropertiesBar : UserControl
 
     public MapPropertiesBar()
     {
-        Height = 156;
-        MinimumSize = new Size(0, 156);
+        Height = 210;
+        MinimumSize = new Size(0, 210);
         BackColor = EditorChrome.SidebarBg;
         Padding = new Padding(8, 4, 8, 6);
 

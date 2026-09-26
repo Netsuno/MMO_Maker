@@ -16,6 +16,8 @@ using Frog.Core.Models;
 /// v6 : Int32 <c>tileSizePixels</c> (48) puis les couches. Les cellules v6 stockent un <see cref="TileAssetId"/>
 /// à la place de TilesetId/SrcX/SrcY. Les événements de carte ne sont pas dans ce blob (stockages existants inchangés).
 /// pour chaque couche : LayerType (byte), Visible/Locked (byte×2), DisplayName UTF-8, TileCount, tuiles.
+/// Après les couches, si une piste BGM ou SE est renseignée : magic « FMAU », octet de section 1, puis les deux pistes
+/// (chemin UTF-8, volume Int32, fondu ms Int32). Absent = aucune. Les versions de fichier 5 et 6 ne bougent pas.
 /// <see cref="Serialize"/> écrit v5 si <see cref="Map.GraphicIdentity"/> est <see cref="TileGraphicIdentity.SheetSource"/>,
 /// et v6 si elle est <see cref="TileGraphicIdentity.TileAsset"/>. <see cref="MapFormat.Write"/> est le chemin v6 des nouvelles sauvegardes.
 /// </summary>
@@ -31,6 +33,11 @@ public sealed class MapSerializer : ISerializer<Map>
 
     /// <summary>Compatibilité lecture seule avec les anciens blobs déjà livrés.</summary>
     private const byte FileVersionLegacy = 3;
+
+    /// <summary>Section audio optionnelle en fin de blob. Ne change pas <see cref="MapFileFormatVersion"/>.</summary>
+    private const string AudioSectionMagic = "FMAU";
+
+    private const byte AudioSectionVersion = 1;
 
     /// <summary>
     /// Version écrite par <see cref="Serialize"/> pour une carte feuille (v5).
@@ -84,6 +91,8 @@ public sealed class MapSerializer : ISerializer<Map>
                 WriteTile(bw, t, writeVersion);
             }
         }
+
+        WriteAudioIfNeeded(bw, value);
 
         bw.Flush();
         return ms.ToArray();
@@ -160,10 +169,84 @@ public sealed class MapSerializer : ISerializer<Map>
             map.Layers.Add(layer);
         }
 
+        ReadOptionalAudio(br, map);
+
         if (!map.Validate(out var err))
             throw new InvalidDataException($"Map désérialisée invalide: {err}");
 
         return map;
+    }
+
+    private static void WriteAudioIfNeeded(BinaryWriter bw, Map map)
+    {
+        if (map.Bgm is null || map.Se is null)
+        {
+            throw new InvalidDataException("Pistes audio absentes.");
+        }
+
+        if (!MapAudioTrack.TryCreate(map.Bgm.Asset, map.Bgm.Volume, map.Bgm.FadeMs, "Musique (BGM)", out var bgm, out var bgmError))
+        {
+            throw new InvalidDataException(bgmError ?? "Musique (BGM) invalide.");
+        }
+
+        if (!MapAudioTrack.TryCreate(map.Se.Asset, map.Se.Volume, map.Se.FadeMs, "Ambiance (SE)", out var se, out var seError))
+        {
+            throw new InvalidDataException(seError ?? "Ambiance (SE) invalide.");
+        }
+
+        if (bgm.IsNone && se.IsNone)
+        {
+            return;
+        }
+
+        WriteAscii(bw, AudioSectionMagic);
+        bw.Write(AudioSectionVersion);
+        WriteTrack(bw, bgm);
+        WriteTrack(bw, se);
+    }
+
+    private static void WriteTrack(BinaryWriter bw, MapAudioTrack track)
+    {
+        WriteUtf8(bw, track.Asset);
+        bw.Write(track.Volume);
+        bw.Write(track.FadeMs);
+    }
+
+    private static void ReadOptionalAudio(BinaryReader br, Map map)
+    {
+        if (br.BaseStream.Position + 4 > br.BaseStream.Length)
+        {
+            return;
+        }
+
+        var magic = ReadAscii(br, 4);
+        if (!string.Equals(magic, AudioSectionMagic, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var sectionVersion = br.ReadByte();
+        if (sectionVersion != AudioSectionVersion)
+        {
+            throw new InvalidDataException(
+                $"Section audio .fmap non supportée : {sectionVersion}. Attendu {AudioSectionVersion}. Les versions de fichier v5/v6 ne changent pas.");
+        }
+
+        map.Bgm = ReadTrack(br, "Musique (BGM)");
+        map.Se = ReadTrack(br, "Ambiance (SE)");
+    }
+
+    private static MapAudioTrack ReadTrack(BinaryReader br, string label)
+    {
+        var asset = ReadUtf8(br);
+        var volume = br.ReadInt32();
+        var fade = br.ReadInt32();
+        if (!MapAudioTrack.TryCreate(asset, volume, fade, label, out var track, out var error))
+        {
+            throw new InvalidDataException(error ?? "Piste audio invalide.");
+        }
+
+        return track;
     }
 
     private static void WriteTile(BinaryWriter bw, Tile t, byte fileVersion)

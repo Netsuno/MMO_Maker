@@ -375,6 +375,8 @@ public static class MapResizeShift
         target.AllowPlayerOverlap = source.AllowPlayerOverlap;
         target.GraphicIdentity = source.GraphicIdentity;
         target.TileSizePixels = source.TileSizePixels;
+        target.Bgm = MapAudioTrack.CopyOf(source.Bgm);
+        target.Se = MapAudioTrack.CopyOf(source.Se);
         target.Layers.Clear();
         foreach (var layer in source.Layers)
         {
