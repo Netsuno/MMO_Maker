@@ -91,6 +91,14 @@ public sealed class Map : IValidatable
     public MapAudioTrack Se { get; set; } = new();
 
     /// <summary>
+    /// Régions peintes (0–63) et table de rencontres, style mode Région VX.
+    /// Absentes du blob <c>.fmap</c> : sidecar <c>{carte}.regions.json</c>.
+    /// Null : aucune région. Les ticks de rencontre ne sont pas exécutés.
+    /// </summary>
+    [Browsable(false)]
+    public MapRegionDocument? Regions { get; set; }
+
+    /// <summary>
     /// Valide l’intégrité de la carte : dimensions, couches, tuiles dans les bornes, doublons par couche, warps.
     /// </summary>
     public bool Validate(out string? errorMessage)

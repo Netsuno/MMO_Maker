@@ -240,6 +240,13 @@
                     Padding="8,5"
                     ToolTip="Entités (N) — poser une apparition, un PNJ ou un objet. Propriétés dans la colonne de droite. Clic droit retire."
                     Click="OnDrawToolClick" />
+            <Button x:Name="BtnToolRegion"
+                    Content="Région"
+                    Tag="Region"
+                    Margin="2"
+                    Padding="8,5"
+                    ToolTip="Région (G) — peint un numéro 1–63. 0 ou clic droit efface. Le numéro s’affiche sur la case. Les rencontres se règlent dans le panneau Régions."
+                    Click="OnDrawToolClick" />
         </UniformGrid>
         <StackPanel x:Name="FillOptionsPanel" Visibility="Collapsed" Margin="8,0,2,8">
             <CheckBox x:Name="ChkFillVisibleLayers"

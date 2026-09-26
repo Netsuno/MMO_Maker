@@ -1,6 +1,7 @@
 using System.Windows.Forms;
 using System.Windows.Input;
 using Frog.Application.Maps;
+using Frog.Core.Maps;
 
 namespace Frog.Editor.Enums;
 
@@ -38,6 +39,7 @@ public static class EditorToolHotkeys
             Key.D => Keys.D,
             Key.P => Keys.P,
             Key.N => Keys.N,
+            Key.G => Keys.G,
             _ => Keys.None,
         };
 
@@ -78,6 +80,9 @@ public static class EditorToolHotkeys
             case Keys.N:
                 tool = EditorTool.Place;
                 return true;
+            case Keys.G:
+                tool = EditorTool.Region;
+                return true;
             default:
                 tool = default;
                 return false;
@@ -97,6 +102,7 @@ public static class EditorToolHotkeys
             EditorTool.Spawn => "D",
             EditorTool.Prefab => "P",
             EditorTool.Place => "N",
+            EditorTool.Region => "G",
             _ => string.Empty,
         };
 
@@ -113,6 +119,7 @@ public static class EditorToolHotkeys
             EditorTool.Spawn => "Départ (spawn)",
             EditorTool.Prefab => "Prefab (objet)",
             EditorTool.Place => "Entités",
+            EditorTool.Region => MapRegionLabels.ToolName,
             _ => tool.ToString(),
         };
 
@@ -125,7 +132,7 @@ public static class EditorToolHotkeys
     }
 
     public const string PaletteHint =
-        "B pinceau · E gomme · C curseur · F remplissage · R rectangle (Maj = contour) · L ligne (Maj = axe) · M sélection · D départ · P prefab · N entités · I pipette";
+        "B pinceau · E gomme · C curseur · F remplissage · R rectangle (Maj = contour) · L ligne (Maj = axe) · M sélection · D départ · P prefab · N entités · G région · I pipette";
 
     /// <summary>Phrase d'aide affichée dans la barre d'état et le panneau d'outils.</summary>
     public static string StatusHint(EditorTool tool) =>
@@ -141,6 +148,7 @@ public static class EditorToolHotkeys
             EditorTool.Spawn => "Départ (D) · clic pour poser le spawn playtest",
             EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · Échap quitte",
             EditorTool.Place => "Entités (N) · Apparition, PNJ ou Objet · clic pose · glisser déplace · clic droit retire",
+            EditorTool.Region => MapRegionLabels.FormatStatus(1),
             _ => DisplayName(tool),
         };
 

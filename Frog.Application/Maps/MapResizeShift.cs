@@ -179,6 +179,7 @@ public static class MapResizeShift
 
         map.Width = edit.Width;
         map.Height = edit.Height;
+        map.Regions?.Shift(edit.DeltaX, edit.DeltaY, edit.Width, edit.Height);
 
         var entitiesKept = 0;
         var entitiesRemoved = 0;
@@ -526,6 +527,11 @@ public static class MapResizeShift
             {
                 return true;
             }
+        }
+
+        if (map.Regions is { Count: > 0 })
+        {
+            return true;
         }
 
         return (entities?.Count ?? 0) > 0

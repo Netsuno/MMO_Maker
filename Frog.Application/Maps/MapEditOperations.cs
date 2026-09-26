@@ -200,6 +200,7 @@ public static class MapEditOperations
         map.Bgm = nextBgm;
         map.Se = nextSe;
         ClipTilesOutsideBounds(map);
+        map.Regions?.AdoptMapSize(map.Width, map.Height);
         error = null;
         return true;
     }

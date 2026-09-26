@@ -50,6 +50,7 @@ public sealed class MainForm : Form
     private bool _suspendLayerListEvents;
     private readonly PropertyGrid _propGrid;
     private readonly MapPropertiesBar _mapPropertiesBar;
+    private readonly MapRegionsPanel _regionsPanel;
     private readonly MapPlacedEntityPropertiesPanel _placedEntityPanel;
     private readonly TransferIssuesPanel _transferIssuesPanel;
     private readonly MapCanvas _canvas;
@@ -445,6 +446,7 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Outil point de départ (D)", null, (_, _) => SelectEditorTool(EditorTool.Spawn));
             mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
             mMap.DropDownItems.Add("Outil entités (N)", null, (_, _) => SelectEditorTool(EditorTool.Place));
+            mMap.DropDownItems.Add("Outil région (G)", null, (_, _) => SelectEditorTool(EditorTool.Region));
             mMap.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("PNJ rapide…", null, (_, _) => OpenQuickTalkingNpc());
@@ -881,6 +883,7 @@ public sealed class MainForm : Form
             {
                 MapEditOperations.ClampDimensions(map);
                 MapEditOperations.ClipTilesOutsideBounds(map);
+                map.Regions?.AdoptMapSize(map.Width, map.Height);
                 _canvas.ClipPlacedEntitiesToMap();
                 EditorMapPlacedEntityWorkstate.Write(_workspace?.CurrentMapId, map, _canvas.PlacedEntities);
                 UpdateMapChromeLabels();
@@ -904,6 +907,21 @@ public sealed class MainForm : Form
         _transferIssuesPanel.IssueActivated += FocusTransferIssue;
         _mapPropertiesBar = new MapPropertiesBar { Dock = DockStyle.Top };
         _mapPropertiesBar.EditRequested += (_, _) => ShowMapProperties();
+        _regionsPanel = new MapRegionsPanel();
+        _regionsPanel.RegionIdChanged += (_, id) =>
+        {
+            _canvas.ActiveRegionId = id;
+            if (_canvas.ActiveTool == EditorTool.Region)
+            {
+                PushEditorStatusLine();
+            }
+        };
+        _regionsPanel.DocumentChanged += (_, _) =>
+        {
+            _canvas.Invalidate();
+            OnMapEdited();
+        };
+        _regionsPanel.TroopsRefreshRequested += (_, _) => _ = RefreshEncounterTroopsAsync(force: true);
         _placedEntityPanel = new MapPlacedEntityPropertiesPanel { Dock = DockStyle.Top };
         _placedEntityPanel.PlaceKindChanged += (_, _) =>
         {
@@ -928,6 +946,7 @@ public sealed class MainForm : Form
         propsBody.Controls.Add(_propGrid);
         propsBody.Controls.Add(_placedEntityPanel);
         propsBody.Controls.Add(_mapPropertiesBar);
+        propsBody.Controls.Add(_regionsPanel);
         var propsHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
         propsHost.Controls.Add(_transferIssuesPanel);
         propsHost.Controls.Add(propsBody);
@@ -969,6 +988,7 @@ public sealed class MainForm : Form
         // Placeholder jusqu’à InitializeWorkspaceAsync (session catalogue + carte démo).
         var map = DemoMapFactory.CreateStarter();
         _canvas.Map = map;
+        SyncRegionsPanel();
         _propGrid.SelectedObject = _canvas.Map;
         RefreshLayersUi();
         UpdateUndoRedoButtons();
@@ -1193,6 +1213,7 @@ public sealed class MainForm : Form
         {
             _canvas.ClearHistory();
             _canvas.Map = _workspace.CurrentMap;
+            SyncRegionsPanel();
             _canvas.DefaultWarpTargetMapId = _workspace.CurrentMapId;
             _propGrid.SelectedObject = _canvas.Map;
             RefreshLayersUi();
@@ -1308,8 +1329,36 @@ public sealed class MainForm : Form
         _leftToolsWpf.SetSelectedTool(tool);
         _leftToolsWpf.SetPrefabPlaceMode(tool == EditorTool.Prefab);
         _canvas.ActiveTool = tool;
+        _regionsPanel.Visible = tool == EditorTool.Region;
+        if (tool == EditorTool.Region)
+        {
+            _regionsPanel.Bind(_canvas.Map);
+            _canvas.ActiveRegionId = _regionsPanel.SelectedRegionId;
+            _ = RefreshEncounterTroopsAsync(force: false);
+        }
+
         _canvas.Invalidate();
         PushEditorStatusLine();
+    }
+
+    private int _troopLoadState;
+
+    private async System.Threading.Tasks.Task RefreshEncounterTroopsAsync(bool force)
+    {
+        if (!force && _troopLoadState != 0)
+        {
+            return;
+        }
+
+        _troopLoadState = 1;
+        var troops = await MapEncounterTroopCatalog.TryLoadAsync().ConfigureAwait(true);
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        _regionsPanel.SetTroops(troops);
+        _troopLoadState = 2;
     }
 
     internal bool IsPrefabSearchFocused => _leftToolsWpf.IsPrefabSearchFocused;
@@ -2295,6 +2344,19 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
     }
 
+    private void SyncRegionsPanel()
+    {
+        if (_regionsPanel.Visible)
+        {
+            _regionsPanel.Bind(_canvas.Map);
+        }
+    }
+
+    private static void RestoreRegionSnapshot(Map map, string? json)
+    {
+        map.Regions = json is null ? null : MapRegionDocument.FromJson(json);
+    }
+
     internal void ShowMapResizeShift()
     {
         if (_canvas.Map is not { } map)
@@ -2372,6 +2434,7 @@ public sealed class MainForm : Form
             return;
         }
 
+        var regionSnapshot = map.Regions?.ToJson();
         var priorBytes = new MapSerializer().Serialize(map);
         var beforeEvents = MapResizeShift.CloneEvents(loadedEvents);
         var beforeSnapshot = new MapResizeShiftAnchorSnapshot
@@ -2412,6 +2475,7 @@ public sealed class MainForm : Form
         if (trackEvents && !_mapEventService!.TryShiftPlacements(eventMapId, edit, out var shiftError))
         {
             MapResizeShift.ReplaceContents(map, new MapSerializer().Deserialize(priorBytes));
+            RestoreRegionSnapshot(map, regionSnapshot);
             _propGrid.SelectedObject = map;
             _canvas.Invalidate();
             _dialogService.ShowError(shiftError ?? "Décalage des événements impossible.", MapResizeShift.DialogTitle);
@@ -2602,6 +2666,7 @@ public sealed class MainForm : Form
         _propGrid.SelectedObject = _canvas.Map;
         UpdateUndoRedoButtons();
         UpdateMapChromeLabels();
+        SyncRegionsPanel();
         OnMapEdited();
     }
 
@@ -2855,6 +2920,7 @@ public sealed class MainForm : Form
         _canvas.DefaultWarpTargetMapId = null;
         _canvas.ClearHistory();
         _canvas.Map = map;
+        SyncRegionsPanel();
         _propGrid.SelectedObject = map;
         RefreshLayersUi();
         _canvas.Invalidate();
@@ -3011,11 +3077,13 @@ public sealed class MainForm : Form
         {
             _tileAssetMapPath = sfd.FileName;
             _tileAssetCatalogue.WriteMapFlagSidecar(sfd.FileName, _canvas.Map);
+            MapRegionDocument.WriteForMap(sfd.FileName, _canvas.Map);
             SavePrefabSidecarNextToMap(sfd.FileName);
         }
         else
         {
             SaveTilesetManifestNextToMap(sfd.FileName);
+            MapRegionDocument.WriteForMap(sfd.FileName, _canvas.Map);
             SavePrefabSidecarNextToMap(sfd.FileName);
             TilesetAnimCatalog.WriteMapSidecars(
                 sfd.FileName,
@@ -3026,7 +3094,7 @@ public sealed class MainForm : Form
         MessageBox.Show(
             GetDialogOwner(),
             tileAsset
-                ? "Carte TileAsset enregistrée (format v6, tuiles 48 px). Le fichier stocke des TileAssetId. Les drapeaux sont dans le sidecar .tileflags.json."
+                ? "Carte TileAsset enregistrée (format v6, tuiles 48 px). Le fichier stocke des TileAssetId. Les drapeaux sont dans le sidecar .tileflags.json. Les régions et rencontres sont dans .regions.json."
                 : "Carte, PNG tileset, manifeste (.tilesets.json), animations (.anims.json) et sidecar prefabs (.prefabs.json) exportés.",
             "Export",
             MessageBoxButtons.OK,
@@ -4341,12 +4409,18 @@ public sealed class MainForm : Form
             _dialogService.ShowWarning(flagError, "Drapeaux de tuile");
         }
 
+        if (!MapRegionDocument.TryAttach(map, mapPath, out var regionError) && regionError is not null)
+        {
+            _dialogService.ShowWarning(regionError, MapRegionLabels.PanelTitle);
+        }
+
         TilesetCache.Clear();
         var manifestOutcome = TryApplyTilesetManifestFromMapPath(mapPath);
         TryApplyAnimSidecarsFromMapPath(mapPath);
 
         _canvas.ClearHistory();
         _canvas.Map = map;
+        SyncRegionsPanel();
         _workspace?.AdoptLocalDraft(map);
         _canvas.ActiveTilesetId = 0;
         if (TilesetCache.ListRegistered().Count > 0)
@@ -4415,9 +4489,10 @@ public sealed class MainForm : Form
         File.WriteAllBytes(path, bytes);
         _tileAssetMapPath = path;
         _tileAssetCatalogue.WriteMapFlagSidecar(path, _canvas.Map);
+        MapRegionDocument.WriteForMap(path, _canvas.Map);
         SavePrefabSidecarNextToMap(path);
         _workspace?.ClearDirty();
-        _statusNotice = "Carte TileAsset enregistrée (v6, 48 px, drapeaux).";
+        _statusNotice = "Carte TileAsset enregistrée (v6, 48 px, drapeaux, régions).";
         UpdateMapChromeLabels();
         PushEditorStatusLine();
     }

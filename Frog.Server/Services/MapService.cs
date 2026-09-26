@@ -66,6 +66,7 @@ public sealed class MapService
                 var bytesFromFile = File.ReadAllBytes(resolved);
                 primaryModel = _mapSerializer.Deserialize(bytesFromFile);
                 AttachFileSidecar(primaryModel, resolved);
+                AttachRegionSidecar(primaryModel, resolved);
                 logger.LogInformation("Carte monde chargee depuis {Path}", resolved);
 
                 RegisterWorldChunkFromModel(
@@ -316,6 +317,17 @@ public sealed class MapService
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "Drapeaux de tuile illisibles a cote de {Path}", mapPath);
+        }
+    }
+
+    /// <summary>
+    /// Relit le sidecar de régions. Les ticks de rencontre (pas moyen, troupe) restent à faire.
+    /// </summary>
+    private void AttachRegionSidecar(Map model, string? mapPath)
+    {
+        if (!MapRegionDocument.TryAttach(model, mapPath, out var error) && error is not null)
+        {
+            _logger.LogWarning("Regions de carte illisibles a cote de {Path} : {Error}", mapPath, error);
         }
     }
 

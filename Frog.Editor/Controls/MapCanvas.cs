@@ -84,6 +84,16 @@ public sealed class MapCanvas : Control
     /// <summary>Pinceau v6. Ignoré tant que la carte n’est pas en identité TileAsset.</summary>
     public TileAssetId ActiveTileAssetId { get; set; }
 
+    /// <summary>Numéro peint par l’outil Région. 0 efface. Le clic droit efface sans changer ce numéro.</summary>
+    public byte ActiveRegionId
+    {
+        get => _activeRegionId;
+        set => _activeRegionId = value > MapRegionDocument.MaxRegionId ? MapRegionDocument.MaxRegionId : value;
+    }
+
+    private byte _activeRegionId = 1;
+    private bool _regionStroke;
+
     /// <summary>
     /// Vrai : peindre une tuile d’un groupe d’autotile choisit le rôle (centre, bord, coin)
     /// d’après les voisins. Faux : le pinceau pose l’id choisi tel quel.
@@ -778,12 +788,14 @@ public sealed class MapCanvas : Control
             return;
         }
 
+        var regions = Map.Regions;
         var restored = History.TryUndo(Map);
         if (restored is null)
         {
             return;
         }
 
+        KeepRegions(restored, regions);
         Map = restored;
         MapEdited?.Invoke();
         MapReplaced?.Invoke();
@@ -797,12 +809,14 @@ public sealed class MapCanvas : Control
             return;
         }
 
+        var regions = Map.Regions;
         var restored = History.TryRedo(Map);
         if (restored is null)
         {
             return;
         }
 
+        KeepRegions(restored, regions);
         Map = restored;
         MapEdited?.Invoke();
         MapReplaced?.Invoke();
@@ -810,6 +824,39 @@ public sealed class MapCanvas : Control
     }
 
     public void ClearHistory() => History.Clear();
+
+    private static void KeepRegions(Map restored, MapRegionDocument? regions)
+    {
+        if (regions is null)
+        {
+            return;
+        }
+
+        regions.AdoptMapSize(restored.Width, restored.Height);
+        restored.Regions = regions;
+    }
+
+    private void PaintRegionAt(int tx, int ty, bool erase)
+    {
+        if (Map is null || tx < 0 || ty < 0 || tx >= Map.Width || ty >= Map.Height)
+        {
+            return;
+        }
+
+        var id = erase ? (byte)0 : ActiveRegionId;
+        if (!MapRegionEdit.TryPaint(Map, tx, ty, id, out _))
+        {
+            return;
+        }
+
+        if (!_regionStroke)
+        {
+            _regionStroke = true;
+            MapEdited?.Invoke();
+        }
+
+        Invalidate();
+    }
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -844,10 +891,16 @@ public sealed class MapCanvas : Control
 
                 DrawPlacedPrefabs(g);
                 DrawTileTypeOverlay(g, tx0, ty0, tx1, ty1);
+                DrawRegionOverlay(g, tx0, ty0, tx1, ty1);
                 DrawMapEventMarkerOverlay(g, tx0, ty0, tx1, ty1);
                 DrawTransferIssueOverlay(g, tx0, ty0, tx1, ty1);
                 DrawPlaytestSpawnMarker(g, tx0, ty0, tx1, ty1);
                 DrawPlacedEntities(g, tx0, ty0, tx1, ty1);
+            }
+
+            if (Map is not null && ActiveTool == EditorTool.Region)
+            {
+                DrawTileRectPixels(g, _hoverTile.X, _hoverTile.Y, _hoverTile.X, _hoverTile.Y, Color.FromArgb(255, 120, 196, 255), dash: true);
             }
 
             if (Map is not null && ActiveTool == EditorTool.Spawn)
@@ -1121,6 +1174,68 @@ public sealed class MapCanvas : Control
                 }
             }
         }
+    }
+
+    private void DrawRegionOverlay(Graphics g, int tx0, int ty0, int tx1, int ty1)
+    {
+        if (ActiveTool != EditorTool.Region || Map?.Regions is not { } regions)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        using var font = new Font("Segoe UI", Math.Max(11f, ts * 0.42f), FontStyle.Bold, GraphicsUnit.Pixel);
+        using var text = new SolidBrush(Color.White);
+        using var shadow = new SolidBrush(Color.FromArgb(190, 12, 16, 24));
+        for (var y = ty0; y <= ty1 && y < Map.Height; y++)
+        {
+            for (var x = tx0; x <= tx1 && x < Map.Width; x++)
+            {
+                var id = regions.Get(x, y);
+                var label = MapRegionEdit.OverlayText(id);
+                if (label.Length == 0)
+                {
+                    continue;
+                }
+
+                var rect = new Rectangle(x * ts, y * ts, ts, ts);
+                var tint = RegionTint(id);
+                using (var wash = new SolidBrush(Color.FromArgb(88, tint)))
+                {
+                    g.FillRectangle(wash, rect);
+                }
+
+                using (var pen = new Pen(Color.FromArgb(210, tint), 2f))
+                {
+                    g.DrawRectangle(pen, rect.X + 1, rect.Y + 1, rect.Width - 3, rect.Height - 3);
+                }
+
+                var size = g.MeasureString(label, font);
+                var px = rect.X + (ts - size.Width) / 2f;
+                var py = rect.Y + (ts - size.Height) / 2f;
+                g.DrawString(label, font, shadow, px + 1f, py + 1f);
+                g.DrawString(label, font, text, px, py);
+            }
+        }
+    }
+
+    private static readonly byte[] RegionPalette =
+    [
+        96, 176, 255,
+        255, 176, 72,
+        120, 214, 140,
+        214, 120, 196,
+        255, 112, 112,
+        176, 140, 255,
+        255, 214, 96,
+        96, 214, 214,
+    ];
+
+    private static Color RegionTint(byte regionId)
+    {
+        var slot = ((regionId - 1) & 7);
+        var i = slot * 3;
+        return Color.FromArgb(RegionPalette[i], RegionPalette[i + 1], RegionPalette[i + 2]);
     }
 
     private static void FillDiamond(Graphics g, Brush brush, Rectangle r)
@@ -2379,6 +2494,13 @@ public sealed class MapCanvas : Control
 
         if (e.Button == MouseButtons.Right)
         {
+            if (ActiveTool == EditorTool.Region)
+            {
+                PaintRegionAt(tx, ty, erase: true);
+                Capture = true;
+                return;
+            }
+
             if (ActiveTool == EditorTool.Spawn)
             {
                 if ((ModifierKeys & Keys.Control) == Keys.Control)
@@ -2592,6 +2714,12 @@ public sealed class MapCanvas : Control
                     RaiseTileClicked(tx, ty);
                     break;
 
+                case EditorTool.Region:
+                    PaintRegionAt(tx, ty, erase: false);
+                    Capture = true;
+                    RaiseTileClicked(tx, ty);
+                    break;
+
                 case EditorTool.Prefab:
                     if ((ModifierKeys & Keys.Alt) == Keys.Alt)
                     {
@@ -2692,7 +2820,11 @@ public sealed class MapCanvas : Control
 
         if ((e.Button & MouseButtons.Left) != 0)
         {
-            if (ActiveTool == EditorTool.Brush && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height && IsActiveLayerEditable())
+            if (ActiveTool == EditorTool.Region && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height)
+            {
+                PaintRegionAt(tx, ty, erase: false);
+            }
+            else if (ActiveTool == EditorTool.Brush && tx >= 0 && ty >= 0 && tx < Map.Width && ty < Map.Height && IsActiveLayerEditable())
             {
                 ApplyBrush(tx, ty);
                 Invalidate();
@@ -2774,6 +2906,18 @@ public sealed class MapCanvas : Control
         }
 
         if (!_suppressRightButtonErase &&
+            ActiveTool == EditorTool.Region &&
+            (e.Button & MouseButtons.Right) != 0 &&
+            tx >= 0 &&
+            ty >= 0 &&
+            tx < Map.Width &&
+            ty < Map.Height)
+        {
+            PaintRegionAt(tx, ty, erase: true);
+        }
+
+        if (!_suppressRightButtonErase &&
+            ActiveTool != EditorTool.Region &&
             ActiveTool != EditorTool.Spawn &&
             ActiveTool != EditorTool.Prefab &&
             ActiveTool != EditorTool.Place &&
@@ -2839,6 +2983,12 @@ public sealed class MapCanvas : Control
             if (e.Button == MouseButtons.Right)
             {
                 _suppressRightButtonErase = false;
+            }
+
+            if (ActiveTool == EditorTool.Region)
+            {
+                _regionStroke = false;
+                Capture = false;
             }
 
             if (Map is null)
@@ -3319,6 +3469,7 @@ public sealed class MapCanvas : Control
             EditorTool.Fill => EditorToolHotkeys.FormatFillStatus(FillVisibleUnlockedLayers, FillRespectAttributes),
             EditorTool.Rectangle => EditorToolHotkeys.FormatRectangleStatus(RectangleOutline, RectangleEllipse),
             EditorTool.Place => EditorToolHotkeys.FormatPlaceStatus(PlaceKind, SelectedPlacedEntity?.Name),
+            EditorTool.Region => MapRegionLabels.FormatStatus(ActiveRegionId),
             _ => EditorToolHotkeys.StatusHint(ActiveTool),
         };
         if (IsTileAssetMap)
