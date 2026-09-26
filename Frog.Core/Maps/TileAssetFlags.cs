@@ -13,6 +13,9 @@ public readonly record struct TileAssetFlags
 {
     public const byte MaxPriority = 5;
 
+    /// <summary>Numéro de terrain VX : 0–7.</summary>
+    public const byte MaxTerrain = 7;
+
     public bool PassageNorth { get; init; }
 
     public bool PassageEast { get; init; }
@@ -29,6 +32,12 @@ public readonly record struct TileAssetFlags
 
     public bool Damage { get; init; }
 
+    /// <summary>★ Passage (global) : la tuile est au-dessus et n’affecte pas le passage.</summary>
+    public bool Star { get; init; }
+
+    /// <summary>Numéro de terrain, 0–7.</summary>
+    public byte Terrain { get; init; }
+
     /// <summary>○ — quatre directions ouvertes, priorité 0, sans buisson, comptoir ni dégâts.</summary>
     public static TileAssetFlags Default { get; } = new()
     {
@@ -43,7 +52,13 @@ public readonly record struct TileAssetFlags
 
     public bool IsDefault =>
         PassageNorth && PassageEast && PassageSouth && PassageWest
-        && Priority == 0 && !Bush && !Counter && !Damage;
+        && Priority == 0 && !Bush && !Counter && !Damage && !Star && Terrain == 0;
+
+    /// <summary>○ tout ouvert, × tout bloqué, ★ au-dessus.</summary>
+    public string PassageMark => Star ? "★" : BlocksAllPassage ? "×" : "○";
+
+    /// <summary>Mode échelle : ○ au sol (0), ★ et le chiffre au-dessus.</summary>
+    public string PriorityMark => Priority == 0 ? "○" : "★" + Priority.ToString();
 
     public bool BlocksAllPassage =>
         !PassageNorth && !PassageEast && !PassageSouth && !PassageWest;
@@ -83,6 +98,59 @@ public readonly record struct TileAssetFlags
     public TileAssetFlags WithCounter(bool counter) => this with { Counter = counter };
 
     public TileAssetFlags WithDamage(bool damage) => this with { Damage = damage };
+
+    public TileAssetFlags WithTerrain(int terrain)
+    {
+        if ((uint)terrain > MaxTerrain)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(terrain),
+                $"Le numéro de terrain est entre 0 et {MaxTerrain}.");
+        }
+
+        return this with { Terrain = (byte)terrain };
+    }
+
+    /// <summary>Passage (global) : ○ → × → ★ → ○. Les autres drapeaux restent.</summary>
+    public TileAssetFlags CyclePassageGlobal()
+    {
+        if (Star)
+        {
+            return this with
+            {
+                Star = false,
+                PassageNorth = true,
+                PassageEast = true,
+                PassageSouth = true,
+                PassageWest = true,
+            };
+        }
+
+        if (BlocksAllPassage)
+        {
+            return this with
+            {
+                Star = true,
+                PassageNorth = true,
+                PassageEast = true,
+                PassageSouth = true,
+                PassageWest = true,
+            };
+        }
+
+        return this with
+        {
+            Star = false,
+            PassageNorth = false,
+            PassageEast = false,
+            PassageSouth = false,
+            PassageWest = false,
+        };
+    }
+
+    public TileAssetFlags CyclePriority() => WithPriority((Priority + 1) % (MaxPriority + 1));
+
+    public TileAssetFlags CycleTerrain() => WithTerrain((Terrain + 1) % (MaxTerrain + 1));
 
     /// <summary>
     /// Un pas VX : on quitte <paramref name="from"/> dans <paramref name="direction"/>

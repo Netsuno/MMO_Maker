@@ -52,9 +52,18 @@ public static class MapCollision
                     return false;
                 }
 
-                if (map.TileFlags is not null
-                    && !tile.AssetId.IsNone
-                    && !map.TileFlags.Get(tile.AssetId).Allows(direction))
+                if (map.TileFlags is null || tile.AssetId.IsNone)
+                {
+                    continue;
+                }
+
+                var flags = map.TileFlags.Get(tile.AssetId);
+                if (flags.Star)
+                {
+                    continue;
+                }
+
+                if (!flags.Allows(direction))
                 {
                     return false;
                 }
@@ -243,7 +252,37 @@ public static class MapCollision
             return false;
         }
 
-        return flags.Get(tile.AssetId).BlocksAllPassage;
+        var found = flags.Get(tile.AssetId);
+        return found.BlocksAllPassage && !found.Star;
+    }
+
+    /// <summary>Numéro de terrain de la couche la plus haute qui en porte un. 0 si aucun.</summary>
+    public static byte CellTerrain(Map map, int x, int y)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (map.TileFlags is not { Count: > 0 } || x < 0 || y < 0 || x >= map.Width || y >= map.Height)
+        {
+            return 0;
+        }
+
+        byte tag = 0;
+        foreach (var layer in map.Layers)
+        {
+            foreach (var tile in layer.Tiles)
+            {
+                if (tile.X != x || tile.Y != y || tile.AssetId.IsNone)
+                {
+                    continue;
+                }
+
+                if (map.TileFlags.TryGetExplicit(tile.AssetId, out var flags))
+                {
+                    tag = flags.Terrain;
+                }
+            }
+        }
+
+        return tag;
     }
 
     private static bool CellHas(Map map, int x, int y, Func<TileAssetFlags, bool> predicate)

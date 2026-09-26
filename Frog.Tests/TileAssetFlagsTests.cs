@@ -83,6 +83,8 @@ public sealed class TileAssetFlagsTests
         Assert.True(partialFlags.Bush);
         Assert.False(partialFlags.Counter);
         Assert.False(partialFlags.Damage);
+        Assert.False(partialFlags.Star);
+        Assert.Equal(0, partialFlags.Terrain);
 
         Assert.Throws<InvalidDataException>(() => TileAssetFlagTable.FromJson("""{ "version": 2, "tiles": {} }"""));
         Assert.Throws<InvalidDataException>(() => TileAssetFlagTable.FromJson(
@@ -181,26 +183,36 @@ public sealed class TileAssetFlagsTests
     [Fact]
     public void Labels_AndStatus_StayFrench_Hello11_Tiles48()
     {
-        Assert.Equal("Passage (4 dir.)", TileAssetFlagLabels.Passage);
+        Assert.Equal("Passage (global)", TileAssetFlagLabels.PassageGlobal);
+        Assert.Equal("Passage (4 directions)", TileAssetFlagLabels.PassageFour);
         Assert.Equal("Nord", TileAssetFlagLabels.North);
         Assert.Equal("Sud", TileAssetFlagLabels.South);
         Assert.Equal("Est", TileAssetFlagLabels.East);
         Assert.Equal("Ouest", TileAssetFlagLabels.West);
-        Assert.Equal("Tout ouvert", TileAssetFlagLabels.OpenAll);
-        Assert.Equal("Tout bloqué", TileAssetFlagLabels.BlockAll);
-        Assert.Equal("Priorité", TileAssetFlagLabels.Priority);
-        Assert.Equal("Buisson", TileAssetFlagLabels.Bush);
-        Assert.Equal("Comptoir", TileAssetFlagLabels.Counter);
-        Assert.Equal("Dégâts", TileAssetFlagLabels.Damage);
+        Assert.Equal("Mode échelle", TileAssetFlagLabels.Priority);
+        Assert.Equal("Carreaux obscurcissants", TileAssetFlagLabels.Bush);
+        Assert.Equal("Carreaux d'interaction", TileAssetFlagLabels.Counter);
+        Assert.Equal("Sol blessant", TileAssetFlagLabels.Damage);
+        Assert.Equal("Numéro de terrain", TileAssetFlagLabels.Terrain);
         Assert.Contains("48", TileAssetFlagLabels.Empty, StringComparison.Ordinal);
+        Assert.Contains("★", TileAssetFlagLabels.Hint(TileFlagEditMode.PassageGlobal), StringComparison.Ordinal);
+        Assert.Contains("0–7", TileAssetFlagLabels.Hint(TileFlagEditMode.Terrain), StringComparison.Ordinal);
 
         var root = RepoRoot();
         var panel = File.ReadAllText(Path.Combine(root, "Frog.Editor", "Controls", "TileAssetFlagsPanel.cs"));
-        Assert.Contains("TileAssetFlagLabels.Passage", panel, StringComparison.Ordinal);
+        Assert.Contains("TileAssetFlagLabels.PassageGlobal", panel, StringComparison.Ordinal);
+        Assert.Contains("TileAssetFlagLabels.PassageFour", panel, StringComparison.Ordinal);
         Assert.Contains("TileAssetFlagLabels.Bush", panel, StringComparison.Ordinal);
         Assert.Contains("TileAssetFlagLabels.Counter", panel, StringComparison.Ordinal);
         Assert.Contains("TileAssetFlagLabels.Damage", panel, StringComparison.Ordinal);
         Assert.Contains("TileAssetFlagLabels.Priority", panel, StringComparison.Ordinal);
+        Assert.Contains("TileAssetFlagLabels.Terrain", panel, StringComparison.Ordinal);
+        Assert.Contains("TileFlagEdit.Apply", panel, StringComparison.Ordinal);
+
+        var workbench = File.ReadAllText(Path.Combine(root, "Frog.Editor", "Controls", "TileAssetWorkbench.cs"));
+        Assert.Contains("ModeProvider", workbench, StringComparison.Ordinal);
+        Assert.Contains("ApplyClick", workbench, StringComparison.Ordinal);
+        Assert.Contains("TileFlagEdit.OverlayText", workbench, StringComparison.Ordinal);
 
         var status = File.ReadAllText(Path.Combine(root, "docs", "progress", "editor-tile-flags", "STATUS.md"));
         Assert.Contains("**Propriétaire** | Netsun", status, StringComparison.Ordinal);
@@ -209,6 +221,112 @@ public sealed class TileAssetFlagsTests
         Assert.Contains("reste 11", status, StringComparison.Ordinal);
         Assert.DoesNotContain("Marc", status, StringComparison.Ordinal);
         Assert.Equal((ushort)11, FrogWireProtocol.Version);
+    }
+
+    [Fact]
+    public void VxModes_CycleStarTerrainAndEdges()
+    {
+        var bushy = TileAssetFlags.Default.WithBush(true).WithCounter(true);
+        var blocked = bushy.CyclePassageGlobal();
+        Assert.Equal("×", blocked.PassageMark);
+        Assert.True(blocked.BlocksAllPassage);
+        Assert.False(blocked.Star);
+        Assert.True(blocked.Bush);
+        Assert.True(blocked.Counter);
+
+        var star = blocked.CyclePassageGlobal();
+        Assert.Equal("★", star.PassageMark);
+        Assert.True(star.Star);
+        Assert.True(star.PassageNorth);
+        Assert.True(star.Bush);
+
+        var open = star.CyclePassageGlobal();
+        Assert.Equal("○", open.PassageMark);
+        Assert.False(open.Star);
+        Assert.True(open.Bush);
+        Assert.False(open.IsDefault);
+
+        var priority = TileAssetFlags.Default;
+        Assert.Equal("○", priority.PriorityMark);
+        for (var i = 1; i <= TileAssetFlags.MaxPriority; i++)
+        {
+            priority = priority.CyclePriority();
+            Assert.Equal(i, priority.Priority);
+            Assert.Equal("★" + i, priority.PriorityMark);
+        }
+
+        Assert.Equal(0, priority.CyclePriority().Priority);
+
+        var terrain = TileAssetFlags.Default;
+        for (var i = 1; i <= TileAssetFlags.MaxTerrain; i++)
+        {
+            terrain = terrain.CycleTerrain();
+            Assert.Equal(i, terrain.Terrain);
+        }
+
+        Assert.Equal(0, terrain.CycleTerrain().Terrain);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TileAssetFlags.Default.WithTerrain(8));
+
+        Assert.True(TileFlagEdit.TryHitDirection(10, 2, 48, out var north));
+        Assert.Equal(TilePassageDirection.North, north);
+        Assert.True(TileFlagEdit.TryHitDirection(10, 40, 48, out var south));
+        Assert.Equal(TilePassageDirection.South, south);
+        Assert.True(TileFlagEdit.TryHitDirection(2, 24, 48, out var west));
+        Assert.Equal(TilePassageDirection.West, west);
+        Assert.True(TileFlagEdit.TryHitDirection(40, 24, 48, out var east));
+        Assert.Equal(TilePassageDirection.East, east);
+        Assert.False(TileFlagEdit.TryHitDirection(24, 24, 48, out _));
+        Assert.False(TileFlagEdit.TryHitDirection(48, 10, 48, out _));
+        Assert.False(TileFlagEdit.TryHitDirection(-1, 10, 48, out _));
+
+        var edged = TileAssetFlags.Default with { Star = true };
+        var center = TileFlagEdit.Apply(edged, TileFlagEditMode.PassageFourDirections, 24, 24, 48);
+        Assert.Equal(edged, center);
+        var closedNorth = TileFlagEdit.Apply(edged, TileFlagEditMode.PassageFourDirections, 20, 2, 48);
+        Assert.False(closedNorth.PassageNorth);
+        Assert.True(closedNorth.PassageSouth);
+        Assert.False(closedNorth.Star);
+
+        Assert.Equal("○", TileFlagEdit.OverlayText(TileAssetFlags.Default, TileFlagEditMode.PassageGlobal));
+        Assert.Equal("×", TileFlagEdit.OverlayText(TileAssetFlags.Blocked, TileFlagEditMode.PassageGlobal));
+        Assert.Equal("★", TileFlagEdit.OverlayText(TileAssetFlags.Default with { Star = true }, TileFlagEditMode.PassageGlobal));
+        Assert.Equal(string.Empty, TileFlagEdit.OverlayText(TileAssetFlags.Default, TileFlagEditMode.PassageFourDirections));
+        Assert.Equal("○", TileFlagEdit.OverlayText(TileAssetFlags.Default, TileFlagEditMode.Priority));
+        Assert.Equal("★3", TileFlagEdit.OverlayText(TileAssetFlags.Default.WithPriority(3), TileFlagEditMode.Priority));
+        Assert.Equal("■", TileFlagEdit.OverlayText(TileAssetFlags.Default.WithBush(true), TileFlagEditMode.Bush));
+        Assert.Equal(string.Empty, TileFlagEdit.OverlayText(TileAssetFlags.Default, TileFlagEditMode.Bush));
+        Assert.Equal("◆", TileFlagEdit.OverlayText(TileAssetFlags.Default.WithCounter(true), TileFlagEditMode.Counter));
+        Assert.Equal("●", TileFlagEdit.OverlayText(TileAssetFlags.Default.WithDamage(true), TileFlagEditMode.Damage));
+        Assert.Equal("4", TileFlagEdit.OverlayText(TileAssetFlags.Default.WithTerrain(4), TileFlagEditMode.Terrain));
+        Assert.Equal("0", TileFlagEdit.OverlayText(TileAssetFlags.Default, TileFlagEditMode.Terrain));
+
+        var wall = Id(7);
+        var grass = Id(8);
+        var map = SampleMap(wall, grass, Id(9));
+        var flags = new TileAssetFlagTable();
+        flags.Set(wall, TileAssetFlags.Blocked with { Star = true });
+        flags.Set(grass, TileAssetFlags.Default.WithTerrain(2));
+        flags.Set(Id(10), TileAssetFlags.Default.WithTerrain(4));
+        map.TileFlags = flags;
+        Assert.DoesNotContain((1, 0), MapCollision.IndexBlockedTiles(map));
+        Assert.True(MapCollision.CellAllows(map, 1, 0, TilePassageDirection.North));
+        Assert.Equal(4, MapCollision.CellTerrain(map, 0, 0));
+        Assert.Equal(0, MapCollision.CellTerrain(map, 1, 1));
+
+        flags.Set(Id(10), TileAssetFlags.Default);
+        Assert.Equal(2, MapCollision.CellTerrain(map, 0, 0));
+
+        var tagged = TileAssetFlags.Default.WithTerrain(4) with { Star = true };
+        flags.Set(grass, tagged);
+        var json = flags.ToJson();
+        Assert.Contains("\"star\": true", json, StringComparison.Ordinal);
+        Assert.Contains("\"terrain\": 4", json, StringComparison.Ordinal);
+        var loaded = TileAssetFlagTable.FromJson(json).Get(grass);
+        Assert.True(loaded.Star);
+        Assert.Equal(4, loaded.Terrain);
+        Assert.Throws<InvalidDataException>(() => TileAssetFlagTable.FromJson(
+            $$"""{ "version": 1, "tiles": { "{{grass.ToHex()}}": { "terrain": 8 } } }"""));
+        Assert.Throws<ArgumentOutOfRangeException>(() => flags.Set(grass, TileAssetFlags.Default with { Terrain = 8 }));
     }
 
     private static Map SampleMap(TileAssetId wall, TileAssetId grass, TileAssetId counter)

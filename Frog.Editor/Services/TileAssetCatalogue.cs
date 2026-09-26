@@ -332,6 +332,12 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
             return false;
         }
 
+        if (flags.Terrain > TileAssetFlags.MaxTerrain)
+        {
+            error = $"Le numéro de terrain est entre 0 et {TileAssetFlags.MaxTerrain}.";
+            return false;
+        }
+
         if (_flags.Get(id).Equals(flags))
         {
             error = null;

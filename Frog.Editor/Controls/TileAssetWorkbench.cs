@@ -89,12 +89,21 @@ public sealed class TileAssetWorkbench : UserControl
         _grid = new TileAssetThumbGrid { Dock = DockStyle.Fill };
         _grid.ImageProvider = id => TileAssetThumbnails.Get(_catalogue, id);
         _grid.FlagsProvider = id => _catalogue.GetFlags(id);
+        _grid.ModeProvider = () => _flags.Mode;
+        _flags.ModeChanged += () =>
+        {
+            if (!IsDisposed)
+            {
+                _grid.Invalidate();
+            }
+        };
         _grid.TileChosen += id =>
         {
             BrushTileChosen?.Invoke(id);
             SetStatus(ShortId(id));
             _flags.Bind(id);
         };
+        _grid.TileEdited += (id, localX, localY) => _flags.ApplyClick(id, localX, localY);
         _grid.TileActivated += id => AddSelected(id);
         var catalogueHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 8, 4) };
         var catalogueBanner = EditorChrome.BuildZoneBanner("Catalogue");
@@ -479,7 +488,12 @@ internal sealed class TileAssetThumbGrid : Control
 
     public Func<TileAssetId, TileAssetFlags>? FlagsProvider { get; set; }
 
+    public Func<TileFlagEditMode>? ModeProvider { get; set; }
+
     public event Action<TileAssetId>? TileChosen;
+
+    /// <summary>Clic dans les 48×48 de la vignette (le trou de 4 px ne compte pas).</summary>
+    public event Action<TileAssetId, int, int>? TileEdited;
 
     public event Action<TileAssetId>? TileActivated;
 
@@ -497,18 +511,22 @@ internal sealed class TileAssetThumbGrid : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (e.Button == MouseButtons.Left && TryHit(e.X, e.Y, out var id))
+        if (e.Button == MouseButtons.Left && TryHit(e.X, e.Y, out var id, out var localX, out var localY, out var inThumb))
         {
             SelectedId = id;
             Invalidate();
             TileChosen?.Invoke(id);
+            if (inThumb)
+            {
+                TileEdited?.Invoke(id, localX, localY);
+            }
         }
     }
 
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
         base.OnMouseDoubleClick(e);
-        if (e.Button == MouseButtons.Left && TryHit(e.X, e.Y, out var id))
+        if (e.Button == MouseButtons.Left && TryHit(e.X, e.Y, out var id, out _, out _, out _))
         {
             TileActivated?.Invoke(id);
         }
@@ -557,60 +575,83 @@ internal sealed class TileAssetThumbGrid : Control
                     e.Graphics.DrawRectangle(pen, dest);
                 }
 
-                PaintFlags(e.Graphics, dest, FlagsProvider?.Invoke(id) ?? TileAssetFlags.Default);
+                PaintMode(e.Graphics, dest, FlagsProvider?.Invoke(id) ?? TileAssetFlags.Default);
             }
         }
     }
 
-    private static void PaintFlags(Graphics graphics, Rectangle dest, TileAssetFlags flags)
+    private void PaintMode(Graphics graphics, Rectangle dest, TileAssetFlags flags)
     {
-        if (flags.IsDefault)
+        var mode = ModeProvider?.Invoke() ?? TileFlagEditMode.PassageGlobal;
+        if (mode == TileFlagEditMode.PassageFourDirections)
+        {
+            PaintDirections(graphics, dest, flags);
+            return;
+        }
+
+        if (mode == TileFlagEditMode.Bush && flags.Bush)
+        {
+            using var shade = new SolidBrush(Color.FromArgb(140, 0, 0, 0));
+            var half = dest.Height / 2;
+            graphics.FillRectangle(shade, dest.Left, dest.Top + half, dest.Width, dest.Height - half);
+        }
+
+        var text = TileFlagEdit.OverlayText(flags, mode);
+        if (string.IsNullOrEmpty(text) || mode == TileFlagEditMode.Bush)
         {
             return;
         }
 
-        if (!flags.PassageNorth)
+        using var font = new Font(FontFamily.GenericSansSerif, 14f, FontStyle.Bold, GraphicsUnit.Pixel);
+        var size = graphics.MeasureString(text, font);
+        var x = dest.Left + ((dest.Width - size.Width) / 2f);
+        var y = dest.Top + ((dest.Height - size.Height) / 2f);
+        graphics.DrawString(text, font, Brushes.Black, x + 1f, y + 1f);
+        graphics.DrawString(text, font, Brushes.White, x, y);
+    }
+
+    private static void PaintDirections(Graphics graphics, Rectangle dest, TileAssetFlags flags)
+    {
+        const int arm = 5;
+        var midX = dest.Left + (dest.Width / 2);
+        var midY = dest.Top + (dest.Height / 2);
+        DrawArrow(graphics, flags.PassageNorth, new[]
         {
-            graphics.FillRectangle(Brushes.OrangeRed, dest.Left, dest.Top, dest.Width, 3);
+            new Point(midX, dest.Top + 2),
+            new Point(midX - arm, dest.Top + 2 + arm),
+            new Point(midX + arm, dest.Top + 2 + arm),
+        });
+        DrawArrow(graphics, flags.PassageSouth, new[]
+        {
+            new Point(midX, dest.Bottom - 3),
+            new Point(midX - arm, dest.Bottom - 3 - arm),
+            new Point(midX + arm, dest.Bottom - 3 - arm),
+        });
+        DrawArrow(graphics, flags.PassageWest, new[]
+        {
+            new Point(dest.Left + 2, midY),
+            new Point(dest.Left + 2 + arm, midY - arm),
+            new Point(dest.Left + 2 + arm, midY + arm),
+        });
+        DrawArrow(graphics, flags.PassageEast, new[]
+        {
+            new Point(dest.Right - 3, midY),
+            new Point(dest.Right - 3 - arm, midY - arm),
+            new Point(dest.Right - 3 - arm, midY + arm),
+        });
+    }
+
+    private static void DrawArrow(Graphics graphics, bool open, Point[] points)
+    {
+        var shadow = new Point[points.Length];
+        for (var i = 0; i < points.Length; i++)
+        {
+            shadow[i] = new Point(points[i].X + 1, points[i].Y + 1);
         }
 
-        if (!flags.PassageSouth)
-        {
-            graphics.FillRectangle(Brushes.OrangeRed, dest.Left, dest.Bottom - 3, dest.Width, 3);
-        }
-
-        if (!flags.PassageWest)
-        {
-            graphics.FillRectangle(Brushes.OrangeRed, dest.Left, dest.Top, 3, dest.Height);
-        }
-
-        if (!flags.PassageEast)
-        {
-            graphics.FillRectangle(Brushes.OrangeRed, dest.Right - 3, dest.Top, 3, dest.Height);
-        }
-
-        if (flags.Priority > 0)
-        {
-            using var font = new Font(FontFamily.GenericSansSerif, 7f, FontStyle.Bold, GraphicsUnit.Pixel);
-            graphics.DrawString(flags.Priority.ToString(), font, Brushes.White, dest.Left + 2, dest.Top + 2);
-        }
-
-        var mark = dest.Right - 8;
-        var markY = dest.Bottom - 8;
-        if (flags.Bush)
-        {
-            graphics.FillRectangle(Brushes.LimeGreen, mark - 10, markY, 6, 6);
-        }
-
-        if (flags.Counter)
-        {
-            graphics.FillRectangle(Brushes.DeepSkyBlue, mark, markY, 6, 6);
-        }
-
-        if (flags.Damage)
-        {
-            graphics.FillEllipse(Brushes.OrangeRed, dest.Left + 2, dest.Bottom - 8, 6, 6);
-        }
+        graphics.FillPolygon(Brushes.Black, shadow);
+        using var brush = new SolidBrush(open ? Color.White : Color.FromArgb(180, 40, 32));
+        graphics.FillPolygon(brush, points);
     }
 
     private int Columns() => Math.Max(1, Math.Max(1, ClientSize.Width - _scroll.Width) / Cell);
@@ -630,11 +671,14 @@ internal sealed class TileAssetThumbGrid : Control
         }
     }
 
-    private bool TryHit(int x, int y, out TileAssetId id)
+    private bool TryHit(int x, int y, out TileAssetId id, out int localX, out int localY, out bool inThumb)
     {
         id = TileAssetId.None;
+        localX = 0;
+        localY = 0;
+        inThumb = false;
         var columns = Columns();
-        if (x < 0 || x >= columns * Cell)
+        if (x < 0 || y < 0 || x >= columns * Cell)
         {
             return false;
         }
@@ -642,11 +686,14 @@ internal sealed class TileAssetThumbGrid : Control
         var column = x / Cell;
         var row = (y + _scroll.Value) / Cell;
         var index = (row * columns) + column;
-        if ((uint)index >= (uint)_tiles.Count)
+        if ((uint)index >= (uint)_tiles.Count || row < 0)
         {
             return false;
         }
 
+        localX = x - (column * Cell);
+        localY = (y + _scroll.Value) - (row * Cell);
+        inThumb = localX < Thumb && localY < Thumb;
         id = _tiles[index];
         return true;
     }

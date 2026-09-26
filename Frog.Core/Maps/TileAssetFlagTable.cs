@@ -47,6 +47,11 @@ public sealed class TileAssetFlagTable
             throw new ArgumentOutOfRangeException(nameof(flags), "Priorité hors 0–5.");
         }
 
+        if (flags.Terrain > TileAssetFlags.MaxTerrain)
+        {
+            throw new ArgumentOutOfRangeException(nameof(flags), "Numéro de terrain hors 0–7.");
+        }
+
         if (flags.IsDefault)
         {
             _byId.Remove(id);
@@ -104,6 +109,8 @@ public sealed class TileAssetFlagTable
                 Bush = flags.Bush,
                 Counter = flags.Counter,
                 Damage = flags.Damage,
+                Star = flags.Star,
+                Terrain = flags.Terrain,
             };
         }
 
@@ -237,6 +244,12 @@ public sealed class TileAssetFlagTable
             throw new InvalidDataException($"Priorité {priority} hors 0–{TileAssetFlags.MaxPriority}.");
         }
 
+        var terrain = dto.Terrain ?? 0;
+        if ((uint)terrain > TileAssetFlags.MaxTerrain)
+        {
+            throw new InvalidDataException($"Numéro de terrain {terrain} hors 0–{TileAssetFlags.MaxTerrain}.");
+        }
+
         return new TileAssetFlags
         {
             PassageNorth = dto.PassageNorth ?? true,
@@ -247,6 +260,8 @@ public sealed class TileAssetFlagTable
             Bush = dto.Bush ?? false,
             Counter = dto.Counter ?? false,
             Damage = dto.Damage ?? false,
+            Star = dto.Star ?? false,
+            Terrain = (byte)terrain,
         };
     }
 
@@ -274,5 +289,9 @@ public sealed class TileAssetFlagTable
         public bool? Counter { get; set; }
 
         public bool? Damage { get; set; }
+
+        public bool? Star { get; set; }
+
+        public int? Terrain { get; set; }
     }
 }
