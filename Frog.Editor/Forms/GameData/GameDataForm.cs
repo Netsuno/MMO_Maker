@@ -235,6 +235,7 @@ public sealed class GameDataForm : Form
         _classes = new ClassEditorPanel(
             new ClassWorkspaceSession(set.Class.Repository),
             set.Spell.PublishedCatalog,
+            set.Item.PublishedCatalog,
             set.Class.Capabilities);
         _classes.StatusChanged += msg => _status.Text = msg;
         _actors = new ActorEditorPanel(
@@ -602,6 +603,7 @@ public sealed class GameDataForm : Form
         {
             _classes!.Dock = DockStyle.Fill;
             _host.Controls.Add(_classes);
+            _classes.QueueRefreshLinkedCatalogs();
         }
         else if (_categoryList.SelectedIndex == 5)
         {
@@ -2314,6 +2316,7 @@ public sealed class ClassEditorPanel : UserControl
     private readonly GameDataPanelLifecycle _lifecycle = new();
     private readonly ClassWorkspaceSession _session;
     private readonly IPublishedSpellCatalog _spellCatalog;
+    private readonly IPublishedItemCatalog _itemCatalog;
     private readonly ContentRepositoryCapabilities _capabilities;
     private readonly ListBox _list = new() { Dock = DockStyle.Fill };
     private readonly TextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Rechercher…" };
@@ -2339,6 +2342,8 @@ public sealed class ClassEditorPanel : UserControl
         Width = 280,
         DropDownStyle = ComboBoxStyle.DropDownList,
     };
+    private readonly ComboBox _weapon = new() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly ComboBox _armor = new() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Label _meta = new() { AutoSize = true };
     private readonly Label _validation = new() { AutoSize = true, ForeColor = Color.Firebrick };
     private readonly Button _btnNew = new() { Text = "Nouveau", AutoSize = true };
@@ -2385,6 +2390,10 @@ public sealed class ClassEditorPanel : UserControl
 
     internal ComboBox StartingSpellForTest => _startingSpell;
 
+    internal ComboBox WeaponForTest => _weapon;
+
+    internal ComboBox ArmorForTest => _armor;
+
     internal ListBox ListForTest => _list;
 
     internal Label ValidationForTest => _validation;
@@ -2392,16 +2401,22 @@ public sealed class ClassEditorPanel : UserControl
     public ClassEditorPanel(
         ClassWorkspaceSession session,
         IPublishedSpellCatalog spellCatalog,
+        IPublishedItemCatalog itemCatalog,
         ContentRepositoryCapabilities capabilities)
     {
         _session = session;
         _spellCatalog = spellCatalog;
+        _itemCatalog = itemCatalog;
         _capabilities = capabilities;
 
         _statusFilter.Items.AddRange(new object[] { "Tous", "Brouillon", "Publié" });
         _statusFilter.SelectedIndex = 0;
         _startingSpell.Items.Add(new SpellChoice(null, "Aucun"));
         _startingSpell.SelectedIndex = 0;
+        _weapon.Items.Add(new GuidChoice(null, "Aucune"));
+        _weapon.SelectedIndex = 0;
+        _armor.Items.Add(new GuidChoice(null, "Aucune"));
+        _armor.SelectedIndex = 0;
 
         var left = new Panel { Dock = DockStyle.Left, Width = 260, Padding = new Padding(4) };
         left.Controls.Add(_list);
@@ -2415,7 +2430,7 @@ public sealed class ClassEditorPanel : UserControl
             Padding = new Padding(12),
             AutoScroll = true,
         };
-        form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 168));
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         void Row(string label, Control control)
         {
@@ -2428,7 +2443,7 @@ public sealed class ClassEditorPanel : UserControl
         }
 
         Row("Nom", _name);
-        Row("Description", _description);
+        Row("Notes", _description);
         Row("PV de base", _baseHp);
         Row("PM de base", _baseMp);
         Row("FOR", _str);
@@ -2438,6 +2453,8 @@ public sealed class ClassEditorPanel : UserControl
         Row("DEX", _dex);
         Row("CHANCE", _luck);
         Row("Sort de départ", _startingSpell);
+        Row("Arme par défaut", _weapon);
+        Row("Armure par défaut", _armor);
         Row("État", _meta);
         Row("", _validation);
 
@@ -2514,6 +2531,8 @@ public sealed class ClassEditorPanel : UserControl
         _dex.ValueChanged += (_, _) => Mark();
         _luck.ValueChanged += (_, _) => Mark();
         _startingSpell.SelectedIndexChanged += (_, _) => Mark();
+        _weapon.SelectedIndexChanged += (_, _) => Mark();
+        _armor.SelectedIndexChanged += (_, _) => Mark();
 
         _btnNew.Click += (_, _) =>
         {
@@ -2556,15 +2575,25 @@ public sealed class ClassEditorPanel : UserControl
 
     public async Task InitializeAsync()
     {
-        await RefreshStartingSpellsAsync().ConfigureAwait(true);
+        await RefreshLinkedCatalogsCoreAsync().ConfigureAwait(true);
         await RefreshListAsync().ConfigureAwait(true);
         StatusChanged?.Invoke($"Backend classes : {_capabilities.DisplayLabel}");
     }
 
-    private async Task RefreshStartingSpellsAsync()
+    internal void QueueRefreshLinkedCatalogs()
+        => _ = _lifecycle.RunAsync(async ct =>
+        {
+            ct.ThrowIfCancellationRequested();
+            await RefreshLinkedCatalogsCoreAsync().ConfigureAwait(true);
+        }, "refresh");
+
+    private async Task RefreshLinkedCatalogsCoreAsync()
     {
-        var selectedId = (_startingSpell.SelectedItem as SpellChoice)?.Id;
+        var selectedSpell = (_startingSpell.SelectedItem as SpellChoice)?.Id;
+        var selectedWeapon = (_weapon.SelectedItem as GuidChoice)?.Id;
+        var selectedArmor = (_armor.SelectedItem as GuidChoice)?.Id;
         var spells = await _spellCatalog.ListPublishedAsync().ConfigureAwait(true);
+        var items = await _itemCatalog.ListPublishedAsync().ConfigureAwait(true);
         _binding = true;
         try
         {
@@ -2577,8 +2606,19 @@ public sealed class ClassEditorPanel : UserControl
 
             _startingSpell.SelectedItem = _startingSpell.Items
                 .Cast<SpellChoice>()
-                .FirstOrDefault(choice => choice.Id == selectedId)
+                .FirstOrDefault(choice => choice.Id == selectedSpell)
                 ?? _startingSpell.Items.Cast<SpellChoice>().First();
+
+            FillGuidCombo(
+                _weapon,
+                "Aucune",
+                items.Where(item => item.Kind == ItemType.Weapon).Select(item => new GuidChoice(item.Id, item.Name)),
+                selectedWeapon);
+            FillGuidCombo(
+                _armor,
+                "Aucune",
+                items.Where(item => item.Kind == ItemType.Armor).Select(item => new GuidChoice(item.Id, item.Name)),
+                selectedArmor);
         }
         finally
         {
@@ -2631,6 +2671,8 @@ public sealed class ClassEditorPanel : UserControl
                 .Cast<SpellChoice>()
                 .FirstOrDefault(choice => choice.Id == definition.StartingSpellId)
                 ?? _startingSpell.Items.Cast<SpellChoice>().First();
+            SelectGuid(_weapon, definition.DefaultWeaponItemId);
+            SelectGuid(_armor, definition.DefaultArmorItemId);
             _meta.Text =
                 $"Id={definition.Id:N}  rev={_session.CurrentRevision}  statut={_session.CurrentStatus}  publié={_session.PublishedRevision?.ToString() ?? "—"}";
         }
@@ -2662,6 +2704,8 @@ public sealed class ClassEditorPanel : UserControl
         _session.Current.Dex = (int)_dex.Value;
         _session.Current.Luck = (int)_luck.Value;
         _session.Current.StartingSpellId = (_startingSpell.SelectedItem as SpellChoice)?.Id;
+        _session.Current.DefaultWeaponItemId = (_weapon.SelectedItem as GuidChoice)?.Id;
+        _session.Current.DefaultArmorItemId = (_armor.SelectedItem as GuidChoice)?.Id;
     }
 
     private void LiveValidate()
@@ -2691,6 +2735,7 @@ public sealed class ClassEditorPanel : UserControl
                 BindForm();
                 break;
             case SaveClassResult.ValidationFailed validation:
+                _validation.Text = validation.Error;
                 GameDataUiMessageBox.Show(
                     this,
                     validation.Error,
@@ -2747,12 +2792,41 @@ public sealed class ClassEditorPanel : UserControl
         Width = 80,
     };
 
+    private static void FillGuidCombo(
+        ComboBox combo,
+        string emptyLabel,
+        IEnumerable<GuidChoice> choices,
+        Guid? selectedId)
+    {
+        combo.Items.Clear();
+        combo.Items.Add(new GuidChoice(null, emptyLabel));
+        foreach (var choice in choices.OrderBy(choice => choice.Label, StringComparer.OrdinalIgnoreCase))
+        {
+            combo.Items.Add(choice);
+        }
+
+        SelectGuid(combo, selectedId);
+    }
+
+    private static void SelectGuid(ComboBox combo, Guid? id)
+    {
+        combo.SelectedItem = combo.Items
+            .Cast<GuidChoice>()
+            .FirstOrDefault(choice => choice.Id == id)
+            ?? combo.Items.Cast<GuidChoice>().First();
+    }
+
     private sealed record CatalogItem(Guid Id, string Label)
     {
         public override string ToString() => Label;
     }
 
     private sealed record SpellChoice(Guid? Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    private sealed record GuidChoice(Guid? Id, string Label)
     {
         public override string ToString() => Label;
     }

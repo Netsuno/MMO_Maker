@@ -281,6 +281,17 @@ internal static class GameDataSmokeUiDriver
         throw new InvalidOperationException($"No combo item contains '{labelPart}'.");
     }
 
+    private static void AssertComboSelectionContains(ComboBox combo, string labelPart)
+    {
+        var selected = combo.SelectedItem?.ToString() ?? string.Empty;
+        if (!selected.Contains(labelPart, StringComparison.Ordinal))
+        {
+            var labels = combo.Items.Cast<object>().Select(item => item.ToString() ?? string.Empty);
+            throw new InvalidOperationException(
+                $"Combo selection '{selected}' does not contain '{labelPart}'. Items: {string.Join("; ", labels)}");
+        }
+    }
+
     private static void SeedAndVerifySearchStatusFilter(
         Button newButton,
         TextBox nameBox,
@@ -931,7 +942,10 @@ internal static class GameDataSmokeUiDriver
 
     public static void RunClassScenario(MainWindow window, TimeSpan timeout)
     {
-        var assetRoot = CreateSmokeAssetRoot("icons/spells/smoke-class-ui.png");
+        var assetRoot = CreateSmokeAssetRoot(
+            "icons/spells/smoke-class-ui.png",
+            "icons/items/smoke-class-sword.png",
+            "icons/items/smoke-class-mail.png");
         try
         {
             var form = OpenViaMainWindowCommand(window, timeout);
@@ -942,15 +956,46 @@ internal static class GameDataSmokeUiDriver
             SetText(spells.IconPathForTest, "icons/spells/smoke-class-ui.png");
             ClickAndWait(spells.BtnPublishForTest, () => spells.LifecycleForTest.IsIdle && !spells.IsDirty, timeout);
 
+            form.SelectCategoryForTest(2);
+            var items = form.ItemsForTest;
+            Click(items.BtnNewForTest);
+            SetText(items.NameForTest, "SmokeClassSwordUi");
+            SetText(items.IconPathForTest, "icons/items/smoke-class-sword.png");
+            items.KindForTest.SelectedItem = Frog.Core.Enums.ItemType.Weapon;
+            ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
+
+            Click(items.BtnNewForTest);
+            SetText(items.NameForTest, "SmokeClassMailUi");
+            SetText(items.IconPathForTest, "icons/items/smoke-class-mail.png");
+            items.KindForTest.SelectedItem = Frog.Core.Enums.ItemType.Armor;
+            ClickAndWait(items.BtnPublishForTest, () => items.LifecycleForTest.IsIdle && !items.IsDirty, timeout);
+
             form.SelectCategoryForTest(4);
             WaitForTask(form.ClassesForTest.InitializeAsync(), timeout);
             var panel = form.ClassesForTest;
+            PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
             Click(panel.BtnNewForTest);
             SetText(panel.NameForTest, "SmokeWarriorUi");
             SelectComboItemContaining(panel.StartingSpellForTest, "SmokeClassStarterUi");
-            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+            SelectComboItemContaining(panel.WeaponForTest, "SmokeClassSwordUi");
+            SelectComboItemContaining(panel.ArmorForTest, "SmokeClassMailUi");
+            Click(panel.BtnSaveForTest);
+            PumpUntil(
+                () => panel.LifecycleForTest.IsIdle
+                      && (!panel.IsDirty || !string.IsNullOrWhiteSpace(panel.ValidationForTest.Text)),
+                timeout);
+            if (panel.IsDirty)
+            {
+                throw new InvalidOperationException(
+                    $"Class draft save stayed dirty: {panel.ValidationForTest.Text}");
+            }
+
+            AssertComboSelectionContains(panel.WeaponForTest, "SmokeClassSwordUi");
+            AssertComboSelectionContains(panel.ArmorForTest, "SmokeClassMailUi");
             ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeWarriorUi", () => panel.LifecycleForTest.IsIdle, timeout);
             AssertListContains(panel.ListForTest, "SmokeWarriorUi", "Published");
+            AssertComboSelectionContains(panel.WeaponForTest, "SmokeClassSwordUi");
+            AssertComboSelectionContains(panel.ArmorForTest, "SmokeClassMailUi");
 
             SelectListItemContaining(panel.ListForTest, "SmokeWarriorUi");
             Click(panel.BtnDupForTest);

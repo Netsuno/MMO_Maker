@@ -91,7 +91,9 @@ public static class GameDataInitializationService
         var npc = EditorNpcRepositoryFactory.CreateBundle();
         var item = EditorItemRepositoryFactory.CreateBundle();
         var spell = EditorSpellRepositoryFactory.CreateBundle();
-        var classBundle = EditorClassRepositoryFactory.CreateBundle(spell.Repository);
+        var classBundle = EditorClassRepositoryFactory.CreateBundle(
+            spell.Repository,
+            item.PublishedCatalog);
         var actorBundle = EditorActorRepositoryFactory.CreateBundle(
             classBundle.Repository,
             item.PublishedCatalog);
@@ -135,7 +137,7 @@ public static class GameDataInitializationService
         var spellMem = new InMemorySpellRepository(capabilities);
         var spell = new EditorSpellRepositoryBundle(spellMem, spellMem, spellMem.Capabilities);
 
-        var classMem = new InMemoryClassRepository(spellMem, capabilities);
+        var classMem = new InMemoryClassRepository(spellMem, capabilities, itemMem);
         var classBundle = new EditorClassRepositoryBundle(classMem, classMem, classMem.Capabilities);
 
         var actorMem = new InMemoryActorRepository(classMem, itemMem, capabilities);
@@ -182,7 +184,7 @@ public static class GameDataInitializationService
         var spellRepo = new PostgresSpellRepository(gate);
         var spell = new EditorSpellRepositoryBundle(spellRepo, spellRepo, spellRepo.Capabilities);
 
-        var classRepo = new PostgresClassRepository(gate);
+        var classRepo = new PostgresClassRepository(gate, spellRepo, itemRepo);
         var classBundle = new EditorClassRepositoryBundle(classRepo, classRepo, classRepo.Capabilities);
 
         var actorRepo = new PostgresActorRepository(gate, classRepo, itemRepo);

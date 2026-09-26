@@ -11,7 +11,9 @@ public sealed record EditorClassRepositoryBundle(
 
 public static class EditorClassRepositoryFactory
 {
-    public static EditorClassRepositoryBundle CreateBundle(ISpellRepository spellRepository)
+    public static EditorClassRepositoryBundle CreateBundle(
+        ISpellRepository spellRepository,
+        IPublishedItemCatalog? itemCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(spellRepository);
 
@@ -29,7 +31,8 @@ public static class EditorClassRepositoryFactory
         {
             var memory = new InMemoryClassRepository(
                 spellRepository,
-                ContentRepositoryCapabilities.InMemoryTest);
+                ContentRepositoryCapabilities.InMemoryTest,
+                itemCatalog);
             return new EditorClassRepositoryBundle(memory, memory, memory.Capabilities);
         }
 
@@ -40,7 +43,8 @@ public static class EditorClassRepositoryFactory
                 spellRepository,
                 mapBundle.Capabilities.AllowsSave
                     ? ContentRepositoryCapabilities.InMemoryTest
-                    : ContentRepositoryCapabilities.InMemoryDemo);
+                    : ContentRepositoryCapabilities.InMemoryDemo,
+                itemCatalog);
             return new EditorClassRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
@@ -49,7 +53,8 @@ public static class EditorClassRepositoryFactory
         {
             var demo = new InMemoryClassRepository(
                 spellRepository,
-                ContentRepositoryCapabilities.InMemoryDemo);
+                ContentRepositoryCapabilities.InMemoryDemo,
+                itemCatalog);
             return new EditorClassRepositoryBundle(demo, demo, demo.Capabilities);
         }
 

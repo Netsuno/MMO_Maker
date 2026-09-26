@@ -200,5 +200,7 @@ public sealed class ClassWorkspaceSession
         Dex = source.Dex,
         Luck = source.Luck,
         StartingSpellId = source.StartingSpellId,
+        DefaultWeaponItemId = source.DefaultWeaponItemId,
+        DefaultArmorItemId = source.DefaultArmorItemId,
     };
 }

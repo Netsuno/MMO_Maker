@@ -118,7 +118,8 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideSpellRepository = spellRepository;
         var classRepository = new Frog.Application.Content.InMemoryClassRepository(
             spellRepository,
-            Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+            Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest,
+            itemRepository);
         EditorTestHooks.OverrideClassRepository = classRepository;
         EditorTestHooks.OverrideActorRepository =
             new Frog.Application.Content.InMemoryActorRepository(

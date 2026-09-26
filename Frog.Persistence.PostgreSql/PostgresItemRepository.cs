@@ -346,6 +346,26 @@ public sealed class PostgresItemRepository : IItemRepository, IPublishedItemCata
                     "L’objet est référencé comme équipement de départ par un héros.");
             }
 
+            var classReferenced = await db.Classes.AsNoTracking()
+                    .AnyAsync(
+                        characterClass =>
+                            characterClass.DefaultWeaponItemId == itemId
+                            || characterClass.DefaultArmorItemId == itemId,
+                        ct)
+                    .ConfigureAwait(false)
+                || await db.ClassPublishedSnapshots.AsNoTracking()
+                    .AnyAsync(
+                        snapshot =>
+                            snapshot.DefaultWeaponItemId == itemId
+                            || snapshot.DefaultArmorItemId == itemId,
+                        ct)
+                    .ConfigureAwait(false);
+            if (classReferenced)
+            {
+                return new DeleteItemResult.Referenced(
+                    "L’objet est référencé comme équipement par défaut par une classe.");
+            }
+
             await using var transaction = await db.Database
                 .BeginTransactionAsync(ct)
                 .ConfigureAwait(false);
