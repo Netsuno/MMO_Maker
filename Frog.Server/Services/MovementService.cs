@@ -138,6 +138,18 @@ public sealed class MovementService(
             return false;
         }
 
+        var passageTile = ts;
+        if (_mapService.TryGetMoveGrid(mapId, out _, out _, out var grid) && grid > 0)
+        {
+            passageTile = grid;
+        }
+
+        if (!_mapService.AllowsFlaggedPixelMove(mapId, session.PixelX, session.PixelY, newPx, newPy, passageTile))
+        {
+            errorMessage = "Mouvement bloque par le passage.";
+            return false;
+        }
+
         var tileX = newPx / ts;
         var tileY = newPy / ts;
         if (_eventMovement?.IsTileBlockedByEvent(mapId, tileX, tileY) == true)

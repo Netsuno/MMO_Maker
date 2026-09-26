@@ -937,7 +937,8 @@ public sealed class MainShellForm : Form
             _mapBlockedTiles,
             ix,
             iy,
-            WorldMetrics.PlayerCollisionRadiusPixels);
+            WorldMetrics.PlayerCollisionRadiusPixels,
+            PredictionTileSize());
     }
 
     /// <summary>Avance la prédiction avec la même cible que le serveur (~8 px par « tick » réseau) et glissement le long des murs.</summary>
@@ -949,7 +950,7 @@ public sealed class MainShellForm : Form
 
         var nx = _visLocalCx + dx;
         var ny = _visLocalCy + dy;
-        if (!IsPredictedCenterBlocked(nx, ny))
+        if (PredictedMoveAllowed(nx, ny))
         {
             _visLocalCx = nx;
             _visLocalCy = ny;
@@ -958,7 +959,7 @@ public sealed class MainShellForm : Form
 
         nx = _visLocalCx + dx;
         ny = _visLocalCy;
-        if (!IsPredictedCenterBlocked(nx, ny))
+        if (PredictedMoveAllowed(nx, ny))
         {
             _visLocalCx = nx;
             return;
@@ -966,10 +967,61 @@ public sealed class MainShellForm : Form
 
         nx = _visLocalCx;
         ny = _visLocalCy + dy;
-        if (!IsPredictedCenterBlocked(nx, ny))
+        if (PredictedMoveAllowed(nx, ny))
         {
             _visLocalCy = ny;
         }
+    }
+
+    private bool PredictedMoveAllowed(float nextX, float nextY)
+    {
+        if (IsPredictedCenterBlocked(nextX, nextY))
+        {
+            return false;
+        }
+
+        if (_map is null)
+        {
+            return true;
+        }
+
+        return MapCollision.AllowsPixelMove(
+            _map,
+            (int)MathF.Round(_visLocalCx),
+            (int)MathF.Round(_visLocalCy),
+            (int)MathF.Round(nextX),
+            (int)MathF.Round(nextY),
+            PredictionTileSize());
+    }
+
+    private static void AttachRuntimeTileFlags(Map map)
+    {
+        if (map.TileFlags is { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var directory in new[] { TilePackClientOptions.DefaultCacheDirectory(), AppContext.BaseDirectory })
+        {
+            var loaded = TileAssetFlagTable.TryLoadOrNull(directory);
+            if (loaded is not { Count: > 0 })
+            {
+                continue;
+            }
+
+            map.TileFlags = loaded;
+            return;
+        }
+    }
+
+    private int PredictionTileSize()
+    {
+        if (_map?.TileFlags is { Count: > 0 } && _map.TileSizePixels > 0)
+        {
+            return _map.TileSizePixels;
+        }
+
+        return WorldMetrics.DefaultTileSizePixels;
     }
 
     private void TrySendHeldMoveNetwork()
@@ -3574,6 +3626,7 @@ public sealed class MainShellForm : Form
 
         _sessionDisplayedMapId = mapId;
         _map = map;
+        AttachRuntimeTileFlags(map);
         _mapBlockedTiles = MapCollision.IndexBlockedTiles(map);
         _others.Clear();
         _worldMonsters.Clear();

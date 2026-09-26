@@ -22,6 +22,7 @@ public sealed class MapService
     private readonly MapSerializer _mapSerializer = new();
     private readonly IMapBlobStore _mapBlobStore;
     private readonly ILogger<MapService> _logger;
+    private readonly TileAssetFlagTable? _tileFlags;
     private readonly bool _requirePublishedWorld;
     private IPublishedWorldCatalog? _publishedWorld;
 
@@ -39,10 +40,12 @@ public sealed class MapService
         IOptions<WorldMapOptions> worldMapOptions,
         IOptions<Phase7ContentOptions> contentOptions,
         IMapBlobStore mapBlobStore,
-        ILogger<MapService> logger)
+        ILogger<MapService> logger,
+        TileAssetFlagTable? tileFlags = null)
     {
         _mapBlobStore = mapBlobStore;
         _logger = logger;
+        _tileFlags = tileFlags;
         _requirePublishedWorld = contentOptions.Value.RequirePublishedWorld;
         var options = worldMapOptions.Value;
 
@@ -62,6 +65,7 @@ public sealed class MapService
             {
                 var bytesFromFile = File.ReadAllBytes(resolved);
                 primaryModel = _mapSerializer.Deserialize(bytesFromFile);
+                AttachFileSidecar(primaryModel, resolved);
                 logger.LogInformation("Carte monde chargee depuis {Path}", resolved);
 
                 RegisterWorldChunkFromModel(
@@ -213,6 +217,7 @@ public sealed class MapService
             StripWarpsForMap(mapId);
         }
 
+        EnsureFlags(model);
         var chunk = new MapChunk(model, serializedCanon, sha256Binary, fingerprintRevision, IndexBlockedTiles(model));
         _chunks[mapId] = chunk;
         AddWarpEntries(mapId, model);
@@ -292,6 +297,40 @@ public sealed class MapService
 
     private static HashSet<(int X, int Y)> IndexBlockedTiles(Map map)
         => MapCollision.IndexBlockedTiles(map);
+
+    private void AttachFileSidecar(Map model, string? mapPath)
+    {
+        if (model.TileFlags is { Count: > 0 } || string.IsNullOrWhiteSpace(mapPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var sidecar = TileAssetFlagTable.TryLoadSidecar(mapPath);
+            if (sidecar is { Count: > 0 })
+            {
+                model.TileFlags = sidecar;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Drapeaux de tuile illisibles a cote de {Path}", mapPath);
+        }
+    }
+
+    private void EnsureFlags(Map model)
+    {
+        if (model.TileFlags is { Count: > 0 })
+        {
+            return;
+        }
+
+        if (_tileFlags is { Count: > 0 })
+        {
+            model.TileFlags = _tileFlags;
+        }
+    }
 
     private void AddWarpEntries(int sourceMapId, Map map)
     {
@@ -440,6 +479,20 @@ public sealed class MapService
 
     public bool IsBlocked(int mapId, int x, int y)
         => _chunks.TryGetValue(mapId, out var chunk) && chunk.BlockedTiles.Contains((x, y));
+
+    /// <summary>
+    /// Passage 4 directions quand la carte a des drapeaux TileAsset.
+    /// Sans drapeaux : vrai (le cercle et <see cref="TileType.Block"/> restent la collision).
+    /// </summary>
+    public bool AllowsFlaggedPixelMove(int mapId, int fromPixelX, int fromPixelY, int toPixelX, int toPixelY, int tileSizePixels)
+    {
+        if (!_chunks.TryGetValue(mapId, out var chunk))
+        {
+            return true;
+        }
+
+        return MapCollision.AllowsPixelMove(chunk.Model, fromPixelX, fromPixelY, toPixelX, toPixelY, tileSizePixels);
+    }
 
     /// <summary>True si le cercle (centre pixels) intersecte au moins une tuile bloquée.</summary>
     public bool IsBlockedForPlayerCircle(

@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using Frog.Core.Constants;
 using Frog.Core.Distribution;
 using Frog.Core.Maps;
+using Frog.Core.Models;
 
 namespace Frog.Editor.Services;
 
@@ -28,6 +29,7 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
     private readonly Dictionary<TileAssetId, byte[]> _straight = new();
     private readonly List<TileAssetId> _order = new();
     private readonly List<WorkingTileset> _working = new();
+    private readonly TileAssetFlagTable _flags = new();
 
     public event Action? Changed;
 
@@ -41,6 +43,11 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
     public IReadOnlyList<WorkingTileset> WorkingTilesets => _working;
 
     public WorkingTileset? ActiveWorkingTileset { get; private set; }
+
+    /// <summary>Drapeaux partagés (passage, priorité, buisson, comptoir, dégâts). La carte v6 peut pointer cette table.</summary>
+    public TileAssetFlagTable Flags => _flags;
+
+    public TileAssetFlags GetFlags(TileAssetId id) => _flags.Get(id);
 
     public static string DefaultStoreDirectory()
     {
@@ -311,6 +318,75 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
         return true;
     }
 
+    public bool TrySetFlags(TileAssetId id, TileAssetFlags flags, out string? error)
+    {
+        if (id.IsNone || !_assets.ContainsKey(id))
+        {
+            error = "Cette tuile n’est pas dans le catalogue.";
+            return false;
+        }
+
+        if (flags.Priority > TileAssetFlags.MaxPriority)
+        {
+            error = $"La priorité est entre 0 et {TileAssetFlags.MaxPriority}.";
+            return false;
+        }
+
+        if (_flags.Get(id).Equals(flags))
+        {
+            error = null;
+            return true;
+        }
+
+        _flags.Set(id, flags);
+        PersistFlagsQuietly();
+        Changed?.Invoke();
+        error = null;
+        return true;
+    }
+
+    public void MergeFlags(TileAssetFlagTable incoming)
+    {
+        ArgumentNullException.ThrowIfNull(incoming);
+        if (incoming.Count == 0)
+        {
+            return;
+        }
+
+        _flags.Merge(incoming);
+        PersistFlagsQuietly();
+        Changed?.Invoke();
+    }
+
+    public void WriteMapFlagSidecar(string mapFilePath, Map map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        _flags.Project(map).SaveSidecar(mapFilePath);
+    }
+
+    /// <summary>Importe le sidecar carte dans le catalogue. Absent : ne touche pas aux drapeaux déjà saisis.</summary>
+    public bool TryImportMapFlagSidecar(string mapFilePath, out string? error)
+    {
+        try
+        {
+            var sidecar = TileAssetFlagTable.TryLoadSidecar(mapFilePath);
+            if (sidecar is null)
+            {
+                error = null;
+                return false;
+            }
+
+            MergeFlags(sidecar);
+            error = null;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
     public void SaveToDirectory(string directory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
@@ -336,6 +412,7 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
             }).ToList(),
         };
         File.WriteAllText(Path.Combine(directory, "working-tilesets.json"), JsonSerializer.Serialize(working, JsonOptions));
+        _flags.Save(directory);
     }
 
     public void LoadFromDirectory(string directory)
@@ -349,7 +426,9 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
         var cataloguePath = Path.Combine(directory, "catalogue.json");
         if (!File.Exists(cataloguePath))
         {
+            _flags.Clear();
             LoadWorkingOnly(directory);
+            LoadFlags(directory);
             return;
         }
 
@@ -359,6 +438,7 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
         _straight.Clear();
         _order.Clear();
         _working.Clear();
+        _flags.Clear();
         ActiveWorkingTileset = null;
         var blobs = Path.Combine(directory, "blobs");
         foreach (var hex in catalogue.Tiles)
@@ -397,6 +477,7 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
         }
 
         LoadWorkingOnly(directory);
+        LoadFlags(directory);
         Changed?.Invoke();
     }
 
@@ -434,6 +515,37 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
 
         ActiveWorkingTileset = _working.FirstOrDefault(set => string.Equals(set.Name, file.Active, StringComparison.Ordinal))
                                 ?? _working.FirstOrDefault();
+    }
+
+    private void LoadFlags(string directory)
+    {
+        var loaded = TileAssetFlagTable.TryLoad(directory);
+        if (loaded is null)
+        {
+            return;
+        }
+
+        _flags.Clear();
+        _flags.Merge(loaded);
+    }
+
+    private void PersistFlagsQuietly()
+    {
+        if (string.IsNullOrWhiteSpace(StoreDirectory))
+        {
+            return;
+        }
+
+        try
+        {
+            _flags.Save(StoreDirectory);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private void PersistQuietly()

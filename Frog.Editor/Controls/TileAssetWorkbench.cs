@@ -27,6 +27,7 @@ public sealed class TileAssetWorkbench : UserControl
     private readonly ComboBox _sets;
     private readonly ListBox _palette;
     private readonly Label _status;
+    private readonly TileAssetFlagsPanel _flags;
     private bool _suspend;
 
     public event Action<TileAssetId>? BrushTileChosen;
@@ -38,6 +39,7 @@ public sealed class TileAssetWorkbench : UserControl
         BackColor = EditorChrome.SidebarBg;
         Font = EditorChrome.BodyFont;
         ForeColor = EditorChrome.LabelPrimary;
+        _flags = new TileAssetFlagsPanel(_catalogue);
 
         var import = new FlowLayoutPanel
         {
@@ -86,10 +88,12 @@ public sealed class TileAssetWorkbench : UserControl
 
         _grid = new TileAssetThumbGrid { Dock = DockStyle.Fill };
         _grid.ImageProvider = id => TileAssetThumbnails.Get(_catalogue, id);
+        _grid.FlagsProvider = id => _catalogue.GetFlags(id);
         _grid.TileChosen += id =>
         {
             BrushTileChosen?.Invoke(id);
             SetStatus(ShortId(id));
+            _flags.Bind(id);
         };
         _grid.TileActivated += id => AddSelected(id);
         var catalogueHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 8, 4) };
@@ -148,6 +152,7 @@ public sealed class TileAssetWorkbench : UserControl
             var id = set.Tiles[index];
             _grid.SelectId(id);
             BrushTileChosen?.Invoke(id);
+            _flags.Bind(id);
         };
 
         var add = SmallButton("Ajouter");
@@ -188,6 +193,7 @@ public sealed class TileAssetWorkbench : UserControl
         working.Controls.Add(EditorChrome.BuildZoneBanner("Tileset de travail"));
 
         Controls.Add(catalogueHost);
+        Controls.Add(_flags);
         Controls.Add(working);
         Controls.Add(_status);
         Controls.Add(searchHost);
@@ -267,6 +273,7 @@ public sealed class TileAssetWorkbench : UserControl
     public void SelectTile(TileAssetId id)
     {
         _grid.SelectId(id);
+        _flags.Bind(id);
         if (_catalogue.ActiveWorkingTileset is { } set)
         {
             var index = set.Tiles.IndexOf(id);
@@ -369,6 +376,7 @@ public sealed class TileAssetWorkbench : UserControl
         RefreshGrid();
         RefreshSets();
         RefreshPalette();
+        _flags.Bind(_grid.SelectedId);
     }
 
     private void RefreshGrid()
@@ -469,6 +477,8 @@ internal sealed class TileAssetThumbGrid : Control
 
     public Func<TileAssetId, Image?>? ImageProvider { get; set; }
 
+    public Func<TileAssetId, TileAssetFlags>? FlagsProvider { get; set; }
+
     public event Action<TileAssetId>? TileChosen;
 
     public event Action<TileAssetId>? TileActivated;
@@ -546,7 +556,60 @@ internal sealed class TileAssetThumbGrid : Control
                     using var pen = new Pen(Color.FromArgb(255, 182, 72), 2);
                     e.Graphics.DrawRectangle(pen, dest);
                 }
+
+                PaintFlags(e.Graphics, dest, FlagsProvider?.Invoke(id) ?? TileAssetFlags.Default);
             }
+        }
+    }
+
+    private static void PaintFlags(Graphics graphics, Rectangle dest, TileAssetFlags flags)
+    {
+        if (flags.IsDefault)
+        {
+            return;
+        }
+
+        if (!flags.PassageNorth)
+        {
+            graphics.FillRectangle(Brushes.OrangeRed, dest.Left, dest.Top, dest.Width, 3);
+        }
+
+        if (!flags.PassageSouth)
+        {
+            graphics.FillRectangle(Brushes.OrangeRed, dest.Left, dest.Bottom - 3, dest.Width, 3);
+        }
+
+        if (!flags.PassageWest)
+        {
+            graphics.FillRectangle(Brushes.OrangeRed, dest.Left, dest.Top, 3, dest.Height);
+        }
+
+        if (!flags.PassageEast)
+        {
+            graphics.FillRectangle(Brushes.OrangeRed, dest.Right - 3, dest.Top, 3, dest.Height);
+        }
+
+        if (flags.Priority > 0)
+        {
+            using var font = new Font(FontFamily.GenericSansSerif, 7f, FontStyle.Bold, GraphicsUnit.Pixel);
+            graphics.DrawString(flags.Priority.ToString(), font, Brushes.White, dest.Left + 2, dest.Top + 2);
+        }
+
+        var mark = dest.Right - 8;
+        var markY = dest.Bottom - 8;
+        if (flags.Bush)
+        {
+            graphics.FillRectangle(Brushes.LimeGreen, mark - 10, markY, 6, 6);
+        }
+
+        if (flags.Counter)
+        {
+            graphics.FillRectangle(Brushes.DeepSkyBlue, mark, markY, 6, 6);
+        }
+
+        if (flags.Damage)
+        {
+            graphics.FillEllipse(Brushes.OrangeRed, dest.Left + 2, dest.Bottom - 8, 6, 6);
         }
     }
 
