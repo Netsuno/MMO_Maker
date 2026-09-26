@@ -30,6 +30,7 @@ public sealed class HelpForm : Form
         • Création : Corps, Cheveux et Tunique se choisissent à côté de l'aperçu (clic ou flèches). Le choix reste sur cet ordinateur.
         • En jeu, un clic sur Corps ou Tête dans la fiche change le style. La tunique locale se porte ou se retire comme avant.
         • Depuis la fiche ou l'inventaire, Équiper envoie une arme ou une armure du catalogue. Les autres objets restent au sac. Un clic sur l'arme ou l'armure portée la range. Tunique et casque restent un aperçu local.
+        • Arme, Armure et Objet filtrent l'inventaire et le sac. Un second clic réaffiche tout. Un double-clic équipe une arme ou une armure.
         • Vie, or, inventaire, équipement, banque, quêtes et fabrication sont des panneaux nommés.
         • Les identifiants techniques (Guid) ne font pas partie de l'interface normale.
         • Mêlée (Espace ou 1) : coup au contact. Une touche affiche le nombre et des étincelles.

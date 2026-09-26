@@ -47,6 +47,7 @@ public sealed class CharacterSheetPanel : UserControl
         AccessibleName = "Sac",
     };
     private readonly Button _btnEquipBag = new() { Text = "Équiper", AutoSize = true, Enabled = false };
+    private readonly InventoryBagCategoryButtons _bagFilters = new();
     private readonly List<BagRow> _bag = new();
     private InventorySnapshotWire? _bagSnapshot;
     private PaperdollOverlaySet _appearance;
@@ -144,7 +145,7 @@ public sealed class CharacterSheetPanel : UserControl
             Dock = DockStyle.Top,
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
+            WrapContents = true,
             BackColor = UiTheme.BgPanel,
             Margin = new Padding(0),
         };
@@ -157,6 +158,9 @@ public sealed class CharacterSheetPanel : UserControl
             Font = UiTheme.UiFont(8f, FontStyle.Bold),
             Margin = new Padding(2, 6, 8, 2),
         });
+        bagBar.Controls.Add(_bagFilters.WeaponButton);
+        bagBar.Controls.Add(_bagFilters.ArmorButton);
+        bagBar.Controls.Add(_bagFilters.ItemButton);
         _btnEquipBag.Margin = new Padding(2);
         bagBar.Controls.Add(_btnEquipBag);
         bag.Controls.Add(bagBar, 0, 0);
@@ -167,6 +171,7 @@ public sealed class CharacterSheetPanel : UserControl
 
         Controls.Add(grid);
         Controls.Add(bag);
+        _bagFilters.Changed += RebuildBag;
         _btnEquipBag.Click += (_, _) => TryEquipSelected();
         _bagList.DoubleClick += (_, _) => TryEquipSelected();
         _bagList.SelectedIndexChanged += (_, _) => UpdateEquipButton();
@@ -314,15 +319,19 @@ public sealed class CharacterSheetPanel : UserControl
 
     internal void SelectBagBySlotForTest(byte slotIndex)
     {
-        for (var i = 0; i < _bag.Count; i++)
+        for (var i = 0; i < _bagList.Items.Count; i++)
         {
-            if (_bag[i].SlotIndex == slotIndex)
+            if (_bagList.Items[i] is BagRow row && row.SlotIndex == slotIndex)
             {
                 _bagList.SelectedIndex = i;
                 return;
             }
         }
     }
+
+    internal InventoryBagCategory BagCategoryForTest => _bagFilters.Category;
+
+    internal void ClickBagCategoryForTest(InventoryBagCategory category) => _bagFilters.ClickForTest(category);
 
     internal void ClearBagSelectionForTest() => _bagList.ClearSelected();
 
@@ -420,12 +429,27 @@ public sealed class CharacterSheetPanel : UserControl
 
                 var row = new BagRow((byte)slot.SlotIndex, slot.Quantity, NameOf(_names, id), _types?.Invoke(id));
                 _bag.Add(row);
-                _bagList.Items.Add(row);
+                if (InventoryBagFilter.Includes(_bagFilters.Category, row.Type))
+                {
+                    _bagList.Items.Add(row);
+                }
             }
 
             if (_bagList.Items.Count > 0)
             {
-                var restore = selected is byte prev ? _bag.FindIndex(r => r.SlotIndex == prev) : -1;
+                var restore = -1;
+                if (selected is byte prev)
+                {
+                    for (var i = 0; i < _bagList.Items.Count; i++)
+                    {
+                        if (_bagList.Items[i] is BagRow shown && shown.SlotIndex == prev)
+                        {
+                            restore = i;
+                            break;
+                        }
+                    }
+                }
+
                 _bagList.SelectedIndex = restore >= 0 ? restore : 0;
             }
         }

@@ -9,10 +9,11 @@ using Frog.Core.Protocol;
 
 namespace Frog.Client.Controls;
 
-/// <summary>Liste d'inventaire + actions équiper / déposer.</summary>
+/// <summary>Liste d'inventaire, filtre Arme / Armure / Objet, équiper / déposer.</summary>
 public sealed class InventoryPanel : UserControl
 {
     private readonly ListBox _list = new() { Dock = DockStyle.Fill, IntegralHeight = false };
+    private readonly InventoryBagCategoryButtons _categories = new();
     private readonly Button _btnEquip = new() { Text = "Équiper", AutoSize = true };
     private readonly Button _btnDrop = new() { Text = "Déposer", AutoSize = true };
     private InventorySnapshotWire? _snapshot;
@@ -32,19 +33,18 @@ public sealed class InventoryPanel : UserControl
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = true,
         };
+        top.Controls.Add(_categories.WeaponButton);
+        top.Controls.Add(_categories.ArmorButton);
+        top.Controls.Add(_categories.ItemButton);
         top.Controls.Add(_btnEquip);
         top.Controls.Add(_btnDrop);
         Controls.Add(_list);
         Controls.Add(top);
         SetStyle(ControlStyles.ResizeRedraw, true);
         Paint += (s, e) => UiTheme.PaintDoubleGoldFrame(this, e);
-        _btnEquip.Click += (_, _) =>
-        {
-            if (_list.SelectedItem is InventoryRow row && CharacterSheetGear.IsEquippable(row.Type))
-            {
-                EquipRequested?.Invoke(row.SlotIndex);
-            }
-        };
+        _categories.Changed += RefreshPresented;
+        _btnEquip.Click += (_, _) => TryEquipSelected();
+        _list.DoubleClick += (_, _) => TryEquipSelected();
         _btnDrop.Click += (_, _) =>
         {
             if (_list.SelectedItem is InventoryRow row && row.Quantity > 0)
@@ -61,6 +61,14 @@ public sealed class InventoryPanel : UserControl
 
     public byte? SelectedInventorySlot =>
         _list.SelectedItem is InventoryRow row ? row.SlotIndex : null;
+
+    private void TryEquipSelected()
+    {
+        if (_list.SelectedItem is InventoryRow row && CharacterSheetGear.IsEquippable(row.Type))
+        {
+            EquipRequested?.Invoke(row.SlotIndex);
+        }
+    }
 
     private void UpdateActionButtons()
     {
@@ -130,12 +138,18 @@ public sealed class InventoryPanel : UserControl
         {
             if (slot.ItemId is Guid id && slot.Quantity > 0)
             {
+                var type = _typeLookup?.Invoke(id);
+                if (!InventoryBagFilter.Includes(_categories.Category, type))
+                {
+                    continue;
+                }
+
                 _list.Items.Add(new InventoryRow(
                     (byte)slot.SlotIndex,
                     id,
                     slot.Quantity,
                     _nameLookup(id),
-                    _typeLookup?.Invoke(id)));
+                    type));
             }
         }
 
@@ -156,6 +170,13 @@ public sealed class InventoryPanel : UserControl
     internal byte? SelectedInventorySlotForTest => SelectedInventorySlot;
 
     internal string? SelectedItemTextForTest => _list.SelectedItem?.ToString();
+
+    internal InventoryBagCategory CategoryForTest => _categories.Category;
+
+    internal void ClickCategoryForTest(InventoryBagCategory category) => _categories.ClickForTest(category);
+
+    internal string? ListedTextAtForTest(int listIndex) =>
+        listIndex >= 0 && listIndex < _list.Items.Count ? _list.Items[listIndex]?.ToString() : null;
 
     internal void SelectFirstForTest() => SelectSlotByIndexForTest(0);
 
