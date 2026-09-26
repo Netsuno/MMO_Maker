@@ -413,12 +413,12 @@ public sealed class MainForm : Form
             mEdit.DropDownItems.Add(mnuUndo);
             mEdit.DropDownItems.Add(mnuRedo);
             mEdit.DropDownItems.Add(new ToolStripSeparator());
-            mEdit.DropDownItems.Add("Copier la sélection — toutes les couches (Ctrl+C)", null, (_, _) => CopyTileSelection(false));
-            mEdit.DropDownItems.Add("Couper la sélection — toutes les couches (Ctrl+X)", null, (_, _) => CutTileSelection(false));
-            mEdit.DropDownItems.Add("Coller — toutes les couches (Ctrl+V)", null, (_, _) => PasteTileSelection(false));
-            mEdit.DropDownItems.Add("Copier la couche active (Ctrl+Maj+C)", null, (_, _) => CopyTileSelection(true));
-            mEdit.DropDownItems.Add("Couper la couche active (Ctrl+Maj+X)", null, (_, _) => CutTileSelection(true));
-            mEdit.DropDownItems.Add("Coller sur la couche active (Ctrl+Maj+V)", null, (_, _) => PasteTileSelection(true));
+            mEdit.DropDownItems.Add("Copier la zone — toutes les couches (Ctrl+C)", null, (_, _) => CopyTileSelection(false));
+            mEdit.DropDownItems.Add("Couper la zone — toutes les couches (Ctrl+X)", null, (_, _) => CutTileSelection(false));
+            mEdit.DropDownItems.Add("Coller la zone — toutes les couches (Ctrl+V)", null, (_, _) => PasteTileSelection(false));
+            mEdit.DropDownItems.Add("Copier la zone — couche active (Ctrl+Maj+C)", null, (_, _) => CopyTileSelection(true));
+            mEdit.DropDownItems.Add("Couper la zone — couche active (Ctrl+Maj+X)", null, (_, _) => CutTileSelection(true));
+            mEdit.DropDownItems.Add("Coller la zone — couche active (Ctrl+Maj+V)", null, (_, _) => PasteTileSelection(true));
             mEdit.DropDownItems.Add(new ToolStripSeparator());
             mEdit.DropDownItems.Add("Rotation 90° (Q)", null, (_, _) => TryRotateSelection90());
             mEdit.DropDownItems.Add("Miroir horizontal (H)", null, (_, _) => TryMirrorSelectionHorizontal());

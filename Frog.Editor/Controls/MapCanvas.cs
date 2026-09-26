@@ -20,8 +20,9 @@ using Frog.Editor.Ui;
 namespace Frog.Editor.Controls;
 
 /// <summary>
-/// Canvas carte : vue culling pour grandes surfaces, sélection rectangle,
+/// Canvas carte : vue culling pour grandes surfaces, zone rectangulaire,
 /// Ctrl+C/X/V sur toutes les couches (Ctrl+Maj = couche active), undo intégré.
+/// Le tracé en cours est figé au copier-coller. Les régions de rencontre (sidecar) ne suivent pas la zone.
 /// </summary>
 public sealed class MapCanvas : Control
 {
@@ -569,9 +570,20 @@ public sealed class MapCanvas : Control
         NotifyPaintGesture();
     }
 
+    /// <summary>
+    /// Copie la zone figée, ou le rectangle encore sous le pointeur.
+    /// Toutes les couches par défaut. Les numéros de région restent en place : le sidecar
+    /// n’entre pas dans l’annulation des tuiles, et la table de rencontres n’est pas un rectangle.
+    /// </summary>
     public bool TryCopyTileSelection(bool activeLayerOnly = false)
     {
-        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect))
+        if (Map is null)
+        {
+            return false;
+        }
+
+        FreezeLiveSelection();
+        if (!TryGetCommittedSelectionNormalized(out var rect))
         {
             return false;
         }
@@ -590,7 +602,13 @@ public sealed class MapCanvas : Control
 
     public bool TryCutTileSelection(bool activeLayerOnly = false)
     {
-        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect))
+        if (Map is null)
+        {
+            return false;
+        }
+
+        FreezeLiveSelection();
+        if (!TryGetCommittedSelectionNormalized(out var rect))
         {
             return false;
         }
@@ -614,7 +632,7 @@ public sealed class MapCanvas : Control
 
     public bool TryPasteAtHover(bool activeLayerOnly = false)
     {
-        if (Map is null || !EditorTileClipboard.HasContent || !PasteAnchorIntersectsMap())
+        if (Map is null || !TryGetPasteFootprint(_hoverTile.X, _hoverTile.Y, out _))
         {
             return false;
         }
@@ -728,7 +746,13 @@ public sealed class MapCanvas : Control
 
     public bool TryDeleteSelectedTiles(bool activeLayerOnly = false)
     {
-        if (Map is null || !TryGetCommittedSelectionNormalized(out var rect))
+        if (Map is null)
+        {
+            return false;
+        }
+
+        FreezeLiveSelection();
+        if (!TryGetCommittedSelectionNormalized(out var rect))
         {
             return false;
         }
@@ -789,6 +813,7 @@ public sealed class MapCanvas : Control
             return false;
         }
 
+        FreezeLiveSelection();
         if (TryGetCommittedSelectionNormalized(out var rect))
         {
             var only = activeLayerOnly ? ActiveLayerIndex : (int?)null;
@@ -1004,6 +1029,23 @@ public sealed class MapCanvas : Control
                     sel.Top + sel.Height - 1,
                     Color.LightGreen,
                     dash: true);
+            }
+
+            if (Map is not null
+                && ActiveTool == EditorTool.Selection
+                && _selectionMarqueeAnchor is null
+                && TryGetPasteFootprint(_hoverTile.X, _hoverTile.Y, out var pasteFootprint)
+                && _committedSelectionTiles != pasteFootprint)
+            {
+                DrawTileRectPixels(
+                    g,
+                    pasteFootprint.Left,
+                    pasteFootprint.Top,
+                    pasteFootprint.Right - 1,
+                    pasteFootprint.Bottom - 1,
+                    Color.FromArgb(255, 255, 176, 64),
+                    dash: true,
+                    wash: false);
             }
 
             if (Map is not null && ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } ro)
@@ -3003,6 +3045,15 @@ public sealed class MapCanvas : Control
                 Invalidate();
             }
         }
+        else if (ActiveTool == EditorTool.Selection && _selectionMarqueeAnchor is not null)
+        {
+            var clamped = new Point(Math.Clamp(tx, 0, Map.Width - 1), Math.Clamp(ty, 0, Map.Height - 1));
+            if (clamped != _hoverTile)
+            {
+                HoveredTileChanged?.Invoke(clamped);
+                _hoverTile = clamped;
+            }
+        }
 
         UpdateEditCursorForHover();
 
@@ -3127,6 +3178,7 @@ public sealed class MapCanvas : Control
             ActiveTool != EditorTool.Line &&
             ActiveTool != EditorTool.Fill &&
             ActiveTool != EditorTool.Rectangle &&
+            ActiveTool != EditorTool.Selection &&
             ActiveTool != EditorTool.Eraser &&
             (e.Button & MouseButtons.Right) != 0 &&
             tx >= 0 &&
@@ -3218,16 +3270,10 @@ public sealed class MapCanvas : Control
             if (ActiveTool == EditorTool.Selection && e.Button == MouseButtons.Left && _selectionMarqueeAnchor is { } sa)
             {
                 var world = ScreenToWorld(e.Location);
-                var ex = (int)Math.Floor(world.X / TileSize);
-                var ey = (int)Math.Floor(world.Y / TileSize);
-                ex = Math.Clamp(ex, 0, Map.Width - 1);
-                ey = Math.Clamp(ey, 0, Map.Height - 1);
-                var x0 = Math.Min(sa.X, ex);
-                var y0 = Math.Min(sa.Y, ey);
-                var x1 = Math.Max(sa.X, ex);
-                var y1 = Math.Max(sa.Y, ey);
-                _committedSelectionTiles = new Rectangle(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
-                _selectionMarqueeAnchor = null;
+                var ex = Math.Clamp((int)Math.Floor(world.X / TileSize), 0, Map.Width - 1);
+                var ey = Math.Clamp((int)Math.Floor(world.Y / TileSize), 0, Map.Height - 1);
+                _hoverTile = new Point(ex, ey);
+                TryCommitSelectionTiles(sa.X, sa.Y, ex, ey);
                 Capture = false;
                 NotifyPaintGesture();
                 RaiseTileClicked(ex, ey);
@@ -3659,12 +3705,12 @@ public sealed class MapCanvas : Control
 
         if (ActiveTool == EditorTool.Selection && _selectionMarqueeAnchor is { } anchor)
         {
-            return EditorToolHotkeys.FormatSelectionGesture(anchor.X, anchor.Y, _hoverTile.X, _hoverTile.Y);
+            return WithZoneClipboard(EditorToolHotkeys.FormatSelectionGesture(anchor.X, anchor.Y, _hoverTile.X, _hoverTile.Y));
         }
 
         if (ActiveTool == EditorTool.Selection && TryGetCommittedSelectionNormalized(out var selection))
         {
-            return EditorToolHotkeys.FormatSelectionCommitted(selection.Width, selection.Height);
+            return WithZoneClipboard(EditorToolHotkeys.FormatSelectionCommitted(selection.Width, selection.Height));
         }
 
         var hint = ActiveTool switch
@@ -3693,6 +3739,11 @@ public sealed class MapCanvas : Control
             && ActiveTool is EditorTool.Brush or EditorTool.Fill or EditorTool.Rectangle or EditorTool.Line)
         {
             return hint + " · " + EditorToolHotkeys.FormatAnimatedTilePreview(frames, TilesetAnimCatalog.PreviewEnabled);
+        }
+
+        if (ActiveTool == EditorTool.Selection)
+        {
+            hint = WithZoneClipboard(hint);
         }
 
         return hint;
@@ -4055,6 +4106,9 @@ public sealed class MapCanvas : Control
 
     internal void SetHoverTileForTest(int x, int y) => _hoverTile = new Point(x, y);
 
+    internal Rectangle? GetPasteFootprintForTest()
+        => TryGetPasteFootprint(_hoverTile.X, _hoverTile.Y, out var rect) ? rect : null;
+
     internal void CommitSelectionForTest(int x, int y, int width, int height)
         => _committedSelectionTiles = new Rectangle(x, y, width, height);
 
@@ -4145,19 +4199,70 @@ public sealed class MapCanvas : Control
         return true;
     }
 
-    private bool PasteAnchorIntersectsMap()
+    private bool TryGetPasteFootprint(int anchorX, int anchorY, out Rectangle rect)
     {
-        if (Map is null || EditorTileClipboard.Width <= 0 || EditorTileClipboard.Height <= 0)
+        rect = default;
+        if (Map is null || !EditorTileClipboard.HasContent || EditorTileClipboard.Width <= 0 || EditorTileClipboard.Height <= 0)
         {
             return false;
         }
 
-        var x0 = _hoverTile.X;
-        var y0 = _hoverTile.Y;
-        return x0 < Map.Width
-               && y0 < Map.Height
-               && x0 + EditorTileClipboard.Width > 0
-               && y0 + EditorTileClipboard.Height > 0;
+        var x0 = Math.Max(0, anchorX);
+        var y0 = Math.Max(0, anchorY);
+        var x1 = Math.Min(Map.Width, anchorX + EditorTileClipboard.Width);
+        var y1 = Math.Min(Map.Height, anchorY + EditorTileClipboard.Height);
+        if (x1 <= x0 || y1 <= y0)
+        {
+            return false;
+        }
+
+        rect = new Rectangle(x0, y0, x1 - x0, y1 - y0);
+        return true;
+    }
+
+    private string WithZoneClipboard(string hint)
+    {
+        if (!EditorTileClipboard.HasContent || EditorTileClipboard.Width <= 0 || EditorTileClipboard.Height <= 0)
+        {
+            return hint;
+        }
+
+        return hint + " · " + EditorToolHotkeys.FormatZoneClipboard(
+            EditorTileClipboard.Width,
+            EditorTileClipboard.Height,
+            EditorTileClipboard.IsSingleLayer);
+    }
+
+    private void FreezeLiveSelection()
+    {
+        if (_selectionMarqueeAnchor is not { } anchor)
+        {
+            return;
+        }
+
+        TryCommitSelectionTiles(anchor.X, anchor.Y, _hoverTile.X, _hoverTile.Y);
+        Capture = false;
+        NotifyPaintGesture();
+    }
+
+    private bool TryCommitSelectionTiles(int ax, int ay, int bx, int by)
+    {
+        if (Map is null || Map.Width <= 0 || Map.Height <= 0)
+        {
+            return false;
+        }
+
+        ax = Math.Clamp(ax, 0, Map.Width - 1);
+        ay = Math.Clamp(ay, 0, Map.Height - 1);
+        bx = Math.Clamp(bx, 0, Map.Width - 1);
+        by = Math.Clamp(by, 0, Map.Height - 1);
+        var x0 = Math.Min(ax, bx);
+        var y0 = Math.Min(ay, by);
+        var x1 = Math.Max(ax, bx);
+        var y1 = Math.Max(ay, by);
+        _committedSelectionTiles = new Rectangle(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+        _selectionMarqueeAnchor = null;
+        return true;
     }
 
     private void EraseSelection(Rectangle tileRect, bool activeLayerOnly)
@@ -4378,6 +4483,9 @@ public sealed class MapCanvas : Control
 
     internal void RaiseMouseDownForTest(MouseButtons button, int x, int y) =>
         OnMouseDown(this, new MouseEventArgs(button, 1, x, y, 0));
+
+    internal void RaiseMouseMoveForTest(MouseButtons button, int x, int y) =>
+        OnMouseMove(this, new MouseEventArgs(button, 1, x, y, 0));
 
     internal void RaiseMouseUpForTest(MouseButtons button, int x, int y) =>
         OnMouseUp(this, new MouseEventArgs(button, 1, x, y, 0));
