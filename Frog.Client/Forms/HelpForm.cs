@@ -20,6 +20,7 @@ public sealed class HelpForm : Form
         Déplacement
         • Clavier AZERTY : ZQSD. Clavier QWERTY : WASD. Les flèches directionnelles fonctionnent toujours.
         • E : interagir avec un PNJ, un objet ou un événement proche.
+        • Un texte d'événement s'affiche en bas de l'écran. Entrée, Espace, E ou un clic le ferme. Le personnage reste en place tant que le message est ouvert.
         • Espace : attaque de mêlée.
         • Les touches se règlent dans Options (déplacement, interagir, mêlée) et sont conservées d'une session à l'autre.
         • La saisie dans un champ texte (chat, mot de passe) n'envoie pas de déplacement.

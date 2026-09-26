@@ -13,6 +13,7 @@ internal sealed class MapEventCommandListPanel : UserControl
         Height = 88,
         Font = EditorChrome.BodyFont,
     };
+    private readonly MapEventCommandPaletteBar _palette = new();
     private readonly MapEventCommandParameterPanel _params = new() { AutoSize = true };
     private readonly Label _validationLabel = new() { AutoSize = true, ForeColor = Color.Firebrick };
 
@@ -29,6 +30,7 @@ internal sealed class MapEventCommandListPanel : UserControl
         var remove = new Button { Text = "Retirer", AutoSize = true };
         add.Click += (_, _) => AddCommand();
         remove.Click += (_, _) => RemoveCommand();
+        _palette.EntryChosen += InsertPalette;
 
         var buttons = new FlowLayoutPanel { AutoSize = true };
         buttons.Controls.Add(_commands);
@@ -41,6 +43,7 @@ internal sealed class MapEventCommandListPanel : UserControl
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
         };
+        layout.Controls.Add(_palette);
         layout.Controls.Add(buttons);
         layout.Controls.Add(_params);
         layout.Controls.Add(_validationLabel);
@@ -121,6 +124,22 @@ internal sealed class MapEventCommandListPanel : UserControl
 
         error = null;
         return true;
+    }
+
+    internal void InsertPaletteForTest(string id) => InsertPalette(id);
+
+    private void InsertPalette(string id)
+    {
+        if (!MapEventCommandPalette.TryCreate(id, out var command))
+        {
+            return;
+        }
+
+        FlushCurrent();
+        _models.Add(command);
+        RefreshList();
+        _commands.SelectedIndex = _models.Count - 1;
+        NotifyChanged();
     }
 
     private void AddCommand()

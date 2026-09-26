@@ -88,6 +88,12 @@ public sealed class DialoguePanel : UserControl
         ChoiceRequested?.Invoke(_state.SessionToken, choiceId);
     }
 
+    internal bool HasActiveDialogue => _state is not null;
+
+    internal string ActiveSpeaker => _state?.Speaker ?? string.Empty;
+
+    internal string ActiveBody => _state?.Text ?? string.Empty;
+
     internal string SpeakerTextForTest => _lblSpeaker.Text;
 
     internal int ChoiceButtonCountForTest => _choicesFlow.Controls.Count;
