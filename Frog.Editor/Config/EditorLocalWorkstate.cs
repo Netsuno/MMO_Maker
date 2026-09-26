@@ -209,6 +209,22 @@ public static class EditorLocalWorkstate
         Save(dto);
     }
 
+    public static void RemoveMapPlaytestSpawn(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var dto = LoadOrDefault();
+        if (dto.MapPlaytestSpawns is null || !dto.MapPlaytestSpawns.Remove(key))
+        {
+            return;
+        }
+
+        Save(dto);
+    }
+
     public static bool TryReadMapPrefabPlacements(string key, out List<PrefabPlacement> placements)
     {
         placements = new List<PrefabPlacement>();

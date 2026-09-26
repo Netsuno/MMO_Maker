@@ -24,4 +24,11 @@ public static class EditorMapSpawnWorkstate
         var key = MapPlaytestSpawn.BuildWorkstateKey(mapId, map.Name, map.Width, map.Height);
         EditorLocalWorkstate.WriteMapPlaytestSpawn(key, x, y);
     }
+
+    public static void Clear(Guid? mapId, Map map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        var key = MapPlaytestSpawn.BuildWorkstateKey(mapId, map.Name, map.Width, map.Height);
+        EditorLocalWorkstate.RemoveMapPlaytestSpawn(key);
+    }
 }
