@@ -16,7 +16,16 @@ internal sealed class MapEventPageEditorDialog : Form
     private readonly Button _btnPublish = new() { Text = "Publier", AutoSize = true };
     private readonly Button _btnClose = new() { Text = "Fermer", AutoSize = true };
     private readonly Label _lblValidation = new() { AutoSize = true, ForeColor = Color.Firebrick, Dock = DockStyle.Top };
+    private readonly Label _lblDirty = new()
+    {
+        AutoSize = true,
+        Dock = DockStyle.Top,
+        Padding = new Padding(8, 4, 8, 4),
+        ForeColor = Color.FromArgb(128, 64, 0),
+        Visible = false,
+    };
 
+    private readonly string _baseTitle;
     private bool _allowCloseAfterCleanup;
     private bool _cleanupRunning;
     private bool _closeCleanupFailed;
@@ -27,7 +36,8 @@ internal sealed class MapEventPageEditorDialog : Form
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _eventId = eventId;
-        Text = $"Pages — {eventName}";
+        _baseTitle = $"Pages — {eventName}";
+        Text = _baseTitle;
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
@@ -47,9 +57,10 @@ internal sealed class MapEventPageEditorDialog : Form
 
         Controls.Add(_pagesPanel);
         Controls.Add(_lblValidation);
+        Controls.Add(_lblDirty);
         Controls.Add(bottom);
 
-        _pagesPanel.PagesChanged += () => _dirty = true;
+        _pagesPanel.PagesChanged += () => SetDirty(true);
         _btnClose.Click += (_, _) => Close();
         _btnSave.Click += (_, _) => _ = _lifecycle.TrackAsync(ct => SaveAsync(publish: false, ct), "save");
         _btnPublish.Click += (_, _) => _ = _lifecycle.TrackAsync(ct => SaveAsync(publish: true, ct), "publish");
@@ -61,6 +72,8 @@ internal sealed class MapEventPageEditorDialog : Form
     internal GameDataPanelLifecycle LifecycleForTest => _lifecycle;
 
     internal bool IsDirtyForTest => _dirty;
+
+    internal Label DirtyLabelForTest => _lblDirty;
 
     internal MapEventPagesEditorPanel PagesPanelForTest => _pagesPanel;
 
@@ -98,7 +111,7 @@ internal sealed class MapEventPageEditorDialog : Form
         }
 
         _pagesPanel.LoadPages(pages);
-        _dirty = false;
+        SetDirty(false);
         _lblValidation.Text = string.Empty;
     }
 
@@ -129,7 +142,7 @@ internal sealed class MapEventPageEditorDialog : Form
             return;
         }
 
-        _dirty = false;
+        SetDirty(false);
         _lblValidation.Text = string.Empty;
         GameDataUiMessageBox.Show(
             this,
@@ -236,6 +249,14 @@ internal sealed class MapEventPageEditorDialog : Form
         _lifecycle.BeginClosing();
         var drained = await _lifecycle.DrainAsync(timeout).ConfigureAwait(true);
         return drained && _lifecycle.IsIdle;
+    }
+
+    private void SetDirty(bool dirty)
+    {
+        _dirty = dirty;
+        _lblDirty.Visible = dirty;
+        _lblDirty.Text = dirty ? "Modifications non enregistrées." : string.Empty;
+        Text = dirty ? _baseTitle + " — modifié" : _baseTitle;
     }
 
     private void SetClosingUiState(bool enabled)

@@ -16,13 +16,26 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     private readonly Label _activePageCaption = new()
     {
         AutoSize = true,
-        MaximumSize = new Size(820, 0),
+        MaximumSize = new Size(860, 0),
         Font = EditorChrome.CaptionFont,
         ForeColor = Color.White,
         BackColor = Color.FromArgb(26, 61, 88),
-        Padding = new Padding(10, 6, 10, 6),
-        Margin = new Padding(0, 0, 0, 6),
+        Padding = new Padding(12, 8, 12, 8),
+        Margin = new Padding(0, 0, 0, 0),
     };
+    private readonly Label _conditionSummary = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(860, 0),
+        Font = EditorChrome.BodyFont,
+        ForeColor = Color.FromArgb(24, 36, 48),
+        BackColor = Color.FromArgb(226, 236, 246),
+        Padding = new Padding(12, 6, 12, 6),
+        Margin = new Padding(0, 0, 0, 8),
+    };
+    private readonly Button _btnPrevPage = new() { Text = "Page précédente", AutoSize = true };
+    private readonly Button _btnNextPage = new() { Text = "Page suivante", AutoSize = true };
+    private readonly Button _btnRemovePage = new() { Text = "Retirer la page", AutoSize = true };
     private readonly NumericUpDown _priority = new() { Width = 80, Minimum = 0, Maximum = 9999 };
     private readonly ComboBox _trigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Font = EditorChrome.BodyFont };
     private readonly ComboBox _movement = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Font = EditorChrome.BodyFont };
@@ -47,7 +60,13 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         Font = EditorChrome.BodyFont,
     };
     private readonly MapEventCommandParameterPanel _commandParams = new() { AutoSize = true };
-    private readonly Label _validationLabel = new() { AutoSize = true, ForeColor = Color.Firebrick, MaximumSize = new Size(820, 0) };
+    private readonly Label _validationLabel = new()
+    {
+        AutoSize = true,
+        ForeColor = Color.Firebrick,
+        MaximumSize = new Size(860, 0),
+        Margin = new Padding(0, 0, 0, 8),
+    };
 
     private readonly List<MapEventPageDefinition> _pageModels = new();
     private readonly List<MapEventConditionDefinition> _conditionModels = new();
@@ -55,8 +74,10 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     private int _selectedPageIndex = -1;
     private int _selectedConditionIndex = -1;
     private int _selectedCommandIndex = -1;
-    private bool _binding;
+    private int _bindDepth;
     private bool _ignoreListEvents;
+
+    private bool IsBinding => _bindDepth > 0;
 
     public MapEventPagesEditorPanel()
     {
@@ -100,6 +121,11 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         EditorListDraw.UseReadableChoices(_movement, MapEventEditorLabels.Movement);
         EditorListDraw.UseReadableChoices(_addStepKind, MapEventEditorLabels.RouteStep);
         _activePageCaption.Text = MapEventEditorLabels.ActivePageCaption(-1, 0, null);
+        _conditionSummary.Text = MapEventEditorLabels.ActivePageConditionSummary(null);
+        _btnPrevPage.Enabled = false;
+        _btnNextPage.Enabled = false;
+        _btnPrevPage.Click += (_, _) => ShiftPage(-1);
+        _btnNextPage.Click += (_, _) => ShiftPage(1);
 
         var root = new TableLayoutPanel
         {
@@ -142,6 +168,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         };
 
         Span(_activePageCaption);
+        Span(_conditionSummary);
+        Span(_validationLabel);
         Span(Section("Pages"));
         var pageButtons = new FlowLayoutPanel
         {
@@ -151,11 +179,12 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             Margin = new Padding(8, 0, 0, 0),
         };
         var btnAddPage = new Button { Text = "Ajouter une page", AutoSize = true };
-        var btnRemovePage = new Button { Text = "Retirer la page", AutoSize = true };
         btnAddPage.Click += (_, _) => AddPage();
-        btnRemovePage.Click += (_, _) => RemovePage();
+        _btnRemovePage.Click += (_, _) => RemovePage();
+        pageButtons.Controls.Add(_btnPrevPage);
+        pageButtons.Controls.Add(_btnNextPage);
         pageButtons.Controls.Add(btnAddPage);
-        pageButtons.Controls.Add(btnRemovePage);
+        pageButtons.Controls.Add(_btnRemovePage);
         var pageRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
         pageRow.Controls.Add(_pages);
         pageRow.Controls.Add(pageButtons);
@@ -268,8 +297,6 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         cmdBlock.Controls.Add(cmdButtons);
         cmdBlock.Controls.Add(_commandParams);
         Span(cmdBlock);
-        Span(Section("Validation"));
-        Span(_validationLabel);
 
         Controls.Add(root);
 
@@ -283,7 +310,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         _blocksCollision.CheckedChanged += (_, _) => OnPageFieldChanged();
         _pages.SelectedIndexChanged += (_, _) =>
         {
-            if (_binding || _ignoreListEvents)
+            if (IsBinding || _ignoreListEvents)
             {
                 return;
             }
@@ -292,7 +319,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         };
         _conditions.SelectedIndexChanged += (_, _) =>
         {
-            if (_binding || _ignoreListEvents)
+            if (IsBinding || _ignoreListEvents)
             {
                 return;
             }
@@ -301,7 +328,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         };
         _commands.SelectedIndexChanged += (_, _) =>
         {
-            if (_binding || _ignoreListEvents)
+            if (IsBinding || _ignoreListEvents)
             {
                 return;
             }
@@ -348,22 +375,33 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     internal Label ValidationLabelForTest => _validationLabel;
 
+    internal Label ActivePageCaptionForTest => _activePageCaption;
+
+    internal Label ConditionSummaryForTest => _conditionSummary;
+
+    internal Button PreviousPageButtonForTest => _btnPrevPage;
+
+    internal Button NextPageButtonForTest => _btnNextPage;
+
+    internal Button RemovePageButtonForTest => _btnRemovePage;
+
     public void LoadPages(IReadOnlyList<MapEventPageDefinition> pages)
     {
-        _binding = true;
+        PushBinding();
         try
         {
             _pageModels.Clear();
             _pageModels.AddRange(pages.Select(ClonePage));
-            RefreshPageList();
+            _selectedPageIndex = -1;
+            _selectedConditionIndex = -1;
+            _selectedCommandIndex = -1;
             if (_pageModels.Count > 0)
             {
-                _pages.SelectedIndex = 0;
-                SelectPage(0);
+                ShowPage(0);
             }
             else
             {
-                _selectedPageIndex = -1;
+                RefreshPageList();
                 ClearPageUi();
                 UpdateActivePageCaption();
             }
@@ -372,7 +410,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         }
         finally
         {
-            _binding = false;
+            PopBinding();
         }
 
         NotifyChanged();
@@ -380,7 +418,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     public bool TryBuildPages(out IReadOnlyList<MapEventPageDefinition> pages, out string? error)
     {
-        if (!FlushCurrentCommand() || !FlushCurrentCondition() || !FlushCurrentPage())
+        if (!TryCommitActivePage())
         {
             pages = Array.Empty<MapEventPageDefinition>();
             error = string.IsNullOrWhiteSpace(_validationLabel.Text)
@@ -396,6 +434,15 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             {
                 error = $"Page {i + 1}: {error}";
                 _validationLabel.Text = error;
+                if (i != _selectedPageIndex)
+                {
+                    ShowPage(i);
+                }
+                else
+                {
+                    UpdateActivePageCaption();
+                }
+
                 return false;
             }
         }
@@ -407,15 +454,18 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private void AddPage()
     {
-        FlushCurrentPage();
+        if (!TryCommitActivePage())
+        {
+            return;
+        }
+
         _pageModels.Add(new MapEventPageDefinition
         {
             PageOrder = _pageModels.Count,
             TriggerKind = Phase8MapEventTriggerKinds.Action,
             Commands = Array.Empty<MapEventCommandDefinition>(),
         });
-        RefreshPageList();
-        _pages.SelectedIndex = _pageModels.Count - 1;
+        ShowPage(_pageModels.Count - 1);
         NotifyChanged();
     }
 
@@ -426,148 +476,235 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             return;
         }
 
-        _pageModels.RemoveAt(_selectedPageIndex);
+        var removed = _selectedPageIndex;
+        _pageModels.RemoveAt(removed);
         for (var i = 0; i < _pageModels.Count; i++)
         {
             _pageModels[i].PageOrder = i;
         }
 
-        RefreshPageList();
-        _selectedPageIndex = Math.Min(_selectedPageIndex, _pageModels.Count - 1);
-        if (_selectedPageIndex >= 0)
+        if (_pageModels.Count == 0)
         {
-            _pages.SelectedIndex = _selectedPageIndex;
-            SelectPage(_selectedPageIndex);
-        }
-        else
-        {
-            ClearPageUi();
+            _selectedPageIndex = -1;
+            _selectedConditionIndex = -1;
+            _selectedCommandIndex = -1;
+            PushBinding();
+            try
+            {
+                RefreshPageList();
+                ClearPageUi();
+                UpdateActivePageCaption();
+            }
+            finally
+            {
+                PopBinding();
+            }
+
+            NotifyChanged();
+            return;
         }
 
+        ShowPage(Math.Min(removed, _pageModels.Count - 1));
         NotifyChanged();
+    }
+
+    private void ShiftPage(int delta)
+    {
+        if (_selectedPageIndex < 0)
+        {
+            return;
+        }
+
+        var target = _selectedPageIndex + delta;
+        if (target < 0 || target >= _pageModels.Count)
+        {
+            return;
+        }
+
+        _pages.SelectedIndex = target;
     }
 
     private void SelectPage(int index)
     {
-        FlushCurrentCommand();
-        FlushCurrentPage();
-        _selectedPageIndex = index;
-        if (index < 0 || index >= _pageModels.Count)
+        if (IsBinding || index == _selectedPageIndex)
         {
             return;
         }
 
-        _binding = true;
+        if (!TryCommitActivePage())
+        {
+            RestorePageListSelection();
+            UpdateActivePageCaption();
+            return;
+        }
+
+        if (index < 0 || index >= _pageModels.Count)
+        {
+            _selectedPageIndex = -1;
+            PushBinding();
+            try
+            {
+                ClearPageUi();
+                UpdateActivePageCaption();
+            }
+            finally
+            {
+                PopBinding();
+            }
+
+            return;
+        }
+
+        ShowPage(index);
+    }
+
+    private void ShowPage(int index)
+    {
+        _selectedPageIndex = index;
+        RefreshPageList();
+        PushBinding();
         try
         {
-            var page = _pageModels[index];
-            _priority.Value = Math.Clamp(page.Priority, (int)_priority.Minimum, (int)_priority.Maximum);
-            var triggerIndex = _trigger.Items.IndexOf(page.TriggerKind);
-            _trigger.SelectedIndex = triggerIndex >= 0 ? triggerIndex : 0;
-            var moveIndex = _movement.Items.IndexOf(page.MovementKind);
-            _movement.SelectedIndex = moveIndex >= 0 ? moveIndex : 0;
-            _routeRepeat.Checked = page.RouteRepeat != false;
-            _routeSkipIfBlocked.Checked = page.RouteSkipIfBlocked;
-            _appearanceGraphic.Value = page.AppearanceGraphicId;
-            _appearanceDirection.Value = page.AppearanceDirection;
-            _blocksCollision.Checked = page.BlocksCollision;
-
-            _waypoints.Rows.Clear();
-            foreach (var wp in page.RouteWaypoints)
-            {
-                _waypoints.Rows.Add(wp.TileX, wp.TileY, wp.WaitMs, MapEventEditorLabels.RouteStep(wp.StepKind));
-            }
-
-            _conditionModels.Clear();
-            foreach (var cond in page.Conditions)
-            {
-                _conditionModels.Add(new MapEventConditionDefinition
-                {
-                    Kind = cond.Kind,
-                    ParameterJson = cond.ParameterJson,
-                });
-            }
-
-            RefreshConditionList();
-            if (_conditionModels.Count > 0)
-            {
-                _conditions.SelectedIndex = 0;
-                SelectCondition(0);
-            }
-            else
-            {
-                _selectedConditionIndex = -1;
-            }
-
-            _commandModels.Clear();
-            _commandModels.AddRange(page.Commands.Select(c => new MapEventCommandDefinition
-            {
-                Discriminator = c.Discriminator,
-                SchemaVersion = c.SchemaVersion,
-                ParameterJson = c.ParameterJson,
-            }));
-            RefreshCommandList();
-            if (_commandModels.Count > 0)
-            {
-                _commands.SelectedIndex = 0;
-                SelectCommand(0);
-            }
-            else
-            {
-                _selectedCommandIndex = -1;
-            }
-
-            UpdateActivePageCaption();
+            BindActivePage();
         }
         finally
         {
-            _binding = false;
+            PopBinding();
         }
+    }
+
+    private void BindActivePage()
+    {
+        if (_selectedPageIndex < 0 || _selectedPageIndex >= _pageModels.Count)
+        {
+            ClearPageUi();
+            UpdateActivePageCaption();
+            return;
+        }
+
+        var page = _pageModels[_selectedPageIndex];
+        _priority.Value = Math.Clamp(page.Priority, (int)_priority.Minimum, (int)_priority.Maximum);
+        var triggerIndex = _trigger.Items.IndexOf(page.TriggerKind);
+        _trigger.SelectedIndex = triggerIndex >= 0 ? triggerIndex : 0;
+        var moveIndex = _movement.Items.IndexOf(page.MovementKind);
+        _movement.SelectedIndex = moveIndex >= 0 ? moveIndex : 0;
+        _routeRepeat.Checked = page.RouteRepeat != false;
+        _routeSkipIfBlocked.Checked = page.RouteSkipIfBlocked;
+        _appearanceGraphic.Value = page.AppearanceGraphicId;
+        _appearanceDirection.Value = page.AppearanceDirection;
+        _blocksCollision.Checked = page.BlocksCollision;
+
+        _waypoints.Rows.Clear();
+        foreach (var wp in page.RouteWaypoints)
+        {
+            _waypoints.Rows.Add(wp.TileX, wp.TileY, wp.WaitMs, MapEventEditorLabels.RouteStep(wp.StepKind));
+        }
+
+        _conditionModels.Clear();
+        foreach (var cond in page.Conditions)
+        {
+            _conditionModels.Add(new MapEventConditionDefinition
+            {
+                Kind = cond.Kind,
+                ParameterJson = cond.ParameterJson,
+            });
+        }
+
+        _selectedConditionIndex = -1;
+        RefreshConditionList();
+        if (_conditionModels.Count > 0)
+        {
+            _conditions.SelectedIndex = 0;
+            SelectCondition(0);
+        }
+        else
+        {
+            _conditionParams.Visible = false;
+        }
+
+        _commandModels.Clear();
+        _commandModels.AddRange(page.Commands.Select(c => new MapEventCommandDefinition
+        {
+            Discriminator = c.Discriminator,
+            SchemaVersion = c.SchemaVersion,
+            ParameterJson = c.ParameterJson,
+        }));
+        _selectedCommandIndex = -1;
+        RefreshCommandList();
+        if (_commandModels.Count > 0)
+        {
+            _commands.SelectedIndex = 0;
+            SelectCommand(0);
+        }
+        else
+        {
+            _commandParams.Visible = false;
+        }
+
+        UpdateActivePageCaption();
     }
 
     private void SelectCommand(int index)
     {
-        FlushCurrentCommand();
-        _selectedCommandIndex = index;
-        if (index < 0 || index >= _commandModels.Count)
+        if (!IsBinding && index != _selectedCommandIndex && !FlushCurrentCommand())
         {
+            RestoreCommandSelection();
             return;
         }
 
-        _binding = true;
+        _selectedCommandIndex = index;
+        if (index < 0 || index >= _commandModels.Count)
+        {
+            _commandParams.Visible = false;
+            return;
+        }
+
+        _commandParams.Visible = true;
+        PushBinding();
         try
         {
             _commandParams.LoadCommand(_commandModels[index]);
         }
         finally
         {
-            _binding = false;
+            PopBinding();
         }
     }
 
     private void SelectCondition(int index)
     {
-        FlushCurrentCondition();
-        _selectedConditionIndex = index;
-        if (index < 0 || index >= _conditionModels.Count)
+        if (!IsBinding && index != _selectedConditionIndex && !FlushCurrentCondition())
         {
+            RestoreConditionSelection();
             return;
         }
 
-        _binding = true;
+        _selectedConditionIndex = index;
+        if (index < 0 || index >= _conditionModels.Count)
+        {
+            _conditionParams.Visible = false;
+            return;
+        }
+
+        _conditionParams.Visible = true;
+        PushBinding();
         try
         {
             _conditionParams.LoadCondition(_conditionModels[index]);
         }
         finally
         {
-            _binding = false;
+            PopBinding();
         }
     }
 
     private void AddCondition()
     {
-        FlushCurrentCondition();
+        if (!FlushCurrentCondition())
+        {
+            return;
+        }
+
         _conditionModels.Add(new MapEventConditionDefinition
         {
             Kind = MapEventConditionKinds.CharacterSwitch,
@@ -575,7 +712,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         });
         RefreshConditionList();
         _conditions.SelectedIndex = _conditionModels.Count - 1;
-        OnPageFieldChanged();
+        CommitActivePageAndNotify();
     }
 
     private void RemoveCondition()
@@ -585,43 +722,34 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             return;
         }
 
+        var next = _selectedConditionIndex;
         _conditionModels.RemoveAt(_selectedConditionIndex);
-        RefreshConditionList();
-        _selectedConditionIndex = Math.Min(_selectedConditionIndex, _conditionModels.Count - 1);
-        if (_selectedConditionIndex >= 0)
+        _selectedConditionIndex = -1;
+        WithIgnoredListEvents(RefreshConditionList);
+        if (_conditionModels.Count == 0)
         {
-            _conditions.SelectedIndex = _selectedConditionIndex;
-            SelectCondition(_selectedConditionIndex);
+            _conditionParams.Visible = false;
+        }
+        else
+        {
+            _conditions.SelectedIndex = Math.Min(next, _conditionModels.Count - 1);
         }
 
-        OnPageFieldChanged();
+        CommitActivePageAndNotify();
     }
 
-    private void OnConditionFieldChanged()
-    {
-        if (_binding)
-        {
-            return;
-        }
-
-        if (FlushCurrentCondition() && FlushCurrentPage())
-        {
-            RefreshPageList();
-        }
-
-        NotifyChanged();
-    }
+    private void OnConditionFieldChanged() => CommitActivePageAndNotify();
 
     private bool FlushCurrentCondition()
     {
-        if (_binding || _selectedConditionIndex < 0 || _selectedConditionIndex >= _conditionModels.Count)
+        if (IsBinding || _selectedConditionIndex < 0 || _selectedConditionIndex >= _conditionModels.Count)
         {
             return true;
         }
 
         if (!_conditionParams.TryBuildCondition(out var cond, out var err))
         {
-            _validationLabel.Text = err ?? "Condition invalide.";
+            ShowPageError(err ?? "Condition invalide.");
             return false;
         }
 
@@ -657,16 +785,24 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             return;
         }
 
-        FlushCurrentCommand();
+        if (!FlushCurrentCommand())
+        {
+            return;
+        }
+
         _commandModels.Add(command);
         RefreshCommandList();
         _commands.SelectedIndex = _commandModels.Count - 1;
-        OnPageFieldChanged();
+        CommitActivePageAndNotify();
     }
 
     private void AddCommand()
     {
-        FlushCurrentCommand();
+        if (!FlushCurrentCommand())
+        {
+            return;
+        }
+
         _commandModels.Add(new MapEventCommandDefinition
         {
             Discriminator = MapEventCommandDiscriminators.ShowText,
@@ -675,7 +811,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         });
         RefreshCommandList();
         _commands.SelectedIndex = _commandModels.Count - 1;
-        OnPageFieldChanged();
+        CommitActivePageAndNotify();
     }
 
     private void RemoveCommand()
@@ -685,28 +821,34 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             return;
         }
 
+        var next = _selectedCommandIndex;
         _commandModels.RemoveAt(_selectedCommandIndex);
-        RefreshCommandList();
-        _selectedCommandIndex = Math.Min(_selectedCommandIndex, _commandModels.Count - 1);
-        if (_selectedCommandIndex >= 0)
+        _selectedCommandIndex = -1;
+        WithIgnoredListEvents(RefreshCommandList);
+        if (_commandModels.Count == 0)
         {
-            _commands.SelectedIndex = _selectedCommandIndex;
-            SelectCommand(_selectedCommandIndex);
+            _commandParams.Visible = false;
+        }
+        else
+        {
+            _commands.SelectedIndex = Math.Min(next, _commandModels.Count - 1);
         }
 
-        OnPageFieldChanged();
+        CommitActivePageAndNotify();
     }
 
-    private void OnPageFieldChanged()
+    private void OnPageFieldChanged() => CommitActivePageAndNotify();
+
+    private void OnCommandFieldChanged() => CommitActivePageAndNotify();
+
+    private void CommitActivePageAndNotify()
     {
-        if (_binding)
+        if (IsBinding)
         {
             return;
         }
 
-        FlushCurrentCommand();
-        FlushCurrentCondition();
-        if (FlushCurrentPage())
+        if (TryCommitActivePage())
         {
             RefreshPageList();
         }
@@ -718,31 +860,32 @@ internal sealed class MapEventPagesEditorPanel : UserControl
         NotifyChanged();
     }
 
-    private void OnCommandFieldChanged()
+    private bool TryCommitActivePage()
     {
-        if (_binding)
+        if (IsBinding)
         {
-            return;
+            return true;
         }
 
-        if (FlushCurrentCommand() && FlushCurrentPage())
+        if (!FlushCurrentCommand() || !FlushCurrentCondition() || !FlushCurrentPage())
         {
-            RefreshPageList();
+            return false;
         }
 
-        NotifyChanged();
+        _validationLabel.Text = string.Empty;
+        return true;
     }
 
     private bool FlushCurrentCommand()
     {
-        if (_binding || _selectedCommandIndex < 0 || _selectedCommandIndex >= _commandModels.Count)
+        if (IsBinding || _selectedCommandIndex < 0 || _selectedCommandIndex >= _commandModels.Count)
         {
             return true;
         }
 
         if (!_commandParams.TryBuildCommand(out var cmd, out var err))
         {
-            _validationLabel.Text = err ?? "Commande invalide.";
+            ShowPageError(err ?? "Commande invalide.");
             return false;
         }
 
@@ -761,7 +904,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private bool FlushCurrentPage()
     {
-        if (_binding || _selectedPageIndex < 0 || _selectedPageIndex >= _pageModels.Count)
+        if (IsBinding || _selectedPageIndex < 0 || _selectedPageIndex >= _pageModels.Count)
         {
             return true;
         }
@@ -784,7 +927,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             waypointNumber++;
             if (!TryParseWaypointRow(row, waypointNumber, out var waypoint, out var waypointError))
             {
-                _validationLabel.Text = waypointError;
+                ShowPageError(waypointError);
                 return false;
             }
 
@@ -817,11 +960,31 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private void ClearPageUi()
     {
+        _priority.Value = _priority.Minimum;
+        if (_trigger.Items.Count > 0)
+        {
+            _trigger.SelectedIndex = 0;
+        }
+
+        if (_movement.Items.Count > 0)
+        {
+            _movement.SelectedIndex = 0;
+        }
+
+        _routeRepeat.Checked = true;
+        _routeSkipIfBlocked.Checked = false;
+        _appearanceGraphic.Value = 0;
+        _appearanceDirection.Value = 0;
+        _blocksCollision.Checked = true;
         _waypoints.Rows.Clear();
         _conditionModels.Clear();
         _conditions.Items.Clear();
+        _selectedConditionIndex = -1;
+        _conditionParams.Visible = false;
         _commandModels.Clear();
         _commands.Items.Clear();
+        _selectedCommandIndex = -1;
+        _commandParams.Visible = false;
     }
 
     private void RefreshPageList()
@@ -845,11 +1008,76 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private void UpdateActivePageCaption()
     {
-        var page = _selectedPageIndex >= 0 && _selectedPageIndex < _pageModels.Count
-            ? _pageModels[_selectedPageIndex]
-            : null;
+        MapEventPageDefinition? page = null;
+        if (_selectedPageIndex >= 0 && _selectedPageIndex < _pageModels.Count)
+        {
+            var stored = _pageModels[_selectedPageIndex];
+            page = new MapEventPageDefinition
+            {
+                TriggerKind = _trigger.SelectedItem as string ?? stored.TriggerKind,
+                Priority = (int)_priority.Value,
+                MovementKind = _movement.SelectedItem as string ?? stored.MovementKind,
+                RouteRepeat = _routeRepeat.Checked,
+                Conditions = _conditionModels.ToList(),
+                Commands = _commandModels.ToList(),
+            };
+        }
+
         _activePageCaption.Text = MapEventEditorLabels.ActivePageCaption(_selectedPageIndex, _pageModels.Count, page);
+        _conditionSummary.Text = MapEventEditorLabels.ActivePageConditionSummary(page);
+        _btnPrevPage.Enabled = _selectedPageIndex > 0;
+        _btnNextPage.Enabled = _selectedPageIndex >= 0 && _selectedPageIndex < _pageModels.Count - 1;
     }
+
+    private void ShowPageError(string? error)
+    {
+        var text = string.IsNullOrWhiteSpace(error) ? "Page invalide." : error.Trim();
+        if (text.StartsWith("Page ", StringComparison.Ordinal))
+        {
+            _validationLabel.Text = text;
+            return;
+        }
+
+        var pageNo = _selectedPageIndex >= 0 ? _selectedPageIndex + 1 : 0;
+        _validationLabel.Text = pageNo > 0 ? $"Page {pageNo} : {text}" : text;
+    }
+
+    private void RestorePageListSelection()
+    {
+        WithIgnoredListEvents(() =>
+        {
+            if (_selectedPageIndex >= 0 && _selectedPageIndex < _pages.Items.Count)
+            {
+                _pages.SelectedIndex = _selectedPageIndex;
+            }
+        });
+    }
+
+    private void RestoreCommandSelection()
+    {
+        WithIgnoredListEvents(() =>
+        {
+            if (_selectedCommandIndex >= 0 && _selectedCommandIndex < _commands.Items.Count)
+            {
+                _commands.SelectedIndex = _selectedCommandIndex;
+            }
+        });
+    }
+
+    private void RestoreConditionSelection()
+    {
+        WithIgnoredListEvents(() =>
+        {
+            if (_selectedConditionIndex >= 0 && _selectedConditionIndex < _conditions.Items.Count)
+            {
+                _conditions.SelectedIndex = _selectedConditionIndex;
+            }
+        });
+    }
+
+    private void PushBinding() => _bindDepth++;
+
+    private void PopBinding() => _bindDepth = Math.Max(0, _bindDepth - 1);
 
     private void RefreshCommandList()
     {
@@ -877,7 +1105,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
 
     private void NotifyChanged()
     {
-        if (!_binding)
+        if (!IsBinding)
         {
             PagesChanged?.Invoke();
         }

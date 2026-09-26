@@ -222,9 +222,57 @@ public static class MapEventEditorLabels
         }
 
         var move = page.MovementKind == MapEventMovementKinds.Route
-            ? page.RouteRepeat == false ? " — trajet une fois" : " — trajet"
+            ? page.RouteRepeat == false ? ", trajet une fois" : ", trajet"
             : string.Empty;
-        return $"Page active : {index + 1} sur {pageCount} — {Trigger(page.TriggerKind)} — priorité {page.Priority}{move} — {CountPhrase(page.Conditions.Count, "condition", "conditions")}, {CountPhrase(page.Commands.Count, "commande", "commandes")}";
+        return $"Vous éditez la page {index + 1} sur {pageCount} — {Trigger(page.TriggerKind)}, priorité {page.Priority}{move} — {CountPhrase(page.Conditions.Count, "condition", "conditions")}, {CountPhrase(page.Commands.Count, "commande", "commandes")}.";
+    }
+
+    /// <summary>
+    /// Résumé compact des conditions de la page active. Toutes doivent être vraies ; le texte les relie par « et ».
+    /// </summary>
+    public static string ActivePageConditionSummary(MapEventPageDefinition? page)
+    {
+        if (page is null)
+        {
+            return "Résumé des conditions : aucune page à résumer.";
+        }
+
+        if (page.Conditions.Count == 0)
+        {
+            return "Résumé des conditions : aucune — la page s’applique sans condition.";
+        }
+
+        var parts = new List<string>(page.Conditions.Count);
+        foreach (var condition in page.Conditions)
+        {
+            parts.Add(ConditionSummary(condition.Kind, condition.ParameterJson));
+        }
+
+        const int maxShown = 5;
+        if (parts.Count > maxShown)
+        {
+            var extra = parts.Count - maxShown;
+            var head = string.Join(", ", parts.Take(maxShown));
+            var tail = extra == 1 ? "1 autre" : $"{extra} autres";
+            return $"Résumé des conditions : {head} — plus {tail}.";
+        }
+
+        return "Résumé des conditions : " + JoinWithAnd(parts) + ".";
+    }
+
+    private static string JoinWithAnd(IReadOnlyList<string> parts)
+    {
+        if (parts.Count <= 1)
+        {
+            return parts.Count == 0 ? string.Empty : parts[0];
+        }
+
+        if (parts.Count == 2)
+        {
+            return parts[0] + " et " + parts[1];
+        }
+
+        return string.Join(", ", parts.Take(parts.Count - 1)) + " et " + parts[^1];
     }
 
     public static string ConditionListLine(int index, string? kind, string? parameterJson) =>

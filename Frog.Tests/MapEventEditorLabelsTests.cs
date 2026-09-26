@@ -25,9 +25,13 @@ public sealed class MapEventEditorLabelsTests
         };
 
         Assert.Equal(
-            "Page active : 2 sur 3 — Automatique — priorité 4 — 1 condition, 2 commandes",
+            "Vous éditez la page 2 sur 3 — Automatique, priorité 4 — 1 condition, 2 commandes.",
             MapEventEditorLabels.ActivePageCaption(1, 3, page));
         Assert.Contains("Aucune page active", MapEventEditorLabels.ActivePageCaption(-1, 0, null));
+        Assert.Equal(
+            "Résumé des conditions : Interrupteur « … » est non.",
+            MapEventEditorLabels.ActivePageConditionSummary(page));
+        Assert.Contains("aucune page", MapEventEditorLabels.ActivePageConditionSummary(null));
         Assert.Equal(
             "Page 2  ·  Automatique  ·  priorité 4  ·  1 condition  ·  2 commandes",
             MapEventEditorLabels.PageListLine(1, page));
@@ -78,6 +82,58 @@ public sealed class MapEventEditorLabelsTests
         Assert.Equal(
             "character_switch",
             MapEventConditionKinds.CharacterSwitch);
+    }
+
+    [Fact]
+    public void ActivePageConditionSummary_JoinsEveryConditionInFrench()
+    {
+        var page = new MapEventPageDefinition
+        {
+            Conditions =
+            [
+                new MapEventConditionDefinition
+                {
+                    Kind = MapEventConditionKinds.CharacterSwitch,
+                    ParameterJson = """{"switchId":"gate_open","value":true}""",
+                },
+                new MapEventConditionDefinition
+                {
+                    Kind = MapEventConditionKinds.CharacterLevel,
+                    ParameterJson = """{"minLevel":5}""",
+                },
+                new MapEventConditionDefinition
+                {
+                    Kind = MapEventConditionKinds.CharacterVariableCompare,
+                    ParameterJson = """{"variableId":"score","op":"gte","value":10}""",
+                },
+            ],
+        };
+
+        Assert.Equal(
+            "Résumé des conditions : Interrupteur « gate_open » est oui, Niveau ≥ 5 et Variable « score » ≥ 10.",
+            MapEventEditorLabels.ActivePageConditionSummary(page));
+
+        var empty = new MapEventPageDefinition();
+        Assert.Equal(
+            "Résumé des conditions : aucune — la page s’applique sans condition.",
+            MapEventEditorLabels.ActivePageConditionSummary(empty));
+
+        var manyConditions = new MapEventConditionDefinition[6];
+        for (var level = 1; level <= manyConditions.Length; level++)
+        {
+            manyConditions[level - 1] = new MapEventConditionDefinition
+            {
+                Kind = MapEventConditionKinds.CharacterLevel,
+                ParameterJson = $$"""{"minLevel":{{level}}}""",
+            };
+        }
+
+        var many = new MapEventPageDefinition { Conditions = manyConditions };
+        var compact = MapEventEditorLabels.ActivePageConditionSummary(many);
+        Assert.Contains("Niveau ≥ 1", compact);
+        Assert.Contains("Niveau ≥ 5", compact);
+        Assert.DoesNotContain("Niveau ≥ 6", compact);
+        Assert.Contains("plus 1 autre", compact);
     }
 
     [Theory]

@@ -555,6 +555,194 @@ public sealed class MapEventPagesEditorSmokeTests
         });
     }
 
+    [Fact]
+    public void MapEventPagesEditor_PageSwitch_KeepsEditsAndShowsCaptionAndConditionSummary()
+    {
+        StaTestRunner.Run(() =>
+        {
+            using var host = new Form { Width = 980, Height = 720 };
+            var panel = new MapEventPagesEditorPanel { Dock = DockStyle.Fill };
+            host.Controls.Add(panel);
+            host.Show();
+
+            var changes = 0;
+            panel.PagesChanged += () => changes++;
+
+            panel.LoadPages(
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    Priority = 1,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Conditions =
+                    [
+                        new MapEventConditionDefinition
+                        {
+                            Kind = MapEventConditionKinds.CharacterSwitch,
+                            ParameterJson = """{"switchId":"gate_open","value":true}""",
+                        },
+                    ],
+                    Commands = [ShowText("page-a")],
+                },
+                new MapEventPageDefinition
+                {
+                    PageOrder = 1,
+                    Priority = 4,
+                    TriggerKind = Phase8MapEventTriggerKinds.Autorun,
+                    Conditions =
+                    [
+                        new MapEventConditionDefinition
+                        {
+                            Kind = MapEventConditionKinds.CharacterLevel,
+                            ParameterJson = """{"minLevel":5}""",
+                        },
+                        new MapEventConditionDefinition
+                        {
+                            Kind = MapEventConditionKinds.CharacterVariableCompare,
+                            ParameterJson = """{"variableId":"score","op":"gte","value":10}""",
+                        },
+                    ],
+                    Commands = [ShowText("page-b")],
+                },
+            ]);
+
+            Assert.Equal(1, changes);
+            Assert.False(panel.PreviousPageButtonForTest.Enabled);
+            Assert.True(panel.NextPageButtonForTest.Enabled);
+            Assert.Contains("Vous éditez la page 1 sur 2", panel.ActivePageCaptionForTest.Text, StringComparison.Ordinal);
+            Assert.Contains("Action", panel.ActivePageCaptionForTest.Text, StringComparison.Ordinal);
+            Assert.Equal(
+                "Résumé des conditions : Interrupteur « gate_open » est oui.",
+                panel.ConditionSummaryForTest.Text);
+            Assert.Equal(0, panel.PagesForTest.SelectedIndex);
+
+            panel.PriorityForTest.Value = 7;
+            var pageAText = Assert.IsType<TextBox>(panel.CommandParamsForTest.FieldForTest("text"));
+            pageAText.Text = "page-a-edited";
+            var switchId = Assert.IsType<TextBox>(panel.ConditionParamsForTest.FieldForTest("switchId"));
+            switchId.Text = "gate_closed";
+            var afterEdits = changes;
+            Assert.True(afterEdits > 1);
+
+            panel.PagesForTest.SelectedIndex = 1;
+            Assert.Equal(afterEdits, changes);
+            Assert.Equal(1, panel.PagesForTest.SelectedIndex);
+            Assert.True(panel.PreviousPageButtonForTest.Enabled);
+            Assert.False(panel.NextPageButtonForTest.Enabled);
+            Assert.Contains("Vous éditez la page 2 sur 2", panel.ActivePageCaptionForTest.Text, StringComparison.Ordinal);
+            Assert.Contains("Automatique", panel.ActivePageCaptionForTest.Text, StringComparison.Ordinal);
+            Assert.Equal(
+                "Résumé des conditions : Niveau ≥ 5 et Variable « score » ≥ 10.",
+                panel.ConditionSummaryForTest.Text);
+            Assert.DoesNotContain("gate_closed", panel.ConditionSummaryForTest.Text, StringComparison.Ordinal);
+            Assert.Equal(4, (int)panel.PriorityForTest.Value);
+            var pageBText = Assert.IsType<TextBox>(panel.CommandParamsForTest.FieldForTest("text"));
+            Assert.Equal("page-b", pageBText.Text);
+            Assert.Equal(string.Empty, panel.ValidationLabelForTest.Text);
+
+            panel.PreviousPageButtonForTest.PerformClick();
+            Assert.Equal(0, panel.PagesForTest.SelectedIndex);
+            Assert.Equal(afterEdits, changes);
+            Assert.Equal(7, (int)panel.PriorityForTest.Value);
+            Assert.Contains("Vous éditez la page 1 sur 2", panel.ActivePageCaptionForTest.Text, StringComparison.Ordinal);
+            Assert.Contains("gate_closed", panel.ConditionSummaryForTest.Text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Niveau ≥ 5", panel.ConditionSummaryForTest.Text, StringComparison.Ordinal);
+            var pageAAgain = Assert.IsType<TextBox>(panel.CommandParamsForTest.FieldForTest("text"));
+            Assert.Equal("page-a-edited", pageAAgain.Text);
+            var switchAgain = Assert.IsType<TextBox>(panel.ConditionParamsForTest.FieldForTest("switchId"));
+            Assert.Equal("gate_closed", switchAgain.Text);
+
+            panel.WaypointsForTest.Rows.Add(1, 2, 250, "Déplacement");
+            panel.WaypointsForTest.Rows[0].Cells[0].Value = "nope";
+            panel.NextPageButtonForTest.PerformClick();
+            Assert.Equal(0, panel.PagesForTest.SelectedIndex);
+            Assert.Contains("Vous éditez la page 1 sur 2", panel.ActivePageCaptionForTest.Text, StringComparison.Ordinal);
+            Assert.Contains("Page 1", panel.ValidationLabelForTest.Text, StringComparison.Ordinal);
+            Assert.Contains("X invalide", panel.ValidationLabelForTest.Text, StringComparison.OrdinalIgnoreCase);
+            panel.PagesForTest.SelectedIndex = 1;
+            Assert.Equal(0, panel.PagesForTest.SelectedIndex);
+            Assert.Contains("gate_closed", panel.ConditionSummaryForTest.Text, StringComparison.Ordinal);
+
+            panel.WaypointsForTest.Rows[0].Cells[0].Value = 3;
+            panel.NextPageButtonForTest.PerformClick();
+            Assert.Equal(1, panel.PagesForTest.SelectedIndex);
+            Assert.Equal(string.Empty, panel.ValidationLabelForTest.Text);
+            Assert.Equal(
+                "Résumé des conditions : Niveau ≥ 5 et Variable « score » ≥ 10.",
+                panel.ConditionSummaryForTest.Text);
+            var pageBKept = Assert.IsType<TextBox>(panel.CommandParamsForTest.FieldForTest("text"));
+            Assert.Equal("page-b", pageBKept.Text);
+
+            Assert.True(panel.TryBuildPages(out var built, out var error), error);
+            Assert.Equal(2, built.Count);
+            Assert.Equal(7, built[0].Priority);
+            Assert.Contains("page-a-edited", built[0].Commands[0].ParameterJson, StringComparison.Ordinal);
+            Assert.Contains("gate_closed", built[0].Conditions[0].ParameterJson, StringComparison.Ordinal);
+            Assert.Equal(3, built[0].RouteWaypoints[0].TileX);
+            Assert.Equal(4, built[1].Priority);
+            Assert.Contains("page-b", built[1].Commands[0].ParameterJson, StringComparison.Ordinal);
+            Assert.DoesNotContain("page-a-edited", built[1].Commands[0].ParameterJson, StringComparison.Ordinal);
+            Assert.DoesNotContain("gate_closed", built[1].Conditions[0].ParameterJson, StringComparison.Ordinal);
+            Assert.Empty(built[1].RouteWaypoints);
+
+            host.Close();
+        });
+    }
+
+    [Fact]
+    public void MapEventPagesEditor_RemovePage_DoesNotCopyTheRemovedPageOntoItsNeighbor()
+    {
+        StaTestRunner.Run(() =>
+        {
+            using var host = new Form { Width = 980, Height = 720 };
+            var panel = new MapEventPagesEditorPanel { Dock = DockStyle.Fill };
+            host.Controls.Add(panel);
+            host.Show();
+
+            panel.LoadPages(
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    Priority = 1,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands = [ShowText("keep-a")],
+                },
+                new MapEventPageDefinition
+                {
+                    PageOrder = 1,
+                    Priority = 9,
+                    TriggerKind = Phase8MapEventTriggerKinds.PlayerContact,
+                    Commands = [ShowText("keep-b")],
+                },
+            ]);
+
+            Assert.Contains(
+                "sans condition",
+                panel.ConditionSummaryForTest.Text,
+                StringComparison.Ordinal);
+            Assert.Equal(0, panel.PagesForTest.SelectedIndex);
+
+            panel.RemovePageButtonForTest.PerformClick();
+
+            Assert.Equal(1, panel.PagesForTest.Items.Count);
+            Assert.Equal(0, panel.PagesForTest.SelectedIndex);
+            Assert.Contains("Vous éditez la page 1 sur 1", panel.ActivePageCaptionForTest.Text, StringComparison.Ordinal);
+            Assert.Contains("Contact joueur", panel.ActivePageCaptionForTest.Text, StringComparison.Ordinal);
+            Assert.Equal(9, (int)panel.PriorityForTest.Value);
+            var kept = Assert.IsType<TextBox>(panel.CommandParamsForTest.FieldForTest("text"));
+            Assert.Equal("keep-b", kept.Text);
+            Assert.True(panel.TryBuildPages(out var built, out var error), error);
+            Assert.Single(built);
+            Assert.Equal(9, built[0].Priority);
+            Assert.Contains("keep-b", built[0].Commands[0].ParameterJson, StringComparison.Ordinal);
+            Assert.DoesNotContain("keep-a", built[0].Commands[0].ParameterJson, StringComparison.Ordinal);
+
+            host.Close();
+        });
+    }
+
     private static MapEventPageDefinition PageWith(
         IReadOnlyList<MapEventConditionDefinition>? conditions = null,
         IReadOnlyList<MapEventCommandDefinition>? commands = null) =>
