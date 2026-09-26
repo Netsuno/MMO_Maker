@@ -1,5 +1,5 @@
-using System.IO;
 using System.Text.Json;
+using Frog.Application.Assets;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Editor.Services;
@@ -709,76 +709,13 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
     private void BrowseAudio(TextBox target, string discriminator)
     {
-        var title = discriminator == MapEventCommandDiscriminators.PlaySe
-            ? "Choisir le son (SE)"
-            : "Choisir la musique (BGM)";
-        var picked = EditorTestHooks.OverrideMapAudioPickPath;
-        if (string.IsNullOrWhiteSpace(picked))
-        {
-            using var dialog = new OpenFileDialog
-            {
-                Filter = "Audio WAV (*.wav)|*.wav|Tous les fichiers (*.*)|*.*",
-                Title = title,
-                CheckFileExists = true,
-                RestoreDirectory = true,
-            };
-            var initial = FindAudioFolder();
-            if (initial is not null)
-            {
-                dialog.InitialDirectory = initial;
-            }
-
-            if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
-            {
-                return;
-            }
-
-            picked = dialog.FileName;
-        }
-
-        if (!MapAudioTrack.TryFromPickedFile(picked, FindRepositoryRoot(), out var stored, out var error))
-        {
-            MessageBox.Show(FindForm(), error ?? "Fichier audio refusé.", "Audio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        target.Text = stored;
-    }
-
-    private static string? FindRepositoryRoot()
-    {
-        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
-        {
-            if (string.IsNullOrWhiteSpace(start))
-            {
-                continue;
-            }
-
-            var dir = new DirectoryInfo(start);
-            while (dir is not null)
-            {
-                if (File.Exists(Path.Combine(dir.FullName, "Frog.Creator.sln")))
-                {
-                    return dir.FullName;
-                }
-
-                dir = dir.Parent;
-            }
-        }
-
-        return null;
-    }
-
-    private static string? FindAudioFolder()
-    {
-        var root = FindRepositoryRoot();
-        if (root is null)
-        {
-            return null;
-        }
-
-        var folder = Path.Combine(root, "Frog.Client", "Assets", "Audio");
-        return Directory.Exists(folder) ? folder : null;
+        var se = discriminator == MapEventCommandDiscriminators.PlaySe;
+        AudioResourcePicker.BrowseInto(
+            FindForm(),
+            se ? AudioResourceKind.Se : AudioResourceKind.Bgm,
+            se ? "Choisir le son (SE)" : "Choisir la musique (BGM)",
+            target,
+            message => MessageBox.Show(FindForm(), message, "Audio", MessageBoxButtons.OK, MessageBoxIcon.Warning));
     }
 
     private string BuildItemMutationJson()

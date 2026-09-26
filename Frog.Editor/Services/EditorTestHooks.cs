@@ -71,8 +71,14 @@ internal static class EditorTestHooks
     /// <summary>Tests : fichier source pour « Importer… » (évite OpenFileDialog).</summary>
     public static string? OverrideImportSourcePath { get; set; }
 
-    /// <summary>Tests : fichier pour Parcourir… (BGM / ambiance). Évite OpenFileDialog.</summary>
+    /// <summary>Tests : fichier pour Parcourir… (BGM / ambiance). Court-circuite le navigateur.</summary>
     public static string? OverrideMapAudioPickPath { get; set; }
+
+    /// <summary>Tests : racines du navigateur audio. Null = résolution projet habituelle.</summary>
+    public static string[]? OverrideAudioResourceRoots { get; set; }
+
+    /// <summary>Tests : index choisi dans la liste du navigateur. Évite ShowDialog.</summary>
+    public static int? OverrideAudioResourceIndex { get; set; }
 
     /// <summary>Smoke : réponse injectée pour MessageBox Données de jeu.</summary>
     public static DialogResult? OverrideMessageBoxResult { get; set; }
