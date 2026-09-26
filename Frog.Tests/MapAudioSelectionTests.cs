@@ -231,6 +231,12 @@ public sealed class MapAudioSelectionTests
         Assert.Equal(Path.GetFileName(outside), name);
         Assert.False(Path.IsPathRooted(name));
 
+        // Même amorce que le smoke Windows : 4 octets RIFF, hors dépôt. Le contenu n’est pas lu.
+        var stub = Path.Combine(Path.GetTempPath(), $"frog-bgm-{Guid.NewGuid():N}.wav");
+        File.WriteAllBytes(stub, [0x52, 0x49, 0x46, 0x46]);
+        Assert.True(MapAudioTrack.TryFromPickedFile(stub, root, out var stubName, out error), error);
+        Assert.Equal(Path.GetFileName(stub), stubName);
+
         Assert.True(MapAudioTrack.TryCreate("Village theme", 100, 0, out var cue, out error), error);
         Assert.Equal("Village theme", cue.Asset);
     }
