@@ -1,3 +1,4 @@
+using Frog.Core.Character;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
 using Frog.Persistence.PostgreSql.Entities.Auth;
@@ -55,6 +56,11 @@ public sealed class FrogDbContext : DbContext
     public DbSet<ActorEntity> Actors => Set<ActorEntity>();
     public DbSet<ActorPublishedSnapshotEntity> ActorPublishedSnapshots => Set<ActorPublishedSnapshotEntity>();
     public DbSet<ActorPublicationHistoryEntity> ActorPublicationHistory => Set<ActorPublicationHistoryEntity>();
+    public DbSet<SystemFlagEntity> SystemFlags => Set<SystemFlagEntity>();
+    public DbSet<SystemFlagPublishedSnapshotEntity> SystemFlagPublishedSnapshots =>
+        Set<SystemFlagPublishedSnapshotEntity>();
+    public DbSet<SystemFlagPublicationHistoryEntity> SystemFlagPublicationHistory =>
+        Set<SystemFlagPublicationHistoryEntity>();
     public DbSet<ShopEntity> Shops => Set<ShopEntity>();
     public DbSet<ShopPublishedSnapshotEntity> ShopPublishedSnapshots => Set<ShopPublishedSnapshotEntity>();
     public DbSet<ShopPublicationHistoryEntity> ShopPublicationHistory => Set<ShopPublicationHistoryEntity>();
@@ -662,6 +668,66 @@ public sealed class FrogDbContext : DbContext
             e.HasOne(x => x.Actor)
                 .WithMany()
                 .HasForeignKey(x => x.ActorId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SystemFlagEntity>(e =>
+        {
+            e.ToTable("system_flags", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.Key).HasMaxLength(CharacterPayloadWorldFlags.MaxKeyUtf8Bytes).IsRequired();
+            e.Property(x => x.Label).HasMaxLength(SystemFlagDefinition.MaxLabelLength).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(SystemFlagDefinition.MaxNoteLength);
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasIndex(x => new { x.Kind, x.Key }).IsUnique();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_system_flags_kind", "kind IN (1, 2)");
+                t.HasCheckConstraint(
+                    "ck_system_flags_key",
+                    "octet_length(key) BETWEEN 1 AND 64 AND key ~ '^[A-Za-z0-9_]+$'");
+                t.HasCheckConstraint(
+                    "ck_system_flags_label",
+                    "char_length(label) BETWEEN 1 AND 120");
+                t.HasCheckConstraint("ck_system_flags_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<SystemFlagPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("system_flag_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.FlagId, x.Revision }).IsUnique();
+            e.Property(x => x.Kind).HasConversion<byte>();
+            e.Property(x => x.Key).HasMaxLength(CharacterPayloadWorldFlags.MaxKeyUtf8Bytes).IsRequired();
+            e.Property(x => x.Label).HasMaxLength(SystemFlagDefinition.MaxLabelLength).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(SystemFlagDefinition.MaxNoteLength);
+            e.HasOne(x => x.Flag)
+                .WithMany()
+                .HasForeignKey(x => x.FlagId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_system_flag_published_snapshots_kind", "kind IN (1, 2)");
+                t.HasCheckConstraint(
+                    "ck_system_flag_published_snapshots_key",
+                    "octet_length(key) BETWEEN 1 AND 64 AND key ~ '^[A-Za-z0-9_]+$'");
+                t.HasCheckConstraint(
+                    "ck_system_flag_published_snapshots_label",
+                    "char_length(label) BETWEEN 1 AND 120");
+            });
+        });
+
+        modelBuilder.Entity<SystemFlagPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("system_flag_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.FlagId);
+            e.HasOne(x => x.Flag)
+                .WithMany()
+                .HasForeignKey(x => x.FlagId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
