@@ -37,6 +37,10 @@ public static class MapEventCommandParameterValidator
                 MapEventParameterSchemas.TryParseItemMutation(command.ParameterJson, out _, out _, out _, out error),
             MapEventCommandDiscriminators.GiveGold or MapEventCommandDiscriminators.TakeGold =>
                 MapEventParameterSchemas.TryParseGoldMutation(command.ParameterJson, out _, out _, out error),
+            MapEventCommandDiscriminators.ChangeGold =>
+                MapEventParameterSchemas.TryParseChangeGold(command.ParameterJson, out _, out _, out error),
+            MapEventCommandDiscriminators.ChangeItems =>
+                MapEventParameterSchemas.TryParseChangeItems(command.ParameterJson, out _, out _, out _, out error),
             MapEventCommandDiscriminators.StartDialogue =>
                 MapEventParameterSchemas.TryParseStartDialogue(command.ParameterJson, out _, out error),
             MapEventCommandDiscriminators.StartQuest or MapEventCommandDiscriminators.TurnInQuest =>

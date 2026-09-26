@@ -34,6 +34,8 @@ public static class MapEventEffectClassifier
                 or MapEventCommandDiscriminators.TakeItem
                 or MapEventCommandDiscriminators.GiveGold
                 or MapEventCommandDiscriminators.TakeGold
+                or MapEventCommandDiscriminators.ChangeGold
+                or MapEventCommandDiscriminators.ChangeItems
                 or MapEventCommandDiscriminators.StartQuest
                 or MapEventCommandDiscriminators.AdvanceQuest
                 or MapEventCommandDiscriminators.TurnInQuest

@@ -270,9 +270,27 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.SubVariable:
                 return await ExecuteVariableAsync(characterId, command, state, cancellationToken).ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.ChangeItems:
+                if (!MapEventParameterSchemas.TryRewriteChangeItems(command, out var rewrittenItems, out var changeItemsErr))
+                {
+                    return changeItemsErr ?? "change_items invalide.";
+                }
+
+                return await ExecuteItemMutationAsync(characterId, rewrittenItems, state, cancellationToken)
+                    .ConfigureAwait(false);
+
             case MapEventCommandDiscriminators.GiveItem:
             case MapEventCommandDiscriminators.TakeItem:
                 return await ExecuteItemMutationAsync(characterId, command, state, cancellationToken)
+                    .ConfigureAwait(false);
+
+            case MapEventCommandDiscriminators.ChangeGold:
+                if (!MapEventParameterSchemas.TryRewriteChangeGold(command, out var rewrittenGold, out var changeGoldErr))
+                {
+                    return changeGoldErr ?? "change_gold invalide.";
+                }
+
+                return await ExecuteGoldMutationAsync(session, characterId, rewrittenGold, state, cancellationToken)
                     .ConfigureAwait(false);
 
             case MapEventCommandDiscriminators.GiveGold:

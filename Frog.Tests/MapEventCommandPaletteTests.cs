@@ -19,6 +19,8 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.PlayBgmId,
                 MapEventCommandPalette.PlaySeId,
                 MapEventCommandPalette.OpenShopId,
+                MapEventCommandPalette.ChangeGoldId,
+                MapEventCommandPalette.ChangeItemsId,
                 MapEventCommandPalette.SetSwitchId,
                 MapEventCommandPalette.SetVariableId,
                 MapEventCommandPalette.AddVariableId,
@@ -44,6 +46,8 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Jouer BGM");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Jouer SE");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Ouvrir boutique");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer or");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer objets");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Si variable");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer météo");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Afficher image");
@@ -70,6 +74,14 @@ public sealed class MapEventCommandPaletteTests
             // Placeholder Guid.Empty until the author picks a shop. See TryCreate_OpenShop_UsesEmptyGuidPlaceholder.
             Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out error));
             Assert.Contains("shopId", error, StringComparison.OrdinalIgnoreCase);
+            return;
+        }
+
+        if (id == MapEventCommandPalette.ChangeItemsId)
+        {
+            // Placeholder Guid.Empty until the author picks an item.
+            Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out error));
+            Assert.Contains("itemId", error, StringComparison.OrdinalIgnoreCase);
             return;
         }
 

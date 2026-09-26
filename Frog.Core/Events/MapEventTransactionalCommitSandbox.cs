@@ -295,6 +295,14 @@ public sealed class MapEventTransactionalCommitSandbox
                     : current - delta;
                 return null;
 
+            case MapEventCommandDiscriminators.ChangeItems:
+                if (!MapEventParameterSchemas.TryRewriteChangeItems(command, out var rewrittenItems, out var changeItemsErr))
+                {
+                    return changeItemsErr;
+                }
+
+                return Apply(world, rewrittenItems);
+
             case MapEventCommandDiscriminators.GiveItem:
             case MapEventCommandDiscriminators.TakeItem:
                 if (!MapEventParameterSchemas.TryParseItemMutation(
@@ -325,6 +333,14 @@ public sealed class MapEventTransactionalCommitSandbox
 
                 world.Items[itemId] = have + quantity;
                 return null;
+
+            case MapEventCommandDiscriminators.ChangeGold:
+                if (!MapEventParameterSchemas.TryRewriteChangeGold(command, out var rewrittenGold, out var changeGoldErr))
+                {
+                    return changeGoldErr;
+                }
+
+                return Apply(world, rewrittenGold);
 
             case MapEventCommandDiscriminators.GiveGold:
             case MapEventCommandDiscriminators.TakeGold:

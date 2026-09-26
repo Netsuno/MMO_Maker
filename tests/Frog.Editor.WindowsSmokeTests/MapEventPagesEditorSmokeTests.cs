@@ -172,6 +172,8 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.TakeItem)]
     [InlineData(MapEventCommandDiscriminators.GiveGold)]
     [InlineData(MapEventCommandDiscriminators.TakeGold)]
+    [InlineData(MapEventCommandDiscriminators.ChangeGold)]
+    [InlineData(MapEventCommandDiscriminators.ChangeItems)]
     [InlineData(MapEventCommandDiscriminators.StartDialogue)]
     [InlineData(MapEventCommandDiscriminators.StartQuest)]
     [InlineData(MapEventCommandDiscriminators.TurnInQuest)]
@@ -778,6 +780,10 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.TakeItem => Command(discriminator, $$"""{"itemId":"{{SampleGuid:D}}","quantity":1}"""),
             MapEventCommandDiscriminators.GiveGold => Command(discriminator, """{"amount":10}"""),
             MapEventCommandDiscriminators.TakeGold => Command(discriminator, """{"amount":10}"""),
+            MapEventCommandDiscriminators.ChangeGold => Command(discriminator, """{"operation":"increase","amount":1}"""),
+            MapEventCommandDiscriminators.ChangeItems => Command(
+                discriminator,
+                $$"""{"itemId":"{{SampleGuid:D}}","operation":"increase","quantity":1}"""),
             MapEventCommandDiscriminators.StartDialogue => Command(discriminator, $$"""{"dialogueId":"{{SampleGuid:D}}"}"""),
             MapEventCommandDiscriminators.StartQuest or MapEventCommandDiscriminators.TurnInQuest =>
                 Command(discriminator, $$"""{"questId":"{{SampleGuid:D}}"}"""),
@@ -924,6 +930,14 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.TakeGold:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("amount"), "5");
                 expectedFragment = "\"amount\":5";
+                break;
+            case MapEventCommandDiscriminators.ChangeGold:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("operation"), "decrease");
+                expectedFragment = "\"operation\":\"decrease\"";
+                break;
+            case MapEventCommandDiscriminators.ChangeItems:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("quantity"), "4");
+                expectedFragment = "\"quantity\":4";
                 break;
             case MapEventCommandDiscriminators.StartDialogue:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("dialogueId"), OtherGuid.ToString("D"));

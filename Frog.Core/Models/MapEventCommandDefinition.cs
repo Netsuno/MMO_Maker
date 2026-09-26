@@ -60,6 +60,8 @@ public static class MapEventCommandDiscriminators
     public const string TakeItem = "take_item";
     public const string GiveGold = "give_gold";
     public const string TakeGold = "take_gold";
+    public const string ChangeGold = "change_gold";
+    public const string ChangeItems = "change_items";
     public const string StartQuest = "start_quest";
     public const string AdvanceQuest = "advance_quest";
     public const string TurnInQuest = "turn_in_quest";
@@ -84,7 +86,7 @@ public static class MapEventCommandDiscriminators
     {
         ShowText, StartDialogue, Branch, ShowChoices, PlayBgm, PlaySe,
         SetSwitch, SetVariable, AddVariable, SubVariable,
-        GiveItem, TakeItem, GiveGold, TakeGold, StartQuest, AdvanceQuest, TurnInQuest,
+        GiveItem, TakeItem, GiveGold, TakeGold, ChangeGold, ChangeItems, StartQuest, AdvanceQuest, TurnInQuest,
         Teleport, Wait, CallCommonEvent, LearnProfession, OpenShop, SetWeather,
         ShowPicture, MovePicture, TintPicture, ErasePicture, FadeOutScreen, FadeInScreen, TintScreen,
         ShakeScreen, FlashScreen, ShowAnimation,

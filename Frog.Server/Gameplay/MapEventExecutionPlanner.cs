@@ -158,6 +158,8 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.TakeItem
                 or MapEventCommandDiscriminators.GiveGold
                 or MapEventCommandDiscriminators.TakeGold
+                or MapEventCommandDiscriminators.ChangeGold
+                or MapEventCommandDiscriminators.ChangeItems
                 or MapEventCommandDiscriminators.Wait
                 or MapEventCommandDiscriminators.StartQuest
                 or MapEventCommandDiscriminators.AdvanceQuest

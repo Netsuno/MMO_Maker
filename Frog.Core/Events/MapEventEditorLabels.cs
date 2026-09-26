@@ -90,6 +90,8 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.TakeItem => "Retirer objet",
         MapEventCommandDiscriminators.GiveGold => "Donner or",
         MapEventCommandDiscriminators.TakeGold => "Retirer or",
+        MapEventCommandDiscriminators.ChangeGold => "Changer or",
+        MapEventCommandDiscriminators.ChangeItems => "Changer objets",
         MapEventCommandDiscriminators.StartQuest => "Démarrer quête",
         MapEventCommandDiscriminators.AdvanceQuest => "Avancer quête",
         MapEventCommandDiscriminators.TurnInQuest => "Rendre quête",
@@ -110,6 +112,13 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.FlashScreen => "Flash écran",
         MapEventCommandDiscriminators.ShowAnimation => "Afficher animation",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
+    };
+
+    public static string ChangeOperation(string? operation) => operation switch
+    {
+        MapEventChangeOperation.Increase => "Augmenter",
+        MapEventChangeOperation.Decrease => "Diminuer",
+        _ => string.IsNullOrWhiteSpace(operation) ? "Opération" : operation.Trim(),
     };
 
     public static string PictureBlend(string? blend) => blend switch
@@ -159,6 +168,7 @@ public static class MapEventEditorLabels
         "quantity" => "Quantité",
         "onceKey" => "Clé une fois",
         "amount" => "Montant",
+        "operation" => "Opération",
         "dialogueId" => "Dialogue",
         "questId" => "Quête",
         "stageIndex" => "Étape",
@@ -363,6 +373,10 @@ public static class MapEventEditorLabels
                 $"Donner {ReadInt(root, "amount")} or",
             MapEventCommandDiscriminators.TakeGold =>
                 $"Retirer {ReadInt(root, "amount")} or",
+            MapEventCommandDiscriminators.ChangeGold =>
+                $"Changer or : {ChangeSign(ReadString(root, "operation"))} {ReadInt(root, "amount")}",
+            MapEventCommandDiscriminators.ChangeItems =>
+                $"Changer objets : {ChangeSign(ReadString(root, "operation"))} {ShortId(ReadString(root, "itemId"))} × {ReadInt(root, "quantity")}",
             MapEventCommandDiscriminators.StartDialogue =>
                 $"Dialogue {ShortId(ReadString(root, "dialogueId"))}",
             MapEventCommandDiscriminators.StartQuest =>
@@ -615,6 +629,9 @@ public static class MapEventEditorLabels
 
         return Clip(text, 24);
     }
+
+    private static string ChangeSign(string? operation) =>
+        string.Equals(operation, MapEventChangeOperation.Decrease, StringComparison.OrdinalIgnoreCase) ? "−" : "+";
 
     private static string Clip(string? text, int max)
     {

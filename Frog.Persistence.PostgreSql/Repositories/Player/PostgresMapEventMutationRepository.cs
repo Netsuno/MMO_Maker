@@ -337,6 +337,15 @@ public sealed class PostgresMapEventMutationRepository(
             case MapEventCommandDiscriminators.SubVariable:
                 return await ApplyVariableAsync(db, character.Id, command, snapshot, ct).ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.ChangeItems:
+                if (!MapEventParameterSchemas.TryRewriteChangeItems(command, out var rewrittenItems, out var changeItemsErr))
+                {
+                    return changeItemsErr ?? "change_items invalide.";
+                }
+
+                command = rewrittenItems;
+                goto case MapEventCommandDiscriminators.GiveItem;
+
             case MapEventCommandDiscriminators.GiveItem:
             case MapEventCommandDiscriminators.TakeItem:
                 var itemErr = await ApplyItemMutationAsync(db, character.Id, slots, command, snapshot, ct)
@@ -347,6 +356,15 @@ public sealed class PostgresMapEventMutationRepository(
                 }
 
                 return itemErr;
+
+            case MapEventCommandDiscriminators.ChangeGold:
+                if (!MapEventParameterSchemas.TryRewriteChangeGold(command, out var rewrittenGold, out var changeGoldErr))
+                {
+                    return changeGoldErr ?? "change_gold invalide.";
+                }
+
+                command = rewrittenGold;
+                goto case MapEventCommandDiscriminators.GiveGold;
 
             case MapEventCommandDiscriminators.GiveGold:
             case MapEventCommandDiscriminators.TakeGold:

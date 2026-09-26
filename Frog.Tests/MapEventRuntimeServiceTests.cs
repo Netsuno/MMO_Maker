@@ -2397,10 +2397,12 @@ public sealed class MapEventRuntimeServiceTests
                         break;
                     case MapEventCommandDiscriminators.GiveItem:
                     case MapEventCommandDiscriminators.TakeItem:
+                    case MapEventCommandDiscriminators.ChangeItems:
                         snap.InventoryChanged = true;
                         break;
                     case MapEventCommandDiscriminators.GiveGold:
                     case MapEventCommandDiscriminators.TakeGold:
+                    case MapEventCommandDiscriminators.ChangeGold:
                         snap.GoldChanged = true;
                         break;
                     case MapEventCommandDiscriminators.StartQuest:
