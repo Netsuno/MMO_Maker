@@ -242,18 +242,22 @@ L’utilisateur peut :
 - Couplage fort entre interface et logique
 - Données étendues via `Data1/2/3` parfois mal typées
 
-### 7. Plan de conversion vers C#
-- `Tile.Type` → Enum propre + structure `TileAttribute`
-- `Services/TileAttributeService.cs` : logique de placement
-- `Controls/AttributePalette.cs` : sélection visuelle
-- Couleurs et icônes de rendu gérés via un `OverlayRenderer`
+### 7. Plan de conversion vers C# — surfaces livrées
 
-**Étapes :**
-1. Recréer `TileTypeEnum` en C#
-2. Créer des classes d’attributs avec description + metadata
-3. Ajouter la gestion UI pour sélectionner et appliquer un attribut
-4. Adapter le rendu pour montrer les attributs sur la carte
-5. Supporter les attributs dans la sauvegarde `.map`
+La sélection visuelle et le placement ne passent pas par une palette ou un service d’attributs séparés : ces fichiers vides n’avaient aucun appelant et ont été retirés. L’UX en place est celle-ci.
+
+- Type logique de case : enum `TileType` (`Ground`, `Block`, `Warp`, `Resource`, `Script`). Attributs typés dans `Frog.Core.Models` : `ITileAttribute`, `BlockAttribute`, `WarpAttribute`, `ResourceAttribute`.
+- Sélection du type : combo **TYPE DE TUILE** dans `Panels/EditorLeftToolsWpf` (`ComboTileType`, événement `TileTypeChanged` → `MapCanvas.SelectedTileType` dans `Forms/MainForm`). Le contrôle WinForms `Controls/TileTypePalette` expose les mêmes cinq types.
+- Drapeaux du tileset VX (passage, quatre directions, échelle, bush, counter, terrain, dégâts, autotile), livrés avec la PR #85 : `Controls/TileAssetFlagsPanel` appelle `Frog.Core.Maps.TileFlagEdit.Apply`. Pas de seconde palette.
+- Placement : le pinceau de `MapCanvas` pose `SelectedTileType`. Les drapeaux se peignent sur la vignette 48×48 du catalogue.
+- Overlay : `MapCanvas.DrawTileTypeOverlay` pour le type logique ; `TileFlagEdit.OverlayText` dans `Controls/TileAssetWorkbench` pour les drapeaux.
+
+**Étapes (fait) :**
+1. `TileType` remplace `TileTypeEnum`.
+2. Classes d’attributs dans `Frog.Core.Models`.
+3. UI : `EditorLeftToolsWpf` et `TileTypePalette` pour le type ; `TileAssetFlagsPanel` pour les drapeaux VX.
+4. Rendu : `DrawTileTypeOverlay` et l’overlay du workbench tileset.
+5. Sauvegarde : type de tuile dans la carte ; drapeaux dans `TileAssetFlagTable`.
 
 ### 8. Tests à prévoir
 - Application d’attributs sur la carte
