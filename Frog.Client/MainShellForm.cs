@@ -7286,6 +7286,9 @@ public sealed class MainShellForm : Form
 
     internal bool ShopOpenForTest => _shopBank.ShopOpen;
 
+    /// <summary>Portefeuille boutique (le contrôle « Or insuffisant » lit cette valeur, pas le dépôt serveur).</summary>
+    internal void SetLocalPurseForTest(int gold) => _shopBank.SetWallet(gold);
+
     internal void OpenShopForTest()
     {
         if (_cmbShop.SelectedItem is ShopPickRow shop)

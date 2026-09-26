@@ -742,6 +742,9 @@ public sealed class GameplayClientSmokeTests
             {
                 session.Gold = gold;
             }
+
+            // L'achat est refusé côté client si le portefeuille connu reste à 0 après l'épée.
+            Form.SetLocalPurseForTest(gold);
         }
 
         /// <summary>
