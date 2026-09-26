@@ -85,6 +85,15 @@ public sealed class EquipmentPanel : UserControl
         _btnUnequipArmor.Enabled = snapshot.EquippedArmorItemId is not null;
     }
 
+    /// <summary>Recalcule les noms d'arme et d'armure après l'arrivée du catalogue.</summary>
+    public void RefreshPresented()
+    {
+        if (_snapshot is not null)
+        {
+            ApplySnapshot(_snapshot);
+        }
+    }
+
     /// <summary>Retire le casque local sans notifier (logout / changement de perso).</summary>
     public void ResetLocalHeadwear()
     {

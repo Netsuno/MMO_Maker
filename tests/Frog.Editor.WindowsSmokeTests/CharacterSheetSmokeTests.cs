@@ -278,15 +278,21 @@ public sealed class CharacterSheetSmokeTests
 
             Assert.Equal(3, sheet.BagCountForTest);
             Assert.Equal("[0] Potion ×3", sheet.BagTextAtForTest(0));
-            Assert.Equal("[2] Épée ×1", sheet.BagTextAtForTest(1));
-            Assert.True(sheet.EquipBagEnabledForTest);
-            sheet.ClickEquipBagForTest();
-            Assert.Equal((byte)0, equipped);
+            Assert.Equal("[2] Épée · Arme ×1", sheet.BagTextAtForTest(1));
+            Assert.Equal("[4] Cuirasse · Armure ×1", sheet.BagTextAtForTest(2));
+            Assert.False(sheet.EquipBagEnabledForTest);
 
             equipped = null;
             sheet.SelectBagBySlotForTest(2);
+            Assert.True(sheet.EquipBagEnabledForTest);
             sheet.ClickEquipBagForTest();
             Assert.Equal((byte)2, equipped);
+
+            equipped = null;
+            sheet.SelectBagBySlotForTest(4);
+            Assert.True(sheet.EquipBagEnabledForTest);
+            sheet.ClickEquipBagForTest();
+            Assert.Equal((byte)4, equipped);
 
             equipped = null;
             sheet.ClearBagSelectionForTest();

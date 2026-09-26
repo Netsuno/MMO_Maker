@@ -167,8 +167,8 @@ public sealed class CharacterSheetPanel : UserControl
 
         Controls.Add(grid);
         Controls.Add(bag);
-        _btnEquipBag.Click += (_, _) => Dispatch(CharacterSheetGear.FromBagEquip(SelectedBagSlot));
-        _bagList.DoubleClick += (_, _) => Dispatch(CharacterSheetGear.FromBagEquip(SelectedBagSlot));
+        _btnEquipBag.Click += (_, _) => TryEquipSelected();
+        _bagList.DoubleClick += (_, _) => TryEquipSelected();
         _bagList.SelectedIndexChanged += (_, _) => UpdateEquipButton();
         ApplyLoadout(Equipment.Empty, null, null, null);
     }
@@ -343,8 +343,19 @@ public sealed class CharacterSheetPanel : UserControl
 
     internal bool EquipBagEnabledForTest => _btnEquipBag.Enabled;
 
-    private byte? SelectedBagSlot =>
-        _bagList.SelectedItem is BagRow row ? row.SlotIndex : null;
+    private BagRow? SelectedBagRow => _bagList.SelectedItem as BagRow;
+
+    private byte? SelectedBagSlot => SelectedBagRow?.SlotIndex;
+
+    private void TryEquipSelected()
+    {
+        if (SelectedBagRow is not BagRow row || !CharacterSheetGear.IsEquippable(row.Type))
+        {
+            return;
+        }
+
+        Dispatch(CharacterSheetGear.FromBagEquip(row.SlotIndex));
+    }
 
     private void OnSlotClick(PaperdollLayer layer)
     {
@@ -426,15 +437,28 @@ public sealed class CharacterSheetPanel : UserControl
         UpdateEquipButton();
     }
 
-    private void UpdateEquipButton() => _btnEquipBag.Enabled = SelectedBagSlot is not null;
+    private void UpdateEquipButton() =>
+        _btnEquipBag.Enabled = SelectedBagRow is BagRow row && CharacterSheetGear.IsEquippable(row.Type);
 
-    private sealed class BagRow(byte slotIndex, int quantity, string name, ItemType? type)
+    private sealed class BagRow
     {
-        public byte SlotIndex { get; } = slotIndex;
+        public BagRow(byte slotIndex, int quantity, string name, ItemType? type)
+        {
+            SlotIndex = slotIndex;
+            Quantity = quantity;
+            Name = name;
+            Type = type;
+        }
 
-        public ItemType? Type { get; } = type;
+        public byte SlotIndex { get; }
 
-        public override string ToString() => $"[{SlotIndex}] {name} ×{quantity}";
+        public int Quantity { get; }
+
+        public string Name { get; }
+
+        public ItemType? Type { get; }
+
+        public override string ToString() => CharacterSheetGear.FormatBagRow(SlotIndex, Name, Quantity, Type);
     }
 
     private static void CenterPreview(Panel host)

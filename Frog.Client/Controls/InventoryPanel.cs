@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using Frog.Client.UI;
+using Frog.Core.Enums;
+using Frog.Core.Gameplay;
 using Frog.Core.Protocol;
 
 namespace Frog.Client.Controls;
@@ -15,6 +17,7 @@ public sealed class InventoryPanel : UserControl
     private readonly Button _btnDrop = new() { Text = "Déposer", AutoSize = true };
     private InventorySnapshotWire? _snapshot;
     private Func<Guid, string> _nameLookup = static id => id.ToString("N");
+    private Func<Guid, ItemType?>? _typeLookup;
 
     public event Action<byte>? EquipRequested;
     public event Action<byte, int>? DropRequested;
@@ -37,7 +40,7 @@ public sealed class InventoryPanel : UserControl
         Paint += (s, e) => UiTheme.PaintDoubleGoldFrame(this, e);
         _btnEquip.Click += (_, _) =>
         {
-            if (_list.SelectedItem is InventoryRow row)
+            if (_list.SelectedItem is InventoryRow row && CharacterSheetGear.IsEquippable(row.Type))
             {
                 EquipRequested?.Invoke(row.SlotIndex);
             }
@@ -61,9 +64,9 @@ public sealed class InventoryPanel : UserControl
 
     private void UpdateActionButtons()
     {
-        var hasSelection = _list.SelectedItem is InventoryRow;
-        _btnEquip.Enabled = hasSelection;
-        _btnDrop.Enabled = hasSelection;
+        var row = _list.SelectedItem as InventoryRow;
+        _btnEquip.Enabled = row is not null && CharacterSheetGear.IsEquippable(row.Type);
+        _btnDrop.Enabled = row is not null;
     }
 
     /// <summary>Résolution du nom publié (catalogue) pour un ItemId ; par défaut affiche le GUID brut.</summary>
@@ -80,6 +83,45 @@ public sealed class InventoryPanel : UserControl
         }
     }
 
+    /// <summary>Type publié (Weapon / Armor / …). Null si le catalogue ne le connaît pas.</summary>
+    public Func<Guid, ItemType?>? ItemTypeLookup
+    {
+        get => _typeLookup;
+        set
+        {
+            _typeLookup = value;
+            if (_snapshot is not null)
+            {
+                RefreshPresented();
+            }
+        }
+    }
+
+    /// <summary>Recalcule noms et libellés Arme / Armure après l'arrivée du catalogue.</summary>
+    public void RefreshPresented()
+    {
+        if (_snapshot is null)
+        {
+            return;
+        }
+
+        var selected = SelectedInventorySlot;
+        ApplySnapshot(_snapshot);
+        if (selected is not byte slot)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _list.Items.Count; i++)
+        {
+            if (_list.Items[i] is InventoryRow row && row.SlotIndex == slot)
+            {
+                _list.SelectedIndex = i;
+                return;
+            }
+        }
+    }
+
     public void ApplySnapshot(InventorySnapshotWire snapshot)
     {
         _snapshot = snapshot;
@@ -88,7 +130,12 @@ public sealed class InventoryPanel : UserControl
         {
             if (slot.ItemId is Guid id && slot.Quantity > 0)
             {
-                _list.Items.Add(new InventoryRow((byte)slot.SlotIndex, id, slot.Quantity, _nameLookup(id)));
+                _list.Items.Add(new InventoryRow(
+                    (byte)slot.SlotIndex,
+                    id,
+                    slot.Quantity,
+                    _nameLookup(id),
+                    _typeLookup?.Invoke(id)));
             }
         }
 
@@ -120,17 +167,38 @@ public sealed class InventoryPanel : UserControl
         }
     }
 
-    internal void ClickEquipForTest() => _btnEquip.PerformClick();
+    internal bool EquipEnabledForTest => _btnEquip.Enabled;
+
+    internal void ClickEquipForTest()
+    {
+        if (!_btnEquip.Enabled)
+        {
+            throw new InvalidOperationException(
+                "Équiper est désactivé : l'objet sélectionné n'est pas une arme ou une armure du catalogue.");
+        }
+
+        _btnEquip.PerformClick();
+    }
 
     internal void ClickDropForTest() => _btnDrop.PerformClick();
 
-    private sealed class InventoryRow(byte slotIndex, Guid itemId, int quantity, string name)
+    private sealed class InventoryRow
     {
-        public byte SlotIndex { get; } = slotIndex;
-        public Guid ItemId { get; } = itemId;
-        public int Quantity { get; } = quantity;
-        public string Name { get; } = name;
+        public InventoryRow(byte slotIndex, Guid itemId, int quantity, string name, ItemType? type)
+        {
+            SlotIndex = slotIndex;
+            ItemId = itemId;
+            Quantity = quantity;
+            Name = name;
+            Type = type;
+        }
 
-        public override string ToString() => $"[{SlotIndex}] {Name} ×{Quantity}";
+        public byte SlotIndex { get; }
+        public Guid ItemId { get; }
+        public int Quantity { get; }
+        public string Name { get; }
+        public ItemType? Type { get; }
+
+        public override string ToString() => CharacterSheetGear.FormatBagRow(SlotIndex, Name, Quantity, Type);
     }
 }

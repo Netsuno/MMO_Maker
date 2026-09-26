@@ -242,6 +242,7 @@ public static class Phase7ContentSeed
         [
             new ShopListing { ItemId = DefaultItemId, Price = 25, Stock = null },
             new ShopListing { ItemId = DefaultWeaponId, Price = 100, Stock = null },
+            new ShopListing { ItemId = DefaultArmorId, Price = 80, Stock = null },
         ],
     };
 }

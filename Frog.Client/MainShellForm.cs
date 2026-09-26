@@ -449,6 +449,7 @@ public sealed class MainShellForm : Form
         ApplyOptionsHelpChrome();
         ApplyCatalogRecipesToCraft(_publishedCatalog);
         _inventoryPanel.ItemNameLookup = ResolveItemName;
+        _inventoryPanel.ItemTypeLookup = ResolveItemType;
         _equipmentPanel.ItemNameLookup = ResolveItemName;
         if (_playtestOptions is { IsPlaytest: true })
         {
@@ -2036,6 +2037,8 @@ public sealed class MainShellForm : Form
         ApplyCatalogToUi(catalog);
         ApplyCatalogRecipesToCraft(catalog);
         _characterSheet.RefreshBag(ResolveItemName, ResolveItemType);
+        _inventoryPanel.RefreshPresented();
+        _equipmentPanel.RefreshPresented();
         SyncStatusPortrait();
         var tilesetFiles = ClientPublishedTilesetMaterializer.Materialize(catalog, AppContext.BaseDirectory, _map?.Name);
         var prefabFiles = ClientPublishedPrefabMaterializer.Materialize(catalog, AppContext.BaseDirectory);
@@ -7193,6 +7196,9 @@ public sealed class MainShellForm : Form
     internal bool TrySelectWeaponFromCatalogForTest()
         => TrySelectCatalogShopItemForTest("Weapon");
 
+    internal bool TrySelectArmorFromCatalogForTest()
+        => TrySelectCatalogShopItemForTest("Armor");
+
     internal bool TrySelectConsumableFromCatalogForTest()
         => TrySelectCatalogShopItemForTest("Consumable");
 
@@ -7246,6 +7252,12 @@ public sealed class MainShellForm : Form
             ? row.Id
             : null;
 
+    internal Guid? SelectedCatalogArmorIdForTest =>
+        _cmbShopItem.SelectedItem is ItemPickRow row
+        && string.Equals(row.Type, "Armor", StringComparison.OrdinalIgnoreCase)
+            ? row.Id
+            : null;
+
     internal Button SpellButtonForTest => _btnSpell;
 
     internal Button SendChatButtonForTest => _btnSendChat;
@@ -7273,6 +7285,9 @@ public sealed class MainShellForm : Form
     internal string ShopListingLabelForTest => _lblShopListing.Text;
 
     internal bool ShopOpenForTest => _shopBank.ShopOpen;
+
+    /// <summary>Portefeuille boutique (le contrôle « Or insuffisant » lit cette valeur, pas le dépôt serveur).</summary>
+    internal void SetLocalPurseForTest(int gold) => _shopBank.SetWallet(gold);
 
     internal void OpenShopForTest()
     {

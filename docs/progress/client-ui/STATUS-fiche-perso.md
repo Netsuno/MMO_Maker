@@ -30,7 +30,7 @@ L'aperçu est le composite sud idle (`PlayerWorldAssets.FrameFor`, nearest). Cha
 
 - Bouton **Perso** du menu : ouvre ou ferme la fiche. Depuis Inventaire, Perso bascule sur la fiche sans fermer la fenêtre.
 - **C** (`Keys.C`) en jeu, hors saisie texte et hors touche de déplacement : même bascule. Pas d'envoi réseau.
-- **Sac** : liste du snapshot. **Équiper** (ou double-clic) envoie `EquipRequest` pour l'index sélectionné. Le serveur refuse un type non équipable.
+- **Sac** : liste du snapshot. Une arme ou une armure du catalogue affiche son nom et le libellé Arme ou Armure. **Équiper** (ou double-clic) envoie `EquipRequest` seulement pour ces types. L'inventaire à côté fait de même. Le serveur refuse encore un type non équipable.
 - Titre de fenêtre : **Fiche perso**. Fermeture aussi par la croix et Échap.
 
 ## Hors scope
