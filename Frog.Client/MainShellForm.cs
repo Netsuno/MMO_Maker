@@ -356,6 +356,12 @@ public sealed class MainShellForm : Form
     private readonly NumericUpDown[] _numStats = new NumericUpDown[CharacterStatsWire.PackedByteCount];
     private readonly Button _btnStatsApply = new() { Text = "Appliquer stats", AutoSize = true, Enabled = false };
     private readonly System.Windows.Forms.Timer _heartbeatTimer = new() { Interval = 45_000 };
+    private readonly System.Windows.Forms.Timer _diagnosticRttTimer = new() { Interval = 2_000 };
+    private readonly DiagnosticOverlayPanel _diagnosticOverlay = new();
+    private readonly HeartbeatRttProbe _rtt = new();
+    private bool _connectInFlight;
+    private string? _diagnosticLastError;
+    private TilePackSyncResult? _lastTilePack;
 
     /// <summary>Fréquence d’envoi position au serveur (aligné prédiction locale ~52 ms).</summary>
     private const int MoveNetworkPulseMs = 52;
@@ -451,6 +457,14 @@ public sealed class MainShellForm : Form
         _numBankQty.ValueChanged += (_, _) => OnEconomyQuantityChanged();
         _numBankGold.ValueChanged += (_, _) => OnEconomyQuantityChanged();
         _heartbeatTimer.Tick += async (_, _) => await SendHeartbeatSafeAsync();
+        _diagnosticOverlay.Dismissed += HideDiagnosticOverlay;
+        _diagnosticRttTimer.Tick += async (_, _) =>
+        {
+            RefreshDiagnosticOverlay();
+            await SendHeartbeatSafeAsync();
+        };
+        _txtHost.TextChanged += (_, _) => RefreshDiagnosticOverlay();
+        _numPort.ValueChanged += (_, _) => RefreshDiagnosticOverlay();
         Load += MainShell_Load;
         FormClosing += async (_, _) => await MainShell_FormClosingAsync();
         KeyDown += MainShell_KeyDown;
@@ -789,6 +803,7 @@ public sealed class MainShellForm : Form
         PersistWindowSettings();
         _smoothTimer.Stop();
         _heartbeatTimer.Stop();
+        _diagnosticRttTimer.Stop();
         if (_client is not null)
         {
             await _client.DisconnectAsync().ConfigureAwait(true);
@@ -1579,6 +1594,8 @@ public sealed class MainShellForm : Form
         _hostPages.Controls.Add(_panelGame);
         _hostPages.Controls.Add(_panelCharacter);
         _hostPages.Controls.Add(_panelLogin);
+        _hostPages.Controls.Add(_diagnosticOverlay);
+        _hostPages.Resize += (_, _) => PlaceDiagnosticOverlay();
 
         _loginShell.Dock = DockStyle.Fill;
         _loginShell.Attach(
@@ -1819,7 +1836,7 @@ public sealed class MainShellForm : Form
                 EmitPlaytestFailure(human);
             }
         };
-        _client.HeartbeatAckReceived += () => { };
+        _client.HeartbeatAckReceived += OnHeartbeatAck;
         _client.LogoutAckReceived += OnLogoutAck;
         _client.ChatMessageReceived += OnChatMessage;
         _client.ModerateResultReceived += (ok, msg) =>
@@ -3194,6 +3211,8 @@ public sealed class MainShellForm : Form
             return;
         }
 
+        _connectInFlight = true;
+        RefreshDiagnosticOverlay();
         try
         {
             _btnConnect.Enabled = false;
@@ -3223,6 +3242,11 @@ public sealed class MainShellForm : Form
             ShowPlayerStatus(human);
             NoteConnectFailure(kind, human);
             _btnConnect.Enabled = true;
+        }
+        finally
+        {
+            _connectInFlight = false;
+            RefreshDiagnosticOverlay();
         }
     }
 
@@ -3287,6 +3311,7 @@ public sealed class MainShellForm : Form
         _map = null;
         _mapBlockedTiles = null;
         _username = null;
+        _rtt.Clear();
         _sessionDisplayedMapId = 0;
         _others.Clear();
         _worldMonsters.Clear();
@@ -3512,6 +3537,7 @@ public sealed class MainShellForm : Form
     private void ApplyLoggedOutSessionUi()
     {
         _username = null;
+        _rtt.Clear();
         _map = null;
         _mapBlockedTiles = null;
         _sessionDisplayedMapId = 0;
@@ -3537,6 +3563,7 @@ public sealed class MainShellForm : Form
         ResetCharacterPickUi();
         _awaitingPlayingPhase = false;
         SetPhase(ClientUiPhase.Login);
+        RefreshDiagnosticOverlay();
     }
 
     private void ResetCharacterPickUi()
@@ -4474,12 +4501,29 @@ public sealed class MainShellForm : Form
 
         try
         {
+            _rtt.NoteSent(DateTime.UtcNow);
             await _client.SendHeartbeatAsync().ConfigureAwait(true);
         }
-        catch
+        catch (Exception ex)
         {
-            // ignore
+            _rtt.CancelPending();
+            if (_diagnosticOverlay.Visible)
+            {
+                _diagnosticLastError = PlayerFacingMessages.Redact(PlayerFacingMessages.FromException(ex));
+                RefreshDiagnosticOverlay();
+            }
         }
+    }
+
+    private void OnHeartbeatAck()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        _rtt.NoteAck(DateTime.UtcNow);
+        RefreshDiagnosticOverlay();
     }
 
     private void MainShell_KeyDown(object? sender, KeyEventArgs e)
@@ -4489,6 +4533,24 @@ public sealed class MainShellForm : Form
             e.Handled = true;
             e.SuppressKeyPress = true;
             OpenHelp();
+            return;
+        }
+
+        if (e.KeyCode == DiagnosticOverlayPanel.ToggleKey)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            ToggleDiagnosticOverlay();
+            return;
+        }
+
+        if (DiagnosticDismissRequested(e.KeyCode)
+            && _diagnosticOverlay.Visible
+            && !InputService.IsTextInputFocus(ActiveControl))
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            HideDiagnosticOverlay();
             return;
         }
 
@@ -4819,7 +4881,22 @@ public sealed class MainShellForm : Form
             }
 
             ResetTileAssetBitmapCache();
+            _lastTilePack = result;
+            if (result.Kind is TilePackSyncKind.Cached or TilePackSyncKind.Downloaded)
+            {
+                if (_diagnosticLastError is not null
+                    && _diagnosticLastError.StartsWith("Paquet de tuiles", StringComparison.Ordinal))
+                {
+                    _diagnosticLastError = null;
+                }
+            }
+            else
+            {
+                _diagnosticLastError = PlayerFacingMessages.Redact(DescribeTilePack(result));
+            }
+
             AppendLog(DescribeTilePack(result));
+            RefreshDiagnosticOverlay();
             if (redrawIfReady && _map is not null)
             {
                 RedrawMap();
@@ -4834,7 +4911,9 @@ public sealed class MainShellForm : Form
 
             try
             {
+                _diagnosticLastError = PlayerFacingMessages.Redact("Paquet de tuiles : " + ex.Message);
                 AppendLog("Paquet de tuiles : " + ex.Message);
+                RefreshDiagnosticOverlay();
             }
             catch (Exception closed) when (closed is ObjectDisposedException or InvalidOperationException)
             {
@@ -5319,6 +5398,12 @@ public sealed class MainShellForm : Form
         _hudChat.MinimumSize = new Size(ClientUiScale.ScaleDip(280, clamped), ClientUiScale.ScaleDip(160, clamped));
         _hudFriends.Size = new Size(ClientUiScale.ScaleDip(220, clamped), ClientUiScale.ScaleDip(168, clamped));
         _hudFriends.MinimumSize = new Size(ClientUiScale.ScaleDip(180, clamped), ClientUiScale.ScaleDip(120, clamped));
+        _diagnosticOverlay.ApplyChromeScale(clamped);
+        var diagnosticWidth = ClientUiScale.ScaleDip(DiagnosticOverlayPanel.PanelWidth, clamped);
+        var diagnosticHeight = ClientUiScale.ScaleDip(DiagnosticOverlayPanel.PanelHeight, clamped);
+        _diagnosticOverlay.MinimumSize = new Size(diagnosticWidth, diagnosticHeight);
+        _diagnosticOverlay.Size = new Size(diagnosticWidth, diagnosticHeight);
+        PlaceDiagnosticOverlay();
         _hudHotbar.ApplyUiScale(clamped);
         _hudMenu.ApplyUiScale(clamped);
         LayoutGameHud();
@@ -6150,16 +6235,89 @@ public sealed class MainShellForm : Form
     {
         _lastFailureKind = kind == ConnectionFailureKind.None ? ConnectionFailureKind.Other : kind;
         _lastFailureText = PlayerFacingMessages.Redact(human);
+        _diagnosticLastError = _lastFailureText;
         _btnRetry.Enabled = true;
         RefreshConnectDiagnostic();
+        RefreshDiagnosticOverlay();
     }
 
     private void ClearConnectFailure()
     {
         _lastFailureKind = ConnectionFailureKind.None;
         _lastFailureText = null;
+        _diagnosticLastError = null;
         _btnRetry.Enabled = false;
         RefreshConnectDiagnostic();
+        RefreshDiagnosticOverlay();
+    }
+
+    private void ToggleDiagnosticOverlay()
+    {
+        if (_diagnosticOverlay.Visible)
+        {
+            HideDiagnosticOverlay();
+            return;
+        }
+
+        ShowDiagnosticOverlay();
+    }
+
+    private void ShowDiagnosticOverlay()
+    {
+        RefreshDiagnosticOverlay();
+        PlaceDiagnosticOverlay();
+        _diagnosticOverlay.Visible = true;
+        _diagnosticOverlay.BringToFront();
+        _diagnosticRttTimer.Start();
+        _ = SendHeartbeatSafeAsync();
+    }
+
+    private void HideDiagnosticOverlay()
+    {
+        _diagnosticRttTimer.Stop();
+        _diagnosticOverlay.Visible = false;
+    }
+
+    private static bool DiagnosticDismissRequested(Keys key) => key == Keys.Escape;
+
+    private void RefreshDiagnosticOverlay()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        _diagnosticOverlay.SetText(BuildDiagnosticOverlayText());
+    }
+
+    private void PlaceDiagnosticOverlay()
+    {
+        var host = _diagnosticOverlay.Parent;
+        if (host is null || host.ClientSize.Width < 32)
+        {
+            return;
+        }
+
+        const int margin = 12;
+        var x = Math.Max(margin, host.ClientSize.Width - _diagnosticOverlay.Width - margin);
+        _diagnosticOverlay.Location = new Point(x, margin);
+    }
+
+    private string BuildDiagnosticOverlayText()
+    {
+        var snapshot = ClientDiagnosticLight.Create(
+            _txtHost.Text,
+            (int)_numPort.Value,
+            _client is { IsConnected: true },
+            _connectInFlight,
+            _rtt.LastMilliseconds,
+            _lastTilePack,
+            _diagnosticLastError);
+        return ClientDiagnosticLight.Format(
+            snapshot,
+            _storedAuthToken,
+            _playtestOptions?.PlaytestToken,
+            _txtPass.Text);
     }
 
     private void RefreshConnectDiagnostic()

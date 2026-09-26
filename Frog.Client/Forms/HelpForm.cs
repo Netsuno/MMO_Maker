@@ -69,6 +69,7 @@ public sealed class HelpForm : Form
         Aide, options, diagnostics
         • F1 ou le bouton Aide ouvre cette fenêtre.
         • F8 (en jeu) : cycle météo debug Auto → Clair → Pluie → Brouillard (teinte overlay, pas de bump protocole).
+        • F3 affiche ou masque le panneau diagnostic (Hello, serveur, ping, paquet de tuiles, dernière erreur). Il est fermé au départ. Échap ou Fermer le range.
         • Options : volume, muet, musique (boucle de test), disposition clavier, rebind, taille de fenêtre, plein écran, échelle d'interface (75–200 %).
         • Le numéro de version est visible en permanence.
         • « Copier diagnostics » prépare un rapport sans mot de passe ni jeton, pour signaler un problème.
