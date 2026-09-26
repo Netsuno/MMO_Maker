@@ -93,6 +93,7 @@ public sealed class MainForm : Form
     private ToolStripMenuItem? _mnuPublish;
     private ToolStripMenuItem? _mnuPlaytest;
     private ToolStripMenuItem? _mnuStopPlaytest;
+    private ToolStripMenuItem? _mnuGameData;
     private EditorPlaytestProcessLauncher? _playtestLauncher;
     private PlaytestOrchestrator? _playtestOrchestrator;
     private string? _playtestReuseClientExe;
@@ -184,6 +185,9 @@ public sealed class MainForm : Form
     internal MapEventsPostgreSqlService? MapEventServiceForTest => _mapEventService;
 
     internal Phase8ContentPostgreSqlService? Phase8ContentServiceForTest => _phase8ContentService;
+
+    /// <summary>Entrée MenuStrip « Données de jeu… » (coque WinForms classique, pas l’hôte WPF).</summary>
+    internal ToolStripMenuItem? GameDataMenuItemForTest => _mnuGameData;
 
     /// <summary>Attache des scopes/services pour vérifier dispose (FORCE_IN_MEMORY laisse ces champs null).</summary>
     internal void AttachScopesAndServicesForDisposeTest(
@@ -426,6 +430,9 @@ public sealed class MainForm : Form
             mEdit.DropDownItems.Add("Poser un modèle…", null, (_, _) => PromptStampMapTemplate());
 
             var mResources = new ToolStripMenuItem("Ressources");
+            var mnuGameData = new ToolStripMenuItem("Données de jeu…", null, (_, _) => OpenGameData());
+            mResources.DropDownItems.Add(mnuGameData);
+            _mnuGameData = mnuGameData;
             mResources.DropDownItems.Add("Charger une image tuiles…", null, (_, _) => OpenTileset());
             mResources.DropDownItems.Add("Importer une feuille TileAsset…", null, (_, _) => ImportTileAssetSheet());
             mResources.DropDownItems.Add("Importer un asset projet…", null, (_, _) => ImportProjectAsset());
@@ -534,6 +541,7 @@ public sealed class MainForm : Form
             _menuStrip = null;
             _mnuUndo = null;
             _mnuRedo = null;
+            _mnuGameData = null;
             _mnuShowEventMarkers = null;
             _mnuShowEventNames = null;
             _status = null;
@@ -4024,6 +4032,26 @@ public sealed class MainForm : Form
     private void OnMapEventPlacementHighlighted(PgMapEventPlacementRow row)
     {
         _canvas.HighlightMapEventMarker(row.TileX, row.TileY, row.Id.ToString("D"));
+    }
+
+    /// <summary>
+    /// Ouvre l’éditeur Données de jeu existant. Même branchement smoke que la commande WPF :
+    /// non-modal + <see cref="EditorTestHooks.OnGameDataFormShown"/>, sinon boîte modale.
+    /// </summary>
+    private void OpenGameData()
+    {
+        var dlg = new GameData.GameDataForm();
+        if (EditorTestHooks.GameDataNonModalForTest)
+        {
+            dlg.Shown += (_, _) => EditorTestHooks.OnGameDataFormShown?.Invoke(dlg);
+            dlg.Show(GetDialogOwner());
+            return;
+        }
+
+        using (dlg)
+        {
+            dlg.ShowDialog(GetDialogOwner());
+        }
     }
 
     internal void BrowsePhase8Content()
