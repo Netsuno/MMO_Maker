@@ -1,3 +1,4 @@
+using System;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Xunit;
@@ -64,5 +65,25 @@ public sealed class LayerTypeLabelsTests
         Assert.Equal("Verrouillée", LayerTypeLabels.LockCaption(true));
         Assert.Equal("Éditable", LayerTypeLabels.LockCaption(false));
         Assert.Equal("Sol", LayerTypeLabels.French(LayerType.Ground));
+    }
+
+    [Fact]
+    public void StripAndPreviewLabels_AreFrench_AndNumberFromTheBottom()
+    {
+        Assert.Equal("COUCHES", LayerTypeLabels.PanelTitle);
+        Assert.Contains("1 = dessous", LayerTypeLabels.PanelHint, StringComparison.Ordinal);
+        Assert.Equal("Atténuer les autres", LayerTypeLabels.DimOthersCaption);
+        Assert.Contains(".fmap", LayerTypeLabels.DimOthersHint, StringComparison.Ordinal);
+        Assert.Equal("Opacité", LayerTypeLabels.OpacityColumn);
+        Assert.Contains("enregistré", LayerTypeLabels.OpacityHint, StringComparison.Ordinal);
+        Assert.Equal("peinture", LayerTypeLabels.PaintBadge);
+        Assert.Equal("1 Sol", LayerTypeLabels.StripCaption(0, "Sol"));
+        Assert.Equal("3 Frange", LayerTypeLabels.StripCaption(2, " Frange "));
+        Assert.Equal("2 Couche", LayerTypeLabels.StripCaption(1, "  "));
+        Assert.Equal(string.Empty, LayerTypeLabels.StripCaption(-1, "Sol"));
+        Assert.Contains("Verrouillée", LayerTypeLabels.StripHint(0, 3, "Sol", locked: true), StringComparison.Ordinal);
+        Assert.Contains("1 · dessous", LayerTypeLabels.StripHint(0, 3, "Sol", locked: false), StringComparison.Ordinal);
+        Assert.Contains("cliquer pour verrouiller", LayerTypeLabels.LockHint(false), StringComparison.Ordinal);
+        Assert.Contains("autoriser la peinture", LayerTypeLabels.LockHint(true), StringComparison.Ordinal);
     }
 }
