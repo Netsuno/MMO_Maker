@@ -1,4 +1,4 @@
-using System.IO;
+using Frog.Application.Assets;
 using Frog.Application.Content;
 using Frog.Application.Maps;
 using Frog.Core.Enums;
@@ -169,6 +169,12 @@ public sealed class SystemEditorPanel : UserControl
         get => (int)_startFade.Value;
         set => _startFade.Value = value;
     }
+
+    internal void ClickTitleBgmBrowseForTest()
+        => BrowseAudio(AudioResourceKind.Bgm, "Choisir la musique du titre", _titleAsset);
+
+    internal void ClickStartBgmBrowseForTest()
+        => BrowseAudio(AudioResourceKind.Bgm, "Choisir la musique de départ", _startAsset);
 
     internal Button BtnSaveSettingsForTest => _btnSaveSettings;
 
@@ -598,9 +604,9 @@ public sealed class SystemEditorPanel : UserControl
         _startAsset.TextChanged += (_, _) => Mark();
         _startVolume.ValueChanged += (_, _) => Mark();
         _startFade.ValueChanged += (_, _) => Mark();
-        _btnTitleBrowse.Click += (_, _) => BrowseAudio("Choisir la musique du titre", _titleAsset);
+        _btnTitleBrowse.Click += (_, _) => BrowseAudio(AudioResourceKind.Bgm, "Choisir la musique du titre", _titleAsset);
         _btnTitleClear.Click += (_, _) => ClearTrack(_titleAsset, _titleVolume, _titleFade);
-        _btnStartBrowse.Click += (_, _) => BrowseAudio("Choisir la musique de départ", _startAsset);
+        _btnStartBrowse.Click += (_, _) => BrowseAudio(AudioResourceKind.Bgm, "Choisir la musique de départ", _startAsset);
         _btnStartClear.Click += (_, _) => ClearTrack(_startAsset, _startVolume, _startFade);
         _btnSaveSettings.Click += (_, _) => _ = _lifecycle.TrackAsync(
             async _ => await SaveSettingsAsync(SaveContentIntent.SaveDraft).ConfigureAwait(true),
@@ -778,39 +784,18 @@ public sealed class SystemEditorPanel : UserControl
         }
     }
 
-    private void BrowseAudio(string title, TextBox target)
-    {
-        var picked = EditorTestHooks.OverrideMapAudioPickPath;
-        if (string.IsNullOrWhiteSpace(picked))
-        {
-            using var dialog = new OpenFileDialog
-            {
-                Filter = "Audio WAV (*.wav)|*.wav|Tous les fichiers (*.*)|*.*",
-                Title = title,
-                CheckFileExists = true,
-                RestoreDirectory = true,
-            };
-            if (dialog.ShowDialog(this) != DialogResult.OK)
-            {
-                return;
-            }
-
-            picked = dialog.FileName;
-        }
-
-        if (!MapAudioTrack.TryFromPickedFile(picked, FindRepositoryRoot(), out var stored, out var error))
-        {
-            GameDataUiMessageBox.Show(
+    private void BrowseAudio(AudioResourceKind kind, string title, TextBox target)
+        => AudioResourcePicker.BrowseInto(
+            this,
+            kind,
+            title,
+            target,
+            message => GameDataUiMessageBox.Show(
                 this,
-                error ?? "Fichier audio refusé.",
+                message,
                 "Audio",
                 MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
-            return;
-        }
-
-        target.Text = stored;
-    }
+                MessageBoxIcon.Warning));
 
     private static void ClearTrack(TextBox path, NumericUpDown volume, NumericUpDown fade)
     {
@@ -863,30 +848,6 @@ public sealed class SystemEditorPanel : UserControl
     {
         var match = combo.Items.Cast<GuidChoice>().FirstOrDefault(choice => choice.Id == id);
         combo.SelectedItem = match ?? combo.Items.Cast<GuidChoice>().FirstOrDefault();
-    }
-
-    private static string? FindRepositoryRoot()
-    {
-        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
-        {
-            if (string.IsNullOrWhiteSpace(start))
-            {
-                continue;
-            }
-
-            var dir = new DirectoryInfo(start);
-            while (dir is not null)
-            {
-                if (File.Exists(Path.Combine(dir.FullName, "Frog.Creator.sln")))
-                {
-                    return dir.FullName;
-                }
-
-                dir = dir.Parent;
-            }
-        }
-
-        return null;
     }
 
     private sealed record CatalogItem(Guid Id, string Label)

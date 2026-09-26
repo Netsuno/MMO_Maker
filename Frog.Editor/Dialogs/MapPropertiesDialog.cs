@@ -1,6 +1,6 @@
 using System.Drawing;
-using System.IO;
 using System.Windows.Forms;
+using Frog.Application.Assets;
 using Frog.Application.Maps;
 using Frog.Core.Models;
 using Frog.Editor.Services;
@@ -260,9 +260,17 @@ internal sealed class MapPropertiesDialog : Form
 
     internal void ClickSeClearForTest() => ClearSe();
 
-    private void BrowseBgm() => PickAudio("Choisir la musique (BGM)", _bgmPath);
+    private void BrowseBgm() => Browse(AudioResourceKind.Bgm, "Choisir la musique (BGM)", _bgmPath);
 
-    private void BrowseSe() => PickAudio("Choisir l’ambiance (SE)", _sePath);
+    private void BrowseSe() => Browse(AudioResourceKind.Se, "Choisir l’ambiance (SE)", _sePath);
+
+    private void Browse(AudioResourceKind kind, string title, TextBox target)
+        => AudioResourcePicker.BrowseInto(
+            this,
+            kind,
+            title,
+            target,
+            message => MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning));
 
     private void ClearBgm() => ClearTrack(_bgmPath, _bgmVolume, _bgmFade);
 
@@ -276,41 +284,6 @@ internal sealed class MapPropertiesDialog : Form
             CollectText(this, parts);
             return string.Join('\n', parts);
         }
-    }
-
-    private void PickAudio(string title, TextBox target)
-    {
-        var picked = EditorTestHooks.OverrideMapAudioPickPath;
-        if (string.IsNullOrWhiteSpace(picked))
-        {
-            using var dialog = new OpenFileDialog
-            {
-                Filter = "Audio WAV (*.wav)|*.wav|Tous les fichiers (*.*)|*.*",
-                Title = title,
-                CheckFileExists = true,
-                RestoreDirectory = true,
-            };
-            var initial = FindAudioFolder();
-            if (initial is not null)
-            {
-                dialog.InitialDirectory = initial;
-            }
-
-            if (dialog.ShowDialog(this) != DialogResult.OK)
-            {
-                return;
-            }
-
-            picked = dialog.FileName;
-        }
-
-        if (!MapAudioTrack.TryFromPickedFile(picked, FindRepositoryRoot(), out var stored, out var error))
-        {
-            MessageBox.Show(this, error ?? "Fichier audio refusé.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        target.Text = stored;
     }
 
     private static void ClearTrack(TextBox path, NumericUpDown volume, NumericUpDown fade)
@@ -426,42 +399,6 @@ internal sealed class MapPropertiesDialog : Form
         host.Controls.Add(fileRow, 0, 0);
         host.Controls.Add(knobs, 0, 1);
         return host;
-    }
-
-    private static string? FindRepositoryRoot()
-    {
-        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
-        {
-            if (string.IsNullOrWhiteSpace(start))
-            {
-                continue;
-            }
-
-            var dir = new DirectoryInfo(start);
-            while (dir is not null)
-            {
-                if (File.Exists(Path.Combine(dir.FullName, "Frog.Creator.sln")))
-                {
-                    return dir.FullName;
-                }
-
-                dir = dir.Parent;
-            }
-        }
-
-        return null;
-    }
-
-    private static string? FindAudioFolder()
-    {
-        var root = FindRepositoryRoot();
-        if (root is null)
-        {
-            return null;
-        }
-
-        var folder = Path.Combine(root, "Frog.Client", "Assets", "Audio");
-        return Directory.Exists(folder) ? folder : null;
     }
 
     private static void AddRow(TableLayoutPanel root, int row, string caption, Control editor)
