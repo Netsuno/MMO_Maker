@@ -55,7 +55,8 @@ public sealed class MapEventExecutionResult
     /// <summary>
     /// Message <c>InteractResult</c>. Une boutique ouverte préfixe <c>shop:&lt;guid&gt;</c>
     /// sans remplacer un <c>show_text</c> déjà produit. Les images préfixent des lignes <c>pic:</c>.
-    /// Fondu, teinte, tremblement et flash partagent ce préfixe (<c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>), Hello 11.
+    /// Fondu, teinte, tremblement, flash et animation partagent ce préfixe
+    /// (<c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c>), Hello 11.
     /// </summary>
     public string ClientInteractMessage =>
         VisualOps.Count > 0

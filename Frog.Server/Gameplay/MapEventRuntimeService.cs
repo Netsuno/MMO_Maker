@@ -275,6 +275,8 @@ public sealed class MapEventRuntimeService
                 mutation,
                 label,
                 registerWait: mutation.Status == MapEventMutationStatus.Executed,
+                placement.TileX,
+                placement.TileY,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -298,6 +300,8 @@ public sealed class MapEventRuntimeService
                     mutation,
                     wait.PlacementLabel ?? string.Empty,
                     registerWait: mutation.Status == MapEventMutationStatus.Executed,
+                    wait.EventTileX,
+                    wait.EventTileY,
                     cancellationToken)
                 .ConfigureAwait(false);
             if (!committed.Success)
@@ -329,7 +333,13 @@ public sealed class MapEventRuntimeService
             return null;
         }
 
-        RegisterWaitIfNeeded(characterId, state, wait.PlacementLabel);
+        RegisterWaitIfNeeded(characterId, state, wait.PlacementLabel, wait.EventTileX, wait.EventTileY);
+        MapEventAnimationAnchor.Resolve(
+            state.AnimationOps,
+            session.PositionX,
+            session.PositionY,
+            wait.EventTileX,
+            wait.EventTileY);
         return MapEventExecutionResult.Ok(
             message: state.ShowText ?? wait.PlacementLabel ?? string.Empty,
             showText: state.ShowText,
@@ -359,6 +369,8 @@ public sealed class MapEventRuntimeService
         MapEventMutationResult mutation,
         string label,
         bool registerWait,
+        int eventTileX,
+        int eventTileY,
         CancellationToken cancellationToken)
     {
         if (mutation.Status == MapEventMutationStatus.Failed)
@@ -382,11 +394,17 @@ public sealed class MapEventRuntimeService
                     applied,
                     cancellationToken)
                 .ConfigureAwait(false);
+            MapEventAnimationAnchor.Resolve(
+                snap.AnimationOps,
+                session.PositionX,
+                session.PositionY,
+                eventTileX,
+                eventTileY);
         }
 
         if (registerWait)
         {
-            RegisterLedgerWaitIfNeeded(characterId, unit, snap, label);
+            RegisterLedgerWaitIfNeeded(characterId, unit, snap, label, eventTileX, eventTileY);
         }
 
         return MapEventExecutionResult.FromMutationSnapshot(
@@ -404,7 +422,9 @@ public sealed class MapEventRuntimeService
         Guid characterId,
         MapEventTransactionalUnit unit,
         MapEventExecutionSnapshot? snap,
-        string? label)
+        string? label,
+        int eventTileX,
+        int eventTileY)
     {
         if (unit.ResumePlan is null)
         {
@@ -431,7 +451,9 @@ public sealed class MapEventRuntimeService
                 until,
                 unit.ResumePlan.Effects,
                 label,
-                unit.ResumePlan));
+                unit.ResumePlan,
+                eventTileX,
+                eventTileY));
     }
 
     private async Task<MapEventExecutionResult> ExecuteInMemoryAsync(
@@ -450,7 +472,13 @@ public sealed class MapEventRuntimeService
         }
 
         var placementLabel = $"{placement.DisplayName} ({placement.Slug})";
-        RegisterWaitIfNeeded(characterId, state, placementLabel);
+        RegisterWaitIfNeeded(characterId, state, placementLabel, placement.TileX, placement.TileY);
+        MapEventAnimationAnchor.Resolve(
+            state.AnimationOps,
+            session.PositionX,
+            session.PositionY,
+            placement.TileX,
+            placement.TileY);
 
         return MapEventExecutionResult.Ok(
             message: state.ShowText ?? placementLabel,
@@ -474,7 +502,12 @@ public sealed class MapEventRuntimeService
             state.VisualOps);
     }
 
-    private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)
+    private void RegisterWaitIfNeeded(
+        Guid characterId,
+        MapEventExecutionState state,
+        string? label,
+        int eventTileX = 0,
+        int eventTileY = 0)
     {
         if (!state.Waiting || state.WaitUntilUtc is not DateTimeOffset until)
         {
@@ -489,7 +522,7 @@ public sealed class MapEventRuntimeService
 
         _executionTracker.RegisterWait(
             characterId,
-            new PendingWaitResume(until, remaining, label));
+            new PendingWaitResume(until, remaining, label, EventTileX: eventTileX, EventTileY: eventTileY));
     }
 
     private async Task<MapEventPageDefinition?> SelectPageAsync(

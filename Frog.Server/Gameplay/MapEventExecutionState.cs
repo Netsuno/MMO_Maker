@@ -59,7 +59,10 @@ public sealed class MapEventExecutionState
     /// <summary>Effets d'écran de cette exécution, dans l'ordre.</summary>
     public List<MapEventScreenOp> ScreenOps { get; } = [];
 
-    /// <summary>Ordre commun images / écran. Voir <see cref="MapEventVisualSequence"/>.</summary>
+    /// <summary>Animations de carte de cette exécution, dans l'ordre. Tuiles résolues plus tard.</summary>
+    public List<MapEventAnimationOp> AnimationOps { get; } = [];
+
+    /// <summary>Ordre commun images / écran / animation. Voir <see cref="MapEventVisualSequence"/>.</summary>
     public List<string> VisualOrder { get; } = [];
 
     public void RecordPicture(MapEventPictureOp op)
@@ -74,8 +77,14 @@ public sealed class MapEventExecutionState
         VisualOrder.Add(MapEventVisualSequence.Screen);
     }
 
+    public void RecordAnimation(MapEventAnimationOp op)
+    {
+        AnimationOps.Add(op);
+        VisualOrder.Add(MapEventVisualSequence.Animation);
+    }
+
     public IReadOnlyList<MapEventVisualOp> VisualOps =>
-        MapEventVisualSequence.Expand(VisualOrder, PictureOps, ScreenOps);
+        MapEventVisualSequence.Expand(VisualOrder, PictureOps, ScreenOps, AnimationOps);
 
     public bool StopExecution { get; set; }
 

@@ -366,6 +366,9 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.FlashScreen:
                 return ApplyFlashScreen(session, command.ParameterJson, state);
 
+            case MapEventCommandDiscriminators.ShowAnimation:
+                return ApplyShowAnimation(command.ParameterJson, state);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -676,6 +679,10 @@ public sealed class MapEventCommandExecutor
                 session.ApplyScreenOp(screen);
                 state.RecordScreen(screen);
             }
+            else if (visual.Animation is { } animation)
+            {
+                state.RecordAnimation(animation);
+            }
         }
     }
 
@@ -861,6 +868,17 @@ public sealed class MapEventCommandExecutor
 
         session.ApplyScreenOp(op);
         state.RecordScreen(op);
+        return null;
+    }
+
+    private static string? ApplyShowAnimation(string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseShowAnimation(parameterJson, out var op, out var err))
+        {
+            return err ?? "show_animation invalide.";
+        }
+
+        state.RecordAnimation(op);
         return null;
     }
 

@@ -941,6 +941,46 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseShowAnimation(string parameterJson, out MapEventAnimationOp op, out string? error)
+    {
+        op = MapEventAnimationOp.Create(MapEventAnimation.DefaultId, MapEventAnimation.TargetEvent, 0);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryReadBounded(
+                    root,
+                    "show_animation",
+                    "animationId",
+                    MapEventAnimation.MinId,
+                    MapEventAnimation.MaxId,
+                    out var animationId,
+                    out error)
+                || !TryReadAnimationTarget(root, out var target, out error)
+                || !TryReadDuration(root, "show_animation", out var durationMs, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "animationId", "target", "durationMs" },
+                    out error))
+            {
+                return false;
+            }
+
+            op = MapEventAnimationOp.Create(animationId, target, durationMs);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "show_animation: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     public static bool IsUnknownWeatherKind(string? error) =>
         error is not null && error.Contains("kind inconnu", StringComparison.OrdinalIgnoreCase);
 
@@ -1556,6 +1596,27 @@ public static class MapEventParameterSchemas
             return false;
         }
 
+        return true;
+    }
+
+    private static bool TryReadAnimationTarget(JsonElement root, out string target, out string? error)
+    {
+        target = string.Empty;
+        error = null;
+        if (!root.TryGetProperty("target", out var el) || el.ValueKind != JsonValueKind.String)
+        {
+            error = "show_animation: propriété 'target' (player|event) requise.";
+            return false;
+        }
+
+        var raw = el.GetString() ?? string.Empty;
+        if (!MapEventAnimation.IsTarget(raw))
+        {
+            error = "show_animation: cible player ou event.";
+            return false;
+        }
+
+        target = raw;
         return true;
     }
 

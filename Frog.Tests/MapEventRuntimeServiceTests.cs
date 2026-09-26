@@ -1172,6 +1172,68 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_ShowAnimation_ResolvesEventAndPlayerTiles()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Étincelle",
+            EditorAliasId = 83,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowAnimation,
+                            ParameterJson = """{"animationId":1,"target":"event","durationMs":600}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowAnimation,
+                            ParameterJson = """{"animationId":3,"target":"player","durationMs":400}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+        session.PositionX = 2;
+        session.PositionY = 3;
+        var placement = CreatePlacement(83);
+        placement.TileX = 4;
+        placement.TileY = 5;
+
+        var result = await service.TryExecuteInteractAsync(session, placement);
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.True(MapEventScreenWire.TryTakeInteractMessage(result.ClientInteractMessage, out var visuals, out var rest));
+        Assert.Equal("Porte (gate)", rest);
+        Assert.Equal(2, visuals.Count);
+        Assert.Equal(MapEventAnimation.SparkId, visuals[0].Animation?.AnimationId);
+        Assert.Equal(MapEventAnimation.TargetEvent, visuals[0].Animation?.Target);
+        Assert.Equal(4, visuals[0].Animation?.TileX);
+        Assert.Equal(5, visuals[0].Animation?.TileY);
+        Assert.Equal(MapEventAnimation.HitId, visuals[1].Animation?.AnimationId);
+        Assert.Equal(2, visuals[1].Animation?.TileX);
+        Assert.Equal(3, visuals[1].Animation?.TileY);
+        Assert.True(ServerPlanner.CanExecuteTransactionally(repo.Plans[0].Effects));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+        Assert.Equal(48, Frog.Core.Constants.TileAssetMetrics.TargetTileSizePixels);
+    }
+
+    [Fact]
     public async Task ExecuteCommands_FadeOutThenFadeIn_ClearsTheBlackInMemory()
     {
         var executor = CreateExecutor(
@@ -2458,6 +2520,13 @@ public sealed class MapEventRuntimeServiceTests
                         if (MapEventParameterSchemas.TryParseFlashScreen(cmd.ParameterJson, out var flash, out _))
                         {
                             snap.RecordScreen(flash);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.ShowAnimation:
+                        if (MapEventParameterSchemas.TryParseShowAnimation(cmd.ParameterJson, out var animation, out _))
+                        {
+                            snap.RecordAnimation(animation);
                         }
 
                         break;

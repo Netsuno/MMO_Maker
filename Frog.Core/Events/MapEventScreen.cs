@@ -238,11 +238,17 @@ public readonly record struct MapEventVisualOp
 
     public MapEventScreenOp? Screen { get; init; }
 
+    public MapEventAnimationOp? Animation { get; init; }
+
     public bool IsPicture => Picture is not null;
+
+    public bool IsAnimation => Animation is not null;
 
     public static MapEventVisualOp ForPicture(MapEventPictureOp op) => new() { Picture = op };
 
     public static MapEventVisualOp ForScreen(MapEventScreenOp op) => new() { Screen = op };
+
+    public static MapEventVisualOp ForAnimation(MapEventAnimationOp op) => new() { Animation = op };
 }
 
 /// <summary>
@@ -253,17 +259,20 @@ public static class MapEventVisualSequence
 {
     public const string Picture = "picture";
     public const string Screen = "screen";
+    public const string Animation = "animation";
 
     public static IReadOnlyList<MapEventVisualOp> Expand(
         IReadOnlyList<string>? order,
         IReadOnlyList<MapEventPictureOp>? pictures,
-        IReadOnlyList<MapEventScreenOp>? screens)
+        IReadOnlyList<MapEventScreenOp>? screens,
+        IReadOnlyList<MapEventAnimationOp>? animations = null)
     {
         pictures ??= Array.Empty<MapEventPictureOp>();
         screens ??= Array.Empty<MapEventScreenOp>();
+        animations ??= Array.Empty<MapEventAnimationOp>();
         if (order is null || order.Count == 0)
         {
-            var fallback = new List<MapEventVisualOp>(pictures.Count + screens.Count);
+            var fallback = new List<MapEventVisualOp>(pictures.Count + screens.Count + animations.Count);
             foreach (var picture in pictures)
             {
                 fallback.Add(MapEventVisualOp.ForPicture(picture));
@@ -274,12 +283,18 @@ public static class MapEventVisualSequence
                 fallback.Add(MapEventVisualOp.ForScreen(screen));
             }
 
+            foreach (var animation in animations)
+            {
+                fallback.Add(MapEventVisualOp.ForAnimation(animation));
+            }
+
             return fallback;
         }
 
         var expanded = new List<MapEventVisualOp>(order.Count);
         var pictureIndex = 0;
         var screenIndex = 0;
+        var animationIndex = 0;
         foreach (var kind in order)
         {
             if (kind == Picture && pictureIndex < pictures.Count)
@@ -289,6 +304,10 @@ public static class MapEventVisualSequence
             else if (kind == Screen && screenIndex < screens.Count)
             {
                 expanded.Add(MapEventVisualOp.ForScreen(screens[screenIndex++]));
+            }
+            else if (kind == Animation && animationIndex < animations.Count)
+            {
+                expanded.Add(MapEventVisualOp.ForAnimation(animations[animationIndex++]));
             }
         }
 

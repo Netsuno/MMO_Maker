@@ -211,6 +211,10 @@ public sealed class MainShellForm : Form
 
     private MapEventScreenOp? _playingScreen;
 
+    private MapEventAnimationOp? _playingAnimation;
+
+    private int _animationElapsedMs;
+
     private MapEventScreenFrame _screenFrom;
 
     private int _screenElapsedMs;
@@ -4042,11 +4046,24 @@ public sealed class MainShellForm : Form
     private void PumpVisualQueue()
     {
         var changed = false;
-        while (_playingScreen is null && _visualQueue.TryDequeue(out var step))
+        while (_playingScreen is null && _playingAnimation is null && _visualQueue.TryDequeue(out var step))
         {
             if (step.Picture is { } picture)
             {
                 ApplyOnePicture(picture);
+                changed = true;
+                continue;
+            }
+
+            if (step.Animation is { } animation)
+            {
+                if (animation.DurationMs <= 0 || !animation.IsPlaced)
+                {
+                    continue;
+                }
+
+                _playingAnimation = animation;
+                _animationElapsedMs = 0;
                 changed = true;
                 continue;
             }
@@ -4077,24 +4094,39 @@ public sealed class MainShellForm : Form
 
     private bool AdvanceScreenTone(int deltaMs)
     {
-        if (_playingScreen is not { } screen)
+        var screenAtStart = _playingScreen;
+        var animationAtStart = _playingAnimation;
+        var redraw = false;
+        if (screenAtStart is { } screen)
         {
-            return false;
+            _screenElapsedMs += Math.Max(0, deltaMs);
+            var done = _screenElapsedMs >= screen.DurationMs;
+            _screenFrame = done
+                ? MapEventScreenPlayback.EndState(screen, _screenFrom)
+                : MapEventScreenPlayback.Sample(screen, _screenFrom, _screenElapsedMs);
+            if (done)
+            {
+                _playingScreen = null;
+                PumpVisualQueue();
+            }
+
+            redraw = true;
         }
 
-        _screenElapsedMs += Math.Max(0, deltaMs);
-        var done = _screenElapsedMs >= screen.DurationMs;
-        _screenFrame = done
-            ? MapEventScreenPlayback.EndState(screen, _screenFrom)
-            : MapEventScreenPlayback.Sample(screen, _screenFrom, _screenElapsedMs);
-        if (!done)
+        if (animationAtStart is { } animation)
         {
-            return true;
+            _animationElapsedMs += Math.Max(0, deltaMs);
+            if (_animationElapsedMs >= animation.DurationMs)
+            {
+                _playingAnimation = null;
+                _animationElapsedMs = 0;
+                PumpVisualQueue();
+            }
+
+            redraw = true;
         }
 
-        _playingScreen = null;
-        PumpVisualQueue();
-        return true;
+        return redraw;
     }
 
     private void ApplyOnePicture(MapEventPictureOp op)
@@ -4146,6 +4178,8 @@ public sealed class MainShellForm : Form
     {
         _visualQueue.Clear();
         _playingScreen = null;
+        _playingAnimation = null;
+        _animationElapsedMs = 0;
         _screenElapsedMs = 0;
         _screenFrom = default;
         _screenFrame = default;
@@ -5368,7 +5402,7 @@ public sealed class MainShellForm : Form
             _localFacing,
             _combatHud.Sparks,
             _combatHud.Statuses);
-        if (_eventPictures.Count > 0 || !_screenFrame.IsClear)
+        if (_eventPictures.Count > 0 || !_screenFrame.IsClear || _playingAnimation is not null)
         {
             var (cameraX, cameraY) = PreviewMapCameraOffset(bmp.Width, bmp.Height);
             using var overlay = Graphics.FromImage(bmp);
@@ -5376,6 +5410,17 @@ public sealed class MainShellForm : Form
             overlay.InterpolationMode = InterpolationMode.NearestNeighbor;
             overlay.PixelOffsetMode = PixelOffsetMode.Half;
             overlay.SmoothingMode = SmoothingMode.None;
+            if (_playingAnimation is { } animation && _map is not null)
+            {
+                MapAnimationDraw.Paint(
+                    overlay,
+                    bmp.Width,
+                    bmp.Height,
+                    MapViewRenderer.MapTileSizePixels(_map),
+                    animation,
+                    _animationElapsedMs);
+            }
+
             foreach (var pair in _eventPictures.OrderBy(pair => pair.Key))
             {
                 var picture = pair.Value;
@@ -7891,6 +7936,14 @@ public sealed class MainShellForm : Form
     internal int ScreenShakeXForTest => _screenFrame.ShakeX;
 
     internal bool ScreenTonePlayingForTest => _playingScreen is not null;
+
+    internal bool MapAnimationPlayingForTest => _playingAnimation is not null;
+
+    internal int MapAnimationIdForTest => _playingAnimation?.AnimationId ?? 0;
+
+    internal int MapAnimationTileXForTest => _playingAnimation?.TileX ?? -1;
+
+    internal int MapAnimationTileYForTest => _playingAnimation?.TileY ?? -1;
 
     internal void AdvanceScreenToneForTest(int deltaMs)
     {

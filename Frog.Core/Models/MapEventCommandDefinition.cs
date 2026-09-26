@@ -78,6 +78,7 @@ public static class MapEventCommandDiscriminators
     public const string TintScreen = "tint_screen";
     public const string ShakeScreen = "shake_screen";
     public const string FlashScreen = "flash_screen";
+    public const string ShowAnimation = "show_animation";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -86,7 +87,7 @@ public static class MapEventCommandDiscriminators
         GiveItem, TakeItem, GiveGold, TakeGold, StartQuest, AdvanceQuest, TurnInQuest,
         Teleport, Wait, CallCommonEvent, LearnProfession, OpenShop, SetWeather,
         ShowPicture, MovePicture, TintPicture, ErasePicture, FadeOutScreen, FadeInScreen, TintScreen,
-        ShakeScreen, FlashScreen,
+        ShakeScreen, FlashScreen, ShowAnimation,
     };
 
     public static bool IsKnown(string discriminator) => All.Contains(discriminator);

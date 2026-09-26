@@ -110,14 +110,16 @@ public sealed class MapEventExecutionSnapshot
     /// <summary>Opérations d'écran de cette TX, dans l'ordre.</summary>
     public List<MapEventScreenOp> ScreenOps { get; set; } = [];
 
+    /// <summary>Animations de carte de cette TX, dans l'ordre. Tuiles encore à -1 dans le JSON persisté.</summary>
+    public List<MapEventAnimationOp> AnimationOps { get; set; } = [];
+
     /// <summary>
-    /// Ordre commun images / écran : <see cref="MapEventVisualSequence.Picture"/> ou
-    /// <see cref="MapEventVisualSequence.Screen"/>. Vide = images puis effets (snapshot ancien).
+    /// Ordre commun images / écran / animation. Vide = images puis effets (snapshot ancien).
     /// </summary>
     public List<string> VisualOrder { get; set; } = [];
 
     public IReadOnlyList<MapEventVisualOp> ExpandVisuals() =>
-        MapEventVisualSequence.Expand(VisualOrder, PictureOps, ScreenOps);
+        MapEventVisualSequence.Expand(VisualOrder, PictureOps, ScreenOps, AnimationOps);
 
     public (int MapId, int TileX, int TileY)? Teleport =>
         TeleportMapId is int mapId && TeleportTileX is int tileX && TeleportTileY is int tileY
@@ -151,6 +153,14 @@ public sealed class MapEventExecutionSnapshot
         VisualOrder ??= [];
         ScreenOps.Add(op);
         VisualOrder.Add(MapEventVisualSequence.Screen);
+    }
+
+    public void RecordAnimation(MapEventAnimationOp op)
+    {
+        AnimationOps ??= [];
+        VisualOrder ??= [];
+        AnimationOps.Add(op);
+        VisualOrder.Add(MapEventVisualSequence.Animation);
     }
 
     public void RecordSwitch(string switchId, bool value)

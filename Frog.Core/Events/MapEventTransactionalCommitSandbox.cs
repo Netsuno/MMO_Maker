@@ -550,6 +550,17 @@ public sealed class MapEventTransactionalCommitSandbox
                 ApplyScreen(world, flashOp);
                 return null;
 
+            case MapEventCommandDiscriminators.ShowAnimation:
+                if (!MapEventParameterSchemas.TryParseShowAnimation(
+                        command.ParameterJson,
+                        out _,
+                        out var animationErr))
+                {
+                    return animationErr;
+                }
+
+                return null;
+
             default:
                 return $"Commande non supportée en unité transactionnelle: {command.Discriminator}.";
         }
