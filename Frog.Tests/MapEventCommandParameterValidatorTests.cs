@@ -45,6 +45,33 @@ public sealed class MapEventCommandParameterValidatorTests
     }
 
     [Fact]
+    public void ValidateParameters_OpenShop_RequiresNonEmptyGuid()
+    {
+        var empty = new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.OpenShop,
+            ParameterJson = """{"shopId":"00000000-0000-0000-0000-000000000000"}""",
+        };
+        Assert.False(MapEventCommandParameterValidator.ValidateParameters(empty, out var emptyError));
+        Assert.Contains("shopId", emptyError, StringComparison.OrdinalIgnoreCase);
+
+        var extra = new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.OpenShop,
+            ParameterJson = $$"""{"shopId":"{{Guid.NewGuid():D}}","extra":true}""",
+        };
+        Assert.False(MapEventCommandParameterValidator.ValidateParameters(extra, out var extraError));
+        Assert.Contains("inconnue", extraError, StringComparison.OrdinalIgnoreCase);
+
+        var named = new MapEventCommandDefinition
+        {
+            Discriminator = MapEventCommandDiscriminators.OpenShop,
+            ParameterJson = $$"""{"shopId":"{{Guid.NewGuid():D}}","shopName":"Comptoir"}""",
+        };
+        Assert.True(MapEventCommandParameterValidator.ValidateParameters(named, out var namedError), namedError);
+    }
+
+    [Fact]
     public void ValidateParameters_RejectsUnknownDiscriminator()
     {
         var command = new MapEventCommandDefinition

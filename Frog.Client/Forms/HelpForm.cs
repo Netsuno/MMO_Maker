@@ -40,7 +40,7 @@ public sealed class HelpForm : Form
         Boutique et banque
         • « Ouvrir la boutique » liste le nom, le prix et le stock. « Fermer la boutique » quitte la fenêtre.
         • Acheter, vendre, déposer et retirer demandent un second clic (Confirmer).
-        • E sur un événement « shop:identifiant », ou à côté d'un PNJ de test lié, ouvre ou ferme cette boutique.
+        • E sur un événement « shop:identifiant », ou à côté d'un PNJ de test lié, ouvre ou ferme cette boutique. Une commande « Ouvrir boutique » ouvre la même fenêtre pour la boutique publiée choisie.
         • Or insuffisant, stock épuisé, inventaire ou banque pleine s'affiche en français.
         • Si la connexion tombe pendant l'envoi, l'action est interrompue. Vérifiez l'or après reconnexion.
 

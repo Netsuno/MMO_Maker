@@ -50,6 +50,8 @@ public sealed class MapEventWorldScratch
 
     public Guid? DialogueId { get; set; }
 
+    public Guid? ShopId { get; set; }
+
     public MapEventWorldScratch Clone() =>
         new()
         {
@@ -62,6 +64,7 @@ public sealed class MapEventWorldScratch
             ShowText = ShowText,
             Teleport = Teleport,
             DialogueId = DialogueId,
+            ShopId = ShopId,
         };
 
     public void ReplaceWith(MapEventWorldScratch other)
@@ -76,6 +79,7 @@ public sealed class MapEventWorldScratch
         ShowText = other.ShowText;
         Teleport = other.Teleport;
         DialogueId = other.DialogueId;
+        ShopId = other.ShopId;
     }
 }
 
@@ -378,6 +382,19 @@ public sealed class MapEventTransactionalCommitSandbox
                 }
 
                 world.DialogueId = dialogueId;
+                return null;
+
+            case MapEventCommandDiscriminators.OpenShop:
+                if (!MapEventParameterSchemas.TryParseOpenShop(
+                        command.ParameterJson,
+                        out var shopId,
+                        out _,
+                        out var shopErr))
+                {
+                    return shopErr;
+                }
+
+                world.ShopId = shopId;
                 return null;
 
             case MapEventCommandDiscriminators.PlayBgm:

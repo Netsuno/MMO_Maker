@@ -46,6 +46,9 @@ public sealed class MapEventExecutionState
 
     public DialogueStatePushWire? DialogueState { get; set; }
 
+    /// <summary>Boutique publiée à ouvrir pour le joueur (commande <c>open_shop</c>).</summary>
+    public Guid? OpenShopId { get; set; }
+
     public bool StopExecution { get; set; }
 
     /// <summary>Attente non terminale : reprise au heartbeat après <see cref="WaitUntilUtc"/>.</summary>

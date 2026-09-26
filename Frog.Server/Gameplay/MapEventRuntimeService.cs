@@ -344,7 +344,8 @@ public sealed class MapEventRuntimeService
             questsChanged: state.QuestsChanged,
             professionsChanged: state.ProfessionsChanged,
             recipesChanged: state.RecipesChanged,
-            switchChanges: state.SwitchChanges);
+            switchChanges: state.SwitchChanges,
+            openShopId: state.OpenShopId);
     }
 
     private async Task<MapEventExecutionResult> CompleteCommittedMutationAsync(
@@ -389,7 +390,9 @@ public sealed class MapEventRuntimeService
             snap,
             applied.TeleportApplied,
             applied.DialogueSummary,
-            applied.DialogueState);
+            applied.DialogueState,
+            applied.OpenShopId,
+            applied.ShowText);
     }
 
     private void RegisterLedgerWaitIfNeeded(
@@ -458,7 +461,8 @@ public sealed class MapEventRuntimeService
             state.QuestsChanged,
             state.ProfessionsChanged,
             state.RecipesChanged,
-            state.SwitchChanges);
+            state.SwitchChanges,
+            state.OpenShopId);
     }
 
     private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)

@@ -4,7 +4,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, audio, interrupteur, variable, branche (interrupteur ou variable).
+/// Palette : texte, choix, audio, boutique, interrupteur, variable, branche (interrupteur ou variable).
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -13,6 +13,12 @@ public static class MapEventCommandPalette
     public const string ShowChoicesId = "show_choices";
     public const string PlayBgmId = "play_bgm";
     public const string PlaySeId = "play_se";
+    public const string OpenShopId = "open_shop";
+
+    /// <summary>
+    /// Guid vide jusqu'au choix d'une boutique. La validation des paramètres le refuse.
+    /// </summary>
+    public static readonly Guid OpenShopPlaceholderId = Guid.Empty;
     public const string SetSwitchId = "set_switch";
     public const string SetVariableId = "set_variable";
     public const string AddVariableId = "add_variable";
@@ -29,6 +35,7 @@ public static class MapEventCommandPalette
         new(ShowChoicesId, "Afficher choix"),
         new(PlayBgmId, "Jouer BGM"),
         new(PlaySeId, "Jouer SE"),
+        new(OpenShopId, "Ouvrir boutique"),
         new(SetSwitchId, "Interrupteur"),
         new(SetVariableId, "Variable ="),
         new(AddVariableId, "Variable +"),
@@ -67,6 +74,9 @@ public static class MapEventCommandPalette
             PlaySeId => Command(
                 MapEventCommandDiscriminators.PlaySe,
                 new { asset = "Assets/Audio/ui-click.wav", volume = MapAudioTrack.DefaultVolume, fadeMs = 0 }),
+            OpenShopId => Command(
+                MapEventCommandDiscriminators.OpenShop,
+                new { shopId = OpenShopPlaceholderId.ToString("D") }),
             SetSwitchId => Command(
                 MapEventCommandDiscriminators.SetSwitch,
                 new { switchId = DefaultSwitchId, value = true }),

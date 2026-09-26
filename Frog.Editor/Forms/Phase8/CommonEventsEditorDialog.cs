@@ -308,6 +308,7 @@ internal sealed class CommonEventsEditorDialog : Form
 
     private async Task ReloadListAsync(CancellationToken ct)
     {
+        await MapEventShopChoiceSource.RefreshAsync(ct).ConfigureAwait(true);
         var items = await _service.ListAsync(Phase8ContentKind.CommonEvent, ct).ConfigureAwait(true);
         if (ct.IsCancellationRequested)
         {

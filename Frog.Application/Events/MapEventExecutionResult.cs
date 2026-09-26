@@ -1,3 +1,4 @@
+using Frog.Core.Events;
 using Frog.Core.Protocol;
 
 namespace Frog.Application.Events;
@@ -36,6 +37,18 @@ public sealed class MapEventExecutionResult
 
     public DialogueStatePushWire? DialogueState { get; init; }
 
+    /// <summary>Boutique publiée à ouvrir chez le joueur (commande <c>open_shop</c>).</summary>
+    public Guid? OpenShopId { get; init; }
+
+    /// <summary>
+    /// Message <c>InteractResult</c>. Une boutique ouverte préfixe <c>shop:&lt;guid&gt;</c>
+    /// sans remplacer un <c>show_text</c> déjà produit.
+    /// </summary>
+    public string ClientInteractMessage =>
+        OpenShopId is Guid shopId && shopId != Guid.Empty
+            ? MapEventShopOpen.FormatInteractMessage(shopId, ShowText)
+            : ShowText ?? Message;
+
     public static MapEventExecutionResult Ok(
         string message,
         string? showText = null,
@@ -50,7 +63,8 @@ public sealed class MapEventExecutionResult
         bool questsChanged = false,
         bool professionsChanged = false,
         bool recipesChanged = false,
-        IReadOnlyList<WorldSwitchWire>? switchChanges = null) =>
+        IReadOnlyList<WorldSwitchWire>? switchChanges = null,
+        Guid? openShopId = null) =>
         new()
         {
             Success = true,
@@ -70,6 +84,7 @@ public sealed class MapEventExecutionResult
             DialogueSummary = dialogueSummary,
             QuestSummary = questSummary,
             DialogueState = dialogueState,
+            OpenShopId = openShopId is Guid shopId && shopId != Guid.Empty ? shopId : null,
         };
 
     /// <summary>
@@ -82,10 +97,12 @@ public sealed class MapEventExecutionResult
         MapEventExecutionSnapshot? snap,
         bool teleportApplied = false,
         string? dialogueSummary = null,
-        DialogueStatePushWire? dialogueState = null) =>
+        DialogueStatePushWire? dialogueState = null,
+        Guid? openShopId = null,
+        string? sessionNote = null) =>
         Ok(
-            message: snap?.ShowText ?? dialogueSummary ?? fallbackMessage,
-            showText: snap?.ShowText ?? dialogueSummary,
+            message: snap?.ShowText ?? dialogueSummary ?? sessionNote ?? fallbackMessage,
+            showText: snap?.ShowText ?? dialogueSummary ?? sessionNote,
             switchesChanged: snap?.SwitchesChanged ?? false,
             switchChanges: snap?.SwitchChanges,
             variablesChanged: snap?.VariablesChanged ?? false,
@@ -97,7 +114,8 @@ public sealed class MapEventExecutionResult
             dialogueState: dialogueState,
             questsChanged: snap?.QuestsChanged ?? false,
             professionsChanged: snap?.ProfessionsChanged ?? false,
-            recipesChanged: snap?.RecipesChanged ?? false);
+            recipesChanged: snap?.RecipesChanged ?? false,
+            openShopId: openShopId);
 
     public static MapEventExecutionResult Fail(string message) =>
         new() { Success = false, Message = message };

@@ -390,6 +390,19 @@ public sealed class PostgresMapEventMutationRepository(
                 snapshot.RecordTeleport(mapId, tileX, tileY);
                 return null;
 
+            case MapEventCommandDiscriminators.OpenShop:
+                if (!MapEventParameterSchemas.TryParseOpenShop(
+                        command.ParameterJson,
+                        out var openShopId,
+                        out _,
+                        out var openShopErr))
+                {
+                    return openShopErr;
+                }
+
+                snapshot.RecordShop(openShopId);
+                return null;
+
             case MapEventCommandDiscriminators.PlayBgm:
             case MapEventCommandDiscriminators.PlaySe:
                 // No-op ledger : piste validée, pas d'opcode audio (Hello 11).
@@ -1100,6 +1113,7 @@ public sealed class PostgresMapEventMutationRepository(
             TeleportMapId = snapshot.TeleportMapId,
             TeleportTileX = snapshot.TeleportTileX,
             TeleportTileY = snapshot.TeleportTileY,
+            ShopId = snapshot.ShopId,
         }, JsonOptions);
 
     private static MapEventExecutionSnapshot? DeserializeSnapshot(string json)
@@ -1134,6 +1148,7 @@ public sealed class PostgresMapEventMutationRepository(
                 TeleportMapId = stored.TeleportMapId,
                 TeleportTileX = stored.TeleportTileX,
                 TeleportTileY = stored.TeleportTileY,
+                ShopId = stored.ShopId,
             };
         }
         catch
@@ -1183,5 +1198,7 @@ public sealed class PostgresMapEventMutationRepository(
         public int? TeleportTileX { get; set; }
 
         public int? TeleportTileY { get; set; }
+
+        public Guid? ShopId { get; set; }
     }
 }

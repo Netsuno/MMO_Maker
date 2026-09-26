@@ -1089,7 +1089,7 @@ public sealed partial class PacketDispatcher(
             await ApplyMapEventSideEffectsAsync(clientSession, session, runtimeResult, cancellationToken)
                 .ConfigureAwait(false);
 
-            var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+            var clientMessage = runtimeResult.ClientInteractMessage;
             await _packetSender.SendInteractResultAsync(
                 clientSession,
                 runtimeResult.Success,
@@ -1344,7 +1344,7 @@ public sealed partial class PacketDispatcher(
             await ApplyMapEventSideEffectsAsync(clientSession, session, runtimeResult, cancellationToken)
                 .ConfigureAwait(false);
 
-            var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+            var clientMessage = runtimeResult.ClientInteractMessage;
             await _packetSender.SendInteractResultAsync(
                 clientSession,
                 runtimeResult.Success,

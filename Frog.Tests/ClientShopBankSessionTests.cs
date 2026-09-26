@@ -233,6 +233,7 @@ public sealed class ClientShopBankSessionTests
         Assert.Contains("Ouvrir la boutique", shell, StringComparison.Ordinal);
         Assert.Contains("_shopBank.NotifyLocalDisconnect", shell, StringComparison.Ordinal);
         Assert.Contains("TryToggleNearbyShop", shell, StringComparison.Ordinal);
+        Assert.Contains("MapEventShopOpen.TryTakeInteractMessage", shell, StringComparison.Ordinal);
         Assert.Contains("ShopBankPlayerMessages.FormatListing", shell, StringComparison.Ordinal);
         Assert.Contains("FinishEconomy", shell, StringComparison.Ordinal);
         Assert.Contains("Text = \"Fermer\"", form, StringComparison.Ordinal);

@@ -170,6 +170,24 @@ public sealed class MapEventTransactionalUnitTests
     }
 
     [Fact]
+    public void Sandbox_OpenShop_RecordsSessionIntent()
+    {
+        var shopId = Guid.Parse("aaaaaaaa-0005-4000-8000-000000000001");
+        var sandbox = new MapEventTransactionalCommitSandbox();
+        var command = Cmd(MapEventCommandDiscriminators.OpenShop, $$"""{"shopId":"{{shopId:D}}","shopName":"Échoppe"}""");
+        var unit = Unit([command]);
+
+        Assert.True(unit.IsSuccess, unit.Error);
+        Assert.Equal(MapEventEffectCommitKind.SessionSide, MapEventEffectClassifier.Classify(command.Discriminator));
+        Assert.Contains(unit.SessionSideEffects, effect => effect.Discriminator == MapEventCommandDiscriminators.OpenShop);
+
+        var outcome = sandbox.TryCommit(unit);
+        Assert.Equal(MapEventCommitDisposition.Committed, outcome.Disposition);
+        Assert.Equal(shopId, sandbox.World.ShopId);
+        Assert.Equal(shopId, outcome.Snapshot!.ShopId);
+    }
+
+    [Fact]
     public void Sandbox_MixedPage_CommitsAsOneUnitIncludingSessionSide()
     {
         var sandbox = new MapEventTransactionalCommitSandbox();
