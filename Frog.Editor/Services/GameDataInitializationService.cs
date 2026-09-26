@@ -114,6 +114,7 @@ public static class GameDataInitializationService
             shop,
             resource,
             spawn,
+            ResolveSystemCatalog(ContentRepositoryCapabilities.InMemoryTest),
             databaseScope: null);
     }
 
@@ -163,7 +164,23 @@ public static class GameDataInitializationService
             shop,
             resource,
             spawn,
+            ResolveSystemCatalog(capabilities),
             databaseScope: null);
+    }
+
+    private static IPhase8ContentEditorRepository ResolveSystemCatalog(ContentRepositoryCapabilities capabilities)
+    {
+        if (EditorTestHooks.OverrideSystemCatalogRepository is { } injected)
+        {
+            return injected;
+        }
+
+        if (EditorTestHooks.OverridePhase8ContentService is { } phase8)
+        {
+            return phase8.Repository;
+        }
+
+        return new InMemoryPhase8ContentEditorRepository(capabilities);
     }
 
     private static GameDataRepositorySet CreatePostgreSqlSet(EditorPostgreSqlScope scope)
@@ -210,6 +227,7 @@ public static class GameDataInitializationService
             shop,
             resource,
             spawn,
+            new PostgresPhase8PublishedCatalogs(gate),
             scope);
     }
 }

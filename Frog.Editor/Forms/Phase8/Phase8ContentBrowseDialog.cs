@@ -69,6 +69,12 @@ internal sealed class Phase8ContentBrowseDialog : Form
 
         foreach (Phase8ContentKind kind in Enum.GetValues<Phase8ContentKind>())
         {
+            // Les interrupteurs et les variables s’éditent dans Données de jeu → Système.
+            if (kind is Phase8ContentKind.NamedSwitch or Phase8ContentKind.NamedVariable)
+            {
+                continue;
+            }
+
             _cbKind.Items.Add(new KindChoice(kind, FormatKindLabel(kind)));
         }
 
@@ -909,6 +915,8 @@ internal sealed class Phase8ContentBrowseDialog : Form
         Phase8ContentKind.Recipe => "Recette",
         Phase8ContentKind.Region => "Région",
         Phase8ContentKind.WeatherProfile => "Profil météo",
+        Phase8ContentKind.NamedSwitch => "Interrupteur",
+        Phase8ContentKind.NamedVariable => "Variable",
         _ => kind.ToString(),
     };
 

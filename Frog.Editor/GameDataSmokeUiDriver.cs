@@ -1276,6 +1276,161 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    public static void RunSystemScenario(MainWindow window, TimeSpan timeout)
+    {
+        var form = OpenViaMainWindowCommand(window, timeout);
+        try
+        {
+            form.SelectCategoryForTest(GameDataForm.SystemCategoryIndexForTest);
+            var panel = form.SystemForTest;
+            PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+            if (panel.TypeLabelForTest.Text != "Interrupteur")
+            {
+                throw new InvalidOperationException("La fiche Système doit ouvrir le catalogue Interrupteur.");
+            }
+
+            if (panel.SlotForTest.SelectedIndex != 0)
+            {
+                throw new InvalidOperationException("Le catalogue Système doit démarrer sur les interrupteurs.");
+            }
+
+            Click(panel.BtnNewForTest);
+            SetText(panel.NameForTest, "SmokeSwitchUi");
+            SetText(panel.KeyForTest, "porte_ouverte");
+            SetText(panel.NoteForTest, "Coffre du village.");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeSwitchUi", () => panel.LifecycleForTest.IsIdle, timeout);
+            AssertListContains(panel.ListForTest, "SmokeSwitchUi", "Published");
+            AssertListContains(panel.ListForTest, "porte_ouverte");
+            if (panel.NoteForTest.Text != "Coffre du village.")
+            {
+                throw new InvalidOperationException("La note d’interrupteur n’a pas été conservée.");
+            }
+
+            SelectListItemContaining(panel.ListForTest, "SmokeSwitchUi");
+            Click(panel.BtnDupForTest);
+            SetText(panel.NameForTest, "SmokeSwitchUiCopy");
+            if (panel.KeyForTest.Text != "porte_ouverte_copie")
+            {
+                throw new InvalidOperationException("La copie doit suffixer l’identifiant avec _copie.");
+            }
+
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+            AssertListContains(panel.ListForTest, "SmokeSwitchUiCopy", "Published");
+
+            SelectListItemContaining(panel.ListForTest, "SmokeSwitchUi");
+            RejectInvalidPublication(
+                panel.NameForTest,
+                panel.ValidationForTest,
+                panel.BtnPublishForTest,
+                () => panel.IsDirty,
+                () => panel.PublishedRevisionForTest,
+                () => panel.ListForTest.Items.Cast<object>().Any(i => (i.ToString() ?? string.Empty).Contains("Smoke", StringComparison.Ordinal) && (i.ToString() ?? string.Empty).Contains("Published", StringComparison.Ordinal)),
+                timeout);
+            SetText(panel.NameForTest, "SmokeSwitchUi");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+
+            var publishedBeforeInvalidKey = panel.PublishedRevisionForTest;
+            SetText(panel.KeyForTest, "mauvais id");
+            PumpUntil(() => panel.IsDirty && !string.IsNullOrWhiteSpace(panel.ValidationForTest.Text), timeout);
+            Click(panel.BtnPublishForTest);
+            PumpUntil(() => panel.LifecycleForTest.IsIdle && panel.IsDirty, timeout);
+            if (!Equals(publishedBeforeInvalidKey, panel.PublishedRevisionForTest))
+            {
+                throw new InvalidOperationException("Un identifiant invalide ne doit pas publier.");
+            }
+
+            SetText(panel.KeyForTest, "porte_ouverte");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+
+            SeedAndVerifySearchStatusFilter(
+                panel.BtnNewForTest,
+                panel.NameForTest,
+                panel.BtnSaveForTest,
+                panel.BtnPublishForTest,
+                panel.SearchForTest,
+                panel.StatusFilterForTest,
+                panel.ListForTest,
+                () => panel.IsDirty,
+                "SmokeSwitchUi",
+                "SmokeSwitchOther",
+                "SmokeSwitchDraft",
+                timeout,
+                configureNewRecord: () => SetText(panel.KeyForTest, panel.NameForTest.Text));
+
+            Click(panel.BtnNewForTest);
+            SetText(panel.NameForTest, "SmokeSwitchDeleteUi");
+            SetText(panel.KeyForTest, "SmokeSwitchDeleteUi");
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+            DeleteAllowedRecord(panel.ListForTest, panel.NameForTest, panel.BtnDeleteForTest, panel.LifecycleForTest, "SmokeSwitchDeleteUi", timeout);
+
+            CancelDirtyListNavigation(
+                panel.ListForTest,
+                panel.NameForTest,
+                () => panel.IsDirty,
+                "SmokeSwitchUi",
+                "SmokeSwitchUiCopy",
+                timeout);
+            SetText(panel.NameForTest, "SmokeSwitchUi");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+
+            panel.SlotForTest.SelectedIndex = 1;
+            PumpUntil(
+                () => panel.LifecycleForTest.IsIdle && panel.TypeLabelForTest.Text == "Variable",
+                timeout);
+            AssertListMissing(panel.ListForTest, "SmokeSwitchUi");
+            Click(panel.BtnNewForTest);
+            SetText(panel.NameForTest, "SmokeVariableUi");
+            SetText(panel.KeyForTest, "or_possede");
+            SetText(panel.NoteForTest, "Porte-monnaie.");
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeVariableUi", () => panel.LifecycleForTest.IsIdle, timeout);
+            AssertListContains(panel.ListForTest, "or_possede", "Published");
+            if (panel.NoteForTest.Text != "Porte-monnaie.")
+            {
+                throw new InvalidOperationException("La note de variable n’a pas été conservée.");
+            }
+
+            panel.SlotForTest.SelectedIndex = 0;
+            PumpUntil(
+                () => panel.LifecycleForTest.IsIdle && panel.TypeLabelForTest.Text == "Interrupteur",
+                timeout);
+            AssertListContains(panel.ListForTest, "porte_ouverte");
+            AssertListMissing(panel.ListForTest, "or_possede");
+
+            CloseForm(form, timeout);
+
+            CloseReopenAndVerify(
+                window,
+                timeout,
+                GameDataForm.SystemCategoryIndexForTest,
+                reopened =>
+                {
+                    var reopenedPanel = reopened.SystemForTest;
+                    PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
+                    PumpUntil(() => reopenedPanel.ListForTest.Items.Count >= 1, timeout);
+                    SelectListItemContaining(reopenedPanel.ListForTest, "SmokeSwitchUi");
+                    PumpUntil(
+                        () => reopenedPanel.NameForTest.Text == "SmokeSwitchUi"
+                              && reopenedPanel.KeyForTest.Text == "porte_ouverte"
+                              && reopenedPanel.NoteForTest.Text == "Coffre du village.",
+                        timeout);
+                    reopenedPanel.SlotForTest.SelectedIndex = 1;
+                    PumpUntil(
+                        () => reopenedPanel.LifecycleForTest.IsIdle && reopenedPanel.TypeLabelForTest.Text == "Variable",
+                        timeout);
+                    SelectListItemContaining(reopenedPanel.ListForTest, "SmokeVariableUi");
+                    PumpUntil(() => reopenedPanel.KeyForTest.Text == "or_possede", timeout);
+                });
+        }
+        finally
+        {
+            if (!form.IsDisposed)
+            {
+                CloseForm(form, timeout);
+            }
+        }
+    }
+
     public static void RunShopScenario(MainWindow window, TimeSpan timeout)
     {
         var assetRoot = CreateSmokeAssetRoot("icons/items/smoke-shop-ui.png");

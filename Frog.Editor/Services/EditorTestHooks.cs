@@ -33,6 +33,9 @@ internal static class EditorTestHooks
 
     public static Phase8ContentPostgreSqlService? OverridePhase8ContentService { get; set; }
 
+    /// <summary>Smoke Données de jeu : dépôt Système partagé entre deux ouvertures (mémoire).</summary>
+    public static IPhase8ContentEditorRepository? OverrideSystemCatalogRepository { get; set; }
+
     public static IEditorDialogService? OverrideDialogService { get; set; }
 
     public static IPlaytestProcessLauncher? OverridePlaytestProcessLauncher { get; set; }

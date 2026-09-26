@@ -18,6 +18,7 @@ public sealed class GameDataRepositorySet : IDisposable
         EditorShopRepositoryBundle shop,
         EditorResourceRepositoryBundle resource,
         EditorResourceSpawnRepositoryBundle resourceSpawn,
+        IPhase8ContentEditorRepository systemCatalog,
         EditorPostgreSqlScope? databaseScope)
     {
         Map = map;
@@ -30,6 +31,7 @@ public sealed class GameDataRepositorySet : IDisposable
         Shop = shop;
         Resource = resource;
         ResourceSpawn = resourceSpawn;
+        SystemCatalog = systemCatalog ?? throw new ArgumentNullException(nameof(systemCatalog));
         DatabaseScope = databaseScope;
     }
 
@@ -52,6 +54,9 @@ public sealed class GameDataRepositorySet : IDisposable
     public EditorResourceRepositoryBundle Resource { get; }
 
     public EditorResourceSpawnRepositoryBundle ResourceSpawn { get; }
+
+    /// <summary>Catalogue Système (interrupteurs et variables), dépôt Phase 8.</summary>
+    public IPhase8ContentEditorRepository SystemCatalog { get; }
 
     public EditorPostgreSqlScope? DatabaseScope { get; }
 

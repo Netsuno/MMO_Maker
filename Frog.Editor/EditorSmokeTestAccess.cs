@@ -69,6 +69,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideResourceSpawnRepository = null;
         EditorTestHooks.OverrideMapEventService = null;
         EditorTestHooks.OverridePhase8ContentService = null;
+        EditorTestHooks.OverrideSystemCatalogRepository = null;
         EditorTestHooks.OverrideDialogService = null;
         EditorTestHooks.OverridePlaytestProcessLauncher = null;
         EditorTestHooks.OverrideServerExePath = null;
@@ -139,6 +140,9 @@ internal static class EditorSmokeTestAccess
                 mapRepository,
                 resourceRepository,
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideSystemCatalogRepository =
+            new Frog.Application.Content.InMemoryPhase8ContentEditorRepository(
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
         EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;
         EditorTestHooks.UseSynchronousGameDataInitForTest = true;
@@ -183,6 +187,12 @@ internal static class EditorSmokeTestAccess
     public static Task OpenGameDataAndSaveSampleSkillAsync(MainWindow window)
     {
         GameDataSmokeUiDriver.RunSkillScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
+    }
+
+    public static Task OpenGameDataAndSaveSampleSystemAsync(MainWindow window)
+    {
+        GameDataSmokeUiDriver.RunSystemScenario(window, DefaultTimeout);
         return Task.CompletedTask;
     }
 

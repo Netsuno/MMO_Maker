@@ -9,6 +9,15 @@ public enum Phase8ContentKind : byte
     Recipe = 5,
     Region = 6,
     WeatherProfile = 7,
+
+    /// <summary>
+    /// Interrupteur nommé (fiche Système). Même table brouillon / publication Phase 8 :
+    /// le kind est un octet, aucune migration.
+    /// </summary>
+    NamedSwitch = 8,
+
+    /// <summary>Variable nommée (fiche Système). Même stockage que <see cref="NamedSwitch"/>.</summary>
+    NamedVariable = 9,
 }
 
 public sealed record Phase8SaveContentRequest

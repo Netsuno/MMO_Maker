@@ -121,7 +121,7 @@ public static class MapEventParameterSchemas
         }
     }
 
-    private static bool TryValidateSwitchKey(string key, out string? error)
+    public static bool TryValidateSwitchKey(string key, out string? error)
     {
         error = null;
         if (string.IsNullOrEmpty(key))
@@ -150,7 +150,7 @@ public static class MapEventParameterSchemas
         return true;
     }
 
-    private static bool TryValidateVariableKey(string key, out string? error)
+    public static bool TryValidateVariableKey(string key, out string? error)
     {
         error = null;
         if (string.IsNullOrEmpty(key))

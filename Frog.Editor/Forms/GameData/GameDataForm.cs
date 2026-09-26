@@ -32,6 +32,7 @@ public sealed class GameDataForm : Form
     private ClassEditorPanel? _classes;
     private ActorEditorPanel? _actors;
     private SkillEditorPanel? _skills;
+    private SystemEditorPanel? _system;
     private ShopEditorPanel? _shops;
     private ResourceAndSpawnEditorPanel? _resourcesAndSpawns;
     private GameDataRepositorySet? _repositorySet;
@@ -63,6 +64,11 @@ public sealed class GameDataForm : Form
 
     internal SkillEditorPanel SkillsForTest => _skills ?? throw new InvalidOperationException("Game Data not initialized.");
 
+    /// <summary>Index de la catégorie Système dans la liste Données de jeu.</summary>
+    internal const int SystemCategoryIndexForTest = 9;
+
+    internal SystemEditorPanel SystemForTest => _system ?? throw new InvalidOperationException("Game Data not initialized.");
+
     internal ShopEditorPanel ShopsForTest => _shops ?? throw new InvalidOperationException("Game Data not initialized.");
 
     internal ResourceAndSpawnEditorPanel ResourcesForTest =>
@@ -90,6 +96,7 @@ public sealed class GameDataForm : Form
             "Compétences",
             "Boutiques",
             "Ressources / spawns",
+            "Système",
         });
         _categoryList.SelectedIndex = 0;
         _categoryList.Enabled = false;
@@ -181,6 +188,7 @@ public sealed class GameDataForm : Form
         await _classes!.InitializeAsync().ConfigureAwait(true);
         await _actors!.InitializeAsync().ConfigureAwait(true);
         await _skills!.InitializeAsync().ConfigureAwait(true);
+        await _system!.InitializeAsync().ConfigureAwait(true);
         await _shops!.InitializeAsync().ConfigureAwait(true);
         await _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(true);
 
@@ -212,6 +220,7 @@ public sealed class GameDataForm : Form
         _classes!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _actors!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _skills!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _system!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _shops!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _initialized = true;
@@ -256,6 +265,8 @@ public sealed class GameDataForm : Form
         };
         _skills = new SkillEditorPanel(skillSession, set.Spell.Capabilities);
         _skills.StatusChanged += msg => _status.Text = msg;
+        _system = new SystemEditorPanel(set.SystemCatalog);
+        _system.StatusChanged += msg => _status.Text = msg;
         _shops = new ShopEditorPanel(
             new ShopWorkspaceSession(set.Shop.Repository),
             set.Item.PublishedCatalog,
@@ -295,6 +306,7 @@ public sealed class GameDataForm : Form
                 || _classes!.IsDirty
                 || _actors!.IsDirty
                 || _skills!.IsDirty
+                || _system!.IsDirty
                 || _shops!.IsDirty
                 || _resourcesAndSpawns!.IsDirty))
         {
@@ -455,6 +467,7 @@ public sealed class GameDataForm : Form
                 || !await DrainOne(t => _classes!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _actors!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _skills!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _system!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _shops!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _resourcesAndSpawns!.DrainAsync(t)).ConfigureAwait(true))
             {
@@ -496,6 +509,7 @@ public sealed class GameDataForm : Form
                 || !(_classes?.LifecycleForTest.IsIdle ?? true)
                 || !(_actors?.LifecycleForTest.IsIdle ?? true)
                 || !(_skills?.LifecycleForTest.IsIdle ?? true)
+                || !(_system?.LifecycleForTest.IsIdle ?? true)
                 || !(_shops?.LifecycleForTest.IsIdle ?? true)
                 || !(_resourcesAndSpawns?.IsIdleForTest ?? true)))
         {
@@ -517,6 +531,7 @@ public sealed class GameDataForm : Form
             _classes!.Enabled = enabled;
             _actors!.Enabled = enabled;
             _skills!.Enabled = enabled;
+            _system!.Enabled = enabled;
             _shops!.Enabled = enabled;
             _resourcesAndSpawns!.Enabled = enabled;
         }
@@ -535,6 +550,7 @@ public sealed class GameDataForm : Form
         _classes?.BeginClosing();
         _actors?.BeginClosing();
         _skills?.BeginClosing();
+        _system?.BeginClosing();
         _shops?.BeginClosing();
         _resourcesAndSpawns?.BeginClosing();
     }
@@ -548,6 +564,7 @@ public sealed class GameDataForm : Form
         _classes?.DisposeLifecycle();
         _actors?.DisposeLifecycle();
         _skills?.DisposeLifecycle();
+        _system?.DisposeLifecycle();
         _shops?.DisposeLifecycle();
         _resourcesAndSpawns?.DisposeLifecycle();
     }
@@ -640,10 +657,16 @@ public sealed class GameDataForm : Form
             _shops!.Dock = DockStyle.Fill;
             _host.Controls.Add(_shops);
         }
-        else
+        else if (_categoryList.SelectedIndex == 8)
         {
             _resourcesAndSpawns!.Dock = DockStyle.Fill;
             _host.Controls.Add(_resourcesAndSpawns);
+        }
+        else if (_categoryList.SelectedIndex == SystemCategoryIndexForTest)
+        {
+            _system!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_system);
+            _system.QueueRefreshList();
         }
     }
 }

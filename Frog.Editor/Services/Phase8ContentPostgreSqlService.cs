@@ -44,6 +44,8 @@ public class Phase8ContentPostgreSqlService : IDisposable
 
     public ContentRepositoryCapabilities Capabilities => _repository.Capabilities;
 
+    internal IPhase8ContentEditorRepository Repository => _repository;
+
     public bool IsAvailable => Capabilities.AllowsSave;
 
     public bool IsDisposedForTest => _disposed;
@@ -144,6 +146,10 @@ public class Phase8ContentPostgreSqlService : IDisposable
                 Id = id,
                 Name = name,
             }),
+            Phase8ContentKind.NamedSwitch => SystemCatalogCodec.Serialize(
+                SystemCatalogEntry.CreateNew(SystemCatalogSlot.Switch, id, name)),
+            Phase8ContentKind.NamedVariable => SystemCatalogCodec.Serialize(
+                SystemCatalogEntry.CreateNew(SystemCatalogSlot.Variable, id, name)),
             _ => "{}",
         };
     }
@@ -224,6 +230,24 @@ public class Phase8ContentPostgreSqlService : IDisposable
 
                 rewrittenJson = Serialize(w);
                 return true;
+            case Phase8ContentKind.NamedSwitch when SystemCatalogCodec.TryRead(payloadJson, out var sw, out error):
+                sw.Id = newId;
+                if (newName is not null)
+                {
+                    sw.Label = newName;
+                }
+
+                rewrittenJson = SystemCatalogCodec.Serialize(sw);
+                return true;
+            case Phase8ContentKind.NamedVariable when SystemCatalogCodec.TryRead(payloadJson, out var variable, out error):
+                variable.Id = newId;
+                if (newName is not null)
+                {
+                    variable.Label = newName;
+                }
+
+                rewrittenJson = SystemCatalogCodec.Serialize(variable);
+                return true;
             default:
                 error ??= "Type de contenu inconnu ou JSON invalide.";
                 return false;
@@ -242,6 +266,8 @@ public class Phase8ContentPostgreSqlService : IDisposable
             Phase8ContentKind.Recipe => TryDeserialize(payloadJson, out RecipeDefinition r, out error) && r.Validate(out error),
             Phase8ContentKind.Region => TryDeserialize(payloadJson, out RegionDefinition reg, out error) && reg.Validate(out error),
             Phase8ContentKind.WeatherProfile => TryDeserialize(payloadJson, out WeatherProfileDefinition w, out error) && w.Validate(out error),
+            Phase8ContentKind.NamedSwitch => SystemCatalogCodec.TryRead(payloadJson, out var sw, out error) && sw.Validate(SystemCatalogSlot.Switch, out error),
+            Phase8ContentKind.NamedVariable => SystemCatalogCodec.TryRead(payloadJson, out var variable, out error) && variable.Validate(SystemCatalogSlot.Variable, out error),
             _ => Fail("Type de contenu inconnu.", out error),
         };
 
