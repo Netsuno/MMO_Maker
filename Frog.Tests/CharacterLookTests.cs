@@ -143,13 +143,13 @@ public sealed class CharacterLookTests
         var help = File.ReadAllText(Path.Combine(RepoRoot(), "Frog.Client", "Forms", "HelpForm.cs"));
 
         Assert.Contains("_appearancePicker", shell, StringComparison.Ordinal);
-        Assert.Contains("RememberNamedLook(name, _appearancePicker.Look)", shell, StringComparison.Ordinal);
+        Assert.Contains("RememberNamedLook(feedback.Normalized, _appearancePicker.Look)", shell, StringComparison.Ordinal);
         Assert.Contains("CharacterLookBook.BindCreatedId", shell, StringComparison.Ordinal);
         Assert.Contains("ApplySavedLook(row.Id, row.DisplayName)", shell, StringComparison.Ordinal);
         Assert.Contains("localLook: _activeLook", shell, StringComparison.Ordinal);
-        Assert.Contains("SendCharacterCreateAsync(name, row.Id)", shell, StringComparison.Ordinal);
-        var create = shell.IndexOf("RememberNamedLook(name, _appearancePicker.Look)", StringComparison.Ordinal);
-        var send = shell.IndexOf("SendCharacterCreateAsync(name, row.Id)", create, StringComparison.Ordinal);
+        Assert.Contains("SendCharacterCreateAsync(feedback.Normalized, row.Id)", shell, StringComparison.Ordinal);
+        var create = shell.IndexOf("RememberNamedLook(feedback.Normalized, _appearancePicker.Look)", StringComparison.Ordinal);
+        var send = shell.IndexOf("SendCharacterCreateAsync(feedback.Normalized, row.Id)", create, StringComparison.Ordinal);
         Assert.True(create >= 0 && send > create, "the look is stored before the existing create packet");
 
         Assert.Contains("CharacterLook.Title(slot)", picker, StringComparison.Ordinal);
