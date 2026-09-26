@@ -1,5 +1,6 @@
 using System.Linq;
 using Frog.Application.Content;
+using Frog.Application.Maps;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
@@ -517,6 +518,126 @@ public sealed class MapEventsPostgreSqlService : IDisposable
     {
         ArgumentNullException.ThrowIfNull(work);
         return Task.Run(work).GetAwaiter().GetResult();
+    }
+
+    public bool TryLoadPlacementDefinitions(Guid mapId, out List<MapEventPlacementDefinition> placements, out string errorMessage)
+    {
+        placements = new List<MapEventPlacementDefinition>();
+        errorMessage = string.Empty;
+        if (mapId == Guid.Empty)
+        {
+            errorMessage = "Carte catalogue requise.";
+            return false;
+        }
+
+        if (_gate is null)
+        {
+            errorMessage = "Placements PostgreSQL indisponibles.";
+            return false;
+        }
+
+        try
+        {
+            var gate = _gate;
+            var rows = RunOffUiSyncContext(() => gate.ExecuteAsync(async (db, ct) =>
+                await db.MapEventPlacements.AsNoTracking()
+                    .Where(p => p.MapId == mapId)
+                    .OrderBy(p => p.TileY)
+                    .ThenBy(p => p.TileX)
+                    .ToListAsync(ct)
+                    .ConfigureAwait(false)));
+            foreach (var row in rows)
+            {
+                if (!MapEventRouteWaypointCodec.TryDeserialize(row.RouteWaypointsJson, out var waypoints, out var jsonError))
+                {
+                    placements = new List<MapEventPlacementDefinition>();
+                    errorMessage = "Itinéraire d’événement illisible" + (jsonError is null ? "." : " : " + jsonError);
+                    return false;
+                }
+
+                placements.Add(new MapEventPlacementDefinition
+                {
+                    Id = row.Id,
+                    MapId = row.MapId,
+                    EventDefinitionId = row.EventDefinitionId,
+                    TileX = row.TileX,
+                    TileY = row.TileY,
+                    TriggerKind = NormalizePhase8TriggerKind(row.TriggerKind),
+                    MovementKind = row.MovementKind,
+                    RouteWaypoints = waypoints.ToList(),
+                });
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            placements = new List<MapEventPlacementDefinition>();
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
+    public bool TryShiftPlacements(Guid mapId, MapResizeShiftEdit edit, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+        if (_gate is null)
+        {
+            errorMessage = "Placements PostgreSQL indisponibles.";
+            return false;
+        }
+
+        try
+        {
+            var gate = _gate;
+            var result = RunOffUiSyncContext(() => gate.ExecuteAsync(
+                (db, ct) => MapEventPlacementResize.ShiftAsync(db, mapId, edit, ct)));
+            if (!result.Ok)
+            {
+                errorMessage = result.Error ?? "Décalage des événements impossible.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
+    public bool TryRestorePlacements(
+        Guid mapId,
+        IReadOnlyList<MapEventPlacementDefinition> placements,
+        IReadOnlyList<Guid> deleteIds,
+        out string errorMessage)
+    {
+        errorMessage = string.Empty;
+        if (_gate is null)
+        {
+            errorMessage = "Placements PostgreSQL indisponibles.";
+            return false;
+        }
+
+        try
+        {
+            var gate = _gate;
+            var result = RunOffUiSyncContext(() => gate.ExecuteAsync(
+                (db, ct) => MapEventPlacementResize.RestoreAsync(db, mapId, placements, deleteIds, ct)));
+            if (!result.Ok)
+            {
+                errorMessage = result.Error ?? "Restauration des événements impossible.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
     }
 
     public void Dispose()

@@ -124,6 +124,7 @@
             <MenuItem Header="_Carte" ItemContainerStyle="{StaticResource EditorMenuDropdownItem}">
                 <MenuItem Header="Valider la carte…" Command="{x:Static local:MainWindow.CmdValidateMap}" />
                 <MenuItem Header="Propriétés de la carte…" Command="{x:Static local:MainWindow.CmdMapProperties}" />
+                <MenuItem Header="Taille et décalage…" Command="{x:Static local:MainWindow.CmdMapResizeShift}" />
                 <MenuItem Header="Passer cette carte en TileAsset (v6)…" Command="{x:Static local:MainWindow.CmdConvertMapToTileAsset}" />
                 <MenuItem Header="Vérifier les transferts…" Command="{x:Static local:MainWindow.CmdShowTransferIssues}" />
                 <MenuItem Header="Outil gomme"

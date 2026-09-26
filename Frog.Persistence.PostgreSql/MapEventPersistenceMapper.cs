@@ -9,11 +9,6 @@ namespace Frog.Persistence.PostgreSql;
 
 internal static class MapEventPersistenceMapper
 {
-    private static readonly JsonSerializerOptions Json = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
     public static MapEventDefinitionEntity ToEntity(MapEventDefinition definition, Guid id, DateTimeOffset nowUtc)
     {
         if (!MapEventPagesCodec.TryDeserializePages(
@@ -109,15 +104,15 @@ internal static class MapEventPersistenceMapper
     }
 
     public static string SerializeRouteWaypoints(IReadOnlyList<MapEventRouteWaypoint> waypoints) =>
-        JsonSerializer.Serialize(waypoints, Json);
+        MapEventRouteWaypointCodec.Serialize(waypoints);
 
     public static IReadOnlyList<MapEventRouteWaypoint> DeserializeRouteWaypoints(string json)
     {
-        if (string.IsNullOrWhiteSpace(json) || json == "[]")
+        if (!MapEventRouteWaypointCodec.TryDeserialize(json, out var waypoints, out var error))
         {
-            return Array.Empty<MapEventRouteWaypoint>();
+            throw new JsonException(error ?? "Itinéraire JSON illisible.");
         }
 
-        return JsonSerializer.Deserialize<List<MapEventRouteWaypoint>>(json, Json) ?? new List<MapEventRouteWaypoint>();
+        return waypoints;
     }
 }

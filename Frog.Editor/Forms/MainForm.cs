@@ -434,6 +434,7 @@ public sealed class MainForm : Form
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
             mMap.DropDownItems.Add("Propriétés de la carte…", null, (_, _) => ShowMapProperties());
+            mMap.DropDownItems.Add(MapResizeShift.CommandLabel, null, (_, _) => ShowMapResizeShift());
             mMap.DropDownItems.Add("Passer cette carte en TileAsset (v6)…", null, (_, _) => ConvertCurrentMapToTileAsset());
             mMap.DropDownItems.Add("Vérifier les transferts…", null, (_, _) => ShowTransferIssues());
             mMap.DropDownItems.Add("Outil gomme (E)", null, (_, _) => SelectEditorTool(EditorTool.Eraser));
@@ -2286,6 +2287,249 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
     }
 
+    internal void ShowMapResizeShift()
+    {
+        if (_canvas.Map is not { } map)
+        {
+            _dialogService.ShowInfo("Aucune carte chargée.", MapResizeShift.DialogTitle);
+            return;
+        }
+
+        using var dlg = new MapResizeShiftDialog(map);
+        if (dlg.ShowDialog(GetDialogOwner()) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var edit = dlg.PendingEdit;
+        if (!MapResizeShift.TryValidate(edit, out var invalid))
+        {
+            _dialogService.ShowWarning(invalid ?? "Taille invalide.", MapResizeShift.DialogTitle);
+            return;
+        }
+
+        var trackEvents = false;
+        var eventMapId = Guid.Empty;
+        List<MapEventPlacementDefinition>? loadedEvents = null;
+        if (_workspace?.CurrentMapId is Guid mapId && mapId != Guid.Empty)
+        {
+            if (_mapEventService is not { IsAvailable: true })
+            {
+                _dialogService.ShowWarning(
+                    "Les événements de cette carte catalogue ne sont pas joignables. Opération annulée pour ne pas décaler les tuiles sans eux.",
+                    MapResizeShift.DialogTitle);
+                return;
+            }
+
+            if (!_mapEventService.TryLoadPlacementDefinitions(mapId, out loadedEvents, out var loadError))
+            {
+                _dialogService.ShowWarning(loadError ?? "Lecture des événements impossible.", MapResizeShift.DialogTitle);
+                return;
+            }
+
+            trackEvents = true;
+            eventMapId = mapId;
+        }
+
+        var footprint = PrefabFootprintOf;
+        var spawn = new MapResizeShiftSpawn();
+        if (_canvas.PlaytestSpawnTile is { } currentSpawn)
+        {
+            spawn.X = currentSpawn.X;
+            spawn.Y = currentSpawn.Y;
+        }
+
+        if (!MapResizeShift.TryPreview(
+                map,
+                edit,
+                _canvas.PlacedEntities,
+                _canvas.PrefabPlacements,
+                loadedEvents,
+                spawn,
+                out var preview,
+                out var previewError,
+                footprint))
+        {
+            if (!string.IsNullOrEmpty(previewError))
+            {
+                _dialogService.ShowWarning(previewError, MapResizeShift.DialogTitle);
+            }
+
+            return;
+        }
+
+        if (preview.RemovedAnything
+            && !_dialogService.ConfirmYesNo(MapResizeShift.FormatRemovalConfirm(preview), MapResizeShift.DialogTitle))
+        {
+            return;
+        }
+
+        var priorBytes = new MapSerializer().Serialize(map);
+        var beforeEvents = MapResizeShift.CloneEvents(loadedEvents);
+        var beforeSnapshot = new MapResizeShiftAnchorSnapshot
+        {
+            Entities = MapPlacedEntityEdit.Clone(_canvas.PlacedEntities),
+            Prefabs = PrefabPlacementService.ClonePlacements(_canvas.PrefabPlacements),
+            SpawnX = _canvas.PlaytestSpawnTile?.X,
+            SpawnY = _canvas.PlaytestSpawnTile?.Y,
+            TrackEvents = trackEvents,
+            EventMapId = eventMapId,
+            Events = MapResizeShiftAnchorSnapshot.FromPlacements(beforeEvents),
+            DeleteEventIds = new List<Guid>(),
+        };
+
+        var entities = MapPlacedEntityEdit.Clone(_canvas.PlacedEntities);
+        var prefabs = PrefabPlacementService.ClonePlacements(_canvas.PrefabPlacements);
+        var events = MapResizeShift.CloneEvents(loadedEvents);
+        var applySpawn = new MapResizeShiftSpawn { X = spawn.X, Y = spawn.Y };
+        if (!MapResizeShift.TryApply(
+                map,
+                edit,
+                entities,
+                prefabs,
+                events,
+                applySpawn,
+                out var report,
+                out var applyError,
+                footprint))
+        {
+            if (!string.IsNullOrEmpty(applyError))
+            {
+                _dialogService.ShowWarning(applyError, MapResizeShift.DialogTitle);
+            }
+
+            return;
+        }
+
+        if (trackEvents && !_mapEventService!.TryShiftPlacements(eventMapId, edit, out var shiftError))
+        {
+            MapResizeShift.ReplaceContents(map, new MapSerializer().Deserialize(priorBytes));
+            _propGrid.SelectedObject = map;
+            _canvas.Invalidate();
+            _dialogService.ShowError(shiftError ?? "Décalage des événements impossible.", MapResizeShift.DialogTitle);
+            return;
+        }
+
+        var removedEventIds = new List<Guid>();
+        if (trackEvents)
+        {
+            var kept = new HashSet<Guid>();
+            foreach (var placement in events)
+            {
+                if (placement is not null)
+                {
+                    kept.Add(placement.Id);
+                }
+            }
+
+            foreach (var placement in beforeEvents)
+            {
+                if (placement is not null && !kept.Contains(placement.Id))
+                {
+                    removedEventIds.Add(placement.Id);
+                }
+            }
+        }
+
+        var afterSnapshot = new MapResizeShiftAnchorSnapshot
+        {
+            Entities = MapPlacedEntityEdit.Clone(entities),
+            Prefabs = PrefabPlacementService.ClonePlacements(prefabs),
+            SpawnX = applySpawn.X,
+            SpawnY = applySpawn.Y,
+            TrackEvents = trackEvents,
+            EventMapId = eventMapId,
+            Events = MapResizeShiftAnchorSnapshot.FromPlacements(events),
+            DeleteEventIds = removedEventIds,
+        };
+        _canvas.History.PushSerializedPrior(priorBytes, MapResizeShiftUndoPack.Serialize(beforeSnapshot, afterSnapshot));
+        ApplyAnchorSnapshot(afterSnapshot, restoreEvents: false);
+        if (_propGrid.SelectedObject is Tile selected
+            && !map.Layers.Any(layer => layer.Tiles.Contains(selected)))
+        {
+            _propGrid.SelectedObject = map;
+        }
+        else
+        {
+            _propGrid.Refresh();
+        }
+
+        _canvas.ClearSelection();
+        _canvas.Invalidate();
+        RefreshLayersUi();
+        UpdateMapChromeLabels();
+        OnMapEdited();
+        UpdateUndoRedoButtons();
+        _statusNotice = MapResizeShift.FormatStatus(report);
+        PushEditorStatusLine();
+    }
+
+    private (int Width, int Height)? PrefabFootprintOf(PrefabPlacement placement)
+    {
+        var catalog = _canvas.PrefabCatalog;
+        if (!PrefabPlacementService.TryGetDefinition(catalog, placement.PrefabId, out var definition)
+            || !PrefabPlacementService.TryResolveVariant(definition, placement.Facing, out var variant)
+            || !PrefabPlacementService.TryResolveFootprint(definition, variant, out var width, out var height))
+        {
+            return null;
+        }
+
+        return (width, height);
+    }
+
+    private bool TryRestoreEventSnapshot(MapResizeShiftAnchorSnapshot snapshot, out string? error)
+    {
+        error = null;
+        if (!snapshot.TrackEvents || snapshot.EventMapId == Guid.Empty || _mapEventService is null)
+        {
+            return true;
+        }
+
+        if (_mapEventService.TryRestorePlacements(
+                snapshot.EventMapId,
+                snapshot.ToDefinitions(),
+                snapshot.DeleteEventIds,
+                out var restoreError))
+        {
+            return true;
+        }
+
+        error = restoreError;
+        return false;
+    }
+
+    private void ApplyAnchorSnapshot(MapResizeShiftAnchorSnapshot snapshot, bool restoreEvents)
+    {
+        if (restoreEvents && !TryRestoreEventSnapshot(snapshot, out var error))
+        {
+            _dialogService.ShowWarning(error ?? "Restauration des événements impossible.", MapResizeShift.DialogTitle);
+            return;
+        }
+
+        _canvas.ReplacePlacedEntities(snapshot.Entities);
+        _canvas.ReplacePrefabPlacements(snapshot.Prefabs);
+        if (snapshot.SpawnX is int x && snapshot.SpawnY is int y)
+        {
+            _canvas.TrySetPlaytestSpawn(x, y);
+            if (_canvas.Map is { } map && _canvas.PlaytestSpawnTile is { } placed)
+            {
+                EditorMapSpawnWorkstate.Write(_workspace?.CurrentMapId, map, placed.X, placed.Y);
+            }
+        }
+        else
+        {
+            _canvas.ClearPlaytestSpawn();
+            if (_canvas.Map is { } map)
+            {
+                EditorMapSpawnWorkstate.Clear(_workspace?.CurrentMapId, map);
+            }
+        }
+
+        _leftToolsWpf.SetSpawnDisplay(snapshot.SpawnX, snapshot.SpawnY);
+        RefreshMapPropertiesBar();
+        RefreshMapEventMarkers();
+    }
+
     private void ReconcileSpawnMemoAfterMapMetaChange()
     {
         if (_canvas.Map is not { } map || _canvas.PlaytestSpawnTile is not { } spawn)
@@ -2355,7 +2599,13 @@ public sealed class MainForm : Form
 
     internal void DoUndo()
     {
+        if (!TryPrepareAnchorRestore(_canvas.History.PeekUndoSidecar(), useBefore: true))
+        {
+            return;
+        }
+
         _canvas.PerformUndo();
+        FinishAnchorRestore(useBefore: true);
         RefreshLayersUi();
         _propGrid.Refresh();
         UpdateUndoRedoButtons();
@@ -2364,11 +2614,51 @@ public sealed class MainForm : Form
 
     internal void DoRedo()
     {
+        if (!TryPrepareAnchorRestore(_canvas.History.PeekRedoSidecar(), useBefore: false))
+        {
+            return;
+        }
+
         _canvas.PerformRedo();
+        FinishAnchorRestore(useBefore: false);
         RefreshLayersUi();
         _propGrid.Refresh();
         UpdateUndoRedoButtons();
         PushEditorStatusLine();
+    }
+
+    private bool TryPrepareAnchorRestore(byte[]? sidecar, bool useBefore)
+    {
+        if (sidecar is null || _canvas.Map is null)
+        {
+            return true;
+        }
+
+        if (!MapResizeShiftUndoPack.TryRead(sidecar, out var pack, out var readError))
+        {
+            _dialogService.ShowWarning(readError ?? "Annulation impossible.", MapResizeShift.DialogTitle);
+            return false;
+        }
+
+        var snapshot = useBefore ? pack.Before : pack.After;
+        if (TryRestoreEventSnapshot(snapshot, out var error))
+        {
+            return true;
+        }
+
+        _dialogService.ShowWarning(error ?? "Restauration des événements impossible.", MapResizeShift.DialogTitle);
+        return false;
+    }
+
+    private void FinishAnchorRestore(bool useBefore)
+    {
+        if (_canvas.History.LastRestoredSidecar is not { } sidecar
+            || !MapResizeShiftUndoPack.TryRead(sidecar, out var pack, out _))
+        {
+            return;
+        }
+
+        ApplyAnchorSnapshot(useBefore ? pack.Before : pack.After, restoreEvents: false);
     }
 
     private void UpdateUndoRedoButtons()
