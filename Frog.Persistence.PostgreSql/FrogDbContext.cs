@@ -61,6 +61,11 @@ public sealed class FrogDbContext : DbContext
         Set<SystemFlagPublishedSnapshotEntity>();
     public DbSet<SystemFlagPublicationHistoryEntity> SystemFlagPublicationHistory =>
         Set<SystemFlagPublicationHistoryEntity>();
+    public DbSet<SystemSettingsEntity> SystemSettings => Set<SystemSettingsEntity>();
+    public DbSet<SystemSettingsPublishedSnapshotEntity> SystemSettingsPublishedSnapshots =>
+        Set<SystemSettingsPublishedSnapshotEntity>();
+    public DbSet<SystemSettingsPublicationHistoryEntity> SystemSettingsPublicationHistory =>
+        Set<SystemSettingsPublicationHistoryEntity>();
     public DbSet<ShopEntity> Shops => Set<ShopEntity>();
     public DbSet<ShopPublishedSnapshotEntity> ShopPublishedSnapshots => Set<ShopPublishedSnapshotEntity>();
     public DbSet<ShopPublicationHistoryEntity> ShopPublicationHistory => Set<ShopPublicationHistoryEntity>();
@@ -728,6 +733,72 @@ public sealed class FrogDbContext : DbContext
             e.HasOne(x => x.Flag)
                 .WithMany()
                 .HasForeignKey(x => x.FlagId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SystemSettingsEntity>(e =>
+        {
+            e.ToTable("system_settings", "content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.CurrencyUnit).HasMaxLength(SystemDefinition.MaxTermLength).IsRequired();
+            e.Property(x => x.TermHp).HasMaxLength(SystemDefinition.MaxTermLength).IsRequired();
+            e.Property(x => x.TermMp).HasMaxLength(SystemDefinition.MaxTermLength).IsRequired();
+            e.Property(x => x.TitleBgmAsset).HasMaxLength(MapAudioTrack.MaxAssetLength).IsRequired();
+            e.Property(x => x.StartBgmAsset).HasMaxLength(MapAudioTrack.MaxAssetLength).IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_system_settings_singleton",
+                    "id = '8f3c2a91-6d14-4e7b-a0c5-1b9e4d7f2a60'::uuid");
+                t.HasCheckConstraint(
+                    "ck_system_settings_terms",
+                    "char_length(currency_unit) BETWEEN 1 AND 32 AND char_length(term_hp) BETWEEN 1 AND 32 AND char_length(term_mp) BETWEEN 1 AND 32");
+                t.HasCheckConstraint(
+                    "ck_system_settings_audio",
+                    "char_length(title_bgm_asset) <= 240 AND char_length(start_bgm_asset) <= 240 "
+                    + "AND title_bgm_volume BETWEEN 0 AND 100 AND start_bgm_volume BETWEEN 0 AND 100 "
+                    + "AND title_bgm_fade_ms BETWEEN 0 AND 60000 AND start_bgm_fade_ms BETWEEN 0 AND 60000");
+                t.HasCheckConstraint("ck_system_settings_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<SystemSettingsPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("system_settings_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SettingsId, x.Revision }).IsUnique();
+            e.Property(x => x.CurrencyUnit).HasMaxLength(SystemDefinition.MaxTermLength).IsRequired();
+            e.Property(x => x.TermHp).HasMaxLength(SystemDefinition.MaxTermLength).IsRequired();
+            e.Property(x => x.TermMp).HasMaxLength(SystemDefinition.MaxTermLength).IsRequired();
+            e.Property(x => x.TitleBgmAsset).HasMaxLength(MapAudioTrack.MaxAssetLength).IsRequired();
+            e.Property(x => x.StartBgmAsset).HasMaxLength(MapAudioTrack.MaxAssetLength).IsRequired();
+            e.HasOne(x => x.Settings)
+                .WithMany()
+                .HasForeignKey(x => x.SettingsId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_system_settings_snapshots_terms",
+                    "char_length(currency_unit) BETWEEN 1 AND 32 AND char_length(term_hp) BETWEEN 1 AND 32 AND char_length(term_mp) BETWEEN 1 AND 32");
+                t.HasCheckConstraint(
+                    "ck_system_settings_snapshots_audio",
+                    "char_length(title_bgm_asset) <= 240 AND char_length(start_bgm_asset) <= 240 "
+                    + "AND title_bgm_volume BETWEEN 0 AND 100 AND start_bgm_volume BETWEEN 0 AND 100 "
+                    + "AND title_bgm_fade_ms BETWEEN 0 AND 60000 AND start_bgm_fade_ms BETWEEN 0 AND 60000");
+            });
+        });
+
+        modelBuilder.Entity<SystemSettingsPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("system_settings_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SettingsId);
+            e.HasOne(x => x.Settings)
+                .WithMany()
+                .HasForeignKey(x => x.SettingsId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

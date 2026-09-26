@@ -264,7 +264,11 @@ public sealed class GameDataForm : Form
         _skills.StatusChanged += msg => _status.Text = msg;
         _system = new SystemEditorPanel(
             new SystemFlagWorkspaceSession(set.SystemFlag.Repository),
-            set.SystemFlag.Capabilities);
+            new SystemSettingsWorkspaceSession(set.SystemSettings.Repository),
+            set.Actor.PublishedCatalog,
+            set.Map.Repository,
+            set.SystemFlag.Capabilities,
+            set.SystemSettings.Capabilities);
         _system.StatusChanged += msg => _status.Text = msg;
         _shops = new ShopEditorPanel(
             new ShopWorkspaceSession(set.Shop.Repository),

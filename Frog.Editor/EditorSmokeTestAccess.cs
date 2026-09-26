@@ -65,6 +65,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideClassRepository = null;
         EditorTestHooks.OverrideActorRepository = null;
         EditorTestHooks.OverrideSystemFlagRepository = null;
+        EditorTestHooks.OverrideSystemSettingsRepository = null;
         EditorTestHooks.OverrideShopRepository = null;
         EditorTestHooks.OverrideResourceRepository = null;
         EditorTestHooks.OverrideResourceSpawnRepository = null;
@@ -122,13 +123,18 @@ internal static class EditorSmokeTestAccess
             Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest,
             itemRepository);
         EditorTestHooks.OverrideClassRepository = classRepository;
-        EditorTestHooks.OverrideActorRepository =
-            new Frog.Application.Content.InMemoryActorRepository(
-                classRepository,
-                itemRepository,
-                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        var actorRepository = new Frog.Application.Content.InMemoryActorRepository(
+            classRepository,
+            itemRepository,
+            Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideActorRepository = actorRepository;
         EditorTestHooks.OverrideSystemFlagRepository =
             new Frog.Application.Content.InMemorySystemFlagRepository(
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideSystemSettingsRepository =
+            new Frog.Application.Content.InMemorySystemSettingsRepository(
+                actorRepository,
+                mapRepository,
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideShopRepository =
             new Frog.Application.Content.InMemoryShopRepository(

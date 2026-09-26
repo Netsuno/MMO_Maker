@@ -25,6 +25,8 @@ internal static class EditorTestHooks
 
     public static ISystemFlagRepository? OverrideSystemFlagRepository { get; set; }
 
+    public static ISystemSettingsRepository? OverrideSystemSettingsRepository { get; set; }
+
     public static IShopRepository? OverrideShopRepository { get; set; }
 
     public static IResourceRepository? OverrideResourceRepository { get; set; }
