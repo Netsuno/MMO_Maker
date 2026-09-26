@@ -578,6 +578,7 @@ public sealed class MapEditOperationsTests
 
         var map = CreateMap();
         map.AllowPlayerOverlap = false;
+        map.Bgm = new MapAudioTrack { Asset = "Assets/Audio/music-loop.wav", Volume = 70, FadeMs = 400 };
         map.Layers.Add(new Layer { LayerType = LayerType.Mask });
         MapEditOperations.PaintTile(map, 0, 1, 1, Sheet(2));
         MapEditOperations.PaintTile(map, 0, 4, 4, Sheet(9));
@@ -638,16 +639,21 @@ public sealed class MapEditOperationsTests
         Assert.True(roundTrip.AllowPlayerOverlap);
         Assert.Equal(TileGraphicIdentity.SheetSource, roundTrip.GraphicIdentity);
         Assert.Equal(0, roundTrip.TileSizePixels);
+        Assert.Equal("Assets/Audio/music-loop.wav", roundTrip.Bgm.Asset);
+        Assert.Equal(70, roundTrip.Bgm.Volume);
+        Assert.Equal(400, roundTrip.Bgm.FadeMs);
+        Assert.True(roundTrip.Se.IsNone);
         Assert.Equal(MapSerializer.MapFileFormatVersion, new MapSerializer().Serialize(map)[4]);
 
         var summary = MapEditOperations.FormatPropertiesSummary(map, 1, 2);
         Assert.Contains("Nom : Clairière", summary, StringComparison.Ordinal);
         Assert.Contains("3 × 4", summary, StringComparison.Ordinal);
         Assert.Contains("Chevauchement : oui", summary, StringComparison.Ordinal);
+        Assert.Contains("Musique : music-loop.wav (70 %, fondu 400 ms)", summary, StringComparison.Ordinal);
+        Assert.Contains("Ambiance : aucune", summary, StringComparison.Ordinal);
         Assert.Contains($"Feuille (v5, {WorldMetrics.DefaultTileSizePixels} px)", summary, StringComparison.Ordinal);
         Assert.Contains("Départ playtest : (1, 2)", summary, StringComparison.Ordinal);
         Assert.Equal("Départ playtest : non défini", MapEditOperations.FormatSpawnMemo(null, null));
-        Assert.DoesNotContain("Musique", summary, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -655,12 +661,16 @@ public sealed class MapEditOperationsTests
     {
         var map = MapFormat.CreateTileAssetMap("Asset", 4, 4);
         map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        map.Se = new MapAudioTrack { Asset = "MusicLoop", Volume = 40, FadeMs = 0 };
         Assert.True(MapEditOperations.TryApplyProperties(
             map,
             new MapPropertiesEdit { Name = "Asset 2", Width = 2, Height = 2, AllowPlayerOverlap = false },
             out _));
         Assert.Equal(TileGraphicIdentity.TileAsset, map.GraphicIdentity);
         Assert.Equal(TileAssetMetrics.TargetTileSizePixels, map.TileSizePixels);
+        Assert.Equal("MusicLoop", map.Se.Asset);
+        Assert.Equal(40, map.Se.Volume);
+        Assert.True(map.Bgm.IsNone);
         Assert.Contains("v6, 48 px", MapEditOperations.FormatGraphicIdentity(map), StringComparison.Ordinal);
         Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
     }

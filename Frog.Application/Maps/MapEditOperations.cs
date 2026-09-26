@@ -38,9 +38,10 @@ public readonly record struct FloodFillOptions
 }
 
 /// <summary>
-/// Métadonnées déjà portées par <see cref="Map"/> : nom, taille, chevauchement.
+/// Métadonnées déjà portées par <see cref="Map"/> : nom, taille, chevauchement, BGM, ambiance.
 /// L’identité graphique et la taille de tuile ne font pas partie de cet edit.
-/// Le départ playtest et la musique ne sont pas des champs du fichier carte.
+/// Le départ playtest n’est pas un champ du fichier carte.
+/// <see cref="Bgm"/> ou <see cref="Se"/> null : la piste déjà sur la carte est conservée.
 /// </summary>
 public readonly record struct MapPropertiesEdit
 {
@@ -51,6 +52,10 @@ public readonly record struct MapPropertiesEdit
     public int Height { get; init; }
 
     public bool AllowPlayerOverlap { get; init; }
+
+    public MapAudioTrack? Bgm { get; init; }
+
+    public MapAudioTrack? Se { get; init; }
 }
 
 /// <summary>Opérations d’édition carte testables sans UI ni rendu.</summary>
@@ -149,9 +154,10 @@ public static class MapEditOperations
     }
 
     /// <summary>
-    /// Applique nom, taille et chevauchement. Réduire la carte retire les tuiles hors limites,
+    /// Applique nom, taille, chevauchement, BGM et ambiance. Réduire la carte retire les tuiles hors limites,
     /// sur toutes les couches. Identité graphique et taille de tuile inchangées.
-    /// Rien à changer : faux, sans mutation. Taille hors 1…512 : faux, message français.
+    /// Piste null dans <paramref name="edit"/> : la piste de la carte reste. Rien à changer : faux, sans mutation.
+    /// Taille hors 1…512, ou piste illisible : faux, message français, sans mutation.
     /// </summary>
     public static bool TryApplyProperties(
         Map map,
@@ -168,10 +174,18 @@ public static class MapEditOperations
             return false;
         }
 
+        if (!TryResolveTrack(map.Bgm, edit.Bgm, "Musique (BGM)", out var nextBgm, out error)
+            || !TryResolveTrack(map.Se, edit.Se, "Ambiance (SE)", out var nextSe, out error))
+        {
+            return false;
+        }
+
         var changed = !string.Equals(map.Name, name, StringComparison.Ordinal)
             || map.Width != edit.Width
             || map.Height != edit.Height
-            || map.AllowPlayerOverlap != edit.AllowPlayerOverlap;
+            || map.AllowPlayerOverlap != edit.AllowPlayerOverlap
+            || !MapAudioTrack.Same(map.Bgm, nextBgm)
+            || !MapAudioTrack.Same(map.Se, nextSe);
         if (!changed)
         {
             error = null;
@@ -183,9 +197,32 @@ public static class MapEditOperations
         map.Width = edit.Width;
         map.Height = edit.Height;
         map.AllowPlayerOverlap = edit.AllowPlayerOverlap;
+        map.Bgm = nextBgm;
+        map.Se = nextSe;
         ClipTilesOutsideBounds(map);
         error = null;
         return true;
+    }
+
+    private static bool TryResolveTrack(
+        MapAudioTrack? current,
+        MapAudioTrack? edited,
+        string label,
+        out MapAudioTrack next,
+        out string? error)
+    {
+        if (edited is null)
+        {
+            if (!MapAudioTrack.TryCreate(current?.Asset, current?.Volume ?? MapAudioTrack.DefaultVolume, current?.FadeMs ?? 0, label, out next, out error))
+            {
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        return MapAudioTrack.TryCreate(edited.Asset, edited.Volume, edited.FadeMs, label, out next, out error);
     }
 
     /// <summary>Ramène largeur et hauteur dans 1…512. Ne retire pas les tuiles.</summary>
@@ -237,8 +274,31 @@ public static class MapEditOperations
             $"Nom : {map.Name}",
             $"Taille : {map.Width} × {map.Height} tuiles",
             $"Chevauchement : {overlap}",
+            FormatTrackSummary("Musique", map.Bgm),
+            FormatTrackSummary("Ambiance", map.Se),
             FormatGraphicIdentity(map),
             FormatSpawnMemo(spawnX, spawnY));
+    }
+
+    /// <summary>Ligne de résumé : nom de fichier (ou cue) et volume. Vide = aucune.</summary>
+    public static string FormatTrackSummary(string label, MapAudioTrack? track)
+    {
+        if (!MapAudioTrack.TryCreate(
+                track?.Asset,
+                track?.Volume ?? MapAudioTrack.DefaultVolume,
+                track?.FadeMs ?? 0,
+                label,
+                out var normalized,
+                out _)
+            || normalized.IsNone)
+        {
+            return $"{label} : aucune";
+        }
+
+        var name = normalized.FileLabel();
+        return normalized.FadeMs > 0
+            ? $"{label} : {name} ({normalized.Volume} %, fondu {normalized.FadeMs} ms)"
+            : $"{label} : {name} ({normalized.Volume} %)";
     }
 
     public static void PaintRectangle(Map map, int layerIndex, int x0, int y0, int x1, int y1, Tile stamp)

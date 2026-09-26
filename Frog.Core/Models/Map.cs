@@ -77,6 +77,20 @@ public sealed class Map : IValidatable
     public TileAssetFlagTable? TileFlags { get; set; }
 
     /// <summary>
+    /// Musique de la carte (BGM). Vide = aucune.
+    /// Section optionnelle du <c>.fmap</c> (v5 et v6 inchangés). La lecture client reste la boucle globale.
+    /// </summary>
+    [Browsable(false)]
+    public MapAudioTrack Bgm { get; set; } = new();
+
+    /// <summary>
+    /// Ambiance de la carte (SE). Vide = aucune.
+    /// Même section optionnelle que <see cref="Bgm"/>.
+    /// </summary>
+    [Browsable(false)]
+    public MapAudioTrack Se { get; set; } = new();
+
+    /// <summary>
     /// Valide l’intégrité de la carte : dimensions, couches, tuiles dans les bornes, doublons par couche, warps.
     /// </summary>
     public bool Validate(out string? errorMessage)
@@ -119,6 +133,18 @@ public sealed class Map : IValidatable
         else
         {
             errorMessage = "Identité graphique de carte inconnue.";
+            return false;
+        }
+
+        if (Bgm is null || Se is null)
+        {
+            errorMessage = "Les pistes audio de la carte sont absentes.";
+            return false;
+        }
+
+        if (!MapAudioTrack.TryCreate(Bgm.Asset, Bgm.Volume, Bgm.FadeMs, "Musique (BGM)", out _, out errorMessage)
+            || !MapAudioTrack.TryCreate(Se.Asset, Se.Volume, Se.FadeMs, "Ambiance (SE)", out _, out errorMessage))
+        {
             return false;
         }
 

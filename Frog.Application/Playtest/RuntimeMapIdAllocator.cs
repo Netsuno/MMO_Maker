@@ -71,6 +71,8 @@ public sealed class RuntimeMapIdAllocator
             Width = source.Width,
             Height = source.Height,
             AllowPlayerOverlap = source.AllowPlayerOverlap,
+            Bgm = MapAudioTrack.CopyOf(source.Bgm),
+            Se = MapAudioTrack.CopyOf(source.Se),
         };
         foreach (var layer in source.Layers)
         {
