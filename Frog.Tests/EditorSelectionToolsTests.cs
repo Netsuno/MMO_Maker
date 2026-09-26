@@ -59,6 +59,82 @@ public sealed class EditorSelectionToolsTests
     }
 
     [Fact]
+    public void ZoneRectangle_CopyThenPaste_KeepsLayoutAndAttributes()
+    {
+        var warpTarget = Guid.Parse("bbbbbbbb-cccc-dddd-eeee-ffffffffffff");
+        var source = CreateLayeredMap(8, 6);
+        MapEditOperations.PaintTile(source, 0, 1, 1, TileAt(1, 1, 3, 10, 0));
+        MapEditOperations.PaintTile(source, 0, 2, 1, TileAt(2, 1, 3, 20, 0));
+        MapEditOperations.PaintTile(source, 0, 3, 1, TileAt(3, 1, 3, 30, 0));
+        MapEditOperations.PaintTile(source, 0, 1, 2, TileAt(1, 2, 3, 40, 0));
+        MapEditOperations.PaintTile(source, 0, 2, 2, new Tile
+        {
+            X = 2,
+            Y = 2,
+            Type = TileType.Warp,
+            TilesetId = 3,
+            SrcX = 8,
+            SrcY = 16,
+            WarpTargetMapId = warpTarget,
+            WarpTargetX = 2,
+            WarpTargetY = 9,
+            Attributes = { new WarpAttribute { TargetMapId = warpTarget, TargetX = 2, TargetY = 9 } },
+        });
+        MapEditOperations.SetBlockTile(source, 2, 3, 2);
+        MapEditOperations.PaintTile(source, 1, 3, 1, new Tile
+        {
+            X = 3,
+            Y = 1,
+            Type = TileType.Resource,
+            TilesetId = 2,
+            SrcX = 24,
+            SrcY = 8,
+            Attributes = { new ResourceAttribute { ResourceId = 17 } },
+        });
+
+        var clip = new TileClipboardBuffer();
+        clip.CopyAllLayers(source, 1, 1, 3, 2);
+        Assert.True(clip.HasContent);
+        Assert.False(clip.IsSingleLayer);
+        Assert.Equal(3, clip.CapturedLayerCount);
+        Assert.Equal((3, 2), (clip.Width, clip.Height));
+
+        var dest = CreateLayeredMap(8, 6);
+        MapEditOperations.PaintTile(dest, 0, 6, 4, TileAt(6, 4, 1, 99, 0));
+        MapEditOperations.PaintTile(dest, 1, 4, 3, TileAt(4, 3, 1, 77, 0));
+        MapEditOperations.PaintTile(dest, 0, 0, 0, TileAt(0, 0, 1, 7, 0));
+
+        var pasted = clip.PasteAllLayers(dest, 4, 3, dest.Width, dest.Height);
+        Assert.True(pasted.Changed);
+        Assert.Contains(dest.Layers[0].Tiles, t => t.X == 4 && t.Y == 3 && t.SrcX == 10 && t.TilesetId == 3);
+        Assert.Contains(dest.Layers[0].Tiles, t => t.X == 5 && t.Y == 3 && t.SrcX == 20);
+        Assert.Contains(dest.Layers[0].Tiles, t => t.X == 6 && t.Y == 3 && t.SrcX == 30);
+        Assert.Contains(dest.Layers[0].Tiles, t => t.X == 4 && t.Y == 4 && t.SrcX == 40);
+        Assert.DoesNotContain(dest.Layers[0].Tiles, t => t.X == 6 && t.Y == 4);
+        var warp = Assert.Single(dest.Layers[0].Tiles, t => t.X == 5 && t.Y == 4);
+        Assert.Equal(TileType.Warp, warp.Type);
+        Assert.Equal(warpTarget, warp.WarpTargetMapId);
+        Assert.Equal(2, warp.WarpTargetX);
+        Assert.Equal(9, warp.WarpTargetY);
+        Assert.Equal(warpTarget, Assert.IsType<WarpAttribute>(Assert.Single(warp.Attributes)).TargetMapId);
+        Assert.Contains(dest.Layers[0].Tiles, t => t.X == 0 && t.Y == 0 && t.SrcX == 7);
+
+        var resource = Assert.Single(dest.Layers[1].Tiles, t => t.X == 6 && t.Y == 3);
+        Assert.Equal(TileType.Resource, resource.Type);
+        Assert.Equal(17, Assert.IsType<ResourceAttribute>(Assert.Single(resource.Attributes)).ResourceId);
+        Assert.DoesNotContain(dest.Layers[1].Tiles, t => t.X == 4 && t.Y == 3);
+
+        var block = Assert.Single(dest.Layers[2].Tiles, t => t.X == 6 && t.Y == 4);
+        Assert.Equal(TileType.Block, block.Type);
+        Assert.IsType<BlockAttribute>(Assert.Single(block.Attributes));
+
+        Assert.Contains(source.Layers[0].Tiles, t => t.X == 1 && t.Y == 1 && t.SrcX == 10);
+        Assert.Equal(TileType.Warp, Assert.Single(source.Layers[0].Tiles, t => t.X == 2 && t.Y == 2).Type);
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        Assert.Equal((byte)5, MapSerializer.MapFileFormatVersion);
+    }
+
+    [Fact]
     public void Clipboard_CopyRotatePaste_PlacesTransformedTiles()
     {
         var map = CreateMap(8, 8);

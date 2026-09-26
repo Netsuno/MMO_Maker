@@ -12,7 +12,7 @@ namespace Frog.Editor.Enums
         Rectangle = 4,
         /// <summary>Trait d'une tuile de large (Bresenham) entre deux cases. Majuscule : axe horizontal ou vertical.</summary>
         Line = 5,
-        /// <summary>Sélection rectangulaire (copier / coller tuiles sur la couche active).</summary>
+        /// <summary>Zone rectangulaire. Copie toutes les couches (Ctrl+Maj : la couche active).</summary>
         Selection = 6,
         /// <summary>Clic = tuile de spawn playtest / départ (mémo locale, pas de peinture).</summary>
         Spawn = 7,

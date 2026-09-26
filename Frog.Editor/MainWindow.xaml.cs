@@ -175,17 +175,17 @@ public partial class MainWindow : Window
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdCopySelection = new(
-        "Copier la sélection",
+        "Copier la zone",
         nameof(CmdCopySelection),
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdCutSelection = new(
-        "Couper la sélection",
+        "Couper la zone",
         nameof(CmdCutSelection),
         typeof(MainWindow));
 
     public static readonly RoutedUICommand CmdPasteSelection = new(
-        "Coller la sélection",
+        "Coller la zone",
         nameof(CmdPasteSelection),
         typeof(MainWindow));
 

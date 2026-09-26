@@ -81,8 +81,12 @@ public sealed class EditorToolHotkeysTests
         Assert.Contains("toutes les couches", EditorToolHotkeys.StatusHint(EditorTool.Selection), StringComparison.Ordinal);
         Assert.Contains("Ctrl+Maj", EditorToolHotkeys.StatusHint(EditorTool.Selection), StringComparison.Ordinal);
         Assert.Contains("2×2", EditorToolHotkeys.FormatSelectionCommitted(2, 2), StringComparison.Ordinal);
+        Assert.Contains("zone", EditorToolHotkeys.FormatSelectionCommitted(2, 2), StringComparison.Ordinal);
         Assert.Contains("toutes les couches", EditorToolHotkeys.FormatSelectionGesture(0, 0, 3, 1), StringComparison.Ordinal);
         Assert.Contains("4×2", EditorToolHotkeys.FormatSelectionGesture(0, 0, 3, 1), StringComparison.Ordinal);
+        Assert.Contains("zone copiée 3×2", EditorToolHotkeys.FormatZoneClipboard(3, 2, singleLayer: false), StringComparison.Ordinal);
+        Assert.Contains("Ctrl+V", EditorToolHotkeys.FormatZoneClipboard(3, 2, singleLayer: false), StringComparison.Ordinal);
+        Assert.Contains("couche active", EditorToolHotkeys.FormatZoneClipboard(1, 1, singleLayer: true), StringComparison.Ordinal);
         Assert.Equal("L", EditorToolHotkeys.ShortcutGlyph(EditorTool.Line));
         Assert.Equal("Ligne", EditorToolHotkeys.DisplayName(EditorTool.Line));
         Assert.Contains("Ligne (L)", EditorToolHotkeys.StatusHint(EditorTool.Line), StringComparison.Ordinal);

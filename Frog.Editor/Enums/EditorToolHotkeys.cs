@@ -144,7 +144,7 @@ public static class EditorToolHotkeys
             EditorTool.Fill => FormatFillStatus(visibleUnlockedLayers: false, respectAttributes: false),
             EditorTool.Rectangle => FormatRectangleStatus(outline: false, ellipse: false),
             EditorTool.Line => "Ligne (L) · cliquez le départ, glissez, relâchez · Maj = axe",
-            EditorTool.Selection => "Sélection (M) · tracez un rectangle · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition",
+            EditorTool.Selection => "Sélection (M) · tracez une zone rectangulaire · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition",
             EditorTool.Spawn => "Départ (D) · clic pour poser le spawn playtest",
             EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · clic sélectionne · Ctrl+D duplique · Échap quitte",
             EditorTool.Place => "Entités (N) · Apparition, PNJ ou Objet · clic pose · glisser déplace · clic droit retire",
@@ -210,12 +210,19 @@ public static class EditorToolHotkeys
     {
         var w = Math.Abs(x1 - x0) + 1;
         var h = Math.Abs(y1 - y0) + 1;
-        return $"Sélection (M) · ({x0}, {y0}) → ({x1}, {y1}) · {w}×{h} · toutes les couches · relâchez pour figer la sélection";
+        return $"Sélection (M) · zone ({x0}, {y0}) → ({x1}, {y1}) · {w}×{h} · toutes les couches · relâchez pour figer la sélection";
     }
 
     /// <summary>Sélection figée : copier-coller multi-couches, couche active avec Ctrl+Maj.</summary>
     public static string FormatSelectionCommitted(int width, int height)
-        => $"Sélection (M) · {width}×{height} · copie toutes les couches · Ctrl+C/X/V (copie, coupe, colle) · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition";
+        => $"Sélection (M) · zone {width}×{height} · copie toutes les couches · Ctrl+C/X/V (copie, coupe, colle) · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition";
+
+    /// <summary>Presse-papiers de zone prêt à être collé sous le curseur.</summary>
+    public static string FormatZoneClipboard(int width, int height, bool singleLayer)
+    {
+        var scope = singleLayer ? "couche active" : "toutes les couches";
+        return $"zone copiée {width}×{height} · {scope} · Ctrl+V colle sous le curseur";
+    }
 
     /// <summary>État d’une tuile animée dans la barre d’état (français, sans le mot anglais « frames »).</summary>
     public static string FormatAnimatedTilePreview(int frameCount, bool previewEnabled)
@@ -228,5 +235,5 @@ public static class EditorToolHotkeys
     }
 
     public const string SelectionHint =
-        "Copie toutes les couches : Ctrl+C copie, Ctrl+X coupe, Ctrl+V colle · couche active : Ctrl+Maj+C/V · Q rotation · H/V miroir · I pipette (Alt+clic)";
+        "Copie toutes les couches : Ctrl+C copie la zone, Ctrl+X coupe, Ctrl+V colle · couche active : Ctrl+Maj+C/V · Q rotation · H/V miroir · I pipette (Alt+clic)";
 }
