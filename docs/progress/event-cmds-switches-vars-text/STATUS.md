@@ -6,6 +6,7 @@
 | **Propriétaire** | Netsun |
 | **Statut** | MVP |
 | **Protocole** | `FrogWireProtocol.Version` **reste 11** — `.fmap` TileAsset **reste v6 / 48 px** |
+| **PR** | Draft [#86](https://github.com/Netsuno/MMO_Maker/pull/86) vers `main` |
 
 Les commandes `show_text`, `set_switch`, `set_variable`, `add_variable`, `sub_variable` et `branch` étaient déjà le catalogue Phase 8 (validation, exécution serveur, Postgres). Ce lot les rend posables depuis l'éditeur et lisibles en jeu.
 
