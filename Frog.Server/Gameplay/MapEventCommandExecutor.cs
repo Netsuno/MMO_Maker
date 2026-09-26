@@ -354,6 +354,12 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.TintScreen:
                 return ApplyTintScreen(session, command.ParameterJson, state);
 
+            case MapEventCommandDiscriminators.ShakeScreen:
+                return ApplyShakeScreen(session, command.ParameterJson, state);
+
+            case MapEventCommandDiscriminators.FlashScreen:
+                return ApplyFlashScreen(session, command.ParameterJson, state);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -797,6 +803,30 @@ public sealed class MapEventCommandExecutor
         if (!MapEventParameterSchemas.TryParseTintScreen(parameterJson, out var op, out var err))
         {
             return err ?? "tint_screen invalide.";
+        }
+
+        session.ApplyScreenOp(op);
+        state.RecordScreen(op);
+        return null;
+    }
+
+    private static string? ApplyShakeScreen(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseShakeScreen(parameterJson, out var op, out var err))
+        {
+            return err ?? "shake_screen invalide.";
+        }
+
+        session.ApplyScreenOp(op);
+        state.RecordScreen(op);
+        return null;
+    }
+
+    private static string? ApplyFlashScreen(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseFlashScreen(parameterJson, out var op, out var err))
+        {
+            return err ?? "flash_screen invalide.";
         }
 
         session.ApplyScreenOp(op);

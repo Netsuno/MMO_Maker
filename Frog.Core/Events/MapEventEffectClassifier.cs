@@ -50,7 +50,9 @@ public static class MapEventEffectClassifier
                 or MapEventCommandDiscriminators.ErasePicture
                 or MapEventCommandDiscriminators.FadeOutScreen
                 or MapEventCommandDiscriminators.FadeInScreen
-                or MapEventCommandDiscriminators.TintScreen =>
+                or MapEventCommandDiscriminators.TintScreen
+                or MapEventCommandDiscriminators.ShakeScreen
+                or MapEventCommandDiscriminators.FlashScreen =>
                 MapEventEffectCommitKind.SessionSide,
             _ => MapEventEffectCommitKind.Unknown,
         };

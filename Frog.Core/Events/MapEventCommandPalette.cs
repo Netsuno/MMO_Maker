@@ -4,7 +4,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, fondu, teinte, audio, boutique, interrupteur, variable, branche, météo.
+/// Palette : texte, choix, image, fondu, teinte, tremblement, flash, audio, boutique, interrupteur, variable, branche, météo.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -31,6 +31,8 @@ public static class MapEventCommandPalette
     public const string FadeOutScreenId = "fadeout_screen";
     public const string FadeInScreenId = "fadein_screen";
     public const string TintScreenId = "tint_screen";
+    public const string ShakeScreenId = "shake_screen";
+    public const string FlashScreenId = "flash_screen";
 
     public const string DefaultSwitchId = "interrupteur_1";
     public const string DefaultVariableId = "variable_1";
@@ -54,6 +56,8 @@ public static class MapEventCommandPalette
         new(FadeOutScreenId, "Fondu en fermeture"),
         new(FadeInScreenId, "Fondu en ouverture"),
         new(TintScreenId, "Teinte écran"),
+        new(ShakeScreenId, "Tremblement écran"),
+        new(FlashScreenId, "Flash écran"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -142,6 +146,24 @@ public static class MapEventCommandPalette
                     green = MapEventScreen.DefaultTintGreen,
                     blue = MapEventScreen.DefaultTintBlue,
                     opacity = MapEventScreen.DefaultTintOpacity,
+                    durationMs = MapEventScreen.DefaultDurationMs,
+                }),
+            ShakeScreenId => Command(
+                MapEventCommandDiscriminators.ShakeScreen,
+                new
+                {
+                    power = MapEventScreen.DefaultPower,
+                    speed = MapEventScreen.DefaultSpeed,
+                    durationMs = MapEventScreen.DefaultDurationMs,
+                }),
+            FlashScreenId => Command(
+                MapEventCommandDiscriminators.FlashScreen,
+                new
+                {
+                    red = MapEventScreen.DefaultFlashRed,
+                    green = MapEventScreen.DefaultFlashGreen,
+                    blue = MapEventScreen.DefaultFlashBlue,
+                    opacity = MapEventScreen.DefaultFlashOpacity,
                     durationMs = MapEventScreen.DefaultDurationMs,
                 }),
             _ => null,

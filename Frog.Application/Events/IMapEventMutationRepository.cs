@@ -107,7 +107,7 @@ public sealed class MapEventExecutionSnapshot
     /// <summary>Opérations <c>show_picture</c> / <c>erase_picture</c> de cette TX, dans l'ordre.</summary>
     public List<MapEventPictureOp> PictureOps { get; set; } = [];
 
-    /// <summary>Opérations fondu / teinte de cette TX, dans l'ordre.</summary>
+    /// <summary>Opérations d'écran de cette TX, dans l'ordre.</summary>
     public List<MapEventScreenOp> ScreenOps { get; set; } = [];
 
     /// <summary>

@@ -31,6 +31,8 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.FadeOutScreenId,
                 MapEventCommandPalette.FadeInScreenId,
                 MapEventCommandPalette.TintScreenId,
+                MapEventCommandPalette.ShakeScreenId,
+                MapEventCommandPalette.FlashScreenId,
             ],
             ids);
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
@@ -46,6 +48,8 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Fondu en fermeture");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Fondu en ouverture");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Teinte écran");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Tremblement écran");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Flash écran");
     }
 
     [Theory]

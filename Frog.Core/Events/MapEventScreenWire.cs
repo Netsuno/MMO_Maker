@@ -3,9 +3,9 @@ using System.Globalization;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Transporte fondu et teinte dans le message <c>InteractResult</c> (opcode 32).
+/// Transporte fondu, teinte, tremblement et flash dans le message <c>InteractResult</c> (opcode 32).
 /// Même schéma que <c>pic:</c> et <c>shop:&lt;guid&gt;</c> : lignes préfixes, Hello 11, pas de nouvel opcode.
-/// Les lignes <c>fade:</c>, <c>tint:</c> et <c>pic:</c> restent dans l'ordre de la page.
+/// Les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c> et <c>pic:</c> restent dans l'ordre de la page.
 /// </summary>
 public static class MapEventScreenWire
 {
@@ -19,6 +19,17 @@ public static class MapEventScreenWire
         if (op.IsFadeIn)
         {
             return "fade:in:" + op.DurationMs.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (op.IsShake)
+        {
+            return FormattableString.Invariant($"shake:{op.Power}:{op.Speed}:{op.DurationMs}");
+        }
+
+        if (op.IsFlash)
+        {
+            return FormattableString.Invariant(
+                $"flash:{op.Red}:{op.Green}:{op.Blue}:{op.Opacity}:{op.DurationMs}");
         }
 
         return FormattableString.Invariant(
@@ -80,7 +91,7 @@ public static class MapEventScreenWire
     }
 
     /// <summary>
-    /// Retire les lignes <c>fade:</c>, <c>tint:</c> et <c>pic:</c> en tête.
+    /// Retire les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c> et <c>pic:</c> en tête.
     /// Le reste peut encore porter <c>shop:</c> puis le texte.
     /// </summary>
     public static bool TryTakeInteractMessage(
@@ -160,29 +171,63 @@ public static class MapEventScreenWire
             return parts[1] is "out" or "in";
         }
 
+        if (line.StartsWith("shake:", StringComparison.Ordinal))
+        {
+            var shake = line.Split(':');
+            if (shake.Length != 4
+                || shake[0] != "shake"
+                || !int.TryParse(shake[1], NumberStyles.None, CultureInfo.InvariantCulture, out var power)
+                || !int.TryParse(shake[2], NumberStyles.None, CultureInfo.InvariantCulture, out var speed)
+                || !int.TryParse(shake[3], NumberStyles.None, CultureInfo.InvariantCulture, out var shakeDuration)
+                || !MapEventScreen.IsPower(power)
+                || !MapEventScreen.IsSpeed(speed)
+                || !MapEventScreen.IsDuration(shakeDuration))
+            {
+                return false;
+            }
+
+            op = MapEventScreenOp.ForShake(power, speed, shakeDuration);
+            return true;
+        }
+
+        if (line.StartsWith("flash:", StringComparison.Ordinal))
+        {
+            return TryParseColorLine(line, "flash", MapEventScreenOp.ForFlash, out op);
+        }
+
         if (!line.StartsWith("tint:", StringComparison.Ordinal))
         {
             return false;
         }
 
-        var tint = line.Split(':');
-        if (tint.Length != 6
-            || tint[0] != "tint"
-            || !int.TryParse(tint[1], NumberStyles.None, CultureInfo.InvariantCulture, out var red)
-            || !int.TryParse(tint[2], NumberStyles.None, CultureInfo.InvariantCulture, out var green)
-            || !int.TryParse(tint[3], NumberStyles.None, CultureInfo.InvariantCulture, out var blue)
-            || !int.TryParse(tint[4], NumberStyles.None, CultureInfo.InvariantCulture, out var opacity)
-            || !int.TryParse(tint[5], NumberStyles.None, CultureInfo.InvariantCulture, out var tintDuration)
+        return TryParseColorLine(line, "tint", MapEventScreenOp.ForTint, out op);
+    }
+
+    private static bool TryParseColorLine(
+        string line,
+        string prefix,
+        Func<int, int, int, int, int, MapEventScreenOp> create,
+        out MapEventScreenOp op)
+    {
+        op = MapEventScreenOp.ForFadeIn(0);
+        var parts = line.Split(':');
+        if (parts.Length != 6
+            || parts[0] != prefix
+            || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var red)
+            || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var green)
+            || !int.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out var blue)
+            || !int.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out var opacity)
+            || !int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out var durationMs)
             || !MapEventScreen.IsChannel(red)
             || !MapEventScreen.IsChannel(green)
             || !MapEventScreen.IsChannel(blue)
             || !MapEventScreen.IsChannel(opacity)
-            || !MapEventScreen.IsDuration(tintDuration))
+            || !MapEventScreen.IsDuration(durationMs))
         {
             return false;
         }
 
-        op = MapEventScreenOp.ForTint(red, green, blue, opacity, tintDuration);
+        op = create(red, green, blue, opacity, durationMs);
         return true;
     }
 }

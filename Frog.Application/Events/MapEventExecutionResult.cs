@@ -46,7 +46,7 @@ public sealed class MapEventExecutionResult
     /// <summary>Images à afficher ou effacer chez le joueur (commandes <c>show_picture</c> / <c>erase_picture</c>).</summary>
     public IReadOnlyList<MapEventPictureOp> PictureOps { get; init; } = Array.Empty<MapEventPictureOp>();
 
-    /// <summary>Fondus et teintes à jouer chez le joueur (<c>fadeout_screen</c>, <c>fadein_screen</c>, <c>tint_screen</c>).</summary>
+    /// <summary>Effets d'écran à jouer chez le joueur (fondu, teinte, tremblement, flash).</summary>
     public IReadOnlyList<MapEventScreenOp> ScreenOps { get; init; } = Array.Empty<MapEventScreenOp>();
 
     /// <summary>Images et effets d'écran dans l'ordre de la page. Vide : seules les images partent.</summary>
@@ -55,7 +55,7 @@ public sealed class MapEventExecutionResult
     /// <summary>
     /// Message <c>InteractResult</c>. Une boutique ouverte préfixe <c>shop:&lt;guid&gt;</c>
     /// sans remplacer un <c>show_text</c> déjà produit. Les images préfixent des lignes <c>pic:</c>.
-    /// Fondu et teinte partagent ce préfixe (<c>fade:</c>, <c>tint:</c>), Hello 11.
+    /// Fondu, teinte, tremblement et flash partagent ce préfixe (<c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>), Hello 11.
     /// </summary>
     public string ClientInteractMessage =>
         VisualOps.Count > 0

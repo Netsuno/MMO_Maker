@@ -791,6 +791,91 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseShakeScreen(string parameterJson, out MapEventScreenOp op, out string? error)
+    {
+        op = MapEventScreenOp.ForShake(0, MapEventScreen.MinSpeed, 0);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryReadBounded(
+                    root,
+                    "shake_screen",
+                    "power",
+                    MapEventScreen.MinPower,
+                    MapEventScreen.MaxPower,
+                    out var power,
+                    out error)
+                || !TryReadBounded(
+                    root,
+                    "shake_screen",
+                    "speed",
+                    MapEventScreen.MinSpeed,
+                    MapEventScreen.MaxSpeed,
+                    out var speed,
+                    out error)
+                || !TryReadDuration(root, "shake_screen", out var durationMs, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "power", "speed", "durationMs" },
+                    out error))
+            {
+                return false;
+            }
+
+            op = MapEventScreenOp.ForShake(power, speed, durationMs);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "shake_screen: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseFlashScreen(string parameterJson, out MapEventScreenOp op, out string? error)
+    {
+        op = MapEventScreenOp.ForFlash(0, 0, 0, 0, 0);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryReadChannel(root, "flash_screen", "red", out var red, out error)
+                || !TryReadChannel(root, "flash_screen", "green", out var green, out error)
+                || !TryReadChannel(root, "flash_screen", "blue", out var blue, out error)
+                || !TryReadChannel(root, "flash_screen", "opacity", out var opacity, out error)
+                || !TryReadDuration(root, "flash_screen", out var durationMs, out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal)
+                    {
+                        "red", "green", "blue", "opacity", "durationMs",
+                    },
+                    out error))
+            {
+                return false;
+            }
+
+            op = MapEventScreenOp.ForFlash(red, green, blue, opacity, durationMs);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "flash_screen: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     public static bool IsUnknownWeatherKind(string? error) =>
         error is not null && error.Contains("kind inconnu", StringComparison.OrdinalIgnoreCase);
 
@@ -1445,6 +1530,34 @@ public static class MapEventParameterSchemas
         if (!MapEventScreen.IsChannel(value))
         {
             error = $"{label}: {name} entre 0 et 255.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadBounded(
+        JsonElement root,
+        string label,
+        string name,
+        int min,
+        int max,
+        out int value,
+        out string? error)
+    {
+        value = 0;
+        error = null;
+        if (!root.TryGetProperty(name, out var el)
+            || el.ValueKind != JsonValueKind.Number
+            || !el.TryGetInt32(out value))
+        {
+            error = $"{label}: propriété '{name}' (int) requise.";
+            return false;
+        }
+
+        if (value < min || value > max)
+        {
+            error = $"{label}: {name} entre {min} et {max}.";
             return false;
         }
 

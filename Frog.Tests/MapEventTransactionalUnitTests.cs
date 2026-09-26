@@ -305,6 +305,41 @@ public sealed class MapEventTransactionalUnitTests
     }
 
     [Fact]
+    public void Sandbox_ShakeAndFlash_CommitWithoutChangingTone()
+    {
+        var sandbox = new MapEventTransactionalCommitSandbox();
+        var unit = Unit(
+        [
+            Cmd(MapEventCommandDiscriminators.FadeOutScreen, """{"durationMs":500}"""),
+            Cmd(MapEventCommandDiscriminators.TintScreen, """{"red":4,"green":5,"blue":6,"opacity":7,"durationMs":100}"""),
+            Cmd(MapEventCommandDiscriminators.ShakeScreen, """{"power":8,"speed":5,"durationMs":400}"""),
+            Cmd(MapEventCommandDiscriminators.FlashScreen, """{"red":255,"green":255,"blue":255,"opacity":170,"durationMs":200}"""),
+        ]);
+
+        Assert.True(unit.IsSuccess, unit.Error);
+        Assert.Equal(
+            MapEventEffectCommitKind.SessionSide,
+            MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.ShakeScreen));
+        Assert.Equal(
+            MapEventEffectCommitKind.SessionSide,
+            MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.FlashScreen));
+
+        var outcome = sandbox.TryCommit(unit);
+        Assert.Equal(MapEventCommitDisposition.Committed, outcome.Disposition);
+        Assert.Equal(MapEventScreen.MaxChannel, sandbox.World.ScreenFade);
+        Assert.Equal(new MapEventScreenTone(4, 5, 6, 7), sandbox.World.ScreenTint);
+
+        var rollback = new MapEventTransactionalCommitSandbox();
+        var broken = Unit(
+        [
+            Cmd(MapEventCommandDiscriminators.FadeOutScreen, """{"durationMs":500}"""),
+            Cmd(MapEventCommandDiscriminators.ShakeScreen, """{"power":99,"speed":5,"durationMs":400}"""),
+        ]);
+        Assert.Equal(MapEventCommitDisposition.RolledBack, rollback.TryCommit(broken).Disposition);
+        Assert.Equal(0, rollback.World.ScreenFade);
+    }
+
+    [Fact]
     public void Sandbox_MixedPage_CommitsAsOneUnitIncludingSessionSide()
     {
         var sandbox = new MapEventTransactionalCommitSandbox();

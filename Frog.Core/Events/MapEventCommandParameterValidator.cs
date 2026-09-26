@@ -73,6 +73,10 @@ public static class MapEventCommandParameterValidator
                 MapEventParameterSchemas.TryParseFadeScreen(command.ParameterJson, fadeOut: false, out _, out error),
             MapEventCommandDiscriminators.TintScreen =>
                 MapEventParameterSchemas.TryParseTintScreen(command.ParameterJson, out _, out error),
+            MapEventCommandDiscriminators.ShakeScreen =>
+                MapEventParameterSchemas.TryParseShakeScreen(command.ParameterJson, out _, out error),
+            MapEventCommandDiscriminators.FlashScreen =>
+                MapEventParameterSchemas.TryParseFlashScreen(command.ParameterJson, out _, out error),
             _ => false,
         };
 

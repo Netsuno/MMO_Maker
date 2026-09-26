@@ -187,6 +187,8 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.FadeOutScreen)]
     [InlineData(MapEventCommandDiscriminators.FadeInScreen)]
     [InlineData(MapEventCommandDiscriminators.TintScreen)]
+    [InlineData(MapEventCommandDiscriminators.ShakeScreen)]
+    [InlineData(MapEventCommandDiscriminators.FlashScreen)]
     [InlineData(MapEventCommandDiscriminators.Branch)]
     public void MapEventPagesEditor_AllCommandFamilies_TypedFieldMutation(string discriminator)
     {
@@ -794,6 +796,12 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.TintScreen => Command(
                 discriminator,
                 """{"red":0,"green":0,"blue":64,"opacity":128,"durationMs":1000}"""),
+            MapEventCommandDiscriminators.ShakeScreen => Command(
+                discriminator,
+                """{"power":8,"speed":5,"durationMs":1000}"""),
+            MapEventCommandDiscriminators.FlashScreen => Command(
+                discriminator,
+                """{"red":255,"green":255,"blue":255,"opacity":170,"durationMs":1000}"""),
             MapEventCommandDiscriminators.Branch => BranchCommand(
                 new MapEventConditionDefinition
                 {
@@ -956,6 +964,14 @@ public sealed class MapEventPagesEditorSmokeTests
                 expectedFragment = "\"durationMs\":2500";
                 break;
             case MapEventCommandDiscriminators.TintScreen:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("opacity"), "200");
+                expectedFragment = "\"opacity\":200";
+                break;
+            case MapEventCommandDiscriminators.ShakeScreen:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("power"), "12");
+                expectedFragment = "\"power\":12";
+                break;
+            case MapEventCommandDiscriminators.FlashScreen:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("opacity"), "200");
                 expectedFragment = "\"opacity\":200";
                 break;
