@@ -1048,6 +1048,16 @@ public sealed class MapCanvas : Control
                     wash: false);
             }
 
+            _joinPreview = null;
+            if (BrushGhostVisible() && IsTileAssetMap)
+            {
+                _joinPreview = BuildJoinPreview(out var stamp);
+                if (JoinAutotiles)
+                {
+                    DrawAutotileJoinPreview(g, stamp, mw, mh);
+                }
+            }
+
             if (Map is not null && ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } ro)
             {
                 var shape = CurrentShapeOptions(ShapeShiftOutline());
@@ -1102,7 +1112,7 @@ public sealed class MapCanvas : Control
                                 continue;
                             }
 
-                            DrawTileAssetImage(g, ActiveTileAssetId, new Rectangle(mtx * ts, mty * ts, ts, ts), 0.45f);
+                            DrawTileAssetImage(g, PreviewAssetId(mtx, mty), new Rectangle(mtx * ts, mty * ts, ts, ts), 0.45f);
                         }
                     }
                 }
@@ -1125,7 +1135,7 @@ public sealed class MapCanvas : Control
                                 continue;
                             }
 
-                            PreviewSource(bmpG, ref sx, ref sy);
+                            PreviewSource(ActiveTilesetId, bmpG, ref sx, ref sy);
 
                             var mtx = tx + dx;
                             var mty = ty + dy;
@@ -1143,6 +1153,7 @@ public sealed class MapCanvas : Control
         }
         finally
         {
+            _joinPreview = null;
             g.Restore(state);
         }
     }
@@ -1239,7 +1250,7 @@ public sealed class MapCanvas : Control
 
             var srcX = t.SrcX;
             var srcY = t.SrcY;
-            PreviewSource(bmp, ref srcX, ref srcY);
+            PreviewSource(PlacedAnimTilesetId(t), bmp, ref srcX, ref srcY);
             var src = new Rectangle(srcX, srcY, TileSize, TileSize);
             var dst = new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
             if (src.Right > bmp.Width || src.Bottom > bmp.Height)
@@ -2546,7 +2557,7 @@ public sealed class MapCanvas : Control
                 return;
             }
 
-            DrawTileAssetImage(g, ActiveTileAssetId, new Rectangle(tx * TileSize, ty * TileSize, TileSize, TileSize), alpha);
+            DrawTileAssetImage(g, PreviewAssetId(tx, ty), new Rectangle(tx * TileSize, ty * TileSize, TileSize, TileSize), alpha);
             return;
         }
 
@@ -2558,7 +2569,7 @@ public sealed class MapCanvas : Control
         var ts = TileSize;
         var sx = SelectedSrc.X;
         var sy = SelectedSrc.Y;
-        PreviewSource(bmp, ref sx, ref sy);
+        PreviewSource(ActiveTilesetId, bmp, ref sx, ref sy);
         if (sx < 0 || sy < 0 || sx + ts > bmp.Width || sy + ts > bmp.Height)
         {
             return;
@@ -3041,6 +3052,10 @@ public sealed class MapCanvas : Control
             HoveredTileChanged?.Invoke(nextHover);
             _hoverTile = nextHover;
             if (hoverMoved && ActiveTool == EditorTool.Place && (e.Button & MouseButtons.Left) == 0)
+            {
+                Invalidate();
+            }
+            else if (hoverMoved && BrushGhostVisible())
             {
                 Invalidate();
             }
@@ -3746,7 +3761,7 @@ public sealed class MapCanvas : Control
             hint = WithZoneClipboard(hint);
         }
 
-        return hint;
+        return hint + JoinPreviewStatusSuffix();
     }
 
     private void CanonicalizeStoredSource(ref int sx, ref int sy)
@@ -3762,10 +3777,10 @@ public sealed class MapCanvas : Control
             ref sy);
     }
 
-    private void PreviewSource(Bitmap bmp, ref int sx, ref int sy)
+    private void PreviewSource(int tilesetId, Bitmap bmp, ref int sx, ref int sy)
     {
         if (TilesetAnimCatalog.TryResolveDrawSource(
-                ActiveTilesetId,
+                tilesetId,
                 sx,
                 sy,
                 TileSize,
@@ -3778,6 +3793,226 @@ public sealed class MapCanvas : Control
             sx = drawX;
             sy = drawY;
         }
+    }
+
+    private static int PlacedAnimTilesetId(Tile tile) => tile.TilesetId;
+
+    private Dictionary<(int X, int Y), TileAssetId>? _joinPreview;
+
+    private Dictionary<(int X, int Y), TileAssetId> BuildJoinPreview(out HashSet<(int X, int Y)> stamp)
+    {
+        var cells = GhostStampCells();
+        stamp = new HashSet<(int X, int Y)>(cells);
+        var dict = new Dictionary<(int X, int Y), TileAssetId>();
+        if (Map is null || !IsTileAssetMap || ActiveTileAssetId.IsNone || cells.Count == 0)
+        {
+            return dict;
+        }
+
+        if (!JoinAutotiles)
+        {
+            foreach (var cell in cells)
+            {
+                dict[cell] = ActiveTileAssetId;
+            }
+
+            return dict;
+        }
+
+        foreach (var cell in global::Frog.Core.Maps.AutotileJoin.PreviewStamp(Map, ActiveLayerIndex, ActiveTileAssetId, cells))
+        {
+            dict[(cell.X, cell.Y)] = cell.Id;
+        }
+
+        return dict;
+    }
+
+    private List<(int X, int Y)> GhostStampCells()
+    {
+        var cells = new List<(int X, int Y)>();
+        if (Map is null)
+        {
+            return cells;
+        }
+
+        if (ActiveTool == EditorTool.Line && _linePaintOrigin is not null)
+        {
+            foreach (var cell in CurrentLineCells(LineAxisConstrained()))
+            {
+                if (InMap(cell.X, cell.Y))
+                {
+                    cells.Add(cell);
+                }
+            }
+
+            return cells;
+        }
+
+        if (ActiveTool == EditorTool.Rectangle && _rectPaintOrigin is { } origin)
+        {
+            foreach (var cell in MapEditOperations.EnumerateShape(
+                         origin.X,
+                         origin.Y,
+                         _hoverTile.X,
+                         _hoverTile.Y,
+                         CurrentShapeOptions(ShapeShiftOutline())))
+            {
+                if (InMap(cell.X, cell.Y))
+                {
+                    cells.Add(cell);
+                }
+            }
+
+            return cells;
+        }
+
+        var sw = Math.Max(1, SelectedStampInTiles.Width);
+        var sh = Math.Max(1, SelectedStampInTiles.Height);
+        for (var dy = 0; dy < sh; dy++)
+        {
+            for (var dx = 0; dx < sw; dx++)
+            {
+                var x = _hoverTile.X + dx;
+                var y = _hoverTile.Y + dy;
+                if (InMap(x, y))
+                {
+                    cells.Add((x, y));
+                }
+            }
+        }
+
+        return cells;
+    }
+
+    private bool InMap(int x, int y) =>
+        Map is not null && x >= 0 && y >= 0 && x < Map.Width && y < Map.Height;
+
+    private TileAssetId PreviewAssetId(int x, int y)
+    {
+        if (_joinPreview is not null && _joinPreview.TryGetValue((x, y), out var id) && !id.IsNone)
+        {
+            return id;
+        }
+
+        return ActiveTileAssetId;
+    }
+
+    private void DrawAutotileJoinPreview(Graphics g, HashSet<(int X, int Y)> stamp, int mapW, int mapH)
+    {
+        if (_joinPreview is null || _joinPreview.Count == 0)
+        {
+            return;
+        }
+
+        var ts = TileSize;
+        var shape = CurrentShapeOptions(ShapeShiftOutline());
+        var filledRect = ActiveTool == EditorTool.Rectangle
+                         && _rectPaintOrigin is not null
+                         && !shape.Outline
+                         && !shape.Ellipse;
+        using var pen = new Pen(EditorChrome.RibbonAccent, 1.5f) { DashStyle = DashStyle.Dash };
+        foreach (var pair in _joinPreview)
+        {
+            var x = pair.Key.X;
+            var y = pair.Key.Y;
+            if (x < 0 || y < 0 || x >= mapW || y >= mapH || pair.Value.IsNone)
+            {
+                continue;
+            }
+
+            var rect = new Rectangle(x * ts, y * ts, ts, ts);
+            if (!stamp.Contains(pair.Key))
+            {
+                DrawTileAssetImage(g, pair.Value, rect, 0.9f);
+                g.DrawRectangle(pen, rect);
+                continue;
+            }
+
+            if (filledRect && pair.Value != ActiveTileAssetId && !CoveredByHoverStamp(x, y))
+            {
+                DrawTileAssetImage(g, pair.Value, rect, 0.72f);
+            }
+        }
+    }
+
+    private bool CoveredByHoverStamp(int x, int y)
+    {
+        var sw = Math.Max(1, SelectedStampInTiles.Width);
+        var sh = Math.Max(1, SelectedStampInTiles.Height);
+        return x >= _hoverTile.X && x < _hoverTile.X + sw && y >= _hoverTile.Y && y < _hoverTile.Y + sh;
+    }
+
+    private string JoinPreviewStatusSuffix()
+    {
+        if (!IsTileAssetMap
+            || !JoinAutotiles
+            || Map?.TileFlags is not { } flags
+            || ActiveTileAssetId.IsNone
+            || ActiveTool is not (EditorTool.Brush or EditorTool.Fill or EditorTool.Rectangle or EditorTool.Line)
+            || !flags.TryGetExplicit(ActiveTileAssetId, out var brushFlags)
+            || brushFlags.AutotileRole == AutotileRole.None
+            || string.IsNullOrEmpty(brushFlags.AutotileGroup))
+        {
+            return string.Empty;
+        }
+
+        var preview = BuildJoinPreview(out _);
+        if (!preview.TryGetValue((_hoverTile.X, _hoverTile.Y), out var id) || id == ActiveTileAssetId)
+        {
+            return string.Empty;
+        }
+
+        if (!flags.TryGetExplicit(id, out var previewFlags) || previewFlags.AutotileRole == brushFlags.AutotileRole)
+        {
+            return string.Empty;
+        }
+
+        return " · " + TileAssetFlagLabels.FormatJoinPreview(previewFlags.AutotileRole);
+    }
+
+    internal IReadOnlyDictionary<(int X, int Y), TileAssetId> PreviewAutotileGhostForTest() => BuildJoinPreview(out _);
+
+    internal bool TryResolveDrawnTileForTest(
+        int tileX,
+        int tileY,
+        long elapsedMs,
+        int sheetWidth,
+        int sheetHeight,
+        out int drawX,
+        out int drawY)
+    {
+        drawX = 0;
+        drawY = 0;
+        if (Map is null || (uint)ActiveLayerIndex >= (uint)Map.Layers.Count)
+        {
+            return false;
+        }
+
+        Tile? tile = null;
+        foreach (var candidate in Map.Layers[ActiveLayerIndex].Tiles)
+        {
+            if (candidate.X == tileX && candidate.Y == tileY)
+            {
+                tile = candidate;
+                break;
+            }
+        }
+
+        if (tile is null)
+        {
+            return false;
+        }
+
+        return TilesetAnimCatalog.TryResolveDrawSource(
+            PlacedAnimTilesetId(tile),
+            tile.SrcX,
+            tile.SrcY,
+            TileSize,
+            elapsedMs,
+            sheetWidth,
+            sheetHeight,
+            out drawX,
+            out drawY);
     }
 
     internal bool TryResolveAnimDrawSourceForTest(

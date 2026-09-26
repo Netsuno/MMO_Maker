@@ -2,6 +2,9 @@ using Frog.Core.Models;
 
 namespace Frog.Core.Maps;
 
+/// <summary>Case d’aperçu : id qu’un raccord poserait, sans modifier la carte.</summary>
+public readonly record struct AutotilePreviewCell(int X, int Y, TileAssetId Id);
+
 /// <summary>
 /// Raccord d’un groupe d’autotile sur une couche de carte v6.
 /// Le masque regarde les quatre voisins du même groupe. Le bord de carte ne raccorde pas.
@@ -57,6 +60,102 @@ public static class AutotileJoin
 
         id = TileAssetId.None;
         return false;
+    }
+
+    /// <summary>
+    /// Ids visibles si <paramref name="brushId"/> était posé sur <paramref name="stamp"/>,
+    /// sans modifier la carte. Le tampon est toujours inclus. Un voisin n’est inclus que si son rôle change.
+    /// </summary>
+    public static IReadOnlyList<AutotilePreviewCell> PreviewStamp(
+        Map map,
+        int layerIndex,
+        TileAssetId brushId,
+        IReadOnlyList<(int X, int Y)> stamp)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(stamp);
+        if (brushId.IsNone || (uint)layerIndex >= (uint)map.Layers.Count)
+        {
+            return Array.Empty<AutotilePreviewCell>();
+        }
+
+        var stampCells = new List<(int X, int Y)>();
+        var stampSet = new HashSet<(int X, int Y)>();
+        foreach (var (x, y) in stamp)
+        {
+            if ((uint)x >= (uint)map.Width || (uint)y >= (uint)map.Height || !stampSet.Add((x, y)))
+            {
+                continue;
+            }
+
+            stampCells.Add((x, y));
+        }
+
+        if (stampCells.Count == 0)
+        {
+            return Array.Empty<AutotilePreviewCell>();
+        }
+
+        if (map.TileFlags is not { Count: > 0 } table)
+        {
+            var plain = new AutotilePreviewCell[stampCells.Count];
+            for (var i = 0; i < stampCells.Count; i++)
+            {
+                plain[i] = new AutotilePreviewCell(stampCells[i].X, stampCells[i].Y, brushId);
+            }
+
+            return plain;
+        }
+
+        var ids = new Dictionary<(int X, int Y), TileAssetId>();
+        foreach (var tile in map.Layers[layerIndex].Tiles)
+        {
+            if (!tile.AssetId.IsNone)
+            {
+                ids[(tile.X, tile.Y)] = tile.AssetId;
+            }
+        }
+
+        var original = new Dictionary<(int X, int Y), TileAssetId>(ids);
+        foreach (var cell in stampCells)
+        {
+            ids[cell] = brushId;
+        }
+
+        var affected = new List<(int X, int Y)>();
+        var seen = new HashSet<(int X, int Y)>();
+        foreach (var (x, y) in stampCells)
+        {
+            Consider(x, y);
+            Consider(x, y - 1);
+            Consider(x + 1, y);
+            Consider(x, y + 1);
+            Consider(x - 1, y);
+        }
+
+        var result = new List<AutotilePreviewCell>();
+        foreach (var (x, y) in affected)
+        {
+            var resolved = Resolve(table, ids, x, y);
+            var inStamp = stampSet.Contains((x, y));
+            var changed = !original.TryGetValue((x, y), out var before) || before != resolved;
+            if (inStamp || changed)
+            {
+                result.Add(new AutotilePreviewCell(x, y, resolved));
+            }
+        }
+
+        return result;
+
+        void Consider(int x, int y)
+        {
+            if (!seen.Add((x, y)) || !ids.ContainsKey((x, y)))
+            {
+                return;
+            }
+
+            affected.Add((x, y));
+        }
     }
 
     /// <summary>Recalcule la case peinte et ses quatre voisins. Retourne le nombre d’ids changés.</summary>
@@ -131,7 +230,7 @@ public static class AutotileJoin
         out TileAssetId id)
     {
         id = TileAssetId.None;
-        if (tile.AssetId.IsNone || map.TileFlags is null || !map.TileFlags.TryGetExplicit(tile.AssetId, out var flags))
+        if (tile.AssetId.IsNone || map.TileFlags is not { } table || !table.TryGetExplicit(tile.AssetId, out var flags))
         {
             return false;
         }
@@ -141,43 +240,72 @@ public static class AutotileJoin
             return false;
         }
 
-        var mask = 0;
-        if (Connected(map.TileFlags, index, tile.X, tile.Y - 1, flags.AutotileGroup))
-        {
-            mask |= North;
-        }
-
-        if (Connected(map.TileFlags, index, tile.X + 1, tile.Y, flags.AutotileGroup))
-        {
-            mask |= East;
-        }
-
-        if (Connected(map.TileFlags, index, tile.X, tile.Y + 1, flags.AutotileGroup))
-        {
-            mask |= South;
-        }
-
-        if (Connected(map.TileFlags, index, tile.X - 1, tile.Y, flags.AutotileGroup))
-        {
-            mask |= West;
-        }
-
-        return TryPick(map.TileFlags, flags.AutotileGroup, mask, out id);
+        var mask = NeighborMask(
+            table,
+            (nx, ny) => index.TryGetValue((nx, ny), out var neighbor) ? neighbor.AssetId : TileAssetId.None,
+            tile.X,
+            tile.Y,
+            flags.AutotileGroup);
+        return TryPick(table, flags.AutotileGroup, mask, out id);
     }
 
-    private static bool Connected(
+    private static TileAssetId Resolve(
         TileAssetFlagTable table,
-        Dictionary<(int X, int Y), Tile> index,
+        IReadOnlyDictionary<(int X, int Y), TileAssetId> ids,
+        int x,
+        int y)
+    {
+        var current = ids[(x, y)];
+        if (!table.TryGetExplicit(current, out var flags)
+            || flags.AutotileRole == AutotileRole.None
+            || string.IsNullOrEmpty(flags.AutotileGroup))
+        {
+            return current;
+        }
+
+        var mask = NeighborMask(
+            table,
+            (nx, ny) => ids.TryGetValue((nx, ny), out var id) ? id : TileAssetId.None,
+            x,
+            y,
+            flags.AutotileGroup);
+        return TryPick(table, flags.AutotileGroup, mask, out var picked) ? picked : current;
+    }
+
+    private static int NeighborMask(
+        TileAssetFlagTable table,
+        Func<int, int, TileAssetId> idAt,
         int x,
         int y,
         string group)
     {
-        if (!index.TryGetValue((x, y), out var tile) || tile.AssetId.IsNone)
+        var mask = 0;
+        if (ConnectedId(table, idAt(x, y - 1), group))
         {
-            return false;
+            mask |= North;
         }
 
-        if (!table.TryGetExplicit(tile.AssetId, out var flags))
+        if (ConnectedId(table, idAt(x + 1, y), group))
+        {
+            mask |= East;
+        }
+
+        if (ConnectedId(table, idAt(x, y + 1), group))
+        {
+            mask |= South;
+        }
+
+        if (ConnectedId(table, idAt(x - 1, y), group))
+        {
+            mask |= West;
+        }
+
+        return mask;
+    }
+
+    private static bool ConnectedId(TileAssetFlagTable table, TileAssetId id, string group)
+    {
+        if (id.IsNone || !table.TryGetExplicit(id, out var flags))
         {
             return false;
         }

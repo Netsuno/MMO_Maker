@@ -2,10 +2,15 @@ using System.Drawing;
 using System.IO;
 using Frog.Application.Maps;
 using Frog.Core.Animation;
+using Frog.Core.Constants;
+using Frog.Core.Enums;
+using Frog.Core.IO;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Editor.Assets;
 using Frog.Editor.Controls;
 using Frog.Editor.Panels;
+using Frog.Editor.Services;
 using Xunit;
 
 namespace Frog.Editor.WindowsSmokeTests;
@@ -54,6 +59,12 @@ public sealed class MapCanvasTileAnimSmokeTests
                 Assert.Equal(0, y0);
                 Assert.True(canvas.TryResolveAnimDrawSourceForTest(tilesetId, 0, 0, 200, 64, 64, out var x1, out _));
                 Assert.Equal(32, x1);
+
+                canvas.ActiveTilesetId = 99;
+                Assert.True(canvas.TryResolveDrawnTileForTest(1, 1, 200, 64, 64, out var placedX, out var placedY));
+                Assert.Equal(32, placedX);
+                Assert.Equal(0, placedY);
+                canvas.ActiveTilesetId = tilesetId;
 
                 var animHint = canvas.GetPaintStatusHint();
                 Assert.Contains("aperçu animé", animHint, StringComparison.Ordinal);
@@ -122,6 +133,103 @@ public sealed class MapCanvasTileAnimSmokeTests
         }
     }
 
+    [Fact]
+    public void AutotileGhost_PreviewsShore_WithoutWritingTheMap()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            try
+            {
+                Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+                Assert.Equal((ushort)11, FrogWireProtocol.Version);
+                Assert.Equal((byte)5, MapSerializer.MapFileFormatVersion);
+
+                var catalogue = new TileAssetCatalogue();
+                catalogue.ImportStraightRgba(Solid(20, 80, 200), 48, 48);
+                catalogue.ImportStraightRgba(Solid(20, 140, 200), 48, 48);
+                catalogue.ImportStraightRgba(Solid(20, 180, 220), 48, 48);
+                catalogue.ImportStraightRgba(Solid(10, 40, 120), 48, 48);
+                var center = catalogue.Ids[0];
+                var west = catalogue.Ids[1];
+                var east = catalogue.Ids[2];
+                var isolated = catalogue.Ids[3];
+                Assert.True(catalogue.TrySetFlags(
+                    center,
+                    TileAssetFlags.Default.WithTerrain(3).WithAutotile("eau", AutotileRole.Center),
+                    out var error), error);
+                Assert.True(catalogue.TrySetFlags(
+                    west,
+                    TileAssetFlags.Default.WithTerrain(3).WithAutotile("eau", AutotileRole.West),
+                    out error), error);
+                Assert.True(catalogue.TrySetFlags(
+                    east,
+                    TileAssetFlags.Default.WithTerrain(3).WithAutotile("eau", AutotileRole.East),
+                    out error), error);
+                Assert.True(catalogue.TrySetFlags(
+                    isolated,
+                    TileAssetFlags.Default.WithTerrain(3).WithAutotile("eau", AutotileRole.Isolated),
+                    out error), error);
+
+                var canvas = new MapCanvas
+                {
+                    TileSize = 48,
+                    TileAssets = catalogue,
+                    ActiveTileAssetId = center,
+                    JoinAutotiles = true,
+                    ActiveLayerIndex = 0,
+                };
+                var map = TileAssetMapEditing.CreateMap("Eau", 3, 1);
+                canvas.Map = map;
+                Assert.True(TileAssetMapEditing.TryPaint(
+                    map,
+                    0,
+                    1,
+                    0,
+                    TileAssetMapEditing.CreateBrushTile(1, 0, center, TileType.Ground)));
+                Assert.Equal(isolated, map.Layers[0].Tiles.Single().AssetId);
+
+                canvas.SetHoverTileForTest(0, 0);
+                var preview = canvas.PreviewAutotileGhostForTest();
+                Assert.Equal(west, preview[(0, 0)]);
+                Assert.Equal(east, preview[(1, 0)]);
+                Assert.Equal(isolated, map.Layers[0].Tiles.Single().AssetId);
+                Assert.DoesNotContain(map.Layers[0].Tiles, tile => tile.X == 0);
+
+                var hint = canvas.GetPaintStatusHint();
+                Assert.Contains("aperçu raccord", hint, StringComparison.Ordinal);
+                Assert.Contains("Bord ouest", hint, StringComparison.Ordinal);
+                Assert.DoesNotContain("frame", hint, StringComparison.OrdinalIgnoreCase);
+
+                canvas.JoinAutotiles = false;
+                var raw = canvas.PreviewAutotileGhostForTest();
+                Assert.Equal(center, raw[(0, 0)]);
+                Assert.False(raw.ContainsKey((1, 0)));
+                Assert.DoesNotContain("aperçu raccord", canvas.GetPaintStatusHint(), StringComparison.Ordinal);
+                Assert.Equal(isolated, map.Layers[0].Tiles.Single().AssetId);
+                Assert.Equal((byte)6, TileAssetMapEditing.Write(map)[4]);
+            }
+            finally
+            {
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
     private static string TilesetAnimationJsonPath(string png) =>
         Frog.Core.IO.TilesetAnimationJson.ImageSidecarPath(png);
+
+    private static byte[] Solid(byte r, byte g, byte b)
+    {
+        var bytes = new byte[TileAssetMetrics.CanonicalPixelByteCount];
+        for (var i = 0; i < bytes.Length; i += 4)
+        {
+            bytes[i] = r;
+            bytes[i + 1] = g;
+            bytes[i + 2] = b;
+            bytes[i + 3] = 255;
+        }
+
+        return bytes;
+    }
 }

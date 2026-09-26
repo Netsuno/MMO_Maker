@@ -73,6 +73,9 @@ public static class TileAssetFlagLabels
         _ => string.Empty,
     };
 
+    /// <summary>Rôle que le fantôme du pinceau montrerait, quand il diffère de la tuile choisie.</summary>
+    public static string FormatJoinPreview(AutotileRole role) => "aperçu raccord · " + RoleLabel(role);
+
     public static string FormatBrush(TileAssetFlags flags)
     {
         var text = "n° terrain " + flags.Terrain.ToString();
