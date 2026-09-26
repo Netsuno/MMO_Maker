@@ -939,6 +939,11 @@ public sealed class MainForm : Form
                 return;
             }
 
+            for (var i = 0; i < _canvas.Map.Layers.Count; i++)
+            {
+                _canvas.Map.Layers[i].InvalidateCellIndex();
+            }
+
             if (_propGrid.SelectedObject is Map map)
             {
                 MapEditOperations.ClampDimensions(map);
@@ -3388,7 +3393,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        var tile = _canvas.Map.Layers[layerIndex].Tiles.FirstOrDefault(t => t.X == _lastHoverTile.X && t.Y == _lastHoverTile.Y);
+        var tile = _canvas.Map.Layers[layerIndex].TileAt(_lastHoverTile.X, _lastHoverTile.Y);
         if (tile is null || tile.Type != TileType.Warp)
         {
             MessageBox.Show(GetDialogOwner(), "Sélectionnez une tuile warp (couche attributs) sous le curseur.", "Warp", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -4244,12 +4249,13 @@ public sealed class MainForm : Form
             Tile? tile = null;
             foreach (var layer in _canvas.Map.Layers)
             {
-                tile = layer.Tiles.FirstOrDefault(t =>
-                    t.X == issue.SourceX && t.Y == issue.SourceY && t.Type == TileType.Warp);
-                if (tile is not null)
+                tile = layer.TileAt(issue.SourceX, issue.SourceY);
+                if (tile is not null && tile.Type == TileType.Warp)
                 {
                     break;
                 }
+
+                tile = null;
             }
 
             if (tile is not null)

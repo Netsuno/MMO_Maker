@@ -453,6 +453,7 @@ public static class MapResizeShift
 
         layer.Tiles.Clear();
         layer.Tiles.AddRange(next);
+        layer.InvalidateCellIndex();
     }
 
     private static void ShiftEntities(IList<MapPlacedEntity> entities, MapResizeShiftEdit edit, ref int kept, ref int removed)

@@ -236,7 +236,7 @@ public sealed class TileClipboardBuffer
                     continue;
                 }
 
-                if (!layer.Tiles.Any(tile => tile.X == gx && tile.Y == gy))
+                if (layer.TileAt(gx, gy) is null)
                 {
                     continue;
                 }
@@ -256,7 +256,7 @@ public sealed class TileClipboardBuffer
         {
             for (var x = left; x < left + width; x++)
             {
-                var tile = layer.Tiles.FirstOrDefault(candidate => candidate.X == x && candidate.Y == y);
+                var tile = layer.TileAt(x, y);
                 if (tile is null)
                 {
                     continue;

@@ -620,14 +620,10 @@ public static class MapStampTemplateOperations
         {
             var editable = MapEditOperations.IsLayerEditable(map, layer.LayerIndex);
             var byCell = Index(layer.Tiles);
-            Dictionary<(int X, int Y), Tile>? destination = null;
+            Layer? destination = null;
             if (layer.LayerIndex >= 0 && layer.LayerIndex < map.Layers.Count)
             {
-                destination = new Dictionary<(int X, int Y), Tile>();
-                foreach (var tile in map.Layers[layer.LayerIndex].Tiles)
-                {
-                    destination[(tile.X, tile.Y)] = tile;
-                }
+                destination = map.Layers[layer.LayerIndex];
             }
             var layerOps = new List<(int LayerIndex, int X, int Y, MapStampTemplateTile? Tile)>();
             var relevant = false;
@@ -643,7 +639,7 @@ public static class MapStampTemplateOperations
                     }
 
                     byCell.TryGetValue((x, y), out var stamp);
-                    var hasDest = destination?.ContainsKey((gx, gy)) == true;
+                    var hasDest = destination?.TileAt(gx, gy) is not null;
                     if (stamp is null && !hasDest)
                     {
                         continue;
