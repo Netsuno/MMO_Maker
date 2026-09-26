@@ -187,6 +187,43 @@ public sealed class MapResizeShiftTests
     }
 
     [Fact]
+    public void Shift_Plus1Minus2_MovesPaintedTileFrom2_2_To3_0()
+    {
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+        var assetId = TileAssetId.FromStraightRgba(SolidRgba(9, 8, 7, 255));
+        var map = MapFormat.CreateTileAssetMap("Bois", 8, 6);
+        map.Layers.Add(new Layer { LayerType = LayerType.Ground });
+        var stamp = new Tile { Type = TileType.Ground, AssetId = assetId };
+        MapEditOperations.PaintTile(map, 0, 2, 2, stamp);
+
+        // PaintTile pose un clone. Le tampon garde X = 0 ; seul le clone de la couche est décalé.
+        var placed = Assert.Single(map.Layers[0].Tiles);
+        Assert.NotSame(stamp, placed);
+        Assert.Equal(2, placed.X);
+        Assert.Equal(2, placed.Y);
+        Assert.Equal(assetId, placed.AssetId);
+
+        var edit = new MapResizeShiftEdit { Width = 10, Height = 9, DeltaX = 1, DeltaY = -2 };
+        Assert.True(MapResizeShift.TryApply(map, edit, null, null, null, null, out var report, out var error));
+        Assert.Null(error);
+        Assert.Same(placed, Assert.Single(map.Layers[0].Tiles));
+        Assert.Equal(3, placed.X);
+        Assert.Equal(0, placed.Y);
+        Assert.Equal(assetId, placed.AssetId);
+        Assert.Equal(0, placed.SrcX);
+        Assert.Equal(0, placed.TilesetId);
+        Assert.Equal(0, report.TilesRemoved);
+        Assert.Equal(10, map.Width);
+        Assert.Equal(9, map.Height);
+        Assert.Equal(48, map.TileSizePixels);
+        Assert.Equal(TileGraphicIdentity.TileAsset, map.GraphicIdentity);
+        Assert.Equal(0, stamp.X);
+        Assert.Equal(0, stamp.Y);
+        Assert.True(map.Validate(out var validateError), validateError);
+    }
+
+    [Fact]
     public void Shrink_ClipsOutside_AndDoesNotRewriteKeptAssetId()
     {
         var red = TileAssetId.FromStraightRgba(SolidRgba(1, 2, 3, 255));
