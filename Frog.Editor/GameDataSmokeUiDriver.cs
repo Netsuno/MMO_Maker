@@ -1276,6 +1276,131 @@ internal static class GameDataSmokeUiDriver
         }
     }
 
+    public static void RunSystemScenario(MainWindow window, TimeSpan timeout)
+    {
+        var form = OpenViaMainWindowCommand(window, timeout);
+        try
+        {
+            form.SelectCategoryForTest(9);
+            var panel = form.SystemForTest;
+            PumpUntil(() => panel.LifecycleForTest.IsIdle, timeout);
+            if (panel.TypeLabelForTest.Text != "Interrupteur")
+            {
+                throw new InvalidOperationException("La fiche Système doit ouvrir sur les interrupteurs.");
+            }
+
+            Click(panel.BtnNewForTest);
+            SetText(panel.LabelForTest, "SmokeSwitchUi");
+            SetText(panel.KeyForTest, "SmokeSwitchUi");
+            SetText(panel.NoteForTest, "Porte du donjon.");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeSwitchUi", () => panel.LifecycleForTest.IsIdle, timeout);
+            AssertListContains(panel.ListForTest, "SmokeSwitchUi", "Published");
+            if (panel.KeyForTest.Text != "SmokeSwitchUi")
+            {
+                throw new InvalidOperationException("La clé d'interrupteur n’a pas été conservée.");
+            }
+
+            if (panel.NoteForTest.Text != "Porte du donjon.")
+            {
+                throw new InvalidOperationException("La note d'interrupteur n’a pas été conservée.");
+            }
+
+            SelectListItemContaining(panel.ListForTest, "SmokeSwitchUi");
+            Click(panel.BtnDupForTest);
+            SetText(panel.LabelForTest, "SmokeSwitchUiCopy");
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+            AssertListContains(panel.ListForTest, "SmokeSwitchUiCopy", "Published");
+
+            SelectListItemContaining(panel.ListForTest, "SmokeSwitchUi");
+            RejectInvalidPublication(
+                panel.LabelForTest,
+                panel.ValidationForTest,
+                panel.BtnPublishForTest,
+                () => panel.IsDirty,
+                () => panel.PublishedRevisionForTest,
+                () => panel.ListForTest.Items.Cast<object>().Any(i => (i.ToString() ?? string.Empty).Contains("Smoke", StringComparison.Ordinal) && (i.ToString() ?? string.Empty).Contains("Published", StringComparison.Ordinal)),
+                timeout);
+            SetText(panel.LabelForTest, "SmokeSwitchUi");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+
+            SeedAndVerifySearchStatusFilter(
+                panel.BtnNewForTest,
+                panel.LabelForTest,
+                panel.BtnSaveForTest,
+                panel.BtnPublishForTest,
+                panel.SearchForTest,
+                panel.StatusFilterForTest,
+                panel.ListForTest,
+                () => panel.IsDirty,
+                "SmokeSwitchUi",
+                "SmokeSwitchOther",
+                "SmokeSwitchDraft",
+                timeout,
+                configureNewRecord: () => SetText(panel.KeyForTest, panel.LabelForTest.Text));
+
+            Click(panel.BtnNewForTest);
+            SetText(panel.LabelForTest, "SmokeSwitchDeleteUi");
+            SetText(panel.KeyForTest, "SmokeSwitchDeleteUi");
+            ClickAndWait(panel.BtnPublishForTest, () => panel.LifecycleForTest.IsIdle && !panel.IsDirty, timeout);
+
+            CancelDirtyListNavigation(
+                panel.ListForTest,
+                panel.LabelForTest,
+                () => panel.IsDirty,
+                "SmokeSwitchUi",
+                "SmokeSwitchUiCopy",
+                timeout);
+
+            DeleteAllowedRecord(panel.ListForTest, panel.LabelForTest, panel.BtnDeleteForTest, panel.LifecycleForTest, "SmokeSwitchDeleteUi", timeout);
+
+            panel.KindForTest.SelectedIndex = 1;
+            PumpUntil(
+                () => panel.LifecycleForTest.IsIdle && panel.TypeLabelForTest.Text == "Variable",
+                timeout);
+            AssertListMissing(panel.ListForTest, "SmokeSwitchUi");
+
+            Click(panel.BtnNewForTest);
+            SetText(panel.LabelForTest, "SmokeVarUi");
+            SetText(panel.KeyForTest, "butin_or");
+            SetText(panel.NoteForTest, "Compteur de butin.");
+            ClickAndWait(panel.BtnSaveForTest, () => !panel.IsDirty, timeout);
+            ClickPublishAndWait(panel.BtnPublishForTest, panel.ListForTest, "SmokeVarUi", () => panel.LifecycleForTest.IsIdle, timeout);
+            AssertListContains(panel.ListForTest, "butin_or", "Published");
+            if (panel.NoteForTest.Text != "Compteur de butin.")
+            {
+                throw new InvalidOperationException("La note de variable n’a pas été conservée.");
+            }
+
+            CloseForm(form, timeout);
+
+            CloseReopenAndVerify(
+                window,
+                timeout,
+                9,
+                reopened =>
+                {
+                    var reopenedPanel = reopened.SystemForTest;
+                    PumpUntil(() => reopenedPanel.LifecycleForTest.IsIdle, timeout);
+                    PumpUntil(() => reopenedPanel.ListForTest.Items.Count >= 1, timeout);
+                    SelectListItemContaining(reopenedPanel.ListForTest, "SmokeSwitchUi");
+                    PumpUntil(
+                        () => reopenedPanel.LabelForTest.Text == "SmokeSwitchUi"
+                              && reopenedPanel.KeyForTest.Text == "SmokeSwitchUi"
+                              && reopenedPanel.NoteForTest.Text == "Porte du donjon.",
+                        timeout);
+                    AssertListMissing(reopenedPanel.ListForTest, "SmokeVarUi");
+                });
+        }
+        finally
+        {
+            if (!form.IsDisposed)
+            {
+                CloseForm(form, timeout);
+            }
+        }
+    }
+
     public static void RunShopScenario(MainWindow window, TimeSpan timeout)
     {
         var assetRoot = CreateSmokeAssetRoot("icons/items/smoke-shop-ui.png");
