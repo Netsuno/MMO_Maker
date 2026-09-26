@@ -33,6 +33,7 @@ public sealed class EditorPrefabPaletteSmokeTests
             Assert.False(panel.HasPrefabPreviewForTest);
             Assert.Equal("P pour placer", panel.StatusTextForTest);
             Assert.False(panel.CanDuplicateForTest);
+            Assert.Equal("Dupliquer", panel.DuplicateLabelForTest);
 
             panel.SetFilterForTest("canape");
             Assert.Equal(1, panel.VisiblePrefabCountForTest);

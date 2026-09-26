@@ -106,6 +106,9 @@
                 <MenuItem Header="Pipette tuile"
                           Command="{x:Static local:MainWindow.CmdTilePipette}"
                           InputGestureText="I" />
+                <MenuItem Header="Dupliquer l’objet"
+                          Command="{x:Static local:MainWindow.CmdDuplicatePrefab}"
+                          InputGestureText="Ctrl+D" />
                 <Separator />
                 <MenuItem Header="Enregistrer la sélection comme modèle…"
                           Command="{x:Static local:MainWindow.CmdSaveSelectionTemplate}" />

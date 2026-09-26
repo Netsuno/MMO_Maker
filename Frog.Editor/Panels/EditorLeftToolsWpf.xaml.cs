@@ -229,7 +229,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
 
         BtnDuplicatePrefab.IsEnabled = can;
         BtnDuplicatePrefab.ToolTip = can
-            ? "Pose une copie du dernier objet, décalée de son empreinte."
+            ? "Pose une copie de l’objet sélectionné (ou du dernier posé), décalée de son empreinte. Ctrl+D."
             : "Placez d’abord un objet sur la carte.";
     }
 
@@ -819,6 +819,8 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         PrefabPreviewHost.Visibility == Visibility.Visible && PrefabPreview.Source is not null;
     internal bool PlaceModeForTest => _placeMode;
     internal bool CanDuplicateForTest => BtnDuplicatePrefab.IsEnabled;
+
+    internal string DuplicateLabelForTest => BtnDuplicatePrefab.Content as string ?? string.Empty;
 
     internal void SetFilterForTest(string text) => PrefabFilter.Text = text;
 

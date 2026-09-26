@@ -504,7 +504,7 @@
                    FontSize="11"
                    Margin="8,0,2,8" />
         <Button x:Name="BtnDuplicatePrefab"
-                Content="Dupliquer le dernier posé"
+                Content="Dupliquer"
                 Margin="2,0,2,4"
                 Padding="8,5"
                 IsEnabled="False"
@@ -513,7 +513,7 @@
                 BorderBrush="#FF585C68"
                 BorderThickness="1"
                 Cursor="Hand"
-                ToolTip="Pose une copie du dernier objet, décalée de son empreinte."
+                ToolTip="Pose une copie de l’objet sélectionné (ou du dernier posé), décalée de son empreinte. Ctrl+D."
                 Click="OnDuplicatePrefabClick" />
         <Button x:Name="BtnPlacePrefab"
                 Content="Placer un objet (P)"
@@ -525,7 +525,7 @@
                 BorderThickness="1"
                 Cursor="Hand"
                 Click="OnPlacePrefabClick" />
-        <TextBlock Text="Pipette I / Alt+clic · glisser pour déplacer"
+        <TextBlock Text="Pipette I / Alt+clic · glisser pour déplacer · Ctrl+D dupliquer"
                    Foreground="#FF949BAA"
                    FontFamily="Segoe UI"
                    FontSize="10"

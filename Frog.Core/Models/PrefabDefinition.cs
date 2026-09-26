@@ -69,6 +69,27 @@ public sealed class PrefabPlacement
     public int TileX { get; set; }
 
     public int TileY { get; set; }
+
+    /// <summary>Copie identifiant, facing et position. Les champs hors position passent par <see cref="CopyIdentityFrom"/>.</summary>
+    public PrefabPlacement Clone()
+    {
+        var copy = new PrefabPlacement();
+        copy.CopyIdentityFrom(this);
+        copy.TileX = TileX;
+        copy.TileY = TileY;
+        return copy;
+    }
+
+    /// <summary>
+    /// Recopie les paramètres d’instance autres que la position (id catalogue, facing).
+    /// Appelé après <c>TryPlace</c> pour qu’un décalage ne réécrive pas le facing.
+    /// </summary>
+    public void CopyIdentityFrom(PrefabPlacement source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        PrefabId = source.PrefabId;
+        Facing = source.Facing;
+    }
 }
 
 /// <summary>Sidecar <c>{carte}.prefabs.json</c> — additif, hors blob <c>.fmap</c>.</summary>

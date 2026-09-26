@@ -224,6 +224,11 @@ public partial class MainWindow : Window
         nameof(CmdTilePipette),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdDuplicatePrefab = new(
+        "Dupliquer l’objet",
+        nameof(CmdDuplicatePrefab),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdQuickTalkingNpc = new(
         "PNJ rapide…",
         nameof(CmdQuickTalkingNpc),
@@ -351,6 +356,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdMirrorHorizontal, (_, _) => _editor.TryMirrorSelectionHorizontal()));
         CommandBindings.Add(new CommandBinding(CmdMirrorVertical, (_, _) => _editor.TryMirrorSelectionVertical()));
         CommandBindings.Add(new CommandBinding(CmdTilePipette, (_, _) => _editor.TryPipetteAtHover()));
+        CommandBindings.Add(new CommandBinding(CmdDuplicatePrefab, (_, _) => _editor.DuplicateSelectedPrefab()));
         CommandBindings.Add(new CommandBinding(CmdSaveSelectionTemplate, (_, _) => _editor.SaveSelectionAsMapTemplate()));
         CommandBindings.Add(new CommandBinding(CmdSaveMapTemplate, (_, _) => _editor.SaveCurrentMapAsTemplate()));
         CommandBindings.Add(new CommandBinding(CmdStampTemplate, (_, _) => _editor.PromptStampMapTemplate()));
@@ -664,12 +670,13 @@ public partial class MainWindow : Window
                 _ => Keys.Delete,
             };
         }
-        else if (ctrl && key is Key.C or Key.X or Key.V)
+        else if (ctrl && key is Key.C or Key.X or Key.V or Key.D)
         {
             code = key switch
             {
                 Key.C => Keys.C,
                 Key.X => Keys.X,
+                Key.D => Keys.D,
                 _ => Keys.V,
             };
         }
