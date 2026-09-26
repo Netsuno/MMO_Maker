@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using Frog.Application.Maps;
 using Frog.Application.Playtest;
@@ -20,7 +21,8 @@ using Frog.Editor.Ui;
 namespace Frog.Editor.Controls;
 
 /// <summary>
-/// Canvas carte : vue culling pour grandes surfaces, zone rectangulaire,
+/// Canvas carte : les couches denses ne dessinent que le viewport, et un bitmap
+/// des tuiles statiques amortit le défilement et le fantôme du pinceau.
 /// Ctrl+C/X/V sur toutes les couches (Ctrl+Maj = couche active), undo intégré.
 /// Le tracé en cours est figé au copier-coller. Les régions de rencontre (sidecar) ne suivent pas la zone.
 /// </summary>
@@ -29,6 +31,18 @@ public sealed class MapCanvas : Control
     public readonly MapUndoController History = new();
 
     private const int ViewportPadTiles = 1;
+    private const int LayerCachePadTiles = 12;
+    private const int LayerCacheMaxEdge = 4096;
+
+    private Bitmap? _layerCache;
+    private Map? _layerCacheMap;
+    private int _layerCacheTx0;
+    private int _layerCacheTy0;
+    private int _layerCacheTx1;
+    private int _layerCacheTy1;
+    private int _layerCacheTileSize;
+    private int _layerCacheKey;
+    private int _tilesetAnimEpoch;
 
     public int TileSize { get; set; } = 32;
     public float Zoom { get; private set; } = 1f;
@@ -48,6 +62,7 @@ public sealed class MapCanvas : Control
             }
 
             _map = value;
+            DisposeLayerCache();
             AttachTileFlags();
             NotifyViewTransformChanged();
             Invalidate();
@@ -504,10 +519,21 @@ public sealed class MapCanvas : Control
 
     private void OnTilesetAnimChanged()
     {
+        _tilesetAnimEpoch++;
         if (IsHandleCreated)
         {
             Invalidate();
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeLayerCache();
+        }
+
+        base.Dispose(disposing);
     }
 
     /// <summary>Le geste ligne / rectangle a changé (départ, Maj, annulation).</summary>
@@ -961,27 +987,21 @@ public sealed class MapCanvas : Control
         var mw = Math.Max(1, Map?.Width ?? 20);
         var mh = Math.Max(1, Map?.Height ?? 15);
 
+        var prevInterp = g.InterpolationMode;
         var state = g.Save();
         try
         {
             g.TranslateTransform(Pan.X, Pan.Y);
             g.ScaleTransform(Zoom, Zoom);
+            g.InterpolationMode = InterpolationMode.NearestNeighbor;
 
-            DrawGridCells(g, mw, mh, tx0, ty0, tx1, ty1);
+            if (!TryBlitLayerCache(g, mw, mh, tx0, ty0, tx1, ty1))
+            {
+                DrawStaticTileLayers(g, mw, mh, tx0, ty0, tx1, ty1);
+            }
 
             if (Map is not null)
             {
-                for (var i = 0; i < Map.Layers.Count; i++)
-                {
-                    var alpha = LayerDrawAlpha(i);
-                    if (alpha <= 0.001f)
-                    {
-                        continue;
-                    }
-
-                    DrawLayer(g, Map.Layers[i], tx0, ty0, tx1, ty1, alpha);
-                }
-
                 DrawPlacedPrefabs(g);
                 DrawTileTypeOverlay(g, tx0, ty0, tx1, ty1);
                 DrawRegionOverlay(g, tx0, ty0, tx1, ty1);
@@ -1155,6 +1175,7 @@ public sealed class MapCanvas : Control
         {
             _joinPreview = null;
             g.Restore(state);
+            g.InterpolationMode = prevInterp;
         }
     }
 
@@ -1171,6 +1192,175 @@ public sealed class MapCanvas : Control
         && IsActiveLayerEditable()
         && (ActiveTool is EditorTool.Brush or EditorTool.Rectangle or EditorTool.Line or EditorTool.Fill)
         && (IsTileAssetMap ? HasTileAssetBrush() : ActiveTilesetId > 0);
+
+    private void DrawStaticTileLayers(Graphics g, int mapW, int mapH, int tx0, int ty0, int tx1, int ty1)
+    {
+        DrawGridCells(g, mapW, mapH, tx0, ty0, tx1, ty1);
+        if (Map is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < Map.Layers.Count; i++)
+        {
+            var alpha = LayerDrawAlpha(i);
+            if (alpha <= 0.001f)
+            {
+                continue;
+            }
+
+            DrawLayer(g, Map.Layers[i], tx0, ty0, tx1, ty1, alpha);
+        }
+    }
+
+    /// <summary>
+    /// Bitmap monde des tuiles et de la grille. Un panoramique dans la marge ne redessine pas chaque tuile.
+    /// Au-delà de <see cref="LayerCacheMaxEdge"/> pixels, le dessin direct reprend.
+    /// </summary>
+    private bool TryBlitLayerCache(Graphics g, int mapW, int mapH, int tx0, int ty0, int tx1, int ty1)
+    {
+        if (Map is null || TileSize <= 0 || Zoom <= 0 || tx1 < tx0 || ty1 < ty0)
+        {
+            return false;
+        }
+
+        var key = LayerCacheKey();
+        var covers = _layerCache is not null
+            && ReferenceEquals(_layerCacheMap, Map)
+            && _layerCacheTileSize == TileSize
+            && _layerCacheKey == key
+            && _layerCacheTx0 <= tx0
+            && _layerCacheTy0 <= ty0
+            && _layerCacheTx1 >= tx1
+            && _layerCacheTy1 >= ty1;
+        if (!covers && !RebuildLayerCache(mapW, mapH, tx0, ty0, tx1, ty1, key))
+        {
+            return false;
+        }
+
+        var ts = TileSize;
+        var worldX = _layerCacheTx0 * ts;
+        var worldY = _layerCacheTy0 * ts;
+        var worldW = (_layerCacheTx1 - _layerCacheTx0 + 1) * ts;
+        var worldH = (_layerCacheTy1 - _layerCacheTy0 + 1) * ts;
+        g.DrawImage(_layerCache!, worldX, worldY, worldW, worldH);
+        return true;
+    }
+
+    private bool RebuildLayerCache(int mapW, int mapH, int tx0, int ty0, int tx1, int ty1, int key)
+    {
+        if (!TryPickCacheTileBounds(mapW, mapH, tx0, ty0, tx1, ty1, out var cx0, out var cy0, out var cx1, out var cy1))
+        {
+            return false;
+        }
+
+        var ts = TileSize;
+        var bmpW = (cx1 - cx0 + 1) * ts;
+        var bmpH = (cy1 - cy0 + 1) * ts;
+        var bmp = new Bitmap(bmpW, bmpH, PixelFormat.Format32bppPArgb);
+        try
+        {
+            using var cg = Graphics.FromImage(bmp);
+            cg.Clear(BackColor);
+            cg.InterpolationMode = InterpolationMode.NearestNeighbor;
+            cg.TranslateTransform(-cx0 * ts, -cy0 * ts);
+            DrawStaticTileLayers(cg, mapW, mapH, cx0, cy0, cx1, cy1);
+        }
+        catch
+        {
+            bmp.Dispose();
+            throw;
+        }
+
+        _layerCache?.Dispose();
+        _layerCache = bmp;
+        _layerCacheMap = Map;
+        _layerCacheTx0 = cx0;
+        _layerCacheTy0 = cy0;
+        _layerCacheTx1 = cx1;
+        _layerCacheTy1 = cy1;
+        _layerCacheTileSize = ts;
+        _layerCacheKey = key;
+        return true;
+    }
+
+    private bool TryPickCacheTileBounds(
+        int mapW,
+        int mapH,
+        int tx0,
+        int ty0,
+        int tx1,
+        int ty1,
+        out int cx0,
+        out int cy0,
+        out int cx1,
+        out int cy1)
+    {
+        cx0 = tx0;
+        cy0 = ty0;
+        cx1 = tx1;
+        cy1 = ty1;
+        if (mapW <= 0 || mapH <= 0 || TileSize <= 0)
+        {
+            return false;
+        }
+
+        for (var pad = LayerCachePadTiles; pad >= 0; pad -= 4)
+        {
+            var x0 = Math.Max(0, tx0 - pad);
+            var y0 = Math.Max(0, ty0 - pad);
+            var x1 = Math.Min(mapW - 1, tx1 + pad);
+            var y1 = Math.Min(mapH - 1, ty1 + pad);
+            var px = (x1 - x0 + 1) * TileSize;
+            var py = (y1 - y0 + 1) * TileSize;
+            if (px > 0 && py > 0 && px <= LayerCacheMaxEdge && py <= LayerCacheMaxEdge)
+            {
+                cx0 = x0;
+                cy0 = y0;
+                cx1 = x1;
+                cy1 = y1;
+                return true;
+            }
+
+            if (pad == 0)
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    private int LayerCacheKey()
+    {
+        var hash = new HashCode();
+        hash.Add(BackColor.ToArgb());
+        hash.Add(_tilesetAnimEpoch);
+        hash.Add(TileSize);
+        if (Map is null)
+        {
+            return hash.ToHashCode();
+        }
+
+        hash.Add(Map.Layers.Count);
+        for (var i = 0; i < Map.Layers.Count; i++)
+        {
+            var layer = Map.Layers[i];
+            hash.Add(layer.CellEditEpoch);
+            hash.Add(layer.Tiles.Count);
+            hash.Add(layer.Tiles.Count == 0 ? 0 : RuntimeHelpers.GetHashCode(layer.Tiles[0]));
+            hash.Add(BitConverter.SingleToInt32Bits(LayerDrawAlpha(i)));
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private void DisposeLayerCache()
+    {
+        _layerCache?.Dispose();
+        _layerCache = null;
+        _layerCacheMap = null;
+    }
 
     private void DrawGridCells(Graphics g, int mapW, int mapH, int tx0, int ty0, int tx1, int ty1)
     {
@@ -1226,46 +1416,84 @@ public sealed class MapCanvas : Control
                 ColorAdjustType.Bitmap);
         }
 
-        foreach (var t in layer.Tiles)
+        ForEachVisibleTile(layer, tx0, ty0, tx1, ty1, tile => DrawPlacedTile(g, tile, attrs));
+    }
+
+    private void DrawPlacedTile(Graphics g, Tile t, ImageAttributes? attrs)
+    {
+        if (!t.AssetId.IsNone)
         {
-            if (t.X < tx0 || t.X > tx1 || t.Y < ty0 || t.Y > ty1)
+            DrawTileAssetImage(
+                g,
+                t.AssetId,
+                new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize),
+                sharedAttrs: attrs);
+            return;
+        }
+
+        if (!TilesetCache.TryGet(t.TilesetId, out var bmp) || bmp is null)
+        {
+            return;
+        }
+
+        var srcX = t.SrcX;
+        var srcY = t.SrcY;
+        PreviewSource(PlacedAnimTilesetId(t), bmp, ref srcX, ref srcY);
+        var src = new Rectangle(srcX, srcY, TileSize, TileSize);
+        var dst = new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
+        if (src.Right > bmp.Width || src.Bottom > bmp.Height)
+        {
+            return;
+        }
+
+        if (attrs is not null)
+        {
+            g.DrawImage(bmp, dst, src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, attrs);
+        }
+        else
+        {
+            g.DrawImage(bmp, dst, src, GraphicsUnit.Pixel);
+        }
+    }
+
+    /// <summary>
+    /// Couche pleine : cases visibles seulement. Couche clairsemée : la liste reste plus courte que le viewport.
+    /// </summary>
+    private static void ForEachVisibleTile(Layer layer, int tx0, int ty0, int tx1, int ty1, Action<Tile> draw)
+    {
+        var spanX = tx1 - tx0 + 1;
+        var spanY = ty1 - ty0 + 1;
+        if (spanX <= 0 || spanY <= 0)
+        {
+            return;
+        }
+
+        var visible = (long)spanX * spanY;
+        if (layer.Tiles.Count > visible)
+        {
+            for (var y = ty0; y <= ty1; y++)
+            {
+                for (var x = tx0; x <= tx1; x++)
+                {
+                    var tile = layer.TileAt(x, y);
+                    if (tile is not null)
+                    {
+                        draw(tile);
+                    }
+                }
+            }
+
+            return;
+        }
+
+        foreach (var tile in layer.Tiles)
+        {
+            if (tile.X < tx0 || tile.X > tx1 || tile.Y < ty0 || tile.Y > ty1)
             {
                 continue;
             }
 
-            if (!t.AssetId.IsNone)
-            {
-                DrawTileAssetImage(
-                    g,
-                    t.AssetId,
-                    new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize),
-                    fade ? alpha : null);
-                continue;
-            }
-
-            if (!TilesetCache.TryGet(t.TilesetId, out var bmp) || bmp is null)
-            {
-                continue;
-            }
-
-            var srcX = t.SrcX;
-            var srcY = t.SrcY;
-            PreviewSource(PlacedAnimTilesetId(t), bmp, ref srcX, ref srcY);
-            var src = new Rectangle(srcX, srcY, TileSize, TileSize);
-            var dst = new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
-            if (src.Right > bmp.Width || src.Bottom > bmp.Height)
-            {
-                continue;
-            }
-
-            if (attrs is not null)
-            {
-                g.DrawImage(bmp, dst, src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, attrs);
-            }
-            else
-            {
-                g.DrawImage(bmp, dst, src, GraphicsUnit.Pixel);
-            }
+            draw(tile);
         }
     }
 
@@ -1310,13 +1538,8 @@ public sealed class MapCanvas : Control
             }
 
             var layer = Map.Layers[i];
-            foreach (var t in layer.Tiles)
+            ForEachVisibleTile(layer, tx0, ty0, tx1, ty1, t =>
             {
-                if (t.X < tx0 || t.X > tx1 || t.Y < ty0 || t.Y > ty1)
-                {
-                    continue;
-                }
-
                 var rect = new Rectangle(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
                 switch (t.Type)
                 {
@@ -1346,7 +1569,7 @@ public sealed class MapCanvas : Control
 
                         break;
                 }
-            }
+            });
         }
     }
 
@@ -3501,7 +3724,12 @@ public sealed class MapCanvas : Control
         return tile;
     }
 
-    private void DrawTileAssetImage(Graphics g, TileAssetId id, Rectangle destination, float? alpha = null)
+    private void DrawTileAssetImage(
+        Graphics g,
+        TileAssetId id,
+        Rectangle destination,
+        float? alpha = null,
+        ImageAttributes? sharedAttrs = null)
     {
         if (TileAssets is null || id.IsNone)
         {
@@ -3511,6 +3739,12 @@ public sealed class MapCanvas : Control
         var bitmap = TileAssetThumbnails.Get(TileAssets, id);
         if (bitmap is null)
         {
+            return;
+        }
+
+        if (sharedAttrs is not null)
+        {
+            g.DrawImage(bitmap, destination, 0, 0, bitmap.Width, bitmap.Height, GraphicsUnit.Pixel, sharedAttrs);
             return;
         }
 
@@ -3988,15 +4222,7 @@ public sealed class MapCanvas : Control
             return false;
         }
 
-        Tile? tile = null;
-        foreach (var candidate in Map.Layers[ActiveLayerIndex].Tiles)
-        {
-            if (candidate.X == tileX && candidate.Y == tileY)
-            {
-                tile = candidate;
-                break;
-            }
-        }
+        var tile = Map.Layers[ActiveLayerIndex].TileAt(tileX, tileY);
 
         if (tile is null)
         {
@@ -4080,7 +4306,7 @@ public sealed class MapCanvas : Control
         {
             BeginEditTransaction();
             ApplyLine(origin.X, origin.Y, end.X, end.Y);
-            painted = Map.Layers[ActiveLayerIndex].Tiles.Any(t => t.X == origin.X && t.Y == origin.Y);
+            painted = Map.Layers[ActiveLayerIndex].TileAt(origin.X, origin.Y) is not null;
             RaiseTileClicked(end.X, end.Y);
         }
 
@@ -4257,7 +4483,7 @@ public sealed class MapCanvas : Control
         BeginEditTransaction();
         ApplyBrush(x, y);
         Invalidate();
-        return Map.Layers[ActiveLayerIndex].Tiles.Any(t => t.X == x && t.Y == y);
+        return Map.Layers[ActiveLayerIndex].TileAt(x, y) is not null;
     }
 
     internal bool TryBeginRectangleDragForTest(int x, int y)
@@ -4534,7 +4760,7 @@ public sealed class MapCanvas : Control
         }
 
         var layer = Map.Layers[ActiveLayerIndex];
-        var tile = layer.Tiles.FirstOrDefault(t => t.X == tileX && t.Y == tileY);
+        var tile = layer.TileAt(tileX, tileY);
         TileClicked?.Invoke(tile);
     }
 

@@ -80,8 +80,7 @@ public static class MapEditOperations
         }
 
         var layer = map.Layers[layerIndex];
-        layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
-        layer.Tiles.Add(CloneTile(tile, x, y));
+        layer.ReplaceTileAt(x, y, CloneTile(tile, x, y));
     }
 
     public static void EraseTile(Map map, int layerIndex, int x, int y)
@@ -92,7 +91,7 @@ public static class MapEditOperations
             return;
         }
 
-        map.Layers[layerIndex].Tiles.RemoveAll(t => t.X == x && t.Y == y);
+        map.Layers[layerIndex].RemoveTileAt(x, y);
     }
 
     /// <summary>
@@ -132,7 +131,7 @@ public static class MapEditOperations
                     continue;
                 }
 
-                if (layer.Tiles.Exists(t => t.X == x && t.Y == y))
+                if (layer.TileAt(x, y) is not null)
                 {
                     hits.Add((x, y));
                 }
@@ -528,10 +527,9 @@ public static class MapEditOperations
         var writes = new List<(int Layer, int X, int Y)>();
         foreach (var target in targets)
         {
-            var index = IndexTiles(map.Layers[target]);
             foreach (var (x, y) in region)
             {
-                index.TryGetValue((x, y), out var existing);
+                var existing = map.Layers[target].TileAt(x, y);
                 if (replacement is null)
                 {
                     if (existing is not null)
@@ -654,7 +652,7 @@ public static class MapEditOperations
         {
             for (var x = left; x < left + width; x++)
             {
-                if (layer.Tiles.Any(t => t.X == x && t.Y == y))
+                if (layer.TileAt(x, y) is not null)
                 {
                     n++;
                 }
@@ -740,7 +738,7 @@ public static class MapEditOperations
         {
             for (var x = left; x < left + width; x++)
             {
-                var t = layer.Tiles.FirstOrDefault(tile => tile.X == x && tile.Y == y);
+                var t = layer.TileAt(x, y);
                 if (t is null)
                 {
                     continue;
@@ -760,7 +758,7 @@ public static class MapEditOperations
         {
             for (var x = left; x < left + width; x++)
             {
-                layer.Tiles.RemoveAll(t => t.X == x && t.Y == y);
+                layer.RemoveTileAt(x, y);
             }
         }
 
@@ -879,17 +877,6 @@ public static class MapEditOperations
         return -1;
     }
 
-    private static Dictionary<(int X, int Y), Tile> IndexTiles(Layer layer)
-    {
-        var index = new Dictionary<(int X, int Y), Tile>(layer.Tiles.Count);
-        foreach (var tile in layer.Tiles)
-        {
-            index[(tile.X, tile.Y)] = tile;
-        }
-
-        return index;
-    }
-
     /// <summary>Région 4-connexe de la couche graine. Les voisins hors carte ne sont pas enfilés.</summary>
     private static List<(int X, int Y)> CollectFloodRegion(
         Map map,
@@ -899,15 +886,14 @@ public static class MapEditOperations
         bool respectAttributes,
         int externalAttributesLayer)
     {
-        var cells = IndexTiles(layer);
-        cells.TryGetValue((sx, sy), out var seed);
+        var seed = layer.TileAt(sx, sy);
 
-        Dictionary<(int X, int Y), Tile>? attrCells = null;
+        Layer? attrLayer = null;
         Tile? attrSeed = null;
         if (respectAttributes && externalAttributesLayer >= 0)
         {
-            attrCells = IndexTiles(map.Layers[externalAttributesLayer]);
-            attrCells.TryGetValue((sx, sy), out attrSeed);
+            attrLayer = map.Layers[externalAttributesLayer];
+            attrSeed = attrLayer.TileAt(sx, sy);
         }
 
         var region = new List<(int X, int Y)>();
@@ -918,15 +904,15 @@ public static class MapEditOperations
         while (pending.Count > 0)
         {
             var (x, y) = pending.Dequeue();
-            cells.TryGetValue((x, y), out var here);
+            var here = layer.TileAt(x, y);
             if (!MatchesSeed(seed, here, respectAttributes))
             {
                 continue;
             }
 
-            if (attrCells is not null)
+            if (attrLayer is not null)
             {
-                attrCells.TryGetValue((x, y), out var attrHere);
+                var attrHere = attrLayer.TileAt(x, y);
                 if (!SameCollisionBarrier(attrSeed, attrHere))
                 {
                     continue;

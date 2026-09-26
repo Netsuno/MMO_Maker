@@ -9,7 +9,7 @@ using Frog.Core.Enums;
 /// <summary>
 /// Couche de la carte (ex. Sol, Masque, Frange, Attributs…).
 /// </summary>
-public sealed class Layer
+public sealed partial class Layer
 {
     [DisplayName("Type")]
     public LayerType LayerType { get; set; }
@@ -27,8 +27,8 @@ public sealed class Layer
     public bool Locked { get; set; }
 
     /// <summary>
-    /// Conteneur des tuiles. Choix de structure (liste vs tableau 2D vs tableau plat) à stabiliser
-    /// en fonction du format binaire et des performances d’édition.
+    /// Tuiles dans l’ordre stocké (fichier .fmap). L’index de cases sert au pinceau et au viewport ;
+    /// il se reconstruit si la liste change sans passer par <see cref="ReplaceTileAt"/>.
     /// </summary>
     public List<Tile> Tiles { get; } = new();
 

@@ -167,8 +167,7 @@ public static class AutotileJoin
             return 0;
         }
 
-        var index = Index(map.Layers[layerIndex]);
-        return Apply(map, index, new[]
+        return Apply(map, map.Layers[layerIndex], new[]
         {
             (x, y),
             (x, y - 1),
@@ -188,31 +187,41 @@ public static class AutotileJoin
         }
 
         var layer = map.Layers[layerIndex];
-        var index = Index(layer);
         var cells = new List<(int X, int Y)>(layer.Tiles.Count);
         foreach (var tile in layer.Tiles)
         {
             cells.Add((tile.X, tile.Y));
         }
 
-        return Apply(map, index, cells);
+        return Apply(map, layer, cells);
     }
 
-    private static int Apply(Map map, Dictionary<(int X, int Y), Tile> index, IReadOnlyList<(int X, int Y)> cells)
+    private static int Apply(Map map, Layer layer, IReadOnlyList<(int X, int Y)> cells)
     {
         var pending = new List<(Tile Tile, TileAssetId Id)>();
         var seen = new HashSet<(int X, int Y)>();
         foreach (var (x, y) in cells)
         {
-            if (!seen.Add((x, y)) || !index.TryGetValue((x, y), out var tile))
+            if (!seen.Add((x, y)))
             {
                 continue;
             }
 
-            if (TryReplacement(map, index, tile, out var id) && id != tile.AssetId)
+            var tile = layer.TileAt(x, y);
+            if (tile is null)
+            {
+                continue;
+            }
+
+            if (TryReplacement(map, layer, tile, out var id) && id != tile.AssetId)
             {
                 pending.Add((tile, id));
             }
+        }
+
+        if (pending.Count == 0)
+        {
+            return 0;
         }
 
         foreach (var (tile, id) in pending)
@@ -220,12 +229,13 @@ public static class AutotileJoin
             tile.AssetId = id;
         }
 
+        layer.BumpCellVisualEpoch();
         return pending.Count;
     }
 
     private static bool TryReplacement(
         Map map,
-        Dictionary<(int X, int Y), Tile> index,
+        Layer layer,
         Tile tile,
         out TileAssetId id)
     {
@@ -242,7 +252,7 @@ public static class AutotileJoin
 
         var mask = NeighborMask(
             table,
-            (nx, ny) => index.TryGetValue((nx, ny), out var neighbor) ? neighbor.AssetId : TileAssetId.None,
+            (nx, ny) => layer.TileAt(nx, ny)?.AssetId ?? TileAssetId.None,
             tile.X,
             tile.Y,
             flags.AutotileGroup);
@@ -331,14 +341,4 @@ public static class AutotileJoin
         return false;
     }
 
-    private static Dictionary<(int X, int Y), Tile> Index(Layer layer)
-    {
-        var index = new Dictionary<(int X, int Y), Tile>();
-        foreach (var tile in layer.Tiles)
-        {
-            index[(tile.X, tile.Y)] = tile;
-        }
-
-        return index;
-    }
 }

@@ -49,7 +49,7 @@ public static class MapTilePipette
             return false;
         }
 
-        var tile = layer.Tiles.FirstOrDefault(t => t.X == x && t.Y == y);
+        var tile = layer.TileAt(x, y);
         if (tile is null)
         {
             return false;
