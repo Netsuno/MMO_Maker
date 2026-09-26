@@ -4,6 +4,8 @@ using Frog.Core.Enums;
 using Frog.Core.IO;
 using Frog.Core.Maps;
 using Frog.Core.Models;
+using Frog.Editor;
+using Frog.Editor.Controls;
 using Frog.Editor.Services;
 using Xunit;
 
@@ -177,6 +179,77 @@ public sealed class TileAssetEditorPhase2Tests : IDisposable
         map.TileFlags = loaded.Flags;
         Assert.Equal(bytes, TileAssetMapEditing.Write(map));
         Assert.Equal((byte)6, bytes[4]);
+    }
+
+    [Fact]
+    public void AutotileGroup_RoundTripsInFlagFile_AndJoinPaintPicksIsolated()
+    {
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+
+        var catalogue = new TileAssetCatalogue { StoreDirectory = _store };
+        catalogue.ImportStraightRgba(Sheet(96, 48, (x, _) => x < 48
+            ? ((byte)255, (byte)0, (byte)0, (byte)255)
+            : ((byte)0, (byte)40, (byte)200, (byte)255)), 96, 48);
+        var center = catalogue.Ids[0];
+        var isolated = catalogue.Ids[1];
+        Assert.True(catalogue.TrySetFlags(
+            center,
+            TileAssetFlags.Default.WithTerrain(2).WithAutotile("eau", AutotileRole.Center),
+            out var error), error);
+        Assert.True(catalogue.TrySetFlags(
+            isolated,
+            TileAssetFlags.Default.WithTerrain(2).WithAutotile("eau", AutotileRole.Isolated),
+            out error), error);
+
+        catalogue.SaveToDirectory(_store);
+        var loaded = new TileAssetCatalogue();
+        loaded.LoadFromDirectory(_store);
+        Assert.Equal("eau", loaded.GetFlags(center).AutotileGroup);
+        Assert.Equal(2, loaded.GetFlags(center).Terrain);
+        Assert.Equal(AutotileRole.Isolated, loaded.GetFlags(isolated).AutotileRole);
+        var json = File.ReadAllText(Path.Combine(_store, TileAssetFlagTable.FileName));
+        Assert.Contains("\"autotileGroup\": \"eau\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"autotileRole\": \"isolated\"", json, StringComparison.Ordinal);
+
+        var map = TileAssetMapEditing.CreateMap("Eau", 1, 1);
+        map.TileFlags = loaded.Flags;
+        Assert.True(TileAssetMapEditing.TryPaint(
+            map,
+            0,
+            0,
+            0,
+            TileAssetMapEditing.CreateBrushTile(0, 0, center, TileType.Ground)));
+        Assert.Equal(isolated, map.Layers[0].Tiles.Single().AssetId);
+        var bytes = TileAssetMapEditing.Write(map);
+        Assert.Equal((byte)6, bytes[4]);
+        Assert.Equal((byte)5, MapSerializer.MapFileFormatVersion);
+
+        Assert.False(catalogue.TrySetFlags(
+            center,
+            TileAssetFlags.Default.WithAutotile("eau", AutotileRole.Isolated),
+            out error));
+        Assert.Contains("Isolée", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AutotilePanel_UsesFrenchLabels_AndAppliesGroup()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var catalogue = new TileAssetCatalogue();
+            catalogue.ImportStraightRgba(Solid(12, 80, 40, 255), 48, 48);
+            var panel = new TileAssetFlagsPanel(catalogue);
+            panel.Bind(catalogue.Ids[0]);
+            panel.SelectAutotileMode();
+            Assert.Equal(TileAssetFlagLabels.Autotile, panel.AutotileModeTextForTest);
+            Assert.Equal(TileAssetFlagLabels.AutotileApply, panel.ApplyAutotileTextForTest);
+            Assert.True(panel.AutotileEditorVisibleForTest);
+            Assert.Null(panel.ApplyAutotileForTest("mur", AutotileRole.Center));
+            Assert.Equal("mur", catalogue.GetFlags(catalogue.Ids[0]).AutotileGroup);
+            Assert.Equal(AutotileRole.Center, catalogue.GetFlags(catalogue.Ids[0]).AutotileRole);
+            Assert.Equal(TileAssetFlagLabels.EditMenu, MainWindow.CmdEditAutotile.Text);
+        });
     }
 
     [Fact]

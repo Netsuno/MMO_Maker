@@ -213,6 +213,21 @@ public sealed class TileAssetWorkbench : UserControl
         RefreshAll();
     }
 
+    public void BeginAutotileEdit()
+    {
+        _flags.SelectAutotileMode();
+        if (!_grid.SelectedId.IsNone)
+        {
+            _flags.Bind(_grid.SelectedId);
+            return;
+        }
+
+        if (_catalogue.Ids.Count > 0)
+        {
+            _flags.Bind(_catalogue.Ids[0]);
+        }
+    }
+
     public void PromptImport()
     {
         var path = EditorTestHooks.OverrideImportSourcePath;

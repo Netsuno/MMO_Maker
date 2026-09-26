@@ -89,6 +89,11 @@ public partial class MainWindow : Window
         nameof(CmdClearTilesAnimated),
         typeof(MainWindow));
 
+    public static readonly RoutedUICommand CmdEditAutotile = new(
+        Frog.Core.Maps.TileAssetFlagLabels.EditMenu,
+        nameof(CmdEditAutotile),
+        typeof(MainWindow));
+
     public static readonly RoutedUICommand CmdOpenTileset = new(
         "Charger une image tuiles…",
         nameof(CmdOpenTileset),
@@ -315,6 +320,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(CmdConvertMapToTileAsset, (_, _) => _editor.ConvertCurrentMapToTileAsset()));
         CommandBindings.Add(new CommandBinding(CmdMarkTilesAnimated, (_, _) => _editor.MarkSelectedTilesAnimated()));
         CommandBindings.Add(new CommandBinding(CmdClearTilesAnimated, (_, _) => _editor.ClearSelectedTilesAnimated()));
+        CommandBindings.Add(new CommandBinding(CmdEditAutotile, (_, _) => _editor.BeginAutotileEdit()));
         CommandBindings.Add(new CommandBinding(CmdGameData, (_, _) => OpenGameData()));
         CommandBindings.Add(new CommandBinding(CmdValidateMap, (_, _) => _editor.ValidateMap()));
         CommandBindings.Add(new CommandBinding(CmdShowTransferIssues, (_, _) => _editor.ShowTransferIssues()));
@@ -507,6 +513,14 @@ public partial class MainWindow : Window
         if (sender is System.Windows.Controls.MenuItem mi)
         {
             _editor.AnimatedTilePreviewVisible = mi.IsChecked == true;
+        }
+    }
+
+    private void OnToggleAutotileJoin(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem mi)
+        {
+            _editor.AutotileJoin = mi.IsChecked == true;
         }
     }
 

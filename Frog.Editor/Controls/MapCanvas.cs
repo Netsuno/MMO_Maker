@@ -84,6 +84,12 @@ public sealed class MapCanvas : Control
     /// <summary>Pinceau v6. Ignoré tant que la carte n’est pas en identité TileAsset.</summary>
     public TileAssetId ActiveTileAssetId { get; set; }
 
+    /// <summary>
+    /// Vrai : peindre une tuile d’un groupe d’autotile choisit le rôle (centre, bord, coin)
+    /// d’après les voisins. Faux : le pinceau pose l’id choisi tel quel.
+    /// </summary>
+    public bool JoinAutotiles { get; set; } = true;
+
     public event Action<TileAssetId>? TileAssetSampled;
 
     /// <summary>Tampon pinceau en tuiles (largeur × hauteur), aligné sur <see cref="SelectedSrc"/> dans le tileset.</summary>
@@ -3058,7 +3064,7 @@ public sealed class MapCanvas : Control
             {
                 var mx = tx + dx;
                 var my = ty + dy;
-                TileAssetMapEditing.TryPaint(Map, ActiveLayerIndex, mx, my, CreateTileAssetBrushTile(mx, my));
+                TileAssetMapEditing.TryPaint(Map, ActiveLayerIndex, mx, my, CreateTileAssetBrushTile(mx, my), JoinAutotiles);
             }
         }
     }
@@ -3122,7 +3128,13 @@ public sealed class MapCanvas : Control
 
         var sw = Math.Max(1, SelectedStampInTiles.Width);
         var sh = Math.Max(1, SelectedStampInTiles.Height);
-        return MapEditOperations.EraseStamp(Map, ActiveLayerIndex, tx, ty, sw, sh, BeginPaintStroke);
+        var removed = MapEditOperations.EraseStamp(Map, ActiveLayerIndex, tx, ty, sw, sh, BeginPaintStroke);
+        if (removed > 0)
+        {
+            ReconcileAutotileLayer();
+        }
+
+        return removed;
     }
 
     private void EraseAt(int tx, int ty)
@@ -3198,7 +3210,7 @@ public sealed class MapCanvas : Control
             EnsureLayerExists();
             foreach (var (x, y) in paint)
             {
-                TileAssetMapEditing.TryPaint(Map, ActiveLayerIndex, x, y, CreateTileAssetBrushTile(x, y));
+                TileAssetMapEditing.TryPaint(Map, ActiveLayerIndex, x, y, CreateTileAssetBrushTile(x, y), JoinAutotiles);
             }
 
             return true;
@@ -3314,6 +3326,12 @@ public sealed class MapCanvas : Control
             hint += ActiveTileAssetId.IsNone
                 ? " · TileAsset"
                 : " · TileAsset " + ActiveTileAssetId.ToHex()[..8];
+            if (!ActiveTileAssetId.IsNone
+                && Map?.TileFlags is { } flags
+                && flags.TryGetExplicit(ActiveTileAssetId, out var brushFlags))
+            {
+                hint += " · " + TileAssetFlagLabels.FormatBrush(brushFlags);
+            }
         }
 
         if (!IsTileAssetMap
@@ -3448,6 +3466,7 @@ public sealed class MapCanvas : Control
 
             EnsureLayerExists();
             MapEditOperations.PaintLine(Map, ActiveLayerIndex, x0, y0, x1, y1, CreateTileAssetBrushTile(x0, y0));
+            ReconcileAutotileLayer();
             return;
         }
 
@@ -3492,7 +3511,7 @@ public sealed class MapCanvas : Control
             VisibleUnlockedLayers = multi,
             RespectAttributes = FillRespectAttributes,
         };
-        return MapEditOperations.FloodFill(
+        var filled = MapEditOperations.FloodFill(
             Map,
             ActiveLayerIndex,
             sx,
@@ -3500,6 +3519,35 @@ public sealed class MapCanvas : Control
             replacement,
             options,
             BeginEditTransaction);
+        if (filled > 0 && IsTileAssetMap && JoinAutotiles)
+        {
+            if (multi)
+            {
+                for (var i = 0; i < Map.Layers.Count; i++)
+                {
+                    if (MapEditOperations.IsLayerPaintable(Map, i))
+                    {
+                        global::Frog.Core.Maps.AutotileJoin.ReconcileLayer(Map, i);
+                    }
+                }
+            }
+            else
+            {
+                ReconcileAutotileLayer();
+            }
+        }
+
+        return filled;
+    }
+
+    private void ReconcileAutotileLayer()
+    {
+        if (!JoinAutotiles || Map is null || !IsTileAssetMap)
+        {
+            return;
+        }
+
+        global::Frog.Core.Maps.AutotileJoin.ReconcileLayer(Map, ActiveLayerIndex);
     }
 
     /// <summary>Tampon courant, ou null si la sélection est vide (le pot efface alors la région).</summary>

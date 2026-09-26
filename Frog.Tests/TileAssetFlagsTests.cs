@@ -194,6 +194,12 @@ public sealed class TileAssetFlagsTests
         Assert.Equal("Carreaux d'interaction", TileAssetFlagLabels.Counter);
         Assert.Equal("Sol blessant", TileAssetFlagLabels.Damage);
         Assert.Equal("Numéro de terrain", TileAssetFlagLabels.Terrain);
+        Assert.Equal("Autotile", TileAssetFlagLabels.Autotile);
+        Assert.Equal("Appliquer le groupe", TileAssetFlagLabels.AutotileApply);
+        Assert.Equal("Raccorder les autotiles", TileAssetFlagLabels.JoinMenu);
+        Assert.Equal("Groupe d’autotile de la tuile…", TileAssetFlagLabels.EditMenu);
+        Assert.Equal("Centre", TileAssetFlagLabels.RoleLabel(AutotileRole.Center));
+        Assert.Equal("Isolée", TileAssetFlagLabels.RoleLabel(AutotileRole.Isolated));
         Assert.Contains("48", TileAssetFlagLabels.Empty, StringComparison.Ordinal);
         Assert.Contains("★", TileAssetFlagLabels.Hint(TileFlagEditMode.PassageGlobal), StringComparison.Ordinal);
         Assert.Contains("0–7", TileAssetFlagLabels.Hint(TileFlagEditMode.Terrain), StringComparison.Ordinal);
@@ -207,7 +213,17 @@ public sealed class TileAssetFlagsTests
         Assert.Contains("TileAssetFlagLabels.Damage", panel, StringComparison.Ordinal);
         Assert.Contains("TileAssetFlagLabels.Priority", panel, StringComparison.Ordinal);
         Assert.Contains("TileAssetFlagLabels.Terrain", panel, StringComparison.Ordinal);
+        Assert.Contains("TileAssetFlagLabels.Autotile", panel, StringComparison.Ordinal);
+        Assert.Contains("TileAssetFlagLabels.AutotileApply", panel, StringComparison.Ordinal);
         Assert.Contains("TileFlagEdit.Apply", panel, StringComparison.Ordinal);
+
+        var window = File.ReadAllText(Path.Combine(root, "Frog.Editor", "MainWindow.xaml"));
+        Assert.Contains("TileAssetFlagLabels.EditMenu", window, StringComparison.Ordinal);
+        Assert.Contains("TileAssetFlagLabels.JoinMenu", window, StringComparison.Ordinal);
+        var mainForm = File.ReadAllText(Path.Combine(root, "Frog.Editor", "Forms", "MainForm.cs"));
+        Assert.Contains("TileAssetFlagLabels.EditMenu", mainForm, StringComparison.Ordinal);
+        Assert.Contains("TileAssetFlagLabels.JoinMenu", mainForm, StringComparison.Ordinal);
+        Assert.Contains("BeginAutotileEdit", mainForm, StringComparison.Ordinal);
 
         var workbench = File.ReadAllText(Path.Combine(root, "Frog.Editor", "Controls", "TileAssetWorkbench.cs"));
         Assert.Contains("ModeProvider", workbench, StringComparison.Ordinal);

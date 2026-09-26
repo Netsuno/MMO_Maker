@@ -15,6 +15,7 @@ public enum TileFlagEditMode : byte
     Counter = 4,
     Damage = 5,
     Terrain = 6,
+    Autotile = 7,
 }
 
 /// <summary>Application d’un clic de mode sur les drapeaux d’une tuile. Pas d’image VX.</summary>
@@ -76,6 +77,8 @@ public static class TileFlagEdit
                 return flags.WithDamage(!flags.Damage);
             case TileFlagEditMode.Terrain:
                 return flags.CycleTerrain();
+            case TileFlagEditMode.Autotile:
+                return flags;
             default:
                 return flags;
         }
@@ -90,6 +93,7 @@ public static class TileFlagEdit
         TileFlagEditMode.Counter => flags.Counter ? "◆" : string.Empty,
         TileFlagEditMode.Damage => flags.Damage ? "●" : string.Empty,
         TileFlagEditMode.Terrain => flags.Terrain.ToString(),
+        TileFlagEditMode.Autotile => TileAssetFlagLabels.RoleMark(flags.AutotileRole),
         _ => string.Empty,
     };
 }

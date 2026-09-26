@@ -430,6 +430,7 @@ public sealed class MainForm : Form
             mResources.DropDownItems.Add("Importer un asset projet…", null, (_, _) => ImportProjectAsset());
             mResources.DropDownItems.Add("Animer la sélection de tuiles", null, (_, _) => MarkSelectedTilesAnimated());
             mResources.DropDownItems.Add("Retirer l’animation de la sélection", null, (_, _) => ClearSelectedTilesAnimated());
+            mResources.DropDownItems.Add(TileAssetFlagLabels.EditMenu, null, (_, _) => BeginAutotileEdit());
 
             var mMap = new ToolStripMenuItem("Carte");
             mMap.DropDownItems.Add("Valider la carte…", null, (_, _) => ValidateMap());
@@ -484,6 +485,13 @@ public sealed class MainForm : Form
             };
             mnuAnimPreview.CheckedChanged += (_, _) => AnimatedTilePreviewVisible = mnuAnimPreview.Checked;
             mView.DropDownItems.Add(mnuAnimPreview);
+            var mnuAutotileJoin = new ToolStripMenuItem(TileAssetFlagLabels.JoinMenu)
+            {
+                CheckOnClick = true,
+                Checked = true,
+            };
+            mnuAutotileJoin.CheckedChanged += (_, _) => AutotileJoin = mnuAutotileJoin.Checked;
+            mView.DropDownItems.Add(mnuAutotileJoin);
 
             menuStrip.Items.AddRange(new ToolStripItem[] { mFile, mEdit, mResources, mMap, mView });
             MainMenuStrip = menuStrip;
@@ -4503,6 +4511,25 @@ public sealed class MainForm : Form
             _canvas.Invalidate();
             PushEditorStatusLine();
         }
+    }
+
+    internal bool AutotileJoin
+    {
+        get => _canvas.JoinAutotiles;
+        set
+        {
+            _canvas.JoinAutotiles = value;
+            _canvas.Invalidate();
+            PushEditorStatusLine();
+        }
+    }
+
+    internal void BeginAutotileEdit()
+    {
+        ShowPaletteMode(tileAsset: true);
+        _tileAssetWorkbench.BeginAutotileEdit();
+        _statusNotice = TileAssetFlagLabels.Hint(TileFlagEditMode.Autotile);
+        PushEditorStatusLine();
     }
 
     internal string MarkSelectedTilesAnimated()

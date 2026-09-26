@@ -19,6 +19,10 @@ internal sealed class TileAssetFlagsPanel : UserControl
     private readonly Label _which;
     private readonly Label _hint;
     private readonly FlowLayoutPanel _directions;
+    private readonly Panel _autotileHost;
+    private readonly TextBox _group;
+    private readonly ComboBox _role;
+    private readonly Button _applyAutotile;
     private readonly CheckBox _north;
     private readonly CheckBox _south;
     private readonly CheckBox _east;
@@ -31,7 +35,7 @@ internal sealed class TileAssetFlagsPanel : UserControl
     {
         _catalogue = catalogue ?? throw new ArgumentNullException(nameof(catalogue));
         Dock = DockStyle.Bottom;
-        Height = 248;
+        Height = 272;
         AutoScroll = true;
         BackColor = EditorChrome.SidebarBg;
         Font = EditorChrome.BodyFont;
@@ -50,10 +54,11 @@ internal sealed class TileAssetFlagsPanel : UserControl
         var modes = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 168,
+            Height = 192,
             Padding = new Padding(8, 0, 8, 0),
             BackColor = EditorChrome.SidebarBg,
         };
+        AddMode(modes, TileAssetFlagLabels.Autotile, TileFlagEditMode.Autotile);
         AddMode(modes, TileAssetFlagLabels.Terrain, TileFlagEditMode.Terrain);
         AddMode(modes, TileAssetFlagLabels.Damage, TileFlagEditMode.Damage);
         AddMode(modes, TileAssetFlagLabels.Counter, TileFlagEditMode.Counter);
@@ -80,6 +85,56 @@ internal sealed class TileAssetFlagsPanel : UserControl
         _directions.Controls.Add(_east);
         _directions.Controls.Add(_west);
 
+        _group = new TextBox { Width = 110, Margin = new Padding(0, 2, 6, 0) };
+        _role = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 148,
+            Margin = new Padding(0, 2, 6, 0),
+        };
+        EditorChrome.StyleSidebarComboBox(_role);
+        foreach (AutotileRole role in Enum.GetValues<AutotileRole>())
+        {
+            _role.Items.Add(new RoleItem(role));
+        }
+
+        _role.SelectedIndex = 0;
+        _applyAutotile = new Button
+        {
+            Text = TileAssetFlagLabels.AutotileApply,
+            AutoSize = true,
+            Margin = new Padding(0, 2, 0, 0),
+        };
+        EditorChrome.StyleDialogButton(_applyAutotile, primary: true);
+        _applyAutotile.Click += (_, _) => CommitAutotile();
+        var groupLabel = new Label
+        {
+            Text = TileAssetFlagLabels.AutotileGroup,
+            AutoSize = true,
+            ForeColor = EditorChrome.LabelMuted,
+            Margin = new Padding(0, 6, 4, 0),
+        };
+        var fields = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 30,
+            WrapContents = false,
+            BackColor = EditorChrome.SidebarBg,
+        };
+        fields.Controls.Add(groupLabel);
+        fields.Controls.Add(_group);
+        fields.Controls.Add(_role);
+        fields.Controls.Add(_applyAutotile);
+        _autotileHost = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 34,
+            Visible = false,
+            BackColor = EditorChrome.SidebarBg,
+            Padding = new Padding(8, 0, 8, 0),
+        };
+        _autotileHost.Controls.Add(fields);
+
         _hint = new Label
         {
             Dock = DockStyle.Top,
@@ -89,6 +144,7 @@ internal sealed class TileAssetFlagsPanel : UserControl
             Text = TileAssetFlagLabels.Hint(TileFlagEditMode.PassageGlobal),
         };
 
+        Controls.Add(_autotileHost);
         Controls.Add(_hint);
         Controls.Add(_directions);
         Controls.Add(modes);
@@ -113,6 +169,11 @@ internal sealed class TileAssetFlagsPanel : UserControl
         _east.Checked = flags.PassageEast;
         _west.Checked = flags.PassageWest;
         _which.Text = enabled ? Short(id) : TileAssetFlagLabels.Empty;
+        _group.Text = flags.AutotileGroup ?? string.Empty;
+        SelectRole(flags.AutotileRole);
+        _group.Enabled = enabled;
+        _role.Enabled = enabled;
+        _applyAutotile.Enabled = enabled;
         SetDirectionsEnabled(enabled);
         _suspend = false;
     }
@@ -148,8 +209,65 @@ internal sealed class TileAssetFlagsPanel : UserControl
         }
 
         _directions.Visible = mode == TileFlagEditMode.PassageFourDirections;
+        _autotileHost.Visible = mode == TileFlagEditMode.Autotile;
+        Height = mode == TileFlagEditMode.Autotile ? 310 : 272;
         _hint.Text = TileAssetFlagLabels.Hint(mode);
         ModeChanged?.Invoke();
+    }
+
+    public void SelectAutotileMode() => SelectMode(TileFlagEditMode.Autotile);
+
+    internal string AutotileModeTextForTest => _modes[TileFlagEditMode.Autotile].Text;
+
+    internal string ApplyAutotileTextForTest => _applyAutotile.Text;
+
+    internal bool AutotileEditorVisibleForTest => _autotileHost.Visible;
+
+    internal string? ApplyAutotileForTest(string group, AutotileRole role)
+    {
+        _group.Text = group;
+        SelectRole(role);
+        CommitAutotile();
+        return _catalogue.GetFlags(_id).AutotileRole == role
+               && string.Equals(_catalogue.GetFlags(_id).AutotileGroup, group.Trim(), StringComparison.Ordinal)
+            ? null
+            : _which.Text;
+    }
+
+    private void CommitAutotile()
+    {
+        if (_suspend || _id.IsNone)
+        {
+            return;
+        }
+
+        var role = (_role.SelectedItem as RoleItem)?.Role ?? AutotileRole.None;
+        TileAssetFlags next;
+        try
+        {
+            next = _catalogue.GetFlags(_id).WithAutotile(_group.Text, role);
+        }
+        catch (ArgumentException ex)
+        {
+            _which.Text = ex.Message;
+            return;
+        }
+
+        Apply(next);
+    }
+
+    private void SelectRole(AutotileRole role)
+    {
+        for (var i = 0; i < _role.Items.Count; i++)
+        {
+            if (_role.Items[i] is RoleItem item && item.Role == role)
+            {
+                _role.SelectedIndex = i;
+                return;
+            }
+        }
+
+        _role.SelectedIndex = 0;
     }
 
     private void CommitDirections()
@@ -231,5 +349,14 @@ internal sealed class TileAssetFlagsPanel : UserControl
     {
         var hex = id.ToHex();
         return hex.Length <= 16 ? hex : hex[..16] + "…";
+    }
+
+    private sealed class RoleItem
+    {
+        public RoleItem(AutotileRole role) => Role = role;
+
+        public AutotileRole Role { get; }
+
+        public override string ToString() => TileAssetFlagLabels.RoleLabel(Role);
     }
 }

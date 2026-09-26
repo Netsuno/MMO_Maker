@@ -83,7 +83,7 @@ public static class TileAssetMapEditing
         };
     }
 
-    public static bool TryPaint(Map map, int layerIndex, int x, int y, Tile brush)
+    public static bool TryPaint(Map map, int layerIndex, int x, int y, Tile brush, bool joinAutotiles = true)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(brush);
@@ -98,6 +98,11 @@ public static class TileAssetMapEditing
         }
 
         MapEditOperations.PaintTile(map, layerIndex, x, y, brush);
+        if (joinAutotiles)
+        {
+            AutotileJoin.ReconcileNeighborhood(map, layerIndex, x, y);
+        }
+
         return true;
     }
 

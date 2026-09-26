@@ -18,4 +18,4 @@ Les drapeaux sont la meta d’un `TileAssetId` (catalogue `tile-flags.json`, sid
 
 ## Hors scope
 
-Autotiles A1–A5, base de données, bump Hello, peau DA, vague de docs.
+Feuilles autotile VX (A1–A5) et rvdata, base de données, bump Hello, peau DA, vague de docs. Le raccord par groupe (rôle sur la tuile 48×48) reste dans `tile-flags.json`.
