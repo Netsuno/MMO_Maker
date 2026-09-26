@@ -598,9 +598,16 @@ public sealed class MapViewRendererSmokeTests
         Assert.True(
             CountNotGround(named, 0, spriteTop - 16, tw, 14, groundArgb) > 4,
             "48px tiles still place the name above the 32px sprite");
-        var body = named.GetPixel((int)localCx, spriteTop + 12);
+
+        // Sheet row 12 is the face (255,229,229). The armor row matches the other
+        // smoke checks: feet - 14, which is sprite row 17 (blue, B > R).
+        var face = named.GetPixel((int)localCx, spriteTop + 12);
+        Assert.Equal(Color.FromArgb(255, 229, 229).ToArgb(), face.ToArgb());
+
+        var body = named.GetPixel((int)localCx, (int)feetCy - 14);
+        Assert.Equal(spriteTop + 17, (int)feetCy - 14);
         Assert.NotEqual(groundArgb, body.ToArgb());
-        Assert.True(body.B > body.R, $"body under the nameplate stays the sprite, got {body}");
+        Assert.True(body.B > body.R, $"armor under the nameplate stays the sprite, got {body}");
     }
 
     private static int CountNotGround(Bitmap bmp, int x, int y, int width, int height, int groundArgb)

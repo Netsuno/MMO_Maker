@@ -19,6 +19,9 @@ internal static class NameplatePainter
 
     public const float FontPixels = 12f;
 
+    /// <summary>Air entre le bas du glyphe (filet compris) et le sommet du sprite ou de la tuile.</summary>
+    public const float GapAboveAnchor = 4f;
+
     private static Font? _font;
 
     private static Font LabelFont
@@ -110,8 +113,12 @@ internal static class NameplatePainter
             return;
         }
 
+        // MeasureString peut sous-estimer l’interligne (accents, gras). On réserve
+        // au plus quelques pixels de plus pour que le bas du glyphe reste au-dessus du sprite.
+        var lineHeight = LabelFont.GetHeight(g);
+        var blockHeight = Math.Max(size.Height, Math.Min(lineHeight, size.Height + 4f));
         var x = centerX - (size.Width / 2f);
-        var y = topY - size.Height - 2f;
+        var y = topY - blockHeight - GapAboveAnchor;
         var previousHint = g.TextRenderingHint;
         var previousOffset = g.PixelOffsetMode;
         g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
