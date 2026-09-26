@@ -68,6 +68,13 @@ public sealed class UserSettings
     /// <summary>Looks enregistrés par personnage (id ou nom). Local uniquement, pas sur le fil.</summary>
     public List<CharacterLookRecord> CharacterLooks { get; set; } = new();
 
+    /// <summary>
+    /// Compétences liées aux cases 5–0 de la barre de sorts (identifiants publiés).
+    /// Liste vide : pas encore choisie, le client remplit avec les compétences publiées.
+    /// Six entrées (dont des vides) : choix du joueur, conservé tel quel.
+    /// </summary>
+    public List<string> SkillHotbarBindings { get; set; } = new();
+
     public void Normalize()
     {
         if (SchemaVersion < 1)
@@ -94,6 +101,42 @@ public sealed class UserSettings
         TilePackPublicKeyHex = (TilePackPublicKeyHex ?? string.Empty).Trim();
         TilePackSlug = (TilePackSlug ?? string.Empty).Trim();
         NormalizeLooks();
+        NormalizeSkillHotbar();
+    }
+
+    private void NormalizeSkillHotbar()
+    {
+        SkillHotbarBindings ??= new List<string>();
+        if (SkillHotbarBindings.Count == 0)
+        {
+            return;
+        }
+
+        var cleaned = new List<string>(SkillHotbarBoard.SlotCount);
+        foreach (var raw in SkillHotbarBindings)
+        {
+            if (cleaned.Count == SkillHotbarBoard.SlotCount)
+            {
+                break;
+            }
+
+            var text = (raw ?? string.Empty).Trim();
+            if (text.Length == 0 || !Guid.TryParse(text, out var id) || id == Guid.Empty)
+            {
+                cleaned.Add(string.Empty);
+            }
+            else
+            {
+                cleaned.Add(id.ToString("D"));
+            }
+        }
+
+        while (cleaned.Count < SkillHotbarBoard.SlotCount)
+        {
+            cleaned.Add(string.Empty);
+        }
+
+        SkillHotbarBindings = cleaned;
     }
 
     private void NormalizeLooks()
@@ -180,6 +223,9 @@ public sealed class UserSettings
             CharacterLooks = (CharacterLooks ?? new List<CharacterLookRecord>())
                 .Where(static row => row is not null)
                 .Select(static row => row.Copy())
+                .ToList(),
+            SkillHotbarBindings = (SkillHotbarBindings ?? new List<string>())
+                .Select(static row => row ?? string.Empty)
                 .ToList(),
         };
         copy.Normalize();

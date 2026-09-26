@@ -248,6 +248,8 @@ public sealed class MainShellForm : Form
     private readonly ComboBox _cmbShopItem = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280, Enabled = false };
     private readonly ComboBox _cmbSpell = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, Enabled = false };
     private PublishedCatalogWire? _publishedCatalog;
+    private readonly SkillHotbarBoard _skillBoard = new();
+    private readonly Queue<bool> _spellCastIsSkill = new();
     private readonly TextBox _txtLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Bottom };
     /// <summary>
     /// Viewport carte. <see cref="Panel.AutoScroll"/> reste faux : le coin (0,0) de la carte
@@ -390,6 +392,7 @@ public sealed class MainShellForm : Form
     {
         _playtestOptions = playtestOptions;
         _settings = _settingsStore.Load();
+        _skillBoard.Load(_settings.SkillHotbarBindings);
         _uiScalePercent = _settings.UiScalePercent;
         ClientUiScale.SetActive(_uiScalePercent);
         _tilePacks = new TilePackClientService(TilePackClientOptions.Resolve(_settings));
@@ -1642,6 +1645,7 @@ public sealed class MainShellForm : Form
         _cmbChannel.SelectedIndexChanged += (_, _) => PrefillWhisperFromSelection();
         _hudChat.SocialPanelRequested += OpenSocialPanel;
         _hudHotbar.SlotActivated += OnHotbarSlotActivated;
+        _hudHotbar.SkillSlotMenuRequested += OnSkillSlotMenuRequested;
         _hudMenu.Command += OnHudMenuCommand;
         _panelGame.Controls.Clear();
         _panelGame.Padding = new Padding(0);
@@ -1947,7 +1951,13 @@ public sealed class MainShellForm : Form
         _client.DropItemResultReceived += (ok, msg) => AppendLog(ok ? "Drop: " + msg : "Drop refusé: " + msg);
         _client.PickupItemResultReceived += (ok, msg) => AppendLog(ok ? "Ramassé: " + msg : "Ramassé refusé: " + msg);
         _client.GroundItemsSnapshotReceived += OnGroundItemsSnapshot;
-        _client.SpellCastResultReceived += (ok, msg) => AppendLog(ok ? "Sort: " + msg : "Sort refusé: " + msg);
+        _client.SpellCastResultReceived += (ok, msg) =>
+        {
+            var skill = _spellCastIsSkill.Count > 0 && _spellCastIsSkill.Dequeue();
+            AppendLog(skill
+                ? (ok ? "Compétence : " + msg : "Compétence refusée : " + msg)
+                : (ok ? "Sort: " + msg : "Sort refusé: " + msg));
+        };
         _client.CombatStateReceived += OnCombatState;
         _client.ShopBuyResultReceived += (ok, msg) => FinishEconomy(ShopBankAction.Buy, ok, msg, "Achat: ", "Achat refusé: ");
         _client.ShopSellResultReceived += (ok, msg) => FinishEconomy(ShopBankAction.Sell, ok, msg, "Vente: ", "Vente refusée: ");
@@ -2065,6 +2075,11 @@ public sealed class MainShellForm : Form
         _cmbSpell.Items.Clear();
         foreach (var entry in catalog.Spells)
         {
+            if (PublishedSkillCatalog.IsSkillKind(entry.Kind))
+            {
+                continue;
+            }
+
             if (Guid.TryParse(entry.Id, out var spellId))
             {
                 _cmbSpell.Items.Add(new SpellPickRow(spellId, entry.Name));
@@ -2107,6 +2122,7 @@ public sealed class MainShellForm : Form
         }
 
         ApplyCatalogRecipesToCraft(catalog);
+        ApplySkillHotbar(catalog);
     }
 
     private void ApplyCatalogRecipesToCraft(PublishedCatalogWire? catalog)
@@ -2875,7 +2891,16 @@ public sealed class MainShellForm : Form
                 return;
             }
 
-            await _client.SendSpellCastAsync(spellId, target).ConfigureAwait(true);
+            _spellCastIsSkill.Enqueue(false);
+            try
+            {
+                await _client.SendSpellCastAsync(spellId, target).ConfigureAwait(true);
+            }
+            catch
+            {
+                DropFailedCastFlagIfAlone();
+                throw;
+            }
         }
         catch (Exception ex)
         {
@@ -3409,6 +3434,8 @@ public sealed class MainShellForm : Form
         _walkOnPickupSent.Clear();
         _walkOnScannedTile = null;
         _craftPanel.ClearRecipes();
+        _skillBoard.SuspendPresentation();
+        _hudHotbar.ResetSkillSlots();
         // Keep ItemNameLookup wired to ResolveItemName (handles null catalog).
     }
 
@@ -6323,6 +6350,12 @@ public sealed class MainShellForm : Form
 
     private void OnHotbarSlotActivated(int index)
     {
+        if (SkillHotbarBoard.IsSkillHudIndex(index))
+        {
+            _ = ActivateBoundSkillAsync(index);
+            return;
+        }
+
         switch (index)
         {
             case 0:
@@ -6374,7 +6407,142 @@ public sealed class MainShellForm : Form
         }
 
         _hudHotbar.ActivateSlot(index);
-        return index < 4;
+        return _hudHotbar.IsSlotEnabled(index);
+    }
+
+    private void ApplySkillHotbar(PublishedCatalogWire catalog)
+    {
+        _skillBoard.Reconcile(PublishedSkillCatalog.FromWire(catalog.Spells));
+        PersistSkillHotbar();
+        RefreshSkillHotbar();
+    }
+
+    private void RefreshSkillHotbar()
+    {
+        if (!_skillBoard.IsPinned && _skillBoard.Published.Count == 0)
+        {
+            _hudHotbar.ResetSkillSlots();
+            return;
+        }
+
+        for (var hud = SkillHotbarBoard.FirstHudIndex; hud < HudHotbar.SlotCount; hud++)
+        {
+            var bound = _skillBoard.ResolveHud(hud) is not null;
+            _hudHotbar.PresentSkillSlot(hud, _skillBoard.TooltipForHud(hud), enabled: true, spellIcon: bound);
+        }
+    }
+
+    private void PersistSkillHotbar()
+    {
+        _settings.SkillHotbarBindings = _skillBoard.Export();
+        try
+        {
+            _settingsStore.Save(_settings);
+        }
+        catch
+        {
+            // persistance optionnelle
+        }
+    }
+
+    private void OnSkillSlotMenuRequested(int hudIndex)
+    {
+        if (!SkillHotbarBoard.IsSkillHudIndex(hudIndex))
+        {
+            return;
+        }
+
+        var slot = SkillHotbarBoard.SkillSlot(hudIndex);
+        var menu = new ContextMenuStrip();
+        foreach (var item in _skillBoard.MenuFor(slot))
+        {
+            var entry = item;
+            var row = new ToolStripMenuItem(entry.Label)
+            {
+                Enabled = entry.Enabled,
+                Checked = entry.Checked,
+            };
+            row.Click += (_, _) =>
+            {
+                if (!entry.Enabled)
+                {
+                    return;
+                }
+
+                AssignSkillSlot(hudIndex, slot, entry.Clears, entry.SkillId);
+            };
+            menu.Items.Add(row);
+        }
+
+        menu.Closed += (_, _) => menu.Dispose();
+        menu.Show(Cursor.Position);
+    }
+
+    private void AssignSkillSlot(int hudIndex, int slot, bool clear, Guid? skillId)
+    {
+        if (clear)
+        {
+            _skillBoard.Clear(slot);
+            AppendLog($"Compétence retirée (case {SkillHotbarBoard.DigitForHud(hudIndex)}).");
+        }
+        else if (skillId is Guid id && _skillBoard.TryBind(slot, id))
+        {
+            var name = _skillBoard.ResolveSlot(slot)?.Name ?? "Compétence";
+            AppendLog($"Compétence liée : {name} (case {SkillHotbarBoard.DigitForHud(hudIndex)}).");
+        }
+        else
+        {
+            return;
+        }
+
+        PersistSkillHotbar();
+        RefreshSkillHotbar();
+    }
+
+    private async Task ActivateBoundSkillAsync(int hudIndex)
+    {
+        var skill = _skillBoard.ResolveHud(hudIndex);
+        if (skill is not { } bound)
+        {
+            return;
+        }
+
+        string? target = null;
+        if (SkillHotbarBoard.NeedsNamedTarget(bound.Target))
+        {
+            target = _cmbMeleeTarget.Text.Trim();
+            if (target.Length == 0)
+            {
+                AppendLog("Compétence : choisissez une cible.");
+                return;
+            }
+        }
+
+        if (_client is not { IsConnected: true })
+        {
+            AppendLog("Compétence : hors ligne.");
+            return;
+        }
+
+        try
+        {
+            _spellCastIsSkill.Enqueue(true);
+            await _client.SendSpellCastAsync(bound.Id, target).ConfigureAwait(true);
+            _hudHotbar.FlashSlot(hudIndex);
+        }
+        catch (Exception ex)
+        {
+            DropFailedCastFlagIfAlone();
+            AppendLog("Compétence : " + ex.Message);
+        }
+    }
+
+    private void DropFailedCastFlagIfAlone()
+    {
+        if (_spellCastIsSkill.Count == 1)
+        {
+            _spellCastIsSkill.Dequeue();
+        }
     }
 
     private void PersistLastEndpoint(string host, int port)
@@ -7299,6 +7467,39 @@ public sealed class MainShellForm : Form
     internal HudChatDock ChatDockForTest => _hudChat;
 
     internal HudHotbar HotbarForTest => _hudHotbar;
+
+    internal void ApplyPublishedCatalogForTest(PublishedCatalogWire catalog) => ApplyCatalogToUi(catalog);
+
+    internal void ActivateHotbarSlotForTest(int index) => OnHotbarSlotActivated(index);
+
+    internal IReadOnlyList<string> SkillHotbarMenuLabelsForTest(int hudIndex)
+    {
+        if (!SkillHotbarBoard.IsSkillHudIndex(hudIndex))
+        {
+            return Array.Empty<string>();
+        }
+
+        return _skillBoard.MenuFor(SkillHotbarBoard.SkillSlot(hudIndex))
+            .Select(static item => item.Label)
+            .ToArray();
+    }
+
+    internal bool TryBindSkillHotbarForTest(int hudIndex, Guid skillId)
+    {
+        if (!SkillHotbarBoard.IsSkillHudIndex(hudIndex))
+        {
+            return false;
+        }
+
+        var slot = SkillHotbarBoard.SkillSlot(hudIndex);
+        if (_skillBoard.Published.All(skill => skill.Id != skillId))
+        {
+            return false;
+        }
+
+        AssignSkillSlot(hudIndex, slot, clear: false, skillId);
+        return _skillBoard.IdAt(slot) == skillId;
+    }
 
     internal HudMenuRing MenuRingForTest => _hudMenu;
 

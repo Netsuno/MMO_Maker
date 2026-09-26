@@ -1388,27 +1388,8 @@ public sealed class FrogGameClient : IDisposable
         return SendRawAsync(payload, cancellationToken);
     }
 
-    public Task SendSpellCastAsync(Guid spellId, string targetName, CancellationToken cancellationToken = default)
-    {
-        if (spellId == Guid.Empty)
-        {
-            throw new ArgumentException("Spell id invalide.", nameof(spellId));
-        }
-
-        ArgumentException.ThrowIfNullOrWhiteSpace(targetName);
-        var t = Encoding.UTF8.GetBytes(targetName.Trim());
-        if (t.Length is 0 or > ChatProtocolLimits.MaxUsernameUtf8Bytes)
-        {
-            throw new ArgumentException("Cible sort invalide.");
-        }
-
-        var payload = new byte[1 + 16 + 1 + t.Length];
-        payload[0] = (byte)PacketId.SpellCastRequest;
-        spellId.TryWriteBytes(payload.AsSpan(1));
-        payload[17] = (byte)t.Length;
-        t.CopyTo(payload.AsSpan(18));
-        return SendRawAsync(payload, cancellationToken);
-    }
+    public Task SendSpellCastAsync(Guid spellId, string? targetName, CancellationToken cancellationToken = default)
+        => SendRawAsync(SpellCastRequestWire.EncodeFrame(spellId, targetName), cancellationToken);
 
     public Task SendShopBuyAsync(Guid shopId, Guid itemId, int quantity, CancellationToken cancellationToken = default)
         => SendShopBuyAsync(shopId, itemId, quantity, NewEconomyRequestId("buy"), cancellationToken);
