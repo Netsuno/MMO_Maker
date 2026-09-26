@@ -180,6 +180,12 @@ internal static class EditorSmokeTestAccess
         return Task.CompletedTask;
     }
 
+    public static Task OpenGameDataAndSaveSampleSkillAsync(MainWindow window)
+    {
+        GameDataSmokeUiDriver.RunSkillScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
+    }
+
     public static Task OpenGameDataAndSaveSampleShopAsync(MainWindow window)
     {
         GameDataSmokeUiDriver.RunShopScenario(window, DefaultTimeout);
