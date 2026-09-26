@@ -1429,6 +1429,97 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Null(await worldState.GetSwitchAsync(characterId, "missing_ce_mem"));
     }
 
+    [Fact]
+    public async Task QuickEventPresets_Interact_AdvancesChestDoorAndInn()
+    {
+        var characterId = Guid.NewGuid();
+        await AssertPresetVisitsAsync(characterId, QuickEventPresetKind.Chest, 81, async (world, result, visit) =>
+        {
+            if (visit == 1)
+            {
+                Assert.Equal(QuickEventPresetTexts.ChestOpen, result.ShowText);
+                return;
+            }
+
+            Assert.Equal(QuickEventPresetTexts.ChestEmpty, result.ShowText);
+            var draft = RequirePreset("Coffre", QuickEventPresetKind.Chest);
+            Assert.Equal(1, await world.GetVariableAsync(characterId, draft.CounterKey!));
+            Assert.True(await world.GetSwitchAsync(characterId, draft.SwitchKey));
+        }, visits: 2);
+
+        await AssertPresetVisitsAsync(characterId, QuickEventPresetKind.Door, 82, (world, result, visit) =>
+        {
+            var draft = RequirePreset("Porte", QuickEventPresetKind.Door);
+            if (visit == 1)
+            {
+                Assert.Equal(QuickEventPresetTexts.DoorOpen, result.ShowText);
+            }
+            else
+            {
+                Assert.Equal(QuickEventPresetTexts.DoorAlreadyOpen, result.ShowText);
+                Assert.True(world.GetSwitchAsync(characterId, draft.SwitchKey).GetAwaiter().GetResult());
+            }
+
+            return Task.CompletedTask;
+        }, visits: 2);
+
+        await AssertPresetVisitsAsync(characterId, QuickEventPresetKind.Inn, 83, async (world, result, visit) =>
+        {
+            var draft = RequirePreset("Auberge", QuickEventPresetKind.Inn);
+            var nights = await world.GetVariableAsync(characterId, draft.CounterKey!);
+            switch (visit)
+            {
+                case 1:
+                    Assert.Equal(QuickEventPresetTexts.InnWelcome, result.ShowText);
+                    Assert.Equal(1, nights);
+                    Assert.True(await world.GetSwitchAsync(characterId, draft.SwitchKey));
+                    break;
+                case 2:
+                case 3:
+                    Assert.Equal(QuickEventPresetTexts.InnReturn, result.ShowText);
+                    Assert.Equal(visit, nights);
+                    break;
+                default:
+                    Assert.Equal(QuickEventPresetTexts.InnRegular, result.ShowText);
+                    Assert.Equal(visit, nights);
+                    break;
+            }
+        }, visits: 4);
+    }
+
+    private async Task AssertPresetVisitsAsync(
+        Guid characterId,
+        QuickEventPresetKind kind,
+        int alias,
+        Func<InMemoryCharacterWorldStateRepository, MapEventExecutionResult, int, Task> assertVisit,
+        int visits)
+    {
+        var draft = RequirePreset(QuickEventPresetDraft.DefaultName(kind), kind);
+        var definition = new MapEventDefinition
+        {
+            Name = draft.DisplayName,
+            CatalogSlug = draft.Slug,
+            EditorAliasId = alias,
+            Pages = draft.Pages,
+        };
+        var world = new InMemoryCharacterWorldStateRepository();
+        var service = CreateService(new FakePublishedMapEventCatalog(definition), world, new InMemoryCharacterPayloadReader());
+        var session = CreateSession(characterId);
+        for (var visit = 1; visit <= visits; visit++)
+        {
+            var result = await service.TryExecuteInteractAsync(session, CreatePlacement(alias));
+            Assert.NotNull(result);
+            Assert.True(result!.Success, result.Message);
+            await assertVisit(world, result, visit);
+        }
+    }
+
+    private static QuickEventPresetDraft RequirePreset(string name, QuickEventPresetKind kind)
+    {
+        Assert.True(QuickEventPresetDraft.TryCreate(name, kind, out var draft, out var error), error);
+        return draft!;
+    }
+
     private static MapEventRuntimeService CreateService(
         IPublishedMapEventCatalog catalog,
         InMemoryCharacterWorldStateRepository worldState,

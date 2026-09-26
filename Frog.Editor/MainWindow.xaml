@@ -154,6 +154,12 @@
                 <Separator />
                 <MenuItem Header="PNJ rapide…"
                           Command="{x:Static local:MainWindow.CmdQuickTalkingNpc}" />
+                <MenuItem Header="Coffre…"
+                          Command="{x:Static local:MainWindow.CmdQuickChest}" />
+                <MenuItem Header="Porte…"
+                          Command="{x:Static local:MainWindow.CmdQuickDoor}" />
+                <MenuItem Header="Auberge…"
+                          Command="{x:Static local:MainWindow.CmdQuickInn}" />
                 <MenuItem Header="Événements carte…"
                           Command="{x:Static local:MainWindow.CmdBrowseMapEvents}" />
                 <MenuItem Header="Contenu Phase 8…"
@@ -225,6 +231,9 @@
                 <Button Content="Pipette" Command="{x:Static local:MainWindow.CmdTilePipette}" Padding="10,4" ToolTip="Pipette tuile : I ou Alt+clic" />
                 <Separator />
                 <Button Content="PNJ rapide" Command="{x:Static local:MainWindow.CmdQuickTalkingNpc}" Padding="10,4" ToolTip="Créer un PNJ qui parle et le placer sur la carte" />
+                <Button Content="Coffre" Command="{x:Static local:MainWindow.CmdQuickChest}" Padding="10,4" ToolTip="Coffre bloquant : texte, interrupteur, butin +1, puis coffre vide." />
+                <Button Content="Porte" Command="{x:Static local:MainWindow.CmdQuickDoor}" Padding="10,4" ToolTip="Porte bloquante : texte et interrupteur d'ouverture. La case reste solide." />
+                <Button Content="Auberge" Command="{x:Static local:MainWindow.CmdQuickInn}" Padding="10,4" ToolTip="Auberge bloquante : repos, puis branche sur le nombre de nuits." />
             </ToolBar>
         </ToolBarTray>
         <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">

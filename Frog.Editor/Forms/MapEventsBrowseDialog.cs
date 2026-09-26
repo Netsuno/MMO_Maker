@@ -49,6 +49,9 @@ internal sealed class MapEventsBrowseDialog : Form
     private readonly Button _btnDeleteCatalogRow = new() { Text = "Supprimer entrée catalogue", AutoSize = true };
     private readonly Button _btnEditPages = new() { Text = "Éditer pages…", AutoSize = true };
     private readonly Button _btnQuickNpc = new() { Text = "PNJ rapide…", AutoSize = true };
+    private readonly Button _btnQuickChest = new() { Text = "Coffre…", AutoSize = true };
+    private readonly Button _btnQuickDoor = new() { Text = "Porte…", AutoSize = true };
+    private readonly Button _btnQuickInn = new() { Text = "Auberge…", AutoSize = true };
     private readonly TextBox _txtFilterCatalog = new() { Width = 220, PlaceholderText = "Filtrer le catalogue…" };
     private readonly TextBox _txtFilterPlacements = new() { Width = 220, PlaceholderText = "Filtrer les événements…" };
     private readonly Label _lblMarkerLegend = new()
@@ -158,6 +161,9 @@ internal sealed class MapEventsBrowseDialog : Form
         catNewRow.Controls.Add(_txtNewDisplay);
         catNewRow.Controls.Add(_btnAddCatalog);
         catNewRow.Controls.Add(_btnQuickNpc);
+        catNewRow.Controls.Add(_btnQuickChest);
+        catNewRow.Controls.Add(_btnQuickDoor);
+        catNewRow.Controls.Add(_btnQuickInn);
         catNewRow.Controls.Add(_btnEditPages);
         catNewRow.Controls.Add(_btnDeleteCatalogRow);
         catPanel.Controls.Add(catNewRow, 0, 2);
@@ -225,6 +231,9 @@ internal sealed class MapEventsBrowseDialog : Form
             QuickNpcRequested = true;
             Close();
         };
+        _btnQuickChest.Click += (_, _) => RequestPreset(QuickEventPresetKind.Chest);
+        _btnQuickDoor.Click += (_, _) => RequestPreset(QuickEventPresetKind.Door);
+        _btnQuickInn.Click += (_, _) => RequestPreset(QuickEventPresetKind.Inn);
         _btnEditPages.Click += (_, _) => EditPagesSafe();
         _btnDeleteCatalogRow.Click += (_, _) => DeleteCatalogRowSafe();
         _txtFilterCatalog.TextChanged += (_, _) => RefreshFilteredLists();
@@ -418,6 +427,15 @@ internal sealed class MapEventsBrowseDialog : Form
     }
     /// <summary>L'utilisateur a demandé le raccourci PNJ rapide (la boîte se ferme).</summary>
     internal bool QuickNpcRequested { get; private set; }
+
+    /// <summary>L'utilisateur a demandé un preset coffre, porte ou auberge (la boîte se ferme).</summary>
+    internal QuickEventPresetKind? RequestedPreset { get; private set; }
+
+    private void RequestPreset(QuickEventPresetKind kind)
+    {
+        RequestedPreset = kind;
+        Close();
+    }
 
 
     public void SetMapId(Guid mapId)
