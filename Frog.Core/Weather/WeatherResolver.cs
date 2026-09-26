@@ -58,6 +58,28 @@ public static class WeatherResolver
         return ApplyLighting(WeatherCatalog.ForKind(kind), lightingLevel);
     }
 
+    /// <summary>
+    /// Override événement de session : un kind connu remplace le kind publié
+    /// (éclairage et profil région inchangés). Un kind inconnu est ignoré.
+    /// </summary>
+    public static WeatherSnapshot ApplySessionOverride(WeatherSnapshot snapshot, string? sessionOverride)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!WeatherKindId.TryCanonical(sessionOverride, out var canonical)
+            || string.Equals(snapshot.WeatherKind, canonical, StringComparison.Ordinal))
+        {
+            return snapshot;
+        }
+
+        return new WeatherSnapshot
+        {
+            WeatherKind = canonical,
+            LightingFactor = snapshot.LightingFactor,
+            RegionId = snapshot.RegionId,
+            WeatherProfileId = snapshot.WeatherProfileId,
+        };
+    }
+
     /// <summary>Assombrit la teinte quand l'éclairage publié est bas (0–255).</summary>
     public static WeatherOverlayPlan ApplyLighting(WeatherOverlayPlan plan, byte lightingLevel)
     {

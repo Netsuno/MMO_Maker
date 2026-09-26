@@ -1196,6 +1196,8 @@ public sealed partial class PacketDispatcher(
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
             await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
+            await PushEnvironmentIfWeatherOverrideDroppedAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (cellAfter != cellBefore)
@@ -1287,6 +1289,8 @@ public sealed partial class PacketDispatcher(
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
             await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
+            await PushEnvironmentIfWeatherOverrideDroppedAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (cellAfter != cellBefore)
@@ -1368,6 +1372,20 @@ public sealed partial class PacketDispatcher(
             cancellationToken);
     }
 
+    private async Task PushEnvironmentIfWeatherOverrideDroppedAsync(
+        ClientSession clientSession,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        if (!session.WeatherOverrideDroppedByMapChange)
+        {
+            return;
+        }
+
+        await _phase8.SendEnvironmentStatePushOnlyAsync(clientSession, session, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     private async Task ApplyMapEventSideEffectsAsync(
         ClientSession clientSession,
         Session session,
@@ -1399,6 +1417,12 @@ public sealed partial class PacketDispatcher(
                 session.PixelX,
                 session.PixelY,
                 cancellationToken).ConfigureAwait(false);
+        }
+
+        if (result.WeatherChanged || session.WeatherOverrideDroppedByMapChange)
+        {
+            await _phase8.SendEnvironmentStatePushOnlyAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (result.DialogueState is not null)

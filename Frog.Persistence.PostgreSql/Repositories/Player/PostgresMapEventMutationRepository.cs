@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Frog.Application.Content;
 using Frog.Application.Events;
 using Frog.Application.Gameplay;
@@ -412,6 +413,18 @@ public sealed class PostgresMapEventMutationRepository(
                     out var audioErr)
                     ? null
                     : audioErr;
+
+            case MapEventCommandDiscriminators.SetWeather:
+                if (!MapEventParameterSchemas.TryParseSetWeather(
+                        command.ParameterJson,
+                        out var weatherKind,
+                        out var weatherErr))
+                {
+                    return MapEventParameterSchemas.IsUnknownWeatherKind(weatherErr) ? null : weatherErr;
+                }
+
+                snapshot.RecordWeather(weatherKind);
+                return null;
 
             default:
                 return $"Commande non supportée en transaction atomique: {command.Discriminator}.";
@@ -1114,6 +1127,7 @@ public sealed class PostgresMapEventMutationRepository(
             TeleportTileX = snapshot.TeleportTileX,
             TeleportTileY = snapshot.TeleportTileY,
             ShopId = snapshot.ShopId,
+            WeatherKind = snapshot.WeatherKind,
         }, JsonOptions);
 
     private static MapEventExecutionSnapshot? DeserializeSnapshot(string json)
@@ -1149,6 +1163,7 @@ public sealed class PostgresMapEventMutationRepository(
                 TeleportTileX = stored.TeleportTileX,
                 TeleportTileY = stored.TeleportTileY,
                 ShopId = stored.ShopId,
+                WeatherKind = stored.WeatherKind,
             };
         }
         catch
@@ -1200,5 +1215,8 @@ public sealed class PostgresMapEventMutationRepository(
         public int? TeleportTileY { get; set; }
 
         public Guid? ShopId { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? WeatherKind { get; set; }
     }
 }

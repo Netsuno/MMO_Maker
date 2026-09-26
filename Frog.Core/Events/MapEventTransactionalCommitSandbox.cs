@@ -52,6 +52,9 @@ public sealed class MapEventWorldScratch
 
     public Guid? ShopId { get; set; }
 
+    /// <summary>Intent <c>set_weather</c> (kind canonique). Null = pas de changement.</summary>
+    public string? WeatherKind { get; set; }
+
     public MapEventWorldScratch Clone() =>
         new()
         {
@@ -65,6 +68,7 @@ public sealed class MapEventWorldScratch
             Teleport = Teleport,
             DialogueId = DialogueId,
             ShopId = ShopId,
+            WeatherKind = WeatherKind,
         };
 
     public void ReplaceWith(MapEventWorldScratch other)
@@ -80,6 +84,7 @@ public sealed class MapEventWorldScratch
         Teleport = other.Teleport;
         DialogueId = other.DialogueId;
         ShopId = other.ShopId;
+        WeatherKind = other.WeatherKind;
     }
 }
 
@@ -406,6 +411,19 @@ public sealed class MapEventTransactionalCommitSandbox
                     out var audioErr)
                     ? null
                     : audioErr;
+
+            case MapEventCommandDiscriminators.SetWeather:
+                if (!MapEventParameterSchemas.TryParseSetWeather(
+                        command.ParameterJson,
+                        out var weatherKind,
+                        out var weatherErr))
+                {
+                    // Kind inconnu : la TX continue, l'override n'est pas posé.
+                    return MapEventParameterSchemas.IsUnknownWeatherKind(weatherErr) ? null : weatherErr;
+                }
+
+                world.WeatherKind = weatherKind;
+                return null;
 
             default:
                 return $"Commande non supportée en unité transactionnelle: {command.Discriminator}.";

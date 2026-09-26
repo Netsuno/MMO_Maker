@@ -31,6 +31,9 @@ public sealed class MapEventExecutionResult
 
     public bool TeleportApplied { get; init; }
 
+    /// <summary>La météo de session a changé : pousser <c>EnvironmentStatePush</c> (opcode 74).</summary>
+    public bool WeatherChanged { get; init; }
+
     public string? DialogueSummary { get; init; }
 
     public string? QuestSummary { get; init; }
@@ -64,7 +67,8 @@ public sealed class MapEventExecutionResult
         bool professionsChanged = false,
         bool recipesChanged = false,
         IReadOnlyList<WorldSwitchWire>? switchChanges = null,
-        Guid? openShopId = null) =>
+        Guid? openShopId = null,
+        bool weatherChanged = false) =>
         new()
         {
             Success = true,
@@ -81,6 +85,7 @@ public sealed class MapEventExecutionResult
             ProfessionsChanged = professionsChanged,
             RecipesChanged = recipesChanged,
             TeleportApplied = teleportApplied,
+            WeatherChanged = weatherChanged,
             DialogueSummary = dialogueSummary,
             QuestSummary = questSummary,
             DialogueState = dialogueState,
@@ -99,7 +104,8 @@ public sealed class MapEventExecutionResult
         string? dialogueSummary = null,
         DialogueStatePushWire? dialogueState = null,
         Guid? openShopId = null,
-        string? sessionNote = null) =>
+        string? sessionNote = null,
+        bool weatherChanged = false) =>
         Ok(
             message: snap?.ShowText ?? dialogueSummary ?? sessionNote ?? fallbackMessage,
             showText: snap?.ShowText ?? dialogueSummary ?? sessionNote,
@@ -109,6 +115,7 @@ public sealed class MapEventExecutionResult
             inventoryChanged: snap?.InventoryChanged ?? false,
             goldChanged: snap?.GoldChanged ?? false,
             teleportApplied: teleportApplied,
+            weatherChanged: weatherChanged,
             dialogueSummary: dialogueSummary,
             questSummary: snap?.QuestSummary,
             dialogueState: dialogueState,

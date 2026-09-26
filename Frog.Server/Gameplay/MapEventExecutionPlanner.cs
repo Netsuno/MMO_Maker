@@ -167,7 +167,8 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.Teleport
                 or MapEventCommandDiscriminators.OpenShop
                 or MapEventCommandDiscriminators.PlayBgm
-                or MapEventCommandDiscriminators.PlaySe => true,
+                or MapEventCommandDiscriminators.PlaySe
+                or MapEventCommandDiscriminators.SetWeather => true,
             _ => false,
         };
 }

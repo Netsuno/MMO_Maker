@@ -4,6 +4,7 @@ using Frog.Core.Enums;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Weather;
 using Frog.Server.Config;
 using Frog.Server.Database;
 using Frog.Server.Gameplay;
@@ -262,13 +263,16 @@ public sealed class Phase8GameplayHandlers(
 
     public async Task<WeatherSnapshot> GetWeatherSnapshotForSessionAsync(
         Session session,
-        CancellationToken cancellationToken = default) =>
-        await weather.GetWeatherForSessionAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot = await weather.GetWeatherForSessionAsync(
                 session.CurrentMapId,
                 session.PositionX,
                 session.PositionY,
                 cancellationToken)
             .ConfigureAwait(false);
+        return WeatherResolver.ApplySessionOverride(snapshot, session.WeatherKindOverride);
+    }
 
     public async Task SendEnvironmentStateAsync(
         ClientSession client,
@@ -289,11 +293,8 @@ public sealed class Phase8GameplayHandlers(
         Session session,
         CancellationToken cancellationToken)
     {
-        var snapshot = await weather.GetWeatherForSessionAsync(
-                session.CurrentMapId,
-                session.PositionX,
-                session.PositionY,
-                cancellationToken)
+        session.AcknowledgeWeatherOverrideDrop();
+        var snapshot = await GetWeatherSnapshotForSessionAsync(session, cancellationToken)
             .ConfigureAwait(false);
         await packetSender.SendEnvironmentStatePushAsync(
                 client,
@@ -651,6 +652,12 @@ public sealed class Phase8GameplayHandlers(
                 session.PixelX,
                 session.PixelY,
                 cancellationToken).ConfigureAwait(false);
+        }
+
+        if (runtimeResult.WeatherChanged || session.WeatherOverrideDroppedByMapChange)
+        {
+            await SendEnvironmentStatePushOnlyAsync(client, session, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (runtimeResult.DialogueState is not null)

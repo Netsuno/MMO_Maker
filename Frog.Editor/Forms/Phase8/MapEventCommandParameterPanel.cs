@@ -2,6 +2,7 @@ using System.Text.Json;
 using Frog.Application.Assets;
 using Frog.Core.Events;
 using Frog.Core.Models;
+using Frog.Core.Weather;
 using Frog.Editor.Services;
 using Frog.Editor.Ui;
 
@@ -276,6 +277,17 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             case MapEventCommandDiscriminators.OpenShop:
                 AddOpenShopFields();
                 break;
+            case MapEventCommandDiscriminators.SetWeather:
+                var weather = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+                foreach (var kind in WeatherKindId.All)
+                {
+                    weather.Items.Add(kind);
+                }
+
+                weather.SelectedIndex = 0;
+                EditorListDraw.UseReadableChoices(weather, MapEventEditorLabels.WeatherKind);
+                AddLabeled("weatherKind", weather);
+                break;
             case MapEventCommandDiscriminators.Branch:
                 _branchCondition = new MapEventConditionParameterPanel();
                 _branchThen = new MapEventCommandListPanel();
@@ -348,6 +360,23 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
     private bool GetBool(string key) =>
         FindFieldControl(key) is CheckBox cb && cb.Checked;
+
+    private string GetChoice(string key) =>
+        FindFieldControl(key) is ComboBox combo ? combo.SelectedItem as string ?? string.Empty : string.Empty;
+
+    private void SetChoice(string key, string value)
+    {
+        if (FindFieldControl(key) is not ComboBox combo)
+        {
+            return;
+        }
+
+        var idx = combo.Items.IndexOf(value);
+        if (idx >= 0)
+        {
+            combo.SelectedIndex = idx;
+        }
+    }
 
     private void SetText(string key, string value)
     {
@@ -551,6 +580,13 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 case MapEventCommandDiscriminators.OpenShop:
                     ApplyOpenShop(root);
                     break;
+                case MapEventCommandDiscriminators.SetWeather:
+                    if (root.TryGetProperty("weatherKind", out var weatherKind))
+                    {
+                        SetChoice("weatherKind", weatherKind.GetString() ?? WeatherKindId.Clear);
+                    }
+
+                    break;
                 case MapEventCommandDiscriminators.Branch:
                     if (_branchCondition is not null
                         && root.TryGetProperty("conditionKind", out var condKindEl))
@@ -682,6 +718,8 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 MapEventCommandDiscriminators.LearnProfession =>
                     JsonSerializer.Serialize(new { professionId = GetText("professionId") }),
                 MapEventCommandDiscriminators.OpenShop => BuildOpenShopJson(),
+                MapEventCommandDiscriminators.SetWeather =>
+                    JsonSerializer.Serialize(new { weatherKind = GetChoice("weatherKind") }),
                 _ => GetText("parameterJson"),
             };
             return true;

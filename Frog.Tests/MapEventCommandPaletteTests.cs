@@ -25,6 +25,7 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.SubVariableId,
                 MapEventCommandPalette.BranchSwitchId,
                 MapEventCommandPalette.BranchVariableId,
+                MapEventCommandPalette.SetWeatherId,
             ],
             ids);
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
@@ -34,6 +35,7 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Jouer SE");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Ouvrir boutique");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Si variable");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer météo");
     }
 
     [Theory]

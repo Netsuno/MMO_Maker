@@ -7,6 +7,7 @@ using Frog.Core.Character;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Weather;
 using Frog.Server.Database;
 using Frog.Server.Models;
 using Frog.Server.Services;
@@ -335,6 +336,9 @@ public sealed class MapEventCommandExecutor
                 return await ExecuteOpenShopAsync(command.ParameterJson, state, cancellationToken)
                     .ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.SetWeather:
+                return ApplySetWeather(session, command.ParameterJson, state);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -596,6 +600,21 @@ public sealed class MapEventCommandExecutor
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(snap.WeatherKind))
+        {
+            if (WeatherKindId.TryCanonical(snap.WeatherKind, out var weatherKind))
+            {
+                ApplyCanonicalWeather(session, weatherKind, state);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "set_weather ignoré: kind inconnu ({Kind}) pour {CharacterId}",
+                    snap.WeatherKind,
+                    characterId);
+            }
+        }
+
         if (snap.DialogueId is Guid dialogueId && dialogueId != Guid.Empty)
         {
             var dialogueErr = await TryApplyDialogueIntentAsync(
@@ -673,7 +692,39 @@ public sealed class MapEventCommandExecutor
         }
 
         state.TeleportApplied = true;
+        if (session.WeatherOverrideDroppedByMapChange)
+        {
+            state.WeatherChanged = true;
+        }
+
         return null;
+    }
+
+    /// <summary>
+    /// Pose l'override de session. Un kind inconnu est journalisé et ignoré
+    /// (le runner continue). Un JSON illisible reste une erreur de commande.
+    /// </summary>
+    private string? ApplySetWeather(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseSetWeather(parameterJson, out var kind, out var err))
+        {
+            if (MapEventParameterSchemas.IsUnknownWeatherKind(err))
+            {
+                _logger.LogWarning("set_weather ignoré: {Error}", err);
+                return null;
+            }
+
+            return err ?? "set_weather invalide.";
+        }
+
+        ApplyCanonicalWeather(session, kind, state);
+        return null;
+    }
+
+    private static void ApplyCanonicalWeather(Session session, string kind, MapEventExecutionState state)
+    {
+        session.WeatherKindOverride = kind;
+        state.WeatherChanged = true;
     }
 
     private async Task<string?> ExecuteLearnProfessionAsync(

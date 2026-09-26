@@ -589,6 +589,8 @@ public sealed partial class PacketDispatcher
         if (result.Success)
         {
             await SendCombatStateAsync(clientSession, session, cancellationToken);
+            await PushEnvironmentIfWeatherOverrideDroppedAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
             foreach (var targetClient in _clientRegistry.GetAllAuthenticatedClients())
             {
                 await _packetSender.SendPositionUpdateAsync(

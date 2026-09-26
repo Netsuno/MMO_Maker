@@ -25,6 +25,7 @@ public static class MapEventCommandPalette
     public const string SubVariableId = "sub_variable";
     public const string BranchSwitchId = "branch_switch";
     public const string BranchVariableId = "branch_variable";
+    public const string SetWeatherId = "set_weather";
 
     public const string DefaultSwitchId = "interrupteur_1";
     public const string DefaultVariableId = "variable_1";
@@ -42,6 +43,7 @@ public static class MapEventCommandPalette
         new(SubVariableId, "Variable −"),
         new(BranchSwitchId, "Si interrupteur"),
         new(BranchVariableId, "Si variable"),
+        new(SetWeatherId, "Changer météo"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -99,6 +101,9 @@ public static class MapEventCommandPalette
                 BranchBody(
                     MapEventConditionKinds.CharacterVariableCompare,
                     JsonSerializer.Serialize(new { variableId = DefaultVariableId, op = "gte", value = 1 }))),
+            SetWeatherId => Command(
+                MapEventCommandDiscriminators.SetWeather,
+                new { weatherKind = "clear" }),
             _ => null,
         };
 
