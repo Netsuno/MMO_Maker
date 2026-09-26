@@ -44,20 +44,27 @@ public sealed class MapResizeShiftDialogSmokeTests
             Assert.Equal(1, edit.DeltaX);
             Assert.Equal(-2, edit.DeltaY);
 
-            var tile = new Frog.Core.Models.Tile
+            var stamp = new Frog.Core.Models.Tile
             {
                 Type = Frog.Core.Enums.TileType.Ground,
                 AssetId = Frog.Core.Maps.TileAssetId.FromStraightRgba(Solid(9, 8, 7, 255)),
             };
             map.Layers.Add(new Frog.Core.Models.Layer { LayerType = Frog.Core.Enums.LayerType.Ground });
-            MapEditOperations.PaintTile(map, 0, 2, 2, tile);
+            MapEditOperations.PaintTile(map, 0, 2, 2, stamp);
+            var placed = Assert.Single(map.Layers[0].Tiles);
+            Assert.Equal(2, placed.X);
+            Assert.Equal(2, placed.Y);
+            Assert.Equal(stamp.AssetId, placed.AssetId);
             Assert.True(MapResizeShift.TryApply(map, edit, null, null, null, null, out var report, out var error));
             Assert.Null(error);
-            Assert.Equal(3, tile.X);
-            Assert.Equal(0, tile.Y);
+            Assert.Same(placed, Assert.Single(map.Layers[0].Tiles));
+            Assert.Equal(3, placed.X);
+            Assert.Equal(0, placed.Y);
             Assert.Equal(48, map.TileSizePixels);
             Assert.Equal(TileGraphicIdentity.TileAsset, map.GraphicIdentity);
-            Assert.Equal(0, tile.SrcX);
+            Assert.Equal(stamp.AssetId, placed.AssetId);
+            Assert.Equal(0, placed.SrcX);
+            Assert.Equal(0, placed.TilesetId);
             Assert.Equal(0, report.TilesRemoved);
             Assert.True(map.Validate(out var validateError), validateError);
         });
