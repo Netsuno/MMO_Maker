@@ -115,4 +115,6 @@ public sealed record PendingWaitResume(
     DateTimeOffset WaitUntilUtc,
     IReadOnlyList<MapEventCommandDefinition> RemainingCommands,
     string? PlacementLabel = null,
-    MapEventExecutionPlan? ResumePlan = null);
+    MapEventExecutionPlan? ResumePlan = null,
+    int EventTileX = 0,
+    int EventTileY = 0);

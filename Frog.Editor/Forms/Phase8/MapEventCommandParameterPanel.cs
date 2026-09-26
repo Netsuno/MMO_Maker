@@ -336,6 +336,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddChannelField("opacity", MapEventScreen.DefaultFlashOpacity);
                 AddDurationField();
                 break;
+            case MapEventCommandDiscriminators.ShowAnimation:
+                AddAnimationFields();
+                break;
             case MapEventCommandDiscriminators.Branch:
                 _branchCondition = new MapEventConditionParameterPanel();
                 _branchThen = new MapEventCommandListPanel();
@@ -680,6 +683,19 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     ApplyChannel(root, "opacity");
                     ApplyDuration(root);
                     break;
+                case MapEventCommandDiscriminators.ShowAnimation:
+                    if (root.TryGetProperty("animationId", out var animationId) && animationId.TryGetInt32(out var animation))
+                    {
+                        SetChoice("animationId", animation.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    }
+
+                    if (root.TryGetProperty("target", out var animationTarget))
+                    {
+                        SetChoice("target", animationTarget.GetString() ?? MapEventAnimation.TargetEvent);
+                    }
+
+                    ApplyDuration(root);
+                    break;
                 case MapEventCommandDiscriminators.Branch:
                     if (_branchCondition is not null
                         && root.TryGetProperty("conditionKind", out var condKindEl))
@@ -870,6 +886,15 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                         opacity = GetInt("opacity"),
                         durationMs = GetInt("durationMs"),
                     }),
+                MapEventCommandDiscriminators.ShowAnimation =>
+                    JsonSerializer.Serialize(new
+                    {
+                        animationId = int.Parse(
+                            GetChoice("animationId"),
+                            System.Globalization.CultureInfo.InvariantCulture),
+                        target = GetChoice("target"),
+                        durationMs = GetInt("durationMs"),
+                    }),
                 _ => GetText("parameterJson"),
             };
             return true;
@@ -880,6 +905,30 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             error = ex.Message;
             return false;
         }
+    }
+
+    private void AddAnimationFields()
+    {
+        var animation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+        foreach (var id in MapEventAnimation.Ids)
+        {
+            animation.Items.Add(id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        animation.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(animation, MapEventEditorLabels.AnimationName);
+        AddLabeled("animationId", animation);
+
+        var target = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+        foreach (var kind in MapEventAnimation.Targets)
+        {
+            target.Items.Add(kind);
+        }
+
+        target.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(target, MapEventEditorLabels.AnimationTarget);
+        AddLabeled("target", target);
+        AddDurationField();
     }
 
     private void AddDurationField()

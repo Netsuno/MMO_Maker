@@ -4,7 +4,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, audio, boutique, interrupteur, variable, branche, météo.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, interrupteur, variable, branche, météo.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -35,6 +35,7 @@ public static class MapEventCommandPalette
     public const string TintScreenId = "tint_screen";
     public const string ShakeScreenId = "shake_screen";
     public const string FlashScreenId = "flash_screen";
+    public const string ShowAnimationId = "show_animation";
 
     public const string DefaultSwitchId = "interrupteur_1";
     public const string DefaultVariableId = "variable_1";
@@ -62,6 +63,7 @@ public static class MapEventCommandPalette
         new(TintScreenId, "Teinte écran"),
         new(ShakeScreenId, "Tremblement écran"),
         new(FlashScreenId, "Flash écran"),
+        new(ShowAnimationId, "Afficher animation"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -188,6 +190,14 @@ public static class MapEventCommandPalette
                     green = MapEventScreen.DefaultFlashGreen,
                     blue = MapEventScreen.DefaultFlashBlue,
                     opacity = MapEventScreen.DefaultFlashOpacity,
+                    durationMs = MapEventScreen.DefaultDurationMs,
+                }),
+            ShowAnimationId => Command(
+                MapEventCommandDiscriminators.ShowAnimation,
+                new
+                {
+                    animationId = MapEventAnimation.DefaultId,
+                    target = MapEventAnimation.TargetEvent,
                     durationMs = MapEventScreen.DefaultDurationMs,
                 }),
             _ => null,

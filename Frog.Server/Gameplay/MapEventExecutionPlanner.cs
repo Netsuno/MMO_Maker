@@ -177,7 +177,8 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.FadeInScreen
                 or MapEventCommandDiscriminators.TintScreen
                 or MapEventCommandDiscriminators.ShakeScreen
-                or MapEventCommandDiscriminators.FlashScreen => true,
+                or MapEventCommandDiscriminators.FlashScreen
+                or MapEventCommandDiscriminators.ShowAnimation => true,
             _ => false,
         };
 }

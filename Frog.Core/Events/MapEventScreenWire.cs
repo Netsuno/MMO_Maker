@@ -3,9 +3,9 @@ using System.Globalization;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Transporte fondu, teinte, tremblement et flash dans le message <c>InteractResult</c> (opcode 32).
+/// Transporte fondu, teinte, tremblement, flash et animation dans le message <c>InteractResult</c> (opcode 32).
 /// Même schéma que <c>pic:</c> et <c>shop:&lt;guid&gt;</c> : lignes préfixes, Hello 11, pas de nouvel opcode.
-/// Les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c> et <c>pic:</c> restent dans l'ordre de la page.
+/// Les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c> et <c>pic:</c> restent dans l'ordre de la page.
 /// </summary>
 public static class MapEventScreenWire
 {
@@ -41,7 +41,9 @@ public static class MapEventScreenWire
             ? FormatLine(screen)
             : visual.Picture is { } picture
                 ? MapEventPictureWire.FormatLine(picture)
-                : string.Empty;
+                : visual.Animation is { } animation
+                    ? MapEventAnimation.FormatLine(animation)
+                    : string.Empty;
 
     /// <summary>
     /// Préfixe les effets d'écran et les images dans l'ordre, puis le corps boutique / texte.
@@ -59,6 +61,7 @@ public static class MapEventScreenWire
         }
 
         var screens = 0;
+        var animations = 0;
         var pictures = new List<MapEventPictureOp>();
         foreach (var visual in visuals)
         {
@@ -66,13 +69,17 @@ public static class MapEventScreenWire
             {
                 screens++;
             }
+            else if (visual.Animation is not null)
+            {
+                animations++;
+            }
             else if (visual.Picture is { } picture)
             {
                 pictures.Add(picture);
             }
         }
 
-        if (screens == 0)
+        if (screens == 0 && animations == 0)
         {
             return MapEventPictureWire.Compose(pictures, shopId, showText, fallbackMessage);
         }
@@ -91,7 +98,7 @@ public static class MapEventScreenWire
     }
 
     /// <summary>
-    /// Retire les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c> et <c>pic:</c> en tête.
+    /// Retire les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c> et <c>pic:</c> en tête.
     /// Le reste peut encore porter <c>shop:</c> puis le texte.
     /// </summary>
     public static bool TryTakeInteractMessage(
@@ -139,12 +146,18 @@ public static class MapEventScreenWire
             return true;
         }
 
-        if (!TryParseScreenLine(line, out var screen))
+        if (TryParseScreenLine(line, out var screen))
+        {
+            op = MapEventVisualOp.ForScreen(screen);
+            return true;
+        }
+
+        if (!MapEventAnimation.TryParseLine(line, out var animation))
         {
             return false;
         }
 
-        op = MapEventVisualOp.ForScreen(screen);
+        op = MapEventVisualOp.ForAnimation(animation);
         return true;
     }
 

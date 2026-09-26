@@ -54,7 +54,8 @@ public static class MapEventEffectClassifier
                 or MapEventCommandDiscriminators.FadeInScreen
                 or MapEventCommandDiscriminators.TintScreen
                 or MapEventCommandDiscriminators.ShakeScreen
-                or MapEventCommandDiscriminators.FlashScreen =>
+                or MapEventCommandDiscriminators.FlashScreen
+                or MapEventCommandDiscriminators.ShowAnimation =>
                 MapEventEffectCommitKind.SessionSide,
             _ => MapEventEffectCommitKind.Unknown,
         };

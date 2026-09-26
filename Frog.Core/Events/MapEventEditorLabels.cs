@@ -108,6 +108,7 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.TintScreen => "Teinte écran",
         MapEventCommandDiscriminators.ShakeScreen => "Tremblement écran",
         MapEventCommandDiscriminators.FlashScreen => "Flash écran",
+        MapEventCommandDiscriminators.ShowAnimation => "Afficher animation",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
     };
 
@@ -125,6 +126,21 @@ public static class MapEventEditorLabels
         WeatherKindId.Rain => "Pluie",
         WeatherKindId.Fog => "Brouillard",
         _ => string.IsNullOrWhiteSpace(kind) ? "Météo" : kind.Trim(),
+    };
+
+    public static string AnimationName(string? id) => id switch
+    {
+        "1" => "Étincelle",
+        "2" => "Soin",
+        "3" => "Impact",
+        _ => string.IsNullOrWhiteSpace(id) ? "Animation" : id.Trim(),
+    };
+
+    public static string AnimationTarget(string? target) => target switch
+    {
+        MapEventAnimation.TargetPlayer => "Joueur",
+        MapEventAnimation.TargetEvent => "Événement",
+        _ => string.IsNullOrWhiteSpace(target) ? "Cible" : target.Trim(),
     };
 
     public static string Field(string? key) => key switch
@@ -168,6 +184,8 @@ public static class MapEventEditorLabels
         "blue" => "Bleu",
         "power" => "Puissance",
         "speed" => "Vitesse",
+        "animationId" => "Animation",
+        "target" => "Cible",
         "condition" => "Si",
         "thenCommands" => "Alors",
         "elseCommands" => "Sinon",
@@ -380,6 +398,8 @@ public static class MapEventEditorLabels
                 $"Tremblement écran : puissance {ReadInt(root, "power")} · vitesse {ReadInt(root, "speed")} ({ReadInt(root, "durationMs")} ms)",
             MapEventCommandDiscriminators.FlashScreen =>
                 $"Flash écran : R{ReadInt(root, "red")} V{ReadInt(root, "green")} B{ReadInt(root, "blue")} · op. {ReadInt(root, "opacity")} ({ReadInt(root, "durationMs")} ms)",
+            MapEventCommandDiscriminators.ShowAnimation =>
+                $"Afficher animation : {AnimationName(ReadInt(root, "animationId").ToString())} sur {AnimationTarget(ReadString(root, "target"))} ({ReadInt(root, "durationMs")} ms)",
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };

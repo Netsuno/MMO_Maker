@@ -191,6 +191,7 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.TintScreen)]
     [InlineData(MapEventCommandDiscriminators.ShakeScreen)]
     [InlineData(MapEventCommandDiscriminators.FlashScreen)]
+    [InlineData(MapEventCommandDiscriminators.ShowAnimation)]
     [InlineData(MapEventCommandDiscriminators.Branch)]
     public void MapEventPagesEditor_AllCommandFamilies_TypedFieldMutation(string discriminator)
     {
@@ -810,6 +811,9 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.FlashScreen => Command(
                 discriminator,
                 """{"red":255,"green":255,"blue":255,"opacity":170,"durationMs":1000}"""),
+            MapEventCommandDiscriminators.ShowAnimation => Command(
+                discriminator,
+                """{"animationId":1,"target":"event","durationMs":1000}"""),
             MapEventCommandDiscriminators.Branch => BranchCommand(
                 new MapEventConditionDefinition
                 {
@@ -987,6 +991,10 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.FlashScreen:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("opacity"), "200");
                 expectedFragment = "\"opacity\":200";
+                break;
+            case MapEventCommandDiscriminators.ShowAnimation:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("target"), "player");
+                expectedFragment = "\"target\":\"player\"";
                 break;
             case MapEventCommandDiscriminators.Branch:
                 var thenText = Assert.IsType<TextBox>(

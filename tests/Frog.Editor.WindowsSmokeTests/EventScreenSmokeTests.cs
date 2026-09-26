@@ -227,4 +227,80 @@ public sealed class EventScreenSmokeTests
             }
         });
     }
+
+    [Fact]
+    public void ShowAnimation_PaintsTheTargetTileThenClears()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "frog-event-anim-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "client-settings.json");
+            var previous = Environment.GetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable);
+            Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, path);
+            MainShellForm? form = null;
+            try
+            {
+                Assert.Equal((ushort)11, FrogWireProtocol.Version);
+                form = ClientSmokeTestAccess.CreateAndShowMainShell();
+                var map = MapSamples.StarterMeadow(Guid.Empty);
+                var tile = TileAssetDisplayPixels.MapPixelSize(map);
+                var (focusX, focusY) = WorldMetrics.TileCenterToPixels(2, 3, tile);
+                form.ShowOfflineMapViewportForTest(map, focusX, focusY);
+                form.LayoutGameHudForTest();
+
+                const int tileX = 1;
+                const int tileY = 2;
+                var cx = (tileX * tile) + (tile / 2);
+                var cy = (tileY * tile) + (tile / 2);
+                var before = Assert.IsType<Bitmap>(form.MapPictureForTest.Image);
+                var ground = before.GetPixel(cx, cy);
+                var hit = MapEventAnimation.ColorOf(MapEventAnimation.HitId);
+
+                form.ApplyInteractResultForTest(
+                    true,
+                    MapEventScreenWire.Compose(
+                        [
+                            MapEventVisualOp.ForAnimation(
+                                MapEventAnimationOp.Create(
+                                    MapEventAnimation.HitId,
+                                    MapEventAnimation.TargetEvent,
+                                    400).At(tileX, tileY)),
+                        ],
+                        null,
+                        null,
+                        null));
+                Assert.True(form.MapAnimationPlayingForTest);
+                Assert.Equal(MapEventAnimation.HitId, form.MapAnimationIdForTest);
+                Assert.Equal(tileX, form.MapAnimationTileXForTest);
+                Assert.Equal(tileY, form.MapAnimationTileYForTest);
+                form.AdvanceScreenToneForTest(0);
+                var painted = Assert.IsType<Bitmap>(form.MapPictureForTest.Image);
+                Assert.Equal(Color.FromArgb(255, hit.Red, hit.Green, hit.Blue), painted.GetPixel(cx, cy));
+
+                form.AdvanceScreenToneForTest(400);
+                Assert.False(form.MapAnimationPlayingForTest);
+                var cleared = Assert.IsType<Bitmap>(form.MapPictureForTest.Image);
+                Assert.Equal(ground, cleared.GetPixel(cx, cy));
+            }
+            finally
+            {
+                if (form is not null)
+                {
+                    form.Close();
+                    form.Dispose();
+                }
+
+                Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, previous);
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // Le fichier de réglages peut encore être tenu.
+                }
+            }
+        });
+    }
 }
