@@ -35,6 +35,7 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     };
     private readonly Button _btnPrevPage = new() { Text = "Page précédente", AutoSize = true };
     private readonly Button _btnNextPage = new() { Text = "Page suivante", AutoSize = true };
+    private readonly Button _btnRemovePage = new() { Text = "Retirer la page", AutoSize = true };
     private readonly NumericUpDown _priority = new() { Width = 80, Minimum = 0, Maximum = 9999 };
     private readonly ComboBox _trigger = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Font = EditorChrome.BodyFont };
     private readonly ComboBox _movement = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 240, Font = EditorChrome.BodyFont };
@@ -178,13 +179,12 @@ internal sealed class MapEventPagesEditorPanel : UserControl
             Margin = new Padding(8, 0, 0, 0),
         };
         var btnAddPage = new Button { Text = "Ajouter une page", AutoSize = true };
-        var btnRemovePage = new Button { Text = "Retirer la page", AutoSize = true };
         btnAddPage.Click += (_, _) => AddPage();
-        btnRemovePage.Click += (_, _) => RemovePage();
+        _btnRemovePage.Click += (_, _) => RemovePage();
         pageButtons.Controls.Add(_btnPrevPage);
         pageButtons.Controls.Add(_btnNextPage);
         pageButtons.Controls.Add(btnAddPage);
-        pageButtons.Controls.Add(btnRemovePage);
+        pageButtons.Controls.Add(_btnRemovePage);
         var pageRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
         pageRow.Controls.Add(_pages);
         pageRow.Controls.Add(pageButtons);
@@ -382,6 +382,8 @@ internal sealed class MapEventPagesEditorPanel : UserControl
     internal Button PreviousPageButtonForTest => _btnPrevPage;
 
     internal Button NextPageButtonForTest => _btnNextPage;
+
+    internal Button RemovePageButtonForTest => _btnRemovePage;
 
     public void LoadPages(IReadOnlyList<MapEventPageDefinition> pages)
     {

@@ -724,8 +724,7 @@ public sealed class MapEventPagesEditorSmokeTests
                 StringComparison.Ordinal);
             Assert.Equal(0, panel.PagesForTest.SelectedIndex);
 
-            var remove = FindButton(panel, "Retirer la page");
-            remove.PerformClick();
+            panel.RemovePageButtonForTest.PerformClick();
 
             Assert.Equal(1, panel.PagesForTest.Items.Count);
             Assert.Equal(0, panel.PagesForTest.SelectedIndex);
@@ -742,25 +741,6 @@ public sealed class MapEventPagesEditorSmokeTests
 
             host.Close();
         });
-    }
-
-    private static Button FindButton(Control root, string text)
-    {
-        foreach (Control child in root.Controls)
-        {
-            if (child is Button button && button.Text == text)
-            {
-                return button;
-            }
-
-            var nested = FindButton(child, text);
-            if (nested is not null)
-            {
-                return nested;
-            }
-        }
-
-        throw new InvalidOperationException($"Bouton « {text} » introuvable.");
     }
 
     private static MapEventPageDefinition PageWith(
