@@ -28,6 +28,9 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.SetWeatherId,
                 MapEventCommandPalette.ShowPictureId,
                 MapEventCommandPalette.ErasePictureId,
+                MapEventCommandPalette.FadeOutScreenId,
+                MapEventCommandPalette.FadeInScreenId,
+                MapEventCommandPalette.TintScreenId,
             ],
             ids);
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
@@ -40,6 +43,9 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer météo");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Afficher image");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Effacer image");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Fondu en fermeture");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Fondu en ouverture");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Teinte écran");
     }
 
     [Theory]

@@ -170,7 +170,10 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.PlaySe
                 or MapEventCommandDiscriminators.SetWeather
                 or MapEventCommandDiscriminators.ShowPicture
-                or MapEventCommandDiscriminators.ErasePicture => true,
+                or MapEventCommandDiscriminators.ErasePicture
+                or MapEventCommandDiscriminators.FadeOutScreen
+                or MapEventCommandDiscriminators.FadeInScreen
+                or MapEventCommandDiscriminators.TintScreen => true,
             _ => false,
         };
 }

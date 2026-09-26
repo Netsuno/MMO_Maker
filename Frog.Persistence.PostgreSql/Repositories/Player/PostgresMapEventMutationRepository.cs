@@ -456,6 +456,44 @@ public sealed class PostgresMapEventMutationRepository(
                 snapshot.RecordPicture(MapEventPictureOp.ForErase(erasePictureId));
                 return null;
 
+            case MapEventCommandDiscriminators.FadeOutScreen:
+                if (!MapEventParameterSchemas.TryParseFadeScreen(
+                        command.ParameterJson,
+                        fadeOut: true,
+                        out var fadeOut,
+                        out var fadeOutErr))
+                {
+                    return fadeOutErr;
+                }
+
+                snapshot.RecordScreen(fadeOut);
+                return null;
+
+            case MapEventCommandDiscriminators.FadeInScreen:
+                if (!MapEventParameterSchemas.TryParseFadeScreen(
+                        command.ParameterJson,
+                        fadeOut: false,
+                        out var fadeIn,
+                        out var fadeInErr))
+                {
+                    return fadeInErr;
+                }
+
+                snapshot.RecordScreen(fadeIn);
+                return null;
+
+            case MapEventCommandDiscriminators.TintScreen:
+                if (!MapEventParameterSchemas.TryParseTintScreen(
+                        command.ParameterJson,
+                        out var tint,
+                        out var tintErr))
+                {
+                    return tintErr;
+                }
+
+                snapshot.RecordScreen(tint);
+                return null;
+
             default:
                 return $"Commande non supportée en transaction atomique: {command.Discriminator}.";
         }
@@ -1159,6 +1197,8 @@ public sealed class PostgresMapEventMutationRepository(
             ShopId = snapshot.ShopId,
             WeatherKind = snapshot.WeatherKind,
             PictureOps = snapshot.PictureOps is { Count: > 0 } ops ? ops : null,
+            ScreenOps = snapshot.ScreenOps is { Count: > 0 } screenOps ? screenOps : null,
+            VisualOrder = snapshot.VisualOrder is { Count: > 0 } order ? order : null,
         }, JsonOptions);
 
     private static MapEventExecutionSnapshot? DeserializeSnapshot(string json)
@@ -1196,6 +1236,8 @@ public sealed class PostgresMapEventMutationRepository(
                 ShopId = stored.ShopId,
                 WeatherKind = stored.WeatherKind,
                 PictureOps = stored.PictureOps ?? [],
+                ScreenOps = stored.ScreenOps ?? [],
+                VisualOrder = stored.VisualOrder ?? [],
             };
         }
         catch
@@ -1253,5 +1295,11 @@ public sealed class PostgresMapEventMutationRepository(
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<MapEventPictureOp>? PictureOps { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<MapEventScreenOp>? ScreenOps { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<string>? VisualOrder { get; set; }
     }
 }

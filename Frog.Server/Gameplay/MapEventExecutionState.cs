@@ -56,6 +56,27 @@ public sealed class MapEventExecutionState
     /// <summary>Images affichées ou effacées pendant cette exécution, dans l'ordre.</summary>
     public List<MapEventPictureOp> PictureOps { get; } = [];
 
+    /// <summary>Fondus et teintes de cette exécution, dans l'ordre.</summary>
+    public List<MapEventScreenOp> ScreenOps { get; } = [];
+
+    /// <summary>Ordre commun images / écran. Voir <see cref="MapEventVisualSequence"/>.</summary>
+    public List<string> VisualOrder { get; } = [];
+
+    public void RecordPicture(MapEventPictureOp op)
+    {
+        PictureOps.Add(op);
+        VisualOrder.Add(MapEventVisualSequence.Picture);
+    }
+
+    public void RecordScreen(MapEventScreenOp op)
+    {
+        ScreenOps.Add(op);
+        VisualOrder.Add(MapEventVisualSequence.Screen);
+    }
+
+    public IReadOnlyList<MapEventVisualOp> VisualOps =>
+        MapEventVisualSequence.Expand(VisualOrder, PictureOps, ScreenOps);
+
     public bool StopExecution { get; set; }
 
     /// <summary>Attente non terminale : reprise au heartbeat après <see cref="WaitUntilUtc"/>.</summary>

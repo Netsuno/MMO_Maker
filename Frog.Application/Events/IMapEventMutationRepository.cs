@@ -107,6 +107,18 @@ public sealed class MapEventExecutionSnapshot
     /// <summary>Opérations <c>show_picture</c> / <c>erase_picture</c> de cette TX, dans l'ordre.</summary>
     public List<MapEventPictureOp> PictureOps { get; set; } = [];
 
+    /// <summary>Opérations fondu / teinte de cette TX, dans l'ordre.</summary>
+    public List<MapEventScreenOp> ScreenOps { get; set; } = [];
+
+    /// <summary>
+    /// Ordre commun images / écran : <see cref="MapEventVisualSequence.Picture"/> ou
+    /// <see cref="MapEventVisualSequence.Screen"/>. Vide = images puis effets (snapshot ancien).
+    /// </summary>
+    public List<string> VisualOrder { get; set; } = [];
+
+    public IReadOnlyList<MapEventVisualOp> ExpandVisuals() =>
+        MapEventVisualSequence.Expand(VisualOrder, PictureOps, ScreenOps);
+
     public (int MapId, int TileX, int TileY)? Teleport =>
         TeleportMapId is int mapId && TeleportTileX is int tileX && TeleportTileY is int tileY
             ? (mapId, tileX, tileY)
@@ -128,7 +140,17 @@ public sealed class MapEventExecutionSnapshot
     public void RecordPicture(MapEventPictureOp op)
     {
         PictureOps ??= [];
+        VisualOrder ??= [];
         PictureOps.Add(op);
+        VisualOrder.Add(MapEventVisualSequence.Picture);
+    }
+
+    public void RecordScreen(MapEventScreenOp op)
+    {
+        ScreenOps ??= [];
+        VisualOrder ??= [];
+        ScreenOps.Add(op);
+        VisualOrder.Add(MapEventVisualSequence.Screen);
     }
 
     public void RecordSwitch(string switchId, bool value)

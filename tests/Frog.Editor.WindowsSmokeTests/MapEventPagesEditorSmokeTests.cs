@@ -184,6 +184,9 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.SetWeather)]
     [InlineData(MapEventCommandDiscriminators.ShowPicture)]
     [InlineData(MapEventCommandDiscriminators.ErasePicture)]
+    [InlineData(MapEventCommandDiscriminators.FadeOutScreen)]
+    [InlineData(MapEventCommandDiscriminators.FadeInScreen)]
+    [InlineData(MapEventCommandDiscriminators.TintScreen)]
     [InlineData(MapEventCommandDiscriminators.Branch)]
     public void MapEventPagesEditor_AllCommandFamilies_TypedFieldMutation(string discriminator)
     {
@@ -598,6 +601,11 @@ public sealed class MapEventPagesEditorSmokeTests
                 discriminator,
                 """{"pictureId":1,"asset":"Assets/Pictures/placeholder.png","x":0,"y":0,"opacity":255,"blend":"normal"}"""),
             MapEventCommandDiscriminators.ErasePicture => Command(discriminator, """{"pictureId":1}"""),
+            MapEventCommandDiscriminators.FadeOutScreen or MapEventCommandDiscriminators.FadeInScreen =>
+                Command(discriminator, """{"durationMs":1000}"""),
+            MapEventCommandDiscriminators.TintScreen => Command(
+                discriminator,
+                """{"red":0,"green":0,"blue":64,"opacity":128,"durationMs":1000}"""),
             MapEventCommandDiscriminators.Branch => BranchCommand(
                 new MapEventConditionDefinition
                 {
@@ -753,6 +761,15 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.ErasePicture:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("pictureId"), "7");
                 expectedFragment = "\"pictureId\":7";
+                break;
+            case MapEventCommandDiscriminators.FadeOutScreen:
+            case MapEventCommandDiscriminators.FadeInScreen:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("durationMs"), "2500");
+                expectedFragment = "\"durationMs\":2500";
+                break;
+            case MapEventCommandDiscriminators.TintScreen:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("opacity"), "200");
+                expectedFragment = "\"opacity\":200";
                 break;
             case MapEventCommandDiscriminators.Branch:
                 var thenText = Assert.IsType<TextBox>(

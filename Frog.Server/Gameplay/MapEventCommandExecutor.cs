@@ -345,6 +345,15 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.ErasePicture:
                 return ApplyErasePicture(session, command.ParameterJson, state);
 
+            case MapEventCommandDiscriminators.FadeOutScreen:
+                return ApplyFadeScreen(session, command.ParameterJson, fadeOut: true, state);
+
+            case MapEventCommandDiscriminators.FadeInScreen:
+                return ApplyFadeScreen(session, command.ParameterJson, fadeOut: false, state);
+
+            case MapEventCommandDiscriminators.TintScreen:
+                return ApplyTintScreen(session, command.ParameterJson, state);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -643,12 +652,17 @@ public sealed class MapEventCommandExecutor
             await ApplyOpenShopIntentAsync(shopId, state, cancellationToken).ConfigureAwait(false);
         }
 
-        if (snap.PictureOps is { Count: > 0 })
+        foreach (var visual in snap.ExpandVisuals())
         {
-            foreach (var op in snap.PictureOps)
+            if (visual.Picture is { } picture)
             {
-                session.ApplyPictureOp(op);
-                state.PictureOps.Add(op);
+                session.ApplyPictureOp(picture);
+                state.RecordPicture(picture);
+            }
+            else if (visual.Screen is { } screen)
+            {
+                session.ApplyScreenOp(screen);
+                state.RecordScreen(screen);
             }
         }
     }
@@ -745,7 +759,7 @@ public sealed class MapEventCommandExecutor
 
         var op = MapEventPictureOp.ForShow(picture.PictureId, picture.Asset, picture.X, picture.Y, picture.Opacity, picture.Blend);
         session.ApplyPictureOp(op);
-        state.PictureOps.Add(op);
+        state.RecordPicture(op);
         return null;
     }
 
@@ -758,7 +772,35 @@ public sealed class MapEventCommandExecutor
 
         var op = MapEventPictureOp.ForErase(pictureId);
         session.ApplyPictureOp(op);
-        state.PictureOps.Add(op);
+        state.RecordPicture(op);
+        return null;
+    }
+
+    private static string? ApplyFadeScreen(
+        Session session,
+        string parameterJson,
+        bool fadeOut,
+        MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseFadeScreen(parameterJson, fadeOut, out var op, out var err))
+        {
+            return err ?? (fadeOut ? "fadeout_screen invalide." : "fadein_screen invalide.");
+        }
+
+        session.ApplyScreenOp(op);
+        state.RecordScreen(op);
+        return null;
+    }
+
+    private static string? ApplyTintScreen(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseTintScreen(parameterJson, out var op, out var err))
+        {
+            return err ?? "tint_screen invalide.";
+        }
+
+        session.ApplyScreenOp(op);
+        state.RecordScreen(op);
         return null;
     }
 

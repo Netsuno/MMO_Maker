@@ -976,6 +976,122 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_FadeAndTint_AppliesSessionAndInteractTrailer()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Nuit",
+            EditorAliasId = 82,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.FadeOutScreen,
+                            ParameterJson = """{"durationMs":1000}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowPicture,
+                            ParameterJson = """{"pictureId":2,"asset":"Assets/Pictures/placeholder.png","x":4,"y":8,"opacity":255,"blend":"normal"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.TintScreen,
+                            ParameterJson = """{"red":12,"green":24,"blue":48,"opacity":80,"durationMs":500}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"nuit"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(82));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.Equal(MapEventScreen.MaxChannel, session.ScreenFade);
+        Assert.Equal(new MapEventScreenTone(12, 24, 48, 80), session.ScreenTint);
+        Assert.True(session.Pictures.ContainsKey(2));
+        Assert.Equal("nuit", result.ShowText);
+        Assert.True(MapEventScreenWire.TryTakeInteractMessage(result.ClientInteractMessage, out var visuals, out var rest));
+        Assert.Equal("nuit", rest);
+        Assert.Equal(3, visuals.Count);
+        Assert.True(visuals[0].Screen?.IsFadeOut);
+        Assert.Equal(1000, visuals[0].Screen?.DurationMs);
+        Assert.Equal(2, visuals[1].Picture?.PictureId);
+        Assert.True(visuals[2].Screen?.IsTint);
+        Assert.Equal(80, visuals[2].Screen?.Opacity);
+        Assert.Equal(MapEventCommandDiscriminators.FadeOutScreen, repo.Plans[0].Effects[0].Discriminator);
+        Assert.True(ServerPlanner.AreEffectsTransactional(repo.Plans[0].Effects));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+    }
+
+    [Fact]
+    public async Task ExecuteCommands_FadeOutThenFadeIn_ClearsTheBlackInMemory()
+    {
+        var executor = CreateExecutor(
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader());
+        var session = CreateSession(Guid.NewGuid());
+        var state = new MapEventExecutionState();
+
+        var err = await executor.ExecuteCommandsAsync(
+            session,
+            session.CharacterGuid!.Value,
+            [
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.TintScreen,
+                    ParameterJson = """{"red":1,"green":2,"blue":3,"opacity":40,"durationMs":0}""",
+                },
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.FadeOutScreen,
+                    ParameterJson = """{"durationMs":200}""",
+                },
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.FadeInScreen,
+                    ParameterJson = """{"durationMs":200}""",
+                },
+            ],
+            state,
+            CancellationToken.None);
+
+        Assert.Null(err);
+        Assert.Equal(0, session.ScreenFade);
+        Assert.Equal(new MapEventScreenTone(1, 2, 3, 40), session.ScreenTint);
+        Assert.Equal(3, state.ScreenOps.Count);
+        Assert.Equal(
+            ["screen", "screen", "screen"],
+            state.VisualOrder);
+        Assert.True(MapEventScreenWire.TryTakeInteractMessage(
+            MapEventScreenWire.Compose(state.VisualOps, null, null, "Nuit (nuit)"),
+            out var ops,
+            out var rest));
+        Assert.Equal(3, ops.Count);
+        Assert.Equal("Nuit (nuit)", rest);
+    }
+
+    [Fact]
     public async Task ExecuteInteract_StartDialoguePage_UsesUnifiedTransactionalPath()
     {
         var characterId = Guid.NewGuid();
@@ -2114,6 +2230,35 @@ public sealed class MapEventRuntimeServiceTests
                         if (MapEventParameterSchemas.TryParseErasePicture(cmd.ParameterJson, out var eraseId, out _))
                         {
                             snap.RecordPicture(MapEventPictureOp.ForErase(eraseId));
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.FadeOutScreen:
+                        if (MapEventParameterSchemas.TryParseFadeScreen(
+                                cmd.ParameterJson,
+                                fadeOut: true,
+                                out var fadeOut,
+                                out _))
+                        {
+                            snap.RecordScreen(fadeOut);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.FadeInScreen:
+                        if (MapEventParameterSchemas.TryParseFadeScreen(
+                                cmd.ParameterJson,
+                                fadeOut: false,
+                                out var fadeIn,
+                                out _))
+                        {
+                            snap.RecordScreen(fadeIn);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.TintScreen:
+                        if (MapEventParameterSchemas.TryParseTintScreen(cmd.ParameterJson, out var tint, out _))
+                        {
+                            snap.RecordScreen(tint);
                         }
 
                         break;

@@ -75,6 +75,21 @@ public sealed class Session
         Pictures[op.PictureId] = op.ToShown();
     }
 
+    /// <summary>Noir de fondu (0 clair, 255 fermé). Pas un champ du Hello.</summary>
+    public int ScreenFade { get; private set; }
+
+    /// <summary>Teinte d'écran. Opacité 0 = pas de voile. Pas un champ du Hello.</summary>
+    public MapEventScreenTone ScreenTint { get; private set; } = MapEventScreenTone.Clear;
+
+    public void ApplyScreenOp(MapEventScreenOp op)
+    {
+        var fade = ScreenFade;
+        var tint = ScreenTint;
+        op.ApplySettled(ref fade, ref tint);
+        ScreenFade = fade;
+        ScreenTint = tint;
+    }
+
     /// <summary>Run donjon/raid courant ; <see cref="Guid.Empty"/> = overworld.</summary>
     public Guid InstanceId { get; set; }
 

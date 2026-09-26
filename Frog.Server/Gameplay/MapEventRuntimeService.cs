@@ -347,7 +347,9 @@ public sealed class MapEventRuntimeService
             switchChanges: state.SwitchChanges,
             openShopId: state.OpenShopId,
             weatherChanged: state.WeatherChanged,
-            pictureOps: state.PictureOps);
+            pictureOps: state.PictureOps,
+            screenOps: state.ScreenOps,
+            visualOps: state.VisualOps);
     }
 
     private async Task<MapEventExecutionResult> CompleteCommittedMutationAsync(
@@ -467,7 +469,9 @@ public sealed class MapEventRuntimeService
             state.SwitchChanges,
             state.OpenShopId,
             state.WeatherChanged,
-            state.PictureOps);
+            state.PictureOps,
+            state.ScreenOps,
+            state.VisualOps);
     }
 
     private void RegisterWaitIfNeeded(Guid characterId, MapEventExecutionState state, string? label)
