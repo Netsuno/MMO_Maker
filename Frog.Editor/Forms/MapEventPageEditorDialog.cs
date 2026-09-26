@@ -84,6 +84,7 @@ internal sealed class MapEventPageEditorDialog : Form
 
     private async Task LoadPagesAsync(CancellationToken ct)
     {
+        await MapEventShopChoiceSource.RefreshAsync(ct).ConfigureAwait(true);
         var pagesJson = await _service.LoadPagesJsonAsync(_eventId).ConfigureAwait(true);
         if (ct.IsCancellationRequested)
         {

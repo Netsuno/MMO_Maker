@@ -17,9 +17,9 @@ internal static class MapEventExecutionPlanner
 
     /// <summary>
     /// True si l'arbre de commandes (branches incluses) peut être commis dans une
-    /// seule transaction PG après planification Core. <c>start_dialogue</c> et
-    /// <c>teleport</c> appartiennent à l'unité unifiée (intents de session dans la
-    /// même TX) ; le serveur les applique après commit.
+    /// seule transaction PG après planification Core. <c>start_dialogue</c>,
+    /// <c>teleport</c> et <c>open_shop</c> appartiennent à l'unité unifiée
+    /// (intents de session dans la même TX) ; le serveur les applique après commit.
     /// </summary>
     public static bool CanExecuteTransactionally(IReadOnlyList<MapEventCommandDefinition> commands) =>
         ValidateCommandTree(commands, 0, out _);
@@ -165,8 +165,10 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.LearnProfession
                 or MapEventCommandDiscriminators.StartDialogue
                 or MapEventCommandDiscriminators.Teleport
+                or MapEventCommandDiscriminators.OpenShop
                 or MapEventCommandDiscriminators.PlayBgm
-                or MapEventCommandDiscriminators.PlaySe => true,
+                or MapEventCommandDiscriminators.PlaySe
+                or MapEventCommandDiscriminators.SetWeather => true,
             _ => false,
         };
 }

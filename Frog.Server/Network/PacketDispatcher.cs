@@ -1089,7 +1089,7 @@ public sealed partial class PacketDispatcher(
             await ApplyMapEventSideEffectsAsync(clientSession, session, runtimeResult, cancellationToken)
                 .ConfigureAwait(false);
 
-            var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+            var clientMessage = runtimeResult.ClientInteractMessage;
             await _packetSender.SendInteractResultAsync(
                 clientSession,
                 runtimeResult.Success,
@@ -1196,6 +1196,8 @@ public sealed partial class PacketDispatcher(
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
             await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
+            await PushEnvironmentIfWeatherOverrideDroppedAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (cellAfter != cellBefore)
@@ -1287,6 +1289,8 @@ public sealed partial class PacketDispatcher(
             ReleasePageTriggerForPreviousMap(session, cellBefore.CurrentMapId);
             await TryFirePageMapEventsAsync(clientSession, session, cancellationToken);
             await SendGroundItemsSnapshotAsync(clientSession, session, cancellationToken);
+            await PushEnvironmentIfWeatherOverrideDroppedAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (cellAfter != cellBefore)
@@ -1344,7 +1348,7 @@ public sealed partial class PacketDispatcher(
             await ApplyMapEventSideEffectsAsync(clientSession, session, runtimeResult, cancellationToken)
                 .ConfigureAwait(false);
 
-            var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+            var clientMessage = runtimeResult.ClientInteractMessage;
             await _packetSender.SendInteractResultAsync(
                 clientSession,
                 runtimeResult.Success,
@@ -1366,6 +1370,20 @@ public sealed partial class PacketDispatcher(
             true,
             $"[Marche] {ev.DisplayName} ({ev.Slug})",
             cancellationToken);
+    }
+
+    private async Task PushEnvironmentIfWeatherOverrideDroppedAsync(
+        ClientSession clientSession,
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        if (!session.WeatherOverrideDroppedByMapChange)
+        {
+            return;
+        }
+
+        await _phase8.SendEnvironmentStatePushOnlyAsync(clientSession, session, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task ApplyMapEventSideEffectsAsync(
@@ -1399,6 +1417,12 @@ public sealed partial class PacketDispatcher(
                 session.PixelX,
                 session.PixelY,
                 cancellationToken).ConfigureAwait(false);
+        }
+
+        if (result.WeatherChanged || session.WeatherOverrideDroppedByMapChange)
+        {
+            await _phase8.SendEnvironmentStatePushOnlyAsync(clientSession, session, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (result.DialogueState is not null)

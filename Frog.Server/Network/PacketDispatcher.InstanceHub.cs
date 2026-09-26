@@ -25,6 +25,8 @@ public sealed partial class PacketDispatcher
 
         var (result, snapshot) = _instanceHub.Execute(session, kind, action, requestId, extra);
         await _packetSender.SendInstanceHubResultAsync(clientSession, result, cancellationToken).ConfigureAwait(false);
+        await PushEnvironmentIfWeatherOverrideDroppedAsync(clientSession, session, cancellationToken)
+            .ConfigureAwait(false);
         if (snapshot is { } snap)
         {
             await _packetSender.SendInstanceHubSnapshotAsync(clientSession, snap, cancellationToken)

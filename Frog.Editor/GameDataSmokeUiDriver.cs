@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using Frog.Application.Content;
 using Frog.Core.Enums;
 using Frog.Core.Models;
+using Frog.Editor.Forms;
 using Frog.Editor.Forms.GameData;
 using Frog.Editor.Services;
 
@@ -34,6 +35,35 @@ internal static class GameDataSmokeUiDriver
         }
 
         return Directory.GetCurrentDirectory();
+    }
+
+    /// <summary>Ouvre Données de jeu par le MenuStrip WinForms (menu Ressources).</summary>
+    public static GameDataForm OpenViaMainFormMenu(MainForm main, TimeSpan timeout)
+    {
+        var item = main.GameDataMenuItemForTest
+            ?? throw new InvalidOperationException("Menu « Données de jeu… » absent du MenuStrip WinForms.");
+        if (!string.Equals(item.Text, "Données de jeu…", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Libellé menu inattendu : {item.Text}");
+        }
+
+        if (item.OwnerItem is not ToolStripMenuItem parent
+            || !string.Equals(parent.Text, "Ressources", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("« Données de jeu… » doit être sous le menu Ressources.");
+        }
+
+        if (!item.Enabled)
+        {
+            throw new InvalidOperationException("« Données de jeu… » est désactivé.");
+        }
+
+        EditorTestHooks.GameDataNonModalForTest = true;
+        GameDataForm? form = null;
+        EditorTestHooks.OnGameDataFormShown = opened => form = (GameDataForm)opened;
+        item.PerformClick();
+        PumpUntil(() => form is not null && form.IsInitializedForTest, timeout);
+        return form ?? throw new InvalidOperationException("Game Data form did not open.");
     }
 
     public static GameDataForm OpenViaMainWindowCommand(MainWindow window, TimeSpan timeout)

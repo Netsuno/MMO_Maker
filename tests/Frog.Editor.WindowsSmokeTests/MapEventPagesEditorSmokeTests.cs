@@ -180,6 +180,8 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.Wait)]
     [InlineData(MapEventCommandDiscriminators.CallCommonEvent)]
     [InlineData(MapEventCommandDiscriminators.LearnProfession)]
+    [InlineData(MapEventCommandDiscriminators.OpenShop)]
+    [InlineData(MapEventCommandDiscriminators.SetWeather)]
     [InlineData(MapEventCommandDiscriminators.Branch)]
     public void MapEventPagesEditor_AllCommandFamilies_TypedFieldMutation(string discriminator)
     {
@@ -528,6 +530,10 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.Wait => Command(discriminator, """{"milliseconds":500}"""),
             MapEventCommandDiscriminators.CallCommonEvent => Command(discriminator, $$"""{"commonEventId":"{{SampleGuid:D}}"}"""),
             MapEventCommandDiscriminators.LearnProfession => Command(discriminator, $$"""{"professionId":"{{SampleGuid:D}}"}"""),
+            MapEventCommandDiscriminators.OpenShop => Command(
+                discriminator,
+                $$"""{"shopId":"{{SampleGuid:D}}","shopName":"Echoppe"}"""),
+            MapEventCommandDiscriminators.SetWeather => Command(discriminator, """{"weatherKind":"clear"}"""),
             MapEventCommandDiscriminators.Branch => BranchCommand(
                 new MapEventConditionDefinition
                 {
@@ -667,6 +673,14 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.LearnProfession:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("professionId"), OtherGuid.ToString("D"));
                 expectedFragment = OtherGuid.ToString("D");
+                break;
+            case MapEventCommandDiscriminators.OpenShop:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("shopId"), OtherGuid.ToString("D"));
+                expectedFragment = OtherGuid.ToString("D");
+                break;
+            case MapEventCommandDiscriminators.SetWeather:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("weatherKind"), "rain");
+                expectedFragment = "\"weatherKind\":\"rain\"";
                 break;
             case MapEventCommandDiscriminators.Branch:
                 var thenText = Assert.IsType<TextBox>(

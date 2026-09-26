@@ -51,6 +51,8 @@ public static class MapEventCommandParameterValidator
                 MapEventParameterSchemas.TryParseCallCommonEvent(command.ParameterJson, out _, out _, out error),
             MapEventCommandDiscriminators.LearnProfession =>
                 MapEventParameterSchemas.TryParseLearnProfession(command.ParameterJson, out _, out error),
+            MapEventCommandDiscriminators.SetWeather =>
+                MapEventParameterSchemas.TryParseSetWeather(command.ParameterJson, out _, out error),
             MapEventCommandDiscriminators.Branch => ValidateBranch(command.ParameterJson, 0, out error),
             MapEventCommandDiscriminators.ShowChoices => ValidateShowChoices(command.ParameterJson, 0, out error),
             MapEventCommandDiscriminators.PlayBgm or MapEventCommandDiscriminators.PlaySe =>
@@ -59,6 +61,8 @@ public static class MapEventCommandParameterValidator
                     command.Discriminator,
                     out _,
                     out error),
+            MapEventCommandDiscriminators.OpenShop =>
+                MapEventParameterSchemas.TryParseOpenShop(command.ParameterJson, out _, out _, out error),
             _ => false,
         };
 

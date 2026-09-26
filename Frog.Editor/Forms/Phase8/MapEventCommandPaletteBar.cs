@@ -3,7 +3,7 @@ using Frog.Editor.Ui;
 
 namespace Frog.Editor.Forms.Phase8;
 
-/// <summary>Boutons français pour insérer texte, choix, audio, interrupteur, variable et branche.</summary>
+/// <summary>Boutons français pour insérer texte, choix, audio, boutique, interrupteur, variable et branche.</summary>
 internal sealed class MapEventCommandPaletteBar : UserControl
 {
     public MapEventCommandPaletteBar()

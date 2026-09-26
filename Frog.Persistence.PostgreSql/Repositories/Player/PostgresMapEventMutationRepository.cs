@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Frog.Application.Content;
 using Frog.Application.Events;
 using Frog.Application.Gameplay;
@@ -390,6 +391,19 @@ public sealed class PostgresMapEventMutationRepository(
                 snapshot.RecordTeleport(mapId, tileX, tileY);
                 return null;
 
+            case MapEventCommandDiscriminators.OpenShop:
+                if (!MapEventParameterSchemas.TryParseOpenShop(
+                        command.ParameterJson,
+                        out var openShopId,
+                        out _,
+                        out var openShopErr))
+                {
+                    return openShopErr;
+                }
+
+                snapshot.RecordShop(openShopId);
+                return null;
+
             case MapEventCommandDiscriminators.PlayBgm:
             case MapEventCommandDiscriminators.PlaySe:
                 // No-op ledger : piste validée, pas d'opcode audio (Hello 11).
@@ -399,6 +413,18 @@ public sealed class PostgresMapEventMutationRepository(
                     out var audioErr)
                     ? null
                     : audioErr;
+
+            case MapEventCommandDiscriminators.SetWeather:
+                if (!MapEventParameterSchemas.TryParseSetWeather(
+                        command.ParameterJson,
+                        out var weatherKind,
+                        out var weatherErr))
+                {
+                    return MapEventParameterSchemas.IsUnknownWeatherKind(weatherErr) ? null : weatherErr;
+                }
+
+                snapshot.RecordWeather(weatherKind);
+                return null;
 
             default:
                 return $"Commande non supportée en transaction atomique: {command.Discriminator}.";
@@ -1100,6 +1126,8 @@ public sealed class PostgresMapEventMutationRepository(
             TeleportMapId = snapshot.TeleportMapId,
             TeleportTileX = snapshot.TeleportTileX,
             TeleportTileY = snapshot.TeleportTileY,
+            ShopId = snapshot.ShopId,
+            WeatherKind = snapshot.WeatherKind,
         }, JsonOptions);
 
     private static MapEventExecutionSnapshot? DeserializeSnapshot(string json)
@@ -1134,6 +1162,8 @@ public sealed class PostgresMapEventMutationRepository(
                 TeleportMapId = stored.TeleportMapId,
                 TeleportTileX = stored.TeleportTileX,
                 TeleportTileY = stored.TeleportTileY,
+                ShopId = stored.ShopId,
+                WeatherKind = stored.WeatherKind,
             };
         }
         catch
@@ -1183,5 +1213,10 @@ public sealed class PostgresMapEventMutationRepository(
         public int? TeleportTileX { get; set; }
 
         public int? TeleportTileY { get; set; }
+
+        public Guid? ShopId { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? WeatherKind { get; set; }
     }
 }

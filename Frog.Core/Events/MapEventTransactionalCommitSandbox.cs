@@ -50,6 +50,11 @@ public sealed class MapEventWorldScratch
 
     public Guid? DialogueId { get; set; }
 
+    public Guid? ShopId { get; set; }
+
+    /// <summary>Intent <c>set_weather</c> (kind canonique). Null = pas de changement.</summary>
+    public string? WeatherKind { get; set; }
+
     public MapEventWorldScratch Clone() =>
         new()
         {
@@ -62,6 +67,8 @@ public sealed class MapEventWorldScratch
             ShowText = ShowText,
             Teleport = Teleport,
             DialogueId = DialogueId,
+            ShopId = ShopId,
+            WeatherKind = WeatherKind,
         };
 
     public void ReplaceWith(MapEventWorldScratch other)
@@ -76,6 +83,8 @@ public sealed class MapEventWorldScratch
         ShowText = other.ShowText;
         Teleport = other.Teleport;
         DialogueId = other.DialogueId;
+        ShopId = other.ShopId;
+        WeatherKind = other.WeatherKind;
     }
 }
 
@@ -380,6 +389,19 @@ public sealed class MapEventTransactionalCommitSandbox
                 world.DialogueId = dialogueId;
                 return null;
 
+            case MapEventCommandDiscriminators.OpenShop:
+                if (!MapEventParameterSchemas.TryParseOpenShop(
+                        command.ParameterJson,
+                        out var shopId,
+                        out _,
+                        out var shopErr))
+                {
+                    return shopErr;
+                }
+
+                world.ShopId = shopId;
+                return null;
+
             case MapEventCommandDiscriminators.PlayBgm:
             case MapEventCommandDiscriminators.PlaySe:
                 // No-op : piste persistée, pas de lecture (Hello 11). Voir MapEventDeferredPresentation.
@@ -389,6 +411,19 @@ public sealed class MapEventTransactionalCommitSandbox
                     out var audioErr)
                     ? null
                     : audioErr;
+
+            case MapEventCommandDiscriminators.SetWeather:
+                if (!MapEventParameterSchemas.TryParseSetWeather(
+                        command.ParameterJson,
+                        out var weatherKind,
+                        out var weatherErr))
+                {
+                    // Kind inconnu : la TX continue, l'override n'est pas posé.
+                    return MapEventParameterSchemas.IsUnknownWeatherKind(weatherErr) ? null : weatherErr;
+                }
+
+                world.WeatherKind = weatherKind;
+                return null;
 
             default:
                 return $"Commande non supportée en unité transactionnelle: {command.Discriminator}.";

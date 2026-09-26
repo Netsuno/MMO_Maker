@@ -7,6 +7,7 @@ using Frog.Core.Character;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Weather;
 using Frog.Server.Database;
 using Frog.Server.Models;
 using Frog.Server.Services;
@@ -30,6 +31,7 @@ public sealed class MapEventCommandExecutor
     private readonly ICharacterPayloadReader _payloadReader;
     private readonly ICharacterPayloadWriter _payloadWriter;
     private readonly MovementService _movement;
+    private readonly IPublishedShopCatalog _shops;
     private readonly ILogger<MapEventCommandExecutor> _logger;
 
     public MapEventCommandExecutor(
@@ -46,6 +48,7 @@ public sealed class MapEventCommandExecutor
         ICharacterPayloadReader payloadReader,
         ICharacterPayloadWriter payloadWriter,
         MovementService movement,
+        IPublishedShopCatalog shops,
         ILogger<MapEventCommandExecutor> logger)
     {
         _worldState = worldState;
@@ -61,6 +64,7 @@ public sealed class MapEventCommandExecutor
         _payloadReader = payloadReader;
         _payloadWriter = payloadWriter;
         _movement = movement;
+        _shops = shops;
         _logger = logger;
     }
 
@@ -328,6 +332,13 @@ public sealed class MapEventCommandExecutor
                 return await ExecuteLearnProfessionAsync(characterId, command.ParameterJson, state, cancellationToken)
                     .ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.OpenShop:
+                return await ExecuteOpenShopAsync(command.ParameterJson, state, cancellationToken)
+                    .ConfigureAwait(false);
+
+            case MapEventCommandDiscriminators.SetWeather:
+                return ApplySetWeather(session, command.ParameterJson, state);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -558,8 +569,8 @@ public sealed class MapEventCommandExecutor
     }
 
     /// <summary>
-    /// Applique les intents <c>teleport</c> / <c>start_dialogue</c> enregistrés dans
-    /// le snapshot PG <em>après</em> commit de la TX.
+    /// Applique les intents <c>teleport</c> / <c>start_dialogue</c> / <c>open_shop</c>
+    /// enregistrés dans le snapshot PG <em>après</em> commit de la TX.
     /// </summary>
     public async Task ApplyCommittedSessionIntentsAsync(
         Session session,
@@ -589,6 +600,21 @@ public sealed class MapEventCommandExecutor
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(snap.WeatherKind))
+        {
+            if (WeatherKindId.TryCanonical(snap.WeatherKind, out var weatherKind))
+            {
+                ApplyCanonicalWeather(session, weatherKind, state);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "set_weather ignoré: kind inconnu ({Kind}) pour {CharacterId}",
+                    snap.WeatherKind,
+                    characterId);
+            }
+        }
+
         if (snap.DialogueId is Guid dialogueId && dialogueId != Guid.Empty)
         {
             var dialogueErr = await TryApplyDialogueIntentAsync(
@@ -605,6 +631,42 @@ public sealed class MapEventCommandExecutor
                     dialogueErr);
             }
         }
+
+        if (snap.ShopId is Guid shopId && shopId != Guid.Empty)
+        {
+            await ApplyOpenShopIntentAsync(shopId, state, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<string?> ExecuteOpenShopAsync(
+        string parameterJson,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        if (!MapEventParameterSchemas.TryParseOpenShop(parameterJson, out var shopId, out _, out var err))
+        {
+            return err ?? "open_shop invalide.";
+        }
+
+        await ApplyOpenShopIntentAsync(shopId, state, cancellationToken).ConfigureAwait(false);
+        return null;
+    }
+
+    private async Task ApplyOpenShopIntentAsync(
+        Guid shopId,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        var published = await _shops.ListPublishedAsync(cancellationToken).ConfigureAwait(false);
+        var shop = published.FirstOrDefault(s => s.Id == shopId);
+        if (shop is null)
+        {
+            _logger.LogWarning("open_shop: boutique {ShopId} absente du catalogue publié.", shopId);
+            state.ShowText ??= MapEventShopOpen.UnavailableMessage;
+            return;
+        }
+
+        state.OpenShopId = shopId;
     }
 
     private string? ExecuteTeleport(Session session, string parameterJson, MapEventExecutionState state)
@@ -630,7 +692,39 @@ public sealed class MapEventCommandExecutor
         }
 
         state.TeleportApplied = true;
+        if (session.WeatherOverrideDroppedByMapChange)
+        {
+            state.WeatherChanged = true;
+        }
+
         return null;
+    }
+
+    /// <summary>
+    /// Pose l'override de session. Un kind inconnu est journalisé et ignoré
+    /// (le runner continue). Un JSON illisible reste une erreur de commande.
+    /// </summary>
+    private string? ApplySetWeather(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseSetWeather(parameterJson, out var kind, out var err))
+        {
+            if (MapEventParameterSchemas.IsUnknownWeatherKind(err))
+            {
+                _logger.LogWarning("set_weather ignoré: {Error}", err);
+                return null;
+            }
+
+            return err ?? "set_weather invalide.";
+        }
+
+        ApplyCanonicalWeather(session, kind, state);
+        return null;
+    }
+
+    private static void ApplyCanonicalWeather(Session session, string kind, MapEventExecutionState state)
+    {
+        session.WeatherKindOverride = kind;
+        state.WeatherChanged = true;
     }
 
     private async Task<string?> ExecuteLearnProfessionAsync(

@@ -4,9 +4,9 @@ namespace Frog.Core.Events;
 
 /// <summary>
 /// Classifie un effet plat (après planification) pour une unité transactionnelle unique.
-/// <c>start_dialogue</c> et <c>teleport</c> restent des effets de session, mais appartiennent
-/// à la même unité que les mutations persistantes : PG les enregistre dans le snapshot
-/// de la même TX et ne les applique qu'après commit.
+/// <c>start_dialogue</c>, <c>teleport</c> et <c>open_shop</c> restent des effets de session,
+/// mais appartiennent à la même unité que les mutations persistantes : PG les enregistre
+/// dans le snapshot de la même TX et ne les applique qu'après commit.
 /// </summary>
 public enum MapEventEffectCommitKind
 {
@@ -43,7 +43,9 @@ public static class MapEventEffectClassifier
                 or MapEventCommandDiscriminators.PlaySe =>
                 MapEventEffectCommitKind.Persistent,
             MapEventCommandDiscriminators.StartDialogue
-                or MapEventCommandDiscriminators.Teleport =>
+                or MapEventCommandDiscriminators.Teleport
+                or MapEventCommandDiscriminators.OpenShop
+                or MapEventCommandDiscriminators.SetWeather =>
                 MapEventEffectCommitKind.SessionSide,
             _ => MapEventEffectCommitKind.Unknown,
         };

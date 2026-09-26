@@ -40,11 +40,17 @@ public sealed class MapEventExecutionState
 
     public bool TeleportApplied { get; set; }
 
+    /// <summary>Un <c>set_weather</c> connu a posé l'override, ou un changement de carte l'a retiré.</summary>
+    public bool WeatherChanged { get; set; }
+
     public string? DialogueSummary { get; set; }
 
     public string? QuestSummary { get; set; }
 
     public DialogueStatePushWire? DialogueState { get; set; }
+
+    /// <summary>Boutique publiée à ouvrir pour le joueur (commande <c>open_shop</c>).</summary>
+    public Guid? OpenShopId { get; set; }
 
     public bool StopExecution { get; set; }
 

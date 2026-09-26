@@ -2,6 +2,7 @@ using System.Text.Json;
 using Frog.Application.Assets;
 using Frog.Core.Events;
 using Frog.Core.Models;
+using Frog.Core.Weather;
 using Frog.Editor.Services;
 using Frog.Editor.Ui;
 
@@ -29,6 +30,7 @@ internal sealed class MapEventCommandParameterPanel : UserControl
     private MapEventCommandListPanel? _branchElse;
     private MapEventShowChoicesEditor? _showChoices;
     private Button? _audioBrowse;
+    private ComboBox? _shopPick;
 
     public MapEventCommandParameterPanel()
     {
@@ -74,6 +76,17 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             NotifyChanged();
         };
         _advancedJson.TextChanged += (_, _) => NotifyChanged();
+        MapEventShopChoiceSource.Changed += OnShopCatalogChanged;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            MapEventShopChoiceSource.Changed -= OnShopCatalogChanged;
+        }
+
+        base.Dispose(disposing);
     }
 
     public event Action? ParametersChanged;
@@ -184,6 +197,7 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         _branchElse = null;
         _showChoices = null;
         _audioBrowse = null;
+        _shopPick = null;
         var discriminator = _discriminator.SelectedItem as string ?? MapEventCommandDiscriminators.ShowText;
         AddFieldsForDiscriminator(discriminator);
     }
@@ -260,6 +274,20 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             case MapEventCommandDiscriminators.LearnProfession:
                 AddLabeled("professionId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
                 break;
+            case MapEventCommandDiscriminators.OpenShop:
+                AddOpenShopFields();
+                break;
+            case MapEventCommandDiscriminators.SetWeather:
+                var weather = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+                foreach (var kind in WeatherKindId.All)
+                {
+                    weather.Items.Add(kind);
+                }
+
+                weather.SelectedIndex = 0;
+                EditorListDraw.UseReadableChoices(weather, MapEventEditorLabels.WeatherKind);
+                AddLabeled("weatherKind", weather);
+                break;
             case MapEventCommandDiscriminators.Branch:
                 _branchCondition = new MapEventConditionParameterPanel();
                 _branchThen = new MapEventCommandListPanel();
@@ -332,6 +360,23 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
     private bool GetBool(string key) =>
         FindFieldControl(key) is CheckBox cb && cb.Checked;
+
+    private string GetChoice(string key) =>
+        FindFieldControl(key) is ComboBox combo ? combo.SelectedItem as string ?? string.Empty : string.Empty;
+
+    private void SetChoice(string key, string value)
+    {
+        if (FindFieldControl(key) is not ComboBox combo)
+        {
+            return;
+        }
+
+        var idx = combo.Items.IndexOf(value);
+        if (idx >= 0)
+        {
+            combo.SelectedIndex = idx;
+        }
+    }
 
     private void SetText(string key, string value)
     {
@@ -532,6 +577,16 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }
 
                     break;
+                case MapEventCommandDiscriminators.OpenShop:
+                    ApplyOpenShop(root);
+                    break;
+                case MapEventCommandDiscriminators.SetWeather:
+                    if (root.TryGetProperty("weatherKind", out var weatherKind))
+                    {
+                        SetChoice("weatherKind", weatherKind.GetString() ?? WeatherKindId.Clear);
+                    }
+
+                    break;
                 case MapEventCommandDiscriminators.Branch:
                     if (_branchCondition is not null
                         && root.TryGetProperty("conditionKind", out var condKindEl))
@@ -662,6 +717,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 MapEventCommandDiscriminators.CallCommonEvent => BuildCallCommonEventJson(),
                 MapEventCommandDiscriminators.LearnProfession =>
                     JsonSerializer.Serialize(new { professionId = GetText("professionId") }),
+                MapEventCommandDiscriminators.OpenShop => BuildOpenShopJson(),
+                MapEventCommandDiscriminators.SetWeather =>
+                    JsonSerializer.Serialize(new { weatherKind = GetChoice("weatherKind") }),
                 _ => GetText("parameterJson"),
             };
             return true;
@@ -671,6 +729,150 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             json = "{}";
             error = ex.Message;
             return false;
+        }
+    }
+
+    private void AddOpenShopFields()
+    {
+        _shopPick = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 420,
+        };
+        _shopPick.SelectedIndexChanged += (_, _) =>
+        {
+            if (_binding || _shopPick?.SelectedItem is not MapEventShopChoice choice || choice.Id == Guid.Empty)
+            {
+                return;
+            }
+
+            SetText("shopId", choice.Id.ToString("D"));
+        };
+        AddLabeled("shopPick", _shopPick);
+        AddLabeled("shopId", new TextBox { Width = 320, Text = Guid.Empty.ToString("D") });
+        FillShopPick(Guid.Empty, null);
+    }
+
+    private void ApplyOpenShop(JsonElement root)
+    {
+        var id = Guid.Empty;
+        if (root.TryGetProperty("shopId", out var shopEl))
+        {
+            var text = shopEl.GetString() ?? string.Empty;
+            SetText("shopId", text);
+            Guid.TryParse(text, out id);
+        }
+
+        var name = root.TryGetProperty("shopName", out var nameEl) && nameEl.ValueKind == JsonValueKind.String
+            ? nameEl.GetString()
+            : null;
+        FillShopPick(id, name);
+    }
+
+    private void FillShopPick(Guid selectedId, string? selectedName)
+    {
+        if (_shopPick is null)
+        {
+            return;
+        }
+
+        _shopPick.Items.Clear();
+        foreach (var choice in MapEventShopChoiceSource.Current)
+        {
+            _shopPick.Items.Add(choice);
+        }
+
+        MapEventShopChoice? match = null;
+        for (var i = 0; i < _shopPick.Items.Count; i++)
+        {
+            if (_shopPick.Items[i] is MapEventShopChoice choice && choice.Id == selectedId)
+            {
+                match = choice;
+                break;
+            }
+        }
+
+        if (match is null && selectedId != Guid.Empty)
+        {
+            match = new MapEventShopChoice(selectedId, selectedName ?? string.Empty);
+            _shopPick.Items.Add(match);
+        }
+
+        if (match is not null)
+        {
+            _shopPick.SelectedItem = match;
+        }
+    }
+
+    private string? MatchingShopName(string shopIdText)
+    {
+        if (_shopPick?.SelectedItem is not MapEventShopChoice choice)
+        {
+            return null;
+        }
+
+        if (!Guid.TryParse(shopIdText, out var id) || choice.Id != id)
+        {
+            return null;
+        }
+
+        var name = choice.Name.Trim();
+        return name.Length == 0 ? null : name;
+    }
+
+    private string BuildOpenShopJson()
+    {
+        var id = GetText("shopId");
+        var name = MatchingShopName(id);
+        return string.IsNullOrWhiteSpace(name)
+            ? JsonSerializer.Serialize(new { shopId = id })
+            : JsonSerializer.Serialize(new { shopId = id, shopName = name });
+    }
+
+    private void OnShopCatalogChanged()
+    {
+        if (IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            try
+            {
+                BeginInvoke(OnShopCatalogChanged);
+            }
+            catch (InvalidOperationException)
+            {
+                // Fenêtre déjà fermée.
+            }
+
+            return;
+        }
+
+        if (_binding || _shopPick is null)
+        {
+            return;
+        }
+
+        if ((_discriminator.SelectedItem as string) != MapEventCommandDiscriminators.OpenShop)
+        {
+            return;
+        }
+
+        var idText = GetText("shopId");
+        Guid.TryParse(idText, out var id);
+        var name = _shopPick.SelectedItem is MapEventShopChoice current && current.Id == id
+            ? current.Name
+            : null;
+        _binding = true;
+        try
+        {
+            FillShopPick(id, name);
+        }
+        finally
+        {
+            _binding = false;
         }
     }
 

@@ -4,6 +4,7 @@ using Frog.Core.Enums;
 using Frog.Core.Events;
 using Frog.Core.Models;
 using Frog.Core.Protocol;
+using Frog.Core.Weather;
 using Frog.Server.Config;
 using Frog.Server.Database;
 using Frog.Server.Gameplay;
@@ -262,13 +263,16 @@ public sealed class Phase8GameplayHandlers(
 
     public async Task<WeatherSnapshot> GetWeatherSnapshotForSessionAsync(
         Session session,
-        CancellationToken cancellationToken = default) =>
-        await weather.GetWeatherForSessionAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot = await weather.GetWeatherForSessionAsync(
                 session.CurrentMapId,
                 session.PositionX,
                 session.PositionY,
                 cancellationToken)
             .ConfigureAwait(false);
+        return WeatherResolver.ApplySessionOverride(snapshot, session.WeatherKindOverride);
+    }
 
     public async Task SendEnvironmentStateAsync(
         ClientSession client,
@@ -289,11 +293,8 @@ public sealed class Phase8GameplayHandlers(
         Session session,
         CancellationToken cancellationToken)
     {
-        var snapshot = await weather.GetWeatherForSessionAsync(
-                session.CurrentMapId,
-                session.PositionX,
-                session.PositionY,
-                cancellationToken)
+        session.AcknowledgeWeatherOverrideDrop();
+        var snapshot = await GetWeatherSnapshotForSessionAsync(session, cancellationToken)
             .ConfigureAwait(false);
         await packetSender.SendEnvironmentStatePushAsync(
                 client,
@@ -588,10 +589,32 @@ public sealed class Phase8GameplayHandlers(
             .ConfigureAwait(false);
         foreach (var runtimeResult in results)
         {
-            // No InteractResult: heartbeat collectors (wait-resume → parallel pulse)
-            // must not see a leftover InteractResult from the wait suffix.
+            // No InteractResult for the wait suffix in general: heartbeat collectors
+            // (wait-resume → parallel pulse) must not see a leftover InteractResult.
+            // open_shop is the exception: the existing InteractResult string carries shop:<guid>.
             await ApplyCommittedSessionClientEffectsAsync(client, session, runtimeResult, cancellationToken)
                 .ConfigureAwait(false);
+            if (runtimeResult.OpenShopId is Guid shopId && shopId != Guid.Empty)
+            {
+                await packetSender.SendInteractResultAsync(
+                        client,
+                        runtimeResult.Success,
+                        MapEventShopOpen.FormatInteractMessage(shopId, runtimeResult.ShowText),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else if (string.Equals(
+                         runtimeResult.ShowText,
+                         MapEventShopOpen.UnavailableMessage,
+                         StringComparison.Ordinal))
+            {
+                await packetSender.SendInteractResultAsync(
+                        client,
+                        runtimeResult.Success,
+                        MapEventShopOpen.UnavailableMessage,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
     }
 
@@ -604,7 +627,7 @@ public sealed class Phase8GameplayHandlers(
         await ApplyCommittedSessionClientEffectsAsync(client, session, runtimeResult, cancellationToken)
             .ConfigureAwait(false);
 
-        var clientMessage = runtimeResult.ShowText ?? runtimeResult.Message;
+        var clientMessage = runtimeResult.ClientInteractMessage;
         await packetSender.SendInteractResultAsync(client, runtimeResult.Success, clientMessage, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -629,6 +652,12 @@ public sealed class Phase8GameplayHandlers(
                 session.PixelX,
                 session.PixelY,
                 cancellationToken).ConfigureAwait(false);
+        }
+
+        if (runtimeResult.WeatherChanged || session.WeatherOverrideDroppedByMapChange)
+        {
+            await SendEnvironmentStatePushOnlyAsync(client, session, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (runtimeResult.DialogueState is not null)
