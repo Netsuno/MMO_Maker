@@ -1,3 +1,4 @@
+using Frog.Core.Enums;
 using Frog.Core.Models;
 
 namespace Frog.Application.Content;
@@ -35,11 +36,23 @@ public sealed class ItemWorkspaceSession
 
     public ContentPublishStatus? StatusFilter { get; set; }
 
+    /// <summary>
+    /// Quand il est fixé, la session ne liste et n’enregistre que ce type
+    /// (fiches Armes / Armures : <see cref="ItemType.Weapon"/> / <see cref="ItemType.Armor"/>).
+    /// </summary>
+    public ItemType? KindFilter { get; set; }
+
     public async Task RefreshCatalogAsync(CancellationToken cancellationToken = default)
     {
-        Catalog = await _repository
+        var catalog = await _repository
             .ListSummariesAsync(SearchFilter, StatusFilter, cancellationToken)
             .ConfigureAwait(false);
+        if (KindFilter is ItemType kind)
+        {
+            catalog = catalog.Where(entry => entry.Kind == kind).ToArray();
+        }
+
+        Catalog = catalog;
     }
 
     public async Task<bool> OpenAsync(Guid itemId, CancellationToken cancellationToken = default)
@@ -51,6 +64,11 @@ public sealed class ItemWorkspaceSession
 
         var stored = await _repository.LoadByIdAsync(itemId, cancellationToken).ConfigureAwait(false);
         if (stored is null)
+        {
+            return false;
+        }
+
+        if (KindFilter is ItemType kind && stored.Definition.Kind != kind)
         {
             return false;
         }
@@ -67,7 +85,9 @@ public sealed class ItemWorkspaceSession
             definition.Id = Guid.NewGuid();
         }
 
-        Current = Clone(definition);
+        var draft = Clone(definition);
+        ApplyKindFilter(draft);
+        Current = draft;
         CurrentId = null;
         CurrentRevision = 0;
         CurrentStatus = ContentPublishStatus.Draft;
@@ -101,6 +121,8 @@ public sealed class ItemWorkspaceSession
         {
             return new SaveItemResult.ValidationFailed("Aucun objet ouvert.");
         }
+
+        ApplyKindFilter(Current);
 
         if (!Capabilities.AllowsSave)
         {
@@ -174,6 +196,14 @@ public sealed class ItemWorkspaceSession
         }
 
         return result;
+    }
+
+    private void ApplyKindFilter(ItemDefinition definition)
+    {
+        if (KindFilter is ItemType kind)
+        {
+            definition.Kind = kind;
+        }
     }
 
     private void ApplyStored(StoredItem stored)

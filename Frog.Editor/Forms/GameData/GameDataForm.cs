@@ -28,6 +28,8 @@ public sealed class GameDataForm : Form
     private TilesetEditorPanel? _tilesets;
     private NpcEditorPanel? _npcs;
     private ItemEditorPanel? _items;
+    private EquipItemEditorPanel? _weapons;
+    private EquipItemEditorPanel? _armors;
     private SpellEditorPanel? _spells;
     private ClassEditorPanel? _classes;
     private ActorEditorPanel? _actors;
@@ -55,6 +57,16 @@ public sealed class GameDataForm : Form
     internal NpcEditorPanel NpcsForTest => _npcs ?? throw new InvalidOperationException("Game Data not initialized.");
 
     internal ItemEditorPanel ItemsForTest => _items ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal EquipItemEditorPanel WeaponsForTest => _weapons ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal EquipItemEditorPanel ArmorsForTest => _armors ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    /// <summary>Index de la catégorie Armes, après Ressources / spawns.</summary>
+    internal const int WeaponCategoryIndex = 10;
+
+    /// <summary>Index de la catégorie Armures, après Armes.</summary>
+    internal const int ArmorCategoryIndex = 11;
 
     internal SpellEditorPanel SpellsForTest => _spells ?? throw new InvalidOperationException("Game Data not initialized.");
 
@@ -94,6 +106,8 @@ public sealed class GameDataForm : Form
             "Système",
             "Boutiques",
             "Ressources / spawns",
+            "Armes",
+            "Armures",
         });
         _categoryList.SelectedIndex = 0;
         _categoryList.Enabled = false;
@@ -181,6 +195,8 @@ public sealed class GameDataForm : Form
         await _tilesets!.InitializeAsync().ConfigureAwait(true);
         await _npcs!.InitializeAsync().ConfigureAwait(true);
         await _items!.InitializeAsync().ConfigureAwait(true);
+        await _weapons!.InitializeAsync().ConfigureAwait(true);
+        await _armors!.InitializeAsync().ConfigureAwait(true);
         await _spells!.InitializeAsync().ConfigureAwait(true);
         await _classes!.InitializeAsync().ConfigureAwait(true);
         await _actors!.InitializeAsync().ConfigureAwait(true);
@@ -213,6 +229,8 @@ public sealed class GameDataForm : Form
         _tilesets!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _npcs!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _items!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _weapons!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _armors!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _spells!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _classes!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _actors!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
@@ -240,6 +258,18 @@ public sealed class GameDataForm : Form
             new ItemWorkspaceSession(set.Item.Repository),
             set.Item.Capabilities);
         _items.StatusChanged += msg => _status.Text = msg;
+        var weaponSession = new ItemWorkspaceSession(set.Item.Repository)
+        {
+            KindFilter = ItemType.Weapon,
+        };
+        _weapons = new EquipItemEditorPanel(weaponSession, set.Item.Capabilities, ItemType.Weapon);
+        _weapons.StatusChanged += msg => _status.Text = msg;
+        var armorSession = new ItemWorkspaceSession(set.Item.Repository)
+        {
+            KindFilter = ItemType.Armor,
+        };
+        _armors = new EquipItemEditorPanel(armorSession, set.Item.Capabilities, ItemType.Armor);
+        _armors.StatusChanged += msg => _status.Text = msg;
         _spells = new SpellEditorPanel(
             new SpellWorkspaceSession(set.Spell.Repository),
             set.Spell.Capabilities);
@@ -305,6 +335,8 @@ public sealed class GameDataForm : Form
             && (_tilesets!.IsDirty
                 || _npcs!.IsDirty
                 || _items!.IsDirty
+                || _weapons!.IsDirty
+                || _armors!.IsDirty
                 || _spells!.IsDirty
                 || _classes!.IsDirty
                 || _actors!.IsDirty
@@ -466,6 +498,8 @@ public sealed class GameDataForm : Form
             if (!await DrainOne(t => _tilesets!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _npcs!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _items!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _weapons!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _armors!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _spells!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _classes!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _actors!.DrainAsync(t)).ConfigureAwait(true)
@@ -508,6 +542,8 @@ public sealed class GameDataForm : Form
             && (!(_tilesets?.LifecycleForTest.IsIdle ?? true)
                 || !(_npcs?.LifecycleForTest.IsIdle ?? true)
                 || !(_items?.LifecycleForTest.IsIdle ?? true)
+                || !(_weapons?.LifecycleForTest.IsIdle ?? true)
+                || !(_armors?.LifecycleForTest.IsIdle ?? true)
                 || !(_spells?.LifecycleForTest.IsIdle ?? true)
                 || !(_classes?.LifecycleForTest.IsIdle ?? true)
                 || !(_actors?.LifecycleForTest.IsIdle ?? true)
@@ -530,6 +566,8 @@ public sealed class GameDataForm : Form
             _tilesets!.Enabled = enabled;
             _npcs!.Enabled = enabled;
             _items!.Enabled = enabled;
+            _weapons!.Enabled = enabled;
+            _armors!.Enabled = enabled;
             _spells!.Enabled = enabled;
             _classes!.Enabled = enabled;
             _actors!.Enabled = enabled;
@@ -549,6 +587,8 @@ public sealed class GameDataForm : Form
         _tilesets?.BeginClosing();
         _npcs?.BeginClosing();
         _items?.BeginClosing();
+        _weapons?.BeginClosing();
+        _armors?.BeginClosing();
         _spells?.BeginClosing();
         _classes?.BeginClosing();
         _actors?.BeginClosing();
@@ -563,6 +603,8 @@ public sealed class GameDataForm : Form
         _tilesets?.DisposeLifecycle();
         _npcs?.DisposeLifecycle();
         _items?.DisposeLifecycle();
+        _weapons?.DisposeLifecycle();
+        _armors?.DisposeLifecycle();
         _spells?.DisposeLifecycle();
         _classes?.DisposeLifecycle();
         _actors?.DisposeLifecycle();
@@ -666,10 +708,22 @@ public sealed class GameDataForm : Form
             _shops!.Dock = DockStyle.Fill;
             _host.Controls.Add(_shops);
         }
-        else
+        else if (_categoryList.SelectedIndex == 9)
         {
             _resourcesAndSpawns!.Dock = DockStyle.Fill;
             _host.Controls.Add(_resourcesAndSpawns);
+        }
+        else if (_categoryList.SelectedIndex == WeaponCategoryIndex)
+        {
+            _weapons!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_weapons);
+            _weapons.QueueRefreshList();
+        }
+        else if (_categoryList.SelectedIndex == ArmorCategoryIndex)
+        {
+            _armors!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_armors);
+            _armors.QueueRefreshList();
         }
     }
 }

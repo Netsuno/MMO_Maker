@@ -198,6 +198,12 @@ internal static class EditorSmokeTestAccess
         return Task.CompletedTask;
     }
 
+    public static Task OpenGameDataAndSaveSampleWeaponAndArmorAsync(MainWindow window)
+    {
+        GameDataSmokeUiDriver.RunWeaponAndArmorScenario(window, DefaultTimeout);
+        return Task.CompletedTask;
+    }
+
     public static Task OpenGameDataAndSaveSampleSystemAsync(MainWindow window)
     {
         GameDataSmokeUiDriver.RunSystemScenario(window, DefaultTimeout);
