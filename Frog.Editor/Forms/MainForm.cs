@@ -424,6 +424,7 @@ public sealed class MainForm : Form
             mEdit.DropDownItems.Add("Miroir horizontal (H)", null, (_, _) => TryMirrorSelectionHorizontal());
             mEdit.DropDownItems.Add("Miroir vertical (V)", null, (_, _) => TryMirrorSelectionVertical());
             mEdit.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
+            mEdit.DropDownItems.Add("Dupliquer l’objet (Ctrl+D)", null, (_, _) => OnDuplicateSelectedPrefab());
             mEdit.DropDownItems.Add(new ToolStripSeparator());
             mEdit.DropDownItems.Add("Enregistrer la sélection comme modèle…", null, (_, _) => SaveSelectionAsMapTemplate());
             mEdit.DropDownItems.Add("Enregistrer la carte comme modèle…", null, (_, _) => SaveCurrentMapAsTemplate());
@@ -652,7 +653,7 @@ public sealed class MainForm : Form
         };
         _leftToolsWpf.TileTypeChanged += type => _canvas.SelectedTileType = type;
         _leftToolsWpf.PrefabSelectionChanged += OnPrefabPaletteChanged;
-        _leftToolsWpf.PrefabDuplicateRequested += OnDuplicateLastPrefab;
+        _leftToolsWpf.PrefabDuplicateRequested += OnDuplicateSelectedPrefab;
         _leftToolsWpf.PrefabEscapeRequested += () => TryHandlePrefabEscape();
         _leftToolsWpf.PipetteRequested += () => TryPipetteAtHover();
         _leftToolsWpf.BindPrefabCatalog(_canvas.PrefabCatalog, _canvas.SelectedPrefabId, _canvas.SelectedPrefabFacing);
@@ -1940,9 +1941,11 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
     }
 
-    private void OnDuplicateLastPrefab()
+    internal void DuplicateSelectedPrefab() => OnDuplicateSelectedPrefab();
+
+    private void OnDuplicateSelectedPrefab()
     {
-        if (_canvas.TryDuplicateLastPrefab(out var placed, out var error) && placed is not null)
+        if (_canvas.TryDuplicateSelectedPrefab(out var placed, out var error) && placed is not null)
         {
             _leftToolsWpf.SetPrefabActionMessage($"Copie posée en ({placed.TileX}, {placed.TileY}).");
             PushEditorStatusLine();
@@ -2297,6 +2300,12 @@ public sealed class MainForm : Form
         if (!ctrl && code == Keys.I && _canvas.ActiveTool == EditorTool.Prefab)
         {
             _canvas.TryPipettePrefabAt(_canvas.HoveredTile.X, _canvas.HoveredTile.Y);
+            return true;
+        }
+
+        if (ctrl && !((keyData & Keys.Alt) == Keys.Alt) && !((keyData & Keys.Shift) == Keys.Shift) && code == Keys.D)
+        {
+            OnDuplicateSelectedPrefab();
             return true;
         }
 
@@ -3743,6 +3752,20 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
         var menu = new ContextMenuStrip();
         menu.Closed += (_, _) => menu.Dispose();
+        var prefabUnderCursor = _canvas.FindPrefabAt(tile.X, tile.Y);
+        if (prefabUnderCursor is not null || _canvas.SelectedPrefabPlacement is not null)
+        {
+            menu.Items.Add("Dupliquer", null, (_, _) =>
+            {
+                if (prefabUnderCursor is not null)
+                {
+                    _canvas.TrySelectPrefabPlacement(prefabUnderCursor);
+                }
+
+                OnDuplicateSelectedPrefab();
+            });
+        }
+
         menu.Items.Add("PNJ rapide…", null, (_, _) => OpenQuickTalkingNpc());
         menu.Items.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Chest), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Chest));
         menu.Items.Add(QuickEventPresetMessages.MenuItem(QuickEventPresetKind.Door), null, (_, _) => OpenQuickEventPreset(QuickEventPresetKind.Door));

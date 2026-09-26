@@ -146,7 +146,7 @@ public static class EditorToolHotkeys
             EditorTool.Line => "Ligne (L) · cliquez le départ, glissez, relâchez · Maj = axe",
             EditorTool.Selection => "Sélection (M) · tracez un rectangle · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition",
             EditorTool.Spawn => "Départ (D) · clic pour poser le spawn playtest",
-            EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · Échap quitte",
+            EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · clic sélectionne · Ctrl+D duplique · Échap quitte",
             EditorTool.Place => "Entités (N) · Apparition, PNJ ou Objet · clic pose · glisser déplace · clic droit retire",
             EditorTool.Region => MapRegionLabels.FormatStatus(1),
             _ => DisplayName(tool),

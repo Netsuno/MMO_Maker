@@ -426,7 +426,31 @@ public sealed class MapCanvas : Control
     /// <summary>Pipette : l’outil prefab a copié id / facing depuis une instance.</summary>
     public event Action<string, PrefabFacing>? PrefabSelectionPicked;
 
+    private PrefabPlacement? _selectedPrefabPlacement;
     private PrefabPlacement? _draggingPrefab;
+
+    /// <summary>Instance posée actuellement sélectionnée, ou null si elle n’est plus sur la carte.</summary>
+    public PrefabPlacement? SelectedPrefabPlacement
+    {
+        get
+        {
+            if (_selectedPrefabPlacement is null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < _prefabPlacements.Count; i++)
+            {
+                if (ReferenceEquals(_prefabPlacements[i], _selectedPrefabPlacement))
+                {
+                    return _selectedPrefabPlacement;
+                }
+            }
+
+            _selectedPrefabPlacement = null;
+            return null;
+        }
+    }
     private bool _prefabDragMoved;
 
     private bool _panning;
@@ -751,6 +775,8 @@ public sealed class MapCanvas : Control
                 return TryTransformSelection(TileSelectionTransformKind.MirrorHorizontal, activeLayerOnly: shift);
             case Keys.I when !ctrl && !alt && !shift:
                 return TryPipetteAtHover(switchToBrush: true);
+            case Keys.D when ctrl && !alt && !shift:
+                return TryDuplicateSelectedPrefab(out _, out _);
             default:
                 return false;
         }
@@ -2035,11 +2061,43 @@ public sealed class MapCanvas : Control
 
     public void ReplacePrefabPlacements(IEnumerable<PrefabPlacement>? placements)
     {
+        // Cloner avant Clear : l’appelant peut passer la liste vivante (PrefabPlacements).
+        var cloned = PrefabPlacementService.ClonePlacements(placements);
         _prefabPlacements.Clear();
-        _prefabPlacements.AddRange(PrefabPlacementService.ClonePlacements(placements));
+        _selectedPrefabPlacement = null;
+        _draggingPrefab = null;
+        _prefabPlacements.AddRange(cloned);
         PrefabPlacementsChanged?.Invoke();
         Invalidate();
     }
+
+    public PrefabPlacement? FindPrefabAt(int tileX, int tileY)
+        => PrefabPlacementService.TryFindAt(_prefabPlacements, PrefabCatalog, tileX, tileY);
+
+    public bool TrySelectPrefabPlacement(PrefabPlacement? placement)
+    {
+        if (placement is null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < _prefabPlacements.Count; i++)
+        {
+            if (!ReferenceEquals(_prefabPlacements[i], placement))
+            {
+                continue;
+            }
+
+            _selectedPrefabPlacement = placement;
+            Invalidate();
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool TrySelectPrefabAt(int tileX, int tileY)
+        => TrySelectPrefabPlacement(FindPrefabAt(tileX, tileY));
 
     public bool TryPlaceSelectedPrefab(int tileX, int tileY)
     {
@@ -2063,10 +2121,11 @@ public sealed class MapCanvas : Control
             tileY,
             Map.Width,
             Map.Height,
-            out _,
+            out var placed,
             out _);
         if (ok)
         {
+            _selectedPrefabPlacement = placed;
             PrefabPlacementsChanged?.Invoke();
             Invalidate();
         }
@@ -2110,6 +2169,7 @@ public sealed class MapCanvas : Control
 
         _draggingPrefab = hit;
         _prefabDragMoved = false;
+        _selectedPrefabPlacement = hit;
         return true;
     }
 
@@ -2173,6 +2233,48 @@ public sealed class MapCanvas : Control
             out error);
         if (ok)
         {
+            _selectedPrefabPlacement = placed;
+            PrefabPlacementsChanged?.Invoke();
+            Invalidate();
+        }
+
+        return ok;
+    }
+
+    /// <summary>
+    /// Duplique l’instance sélectionnée. Sans sélection, reprend la dernière posée
+    /// (même chemin que le bouton historique). La sélection passe sur la copie.
+    /// Les prefabs restent hors de la pile d’annulation des tuiles, comme une pose.
+    /// </summary>
+    public bool TryDuplicateSelectedPrefab(out PrefabPlacement? placed, out string? error)
+    {
+        placed = null;
+        if (Map is null)
+        {
+            error = "Aucune carte.";
+            return false;
+        }
+
+        var source = SelectedPrefabPlacement;
+        var ok = source is null
+            ? PrefabPlacementService.TryDuplicateLast(
+                _prefabPlacements,
+                PrefabCatalog,
+                Map.Width,
+                Map.Height,
+                out placed,
+                out error)
+            : PrefabPlacementService.TryDuplicate(
+                _prefabPlacements,
+                PrefabCatalog,
+                source,
+                Map.Width,
+                Map.Height,
+                out placed,
+                out error);
+        if (ok)
+        {
+            _selectedPrefabPlacement = placed;
             PrefabPlacementsChanged?.Invoke();
             Invalidate();
         }
@@ -2225,6 +2327,12 @@ public sealed class MapCanvas : Control
                 using var pen = new Pen(Color.FromArgb(230, 80, 48, 28), 2f);
                 g.FillRectangle(fill, dest);
                 g.DrawRectangle(pen, dest);
+            }
+
+            if (ReferenceEquals(placement, _selectedPrefabPlacement))
+            {
+                using var selectPen = new Pen(EditorChrome.RibbonAccent, 2f);
+                g.DrawRectangle(selectPen, dest);
             }
         }
     }

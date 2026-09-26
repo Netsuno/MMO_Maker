@@ -1,10 +1,12 @@
 using System;
 using System.IO;
+using System.Reflection;
 using Frog.Application.Assets;
 using Frog.Application.Prefabs;
 using Frog.Core.Constants;
 using Frog.Core.IO;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 using Xunit;
 
 namespace Frog.Tests;
@@ -218,5 +220,73 @@ public sealed class PrefabModelAndPlacementTests
     {
         Assert.Equal((ushort)11, FrogWireProtocol.Version);
         Assert.Equal((byte)5, MapSerializer.MapFileFormatVersion);
+        Assert.Equal((byte)6, MapSerializer.TileAssetMapFileFormatVersion);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+    }
+
+    [Fact]
+    public void DuplicateSelected_ClonesFields_OffsetsByFootprint_KeepsHelloAndTileSize()
+    {
+        var catalog = BuiltInPrefabCatalog.Create();
+        var list = new System.Collections.Generic.List<PrefabPlacement>();
+
+        Assert.False(PrefabPlacementService.TryDuplicate(list, catalog, source: null, 8, 8, out _, out var none));
+        Assert.Equal("Aucun objet sélectionné à dupliquer.", none);
+
+        Assert.True(PrefabPlacementService.TryPlace(list, catalog, BuiltInPrefabCatalog.ChestId, PrefabFacing.South, 1, 1, 8, 8, out var chest, out var chestErr), chestErr);
+        Assert.True(PrefabPlacementService.TryPlace(list, catalog, BuiltInPrefabCatalog.SofaId, PrefabFacing.East, 4, 1, 8, 8, out var sofa, out var sofaErr), sofaErr);
+        Assert.NotNull(chest);
+        Assert.NotNull(sofa);
+
+        var outsider = new PrefabPlacement { PrefabId = BuiltInPrefabCatalog.ChestId, Facing = PrefabFacing.South, TileX = 1, TileY = 1 };
+        Assert.False(PrefabPlacementService.TryDuplicate(list, catalog, outsider, 8, 8, out _, out var missing));
+        Assert.Equal("Instance introuvable.", missing);
+
+        Assert.True(PrefabPlacementService.TryDuplicate(list, catalog, chest, 8, 8, out var copy, out var dupErr), dupErr);
+        Assert.NotNull(copy);
+        Assert.Equal(3, list.Count);
+        Assert.NotSame(chest, copy);
+        Assert.Equal(1, chest!.TileX);
+        Assert.Equal(1, chest.TileY);
+        Assert.Equal(4, sofa!.TileX);
+        Assert.Equal(1, sofa.TileY);
+        Assert.Equal(PrefabFacing.East, sofa.Facing);
+        Assert.Equal(2, copy!.TileX);
+        Assert.Equal(1, copy.TileY);
+        AssertSameIdentity(chest, copy);
+        var cloned = chest.Clone();
+        AssertSameIdentity(chest, cloned);
+        Assert.Equal(chest.TileX, cloned.TileX);
+        Assert.Equal(chest.TileY, cloned.TileY);
+        Assert.NotSame(chest, cloned);
+
+        list.Clear();
+        Assert.True(PrefabPlacementService.TryPlace(list, catalog, BuiltInPrefabCatalog.SofaId, PrefabFacing.South, 0, 0, mapWidth: 2, mapHeight: 1, out var blocked, out var blockErr), blockErr);
+        Assert.False(PrefabPlacementService.TryDuplicate(list, catalog, blocked, 2, 1, out _, out var noRoom));
+        Assert.Equal("Pas de place libre à côté de l’objet sélectionné.", noRoom);
+        Assert.Single(list);
+        Assert.Equal(0, list[0].TileX);
+        Assert.Equal(0, list[0].TileY);
+
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        Assert.True(WireHello.TryParse(WireHello.BuildPayload(), out var hello, out var helloVersion));
+        Assert.Equal(WireHello.DefaultMessage, hello);
+        Assert.Equal((ushort)11, helloVersion);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+        Assert.Equal((byte)6, MapSerializer.TileAssetMapFileFormatVersion);
+        Assert.Equal(32, WorldMetrics.DefaultTileSizePixels);
+    }
+
+    private static void AssertSameIdentity(PrefabPlacement source, PrefabPlacement copy)
+    {
+        foreach (var property in typeof(PrefabPlacement).GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (property.Name is nameof(PrefabPlacement.TileX) or nameof(PrefabPlacement.TileY))
+            {
+                continue;
+            }
+
+            Assert.Equal(property.GetValue(source), property.GetValue(copy));
+        }
     }
 }

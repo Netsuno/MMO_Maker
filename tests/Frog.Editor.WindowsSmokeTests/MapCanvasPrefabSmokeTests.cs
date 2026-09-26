@@ -1,3 +1,4 @@
+using System.Windows.Forms;
 using Frog.Application.Maps;
 using Frog.Application.Prefabs;
 using Frog.Core.Models;
@@ -100,6 +101,63 @@ public sealed class MapCanvasPrefabSmokeTests
             Assert.Equal(4, copy.TileX);
             Assert.Equal(4, copy.TileY);
             Assert.Equal(2, canvas.PrefabPlacements[0].TileX);
+            Assert.Same(copy, canvas.SelectedPrefabPlacement);
+        });
+    }
+
+    [Fact]
+    public void PrefabTool_DuplicateSelectedCopiesThatInstance_SelectsCopy_LeavesUndoUntouched()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            var canvas = new MapCanvas { TileSize = 32 };
+            canvas.Map = DemoMapFactory.CreateStarter();
+            var changes = 0;
+            canvas.PrefabPlacementsChanged += () => changes++;
+
+            canvas.SelectedPrefabId = BuiltInPrefabCatalog.ChestId;
+            canvas.SelectedPrefabFacing = PrefabFacing.South;
+            Assert.True(canvas.TryPlaceSelectedPrefab(1, 2));
+            Assert.Same(canvas.PrefabPlacements[0], canvas.SelectedPrefabPlacement);
+
+            canvas.SelectedPrefabId = BuiltInPrefabCatalog.SofaId;
+            canvas.SelectedPrefabFacing = PrefabFacing.East;
+            Assert.True(canvas.TryPlaceSelectedPrefab(4, 2));
+            Assert.Equal(PrefabFacing.East, canvas.SelectedPrefabPlacement!.Facing);
+
+            Assert.True(canvas.TrySelectPrefabAt(1, 2));
+            Assert.Equal(BuiltInPrefabCatalog.ChestId, canvas.SelectedPrefabPlacement!.PrefabId);
+            Assert.False(canvas.History.CanUndo);
+
+            Assert.True(canvas.TryDuplicateSelectedPrefab(out var copy, out var error), error);
+            Assert.False(canvas.History.CanUndo);
+            Assert.Equal(3, canvas.PrefabPlacements.Count);
+            Assert.NotNull(copy);
+            Assert.Equal(BuiltInPrefabCatalog.ChestId, copy!.PrefabId);
+            Assert.Equal(PrefabFacing.South, copy.Facing);
+            Assert.Equal(2, copy.TileX);
+            Assert.Equal(2, copy.TileY);
+            Assert.Same(copy, canvas.SelectedPrefabPlacement);
+            Assert.Equal(1, canvas.PrefabPlacements[0].TileX);
+            Assert.Equal(2, canvas.PrefabPlacements[0].TileY);
+            Assert.Equal(BuiltInPrefabCatalog.SofaId, canvas.PrefabPlacements[1].PrefabId);
+            Assert.Equal(4, canvas.PrefabPlacements[1].TileX);
+            Assert.Equal(PrefabFacing.East, canvas.PrefabPlacements[1].Facing);
+            Assert.True(changes >= 3);
+
+            Assert.False(canvas.HandleEditorShortcuts(Keys.Control | Keys.Shift | Keys.D));
+            Assert.Equal(3, canvas.PrefabPlacements.Count);
+
+            Assert.True(canvas.HandleEditorShortcuts(Keys.Control | Keys.D));
+            Assert.Equal(4, canvas.PrefabPlacements.Count);
+            Assert.Equal(BuiltInPrefabCatalog.ChestId, canvas.SelectedPrefabPlacement!.PrefabId);
+            Assert.Equal(3, canvas.SelectedPrefabPlacement.TileX);
+            Assert.Equal(2, canvas.SelectedPrefabPlacement.TileY);
+
+            canvas.ReplacePrefabPlacements(canvas.PrefabPlacements);
+            Assert.Null(canvas.SelectedPrefabPlacement);
+            Assert.Equal(4, canvas.PrefabPlacements.Count);
         });
     }
 }

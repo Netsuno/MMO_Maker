@@ -520,8 +520,102 @@ public static class PrefabPlacementService
         }
 
         var source = placements[placements.Count - 1];
-        if (source is null
-            || !TryGetDefinition(catalog, source.PrefabId, out var definition)
+        if (source is null)
+        {
+            error = "Prefab introuvable.";
+            return false;
+        }
+
+        return TryDuplicate(
+            placements,
+            catalog,
+            source,
+            mapWidth,
+            mapHeight,
+            out placed,
+            out error,
+            noRoomError: "Pas de place libre à côté du dernier objet.");
+    }
+
+    /// <summary>
+    /// Copie l’instance indiquée (même id catalogue et facing) via <see cref="TryPlace"/>,
+    /// décalée de son empreinte pour rester visible et sélectionnable.
+    /// </summary>
+    public static bool TryDuplicate(
+        IList<PrefabPlacement> placements,
+        PrefabCatalog catalog,
+        PrefabPlacement? source,
+        int mapWidth,
+        int mapHeight,
+        out PrefabPlacement? placed,
+        out string? error)
+        => TryDuplicate(
+            placements,
+            catalog,
+            source,
+            mapWidth,
+            mapHeight,
+            out placed,
+            out error,
+            noRoomError: "Pas de place libre à côté de l’objet sélectionné.");
+
+    public static List<PrefabPlacement> ClonePlacements(IEnumerable<PrefabPlacement>? source)
+    {
+        var list = new List<PrefabPlacement>();
+        if (source is null)
+        {
+            return list;
+        }
+
+        foreach (var item in source)
+        {
+            if (item is null || string.IsNullOrWhiteSpace(item.PrefabId))
+            {
+                continue;
+            }
+
+            list.Add(item.Clone());
+        }
+
+        return list;
+    }
+
+    private static bool TryDuplicate(
+        IList<PrefabPlacement> placements,
+        PrefabCatalog catalog,
+        PrefabPlacement? source,
+        int mapWidth,
+        int mapHeight,
+        out PrefabPlacement? placed,
+        out string? error,
+        string noRoomError)
+    {
+        ArgumentNullException.ThrowIfNull(placements);
+        ArgumentNullException.ThrowIfNull(catalog);
+        placed = null;
+        if (source is null)
+        {
+            error = "Aucun objet sélectionné à dupliquer.";
+            return false;
+        }
+
+        var index = -1;
+        for (var i = 0; i < placements.Count; i++)
+        {
+            if (ReferenceEquals(placements[i], source))
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0)
+        {
+            error = "Instance introuvable.";
+            return false;
+        }
+
+        if (!TryGetDefinition(catalog, source.PrefabId, out var definition)
             || !TryResolveVariant(definition, source.Facing, out var variant)
             || !TryResolveFootprint(definition, variant, out var widthTiles, out var heightTiles))
         {
@@ -550,7 +644,7 @@ public static class PrefabPlacementService
                 continue;
             }
 
-            if (TryPlace(
+            if (!TryPlace(
                     placements,
                     catalog,
                     source.PrefabId,
@@ -562,40 +656,19 @@ public static class PrefabPlacementService
                     out placed,
                     out error))
             {
-                return true;
-            }
-        }
-
-        placed = null;
-        error = "Pas de place libre à côté du dernier objet.";
-        return false;
-    }
-
-    public static List<PrefabPlacement> ClonePlacements(IEnumerable<PrefabPlacement>? source)
-    {
-        var list = new List<PrefabPlacement>();
-        if (source is null)
-        {
-            return list;
-        }
-
-        foreach (var item in source)
-        {
-            if (item is null || string.IsNullOrWhiteSpace(item.PrefabId))
-            {
                 continue;
             }
 
-            list.Add(new PrefabPlacement
-            {
-                PrefabId = item.PrefabId,
-                Facing = item.Facing,
-                TileX = item.TileX,
-                TileY = item.TileY,
-            });
+            placed!.CopyIdentityFrom(source);
+            placed.TileX = tileX;
+            placed.TileY = tileY;
+            error = null;
+            return true;
         }
 
-        return list;
+        placed = null;
+        error = noRoomError;
+        return false;
     }
 
     private static bool CanOccupy(
