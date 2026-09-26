@@ -1,3 +1,4 @@
+using Frog.Core.Events;
 using Frog.Core.Protocol;
 
 namespace Frog.Server.Gameplay;
@@ -51,6 +52,9 @@ public sealed class MapEventExecutionState
 
     /// <summary>Boutique publiée à ouvrir pour le joueur (commande <c>open_shop</c>).</summary>
     public Guid? OpenShopId { get; set; }
+
+    /// <summary>Images affichées ou effacées pendant cette exécution, dans l'ordre.</summary>
+    public List<MapEventPictureOp> PictureOps { get; } = [];
 
     public bool StopExecution { get; set; }
 

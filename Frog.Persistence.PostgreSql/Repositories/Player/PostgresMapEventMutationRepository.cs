@@ -426,6 +426,36 @@ public sealed class PostgresMapEventMutationRepository(
                 snapshot.RecordWeather(weatherKind);
                 return null;
 
+            case MapEventCommandDiscriminators.ShowPicture:
+                if (!MapEventParameterSchemas.TryParseShowPicture(
+                        command.ParameterJson,
+                        out var shown,
+                        out var showPictureErr))
+                {
+                    return showPictureErr;
+                }
+
+                snapshot.RecordPicture(MapEventPictureOp.ForShow(
+                    shown.PictureId,
+                    shown.Asset,
+                    shown.X,
+                    shown.Y,
+                    shown.Opacity,
+                    shown.Blend));
+                return null;
+
+            case MapEventCommandDiscriminators.ErasePicture:
+                if (!MapEventParameterSchemas.TryParseErasePicture(
+                        command.ParameterJson,
+                        out var erasePictureId,
+                        out var erasePictureErr))
+                {
+                    return erasePictureErr;
+                }
+
+                snapshot.RecordPicture(MapEventPictureOp.ForErase(erasePictureId));
+                return null;
+
             default:
                 return $"Commande non supportée en transaction atomique: {command.Discriminator}.";
         }
@@ -1128,6 +1158,7 @@ public sealed class PostgresMapEventMutationRepository(
             TeleportTileY = snapshot.TeleportTileY,
             ShopId = snapshot.ShopId,
             WeatherKind = snapshot.WeatherKind,
+            PictureOps = snapshot.PictureOps is { Count: > 0 } ops ? ops : null,
         }, JsonOptions);
 
     private static MapEventExecutionSnapshot? DeserializeSnapshot(string json)
@@ -1164,6 +1195,7 @@ public sealed class PostgresMapEventMutationRepository(
                 TeleportTileY = stored.TeleportTileY,
                 ShopId = stored.ShopId,
                 WeatherKind = stored.WeatherKind,
+                PictureOps = stored.PictureOps ?? [],
             };
         }
         catch
@@ -1218,5 +1250,8 @@ public sealed class PostgresMapEventMutationRepository(
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? WeatherKind { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<MapEventPictureOp>? PictureOps { get; set; }
     }
 }

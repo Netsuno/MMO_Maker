@@ -877,6 +877,105 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_ShowPicture_AppliesSessionAndInteractTrailer()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Image",
+            EditorAliasId = 81,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowPicture,
+                            ParameterJson = """{"pictureId":2,"asset":"Assets/Pictures/placeholder.png","x":16,"y":32,"opacity":200,"blend":"add"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"regarde"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(81));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.True(session.Pictures.TryGetValue(2, out var shown));
+        Assert.Equal(16, shown.X);
+        Assert.Equal(32, shown.Y);
+        Assert.Equal(200, shown.Opacity);
+        Assert.Equal(MapEventPicture.BlendAdd, shown.Blend);
+        Assert.Equal("regarde", result.ShowText);
+        Assert.True(MapEventPictureWire.TryTakeInteractMessage(result.ClientInteractMessage, out var ops, out var rest));
+        Assert.Equal("regarde", rest);
+        var op = Assert.Single(ops);
+        Assert.False(op.Erase);
+        Assert.Equal(2, op.PictureId);
+        Assert.Equal(MapEventPicture.DefaultAsset, op.Asset);
+        Assert.Equal(MapEventCommandDiscriminators.ShowPicture, repo.Plans[0].Effects[0].Discriminator);
+        Assert.True(ServerPlanner.AreEffectsTransactional(repo.Plans[0].Effects));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+    }
+
+    [Fact]
+    public async Task ExecuteCommands_ShowThenErasePicture_ClearsTheSlotInMemory()
+    {
+        var executor = CreateExecutor(
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader());
+        var session = CreateSession(Guid.NewGuid());
+        var state = new MapEventExecutionState();
+
+        var err = await executor.ExecuteCommandsAsync(
+            session,
+            session.CharacterGuid!.Value,
+            [
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.ShowPicture,
+                    ParameterJson = """{"pictureId":4,"asset":"Assets/Pictures/placeholder.png","x":0,"y":0,"opacity":255,"blend":"normal"}""",
+                },
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.ErasePicture,
+                    ParameterJson = """{"pictureId":4}""",
+                },
+            ],
+            state,
+            CancellationToken.None);
+
+        Assert.Null(err);
+        Assert.False(session.Pictures.ContainsKey(4));
+        Assert.Equal(2, state.PictureOps.Count);
+        Assert.False(state.PictureOps[0].Erase);
+        Assert.True(state.PictureOps[1].Erase);
+        Assert.True(MapEventPictureWire.TryTakeInteractMessage(
+            MapEventPictureWire.Compose(state.PictureOps, null, null, "Image (image)"),
+            out var ops,
+            out var rest));
+        Assert.Equal(2, ops.Count);
+        Assert.Equal("Image (image)", rest);
+    }
+
+    [Fact]
     public async Task ExecuteInteract_StartDialoguePage_UsesUnifiedTransactionalPath()
     {
         var characterId = Guid.NewGuid();
@@ -1992,6 +2091,29 @@ public sealed class MapEventRuntimeServiceTests
                                 out _))
                         {
                             snap.RecordWeather(weatherKind);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.ShowPicture:
+                        if (MapEventParameterSchemas.TryParseShowPicture(
+                                cmd.ParameterJson,
+                                out var shown,
+                                out _))
+                        {
+                            snap.RecordPicture(MapEventPictureOp.ForShow(
+                                shown.PictureId,
+                                shown.Asset,
+                                shown.X,
+                                shown.Y,
+                                shown.Opacity,
+                                shown.Blend));
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.ErasePicture:
+                        if (MapEventParameterSchemas.TryParseErasePicture(cmd.ParameterJson, out var eraseId, out _))
+                        {
+                            snap.RecordPicture(MapEventPictureOp.ForErase(eraseId));
                         }
 
                         break;

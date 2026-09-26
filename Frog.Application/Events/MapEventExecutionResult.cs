@@ -43,14 +43,15 @@ public sealed class MapEventExecutionResult
     /// <summary>Boutique publiée à ouvrir chez le joueur (commande <c>open_shop</c>).</summary>
     public Guid? OpenShopId { get; init; }
 
+    /// <summary>Images à afficher ou effacer chez le joueur (commandes <c>show_picture</c> / <c>erase_picture</c>).</summary>
+    public IReadOnlyList<MapEventPictureOp> PictureOps { get; init; } = Array.Empty<MapEventPictureOp>();
+
     /// <summary>
     /// Message <c>InteractResult</c>. Une boutique ouverte préfixe <c>shop:&lt;guid&gt;</c>
-    /// sans remplacer un <c>show_text</c> déjà produit.
+    /// sans remplacer un <c>show_text</c> déjà produit. Les images préfixent des lignes <c>pic:</c>.
     /// </summary>
     public string ClientInteractMessage =>
-        OpenShopId is Guid shopId && shopId != Guid.Empty
-            ? MapEventShopOpen.FormatInteractMessage(shopId, ShowText)
-            : ShowText ?? Message;
+        MapEventPictureWire.Compose(PictureOps, OpenShopId, ShowText, Message);
 
     public static MapEventExecutionResult Ok(
         string message,
@@ -68,7 +69,8 @@ public sealed class MapEventExecutionResult
         bool recipesChanged = false,
         IReadOnlyList<WorldSwitchWire>? switchChanges = null,
         Guid? openShopId = null,
-        bool weatherChanged = false) =>
+        bool weatherChanged = false,
+        IReadOnlyList<MapEventPictureOp>? pictureOps = null) =>
         new()
         {
             Success = true,
@@ -90,6 +92,9 @@ public sealed class MapEventExecutionResult
             QuestSummary = questSummary,
             DialogueState = dialogueState,
             OpenShopId = openShopId is Guid shopId && shopId != Guid.Empty ? shopId : null,
+            PictureOps = pictureOps is { Count: > 0 } pictures
+                ? pictures
+                : Array.Empty<MapEventPictureOp>(),
         };
 
     /// <summary>
@@ -122,7 +127,8 @@ public sealed class MapEventExecutionResult
             questsChanged: snap?.QuestsChanged ?? false,
             professionsChanged: snap?.ProfessionsChanged ?? false,
             recipesChanged: snap?.RecipesChanged ?? false,
-            openShopId: openShopId);
+            openShopId: openShopId,
+            pictureOps: snap?.PictureOps);
 
     public static MapEventExecutionResult Fail(string message) =>
         new() { Success = false, Message = message };

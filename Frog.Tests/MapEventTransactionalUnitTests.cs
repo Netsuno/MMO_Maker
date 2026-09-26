@@ -217,6 +217,54 @@ public sealed class MapEventTransactionalUnitTests
     }
 
     [Fact]
+    public void Sandbox_ShowPicture_RecordsSlotAndEraseRollsBackWithTheUnit()
+    {
+        var sandbox = new MapEventTransactionalCommitSandbox();
+        var unit = Unit(
+        [
+            Cmd(
+                MapEventCommandDiscriminators.ShowPicture,
+                """{"pictureId":3,"asset":"Assets/Pictures/placeholder.png","x":8,"y":12,"opacity":180,"blend":"add"}"""),
+            SetSwitch("gate", true),
+        ]);
+
+        Assert.True(unit.IsSuccess, unit.Error);
+        Assert.Contains(unit.SessionSideEffects, c => c.Discriminator == MapEventCommandDiscriminators.ShowPicture);
+        Assert.Equal(
+            MapEventEffectCommitKind.SessionSide,
+            MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.ShowPicture));
+
+        var outcome = sandbox.TryCommit(unit);
+        Assert.Equal(MapEventCommitDisposition.Committed, outcome.Disposition);
+        Assert.True(sandbox.World.Pictures.TryGetValue(3, out var shown));
+        Assert.Equal(8, shown.X);
+        Assert.Equal(MapEventPicture.BlendAdd, shown.Blend);
+        Assert.True(sandbox.World.Switches["gate"]);
+
+        var erased = new MapEventTransactionalCommitSandbox();
+        var clear = Unit(
+        [
+            Cmd(
+                MapEventCommandDiscriminators.ShowPicture,
+                """{"pictureId":3,"asset":"Assets/Pictures/placeholder.png","x":0,"y":0,"opacity":255,"blend":"normal"}"""),
+            Cmd(MapEventCommandDiscriminators.ErasePicture, """{"pictureId":3}"""),
+        ]);
+        Assert.Equal(MapEventCommitDisposition.Committed, erased.TryCommit(clear).Disposition);
+        Assert.False(erased.World.Pictures.ContainsKey(3));
+
+        var rollback = new MapEventTransactionalCommitSandbox();
+        var broken = Unit(
+        [
+            Cmd(
+                MapEventCommandDiscriminators.ShowPicture,
+                """{"pictureId":1,"asset":"Assets/Pictures/placeholder.png","x":0,"y":0,"opacity":255,"blend":"normal"}"""),
+            Cmd(MapEventCommandDiscriminators.GiveItem, """{"itemId":"00000000-0000-0000-0000-000000000000","quantity":1}"""),
+        ]);
+        Assert.Equal(MapEventCommitDisposition.RolledBack, rollback.TryCommit(broken).Disposition);
+        Assert.Empty(rollback.World.Pictures);
+    }
+
+    [Fact]
     public void Sandbox_MixedPage_CommitsAsOneUnitIncludingSessionSide()
     {
         var sandbox = new MapEventTransactionalCommitSandbox();

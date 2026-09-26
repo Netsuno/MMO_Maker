@@ -339,6 +339,12 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.SetWeather:
                 return ApplySetWeather(session, command.ParameterJson, state);
 
+            case MapEventCommandDiscriminators.ShowPicture:
+                return ApplyShowPicture(session, command.ParameterJson, state);
+
+            case MapEventCommandDiscriminators.ErasePicture:
+                return ApplyErasePicture(session, command.ParameterJson, state);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -636,6 +642,15 @@ public sealed class MapEventCommandExecutor
         {
             await ApplyOpenShopIntentAsync(shopId, state, cancellationToken).ConfigureAwait(false);
         }
+
+        if (snap.PictureOps is { Count: > 0 })
+        {
+            foreach (var op in snap.PictureOps)
+            {
+                session.ApplyPictureOp(op);
+                state.PictureOps.Add(op);
+            }
+        }
     }
 
     private async Task<string?> ExecuteOpenShopAsync(
@@ -718,6 +733,32 @@ public sealed class MapEventCommandExecutor
         }
 
         ApplyCanonicalWeather(session, kind, state);
+        return null;
+    }
+
+    private string? ApplyShowPicture(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseShowPicture(parameterJson, out var picture, out var err))
+        {
+            return err ?? "show_picture invalide.";
+        }
+
+        var op = MapEventPictureOp.ForShow(picture.PictureId, picture.Asset, picture.X, picture.Y, picture.Opacity, picture.Blend);
+        session.ApplyPictureOp(op);
+        state.PictureOps.Add(op);
+        return null;
+    }
+
+    private string? ApplyErasePicture(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseErasePicture(parameterJson, out var pictureId, out var err))
+        {
+            return err ?? "erase_picture invalide.";
+        }
+
+        var op = MapEventPictureOp.ForErase(pictureId);
+        session.ApplyPictureOp(op);
+        state.PictureOps.Add(op);
         return null;
     }
 

@@ -288,6 +288,31 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 EditorListDraw.UseReadableChoices(weather, MapEventEditorLabels.WeatherKind);
                 AddLabeled("weatherKind", weather);
                 break;
+            case MapEventCommandDiscriminators.ShowPicture:
+                AddPictureIdField();
+                AddLabeled("asset", new TextBox { Width = 360, Text = MapEventPicture.DefaultAsset });
+                AddLabeled("x", CoordBox());
+                AddLabeled("y", CoordBox());
+                AddLabeled("opacity", new NumericUpDown
+                {
+                    Width = 80,
+                    Minimum = MapEventPicture.MinOpacity,
+                    Maximum = MapEventPicture.MaxOpacity,
+                    Value = MapEventPicture.MaxOpacity,
+                });
+                var blend = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+                foreach (var kind in MapEventPicture.Blends)
+                {
+                    blend.Items.Add(kind);
+                }
+
+                blend.SelectedIndex = 0;
+                EditorListDraw.UseReadableChoices(blend, MapEventEditorLabels.PictureBlend);
+                AddLabeled("blend", blend);
+                break;
+            case MapEventCommandDiscriminators.ErasePicture:
+                AddPictureIdField();
+                break;
             case MapEventCommandDiscriminators.Branch:
                 _branchCondition = new MapEventConditionParameterPanel();
                 _branchThen = new MapEventCommandListPanel();
@@ -587,6 +612,16 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }
 
                     break;
+                case MapEventCommandDiscriminators.ShowPicture:
+                    ApplyShowPicture(root);
+                    break;
+                case MapEventCommandDiscriminators.ErasePicture:
+                    if (root.TryGetProperty("pictureId", out var eraseId) && eraseId.TryGetInt32(out var erasePictureId))
+                    {
+                        SetInt("pictureId", erasePictureId);
+                    }
+
+                    break;
                 case MapEventCommandDiscriminators.Branch:
                     if (_branchCondition is not null
                         && root.TryGetProperty("conditionKind", out var condKindEl))
@@ -720,6 +755,18 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 MapEventCommandDiscriminators.OpenShop => BuildOpenShopJson(),
                 MapEventCommandDiscriminators.SetWeather =>
                     JsonSerializer.Serialize(new { weatherKind = GetChoice("weatherKind") }),
+                MapEventCommandDiscriminators.ShowPicture =>
+                    JsonSerializer.Serialize(new
+                    {
+                        pictureId = GetInt("pictureId"),
+                        asset = GetText("asset"),
+                        x = GetInt("x"),
+                        y = GetInt("y"),
+                        opacity = GetInt("opacity"),
+                        blend = GetChoice("blend"),
+                    }),
+                MapEventCommandDiscriminators.ErasePicture =>
+                    JsonSerializer.Serialize(new { pictureId = GetInt("pictureId") }),
                 _ => GetText("parameterJson"),
             };
             return true;
@@ -729,6 +776,61 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             json = "{}";
             error = ex.Message;
             return false;
+        }
+    }
+
+    private void AddPictureIdField()
+    {
+        AddLabeled("pictureId", new NumericUpDown
+        {
+            Width = 80,
+            Minimum = MapEventPicture.MinId,
+            Maximum = MapEventPicture.MaxId,
+            Value = MapEventPicture.MinId,
+        });
+    }
+
+    private static NumericUpDown CoordBox() => new()
+    {
+        Width = 90,
+        Minimum = MapEventPicture.MinCoord,
+        Maximum = MapEventPicture.MaxCoord,
+        Value = 0,
+    };
+
+    private void ApplyShowPicture(JsonElement root)
+    {
+        if (root.TryGetProperty("pictureId", out var idEl) && idEl.TryGetInt32(out var pictureId))
+        {
+            SetInt("pictureId", pictureId);
+        }
+
+        if (root.TryGetProperty("asset", out var assetEl))
+        {
+            SetText("asset", assetEl.GetString() ?? string.Empty);
+        }
+
+        if (root.TryGetProperty("x", out var xEl) && xEl.TryGetInt32(out var x))
+        {
+            SetInt("x", x);
+        }
+
+        if (root.TryGetProperty("y", out var yEl) && yEl.TryGetInt32(out var y))
+        {
+            SetInt("y", y);
+        }
+
+        if (root.TryGetProperty("opacity", out var opacityEl) && opacityEl.TryGetInt32(out var opacity))
+        {
+            SetInt("opacity", opacity);
+        }
+
+        if (root.TryGetProperty("blend", out var blendEl))
+        {
+            var raw = blendEl.GetString();
+            SetChoice(
+                "blend",
+                MapEventPicture.TryCanonicalBlend(raw, out var blend) ? blend : MapEventPicture.BlendNormal);
         }
     }
 

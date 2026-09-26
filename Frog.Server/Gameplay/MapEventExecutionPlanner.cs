@@ -168,7 +168,9 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.OpenShop
                 or MapEventCommandDiscriminators.PlayBgm
                 or MapEventCommandDiscriminators.PlaySe
-                or MapEventCommandDiscriminators.SetWeather => true,
+                or MapEventCommandDiscriminators.SetWeather
+                or MapEventCommandDiscriminators.ShowPicture
+                or MapEventCommandDiscriminators.ErasePicture => true,
             _ => false,
         };
 }

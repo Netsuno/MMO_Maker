@@ -45,7 +45,9 @@ public static class MapEventEffectClassifier
             MapEventCommandDiscriminators.StartDialogue
                 or MapEventCommandDiscriminators.Teleport
                 or MapEventCommandDiscriminators.OpenShop
-                or MapEventCommandDiscriminators.SetWeather =>
+                or MapEventCommandDiscriminators.SetWeather
+                or MapEventCommandDiscriminators.ShowPicture
+                or MapEventCommandDiscriminators.ErasePicture =>
                 MapEventEffectCommitKind.SessionSide,
             _ => MapEventEffectCommitKind.Unknown,
         };

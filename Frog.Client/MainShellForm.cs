@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
@@ -203,6 +204,8 @@ public sealed class MainShellForm : Form
     private HashSet<(int X, int Y)>? _mapBlockedTiles;
 
     private readonly List<MapEventWireEntry> _mapEvents = new();
+
+    private readonly Dictionary<int, ShownEventPicture> _eventPictures = new();
 
     private WeatherOverlayPlan _weatherPlan = WeatherCatalog.Clear;
 
@@ -3383,6 +3386,7 @@ public sealed class MainShellForm : Form
         _playtestPlacedEntities.Clear();
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
+        ClearEventPictures();
         DismissEventMessage();
         _awaitingPlayingPhase = false;
         _btnBackDisconnect.Enabled = false;
@@ -3612,6 +3616,7 @@ public sealed class MainShellForm : Form
         _playtestPlacedEntities.Clear();
         _mapEvents.Clear();
         _dialogueSessionOpen = false;
+        ClearEventPictures();
         _btnMap.Enabled = false;
         _btnMelee.Enabled = false;
         _btnRanged.Enabled = false;
@@ -3798,6 +3803,12 @@ public sealed class MainShellForm : Form
     private void OnInteractResult(bool ok, string message, Guid activationId)
     {
         _ = activationId;
+        if (ok && MapEventPictureWire.TryTakeInteractMessage(message, out var pictures, out var afterPictures))
+        {
+            ApplyEventPictures(pictures);
+            message = afterPictures;
+        }
+
         if (ok && MapEventShopOpen.TryTakeInteractMessage(message, out var shopId, out var remainder))
         {
             OpenShopWindow(shopId, showForm: true);
@@ -3806,6 +3817,57 @@ public sealed class MainShellForm : Form
 
         AppendLog(ok ? "Interaction: " + message : "Interaction refusée: " + message);
         TryPresentEventMessage(ok, message);
+    }
+
+    private void ApplyEventPictures(IReadOnlyList<MapEventPictureOp> ops)
+    {
+        var changed = false;
+        foreach (var op in ops)
+        {
+            if (op.Erase)
+            {
+                if (_eventPictures.Remove(op.PictureId, out var removed))
+                {
+                    removed.Dispose();
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            if (_eventPictures.Remove(op.PictureId, out var previous))
+            {
+                previous.Dispose();
+            }
+
+            _eventPictures[op.PictureId] = new ShownEventPicture(
+                op.X,
+                op.Y,
+                op.Opacity,
+                op.Blend,
+                EventPictureDraw.Load(op.Asset));
+            changed = true;
+        }
+
+        if (changed && _map is not null)
+        {
+            RedrawMap();
+        }
+    }
+
+    private void ClearEventPictures()
+    {
+        if (_eventPictures.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var picture in _eventPictures.Values)
+        {
+            picture.Dispose();
+        }
+
+        _eventPictures.Clear();
     }
 
     private bool TryPresentEventMessage(bool success, string? message)
@@ -4956,6 +5018,29 @@ public sealed class MainShellForm : Form
             _localFacing,
             _combatHud.Sparks,
             _combatHud.Statuses);
+        if (_eventPictures.Count > 0)
+        {
+            var (cameraX, cameraY) = PreviewMapCameraOffset(bmp.Width, bmp.Height);
+            using var overlay = Graphics.FromImage(bmp);
+            overlay.CompositingMode = CompositingMode.SourceOver;
+            overlay.InterpolationMode = InterpolationMode.NearestNeighbor;
+            overlay.PixelOffsetMode = PixelOffsetMode.Half;
+            overlay.SmoothingMode = SmoothingMode.None;
+            foreach (var pair in _eventPictures.OrderBy(pair => pair.Key))
+            {
+                var picture = pair.Value;
+                EventPictureDraw.Paint(
+                    overlay,
+                    picture.Image,
+                    picture.X,
+                    picture.Y,
+                    cameraX,
+                    cameraY,
+                    picture.Opacity,
+                    picture.Blend);
+            }
+        }
+
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
@@ -5137,6 +5222,25 @@ public sealed class MainShellForm : Form
         _picMap.Image = null;
         old?.Dispose();
         _picMap.Location = Point.Empty;
+    }
+
+    private (int X, int Y) PreviewMapCameraOffset(int mapW, int mapH)
+    {
+        var view = _mapScroll.ClientSize;
+        float? focusX = null;
+        float? focusY = null;
+        if (_localVisualInitialized)
+        {
+            if (!_camFocusInitialized)
+            {
+                SnapCameraToLocalVisual();
+            }
+
+            focusX = _camFocusX;
+            focusY = _camFocusY;
+        }
+
+        return MapViewportCamera.ComputeDrawOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
     }
 
     /// <summary>
@@ -7211,6 +7315,29 @@ public sealed class MainShellForm : Form
     internal void LayoutGameHudForTest() => LayoutGameHud();
 
     internal bool PresentInteractForTest(bool success, string message) => TryPresentEventMessage(success, message);
+
+    internal void ApplyInteractResultForTest(bool ok, string message) =>
+        OnInteractResult(ok, message, Guid.Empty);
+
+    internal int EventPictureCountForTest => _eventPictures.Count;
+
+    internal bool TryGetEventPictureForTest(int pictureId, out int x, out int y, out int opacity, out string blend)
+    {
+        if (!_eventPictures.TryGetValue(pictureId, out var picture))
+        {
+            x = 0;
+            y = 0;
+            opacity = 0;
+            blend = string.Empty;
+            return false;
+        }
+
+        x = picture.X;
+        y = picture.Y;
+        opacity = picture.Opacity;
+        blend = picture.Blend;
+        return true;
+    }
 
     internal bool EventMessageOpenForTest => _eventMessage.IsOpen;
 

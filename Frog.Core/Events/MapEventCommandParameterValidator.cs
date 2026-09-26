@@ -63,6 +63,10 @@ public static class MapEventCommandParameterValidator
                     out error),
             MapEventCommandDiscriminators.OpenShop =>
                 MapEventParameterSchemas.TryParseOpenShop(command.ParameterJson, out _, out _, out error),
+            MapEventCommandDiscriminators.ShowPicture =>
+                MapEventParameterSchemas.TryParseShowPicture(command.ParameterJson, out _, out error),
+            MapEventCommandDiscriminators.ErasePicture =>
+                MapEventParameterSchemas.TryParseErasePicture(command.ParameterJson, out _, out error),
             _ => false,
         };
 
