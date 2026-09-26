@@ -42,9 +42,10 @@ internal static class MapViewRenderer
     /// <param name="localLook">Palettes corps / cheveux / tunique du joueur local. Client seulement.</param>
     /// <param name="tileAssets">Tuiles v6 vérifiées, indexées par <see cref="TileAssetId"/>. Absent : pas de blit 48×48.</param>
     /// <param name="tileAssetBitmaps">Cache d’affichage rempli à la demande. L’appelant dispose les bitmaps.</param>
-        /// <param name="groundLootCentersPx">Ancres du butin (centre du sac). Même tri vertical que les acteurs.</param>
-        /// <param name="playtestPlacedEntities">Apparitions, PNJ et objets du sidecar playtest. Absent en partie normale.</param>
-        public static Bitmap Render(
+    /// <param name="groundLootCentersPx">Ancres du butin (centre du sac). Même tri vertical que les acteurs.</param>
+    /// <param name="playtestPlacedEntities">Apparitions, PNJ et objets du sidecar playtest. Absent en partie normale.</param>
+    /// <param name="localDisplayName">Nom du personnage local s’il diffère du pseudo. Vide : le pseudo.</param>
+    public static Bitmap Render(
         Map map,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)> otherPlayerCentersPx,
         string? localUsername,
@@ -69,7 +70,8 @@ internal static class MapViewRenderer
         ITileAssetLookup? tileAssets = null,
         IDictionary<TileAssetId, Bitmap>? tileAssetBitmaps = null,
         IReadOnlyList<(int PixelX, int PixelY)>? groundLootCentersPx = null,
-        IReadOnlyList<MapPlacedEntity>? playtestPlacedEntities = null)
+        IReadOnlyList<MapPlacedEntity>? playtestPlacedEntities = null,
+        string? localDisplayName = null)
     {
         var tw = MapTileSizePixels(map);
         var w = map.Width * tw;
@@ -117,7 +119,8 @@ internal static class MapViewRenderer
             localUsername,
             localCenterXPx,
             localCenterYPx,
-            localPose);
+            localPose,
+            localDisplayName);
         actors.Sort(static (a, b) => WorldDepth.CompareActors(a.Key, b.Key));
         var actorIndex = 0;
 
@@ -197,6 +200,7 @@ internal static class MapViewRenderer
         }
 
         WeatherOverlayRenderer.Draw(g, bmp.Size, weatherPlan, weatherTickMs);
+        DrawNameplates(g, tw, actors, mapEvents, npcCentersPx, playtestPlacedEntities, map.Width, map.Height);
         return bmp;
     }
 
@@ -498,6 +502,7 @@ internal static class MapViewRenderer
         public int LootY;
         public PlayerSpritePose PlayerPose;
         public WorldSpritePose WorldPose;
+        public string? Name;
     }
 
     private static List<DepthActor> CollectDepthActors(
@@ -512,7 +517,8 @@ internal static class MapViewRenderer
         string? localUsername,
         float localCenterXPx,
         float localCenterYPx,
-        PlayerSpritePose localPose)
+        PlayerSpritePose localPose,
+        string? localDisplayName)
     {
         var actors = new List<DepthActor>();
         var sequence = 0;
@@ -536,8 +542,8 @@ internal static class MapViewRenderer
             }
         }
 
-        AddWorldActors(actors, ref sequence, tileSize, monsterCentersPx, monsterPoses, WorldDepth.ActorSlot.Monster);
-        AddWorldActors(actors, ref sequence, tileSize, npcCentersPx, npcPoses, WorldDepth.ActorSlot.Npc);
+        AddWorldActors(actors, ref sequence, tileSize, monsterCentersPx, monsterPoses, WorldDepth.ActorSlot.Monster, includeName: false);
+        AddWorldActors(actors, ref sequence, tileSize, npcCentersPx, npcPoses, WorldDepth.ActorSlot.Npc, includeName: true);
 
         foreach (var kv in otherPlayerCentersPx)
         {
@@ -552,10 +558,28 @@ internal static class MapViewRenderer
                 otherPose = posed;
             }
 
-            actors.Add(ActorAt(tileSize, kv.Value.CxPx, kv.Value.CyPx, WorldDepth.ActorSlot.RemotePlayer, sequence++, otherPose, default));
+            actors.Add(ActorAt(
+                tileSize,
+                kv.Value.CxPx,
+                kv.Value.CyPx,
+                WorldDepth.ActorSlot.RemotePlayer,
+                sequence++,
+                otherPose,
+                default,
+                NameplatePainter.FormatLabel(kv.Key)));
         }
 
-        actors.Add(ActorAt(tileSize, localCenterXPx, localCenterYPx, WorldDepth.ActorSlot.LocalPlayer, sequence, localPose, default));
+        var localLabel = NameplatePainter.FormatLabel(localDisplayName)
+            ?? NameplatePainter.FormatLabel(localUsername);
+        actors.Add(ActorAt(
+            tileSize,
+            localCenterXPx,
+            localCenterYPx,
+            WorldDepth.ActorSlot.LocalPlayer,
+            sequence,
+            localPose,
+            default,
+            localLabel));
         return actors;
     }
 
@@ -565,7 +589,8 @@ internal static class MapViewRenderer
         int tileSize,
         IReadOnlyDictionary<string, (float CxPx, float CyPx)>? centers,
         IReadOnlyDictionary<string, WorldSpritePose>? poses,
-        WorldDepth.ActorSlot slot)
+        WorldDepth.ActorSlot slot,
+        bool includeName)
     {
         if (centers is not { Count: > 0 })
         {
@@ -580,7 +605,15 @@ internal static class MapViewRenderer
                 pose = posed;
             }
 
-            actors.Add(ActorAt(tileSize, kv.Value.CxPx, kv.Value.CyPx, slot, sequence++, default, pose));
+            actors.Add(ActorAt(
+                tileSize,
+                kv.Value.CxPx,
+                kv.Value.CyPx,
+                slot,
+                sequence++,
+                default,
+                pose,
+                includeName ? NameplatePainter.FormatLabel(kv.Key) : null));
         }
     }
 
@@ -591,7 +624,8 @@ internal static class MapViewRenderer
         WorldDepth.ActorSlot slot,
         int sequence,
         PlayerSpritePose playerPose,
-        WorldSpritePose worldPose)
+        WorldSpritePose worldPose,
+        string? name = null)
         => new()
         {
             Key = new WorldDepth.ActorKey(
@@ -603,6 +637,7 @@ internal static class MapViewRenderer
             Y = y,
             PlayerPose = playerPose,
             WorldPose = worldPose,
+            Name = name,
         };
 
     private static int DrawActorsWhile(
@@ -735,6 +770,144 @@ internal static class MapViewRenderer
                 DrawDebugTileGrid(g, rect);
             }
         }
+    }
+
+    /// <summary>
+    /// Plaques après la météo : lisibles, sans nouvel art. Les monstres n’ont pas de nom.
+    /// Un PNJ sprite sur la tuile remplace le libellé d’événement (une seule plaque).
+    /// </summary>
+    private static void DrawNameplates(
+        Graphics g,
+        int tileSize,
+        List<DepthActor> actors,
+        IReadOnlyList<MapEventWireEntry>? mapEvents,
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)>? npcCentersPx,
+        IReadOnlyList<MapPlacedEntity>? playtestPlacedEntities,
+        int mapWidth,
+        int mapHeight)
+    {
+        if (tileSize <= 0)
+        {
+            return;
+        }
+
+        if (mapEvents is { Count: > 0 })
+        {
+            foreach (var ev in mapEvents)
+            {
+                if (ev.TileX < 0 || ev.TileY < 0 || ev.TileX >= mapWidth || ev.TileY >= mapHeight)
+                {
+                    continue;
+                }
+
+                var label = NameplatePainter.LabelForNpcMapEvent(ev.Slug, ev.DisplayName);
+                if (label is null
+                    || NpcSpriteOwnsTile(npcCentersPx, tileSize, ev.TileX, ev.TileY)
+                    || NamedPlaytestNpcOnTile(playtestPlacedEntities, ev.TileX, ev.TileY))
+                {
+                    continue;
+                }
+
+                NameplatePainter.DrawAbove(
+                    g,
+                    ev.TileX * tileSize + (tileSize / 2f),
+                    ev.TileY * tileSize,
+                    label);
+            }
+        }
+
+        if (playtestPlacedEntities is { Count: > 0 })
+        {
+            foreach (var entity in playtestPlacedEntities)
+            {
+                if (entity is null
+                    || entity.Kind != MapPlacedKind.Npc
+                    || entity.TileX < 0
+                    || entity.TileY < 0
+                    || entity.TileX >= mapWidth
+                    || entity.TileY >= mapHeight)
+                {
+                    continue;
+                }
+
+                NameplatePainter.DrawAbove(
+                    g,
+                    entity.TileX * tileSize + (tileSize / 2f),
+                    entity.TileY * tileSize,
+                    entity.Name);
+            }
+        }
+
+        foreach (var actor in actors)
+        {
+            var height = NameplateSpriteHeight(actor.Key.Slot);
+            if (height <= 0 || string.IsNullOrEmpty(actor.Name))
+            {
+                continue;
+            }
+
+            NameplatePainter.DrawAbove(g, actor.X, actor.Y - height + 1f, actor.Name);
+        }
+    }
+
+    private static int NameplateSpriteHeight(WorldDepth.ActorSlot slot) =>
+        slot switch
+        {
+            WorldDepth.ActorSlot.Npc => WorldEntityAssets.DrawnSizePixels,
+            WorldDepth.ActorSlot.RemotePlayer or WorldDepth.ActorSlot.LocalPlayer =>
+                PlayerWorldAssets.NativeSize * PlayerWorldAssets.DrawScale,
+            _ => 0,
+        };
+
+    private static bool NpcSpriteOwnsTile(
+        IReadOnlyDictionary<string, (float CxPx, float CyPx)>? npcCentersPx,
+        int tileSize,
+        int tileX,
+        int tileY)
+    {
+        if (npcCentersPx is not { Count: > 0 } || tileSize <= 0)
+        {
+            return false;
+        }
+
+        foreach (var kv in npcCentersPx)
+        {
+            if (NameplatePainter.FormatLabel(kv.Key) is null)
+            {
+                continue;
+            }
+
+            var tx = (int)MathF.Floor(kv.Value.CxPx / tileSize);
+            var ty = (int)MathF.Floor(kv.Value.CyPx / tileSize);
+            if (tx == tileX && ty == tileY)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool NamedPlaytestNpcOnTile(IReadOnlyList<MapPlacedEntity>? entities, int tileX, int tileY)
+    {
+        if (entities is not { Count: > 0 })
+        {
+            return false;
+        }
+
+        foreach (var entity in entities)
+        {
+            if (entity is not null
+                && entity.Kind == MapPlacedKind.Npc
+                && entity.TileX == tileX
+                && entity.TileY == tileY
+                && NameplatePainter.FormatLabel(entity.Name) is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void DrawAttributeTint(Graphics g, List<Layer> attributes, int tx, int ty, Rectangle rect)

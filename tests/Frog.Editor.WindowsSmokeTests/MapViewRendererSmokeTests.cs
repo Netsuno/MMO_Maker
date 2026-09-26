@@ -4,7 +4,9 @@ using Frog.Client.UI;
 using Frog.Core.Constants;
 using Frog.Core.Enums;
 using Frog.Core.Gameplay;
+using Frog.Core.Maps;
 using Frog.Core.Models;
+using Frog.Core.Protocol;
 using Xunit;
 
 namespace Frog.Editor.WindowsSmokeTests;
@@ -59,10 +61,12 @@ public sealed class MapViewRendererSmokeTests
             localCenterYPx: feetCy,
             tilesetBitmaps: null);
 
-        var interior = play.GetPixel(tw + tw / 2, 8);
+        // Nameplates occupy the band above the 32px sprite. Ground samples stay below the feet.
+        var belowFeetY = (int)feetCy + 4;
+        var interior = play.GetPixel(tw + tw / 2, belowFeetY);
         Assert.Equal(groundArgb, interior.ToArgb());
 
-        var seamAwayFromPlayers = play.GetPixel(tw, 8);
+        var seamAwayFromPlayers = play.GetPixel(tw, belowFeetY);
         Assert.Equal(groundArgb, seamAwayFromPlayers.ToArgb());
 
         var oldGoldArgb = Color.FromArgb(240, 200, 60).ToArgb();
@@ -403,6 +407,226 @@ public sealed class MapViewRendererSmokeTests
 
         var otherTile = painted.GetPixel(tw / 2, tw + (tw / 2));
         Assert.Equal(GroundFill.ToArgb(), otherTile.ToArgb());
+    }
+
+    [Fact]
+    public void NameplateLabels_KeepFrenchNames_SkipIdsAndNonNpcEvents()
+    {
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        Assert.Equal("Élodie", NameplatePainter.FormatLabel("  Élodie  "));
+        Assert.Null(NameplatePainter.FormatLabel("   "));
+        Assert.Null(NameplatePainter.FormatLabel("aaaaaaaa-0002-4000-8000-000000000001"));
+        Assert.Equal(NameplatePainter.MaxLabelChars, NameplatePainter.FormatLabel(new string('é', 40))!.Length);
+        Assert.EndsWith("…", NameplatePainter.FormatLabel(new string('é', 40)));
+
+        Assert.Equal("Élodie", NameplatePainter.LabelForNpcMapEvent("pnj_elodie", "Élodie"));
+        Assert.Equal("elodie", NameplatePainter.LabelForNpcMapEvent("pnj_elodie", "  "));
+        Assert.Null(NameplatePainter.LabelForNpcMapEvent("coffre_bois", "Coffre"));
+        Assert.Null(NameplatePainter.LabelForNpcMapEvent("demo_interact", "Interaction démo"));
+        Assert.False(NameplatePainter.IsNpcMapEvent("porte_nord"));
+        Assert.True(NameplatePainter.IsNpcMapEvent("PNJ_Gardien"));
+    }
+
+    [Fact]
+    public void Render_DrawsNameplatesAbovePlayersAndNpcs_NotMonstersOrChests()
+    {
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        var map = CreateTwoByTwoGround();
+        var tw = WorldMetrics.DefaultTileSizePixels;
+        var ground = GroundFill.ToArgb();
+        var feetCy = tw + (tw / 2f);
+        var localCx = tw / 2f;
+        var otherCx = tw + (tw / 2f);
+        var empty = new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase);
+
+        using var unnamed = MapViewRenderer.Render(
+            map,
+            empty,
+            localUsername: null,
+            localCenterXPx: localCx,
+            localCenterYPx: feetCy,
+            tilesetBitmaps: null);
+        Assert.Equal(0, CountNotGround(unnamed, 0, 0, unnamed.Width, 14, ground));
+
+        using var named = MapViewRenderer.Render(
+            map,
+            new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Hélène"] = (otherCx, feetCy),
+            },
+            localUsername: "compte",
+            localCenterXPx: localCx,
+            localCenterYPx: feetCy,
+            tilesetBitmaps: null,
+            localDisplayName: "Élodie");
+        Assert.True(CountNotGround(named, 0, 0, tw, 14, ground) > 4, "local display name should paint above the sprite");
+        Assert.True(CountNotGround(named, tw, 0, tw, 14, ground) > 4, "remote username should paint above the sprite");
+        var bodyY = (int)feetCy - 14;
+        Assert.NotEqual(ground, named.GetPixel((int)localCx, bodyY).ToArgb());
+        Assert.Equal(ground, named.GetPixel((int)localCx, (int)feetCy + 4).ToArgb());
+
+        using var npc = MapViewRenderer.Render(
+            map,
+            empty,
+            localUsername: null,
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            npcCentersPx: new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Marchand"] = (localCx, feetCy),
+            });
+        Assert.True(CountNotGround(npc, 0, 0, tw, 14, ground) > 4, "NPC name should paint above the sprite");
+
+        using var monster = MapViewRenderer.Render(
+            map,
+            empty,
+            localUsername: null,
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            monsterCentersPx: new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["slime"] = (localCx, feetCy),
+            });
+        Assert.Equal(0, CountNotGround(monster, 0, 0, tw, 14, ground));
+
+        using var chest = MapViewRenderer.Render(
+            map,
+            empty,
+            localUsername: null,
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            mapEvents:
+            [
+                new MapEventWireEntry
+                {
+                    Slug = "coffre_bois",
+                    DisplayName = "Coffre",
+                    TileX = 0,
+                    TileY = 1,
+                    TriggerKind = MapEventTriggerKinds.Interact,
+                },
+            ]);
+        Assert.Equal(0, CountNotGround(chest, 0, tw - 16, tw, 14, ground));
+
+        using var talkingNpc = MapViewRenderer.Render(
+            map,
+            empty,
+            localUsername: null,
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            mapEvents:
+            [
+                new MapEventWireEntry
+                {
+                    Slug = "pnj_elodie",
+                    DisplayName = "Élodie",
+                    TileX = 0,
+                    TileY = 1,
+                    TriggerKind = MapEventTriggerKinds.Interact,
+                },
+            ]);
+        Assert.True(
+            CountNotGround(talkingNpc, 0, tw - 16, tw, 14, ground) > 4,
+            "pnj_ event display name should paint above the tile");
+
+        var placed = MapPlacedEntityEdit.Create(MapPlacedKind.Npc, 0, 1, 1);
+        placed.Name = "Garde";
+        using var playtestNpc = MapViewRenderer.Render(
+            map,
+            empty,
+            localUsername: null,
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            playtestPlacedEntities: [placed]);
+        Assert.True(CountNotGround(playtestNpc, 0, tw - 16, tw, 14, ground) > 4, "playtest NPC name should paint above the tile");
+
+        var spawn = MapPlacedEntityEdit.Create(MapPlacedKind.Spawn, 0, 1, 1);
+        spawn.Name = "Héros";
+        using var playtestSpawn = MapViewRenderer.Render(
+            map,
+            empty,
+            localUsername: null,
+            localCenterXPx: -1000f,
+            localCenterYPx: -1000f,
+            tilesetBitmaps: null,
+            playtestPlacedEntities: [spawn]);
+        Assert.Equal(0, CountNotGround(playtestSpawn, 0, tw - 16, tw, 14, ground));
+    }
+
+    [Fact]
+    public void Render_TileAsset48_NameplateStaysAbove32Sprite()
+    {
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+        var map = new Map
+        {
+            Name = "v6",
+            Width = 2,
+            Height = 2,
+            GraphicIdentity = TileGraphicIdentity.TileAsset,
+            TileSizePixels = TileAssetMetrics.TargetTileSizePixels,
+        };
+        var ground = new Layer { LayerType = LayerType.Ground };
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                ground.Tiles.Add(new Tile { X = x, Y = y, Type = TileType.Ground });
+            }
+        }
+
+        map.Layers.Add(ground);
+        var tw = MapViewRenderer.MapTileSizePixels(map);
+        Assert.Equal(48, tw);
+        var feetCy = tw + (tw / 2f);
+        var localCx = tw / 2f;
+        using var named = MapViewRenderer.Render(
+            map,
+            new Dictionary<string, (float CxPx, float CyPx)>(StringComparer.OrdinalIgnoreCase),
+            localUsername: "compte",
+            localCenterXPx: localCx,
+            localCenterYPx: feetCy,
+            tilesetBitmaps: null,
+            localDisplayName: "Élodie");
+
+        var spriteTop = (int)MathF.Round(feetCy - 32f + 1f);
+        var groundArgb = GroundFill.ToArgb();
+        Assert.True(
+            CountNotGround(named, 0, spriteTop - 16, tw, 14, groundArgb) > 4,
+            "48px tiles still place the name above the 32px sprite");
+
+        // Sheet row 12 is the face (255,229,229). The armor row matches the other
+        // smoke checks: feet - 14, which is sprite row 17 (blue, B > R).
+        var face = named.GetPixel((int)localCx, spriteTop + 12);
+        Assert.Equal(Color.FromArgb(255, 229, 229).ToArgb(), face.ToArgb());
+
+        var body = named.GetPixel((int)localCx, (int)feetCy - 14);
+        Assert.Equal(spriteTop + 17, (int)feetCy - 14);
+        Assert.NotEqual(groundArgb, body.ToArgb());
+        Assert.True(body.B > body.R, $"armor under the nameplate stays the sprite, got {body}");
+    }
+
+    private static int CountNotGround(Bitmap bmp, int x, int y, int width, int height, int groundArgb)
+    {
+        var count = 0;
+        var x1 = Math.Min(bmp.Width, x + width);
+        var y1 = Math.Min(bmp.Height, y + height);
+        for (var py = Math.Max(0, y); py < y1; py++)
+        {
+            for (var px = Math.Max(0, x); px < x1; px++)
+            {
+                if (bmp.GetPixel(px, py).ToArgb() != groundArgb)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
     }
 
     private static Map CreateTwoByTwoGround()
