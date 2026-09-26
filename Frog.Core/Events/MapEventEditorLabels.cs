@@ -104,6 +104,8 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.FadeOutScreen => "Fondu en fermeture",
         MapEventCommandDiscriminators.FadeInScreen => "Fondu en ouverture",
         MapEventCommandDiscriminators.TintScreen => "Teinte écran",
+        MapEventCommandDiscriminators.ShakeScreen => "Tremblement écran",
+        MapEventCommandDiscriminators.FlashScreen => "Flash écran",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
     };
 
@@ -162,6 +164,8 @@ public static class MapEventEditorLabels
         "red" => "Rouge",
         "green" => "Vert",
         "blue" => "Bleu",
+        "power" => "Puissance",
+        "speed" => "Vitesse",
         "condition" => "Si",
         "thenCommands" => "Alors",
         "elseCommands" => "Sinon",
@@ -366,6 +370,10 @@ public static class MapEventEditorLabels
                 $"Fondu en ouverture : {ReadInt(root, "durationMs")} ms",
             MapEventCommandDiscriminators.TintScreen =>
                 $"Teinte écran : R{ReadInt(root, "red")} V{ReadInt(root, "green")} B{ReadInt(root, "blue")} · op. {ReadInt(root, "opacity")} ({ReadInt(root, "durationMs")} ms)",
+            MapEventCommandDiscriminators.ShakeScreen =>
+                $"Tremblement écran : puissance {ReadInt(root, "power")} · vitesse {ReadInt(root, "speed")} ({ReadInt(root, "durationMs")} ms)",
+            MapEventCommandDiscriminators.FlashScreen =>
+                $"Flash écran : R{ReadInt(root, "red")} V{ReadInt(root, "green")} B{ReadInt(root, "blue")} · op. {ReadInt(root, "opacity")} ({ReadInt(root, "durationMs")} ms)",
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };

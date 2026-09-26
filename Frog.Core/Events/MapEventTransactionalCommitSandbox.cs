@@ -502,6 +502,30 @@ public sealed class MapEventTransactionalCommitSandbox
                 ApplyScreen(world, tintOp);
                 return null;
 
+            case MapEventCommandDiscriminators.ShakeScreen:
+                if (!MapEventParameterSchemas.TryParseShakeScreen(
+                        command.ParameterJson,
+                        out var shakeOp,
+                        out var shakeErr))
+                {
+                    return shakeErr;
+                }
+
+                ApplyScreen(world, shakeOp);
+                return null;
+
+            case MapEventCommandDiscriminators.FlashScreen:
+                if (!MapEventParameterSchemas.TryParseFlashScreen(
+                        command.ParameterJson,
+                        out var flashOp,
+                        out var flashErr))
+                {
+                    return flashErr;
+                }
+
+                ApplyScreen(world, flashOp);
+                return null;
+
             default:
                 return $"Commande non supportée en unité transactionnelle: {command.Discriminator}.";
         }

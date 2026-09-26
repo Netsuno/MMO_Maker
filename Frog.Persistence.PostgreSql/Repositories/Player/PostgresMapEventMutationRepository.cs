@@ -494,6 +494,30 @@ public sealed class PostgresMapEventMutationRepository(
                 snapshot.RecordScreen(tint);
                 return null;
 
+            case MapEventCommandDiscriminators.ShakeScreen:
+                if (!MapEventParameterSchemas.TryParseShakeScreen(
+                        command.ParameterJson,
+                        out var shake,
+                        out var shakeErr))
+                {
+                    return shakeErr;
+                }
+
+                snapshot.RecordScreen(shake);
+                return null;
+
+            case MapEventCommandDiscriminators.FlashScreen:
+                if (!MapEventParameterSchemas.TryParseFlashScreen(
+                        command.ParameterJson,
+                        out var flash,
+                        out var flashErr))
+                {
+                    return flashErr;
+                }
+
+                snapshot.RecordScreen(flash);
+                return null;
+
             default:
                 return $"Commande non supportée en transaction atomique: {command.Discriminator}.";
         }

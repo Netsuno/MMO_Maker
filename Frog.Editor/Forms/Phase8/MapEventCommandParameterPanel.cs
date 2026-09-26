@@ -324,6 +324,18 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddChannelField("opacity", MapEventScreen.DefaultTintOpacity);
                 AddDurationField();
                 break;
+            case MapEventCommandDiscriminators.ShakeScreen:
+                AddBoundedField("power", MapEventScreen.MinPower, MapEventScreen.MaxPower, MapEventScreen.DefaultPower);
+                AddBoundedField("speed", MapEventScreen.MinSpeed, MapEventScreen.MaxSpeed, MapEventScreen.DefaultSpeed);
+                AddDurationField();
+                break;
+            case MapEventCommandDiscriminators.FlashScreen:
+                AddChannelField("red", MapEventScreen.DefaultFlashRed);
+                AddChannelField("green", MapEventScreen.DefaultFlashGreen);
+                AddChannelField("blue", MapEventScreen.DefaultFlashBlue);
+                AddChannelField("opacity", MapEventScreen.DefaultFlashOpacity);
+                AddDurationField();
+                break;
             case MapEventCommandDiscriminators.Branch:
                 _branchCondition = new MapEventConditionParameterPanel();
                 _branchThen = new MapEventCommandListPanel();
@@ -644,6 +656,18 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     ApplyChannel(root, "opacity");
                     ApplyDuration(root);
                     break;
+                case MapEventCommandDiscriminators.ShakeScreen:
+                    ApplyChannel(root, "power");
+                    ApplyChannel(root, "speed");
+                    ApplyDuration(root);
+                    break;
+                case MapEventCommandDiscriminators.FlashScreen:
+                    ApplyChannel(root, "red");
+                    ApplyChannel(root, "green");
+                    ApplyChannel(root, "blue");
+                    ApplyChannel(root, "opacity");
+                    ApplyDuration(root);
+                    break;
                 case MapEventCommandDiscriminators.Branch:
                     if (_branchCondition is not null
                         && root.TryGetProperty("conditionKind", out var condKindEl))
@@ -800,6 +824,22 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                         opacity = GetInt("opacity"),
                         durationMs = GetInt("durationMs"),
                     }),
+                MapEventCommandDiscriminators.ShakeScreen =>
+                    JsonSerializer.Serialize(new
+                    {
+                        power = GetInt("power"),
+                        speed = GetInt("speed"),
+                        durationMs = GetInt("durationMs"),
+                    }),
+                MapEventCommandDiscriminators.FlashScreen =>
+                    JsonSerializer.Serialize(new
+                    {
+                        red = GetInt("red"),
+                        green = GetInt("green"),
+                        blue = GetInt("blue"),
+                        opacity = GetInt("opacity"),
+                        durationMs = GetInt("durationMs"),
+                    }),
                 _ => GetText("parameterJson"),
             };
             return true;
@@ -825,11 +865,16 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
     private void AddChannelField(string key, int value)
     {
+        AddBoundedField(key, MapEventScreen.MinChannel, MapEventScreen.MaxChannel, value);
+    }
+
+    private void AddBoundedField(string key, int minimum, int maximum, int value)
+    {
         AddLabeled(key, new NumericUpDown
         {
             Width = 80,
-            Minimum = MapEventScreen.MinChannel,
-            Maximum = MapEventScreen.MaxChannel,
+            Minimum = minimum,
+            Maximum = maximum,
             Value = value,
         });
     }

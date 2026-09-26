@@ -1092,6 +1092,50 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteCommands_ShakeAndFlash_LeaveTheSettledTone()
+    {
+        var executor = CreateExecutor(
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader());
+        var session = CreateSession(Guid.NewGuid());
+        session.ApplyScreenOp(MapEventScreenOp.ForTint(1, 2, 3, 40, 0));
+        session.ApplyScreenOp(MapEventScreenOp.ForFadeOut(0));
+        var state = new MapEventExecutionState();
+
+        var err = await executor.ExecuteCommandsAsync(
+            session,
+            session.CharacterGuid!.Value,
+            [
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.ShakeScreen,
+                    ParameterJson = """{"power":8,"speed":5,"durationMs":400}""",
+                },
+                new MapEventCommandDefinition
+                {
+                    Discriminator = MapEventCommandDiscriminators.FlashScreen,
+                    ParameterJson = """{"red":255,"green":255,"blue":255,"opacity":170,"durationMs":200}""",
+                },
+            ],
+            state,
+            CancellationToken.None);
+
+        Assert.Null(err);
+        Assert.Equal(MapEventScreen.MaxChannel, session.ScreenFade);
+        Assert.Equal(new MapEventScreenTone(1, 2, 3, 40), session.ScreenTint);
+        Assert.Equal(2, state.ScreenOps.Count);
+        Assert.True(state.ScreenOps[0].IsShake);
+        Assert.Equal(8, state.ScreenOps[0].Power);
+        Assert.Equal(5, state.ScreenOps[0].Speed);
+        Assert.True(state.ScreenOps[1].IsFlash);
+        Assert.Equal(170, state.ScreenOps[1].Opacity);
+        var message = MapEventScreenWire.Compose(state.VisualOps, null, null, "Secousse");
+        Assert.StartsWith("shake:8:5:400\n", message, StringComparison.Ordinal);
+        Assert.Contains("flash:255:255:255:170:200\n", message, StringComparison.Ordinal);
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+    }
+
+    [Fact]
     public async Task ExecuteInteract_StartDialoguePage_UsesUnifiedTransactionalPath()
     {
         var characterId = Guid.NewGuid();
@@ -2259,6 +2303,20 @@ public sealed class MapEventRuntimeServiceTests
                         if (MapEventParameterSchemas.TryParseTintScreen(cmd.ParameterJson, out var tint, out _))
                         {
                             snap.RecordScreen(tint);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.ShakeScreen:
+                        if (MapEventParameterSchemas.TryParseShakeScreen(cmd.ParameterJson, out var shake, out _))
+                        {
+                            snap.RecordScreen(shake);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.FlashScreen:
+                        if (MapEventParameterSchemas.TryParseFlashScreen(cmd.ParameterJson, out var flash, out _))
+                        {
+                            snap.RecordScreen(flash);
                         }
 
                         break;

@@ -5373,6 +5373,11 @@ public sealed class MainShellForm : Form
             ScreenToneDraw.Paint(overlay, bmp.Width, bmp.Height, _screenFrame);
         }
 
+        if (_screenFrame.ShakeX != 0)
+        {
+            bmp = ScreenToneDraw.ShiftHorizontal(bmp, _screenFrame.ShakeX, MapSurfaceBackColor);
+        }
+
         var previous = _picMap.Image;
         _picMap.Image = bmp;
         previous?.Dispose();
@@ -7856,6 +7861,10 @@ public sealed class MainShellForm : Form
     internal int ScreenTintBlueForTest => _screenFrame.Blue;
 
     internal int ScreenTintOpacityForTest => _screenFrame.Opacity;
+
+    internal int ScreenFlashOpacityForTest => _screenFrame.FlashOpacity;
+
+    internal int ScreenShakeXForTest => _screenFrame.ShakeX;
 
     internal bool ScreenTonePlayingForTest => _playingScreen is not null;
 
