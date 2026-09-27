@@ -43,6 +43,8 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.ChangeParamId,
                 MapEventCommandPalette.ChangeSkillsId,
                 MapEventCommandPalette.ChangeEquipmentId,
+                MapEventCommandPalette.ChangeNameId,
+                MapEventCommandPalette.ChangeClassId,
             ],
             ids);
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
@@ -70,6 +72,8 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer paramètre");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer compétences");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer équipement");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer nom");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer classe");
     }
 
     [Theory]
@@ -106,6 +110,13 @@ public sealed class MapEventCommandPaletteTests
         {
             Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out error));
             Assert.Contains("itemId", error, StringComparison.OrdinalIgnoreCase);
+            return;
+        }
+
+        if (id == MapEventCommandPalette.ChangeClassId)
+        {
+            Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out error));
+            Assert.Contains("classId", error, StringComparison.OrdinalIgnoreCase);
             return;
         }
 

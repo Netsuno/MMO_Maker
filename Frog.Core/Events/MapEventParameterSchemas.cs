@@ -729,6 +729,74 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseChangeName(string parameterJson, out string name, out string? error)
+    {
+        name = string.Empty;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("name", out var nameEl) || nameEl.ValueKind != JsonValueKind.String)
+            {
+                error = "change_name: nom requis.";
+                return false;
+            }
+
+            if (!CharacterDisplayNameRules.TryNormalize(nameEl.GetString(), out name, out var nameErr))
+            {
+                error = "change_name: " + nameErr;
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "name" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "change_name: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseChangeClass(string parameterJson, out Guid classId, out string? error)
+    {
+        classId = Guid.Empty;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryParseGuidProperty(root, "classId", out classId, out error))
+            {
+                error = "change_class: " + (error ?? "classId requis.");
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "classId" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "change_class: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     private static bool TryParseSignedDelta(
         string parameterJson,
         string command,

@@ -80,6 +80,16 @@ public sealed class MapEventExecutionSnapshot
     /// <summary>JSON de guids après <c>change_skills</c>.</summary>
     public string? ResultLearnedSkillIds { get; set; }
 
+    /// <summary>Nom affiché changé par <c>change_name</c>. Hello 11 : pas d'opcode dédié.</summary>
+    public bool NameChanged { get; set; }
+
+    public string? ResultDisplayName { get; set; }
+
+    /// <summary>Classe changée par <c>change_class</c>. Le niveau et les paramètres restent.</summary>
+    public bool ClassChanged { get; set; }
+
+    public Guid? ResultClassId { get; set; }
+
     /// <summary>Arme / armure ont changé. Le client les relit dans <c>InventorySnapshot</c>.</summary>
     public bool EquipmentChanged { get; set; }
 
@@ -218,6 +228,18 @@ public sealed class MapEventExecutionSnapshot
     {
         SkillsChanged = true;
         ResultLearnedSkillIds = learnedSkillIds;
+    }
+
+    public void RecordName(string displayName)
+    {
+        NameChanged = true;
+        ResultDisplayName = displayName;
+    }
+
+    public void RecordClass(Guid classId)
+    {
+        ClassChanged = true;
+        ResultClassId = classId;
     }
 
     public void RecordGear(Guid? weaponItemId, Guid? armorItemId)

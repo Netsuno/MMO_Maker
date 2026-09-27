@@ -49,6 +49,12 @@ public sealed class MapEventWorldScratch
 
     public Guid? ArmorItemId { get; set; }
 
+    /// <summary>Nom affiché après <c>change_name</c>. Vide = inchangé dans ce bac à sable.</summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Classe après <c>change_class</c>. Vide = inchangée dans ce bac à sable.</summary>
+    public Guid ClassId { get; set; }
+
     public int Gold { get; set; }
 
     /// <summary>Niveau, EXP et paramètres du bac à sable (commandes de progression).</summary>
@@ -85,6 +91,8 @@ public sealed class MapEventWorldScratch
             LearnedSkillIds = new HashSet<Guid>(LearnedSkillIds),
             WeaponItemId = WeaponItemId,
             ArmorItemId = ArmorItemId,
+            DisplayName = DisplayName,
+            ClassId = ClassId,
             Gold = Gold,
             Vitals = Vitals,
             ShowText = ShowText,
@@ -108,6 +116,8 @@ public sealed class MapEventWorldScratch
         LearnedSkillIds = new HashSet<Guid>(other.LearnedSkillIds);
         WeaponItemId = other.WeaponItemId;
         ArmorItemId = other.ArmorItemId;
+        DisplayName = other.DisplayName;
+        ClassId = other.ClassId;
         Gold = other.Gold;
         Vitals = other.Vitals;
         ShowText = other.ShowText;
@@ -440,6 +450,50 @@ public sealed class MapEventTransactionalCommitSandbox
 
                 world.WeaponItemId = nextWeapon;
                 world.ArmorItemId = nextArmor;
+                return null;
+
+            case MapEventCommandDiscriminators.ChangeName:
+                if (!MapEventParameterSchemas.TryParseChangeName(
+                        command.ParameterJson,
+                        out var nextName,
+                        out var nameErr))
+                {
+                    return nameErr;
+                }
+
+                if (!CharacterIdentityChange.TryRename(
+                        world.DisplayName,
+                        nextName,
+                        out var appliedName,
+                        out _,
+                        out var renameErr))
+                {
+                    return renameErr;
+                }
+
+                world.DisplayName = appliedName;
+                return null;
+
+            case MapEventCommandDiscriminators.ChangeClass:
+                if (!MapEventParameterSchemas.TryParseChangeClass(
+                        command.ParameterJson,
+                        out var nextClassId,
+                        out var classErr))
+                {
+                    return classErr;
+                }
+
+                if (!CharacterIdentityChange.TryReclass(
+                        world.ClassId,
+                        nextClassId,
+                        out var appliedClassId,
+                        out _,
+                        out var reclassErr))
+                {
+                    return reclassErr;
+                }
+
+                world.ClassId = appliedClassId;
                 return null;
 
             case MapEventCommandDiscriminators.ChangeLevel:

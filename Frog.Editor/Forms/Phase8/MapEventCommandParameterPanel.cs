@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Frog.Application.Assets;
+using Frog.Core.Character;
 using Frog.Core.Events;
 using Frog.Core.Gameplay;
 using Frog.Core.Models;
@@ -267,6 +268,17 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 break;
             case MapEventCommandDiscriminators.ChangeEquipment:
                 AddGearFields();
+                break;
+            case MapEventCommandDiscriminators.ChangeName:
+                AddLabeled("name", new TextBox
+                {
+                    Width = 200,
+                    MaxLength = CharacterDisplayNameRules.MaxLength,
+                    Text = MapEventCommandPalette.ChangeNameDefault,
+                });
+                break;
+            case MapEventCommandDiscriminators.ChangeClass:
+                AddLabeled("classId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
                 break;
             case MapEventCommandDiscriminators.StartDialogue:
                 AddLabeled("dialogueId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
@@ -671,6 +683,20 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }
 
                     break;
+                case MapEventCommandDiscriminators.ChangeName:
+                    if (root.TryGetProperty("name", out var nameEl))
+                    {
+                        SetText("name", nameEl.GetString() ?? string.Empty);
+                    }
+
+                    break;
+                case MapEventCommandDiscriminators.ChangeClass:
+                    if (root.TryGetProperty("classId", out var classIdEl))
+                    {
+                        SetText("classId", classIdEl.GetString() ?? string.Empty);
+                    }
+
+                    break;
                 case MapEventCommandDiscriminators.StartDialogue:
                     if (root.TryGetProperty("dialogueId", out var dlg))
                     {
@@ -937,6 +963,10 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 MapEventCommandDiscriminators.ChangeSkills =>
                     JsonSerializer.Serialize(new { operation = GetChoice("operation"), skillId = GetText("skillId") }),
                 MapEventCommandDiscriminators.ChangeEquipment => BuildChangeEquipmentJson(),
+                MapEventCommandDiscriminators.ChangeName =>
+                    JsonSerializer.Serialize(new { name = GetText("name") }),
+                MapEventCommandDiscriminators.ChangeClass =>
+                    JsonSerializer.Serialize(new { classId = GetText("classId") }),
                 MapEventCommandDiscriminators.StartDialogue =>
                     JsonSerializer.Serialize(new { dialogueId = GetText("dialogueId") }),
                 MapEventCommandDiscriminators.StartQuest or MapEventCommandDiscriminators.TurnInQuest =>
