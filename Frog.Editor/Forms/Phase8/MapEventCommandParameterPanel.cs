@@ -380,6 +380,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                 AddChannelField("opacity", MapEventScreen.DefaultFlashOpacity);
                 AddDurationField();
                 break;
+            case MapEventCommandDiscriminators.ScrollMap:
+                AddScrollFields();
+                break;
             case MapEventCommandDiscriminators.ShowAnimation:
                 AddAnimationFields();
                 break;
@@ -843,6 +846,15 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     ApplyChannel(root, "opacity");
                     ApplyDuration(root);
                     break;
+                case MapEventCommandDiscriminators.ScrollMap:
+                    if (root.TryGetProperty("direction", out var scrollDirection))
+                    {
+                        SetChoice("direction", scrollDirection.GetString() ?? MapEventScroll.DefaultDirection);
+                    }
+
+                    ApplyChannel(root, "distance");
+                    ApplyChannel(root, "speed");
+                    break;
                 case MapEventCommandDiscriminators.ShowAnimation:
                     if (root.TryGetProperty("animationId", out var animationId) && animationId.TryGetInt32(out var animation))
                     {
@@ -1074,6 +1086,13 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                         opacity = GetInt("opacity"),
                         durationMs = GetInt("durationMs"),
                     }),
+                MapEventCommandDiscriminators.ScrollMap =>
+                    JsonSerializer.Serialize(new
+                    {
+                        direction = GetChoice("direction"),
+                        distance = GetInt("distance"),
+                        speed = GetInt("speed"),
+                    }),
                 MapEventCommandDiscriminators.ShowAnimation =>
                     JsonSerializer.Serialize(new
                     {
@@ -1093,6 +1112,25 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             error = ex.Message;
             return false;
         }
+    }
+
+    private void AddScrollFields()
+    {
+        var direction = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
+        foreach (var kind in MapEventScroll.Directions)
+        {
+            direction.Items.Add(kind);
+        }
+
+        direction.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(direction, MapEventEditorLabels.ScrollDirection);
+        AddLabeled("direction", direction);
+        AddBoundedField(
+            "distance",
+            MapEventScroll.MinDistance,
+            MapEventScroll.MaxDistance,
+            MapEventScroll.DefaultDistance);
+        AddBoundedField("speed", MapEventScroll.MinSpeed, MapEventScroll.MaxSpeed, MapEventScroll.DefaultSpeed);
     }
 
     private void AddAnimationFields()

@@ -193,6 +193,7 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.TintScreen)]
     [InlineData(MapEventCommandDiscriminators.ShakeScreen)]
     [InlineData(MapEventCommandDiscriminators.FlashScreen)]
+    [InlineData(MapEventCommandDiscriminators.ScrollMap)]
     [InlineData(MapEventCommandDiscriminators.ShowAnimation)]
     [InlineData(MapEventCommandDiscriminators.ChangeLevel)]
     [InlineData(MapEventCommandDiscriminators.ChangeExp)]
@@ -826,6 +827,9 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.FlashScreen => Command(
                 discriminator,
                 """{"red":255,"green":255,"blue":255,"opacity":170,"durationMs":1000}"""),
+            MapEventCommandDiscriminators.ScrollMap => Command(
+                discriminator,
+                """{"direction":"down","distance":1,"speed":4}"""),
             MapEventCommandDiscriminators.ShowAnimation => Command(
                 discriminator,
                 """{"animationId":1,"target":"event","durationMs":1000}"""),
@@ -1031,6 +1035,10 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.FlashScreen:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("opacity"), "200");
                 expectedFragment = "\"opacity\":200";
+                break;
+            case MapEventCommandDiscriminators.ScrollMap:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("distance"), "4");
+                expectedFragment = "\"distance\":4";
                 break;
             case MapEventCommandDiscriminators.ShowAnimation:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("target"), "player");

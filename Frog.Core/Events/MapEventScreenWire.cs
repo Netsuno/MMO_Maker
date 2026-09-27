@@ -3,9 +3,9 @@ using System.Globalization;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Transporte fondu, teinte, tremblement, flash et animation dans le message <c>InteractResult</c> (opcode 32).
+/// Transporte fondu, teinte, tremblement, flash, défilement et animation dans le message <c>InteractResult</c> (opcode 32).
 /// Même schéma que <c>pic:</c> et <c>shop:&lt;guid&gt;</c> : lignes préfixes, Hello 11, pas de nouvel opcode.
-/// Les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c> et <c>pic:</c> restent dans l'ordre de la page.
+/// Les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>scroll:</c>, <c>anim:</c> et <c>pic:</c> restent dans l'ordre de la page.
 /// </summary>
 public static class MapEventScreenWire
 {
@@ -30,6 +30,11 @@ public static class MapEventScreenWire
         {
             return FormattableString.Invariant(
                 $"flash:{op.Red}:{op.Green}:{op.Blue}:{op.Opacity}:{op.DurationMs}");
+        }
+
+        if (op.IsScroll)
+        {
+            return FormattableString.Invariant($"scroll:{op.Direction}:{op.Distance}:{op.Speed}");
         }
 
         return FormattableString.Invariant(
@@ -98,7 +103,7 @@ public static class MapEventScreenWire
     }
 
     /// <summary>
-    /// Retire les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c> et <c>pic:</c> en tête.
+    /// Retire les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>scroll:</c>, <c>anim:</c> et <c>pic:</c> en tête.
     /// Le reste peut encore porter <c>shop:</c> puis le texte.
     /// </summary>
     public static bool TryTakeInteractMessage(
@@ -206,6 +211,24 @@ public static class MapEventScreenWire
         if (line.StartsWith("flash:", StringComparison.Ordinal))
         {
             return TryParseColorLine(line, "flash", MapEventScreenOp.ForFlash, out op);
+        }
+
+        if (line.StartsWith("scroll:", StringComparison.Ordinal))
+        {
+            var scroll = line.Split(':');
+            if (scroll.Length != 4
+                || scroll[0] != "scroll"
+                || !MapEventScroll.TryCanonicalDirection(scroll[1], out var direction)
+                || !int.TryParse(scroll[2], NumberStyles.None, CultureInfo.InvariantCulture, out var distance)
+                || !int.TryParse(scroll[3], NumberStyles.None, CultureInfo.InvariantCulture, out var speed)
+                || !MapEventScroll.IsDistance(distance)
+                || !MapEventScroll.IsSpeed(speed))
+            {
+                return false;
+            }
+
+            op = MapEventScreenOp.ForScroll(direction, distance, speed);
+            return true;
         }
 
         if (!line.StartsWith("tint:", StringComparison.Ordinal))

@@ -1,9 +1,11 @@
+using Frog.Core.Constants;
+
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Effets d'écran style VX : fondu, teinte, tremblement, flash.
-/// Le fondu et la teinte posent un état. Le tremblement et le flash sont passagers :
-/// à la fin, le noir et la teinte déjà posés sont inchangés.
+/// Effets d'écran style VX : fondu, teinte, tremblement, flash, défilement de carte.
+/// Le fondu, la teinte et le défilement posent un état. Le tremblement et le flash sont passagers :
+/// à la fin, le noir, la teinte et le décalage de carte déjà posés sont inchangés.
 /// </summary>
 public static class MapEventScreen
 {
@@ -43,6 +45,76 @@ public static class MapEventScreen
     public static bool IsSpeed(int value) => value is >= MinSpeed and <= MaxSpeed;
 }
 
+/// <summary>
+/// Faire défiler la carte (VX) : direction, distance en tuiles, vitesse 1–6.
+/// La durée se déduit comme dans VX : 256 unités par tuile, 2^vitesse unités par image, 60 images/s.
+/// Le décalage se cumule. Il retombe à zéro au changement de carte.
+/// </summary>
+public static class MapEventScroll
+{
+    public const string Up = "up";
+    public const string Down = "down";
+    public const string Left = "left";
+    public const string Right = "right";
+
+    /// <summary>Ordre VX (bas, gauche, droite, haut). Le premier est le défaut.</summary>
+    public static readonly string[] Directions = [Down, Left, Right, Up];
+
+    public const string DefaultDirection = Down;
+    public const int MinDistance = 0;
+    public const int MaxDistance = 100;
+    public const int DefaultDistance = 1;
+    public const int MinSpeed = 1;
+    public const int MaxSpeed = 6;
+    public const int DefaultSpeed = 4;
+
+    public static bool IsDistance(int value) => value is >= MinDistance and <= MaxDistance;
+
+    public static bool IsSpeed(int value) => value is >= MinSpeed and <= MaxSpeed;
+
+    public static bool TryCanonicalDirection(string? raw, out string direction)
+    {
+        direction = raw?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (direction is Up or Down or Left or Right)
+        {
+            return true;
+        }
+
+        direction = string.Empty;
+        return false;
+    }
+
+    public static (int Dx, int Dy) DeltaTiles(string direction, int distance) => direction switch
+    {
+        Left => (-distance, 0),
+        Right => (distance, 0),
+        Up => (0, -distance),
+        Down => (0, distance),
+        _ => (0, 0),
+    };
+
+    /// <summary>Décalage en pixels canoniques (tuile <see cref="TileAssetMetrics.TargetTileSizePixels"/>).</summary>
+    public static (int Dx, int Dy) DeltaPixels(string direction, int distance)
+    {
+        var (tilesX, tilesY) = DeltaTiles(direction, distance);
+        var tile = TileAssetMetrics.TargetTileSizePixels;
+        return (tilesX * tile, tilesY * tile);
+    }
+
+    public static int DurationMs(int distance, int speed)
+    {
+        if (distance <= 0 || speed < MinSpeed)
+        {
+            return 0;
+        }
+
+        var unitsPerFrame = 1 << Math.Clamp(speed, MinSpeed, MaxSpeed);
+        var framesTimes1000 = (long)distance * 256L * 1000L;
+        var denom = (long)unitsPerFrame * 60L;
+        return (int)((framesTimes1000 + (denom / 2)) / denom);
+    }
+}
+
 /// <summary>Couleur de teinte et son opacité (0 = pas de voile).</summary>
 public readonly record struct MapEventScreenTone(int Red, int Green, int Blue, int Opacity)
 {
@@ -50,7 +122,9 @@ public readonly record struct MapEventScreenTone(int Red, int Green, int Blue, i
 }
 
 /// <summary>
-/// Image peinte : fondu noir et teinte posés, plus un flash et un décalage passagers.
+/// Image peinte : fondu noir et teinte posés, défilement de carte cumulé,
+/// plus un flash et un décalage de tremblement passagers.
+/// ScrollX/ScrollY sont en pixels d'une tuile canonique (48).
 /// </summary>
 public readonly record struct MapEventScreenFrame(
     int Fade,
@@ -62,7 +136,9 @@ public readonly record struct MapEventScreenFrame(
     int FlashGreen = 0,
     int FlashBlue = 0,
     int FlashOpacity = 0,
-    int ShakeX = 0)
+    int ShakeX = 0,
+    int ScrollX = 0,
+    int ScrollY = 0)
 {
     public static MapEventScreenFrame Clear => new(0, 0, 0, 0, 0);
 
@@ -77,12 +153,19 @@ public sealed record MapEventScreenOp(string Kind, int DurationMs, int Red, int 
     public const string Tint = "tint";
     public const string Shake = "shake";
     public const string Flash = "flash";
+    public const string Scroll = "scroll";
 
     /// <summary>Amplitude du tremblement, en pixels. 0 pour les autres commandes.</summary>
     public int Power { get; init; }
 
-    /// <summary>Oscillations par seconde. 0 pour les autres commandes.</summary>
+    /// <summary>Vitesse VX (tremblement 1–9, défilement 1–6). 0 pour les autres commandes.</summary>
     public int Speed { get; init; }
+
+    /// <summary>Direction du défilement (<see cref="MapEventScroll"/>). Vide sinon.</summary>
+    public string Direction { get; init; } = "";
+
+    /// <summary>Distance du défilement, en tuiles. 0 pour les autres commandes.</summary>
+    public int Distance { get; init; }
 
     public bool IsFadeOut => Kind == FadeOut;
 
@@ -93,6 +176,8 @@ public sealed record MapEventScreenOp(string Kind, int DurationMs, int Red, int 
     public bool IsShake => Kind == Shake;
 
     public bool IsFlash => Kind == Flash;
+
+    public bool IsScroll => Kind == Scroll;
 
     public MapEventScreenTone Tone => new(Red, Green, Blue, Opacity);
 
@@ -111,9 +196,17 @@ public sealed record MapEventScreenOp(string Kind, int DurationMs, int Red, int 
     public static MapEventScreenOp ForFlash(int red, int green, int blue, int opacity, int durationMs) =>
         new(Flash, durationMs, red, green, blue, opacity);
 
+    public static MapEventScreenOp ForScroll(string direction, int distance, int speed) =>
+        new(Scroll, MapEventScroll.DurationMs(distance, speed), 0, 0, 0, 0)
+        {
+            Speed = speed,
+            Direction = direction,
+            Distance = distance,
+        };
+
     /// <summary>
     /// Pose l'état de fin. Le fondu ne change que le noir ; la teinte ne change que la couleur.
-    /// Tremblement et flash ne posent rien.
+    /// Tremblement et flash ne posent rien. Le défilement se cumule à part.
     /// </summary>
     public void ApplySettled(ref int fade, ref MapEventScreenTone tint)
     {
@@ -142,10 +235,22 @@ public static class MapEventScreenPlayback
             return WithoutTransient(current);
         }
 
+        if (op.IsScroll)
+        {
+            return EndScroll(op, WithoutTransient(current));
+        }
+
         var fade = current.Fade;
         var tint = new MapEventScreenTone(current.Red, current.Green, current.Blue, current.Opacity);
         op.ApplySettled(ref fade, ref tint);
-        return new MapEventScreenFrame(fade, tint.Red, tint.Green, tint.Blue, tint.Opacity);
+        return WithoutTransient(current) with
+        {
+            Fade = fade,
+            Red = tint.Red,
+            Green = tint.Green,
+            Blue = tint.Blue,
+            Opacity = tint.Opacity,
+        };
     }
 
     public static MapEventScreenFrame Sample(MapEventScreenOp op, MapEventScreenFrame from, int elapsedMs)
@@ -160,6 +265,11 @@ public static class MapEventScreenPlayback
             return SampleFlash(op, from, elapsedMs);
         }
 
+        if (op.IsScroll)
+        {
+            return SampleScroll(op, from, elapsedMs);
+        }
+
         var end = EndState(op, from);
         if (op.DurationMs <= 0 || elapsedMs >= op.DurationMs)
         {
@@ -172,12 +282,16 @@ public static class MapEventScreenPlayback
         }
 
         var t = elapsedMs / (double)op.DurationMs;
-        return new MapEventScreenFrame(
-            Lerp(from.Fade, end.Fade, t),
-            Lerp(from.Red, end.Red, t),
-            Lerp(from.Green, end.Green, t),
-            Lerp(from.Blue, end.Blue, t),
-            Lerp(from.Opacity, end.Opacity, t));
+        return end with
+        {
+            Fade = Lerp(from.Fade, end.Fade, t),
+            Red = Lerp(from.Red, end.Red, t),
+            Green = Lerp(from.Green, end.Green, t),
+            Blue = Lerp(from.Blue, end.Blue, t),
+            Opacity = Lerp(from.Opacity, end.Opacity, t),
+            ScrollX = Lerp(from.ScrollX, end.ScrollX, t),
+            ScrollY = Lerp(from.ScrollY, end.ScrollY, t),
+        };
     }
 
     /// <summary>Décalage horizontal. À 0 ms et à la fin, le monde est revenu au repos.</summary>
@@ -207,6 +321,34 @@ public static class MapEventScreenPlayback
         }
 
         return settled with { ShakeX = ShakeOffset(op.Power, op.Speed, elapsedMs) };
+    }
+
+    private static MapEventScreenFrame EndScroll(MapEventScreenOp op, MapEventScreenFrame origin)
+    {
+        var (dx, dy) = MapEventScroll.DeltaPixels(op.Direction, op.Distance);
+        return origin with { ScrollX = origin.ScrollX + dx, ScrollY = origin.ScrollY + dy };
+    }
+
+    private static MapEventScreenFrame SampleScroll(MapEventScreenOp op, MapEventScreenFrame from, int elapsedMs)
+    {
+        var settled = WithoutTransient(from);
+        var end = EndScroll(op, settled);
+        if (op.DurationMs <= 0 || elapsedMs >= op.DurationMs)
+        {
+            return end;
+        }
+
+        if (elapsedMs <= 0)
+        {
+            return settled;
+        }
+
+        var t = elapsedMs / (double)op.DurationMs;
+        return settled with
+        {
+            ScrollX = Lerp(settled.ScrollX, end.ScrollX, t),
+            ScrollY = Lerp(settled.ScrollY, end.ScrollY, t),
+        };
     }
 
     private static MapEventScreenFrame SampleFlash(MapEventScreenOp op, MapEventScreenFrame from, int elapsedMs)

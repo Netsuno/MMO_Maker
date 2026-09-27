@@ -303,4 +303,81 @@ public sealed class EventScreenSmokeTests
             }
         });
     }
+
+    [Fact]
+    public void ScrollMap_MovesTheViewportByTilesThenStays()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "frog-event-scroll-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "client-settings.json");
+            var previous = Environment.GetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable);
+            Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, path);
+            MainShellForm? form = null;
+            try
+            {
+                Assert.Equal((ushort)11, FrogWireProtocol.Version);
+                form = ClientSmokeTestAccess.CreateAndShowMainShell();
+                var map = MapSamples.StarterMeadow(Guid.Empty);
+                var tile = TileAssetDisplayPixels.MapPixelSize(map);
+                var (focusX, focusY) = WorldMetrics.TileCenterToPixels(2, 3, tile);
+                form.ShowOfflineMapViewportForTest(map, focusX, focusY);
+                form.LayoutGameHudForTest();
+                var origin = form.MapPictureLocationForTest;
+
+                var scroll = MapEventScreenOp.ForScroll(MapEventScroll.Right, 1, 6);
+                form.ApplyInteractResultForTest(
+                    true,
+                    MapEventScreenWire.Compose(
+                        [MapEventVisualOp.ForScreen(scroll)],
+                        null,
+                        null,
+                        null));
+                Assert.True(form.ScreenTonePlayingForTest);
+                Assert.Equal(0, form.ScreenScrollXForTest);
+                form.AdvanceScreenToneForTest(scroll.DurationMs);
+                Assert.False(form.ScreenTonePlayingForTest);
+                Assert.Equal(TileAssetMetrics.TargetTileSizePixels, form.ScreenScrollXForTest);
+                Assert.Equal(0, form.ScreenScrollYForTest);
+                Assert.Equal(0, form.ScreenFadeForTest);
+                var shifted = form.MapPictureLocationForTest;
+                Assert.Equal(origin.X - tile, shifted.X);
+                Assert.Equal(origin.Y, shifted.Y);
+
+                var up = MapEventScreenOp.ForScroll(MapEventScroll.Up, 1, 6);
+                form.ApplyInteractResultForTest(
+                    true,
+                    MapEventScreenWire.Compose(
+                        [MapEventVisualOp.ForScreen(up)],
+                        null,
+                        null,
+                        null));
+                form.AdvanceScreenToneForTest(up.DurationMs);
+                Assert.Equal(TileAssetMetrics.TargetTileSizePixels, form.ScreenScrollXForTest);
+                Assert.Equal(-TileAssetMetrics.TargetTileSizePixels, form.ScreenScrollYForTest);
+                var composed = form.MapPictureLocationForTest;
+                Assert.Equal(origin.X - tile, composed.X);
+                Assert.Equal(origin.Y + tile, composed.Y);
+            }
+            finally
+            {
+                if (form is not null)
+                {
+                    form.Close();
+                    form.Dispose();
+                }
+
+                Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, previous);
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // Le fichier de réglages peut encore être tenu.
+                }
+            }
+        });
+    }
 }

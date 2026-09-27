@@ -3886,6 +3886,11 @@ public sealed class MainShellForm : Form
             _btnPickup.Enabled = false;
         }
 
+        if (mapId != _sessionDisplayedMapId)
+        {
+            ClearMapScroll();
+        }
+
         _sessionDisplayedMapId = mapId;
         _map = map;
         AttachRuntimeTileFlags(map);
@@ -5743,7 +5748,7 @@ public sealed class MainShellForm : Form
             focusY = _camFocusY;
         }
 
-        return MapViewportCamera.ComputeDrawOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
+        return ViewportOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
     }
 
     /// <summary>
@@ -5778,11 +5783,57 @@ public sealed class MainShellForm : Form
             focusY = _camFocusY;
         }
 
-        var (ox, oy) = MapViewportCamera.ComputeDrawOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
+        var (ox, oy) = ViewportOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
         var next = new Point(ox, oy);
         if (_picMap.Location != next)
         {
             _picMap.Location = next;
+        }
+    }
+
+    /// <summary>
+    /// Même offset que <see cref="MapViewportCamera"/>, plus le défilement d'événement.
+    /// Le biais est en pixels d'affichage : 1 tuile canonique (48) suit la taille de la carte.
+    /// </summary>
+    private (int X, int Y) ViewportOffset(
+        int viewWidth,
+        int viewHeight,
+        int mapW,
+        int mapH,
+        float? focusX,
+        float? focusY)
+    {
+        var (ox, oy) = MapViewportCamera.ComputeDrawOffset(viewWidth, viewHeight, mapW, mapH, focusX, focusY);
+        var (bx, by) = MapScrollBiasPixels();
+        return (ox - RoundPx(bx), oy - RoundPx(by));
+    }
+
+    private (float X, float Y) MapScrollBiasPixels()
+    {
+        if (_map is null || (_screenFrame.ScrollX == 0 && _screenFrame.ScrollY == 0))
+        {
+            return (0f, 0f);
+        }
+
+        var tile = MapViewRenderer.MapTileSizePixels(_map);
+        var scale = tile / (float)TileAssetMetrics.TargetTileSizePixels;
+        return (_screenFrame.ScrollX * scale, _screenFrame.ScrollY * scale);
+    }
+
+    private static int RoundPx(float value) =>
+        (int)Math.Round(value, MidpointRounding.AwayFromZero);
+
+    private void ClearMapScroll()
+    {
+        if (_screenFrame.ScrollX != 0 || _screenFrame.ScrollY != 0)
+        {
+            _screenFrame = _screenFrame with { ScrollX = 0, ScrollY = 0 };
+        }
+
+        if (_playingScreen is { IsScroll: true })
+        {
+            _playingScreen = null;
+            _screenElapsedMs = 0;
         }
     }
 
@@ -8031,6 +8082,10 @@ public sealed class MainShellForm : Form
     internal int ScreenFlashOpacityForTest => _screenFrame.FlashOpacity;
 
     internal int ScreenShakeXForTest => _screenFrame.ShakeX;
+
+    internal int ScreenScrollXForTest => _screenFrame.ScrollX;
+
+    internal int ScreenScrollYForTest => _screenFrame.ScrollY;
 
     internal bool ScreenTonePlayingForTest => _playingScreen is not null;
 

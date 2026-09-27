@@ -409,6 +409,9 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.FlashScreen:
                 return ApplyFlashScreen(session, command.ParameterJson, state);
 
+            case MapEventCommandDiscriminators.ScrollMap:
+                return ApplyScrollMap(session, command.ParameterJson, state);
+
             case MapEventCommandDiscriminators.ShowAnimation:
                 return ApplyShowAnimation(command.ParameterJson, state);
 
@@ -1164,6 +1167,18 @@ public sealed class MapEventCommandExecutor
         if (!MapEventParameterSchemas.TryParseFlashScreen(parameterJson, out var op, out var err))
         {
             return err ?? "flash_screen invalide.";
+        }
+
+        session.ApplyScreenOp(op);
+        state.RecordScreen(op);
+        return null;
+    }
+
+    private static string? ApplyScrollMap(Session session, string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseScrollMap(parameterJson, out var op, out var err))
+        {
+            return err ?? "scroll_map invalide.";
         }
 
         session.ApplyScreenOp(op);

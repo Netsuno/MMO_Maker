@@ -66,6 +66,7 @@ public static class MapEventEffectClassifier
                 or MapEventCommandDiscriminators.TintScreen
                 or MapEventCommandDiscriminators.ShakeScreen
                 or MapEventCommandDiscriminators.FlashScreen
+                or MapEventCommandDiscriminators.ScrollMap
                 or MapEventCommandDiscriminators.ShowAnimation =>
                 MapEventEffectCommitKind.SessionSide,
             _ => MapEventEffectCommitKind.Unknown,

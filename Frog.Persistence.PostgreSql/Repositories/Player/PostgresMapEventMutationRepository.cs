@@ -579,6 +579,18 @@ public sealed class PostgresMapEventMutationRepository(
                 snapshot.RecordScreen(flash);
                 return null;
 
+            case MapEventCommandDiscriminators.ScrollMap:
+                if (!MapEventParameterSchemas.TryParseScrollMap(
+                        command.ParameterJson,
+                        out var scroll,
+                        out var scrollErr))
+                {
+                    return scrollErr;
+                }
+
+                snapshot.RecordScreen(scroll);
+                return null;
+
             case MapEventCommandDiscriminators.ShowAnimation:
                 if (!MapEventParameterSchemas.TryParseShowAnimation(
                         command.ParameterJson,

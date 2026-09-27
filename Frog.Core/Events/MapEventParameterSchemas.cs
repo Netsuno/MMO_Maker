@@ -1451,6 +1451,53 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseScrollMap(string parameterJson, out MapEventScreenOp op, out string? error)
+    {
+        op = MapEventScreenOp.ForScroll(MapEventScroll.DefaultDirection, 0, MapEventScroll.MinSpeed);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryReadScrollDirection(root, out var direction, out error)
+                || !TryReadBounded(
+                    root,
+                    "scroll_map",
+                    "distance",
+                    MapEventScroll.MinDistance,
+                    MapEventScroll.MaxDistance,
+                    out var distance,
+                    out error)
+                || !TryReadBounded(
+                    root,
+                    "scroll_map",
+                    "speed",
+                    MapEventScroll.MinSpeed,
+                    MapEventScroll.MaxSpeed,
+                    out var speed,
+                    out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "direction", "distance", "speed" },
+                    out error))
+            {
+                return false;
+            }
+
+            op = MapEventScreenOp.ForScroll(direction, distance, speed);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "scroll_map: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     public static bool TryParseShowAnimation(string parameterJson, out MapEventAnimationOp op, out string? error)
     {
         op = MapEventAnimationOp.Create(MapEventAnimation.DefaultId, MapEventAnimation.TargetEvent, 0);
@@ -2199,6 +2246,25 @@ public static class MapEventParameterSchemas
         if (value < min || value > max)
         {
             error = $"{label}: {name} entre {min} et {max}.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadScrollDirection(JsonElement root, out string direction, out string? error)
+    {
+        direction = string.Empty;
+        error = null;
+        if (!root.TryGetProperty("direction", out var el) || el.ValueKind != JsonValueKind.String)
+        {
+            error = "scroll_map: propriété 'direction' (string) requise.";
+            return false;
+        }
+
+        if (!MapEventScroll.TryCanonicalDirection(el.GetString(), out direction))
+        {
+            error = "scroll_map: direction inconnue.";
             return false;
         }
 
