@@ -302,6 +302,8 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.ChangeLevel:
             case MapEventCommandDiscriminators.ChangeExp:
             case MapEventCommandDiscriminators.ChangeParam:
+            case MapEventCommandDiscriminators.RecoverAll:
+            case MapEventCommandDiscriminators.ChangeHpMp:
                 return await ExecuteProgressionAsync(session, characterId, command, state, cancellationToken)
                     .ConfigureAwait(false);
 

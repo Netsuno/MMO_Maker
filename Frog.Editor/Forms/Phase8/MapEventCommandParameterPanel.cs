@@ -280,6 +280,12 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             case MapEventCommandDiscriminators.ChangeClass:
                 AddLabeled("classId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
                 break;
+            case MapEventCommandDiscriminators.RecoverAll:
+                AddLabeled("recover", new Label { Text = "PV et PM au maximum.", AutoSize = true });
+                break;
+            case MapEventCommandDiscriminators.ChangeHpMp:
+                AddVitalFields();
+                break;
             case MapEventCommandDiscriminators.StartDialogue:
                 AddLabeled("dialogueId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
                 break;
@@ -697,6 +703,21 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }
 
                     break;
+                case MapEventCommandDiscriminators.RecoverAll:
+                    break;
+                case MapEventCommandDiscriminators.ChangeHpMp:
+                    if (root.TryGetProperty("vital", out var vitalEl))
+                    {
+                        SetChoice("vital", vitalEl.GetString() ?? CharacterVitalCommands.VitalHp);
+                    }
+
+                    ApplyChangeOperation(root);
+                    if (root.TryGetProperty("amount", out var vitalAmount) && vitalAmount.TryGetInt32(out var vitalAmountValue))
+                    {
+                        SetInt("amount", vitalAmountValue);
+                    }
+
+                    break;
                 case MapEventCommandDiscriminators.StartDialogue:
                     if (root.TryGetProperty("dialogueId", out var dlg))
                     {
@@ -967,6 +988,14 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     JsonSerializer.Serialize(new { name = GetText("name") }),
                 MapEventCommandDiscriminators.ChangeClass =>
                     JsonSerializer.Serialize(new { classId = GetText("classId") }),
+                MapEventCommandDiscriminators.RecoverAll => "{}",
+                MapEventCommandDiscriminators.ChangeHpMp =>
+                    JsonSerializer.Serialize(new
+                    {
+                        vital = GetChoice("vital"),
+                        operation = GetChoice("operation"),
+                        amount = GetInt("amount"),
+                    }),
                 MapEventCommandDiscriminators.StartDialogue =>
                     JsonSerializer.Serialize(new { dialogueId = GetText("dialogueId") }),
                 MapEventCommandDiscriminators.StartQuest or MapEventCommandDiscriminators.TurnInQuest =>
@@ -1088,6 +1117,27 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         EditorListDraw.UseReadableChoices(target, MapEventEditorLabels.AnimationTarget);
         AddLabeled("target", target);
         AddDurationField();
+    }
+
+    private void AddVitalFields()
+    {
+        var vital = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
+        foreach (var key in CharacterVitalCommands.VitalKeys)
+        {
+            vital.Items.Add(key);
+        }
+
+        vital.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(vital, CharacterVitalCommands.VitalLabel);
+        AddLabeled("vital", vital);
+        AddOperationField();
+        AddLabeled("amount", new NumericUpDown
+        {
+            Width = 100,
+            Minimum = 1,
+            Maximum = CharacterVitalCommands.MaxAmount,
+            Value = 1,
+        });
     }
 
     private void AddOperationField()

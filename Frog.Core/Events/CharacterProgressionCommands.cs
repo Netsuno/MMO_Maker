@@ -5,7 +5,8 @@ namespace Frog.Core.Events;
 
 /// <summary>
 /// Applique <c>change_level</c>, <c>change_exp</c> et <c>change_param</c>
-/// sur des constantes de personnage. Pas de troupes ni de combat.
+/// sur des constantes de personnage. <c>recover_all</c> et <c>change_hp_mp</c>
+/// sont délégués à <see cref="CharacterVitalCommands"/>. Pas de troupes ni de combat.
 /// </summary>
 public static class CharacterProgressionCommands
 {
@@ -27,6 +28,18 @@ public static class CharacterProgressionCommands
         vitalsChanged = false;
         statsChanged = false;
         error = null;
+        if (CharacterVitalCommands.IsVital(discriminator))
+        {
+            return CharacterVitalCommands.TryApply(
+                discriminator,
+                parameterJson,
+                current,
+                out next,
+                out vitalsChanged,
+                out statsChanged,
+                out error);
+        }
+
         var json = parameterJson ?? string.Empty;
         CharacterVitals adjusted;
         switch (discriminator)
