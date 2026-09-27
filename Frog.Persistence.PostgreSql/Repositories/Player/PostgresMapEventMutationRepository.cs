@@ -381,6 +381,12 @@ public sealed class PostgresMapEventMutationRepository(
             case MapEventCommandDiscriminators.ChangeEquipment:
                 return ApplyGear(character, command, snapshot);
 
+            case MapEventCommandDiscriminators.ChangeName:
+                return await ApplyNameAsync(db, character, command, snapshot, ct).ConfigureAwait(false);
+
+            case MapEventCommandDiscriminators.ChangeClass:
+                return ApplyClass(character, command, snapshot);
+
             case MapEventCommandDiscriminators.StartQuest:
             case MapEventCommandDiscriminators.AdvanceQuest:
             case MapEventCommandDiscriminators.TurnInQuest:
@@ -954,6 +960,71 @@ public sealed class PostgresMapEventMutationRepository(
         return null;
     }
 
+    private static async Task<string?> ApplyNameAsync(
+        FrogDbContext db,
+        CharacterEntity character,
+        MapEventCommandDefinition command,
+        MapEventExecutionSnapshot snapshot,
+        CancellationToken ct)
+    {
+        if (!MapEventParameterSchemas.TryParseChangeName(command.ParameterJson, out var name, out var err))
+        {
+            return err;
+        }
+
+        if (!CharacterIdentityChange.TryRename(character.DisplayName, name, out var applied, out var changed, out var renameErr))
+        {
+            return renameErr;
+        }
+
+        if (!changed)
+        {
+            return null;
+        }
+
+        var needle = applied.ToLowerInvariant();
+        var duplicate = await db.PlayerCharacters
+            .AnyAsync(
+                c => c.Id != character.Id
+                    && c.AccountId == character.AccountId
+                    && c.DisplayName.ToLower() == needle,
+                ct)
+            .ConfigureAwait(false);
+        if (duplicate)
+        {
+            return "change_name: nom déjà utilisé.";
+        }
+
+        character.DisplayName = applied;
+        snapshot.RecordName(applied);
+        return null;
+    }
+
+    private static string? ApplyClass(
+        CharacterEntity character,
+        MapEventCommandDefinition command,
+        MapEventExecutionSnapshot snapshot)
+    {
+        if (!MapEventParameterSchemas.TryParseChangeClass(command.ParameterJson, out var classId, out var err))
+        {
+            return err;
+        }
+
+        if (!CharacterIdentityChange.TryReclass(character.ClassId, classId, out var applied, out var changed, out var reclassErr))
+        {
+            return reclassErr;
+        }
+
+        if (!changed)
+        {
+            return null;
+        }
+
+        character.ClassId = applied;
+        snapshot.RecordClass(applied);
+        return null;
+    }
+
     private async Task<string?> ApplyQuestCommandAsync(
         FrogDbContext db,
         CharacterEntity character,
@@ -1396,6 +1467,10 @@ public sealed class PostgresMapEventMutationRepository(
             StatsChanged = snapshot.StatsChanged,
             SkillsChanged = snapshot.SkillsChanged,
             ResultLearnedSkillIds = snapshot.ResultLearnedSkillIds,
+            NameChanged = snapshot.NameChanged,
+            ResultDisplayName = snapshot.ResultDisplayName,
+            ClassChanged = snapshot.ClassChanged,
+            ResultClassId = snapshot.ResultClassId,
             EquipmentChanged = snapshot.EquipmentChanged,
             ResultWeaponItemId = snapshot.ResultWeaponItemId,
             ResultArmorItemId = snapshot.ResultArmorItemId,
@@ -1455,6 +1530,10 @@ public sealed class PostgresMapEventMutationRepository(
                 StatsChanged = stored.StatsChanged,
                 SkillsChanged = stored.SkillsChanged,
                 ResultLearnedSkillIds = stored.ResultLearnedSkillIds,
+                NameChanged = stored.NameChanged,
+                ResultDisplayName = stored.ResultDisplayName,
+                ClassChanged = stored.ClassChanged,
+                ResultClassId = stored.ResultClassId,
                 EquipmentChanged = stored.EquipmentChanged,
                 ResultWeaponItemId = stored.ResultWeaponItemId,
                 ResultArmorItemId = stored.ResultArmorItemId,
@@ -1518,6 +1597,14 @@ public sealed class PostgresMapEventMutationRepository(
         public bool SkillsChanged { get; set; }
 
         public string? ResultLearnedSkillIds { get; set; }
+
+        public bool NameChanged { get; set; }
+
+        public string? ResultDisplayName { get; set; }
+
+        public bool ClassChanged { get; set; }
+
+        public Guid? ResultClassId { get; set; }
 
         public bool EquipmentChanged { get; set; }
 

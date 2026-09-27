@@ -5,7 +5,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement, nom, classe.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -49,6 +49,11 @@ public static class MapEventCommandPalette
     public const string ChangeParamId = "change_param";
     public const string ChangeSkillsId = "change_skills";
     public const string ChangeEquipmentId = "change_equipment";
+    public const string ChangeNameId = "change_name";
+    public const string ChangeClassId = "change_class";
+
+    /// <summary>Nom proposé tant que l'auteur n'a pas saisi le sien.</summary>
+    public const string ChangeNameDefault = "Héros";
 
     /// <summary>
     /// Guid vide jusqu'au choix d'une compétence. La validation des paramètres le refuse.
@@ -59,6 +64,11 @@ public static class MapEventCommandPalette
     /// Guid vide jusqu'au choix d'un objet à équiper. La validation des paramètres le refuse.
     /// </summary>
     public static readonly Guid ChangeEquipmentPlaceholderId = Guid.Empty;
+
+    /// <summary>
+    /// Guid vide jusqu'au choix d'une classe. La validation des paramètres le refuse.
+    /// </summary>
+    public static readonly Guid ChangeClassPlaceholderId = Guid.Empty;
 
     public const string DefaultSwitchId = "interrupteur_1";
     public const string DefaultVariableId = "variable_1";
@@ -94,6 +104,8 @@ public static class MapEventCommandPalette
         new(ChangeParamId, "Changer paramètre"),
         new(ChangeSkillsId, "Changer compétences"),
         new(ChangeEquipmentId, "Changer équipement"),
+        new(ChangeNameId, "Changer nom"),
+        new(ChangeClassId, "Changer classe"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -261,6 +273,12 @@ public static class MapEventCommandPalette
                     slot = CharacterGearChange.SlotWeapon,
                     itemId = ChangeEquipmentPlaceholderId.ToString("D"),
                 }),
+            ChangeNameId => Command(
+                MapEventCommandDiscriminators.ChangeName,
+                new { name = ChangeNameDefault }),
+            ChangeClassId => Command(
+                MapEventCommandDiscriminators.ChangeClass,
+                new { classId = ChangeClassPlaceholderId.ToString("D") }),
             _ => null,
         };
 

@@ -41,6 +41,8 @@ public static class MapEventEffectClassifier
                 or MapEventCommandDiscriminators.ChangeParam
                 or MapEventCommandDiscriminators.ChangeSkills
                 or MapEventCommandDiscriminators.ChangeEquipment
+                or MapEventCommandDiscriminators.ChangeName
+                or MapEventCommandDiscriminators.ChangeClass
                 or MapEventCommandDiscriminators.StartQuest
                 or MapEventCommandDiscriminators.AdvanceQuest
                 or MapEventCommandDiscriminators.TurnInQuest

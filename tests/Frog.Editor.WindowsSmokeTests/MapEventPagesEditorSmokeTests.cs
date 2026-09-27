@@ -199,6 +199,8 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.ChangeParam)]
     [InlineData(MapEventCommandDiscriminators.ChangeSkills)]
     [InlineData(MapEventCommandDiscriminators.ChangeEquipment)]
+    [InlineData(MapEventCommandDiscriminators.ChangeName)]
+    [InlineData(MapEventCommandDiscriminators.ChangeClass)]
     [InlineData(MapEventCommandDiscriminators.Branch)]
     public void MapEventPagesEditor_AllCommandFamilies_TypedFieldMutation(string discriminator)
     {
@@ -834,6 +836,10 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.ChangeEquipment => Command(
                 discriminator,
                 $$"""{"operation":"equip","slot":"weapon","itemId":"{{SampleGuid:D}}"}"""),
+            MapEventCommandDiscriminators.ChangeName => Command(discriminator, """{"name":"Héros"}"""),
+            MapEventCommandDiscriminators.ChangeClass => Command(
+                discriminator,
+                $$"""{"classId":"{{SampleGuid:D}}"}"""),
             MapEventCommandDiscriminators.Branch => BranchCommand(
                 new MapEventConditionDefinition
                 {
@@ -1043,6 +1049,14 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.ChangeEquipment:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("slot"), "armor");
                 expectedFragment = "\"slot\":\"armor\"";
+                break;
+            case MapEventCommandDiscriminators.ChangeName:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("name"), "Grenouille");
+                expectedFragment = "\"name\":\"Grenouille\"";
+                break;
+            case MapEventCommandDiscriminators.ChangeClass:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("classId"), "22222222-3333-4444-8555-666666666666");
+                expectedFragment = "\"classId\":\"22222222-3333-4444-8555-666666666666\"";
                 break;
             case MapEventCommandDiscriminators.Branch:
                 var thenText = Assert.IsType<TextBox>(

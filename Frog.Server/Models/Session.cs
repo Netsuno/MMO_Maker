@@ -111,6 +111,9 @@ public sealed class Session
     public bool IsDead { get; set; }
     public CharacterStats? Stats { get; set; }
     public Guid? ClassId { get; set; }
+
+    /// <summary>Nom affiché du personnage actif. Mis à jour par <c>change_name</c>. Pas un champ protocole.</summary>
+    public string? DisplayName { get; set; }
     public Guid? StartingSpellId { get; set; }
     public Guid? EquippedWeaponItemId { get; set; }
     public Guid? EquippedArmorItemId { get; set; }

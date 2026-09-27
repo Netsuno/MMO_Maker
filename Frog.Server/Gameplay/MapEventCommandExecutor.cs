@@ -313,6 +313,14 @@ public sealed class MapEventCommandExecutor
                 return await ExecuteChangeEquipmentAsync(session, characterId, command, state, cancellationToken)
                     .ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.ChangeName:
+                return await ExecuteChangeNameAsync(session, characterId, command, state, cancellationToken)
+                    .ConfigureAwait(false);
+
+            case MapEventCommandDiscriminators.ChangeClass:
+                return await ExecuteChangeClassAsync(session, characterId, command, state, cancellationToken)
+                    .ConfigureAwait(false);
+
             case MapEventCommandDiscriminators.Teleport:
                 return ExecuteTeleport(session, command.ParameterJson, state);
 
@@ -806,6 +814,85 @@ public sealed class MapEventCommandExecutor
         session.EquippedWeaponItemId = weapon;
         session.EquippedArmorItemId = armor;
         state.InventoryChanged = true;
+        return null;
+    }
+
+    private async Task<string?> ExecuteChangeNameAsync(
+        Session session,
+        Guid characterId,
+        MapEventCommandDefinition command,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        if (!MapEventParameterSchemas.TryParseChangeName(command.ParameterJson, out var name, out var err))
+        {
+            return err;
+        }
+
+        var character = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+        if (character is null)
+        {
+            return "Personnage introuvable.";
+        }
+
+        if (!CharacterIdentityChange.TryRename(character.DisplayName, name, out var applied, out var changed, out var renameErr))
+        {
+            return renameErr;
+        }
+
+        if (!changed)
+        {
+            return null;
+        }
+
+        var roster = await _characters.ListByAccountAsync(character.AccountId, cancellationToken).ConfigureAwait(false);
+        if (CharacterIdentityChange.NameTaken(
+                applied,
+                character.Id,
+                roster.Select(row => (row.Id, row.DisplayName))))
+        {
+            return "change_name: nom déjà utilisé.";
+        }
+
+        var saved = character with { DisplayName = applied };
+        await _characters.SaveAsync(saved, cancellationToken).ConfigureAwait(false);
+        session.DisplayName = applied;
+        state.NameChanged = true;
+        return null;
+    }
+
+    private async Task<string?> ExecuteChangeClassAsync(
+        Session session,
+        Guid characterId,
+        MapEventCommandDefinition command,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        if (!MapEventParameterSchemas.TryParseChangeClass(command.ParameterJson, out var classId, out var err))
+        {
+            return err;
+        }
+
+        var character = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+        if (character is null)
+        {
+            return "Personnage introuvable.";
+        }
+
+        if (!CharacterIdentityChange.TryReclass(character.ClassId, classId, out var applied, out var changed, out var reclassErr))
+        {
+            return reclassErr;
+        }
+
+        if (!changed)
+        {
+            return null;
+        }
+
+        var saved = character with { ClassId = applied };
+        await _characters.SaveAsync(saved, cancellationToken).ConfigureAwait(false);
+        session.ClassId = applied;
+        state.ClassChanged = true;
         return null;
     }
 

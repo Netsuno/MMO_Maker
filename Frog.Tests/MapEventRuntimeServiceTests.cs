@@ -2414,6 +2414,142 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Equal(weaponId, session.EquippedWeaponItemId);
     }
 
+    [Fact]
+    public async Task ChangeNameAndClass_UpdatesCharacterAndSession_KeepsLevel()
+    {
+        var accountId = Guid.NewGuid();
+        var characterId = Guid.NewGuid();
+        var classId = Guid.Parse("bbbbbbbb-cccc-4ddd-8eee-ffffffffffff");
+        var characters = new InMemoryCharacterRepository();
+        var now = DateTimeOffset.UtcNow;
+        await characters.SaveAsync(IdentityRecord(characterId, accountId, "Hero", Phase7ContentSeed.DefaultClassId, now));
+        await characters.SaveAsync(IdentityRecord(Guid.NewGuid(), accountId, "Pris", Phase7ContentSeed.DefaultClassId, now));
+        var catalog = new FakePublishedMapEventCatalog(IdentityEvent(
+            "Baptême",
+            84,
+            MapEventCommandDiscriminators.ChangeName,
+            """{"name":"Grenouille"}""",
+            MapEventCommandDiscriminators.ChangeClass,
+            $$"""{"classId":"{{classId:D}}"}"""));
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            characters: characters);
+        var session = CreateSession(characterId);
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(84));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.True(result.NameChanged);
+        Assert.True(result.ClassChanged);
+        Assert.False(result.ProgressionChanged);
+        Assert.False(result.StatsChanged);
+        Assert.Equal("Grenouille", session.DisplayName);
+        Assert.Equal(classId, session.ClassId);
+        var saved = await characters.FindByIdAsync(characterId);
+        Assert.NotNull(saved);
+        Assert.Equal("Grenouille", saved!.DisplayName);
+        Assert.Equal(classId, saved.ClassId);
+        Assert.Equal(1, saved.Level);
+        Assert.Equal(10, saved.Stats.Str);
+        var published = await catalog.ListPublishedAsync();
+        Assert.True(ServerPlanner.CanExecuteTransactionally(published[0].Pages[0].Commands));
+        Assert.Equal(MapEventEffectCommitKind.Persistent, MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.ChangeName));
+        Assert.Equal(MapEventEffectCommitKind.Persistent, MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.ChangeClass));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+
+        var taken = new FakePublishedMapEventCatalog(IdentityEvent(
+            "Doublon",
+            85,
+            MapEventCommandDiscriminators.ChangeName,
+            """{"name":"Pris"}"""));
+        var takenService = CreateService(
+            taken,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            characters: characters);
+        var refused = await takenService.TryExecuteInteractAsync(session, CreatePlacement(85));
+        Assert.NotNull(refused);
+        Assert.False(refused!.Success);
+        Assert.Equal("Grenouille", session.DisplayName);
+        Assert.Equal(classId, session.ClassId);
+        var still = await characters.FindByIdAsync(characterId);
+        Assert.Equal("Grenouille", still!.DisplayName);
+        Assert.Equal(classId, still.ClassId);
+    }
+
+    private static CharacterRecord IdentityRecord(
+        Guid characterId,
+        Guid accountId,
+        string name,
+        Guid classId,
+        DateTimeOffset now) =>
+        new(
+            characterId,
+            accountId,
+            name,
+            classId,
+            1,
+            0,
+            0,
+            1,
+            0,
+            100,
+            100,
+            40,
+            40,
+            0,
+            0,
+            false,
+            new CharacterStats(10, 10, 10, 10, 10, 10),
+            Phase7ContentSeed.DefaultSpellId,
+            null,
+            null,
+            now,
+            now);
+
+    private static MapEventDefinition IdentityEvent(
+        string name,
+        int aliasId,
+        string firstDiscriminator,
+        string firstJson,
+        string? secondDiscriminator = null,
+        string? secondJson = null)
+    {
+        var commands = new List<MapEventCommandDefinition>
+        {
+            new()
+            {
+                Discriminator = firstDiscriminator,
+                ParameterJson = firstJson,
+            },
+        };
+        if (secondDiscriminator is not null)
+        {
+            commands.Add(new MapEventCommandDefinition
+            {
+                Discriminator = secondDiscriminator,
+                ParameterJson = secondJson ?? "{}",
+            });
+        }
+
+        return new MapEventDefinition
+        {
+            Name = name,
+            EditorAliasId = aliasId,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands = commands,
+                },
+            ],
+        };
+    }
+
     private static QuickEventPresetDraft RequirePreset(string name, QuickEventPresetKind kind)
     {
         Assert.True(QuickEventPresetDraft.TryCreate(name, kind, out var draft, out var error), error);

@@ -15,6 +15,7 @@ public static class SessionGameplayExtensions
         session.CharacterGuid = record.Id;
         session.CharacterId = record.Id.ToString();
         session.ClassId = record.ClassId;
+        session.DisplayName = record.DisplayName;
         session.StartingSpellId = record.StartingSpellId;
         session.Level = record.Level;
         session.Experience = record.Experience;

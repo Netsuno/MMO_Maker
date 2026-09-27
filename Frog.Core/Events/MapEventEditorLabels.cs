@@ -117,6 +117,8 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.ChangeParam => "Changer paramètre",
         MapEventCommandDiscriminators.ChangeSkills => "Changer compétences",
         MapEventCommandDiscriminators.ChangeEquipment => "Changer équipement",
+        MapEventCommandDiscriminators.ChangeName => "Changer nom",
+        MapEventCommandDiscriminators.ChangeClass => "Changer classe",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
     };
 
@@ -227,6 +229,8 @@ public static class MapEventEditorLabels
         "stat" => "Paramètre",
         "skillId" => "Compétence",
         "slot" => "Emplacement",
+        "name" => "Nom",
+        "classId" => "Classe",
         _ => string.IsNullOrWhiteSpace(key) ? "" : key,
     };
 
@@ -447,6 +451,10 @@ public static class MapEventEditorLabels
                 $"Changer compétences : {ChangeSign(ReadString(root, "operation"))} {ShortId(ReadString(root, "skillId"))}",
             MapEventCommandDiscriminators.ChangeEquipment =>
                 SummarizeGear(root),
+            MapEventCommandDiscriminators.ChangeName =>
+                $"Changer nom : {Clip(ReadString(root, "name"), 24)}",
+            MapEventCommandDiscriminators.ChangeClass =>
+                $"Changer classe : {ShortId(ReadString(root, "classId"))}",
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };

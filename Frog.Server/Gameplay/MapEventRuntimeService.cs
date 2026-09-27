@@ -351,6 +351,8 @@ public sealed class MapEventRuntimeService
             progressionChanged: state.ProgressionChanged,
             statsChanged: state.StatsChanged,
             skillsChanged: state.SkillsChanged,
+            nameChanged: state.NameChanged,
+            classChanged: state.ClassChanged,
             teleportApplied: state.TeleportApplied,
             dialogueSummary: state.DialogueSummary,
             questSummary: state.QuestSummary,
@@ -390,6 +392,7 @@ public sealed class MapEventRuntimeService
 
         ApplyRecordedProgression(session, snap);
         ApplyRecordedLoadout(session, snap);
+        ApplyRecordedIdentity(session, snap);
 
         var applied = new MapEventExecutionState();
         if (snap is not null)
@@ -509,7 +512,9 @@ public sealed class MapEventRuntimeService
             state.VisualOps,
             state.ProgressionChanged,
             state.StatsChanged,
-            state.SkillsChanged);
+            state.SkillsChanged,
+            state.NameChanged,
+            state.ClassChanged);
     }
 
     private static void ApplyRecordedProgression(Session session, MapEventExecutionSnapshot? snap)
@@ -562,6 +567,24 @@ public sealed class MapEventRuntimeService
         }
 
         CharacterSkillSet.CopyKnown(session.KnownSpellIds, session.StartingSpellId, learned);
+    }
+
+    private static void ApplyRecordedIdentity(Session session, MapEventExecutionSnapshot? snap)
+    {
+        if (snap is null)
+        {
+            return;
+        }
+
+        if (snap.NameChanged && snap.ResultDisplayName is not null)
+        {
+            session.DisplayName = snap.ResultDisplayName;
+        }
+
+        if (snap.ClassChanged && snap.ResultClassId is Guid classId && classId != Guid.Empty)
+        {
+            session.ClassId = classId;
+        }
     }
 
     private void RegisterWaitIfNeeded(

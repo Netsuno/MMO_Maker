@@ -32,6 +32,12 @@ public sealed class MapEventExecutionResult
     /// <summary>Compétences apprises par <c>change_skills</c>. Pas d'opcode nouveau.</summary>
     public bool SkillsChanged { get; init; }
 
+    /// <summary>Nom affiché changé par <c>change_name</c>. Pas d'opcode nouveau.</summary>
+    public bool NameChanged { get; init; }
+
+    /// <summary>Classe changée par <c>change_class</c>. Le niveau reste. Pas d'opcode nouveau.</summary>
+    public bool ClassChanged { get; init; }
+
     public bool QuestsChanged { get; init; }
 
     public bool ProfessionsChanged { get; init; }
@@ -94,7 +100,9 @@ public sealed class MapEventExecutionResult
         IReadOnlyList<MapEventVisualOp>? visualOps = null,
         bool progressionChanged = false,
         bool statsChanged = false,
-        bool skillsChanged = false) =>
+        bool skillsChanged = false,
+        bool nameChanged = false,
+        bool classChanged = false) =>
         new()
         {
             Success = true,
@@ -110,6 +118,8 @@ public sealed class MapEventExecutionResult
             ProgressionChanged = progressionChanged,
             StatsChanged = statsChanged,
             SkillsChanged = skillsChanged,
+            NameChanged = nameChanged,
+            ClassChanged = classChanged,
             QuestsChanged = questsChanged,
             ProfessionsChanged = professionsChanged,
             RecipesChanged = recipesChanged,
@@ -155,6 +165,8 @@ public sealed class MapEventExecutionResult
             progressionChanged: snap?.ProgressionChanged ?? false,
             statsChanged: snap?.StatsChanged ?? false,
             skillsChanged: snap?.SkillsChanged ?? false,
+            nameChanged: snap?.NameChanged ?? false,
+            classChanged: snap?.ClassChanged ?? false,
             teleportApplied: teleportApplied,
             weatherChanged: weatherChanged,
             dialogueSummary: dialogueSummary,
