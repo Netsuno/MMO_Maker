@@ -303,4 +303,68 @@ public sealed class EventScreenSmokeTests
             }
         });
     }
+
+    [Fact]
+    public void ScrollMap_PansTheViewportByTilesThenStays()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "frog-event-scroll-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "client-settings.json");
+            var previous = Environment.GetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable);
+            Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, path);
+            MainShellForm? form = null;
+            try
+            {
+                Assert.Equal((ushort)11, FrogWireProtocol.Version);
+                form = ClientSmokeTestAccess.CreateAndShowMainShell();
+                form.Size = new Size(900, 700);
+                var map = MapSamples.StarterMeadow(Guid.Empty);
+                var tile = TileAssetDisplayPixels.MapPixelSize(map);
+                var (focusX, focusY) = WorldMetrics.TileCenterToPixels(2, 3, tile);
+                form.ShowOfflineMapViewportForTest(map, focusX, focusY);
+                form.LayoutGameHudForTest();
+
+                var before = form.MapPictureLocationForTest;
+                var scroll = MapEventScrollOp.Create(MapEventScroll.DirectionDown, 1, 6);
+                form.ApplyInteractResultForTest(
+                    true,
+                    MapEventScreenWire.Compose(
+                        [MapEventVisualOp.ForScroll(scroll)],
+                        null,
+                        null,
+                        null));
+                Assert.True(form.MapScrollPlayingForTest);
+                Assert.Equal(0, form.MapScrollXForTest);
+                Assert.Equal(0, form.MapScrollYForTest);
+                Assert.Equal(before, form.MapPictureLocationForTest);
+
+                form.AdvanceScreenToneForTest(scroll.DurationMs);
+                Assert.False(form.MapScrollPlayingForTest);
+                Assert.Equal(0, form.MapScrollXForTest);
+                Assert.Equal(tile, form.MapScrollYForTest);
+                Assert.Equal(before.X, form.MapPictureLocationForTest.X);
+                Assert.Equal(before.Y - tile, form.MapPictureLocationForTest.Y);
+            }
+            finally
+            {
+                if (form is not null)
+                {
+                    form.Close();
+                    form.Dispose();
+                }
+
+                Environment.SetEnvironmentVariable(ClientSettingsStore.PathEnvironmentVariable, previous);
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // Le fichier de réglages peut encore être tenu.
+                }
+            }
+        });
+    }
 }

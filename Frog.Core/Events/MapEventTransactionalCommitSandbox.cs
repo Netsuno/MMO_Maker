@@ -725,6 +725,17 @@ public sealed class MapEventTransactionalCommitSandbox
 
                 return null;
 
+            case MapEventCommandDiscriminators.ScrollMap:
+                if (!MapEventParameterSchemas.TryParseScrollMap(
+                        command.ParameterJson,
+                        out _,
+                        out var scrollErr))
+                {
+                    return scrollErr;
+                }
+
+                return null;
+
             default:
                 return $"Commande non supportée en unité transactionnelle: {command.Discriminator}.";
         }

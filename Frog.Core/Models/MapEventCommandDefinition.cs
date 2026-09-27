@@ -81,6 +81,7 @@ public static class MapEventCommandDiscriminators
     public const string ShakeScreen = "shake_screen";
     public const string FlashScreen = "flash_screen";
     public const string ShowAnimation = "show_animation";
+    public const string ScrollMap = "scroll_map";
     public const string ChangeLevel = "change_level";
     public const string ChangeExp = "change_exp";
     public const string ChangeParam = "change_param";
@@ -96,7 +97,7 @@ public static class MapEventCommandDiscriminators
         GiveItem, TakeItem, GiveGold, TakeGold, ChangeGold, ChangeItems, StartQuest, AdvanceQuest, TurnInQuest,
         Teleport, Wait, CallCommonEvent, LearnProfession, OpenShop, SetWeather,
         ShowPicture, MovePicture, TintPicture, ErasePicture, FadeOutScreen, FadeInScreen, TintScreen,
-        ShakeScreen, FlashScreen, ShowAnimation,
+        ShakeScreen, FlashScreen, ShowAnimation, ScrollMap,
         ChangeLevel, ChangeExp, ChangeParam, ChangeSkills, ChangeEquipment, ChangeName, ChangeClass,
     };
 

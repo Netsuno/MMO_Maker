@@ -377,6 +377,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             case MapEventCommandDiscriminators.ShowAnimation:
                 AddAnimationFields();
                 break;
+            case MapEventCommandDiscriminators.ScrollMap:
+                AddScrollFields();
+                break;
             case MapEventCommandDiscriminators.Branch:
                 _branchCondition = new MapEventConditionParameterPanel();
                 _branchThen = new MapEventCommandListPanel();
@@ -835,6 +838,15 @@ internal sealed class MapEventCommandParameterPanel : UserControl
 
                     ApplyDuration(root);
                     break;
+                case MapEventCommandDiscriminators.ScrollMap:
+                    if (root.TryGetProperty("direction", out var scrollDirection))
+                    {
+                        SetChoice("direction", scrollDirection.GetString() ?? MapEventScroll.DirectionDown);
+                    }
+
+                    ApplyChannel(root, "distance");
+                    ApplyChannel(root, "speed");
+                    break;
                 case MapEventCommandDiscriminators.Branch:
                     if (_branchCondition is not null
                         && root.TryGetProperty("conditionKind", out var condKindEl))
@@ -1054,6 +1066,13 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                         target = GetChoice("target"),
                         durationMs = GetInt("durationMs"),
                     }),
+                MapEventCommandDiscriminators.ScrollMap =>
+                    JsonSerializer.Serialize(new
+                    {
+                        direction = GetChoice("direction"),
+                        distance = GetInt("distance"),
+                        speed = GetInt("speed"),
+                    }),
                 _ => GetText("parameterJson"),
             };
             return true;
@@ -1088,6 +1107,21 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         EditorListDraw.UseReadableChoices(target, MapEventEditorLabels.AnimationTarget);
         AddLabeled("target", target);
         AddDurationField();
+    }
+
+    private void AddScrollFields()
+    {
+        var direction = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+        foreach (var kind in MapEventScroll.Directions)
+        {
+            direction.Items.Add(kind);
+        }
+
+        direction.SelectedItem = MapEventScroll.DirectionDown;
+        EditorListDraw.UseReadableChoices(direction, MapEventEditorLabels.ScrollDirection);
+        AddLabeled("direction", direction);
+        AddBoundedField("distance", MapEventScroll.MinDistance, MapEventScroll.MaxDistance, MapEventScroll.DefaultDistance);
+        AddBoundedField("speed", MapEventScroll.MinSpeed, MapEventScroll.MaxSpeed, MapEventScroll.DefaultSpeed);
     }
 
     private void AddOperationField()

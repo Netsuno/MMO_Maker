@@ -591,18 +591,29 @@ public sealed class Phase8GameplayHandlers(
         {
             // No InteractResult for the wait suffix in general: heartbeat collectors
             // (wait-resume → parallel pulse) must not see a leftover InteractResult.
-            // open_shop, show/erase picture, fade and tint are the exceptions: the existing
-            // InteractResult string carries shop:<guid>, pic:, fade: and tint: lines (Hello 11).
+            // open_shop, pictures, screen effects and scroll_map are the exceptions: the existing
+            // InteractResult string carries shop:<guid>, pic:, fade:, tint:, shake:, flash:, anim:
+            // and scroll: lines (Hello 11).
             await ApplyCommittedSessionClientEffectsAsync(client, session, runtimeResult, cancellationToken)
                 .ConfigureAwait(false);
             var deliverShop = runtimeResult.OpenShopId is Guid openShop && openShop != Guid.Empty;
             var deliverPictures = runtimeResult.PictureOps.Count > 0;
             var deliverScreen = runtimeResult.ScreenOps.Count > 0;
+            var deliverScroll = false;
+            foreach (var visual in runtimeResult.VisualOps)
+            {
+                if (visual.IsScroll)
+                {
+                    deliverScroll = true;
+                    break;
+                }
+            }
+
             var deliverUnavailable = string.Equals(
                 runtimeResult.ShowText,
                 MapEventShopOpen.UnavailableMessage,
                 StringComparison.Ordinal);
-            if (deliverShop || deliverPictures || deliverScreen || deliverUnavailable)
+            if (deliverShop || deliverPictures || deliverScreen || deliverScroll || deliverUnavailable)
             {
                 await packetSender.SendInteractResultAsync(
                         client,

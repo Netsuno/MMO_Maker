@@ -38,6 +38,7 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.ShakeScreenId,
                 MapEventCommandPalette.FlashScreenId,
                 MapEventCommandPalette.ShowAnimationId,
+                MapEventCommandPalette.ScrollMapId,
                 MapEventCommandPalette.ChangeLevelId,
                 MapEventCommandPalette.ChangeExpId,
                 MapEventCommandPalette.ChangeParamId,
@@ -67,6 +68,7 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Tremblement écran");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Flash écran");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Afficher animation");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Défiler la carte");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer niveau");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer EXP");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer paramètre");

@@ -194,6 +194,7 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.ShakeScreen)]
     [InlineData(MapEventCommandDiscriminators.FlashScreen)]
     [InlineData(MapEventCommandDiscriminators.ShowAnimation)]
+    [InlineData(MapEventCommandDiscriminators.ScrollMap)]
     [InlineData(MapEventCommandDiscriminators.ChangeLevel)]
     [InlineData(MapEventCommandDiscriminators.ChangeExp)]
     [InlineData(MapEventCommandDiscriminators.ChangeParam)]
@@ -827,6 +828,9 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.ShowAnimation => Command(
                 discriminator,
                 """{"animationId":1,"target":"event","durationMs":1000}"""),
+            MapEventCommandDiscriminators.ScrollMap => Command(
+                discriminator,
+                """{"direction":"down","distance":1,"speed":4}"""),
             MapEventCommandDiscriminators.ChangeLevel => Command(discriminator, """{"delta":1}"""),
             MapEventCommandDiscriminators.ChangeExp => Command(discriminator, """{"delta":10}"""),
             MapEventCommandDiscriminators.ChangeParam => Command(discriminator, """{"stat":"STR","delta":1}"""),
@@ -1029,6 +1033,10 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.ShowAnimation:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("target"), "player");
                 expectedFragment = "\"target\":\"player\"";
+                break;
+            case MapEventCommandDiscriminators.ScrollMap:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("direction"), "left");
+                expectedFragment = "\"direction\":\"left\"";
                 break;
             case MapEventCommandDiscriminators.ChangeLevel:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("delta"), "2");

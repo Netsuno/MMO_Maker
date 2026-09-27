@@ -240,15 +240,21 @@ public readonly record struct MapEventVisualOp
 
     public MapEventAnimationOp? Animation { get; init; }
 
+    public MapEventScrollOp? Scroll { get; init; }
+
     public bool IsPicture => Picture is not null;
 
     public bool IsAnimation => Animation is not null;
+
+    public bool IsScroll => Scroll is not null;
 
     public static MapEventVisualOp ForPicture(MapEventPictureOp op) => new() { Picture = op };
 
     public static MapEventVisualOp ForScreen(MapEventScreenOp op) => new() { Screen = op };
 
     public static MapEventVisualOp ForAnimation(MapEventAnimationOp op) => new() { Animation = op };
+
+    public static MapEventVisualOp ForScroll(MapEventScrollOp op) => new() { Scroll = op };
 }
 
 /// <summary>
@@ -260,19 +266,22 @@ public static class MapEventVisualSequence
     public const string Picture = "picture";
     public const string Screen = "screen";
     public const string Animation = "animation";
+    public const string Scroll = "scroll";
 
     public static IReadOnlyList<MapEventVisualOp> Expand(
         IReadOnlyList<string>? order,
         IReadOnlyList<MapEventPictureOp>? pictures,
         IReadOnlyList<MapEventScreenOp>? screens,
-        IReadOnlyList<MapEventAnimationOp>? animations = null)
+        IReadOnlyList<MapEventAnimationOp>? animations = null,
+        IReadOnlyList<MapEventScrollOp>? scrolls = null)
     {
         pictures ??= Array.Empty<MapEventPictureOp>();
         screens ??= Array.Empty<MapEventScreenOp>();
         animations ??= Array.Empty<MapEventAnimationOp>();
+        scrolls ??= Array.Empty<MapEventScrollOp>();
         if (order is null || order.Count == 0)
         {
-            var fallback = new List<MapEventVisualOp>(pictures.Count + screens.Count + animations.Count);
+            var fallback = new List<MapEventVisualOp>(pictures.Count + screens.Count + animations.Count + scrolls.Count);
             foreach (var picture in pictures)
             {
                 fallback.Add(MapEventVisualOp.ForPicture(picture));
@@ -288,6 +297,11 @@ public static class MapEventVisualSequence
                 fallback.Add(MapEventVisualOp.ForAnimation(animation));
             }
 
+            foreach (var scroll in scrolls)
+            {
+                fallback.Add(MapEventVisualOp.ForScroll(scroll));
+            }
+
             return fallback;
         }
 
@@ -295,6 +309,7 @@ public static class MapEventVisualSequence
         var pictureIndex = 0;
         var screenIndex = 0;
         var animationIndex = 0;
+        var scrollIndex = 0;
         foreach (var kind in order)
         {
             if (kind == Picture && pictureIndex < pictures.Count)
@@ -308,6 +323,10 @@ public static class MapEventVisualSequence
             else if (kind == Animation && animationIndex < animations.Count)
             {
                 expanded.Add(MapEventVisualOp.ForAnimation(animations[animationIndex++]));
+            }
+            else if (kind == Scroll && scrollIndex < scrolls.Count)
+            {
+                expanded.Add(MapEventVisualOp.ForScroll(scrolls[scrollIndex++]));
             }
         }
 

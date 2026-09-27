@@ -101,6 +101,8 @@ public static class MapEventCommandParameterValidator
                 MapEventParameterSchemas.TryParseFlashScreen(command.ParameterJson, out _, out error),
             MapEventCommandDiscriminators.ShowAnimation =>
                 MapEventParameterSchemas.TryParseShowAnimation(command.ParameterJson, out _, out error),
+            MapEventCommandDiscriminators.ScrollMap =>
+                MapEventParameterSchemas.TryParseScrollMap(command.ParameterJson, out _, out error),
             _ => false,
         };
 

@@ -410,6 +410,9 @@ public sealed class MapEventCommandExecutor
             case MapEventCommandDiscriminators.ShowAnimation:
                 return ApplyShowAnimation(command.ParameterJson, state);
 
+            case MapEventCommandDiscriminators.ScrollMap:
+                return ApplyScrollMap(command.ParameterJson, state);
+
             default:
                 _logger.LogWarning("Commande événement non implémentée: {Discriminator}", command.Discriminator);
                 return $"Commande non supportée: {command.Discriminator}.";
@@ -981,6 +984,10 @@ public sealed class MapEventCommandExecutor
             {
                 state.RecordAnimation(animation);
             }
+            else if (visual.Scroll is { } scroll)
+            {
+                state.RecordScroll(scroll);
+            }
         }
     }
 
@@ -1177,6 +1184,17 @@ public sealed class MapEventCommandExecutor
         }
 
         state.RecordAnimation(op);
+        return null;
+    }
+
+    private static string? ApplyScrollMap(string parameterJson, MapEventExecutionState state)
+    {
+        if (!MapEventParameterSchemas.TryParseScrollMap(parameterJson, out var op, out var err))
+        {
+            return err ?? "scroll_map invalide.";
+        }
+
+        state.RecordScroll(op);
         return null;
     }
 

@@ -589,6 +589,18 @@ public sealed class PostgresMapEventMutationRepository(
                 snapshot.RecordAnimation(animation);
                 return null;
 
+            case MapEventCommandDiscriminators.ScrollMap:
+                if (!MapEventParameterSchemas.TryParseScrollMap(
+                        command.ParameterJson,
+                        out var scroll,
+                        out var scrollErr))
+                {
+                    return scrollErr;
+                }
+
+                snapshot.RecordScroll(scroll);
+                return null;
+
             default:
                 return $"Commande non supportée en transaction atomique: {command.Discriminator}.";
         }
@@ -1506,6 +1518,7 @@ public sealed class PostgresMapEventMutationRepository(
             PictureOps = snapshot.PictureOps is { Count: > 0 } ops ? ops : null,
             ScreenOps = snapshot.ScreenOps is { Count: > 0 } screenOps ? screenOps : null,
             AnimationOps = snapshot.AnimationOps is { Count: > 0 } animationOps ? animationOps : null,
+            ScrollOps = snapshot.ScrollOps is { Count: > 0 } scrollOps ? scrollOps : null,
             VisualOrder = snapshot.VisualOrder is { Count: > 0 } order ? order : null,
         }, JsonOptions);
 
@@ -1569,6 +1582,7 @@ public sealed class PostgresMapEventMutationRepository(
                 PictureOps = stored.PictureOps ?? [],
                 ScreenOps = stored.ScreenOps ?? [],
                 AnimationOps = stored.AnimationOps ?? [],
+                ScrollOps = stored.ScrollOps ?? [],
                 VisualOrder = stored.VisualOrder ?? [],
             };
         }
@@ -1679,6 +1693,9 @@ public sealed class PostgresMapEventMutationRepository(
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<MapEventAnimationOp>? AnimationOps { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<MapEventScrollOp>? ScrollOps { get; set; }
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<string>? VisualOrder { get; set; }

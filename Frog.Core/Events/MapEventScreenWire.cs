@@ -3,9 +3,9 @@ using System.Globalization;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Transporte fondu, teinte, tremblement, flash et animation dans le message <c>InteractResult</c> (opcode 32).
+/// Transporte fondu, teinte, tremblement, flash, animation et défilement dans le message <c>InteractResult</c> (opcode 32).
 /// Même schéma que <c>pic:</c> et <c>shop:&lt;guid&gt;</c> : lignes préfixes, Hello 11, pas de nouvel opcode.
-/// Les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c> et <c>pic:</c> restent dans l'ordre de la page.
+/// Les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c>, <c>scroll:</c> et <c>pic:</c> restent dans l'ordre de la page.
 /// </summary>
 public static class MapEventScreenWire
 {
@@ -41,8 +41,10 @@ public static class MapEventScreenWire
             ? FormatLine(screen)
             : visual.Picture is { } picture
                 ? MapEventPictureWire.FormatLine(picture)
-                : visual.Animation is { } animation
-                    ? MapEventAnimation.FormatLine(animation)
+            : visual.Animation is { } animation
+                ? MapEventAnimation.FormatLine(animation)
+                : visual.Scroll is { } scroll
+                    ? MapEventScroll.FormatLine(scroll)
                     : string.Empty;
 
     /// <summary>
@@ -62,6 +64,7 @@ public static class MapEventScreenWire
 
         var screens = 0;
         var animations = 0;
+        var scrolls = 0;
         var pictures = new List<MapEventPictureOp>();
         foreach (var visual in visuals)
         {
@@ -73,13 +76,17 @@ public static class MapEventScreenWire
             {
                 animations++;
             }
+            else if (visual.Scroll is not null)
+            {
+                scrolls++;
+            }
             else if (visual.Picture is { } picture)
             {
                 pictures.Add(picture);
             }
         }
 
-        if (screens == 0 && animations == 0)
+        if (screens == 0 && animations == 0 && scrolls == 0)
         {
             return MapEventPictureWire.Compose(pictures, shopId, showText, fallbackMessage);
         }
@@ -98,7 +105,7 @@ public static class MapEventScreenWire
     }
 
     /// <summary>
-    /// Retire les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c> et <c>pic:</c> en tête.
+    /// Retire les lignes <c>fade:</c>, <c>tint:</c>, <c>shake:</c>, <c>flash:</c>, <c>anim:</c>, <c>scroll:</c> et <c>pic:</c> en tête.
     /// Le reste peut encore porter <c>shop:</c> puis le texte.
     /// </summary>
     public static bool TryTakeInteractMessage(
@@ -152,12 +159,18 @@ public static class MapEventScreenWire
             return true;
         }
 
-        if (!MapEventAnimation.TryParseLine(line, out var animation))
+        if (MapEventAnimation.TryParseLine(line, out var animation))
+        {
+            op = MapEventVisualOp.ForAnimation(animation);
+            return true;
+        }
+
+        if (!MapEventScroll.TryParseLine(line, out var scroll))
         {
             return false;
         }
 
-        op = MapEventVisualOp.ForAnimation(animation);
+        op = MapEventVisualOp.ForScroll(scroll);
         return true;
     }
 

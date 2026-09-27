@@ -1408,6 +1408,53 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseScrollMap(string parameterJson, out MapEventScrollOp op, out string? error)
+    {
+        op = MapEventScrollOp.Create(MapEventScroll.DirectionDown, MapEventScroll.DefaultDistance, MapEventScroll.DefaultSpeed);
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!TryReadScrollDirection(root, out var direction, out error)
+                || !TryReadBounded(
+                    root,
+                    "scroll_map",
+                    "distance",
+                    MapEventScroll.MinDistance,
+                    MapEventScroll.MaxDistance,
+                    out var distance,
+                    out error)
+                || !TryReadBounded(
+                    root,
+                    "scroll_map",
+                    "speed",
+                    MapEventScroll.MinSpeed,
+                    MapEventScroll.MaxSpeed,
+                    out var speed,
+                    out error))
+            {
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "direction", "distance", "speed" },
+                    out error))
+            {
+                return false;
+            }
+
+            op = MapEventScrollOp.Create(direction, distance, speed);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "scroll_map: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     public static bool IsUnknownWeatherKind(string? error) =>
         error is not null && error.Contains("kind inconnu", StringComparison.OrdinalIgnoreCase);
 
@@ -2044,6 +2091,27 @@ public static class MapEventParameterSchemas
         }
 
         target = raw;
+        return true;
+    }
+
+    private static bool TryReadScrollDirection(JsonElement root, out string direction, out string? error)
+    {
+        direction = string.Empty;
+        error = null;
+        if (!root.TryGetProperty("direction", out var el) || el.ValueKind != JsonValueKind.String)
+        {
+            error = "scroll_map: propriété 'direction' (up|down|left|right) requise.";
+            return false;
+        }
+
+        var raw = el.GetString() ?? string.Empty;
+        if (!MapEventScroll.IsDirection(raw))
+        {
+            error = "scroll_map: direction up, down, left ou right.";
+            return false;
+        }
+
+        direction = raw;
         return true;
     }
 

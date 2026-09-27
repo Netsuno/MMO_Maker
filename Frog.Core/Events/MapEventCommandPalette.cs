@@ -5,7 +5,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement, nom, classe.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, défilement, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement, nom, classe.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -44,6 +44,7 @@ public static class MapEventCommandPalette
     public const string ShakeScreenId = "shake_screen";
     public const string FlashScreenId = "flash_screen";
     public const string ShowAnimationId = "show_animation";
+    public const string ScrollMapId = "scroll_map";
     public const string ChangeLevelId = "change_level";
     public const string ChangeExpId = "change_exp";
     public const string ChangeParamId = "change_param";
@@ -99,6 +100,7 @@ public static class MapEventCommandPalette
         new(ShakeScreenId, "Tremblement écran"),
         new(FlashScreenId, "Flash écran"),
         new(ShowAnimationId, "Afficher animation"),
+        new(ScrollMapId, "Défiler la carte"),
         new(ChangeLevelId, "Changer niveau"),
         new(ChangeExpId, "Changer EXP"),
         new(ChangeParamId, "Changer paramètre"),
@@ -252,6 +254,14 @@ public static class MapEventCommandPalette
                     animationId = MapEventAnimation.DefaultId,
                     target = MapEventAnimation.TargetEvent,
                     durationMs = MapEventScreen.DefaultDurationMs,
+                }),
+            ScrollMapId => Command(
+                MapEventCommandDiscriminators.ScrollMap,
+                new
+                {
+                    direction = MapEventScroll.DirectionDown,
+                    distance = MapEventScroll.DefaultDistance,
+                    speed = MapEventScroll.DefaultSpeed,
                 }),
             ChangeLevelId => Command(
                 MapEventCommandDiscriminators.ChangeLevel,

@@ -1234,6 +1234,61 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_ScrollMap_DoesNotMoveThePlayer()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Panorama",
+            EditorAliasId = 84,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ScrollMap,
+                            ParameterJson = """{"direction":"down","distance":3,"speed":4}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ShowText,
+                            ParameterJson = """{"text":"Plus bas."}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+        session.PositionX = 2;
+        session.PositionY = 3;
+        var placement = CreatePlacement(84);
+
+        var result = await service.TryExecuteInteractAsync(session, placement);
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.Equal(2, session.PositionX);
+        Assert.Equal(3, session.PositionY);
+        Assert.True(MapEventScreenWire.TryTakeInteractMessage(result.ClientInteractMessage, out var visuals, out var rest));
+        Assert.Equal("Plus bas.", rest);
+        Assert.Equal(MapEventScrollOp.Create(MapEventScroll.DirectionDown, 3, 4), visuals[0].Scroll);
+        Assert.True(ServerPlanner.CanExecuteTransactionally(repo.Plans[0].Effects));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+        Assert.Equal(48, Frog.Core.Constants.TileAssetMetrics.TargetTileSizePixels);
+    }
+
+    [Fact]
     public async Task ExecuteCommands_FadeOutThenFadeIn_ClearsTheBlackInMemory()
     {
         var executor = CreateExecutor(
@@ -2877,6 +2932,13 @@ public sealed class MapEventRuntimeServiceTests
                         if (MapEventParameterSchemas.TryParseShowAnimation(cmd.ParameterJson, out var animation, out _))
                         {
                             snap.RecordAnimation(animation);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.ScrollMap:
+                        if (MapEventParameterSchemas.TryParseScrollMap(cmd.ParameterJson, out var scroll, out _))
+                        {
+                            snap.RecordScroll(scroll);
                         }
 
                         break;

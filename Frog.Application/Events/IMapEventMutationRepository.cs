@@ -167,13 +167,16 @@ public sealed class MapEventExecutionSnapshot
     /// <summary>Animations de carte de cette TX, dans l'ordre. Tuiles encore à -1 dans le JSON persisté.</summary>
     public List<MapEventAnimationOp> AnimationOps { get; set; } = [];
 
+    /// <summary>Défilements de carte de cette TX, dans l'ordre.</summary>
+    public List<MapEventScrollOp> ScrollOps { get; set; } = [];
+
     /// <summary>
-    /// Ordre commun images / écran / animation. Vide = images puis effets (snapshot ancien).
+    /// Ordre commun images / écran / animation / défilement. Vide = images puis effets (snapshot ancien).
     /// </summary>
     public List<string> VisualOrder { get; set; } = [];
 
     public IReadOnlyList<MapEventVisualOp> ExpandVisuals() =>
-        MapEventVisualSequence.Expand(VisualOrder, PictureOps, ScreenOps, AnimationOps);
+        MapEventVisualSequence.Expand(VisualOrder, PictureOps, ScreenOps, AnimationOps, ScrollOps);
 
     public (int MapId, int TileX, int TileY)? Teleport =>
         TeleportMapId is int mapId && TeleportTileX is int tileX && TeleportTileY is int tileY
@@ -271,6 +274,14 @@ public sealed class MapEventExecutionSnapshot
         VisualOrder ??= [];
         AnimationOps.Add(op);
         VisualOrder.Add(MapEventVisualSequence.Animation);
+    }
+
+    public void RecordScroll(MapEventScrollOp op)
+    {
+        ScrollOps ??= [];
+        VisualOrder ??= [];
+        ScrollOps.Add(op);
+        VisualOrder.Add(MapEventVisualSequence.Scroll);
     }
 
     public void RecordSwitch(string switchId, bool value)

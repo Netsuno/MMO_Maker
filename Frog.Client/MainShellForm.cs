@@ -218,6 +218,19 @@ public sealed class MainShellForm : Form
 
     private int _animationElapsedMs;
 
+    private MapEventScrollOp? _playingScroll;
+
+    private int _scrollElapsedMs;
+
+    private int _scrollFromX;
+
+    private int _scrollFromY;
+
+    /// <summary>Décalage caméra posé, en pixels. Le joueur ne change pas de tuile.</summary>
+    private int _scrollX;
+
+    private int _scrollY;
+
     private MapEventScreenFrame _screenFrom;
 
     private int _screenElapsedMs;
@@ -3886,6 +3899,11 @@ public sealed class MainShellForm : Form
             _btnPickup.Enabled = false;
         }
 
+        if (_sessionDisplayedMapId != mapId)
+        {
+            ResetMapScroll();
+        }
+
         _sessionDisplayedMapId = mapId;
         _map = map;
         AttachRuntimeTileFlags(map);
@@ -3945,6 +3963,11 @@ public sealed class MainShellForm : Form
     private void OnMapAlreadySynced(int mapId, long revision)
     {
         AppendLog($"Carte id={mapId} déjà à jour (révision serveur {revision}).");
+        if (_sessionDisplayedMapId != mapId)
+        {
+            ResetMapScroll();
+        }
+
         _sessionDisplayedMapId = mapId;
         if (_playtestOptions is { IsPlaytest: true })
         {
@@ -4059,7 +4082,10 @@ public sealed class MainShellForm : Form
     private void PumpVisualQueue()
     {
         var changed = false;
-        while (_playingScreen is null && _playingAnimation is null && _visualQueue.TryDequeue(out var step))
+        while (_playingScreen is null
+            && _playingAnimation is null
+            && _playingScroll is null
+            && _visualQueue.TryDequeue(out var step))
         {
             if (step.Picture is { } picture)
             {
@@ -4077,6 +4103,25 @@ public sealed class MainShellForm : Form
 
                 _playingAnimation = animation;
                 _animationElapsedMs = 0;
+                changed = true;
+                continue;
+            }
+
+            if (step.Scroll is { } scroll)
+            {
+                if (scroll.DurationMs <= 0)
+                {
+                    var (dx, dy) = MapEventScrollPlayback.DeltaPixels(scroll, MapScrollTileSize());
+                    _scrollX += dx;
+                    _scrollY += dy;
+                    changed = true;
+                    continue;
+                }
+
+                _playingScroll = scroll;
+                _scrollFromX = _scrollX;
+                _scrollFromY = _scrollY;
+                _scrollElapsedMs = 0;
                 changed = true;
                 continue;
             }
@@ -4109,6 +4154,7 @@ public sealed class MainShellForm : Form
     {
         var screenAtStart = _playingScreen;
         var animationAtStart = _playingAnimation;
+        var scrollAtStart = _playingScroll;
         var redraw = false;
         if (screenAtStart is { } screen)
         {
@@ -4133,6 +4179,27 @@ public sealed class MainShellForm : Form
             {
                 _playingAnimation = null;
                 _animationElapsedMs = 0;
+                PumpVisualQueue();
+            }
+
+            redraw = true;
+        }
+
+        if (scrollAtStart is { } playingScroll)
+        {
+            _scrollElapsedMs += Math.Max(0, deltaMs);
+            if (_scrollElapsedMs >= playingScroll.DurationMs)
+            {
+                var (x, y) = MapEventScrollPlayback.Sample(
+                    playingScroll,
+                    _scrollFromX,
+                    _scrollFromY,
+                    playingScroll.DurationMs,
+                    MapScrollTileSize());
+                _scrollX = x;
+                _scrollY = y;
+                _playingScroll = null;
+                _scrollElapsedMs = 0;
                 PumpVisualQueue();
             }
 
@@ -4196,6 +4263,42 @@ public sealed class MainShellForm : Form
         _screenElapsedMs = 0;
         _screenFrom = default;
         _screenFrame = default;
+        ResetMapScroll();
+    }
+
+    private void ResetMapScroll()
+    {
+        _playingScroll = null;
+        _scrollElapsedMs = 0;
+        _scrollFromX = 0;
+        _scrollFromY = 0;
+        _scrollX = 0;
+        _scrollY = 0;
+    }
+
+    private (int X, int Y) CurrentMapScrollPixels()
+    {
+        if (_playingScroll is { } op)
+        {
+            return MapEventScrollPlayback.Sample(op, _scrollFromX, _scrollFromY, _scrollElapsedMs, MapScrollTileSize());
+        }
+
+        return (_scrollX, _scrollY);
+    }
+
+    private int MapScrollTileSize() =>
+        _map is null ? TileAssetMetrics.TargetTileSizePixels : MapViewRenderer.MapTileSizePixels(_map);
+
+    private void IncludeMapScroll(int mapW, int mapH, ref float? focusX, ref float? focusY)
+    {
+        var (sx, sy) = CurrentMapScrollPixels();
+        if (sx == 0 && sy == 0)
+        {
+            return;
+        }
+
+        focusX = (focusX ?? (mapW / 2f)) + sx;
+        focusY = (focusY ?? (mapH / 2f)) + sy;
     }
 
     private void ClearEventPictures()
@@ -5743,6 +5846,7 @@ public sealed class MainShellForm : Form
             focusY = _camFocusY;
         }
 
+        IncludeMapScroll(mapW, mapH, ref focusX, ref focusY);
         return MapViewportCamera.ComputeDrawOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
     }
 
@@ -5778,6 +5882,7 @@ public sealed class MainShellForm : Form
             focusY = _camFocusY;
         }
 
+        IncludeMapScroll(mapW, mapH, ref focusX, ref focusY);
         var (ox, oy) = MapViewportCamera.ComputeDrawOffset(view.Width, view.Height, mapW, mapH, focusX, focusY);
         var next = new Point(ox, oy);
         if (_picMap.Location != next)
@@ -8041,6 +8146,12 @@ public sealed class MainShellForm : Form
     internal int MapAnimationTileXForTest => _playingAnimation?.TileX ?? -1;
 
     internal int MapAnimationTileYForTest => _playingAnimation?.TileY ?? -1;
+
+    internal bool MapScrollPlayingForTest => _playingScroll is not null;
+
+    internal int MapScrollXForTest => CurrentMapScrollPixels().X;
+
+    internal int MapScrollYForTest => CurrentMapScrollPixels().Y;
 
     internal void AdvanceScreenToneForTest(int deltaMs)
     {
