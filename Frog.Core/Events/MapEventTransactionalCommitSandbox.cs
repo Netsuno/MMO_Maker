@@ -43,6 +43,12 @@ public sealed class MapEventWorldScratch
 
     public HashSet<Guid> LearnedProfessions { get; private set; } = [];
 
+    public HashSet<Guid> LearnedSkillIds { get; private set; } = [];
+
+    public Guid? WeaponItemId { get; set; }
+
+    public Guid? ArmorItemId { get; set; }
+
     public int Gold { get; set; }
 
     /// <summary>Niveau, EXP et paramètres du bac à sable (commandes de progression).</summary>
@@ -76,6 +82,9 @@ public sealed class MapEventWorldScratch
             Items = new Dictionary<Guid, int>(Items),
             StartedQuests = new HashSet<Guid>(StartedQuests),
             LearnedProfessions = new HashSet<Guid>(LearnedProfessions),
+            LearnedSkillIds = new HashSet<Guid>(LearnedSkillIds),
+            WeaponItemId = WeaponItemId,
+            ArmorItemId = ArmorItemId,
             Gold = Gold,
             Vitals = Vitals,
             ShowText = ShowText,
@@ -96,6 +105,9 @@ public sealed class MapEventWorldScratch
         Items = new Dictionary<Guid, int>(other.Items);
         StartedQuests = new HashSet<Guid>(other.StartedQuests);
         LearnedProfessions = new HashSet<Guid>(other.LearnedProfessions);
+        LearnedSkillIds = new HashSet<Guid>(other.LearnedSkillIds);
+        WeaponItemId = other.WeaponItemId;
+        ArmorItemId = other.ArmorItemId;
         Gold = other.Gold;
         Vitals = other.Vitals;
         ShowText = other.ShowText;
@@ -370,6 +382,64 @@ public sealed class MapEventTransactionalCommitSandbox
                 }
 
                 world.Gold += amount;
+                return null;
+
+            case MapEventCommandDiscriminators.ChangeSkills:
+                if (!MapEventParameterSchemas.TryParseChangeSkills(
+                        command.ParameterJson,
+                        out var skillOperation,
+                        out var skillId,
+                        out var skillErr))
+                {
+                    return skillErr;
+                }
+
+                if (!CharacterSkillSet.TryChange(
+                        world.LearnedSkillIds,
+                        skillOperation,
+                        skillId,
+                        out var learned,
+                        out _,
+                        out var skillChangeErr))
+                {
+                    return skillChangeErr;
+                }
+
+                world.LearnedSkillIds.Clear();
+                foreach (var id in learned)
+                {
+                    world.LearnedSkillIds.Add(id);
+                }
+
+                return null;
+
+            case MapEventCommandDiscriminators.ChangeEquipment:
+                if (!MapEventParameterSchemas.TryParseChangeEquipment(
+                        command.ParameterJson,
+                        out var gearOperation,
+                        out var gearSlot,
+                        out var gearItemId,
+                        out var gearErr))
+                {
+                    return gearErr;
+                }
+
+                if (!CharacterGearChange.TryApply(
+                        world.WeaponItemId,
+                        world.ArmorItemId,
+                        gearOperation,
+                        gearSlot,
+                        gearItemId,
+                        out var nextWeapon,
+                        out var nextArmor,
+                        out _,
+                        out var gearApplyErr))
+                {
+                    return gearApplyErr;
+                }
+
+                world.WeaponItemId = nextWeapon;
+                world.ArmorItemId = nextArmor;
                 return null;
 
             case MapEventCommandDiscriminators.ChangeLevel:

@@ -305,6 +305,14 @@ public sealed class MapEventCommandExecutor
                 return await ExecuteProgressionAsync(session, characterId, command, state, cancellationToken)
                     .ConfigureAwait(false);
 
+            case MapEventCommandDiscriminators.ChangeSkills:
+                return await ExecuteChangeSkillsAsync(session, characterId, command, state, cancellationToken)
+                    .ConfigureAwait(false);
+
+            case MapEventCommandDiscriminators.ChangeEquipment:
+                return await ExecuteChangeEquipmentAsync(session, characterId, command, state, cancellationToken)
+                    .ConfigureAwait(false);
+
             case MapEventCommandDiscriminators.Teleport:
                 return ExecuteTeleport(session, command.ParameterJson, state);
 
@@ -696,6 +704,108 @@ public sealed class MapEventCommandExecutor
             state.StatsChanged = true;
         }
 
+        return null;
+    }
+
+    private async Task<string?> ExecuteChangeSkillsAsync(
+        Session session,
+        Guid characterId,
+        MapEventCommandDefinition command,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        if (!MapEventParameterSchemas.TryParseChangeSkills(
+                command.ParameterJson,
+                out var operation,
+                out var skillId,
+                out var err))
+        {
+            return err;
+        }
+
+        var character = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+        if (character is null)
+        {
+            return "Personnage introuvable.";
+        }
+
+        var current = CharacterSkillSet.Parse(character.LearnedSkillIds);
+        if (!CharacterSkillSet.TryChange(current, operation, skillId, out var next, out var changed, out var changeErr))
+        {
+            return changeErr;
+        }
+
+        if (!changed)
+        {
+            return null;
+        }
+
+        var json = CharacterSkillSet.Format(next);
+        var saved = character with { LearnedSkillIds = json };
+        await _characters.SaveAsync(saved, cancellationToken).ConfigureAwait(false);
+        session.LearnedSkillIds.Clear();
+        foreach (var id in next)
+        {
+            session.LearnedSkillIds.Add(id);
+        }
+
+        CharacterSkillSet.CopyKnown(session.KnownSpellIds, saved.StartingSpellId, next);
+        state.SkillsChanged = true;
+        return null;
+    }
+
+    private async Task<string?> ExecuteChangeEquipmentAsync(
+        Session session,
+        Guid characterId,
+        MapEventCommandDefinition command,
+        MapEventExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        if (!MapEventParameterSchemas.TryParseChangeEquipment(
+                command.ParameterJson,
+                out var operation,
+                out var slot,
+                out var itemId,
+                out var err))
+        {
+            return err;
+        }
+
+        var character = await _characters.FindByIdAsync(characterId, cancellationToken).ConfigureAwait(false);
+        if (character is null)
+        {
+            return "Personnage introuvable.";
+        }
+
+        if (!CharacterGearChange.TryApply(
+                character.EquippedWeaponItemId,
+                character.EquippedArmorItemId,
+                operation,
+                slot,
+                itemId,
+                out var weapon,
+                out var armor,
+                out var changed,
+                out var gearErr))
+        {
+            return gearErr;
+        }
+
+        if (!changed)
+        {
+            return null;
+        }
+
+        var saved = character with
+        {
+            EquippedWeaponItemId = weapon,
+            EquippedArmorItemId = armor,
+        };
+        await _characters.SaveAsync(saved, cancellationToken).ConfigureAwait(false);
+        await _inventory.AlignEquippedAsync(characterId, weapon, armor, cancellationToken).ConfigureAwait(false);
+        session.EquippedWeaponItemId = weapon;
+        session.EquippedArmorItemId = armor;
+        state.InventoryChanged = true;
         return null;
     }
 

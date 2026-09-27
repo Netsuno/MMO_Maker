@@ -1075,6 +1075,10 @@ public sealed class FrogDbContext : DbContext
             e.ToTable("characters", "player");
             e.HasKey(x => x.Id);
             e.Property(x => x.DisplayName).HasMaxLength(32).IsRequired();
+            e.Property(x => x.LearnedSkillIds)
+                .HasColumnType("text")
+                .HasDefaultValue("[]")
+                .IsRequired();
             e.HasIndex(x => x.AccountId);
             e.HasOne(x => x.Account)
                 .WithMany()

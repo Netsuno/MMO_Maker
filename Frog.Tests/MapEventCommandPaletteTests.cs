@@ -41,6 +41,8 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.ChangeLevelId,
                 MapEventCommandPalette.ChangeExpId,
                 MapEventCommandPalette.ChangeParamId,
+                MapEventCommandPalette.ChangeSkillsId,
+                MapEventCommandPalette.ChangeEquipmentId,
             ],
             ids);
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
@@ -66,6 +68,8 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer niveau");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer EXP");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer paramètre");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer compétences");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer équipement");
     }
 
     [Theory]
@@ -86,6 +90,20 @@ public sealed class MapEventCommandPaletteTests
         if (id == MapEventCommandPalette.ChangeItemsId)
         {
             // Placeholder Guid.Empty until the author picks an item.
+            Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out error));
+            Assert.Contains("itemId", error, StringComparison.OrdinalIgnoreCase);
+            return;
+        }
+
+        if (id == MapEventCommandPalette.ChangeSkillsId)
+        {
+            Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out error));
+            Assert.Contains("skillId", error, StringComparison.OrdinalIgnoreCase);
+            return;
+        }
+
+        if (id == MapEventCommandPalette.ChangeEquipmentId)
+        {
             Assert.False(MapEventCommandParameterValidator.ValidateParameters(command, out error));
             Assert.Contains("itemId", error, StringComparison.OrdinalIgnoreCase);
             return;

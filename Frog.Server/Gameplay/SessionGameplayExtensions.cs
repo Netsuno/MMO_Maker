@@ -1,4 +1,5 @@
 using Frog.Application.Gameplay;
+using Frog.Core.Events;
 using Frog.Core.Gameplay;
 using Frog.Server.Models;
 using Frog.Server.Services;
@@ -32,11 +33,13 @@ public static class SessionGameplayExtensions
         session.PixelY = record.PixelY;
         SessionPixelSync.SyncTileFromPixels(session);
 
-        session.KnownSpellIds.Clear();
-        if (record.StartingSpellId is Guid spellId && spellId != Guid.Empty)
+        session.LearnedSkillIds.Clear();
+        foreach (var learnedId in CharacterSkillSet.Parse(record.LearnedSkillIds))
         {
-            session.KnownSpellIds.Add(spellId);
+            session.LearnedSkillIds.Add(learnedId);
         }
+
+        CharacterSkillSet.CopyKnown(session.KnownSpellIds, record.StartingSpellId, session.LearnedSkillIds);
     }
 
     public static CharacterRecord ToCharacterPatch(this Session session, CharacterRecord record)
