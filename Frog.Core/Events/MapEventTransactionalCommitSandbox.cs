@@ -80,6 +80,11 @@ public sealed class MapEventWorldScratch
     /// <summary>Teinte posée par <c>tint_screen</c>. Opacité 0 = pas de voile.</summary>
     public MapEventScreenTone ScreenTint { get; set; } = MapEventScreenTone.Clear;
 
+    /// <summary>Défilement de carte cumulé, en tuiles. Positif = droite / bas.</summary>
+    public int ScrollTilesX { get; set; }
+
+    public int ScrollTilesY { get; set; }
+
     public MapEventWorldScratch Clone() =>
         new()
         {
@@ -103,6 +108,8 @@ public sealed class MapEventWorldScratch
             Pictures = new Dictionary<int, MapEventShownPicture>(Pictures),
             ScreenFade = ScreenFade,
             ScreenTint = ScreenTint,
+            ScrollTilesX = ScrollTilesX,
+            ScrollTilesY = ScrollTilesY,
         };
 
     public void ReplaceWith(MapEventWorldScratch other)
@@ -128,6 +135,8 @@ public sealed class MapEventWorldScratch
         Pictures = new Dictionary<int, MapEventShownPicture>(other.Pictures);
         ScreenFade = other.ScreenFade;
         ScreenTint = other.ScreenTint;
+        ScrollTilesX = other.ScrollTilesX;
+        ScrollTilesY = other.ScrollTilesY;
     }
 }
 
@@ -716,6 +725,18 @@ public sealed class MapEventTransactionalCommitSandbox
                 ApplyScreen(world, flashOp);
                 return null;
 
+            case MapEventCommandDiscriminators.ScrollMap:
+                if (!MapEventParameterSchemas.TryParseScrollMap(
+                        command.ParameterJson,
+                        out var scrollOp,
+                        out var scrollErr))
+                {
+                    return scrollErr;
+                }
+
+                ApplyScreen(world, scrollOp);
+                return null;
+
             case MapEventCommandDiscriminators.ShowAnimation:
                 if (!MapEventParameterSchemas.TryParseShowAnimation(
                         command.ParameterJson,
@@ -739,5 +760,13 @@ public sealed class MapEventTransactionalCommitSandbox
         op.ApplySettled(ref fade, ref tint);
         world.ScreenFade = fade;
         world.ScreenTint = tint;
+        if (!op.IsScroll)
+        {
+            return;
+        }
+
+        var (dx, dy) = MapEventScroll.DeltaTiles(op.Direction, op.Distance);
+        world.ScrollTilesX += dx;
+        world.ScrollTilesY += dy;
     }
 }

@@ -1325,6 +1325,66 @@ public sealed class MapEventRuntimeServiceTests
     }
 
     [Fact]
+    public async Task ExecuteInteract_ScrollMap_ComposesTilesAndKeepsHello11()
+    {
+        var characterId = Guid.NewGuid();
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Travelling",
+            EditorAliasId = 84,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ScrollMap,
+                            ParameterJson = """{"direction":"right","distance":2,"speed":4}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ScrollMap,
+                            ParameterJson = """{"direction":"up","distance":1,"speed":6}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var repo = new RecordingMutationRepository();
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            mutationRepository: repo);
+        var session = CreateSession(characterId);
+
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(84));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.Equal(2, session.ScrollTilesX);
+        Assert.Equal(-1, session.ScrollTilesY);
+        Assert.Equal(0, session.ScreenFade);
+        Assert.True(MapEventScreenWire.TryTakeInteractMessage(result.ClientInteractMessage, out var visuals, out _));
+        Assert.Equal(2, visuals.Count);
+        Assert.True(visuals[0].Screen?.IsScroll);
+        Assert.Equal(MapEventScroll.Right, visuals[0].Screen?.Direction);
+        Assert.Equal(2, visuals[0].Screen?.Distance);
+        Assert.Equal(4, visuals[0].Screen?.Speed);
+        Assert.Equal(MapEventScroll.Up, visuals[1].Screen?.Direction);
+        Assert.StartsWith("scroll:right:2:4\n", result.ClientInteractMessage, StringComparison.Ordinal);
+        Assert.Contains("scroll:up:1:6\n", result.ClientInteractMessage, StringComparison.Ordinal);
+        Assert.Equal(MapEventCommandDiscriminators.ScrollMap, repo.Plans[0].Effects[0].Discriminator);
+        Assert.True(ServerPlanner.AreEffectsTransactional(repo.Plans[0].Effects));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+        Assert.Equal(48, Frog.Core.Constants.TileAssetMetrics.TargetTileSizePixels);
+    }
+
+    [Fact]
     public async Task ExecuteInteract_StartDialoguePage_UsesUnifiedTransactionalPath()
     {
         var characterId = Guid.NewGuid();
@@ -2999,6 +3059,13 @@ public sealed class MapEventRuntimeServiceTests
                         if (MapEventParameterSchemas.TryParseFlashScreen(cmd.ParameterJson, out var flash, out _))
                         {
                             snap.RecordScreen(flash);
+                        }
+
+                        break;
+                    case MapEventCommandDiscriminators.ScrollMap:
+                        if (MapEventParameterSchemas.TryParseScrollMap(cmd.ParameterJson, out var scroll, out _))
+                        {
+                            snap.RecordScreen(scroll);
                         }
 
                         break;

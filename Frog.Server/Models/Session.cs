@@ -32,10 +32,16 @@ public sealed class Session
         get => _currentMapId;
         set
         {
-            if (value != _currentMapId && WeatherKindOverride is not null)
+            if (value != _currentMapId)
             {
-                WeatherKindOverride = null;
-                WeatherOverrideDroppedByMapChange = true;
+                if (WeatherKindOverride is not null)
+                {
+                    WeatherKindOverride = null;
+                    WeatherOverrideDroppedByMapChange = true;
+                }
+
+                ScrollTilesX = 0;
+                ScrollTilesY = 0;
             }
 
             _currentMapId = value;
@@ -72,6 +78,14 @@ public sealed class Session
     /// <summary>Teinte d'écran. Opacité 0 = pas de voile. Pas un champ du Hello.</summary>
     public MapEventScreenTone ScreenTint { get; private set; } = MapEventScreenTone.Clear;
 
+    /// <summary>
+    /// Défilement de carte cumulé, en tuiles (positif = droite / bas).
+    /// Pas un champ du Hello. Remis à zéro au changement de carte.
+    /// </summary>
+    public int ScrollTilesX { get; private set; }
+
+    public int ScrollTilesY { get; private set; }
+
     public void ApplyScreenOp(MapEventScreenOp op)
     {
         var fade = ScreenFade;
@@ -79,6 +93,14 @@ public sealed class Session
         op.ApplySettled(ref fade, ref tint);
         ScreenFade = fade;
         ScreenTint = tint;
+        if (!op.IsScroll)
+        {
+            return;
+        }
+
+        var (dx, dy) = MapEventScroll.DeltaTiles(op.Direction, op.Distance);
+        ScrollTilesX += dx;
+        ScrollTilesY += dy;
     }
 
     /// <summary>Run donjon/raid courant ; <see cref="Guid.Empty"/> = overworld.</summary>

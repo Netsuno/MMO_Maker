@@ -397,6 +397,47 @@ public sealed class MapEventTransactionalUnitTests
     }
 
     [Fact]
+    public void Sandbox_ScrollMap_CommitsOffsetAndRollsBack()
+    {
+        var sandbox = new MapEventTransactionalCommitSandbox();
+        var unit = Unit(
+        [
+            Cmd(MapEventCommandDiscriminators.ScrollMap, """{"direction":"right","distance":3,"speed":4}"""),
+            Cmd(MapEventCommandDiscriminators.ScrollMap, """{"direction":"up","distance":1,"speed":4}"""),
+            SetSwitch("gate", true),
+        ]);
+
+        Assert.True(unit.IsSuccess, unit.Error);
+        Assert.Contains(unit.SessionSideEffects, c => c.Discriminator == MapEventCommandDiscriminators.ScrollMap);
+        Assert.Equal(
+            MapEventEffectCommitKind.SessionSide,
+            MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.ScrollMap));
+
+        var outcome = sandbox.TryCommit(unit);
+        Assert.Equal(MapEventCommitDisposition.Committed, outcome.Disposition);
+        Assert.Equal(3, sandbox.World.ScrollTilesX);
+        Assert.Equal(-1, sandbox.World.ScrollTilesY);
+        Assert.Equal(0, sandbox.World.ScreenFade);
+        Assert.True(sandbox.World.Switches["gate"]);
+
+        var rollback = new MapEventTransactionalCommitSandbox();
+        Assert.Equal(MapEventCommitDisposition.Committed, rollback.TryCommit(unit).Disposition);
+        var broken = MapEventTransactionalUnit.FromPlan(MapEventExecutionPlan.Ok(
+            MapEventExecutionIdentity.Create(
+                CharacterId,
+                placementId: 101,
+                catalogAliasId: 3,
+                Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd")),
+            [
+                Cmd(MapEventCommandDiscriminators.ScrollMap, """{"direction":"left","distance":2,"speed":4}"""),
+                Cmd(MapEventCommandDiscriminators.GiveItem, """{"itemId":"00000000-0000-0000-0000-000000000000","quantity":1}"""),
+            ]));
+        Assert.Equal(MapEventCommitDisposition.RolledBack, rollback.TryCommit(broken).Disposition);
+        Assert.Equal(3, rollback.World.ScrollTilesX);
+        Assert.Equal(-1, rollback.World.ScrollTilesY);
+    }
+
+    [Fact]
     public void Sandbox_MixedPage_CommitsAsOneUnitIncludingSessionSide()
     {
         var sandbox = new MapEventTransactionalCommitSandbox();

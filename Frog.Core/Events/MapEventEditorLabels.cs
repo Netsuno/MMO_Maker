@@ -111,6 +111,7 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.TintScreen => "Teinte écran",
         MapEventCommandDiscriminators.ShakeScreen => "Tremblement écran",
         MapEventCommandDiscriminators.FlashScreen => "Flash écran",
+        MapEventCommandDiscriminators.ScrollMap => "Faire défiler la carte",
         MapEventCommandDiscriminators.ShowAnimation => "Afficher animation",
         MapEventCommandDiscriminators.ChangeLevel => "Changer niveau",
         MapEventCommandDiscriminators.ChangeExp => "Changer EXP",
@@ -169,6 +170,15 @@ public static class MapEventEditorLabels
         _ => string.IsNullOrWhiteSpace(id) ? "Animation" : id.Trim(),
     };
 
+    public static string ScrollDirection(string? direction) => direction switch
+    {
+        MapEventScroll.Up => "Haut",
+        MapEventScroll.Down => "Bas",
+        MapEventScroll.Left => "Gauche",
+        MapEventScroll.Right => "Droite",
+        _ => string.IsNullOrWhiteSpace(direction) ? "Direction" : direction.Trim(),
+    };
+
     public static string AnimationTarget(string? target) => target switch
     {
         MapEventAnimation.TargetPlayer => "Joueur",
@@ -218,6 +228,8 @@ public static class MapEventEditorLabels
         "blue" => "Bleu",
         "power" => "Puissance",
         "speed" => "Vitesse",
+        "direction" => "Direction",
+        "distance" => "Distance",
         "animationId" => "Animation",
         "target" => "Cible",
         "condition" => "Si",
@@ -443,6 +455,7 @@ public static class MapEventEditorLabels
                 $"Tremblement écran : puissance {ReadInt(root, "power")} · vitesse {ReadInt(root, "speed")} ({ReadInt(root, "durationMs")} ms)",
             MapEventCommandDiscriminators.FlashScreen =>
                 $"Flash écran : R{ReadInt(root, "red")} V{ReadInt(root, "green")} B{ReadInt(root, "blue")} · op. {ReadInt(root, "opacity")} ({ReadInt(root, "durationMs")} ms)",
+            MapEventCommandDiscriminators.ScrollMap => SummarizeScroll(root),
             MapEventCommandDiscriminators.ShowAnimation =>
                 $"Afficher animation : {AnimationName(ReadInt(root, "animationId").ToString())} sur {AnimationTarget(ReadString(root, "target"))} ({ReadInt(root, "durationMs")} ms)",
             MapEventCommandDiscriminators.ChangeLevel =>
@@ -504,6 +517,13 @@ public static class MapEventEditorLabels
         }
 
         return $"{title} : {Clip(file, 28)} · vol. {ReadInt(root, "volume")}";
+    }
+
+    private static string SummarizeScroll(JsonElement root)
+    {
+        var tiles = ReadInt(root, "distance");
+        var unit = tiles == 1 ? "tuile" : "tuiles";
+        return $"Faire défiler la carte : {ScrollDirection(ReadString(root, "direction"))} · {tiles} {unit} · vitesse {ReadInt(root, "speed")}";
     }
 
     private static string SummarizeShowPicture(JsonElement root)

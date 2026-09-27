@@ -5,7 +5,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement, nom, classe, récupération, PV/PM.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, défilement, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement, nom, classe, récupération, PV/PM.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -43,6 +43,7 @@ public static class MapEventCommandPalette
     public const string TintScreenId = "tint_screen";
     public const string ShakeScreenId = "shake_screen";
     public const string FlashScreenId = "flash_screen";
+    public const string ScrollMapId = "scroll_map";
     public const string ShowAnimationId = "show_animation";
     public const string ChangeLevelId = "change_level";
     public const string ChangeExpId = "change_exp";
@@ -100,6 +101,7 @@ public static class MapEventCommandPalette
         new(TintScreenId, "Teinte écran"),
         new(ShakeScreenId, "Tremblement écran"),
         new(FlashScreenId, "Flash écran"),
+        new(ScrollMapId, "Faire défiler la carte"),
         new(ShowAnimationId, "Afficher animation"),
         new(ChangeLevelId, "Changer niveau"),
         new(ChangeExpId, "Changer EXP"),
@@ -248,6 +250,14 @@ public static class MapEventCommandPalette
                     blue = MapEventScreen.DefaultFlashBlue,
                     opacity = MapEventScreen.DefaultFlashOpacity,
                     durationMs = MapEventScreen.DefaultDurationMs,
+                }),
+            ScrollMapId => Command(
+                MapEventCommandDiscriminators.ScrollMap,
+                new
+                {
+                    direction = MapEventScroll.DefaultDirection,
+                    distance = MapEventScroll.DefaultDistance,
+                    speed = MapEventScroll.DefaultSpeed,
                 }),
             ShowAnimationId => Command(
                 MapEventCommandDiscriminators.ShowAnimation,
