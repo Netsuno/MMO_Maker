@@ -55,6 +55,10 @@ public static class MapEventCommandParameterValidator
                 MapEventParameterSchemas.TryParseChangeName(command.ParameterJson, out _, out error),
             MapEventCommandDiscriminators.ChangeClass =>
                 MapEventParameterSchemas.TryParseChangeClass(command.ParameterJson, out _, out error),
+            MapEventCommandDiscriminators.RecoverAll =>
+                MapEventParameterSchemas.TryParseRecoverAll(command.ParameterJson, out error),
+            MapEventCommandDiscriminators.ChangeHpMp =>
+                MapEventParameterSchemas.TryParseChangeHpMp(command.ParameterJson, out _, out _, out _, out error),
             MapEventCommandDiscriminators.StartDialogue =>
                 MapEventParameterSchemas.TryParseStartDialogue(command.ParameterJson, out _, out error),
             MapEventCommandDiscriminators.StartQuest or MapEventCommandDiscriminators.TurnInQuest =>

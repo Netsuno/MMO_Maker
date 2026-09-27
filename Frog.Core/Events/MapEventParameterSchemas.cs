@@ -797,6 +797,89 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseRecoverAll(string parameterJson, out string? error)
+    {
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                error = "recover_all: objet JSON requis.";
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal),
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "recover_all: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseChangeHpMp(
+        string parameterJson,
+        out string vital,
+        out string operation,
+        out int amount,
+        out string? error)
+    {
+        vital = string.Empty;
+        operation = string.Empty;
+        amount = 0;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("vital", out var vitalEl)
+                || vitalEl.ValueKind != JsonValueKind.String
+                || !CharacterVitalCommands.TryCanonicalVital(vitalEl.GetString(), out vital))
+            {
+                error = "change_hp_mp: vital HP|MP requis.";
+                return false;
+            }
+
+            if (!TryParseChangeOperation(root, "change_hp_mp", out operation, out error))
+            {
+                return false;
+            }
+
+            if (!root.TryGetProperty("amount", out var amountEl)
+                || !amountEl.TryGetInt32(out amount)
+                || amount < 1
+                || amount > CharacterVitalCommands.MaxAmount)
+            {
+                error = $"change_hp_mp: amount (int 1–{CharacterVitalCommands.MaxAmount}) requis.";
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "vital", "operation", "amount" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "change_hp_mp: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     private static bool TryParseSignedDelta(
         string parameterJson,
         string command,

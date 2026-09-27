@@ -373,6 +373,8 @@ public sealed class PostgresMapEventMutationRepository(
             case MapEventCommandDiscriminators.ChangeLevel:
             case MapEventCommandDiscriminators.ChangeExp:
             case MapEventCommandDiscriminators.ChangeParam:
+            case MapEventCommandDiscriminators.RecoverAll:
+            case MapEventCommandDiscriminators.ChangeHpMp:
                 return ApplyProgression(character, command, snapshot);
 
             case MapEventCommandDiscriminators.ChangeSkills:

@@ -499,6 +499,8 @@ public sealed class MapEventTransactionalCommitSandbox
             case MapEventCommandDiscriminators.ChangeLevel:
             case MapEventCommandDiscriminators.ChangeExp:
             case MapEventCommandDiscriminators.ChangeParam:
+            case MapEventCommandDiscriminators.RecoverAll:
+            case MapEventCommandDiscriminators.ChangeHpMp:
                 if (!CharacterProgressionCommands.TryApply(
                         command.Discriminator,
                         command.ParameterJson,

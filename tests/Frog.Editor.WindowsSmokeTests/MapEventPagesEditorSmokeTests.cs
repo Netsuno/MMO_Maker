@@ -201,6 +201,8 @@ public sealed class MapEventPagesEditorSmokeTests
     [InlineData(MapEventCommandDiscriminators.ChangeEquipment)]
     [InlineData(MapEventCommandDiscriminators.ChangeName)]
     [InlineData(MapEventCommandDiscriminators.ChangeClass)]
+    [InlineData(MapEventCommandDiscriminators.RecoverAll)]
+    [InlineData(MapEventCommandDiscriminators.ChangeHpMp)]
     [InlineData(MapEventCommandDiscriminators.Branch)]
     public void MapEventPagesEditor_AllCommandFamilies_TypedFieldMutation(string discriminator)
     {
@@ -840,6 +842,10 @@ public sealed class MapEventPagesEditorSmokeTests
             MapEventCommandDiscriminators.ChangeClass => Command(
                 discriminator,
                 $$"""{"classId":"{{SampleGuid:D}}"}"""),
+            MapEventCommandDiscriminators.RecoverAll => Command(discriminator, "{}"),
+            MapEventCommandDiscriminators.ChangeHpMp => Command(
+                discriminator,
+                """{"vital":"HP","operation":"increase","amount":1}"""),
             MapEventCommandDiscriminators.Branch => BranchCommand(
                 new MapEventConditionDefinition
                 {
@@ -1057,6 +1063,13 @@ public sealed class MapEventPagesEditorSmokeTests
             case MapEventCommandDiscriminators.ChangeClass:
                 ApplyTypedField(panel.CommandParamsForTest.FieldForTest("classId"), "22222222-3333-4444-8555-666666666666");
                 expectedFragment = "\"classId\":\"22222222-3333-4444-8555-666666666666\"";
+                break;
+            case MapEventCommandDiscriminators.RecoverAll:
+                expectedFragment = "{}";
+                break;
+            case MapEventCommandDiscriminators.ChangeHpMp:
+                ApplyTypedField(panel.CommandParamsForTest.FieldForTest("vital"), "MP");
+                expectedFragment = "\"vital\":\"MP\"";
                 break;
             case MapEventCommandDiscriminators.Branch:
                 var thenText = Assert.IsType<TextBox>(

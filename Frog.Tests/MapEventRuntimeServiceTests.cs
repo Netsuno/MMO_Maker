@@ -2550,6 +2550,135 @@ public sealed class MapEventRuntimeServiceTests
         };
     }
 
+    [Fact]
+    public async Task RecoverAllAndChangeHpMp_UpdatesCharacterAndSession()
+    {
+        var characterId = Guid.NewGuid();
+        var characters = new InMemoryCharacterRepository();
+        var now = DateTimeOffset.UtcNow;
+        await characters.SaveAsync(new CharacterRecord(
+            characterId,
+            Guid.NewGuid(),
+            "Hero",
+            Phase7ContentSeed.DefaultClassId,
+            1,
+            0,
+            0,
+            1,
+            0,
+            40,
+            100,
+            5,
+            40,
+            0,
+            0,
+            false,
+            new CharacterStats(10, 10, 10, 10, 10, 10),
+            null,
+            null,
+            null,
+            now,
+            now));
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Fontaine",
+            EditorAliasId = 84,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeHpMp,
+                            ParameterJson = """{"vital":"HP","operation":"decrease","amount":15}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeHpMp,
+                            ParameterJson = """{"vital":"MP","operation":"increase","amount":10}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            characters: characters);
+        var session = CreateSession(characterId);
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(84));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.True(result.ProgressionChanged);
+        Assert.False(result.StatsChanged);
+        Assert.Equal(25, session.Hp);
+        Assert.Equal(100, session.MaxHp);
+        Assert.Equal(15, session.Mp);
+        Assert.Equal(40, session.MaxMp);
+        Assert.Equal(1, session.Level);
+        Assert.Equal(10, session.Stats!.Str);
+        Assert.False(session.IsDead);
+        var saved = await characters.FindByIdAsync(characterId);
+        Assert.NotNull(saved);
+        Assert.Equal(25, saved!.Hp);
+        Assert.Equal(15, saved.Mp);
+        Assert.Equal(100, saved.MaxHp);
+        Assert.Equal(10, saved.Stats.Str);
+        Assert.False(saved.IsDead);
+        var published = await catalog.ListPublishedAsync();
+        Assert.True(ServerPlanner.CanExecuteTransactionally(published[0].Pages[0].Commands));
+        Assert.Equal(MapEventEffectCommitKind.Persistent, MapEventEffectClassifier.Classify(MapEventCommandDiscriminators.RecoverAll));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+
+        var recover = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Repos",
+            EditorAliasId = 85,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.RecoverAll,
+                            ParameterJson = "{}",
+                        },
+                    ],
+                },
+            ],
+        });
+        var recoverService = CreateService(
+            recover,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            characters: characters);
+        var healed = await recoverService.TryExecuteInteractAsync(session, CreatePlacement(85));
+        Assert.NotNull(healed);
+        Assert.True(healed!.Success, healed.Message);
+        Assert.True(healed.ProgressionChanged);
+        Assert.Equal(100, session.Hp);
+        Assert.Equal(40, session.Mp);
+        Assert.Equal(1, session.Level);
+        Assert.False(session.IsDead);
+        var restored = await characters.FindByIdAsync(characterId);
+        Assert.NotNull(restored);
+        Assert.Equal(100, restored!.Hp);
+        Assert.Equal(40, restored.Mp);
+        Assert.Equal(100, restored.MaxHp);
+        Assert.Equal(40, restored.MaxMp);
+        Assert.False(restored.IsDead);
+    }
+
     private static QuickEventPresetDraft RequirePreset(string name, QuickEventPresetKind kind)
     {
         Assert.True(QuickEventPresetDraft.TryCreate(name, kind, out var draft, out var error), error);

@@ -119,6 +119,8 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.ChangeEquipment => "Changer équipement",
         MapEventCommandDiscriminators.ChangeName => "Changer nom",
         MapEventCommandDiscriminators.ChangeClass => "Changer classe",
+        MapEventCommandDiscriminators.RecoverAll => "Récupération totale",
+        MapEventCommandDiscriminators.ChangeHpMp => "Changer PV/PM",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
     };
 
@@ -231,6 +233,8 @@ public static class MapEventEditorLabels
         "slot" => "Emplacement",
         "name" => "Nom",
         "classId" => "Classe",
+        "vital" => "PV/PM",
+        "recover" => "Effet",
         _ => string.IsNullOrWhiteSpace(key) ? "" : key,
     };
 
@@ -455,6 +459,9 @@ public static class MapEventEditorLabels
                 $"Changer nom : {Clip(ReadString(root, "name"), 24)}",
             MapEventCommandDiscriminators.ChangeClass =>
                 $"Changer classe : {ShortId(ReadString(root, "classId"))}",
+            MapEventCommandDiscriminators.RecoverAll => "Récupération totale",
+            MapEventCommandDiscriminators.ChangeHpMp =>
+                $"Changer PV/PM : {CharacterVitalCommands.VitalLabel(ReadString(root, "vital"))} {ChangeSign(ReadString(root, "operation"))} {ReadInt(root, "amount")}",
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };

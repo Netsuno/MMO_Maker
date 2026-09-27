@@ -167,6 +167,8 @@ internal static class MapEventExecutionPlanner
                 or MapEventCommandDiscriminators.ChangeEquipment
                 or MapEventCommandDiscriminators.ChangeName
                 or MapEventCommandDiscriminators.ChangeClass
+                or MapEventCommandDiscriminators.RecoverAll
+                or MapEventCommandDiscriminators.ChangeHpMp
                 or MapEventCommandDiscriminators.Wait
                 or MapEventCommandDiscriminators.StartQuest
                 or MapEventCommandDiscriminators.AdvanceQuest

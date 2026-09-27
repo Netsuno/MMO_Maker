@@ -45,6 +45,8 @@ public sealed class MapEventCommandPaletteTests
                 MapEventCommandPalette.ChangeEquipmentId,
                 MapEventCommandPalette.ChangeNameId,
                 MapEventCommandPalette.ChangeClassId,
+                MapEventCommandPalette.RecoverAllId,
+                MapEventCommandPalette.ChangeHpMpId,
             ],
             ids);
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
@@ -74,6 +76,8 @@ public sealed class MapEventCommandPaletteTests
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer équipement");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer nom");
         Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer classe");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Récupération totale");
+        Assert.Contains(MapEventCommandPalette.Entries, entry => entry.Label == "Changer PV/PM");
     }
 
     [Theory]

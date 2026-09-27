@@ -5,7 +5,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement, nom, classe.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement, nom, classe, récupération, PV/PM.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -54,6 +54,8 @@ public static class MapEventCommandPalette
 
     /// <summary>Nom proposé tant que l'auteur n'a pas saisi le sien.</summary>
     public const string ChangeNameDefault = "Héros";
+    public const string RecoverAllId = "recover_all";
+    public const string ChangeHpMpId = "change_hp_mp";
 
     /// <summary>
     /// Guid vide jusqu'au choix d'une compétence. La validation des paramètres le refuse.
@@ -106,6 +108,8 @@ public static class MapEventCommandPalette
         new(ChangeEquipmentId, "Changer équipement"),
         new(ChangeNameId, "Changer nom"),
         new(ChangeClassId, "Changer classe"),
+        new(RecoverAllId, "Récupération totale"),
+        new(ChangeHpMpId, "Changer PV/PM"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -279,6 +283,17 @@ public static class MapEventCommandPalette
             ChangeClassId => Command(
                 MapEventCommandDiscriminators.ChangeClass,
                 new { classId = ChangeClassPlaceholderId.ToString("D") }),
+            RecoverAllId => Command(
+                MapEventCommandDiscriminators.RecoverAll,
+                new { }),
+            ChangeHpMpId => Command(
+                MapEventCommandDiscriminators.ChangeHpMp,
+                new
+                {
+                    vital = CharacterVitalCommands.VitalHp,
+                    operation = MapEventChangeOperation.Increase,
+                    amount = 1,
+                }),
             _ => null,
         };
 
