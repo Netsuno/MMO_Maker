@@ -29,6 +29,9 @@ public sealed class MapEventExecutionResult
     /// <summary>STR…LUCK à renvoyer dans <c>CharacterPayload</c>.</summary>
     public bool StatsChanged { get; init; }
 
+    /// <summary>Compétences apprises par <c>change_skills</c>. Pas d'opcode nouveau.</summary>
+    public bool SkillsChanged { get; init; }
+
     public bool QuestsChanged { get; init; }
 
     public bool ProfessionsChanged { get; init; }
@@ -90,7 +93,8 @@ public sealed class MapEventExecutionResult
         IReadOnlyList<MapEventScreenOp>? screenOps = null,
         IReadOnlyList<MapEventVisualOp>? visualOps = null,
         bool progressionChanged = false,
-        bool statsChanged = false) =>
+        bool statsChanged = false,
+        bool skillsChanged = false) =>
         new()
         {
             Success = true,
@@ -105,6 +109,7 @@ public sealed class MapEventExecutionResult
             GoldChanged = goldChanged,
             ProgressionChanged = progressionChanged,
             StatsChanged = statsChanged,
+            SkillsChanged = skillsChanged,
             QuestsChanged = questsChanged,
             ProfessionsChanged = professionsChanged,
             RecipesChanged = recipesChanged,
@@ -145,10 +150,11 @@ public sealed class MapEventExecutionResult
             switchesChanged: snap?.SwitchesChanged ?? false,
             switchChanges: snap?.SwitchChanges,
             variablesChanged: snap?.VariablesChanged ?? false,
-            inventoryChanged: snap?.InventoryChanged ?? false,
+            inventoryChanged: (snap?.InventoryChanged ?? false) || (snap?.EquipmentChanged ?? false),
             goldChanged: snap?.GoldChanged ?? false,
             progressionChanged: snap?.ProgressionChanged ?? false,
             statsChanged: snap?.StatsChanged ?? false,
+            skillsChanged: snap?.SkillsChanged ?? false,
             teleportApplied: teleportApplied,
             weatherChanged: weatherChanged,
             dialogueSummary: dialogueSummary,

@@ -30,7 +30,8 @@ public sealed record CharacterRecord(
     Guid? EquippedWeaponItemId,
     Guid? EquippedArmorItemId,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    string LearnedSkillIds = "[]");
 
 public enum CharacterCreateStatus
 {

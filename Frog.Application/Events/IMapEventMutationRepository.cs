@@ -74,6 +74,19 @@ public sealed class MapEventExecutionSnapshot
     /// <summary>STR…LUCK ont changé : pousser <c>CharacterPayload</c> (opcode 20) avec le bloc <c>stats</c>.</summary>
     public bool StatsChanged { get; set; }
 
+    /// <summary>Compétences apprises ont changé. Hello 11 : pas d'opcode dédié.</summary>
+    public bool SkillsChanged { get; set; }
+
+    /// <summary>JSON de guids après <c>change_skills</c>.</summary>
+    public string? ResultLearnedSkillIds { get; set; }
+
+    /// <summary>Arme / armure ont changé. Le client les relit dans <c>InventorySnapshot</c>.</summary>
+    public bool EquipmentChanged { get; set; }
+
+    public Guid? ResultWeaponItemId { get; set; }
+
+    public Guid? ResultArmorItemId { get; set; }
+
     public int? ResultLevel { get; set; }
 
     public long? ResultExperience { get; set; }
@@ -199,6 +212,19 @@ public sealed class MapEventExecutionSnapshot
         ResultInt = vitals.Int;
         ResultDex = vitals.Dex;
         ResultLuck = vitals.Luck;
+    }
+
+    public void RecordSkills(string learnedSkillIds)
+    {
+        SkillsChanged = true;
+        ResultLearnedSkillIds = learnedSkillIds;
+    }
+
+    public void RecordGear(Guid? weaponItemId, Guid? armorItemId)
+    {
+        EquipmentChanged = true;
+        ResultWeaponItemId = weaponItemId;
+        ResultArmorItemId = armorItemId;
     }
 
     public void RecordPicture(MapEventPictureOp op)

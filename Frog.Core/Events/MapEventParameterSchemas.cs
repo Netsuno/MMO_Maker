@@ -616,6 +616,119 @@ public static class MapEventParameterSchemas
         }
     }
 
+    public static bool TryParseChangeSkills(
+        string parameterJson,
+        out string operation,
+        out Guid skillId,
+        out string? error)
+    {
+        operation = string.Empty;
+        skillId = Guid.Empty;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            if (!doc.RootElement.TryGetProperty("operation", out var opEl)
+                || opEl.ValueKind != JsonValueKind.String
+                || !MapEventChangeOperation.TryCanonical(opEl.GetString(), out operation))
+            {
+                error = "change_skills: operation increase|decrease requise.";
+                return false;
+            }
+
+            if (!TryParseGuidProperty(doc.RootElement, "skillId", out skillId, out error))
+            {
+                error = "change_skills: " + (error ?? "skillId requis.");
+                return false;
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    doc.RootElement,
+                    new HashSet<string>(StringComparer.Ordinal) { "operation", "skillId" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "change_skills: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryParseChangeEquipment(
+        string parameterJson,
+        out string operation,
+        out string slot,
+        out Guid itemId,
+        out string? error)
+    {
+        operation = string.Empty;
+        slot = string.Empty;
+        itemId = Guid.Empty;
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(parameterJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("operation", out var opEl)
+                || opEl.ValueKind != JsonValueKind.String
+                || !CharacterGearChange.TryCanonicalOperation(opEl.GetString(), out operation))
+            {
+                error = "change_equipment: operation equip|unequip requise.";
+                return false;
+            }
+
+            if (!root.TryGetProperty("slot", out var slotEl)
+                || slotEl.ValueKind != JsonValueKind.String
+                || !CharacterGearChange.TryCanonicalSlot(slotEl.GetString(), out slot))
+            {
+                error = "change_equipment: slot weapon|armor requis.";
+                return false;
+            }
+
+            var hasItem = root.TryGetProperty("itemId", out var itemEl);
+            if (operation == CharacterGearChange.Equip)
+            {
+                if (!TryParseGuidProperty(root, "itemId", out itemId, out error))
+                {
+                    error = "change_equipment: " + (error ?? "itemId requis.");
+                    return false;
+                }
+            }
+            else if (hasItem && itemEl.ValueKind != JsonValueKind.Null)
+            {
+                var text = itemEl.ValueKind == JsonValueKind.String ? itemEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    if (!Guid.TryParse(text, out itemId))
+                    {
+                        error = "change_equipment: itemId guid invalide.";
+                        return false;
+                    }
+                }
+            }
+
+            if (!MapEventParameterJsonStrict.ValidateRoot(
+                    root,
+                    new HashSet<string>(StringComparer.Ordinal) { "operation", "slot", "itemId" },
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = "change_equipment: JSON invalide: " + ex.Message;
+            return false;
+        }
+    }
+
     private static bool TryParseSignedDelta(
         string parameterJson,
         string command,

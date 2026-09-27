@@ -134,6 +134,9 @@ public sealed class Session
 
     public HashSet<Guid> KnownSpellIds { get; } = new();
 
+    /// <summary>Compétences apprises par <c>change_skills</c>. Rechargées avec le personnage.</summary>
+    public HashSet<Guid> LearnedSkillIds { get; } = new();
+
     /// <summary>Cartes pour lesquelles un événement <c>page</c> a déjà été joué cette session (réarmé en quittant la carte).</summary>
     public HashSet<int> PageTriggerSatisfiedMapIds { get; } = new();
 

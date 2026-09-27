@@ -2299,6 +2299,121 @@ public sealed class MapEventRuntimeServiceTests
         Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
     }
 
+    [Fact]
+    public async Task ChangeSkillsAndEquipment_UpdatesCharacterAndSession()
+    {
+        var characterId = Guid.NewGuid();
+        var skillId = Guid.Parse("11111111-2222-4333-8444-555555555555");
+        var weaponId = Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+        var characters = new InMemoryCharacterRepository();
+        var now = DateTimeOffset.UtcNow;
+        await characters.SaveAsync(new CharacterRecord(
+            characterId,
+            Guid.NewGuid(),
+            "Hero",
+            Phase7ContentSeed.DefaultClassId,
+            1,
+            0,
+            0,
+            1,
+            0,
+            100,
+            100,
+            40,
+            40,
+            0,
+            0,
+            false,
+            new CharacterStats(10, 10, 10, 10, 10, 10),
+            Phase7ContentSeed.DefaultSpellId,
+            null,
+            null,
+            now,
+            now));
+        var catalog = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Armurier",
+            EditorAliasId = 82,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeSkills,
+                            ParameterJson = $$"""{"operation":"increase","skillId":"{{skillId:D}}"}""",
+                        },
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeEquipment,
+                            ParameterJson = $$"""{"operation":"equip","slot":"weapon","itemId":"{{weaponId:D}}"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var service = CreateService(
+            catalog,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            characters: characters);
+        var session = CreateSession(characterId);
+        var result = await service.TryExecuteInteractAsync(session, CreatePlacement(82));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.True(result.SkillsChanged);
+        Assert.True(result.InventoryChanged);
+        Assert.Contains(skillId, session.LearnedSkillIds);
+        Assert.Contains(skillId, session.KnownSpellIds);
+        Assert.Contains(Phase7ContentSeed.DefaultSpellId, session.KnownSpellIds);
+        Assert.Equal(weaponId, session.EquippedWeaponItemId);
+        Assert.Null(session.EquippedArmorItemId);
+        var saved = await characters.FindByIdAsync(characterId);
+        Assert.NotNull(saved);
+        Assert.Contains(skillId.ToString("D"), saved!.LearnedSkillIds, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(weaponId, saved.EquippedWeaponItemId);
+        var published = await catalog.ListPublishedAsync();
+        Assert.True(ServerPlanner.CanExecuteTransactionally(published[0].Pages[0].Commands));
+        Assert.Equal((ushort)11, Frog.Core.Constants.FrogWireProtocol.Version);
+
+        var forget = new FakePublishedMapEventCatalog(new MapEventDefinition
+        {
+            Name = "Oubli",
+            EditorAliasId = 83,
+            Pages =
+            [
+                new MapEventPageDefinition
+                {
+                    PageOrder = 0,
+                    TriggerKind = Phase8MapEventTriggerKinds.Action,
+                    Commands =
+                    [
+                        new MapEventCommandDefinition
+                        {
+                            Discriminator = MapEventCommandDiscriminators.ChangeSkills,
+                            ParameterJson = $$"""{"operation":"decrease","skillId":"{{Guid.NewGuid():D}}"}""",
+                        },
+                    ],
+                },
+            ],
+        });
+        var forgetService = CreateService(
+            forget,
+            new InMemoryCharacterWorldStateRepository(),
+            new InMemoryCharacterPayloadReader(),
+            characters: characters);
+        var refused = await forgetService.TryExecuteInteractAsync(session, CreatePlacement(83));
+        Assert.NotNull(refused);
+        Assert.False(refused!.Success);
+        Assert.Contains(skillId, session.LearnedSkillIds);
+        Assert.Equal(weaponId, session.EquippedWeaponItemId);
+    }
+
     private static QuickEventPresetDraft RequirePreset(string name, QuickEventPresetKind kind)
     {
         Assert.True(QuickEventPresetDraft.TryCreate(name, kind, out var draft, out var error), error);

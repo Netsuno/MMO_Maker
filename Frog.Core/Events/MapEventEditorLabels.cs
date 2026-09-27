@@ -115,7 +115,23 @@ public static class MapEventEditorLabels
         MapEventCommandDiscriminators.ChangeLevel => "Changer niveau",
         MapEventCommandDiscriminators.ChangeExp => "Changer EXP",
         MapEventCommandDiscriminators.ChangeParam => "Changer paramètre",
+        MapEventCommandDiscriminators.ChangeSkills => "Changer compétences",
+        MapEventCommandDiscriminators.ChangeEquipment => "Changer équipement",
         _ => string.IsNullOrWhiteSpace(discriminator) ? "Commande" : discriminator.Trim(),
+    };
+
+    public static string GearOperation(string? operation) => operation switch
+    {
+        CharacterGearChange.Equip => "Équiper",
+        CharacterGearChange.Unequip => "Déséquiper",
+        _ => string.IsNullOrWhiteSpace(operation) ? "Opération" : operation.Trim(),
+    };
+
+    public static string GearSlot(string? slot) => slot switch
+    {
+        CharacterGearChange.SlotWeapon => "Arme",
+        CharacterGearChange.SlotArmor => "Armure",
+        _ => string.IsNullOrWhiteSpace(slot) ? "Emplacement" : slot.Trim(),
     };
 
     public static string ChangeOperation(string? operation) => operation switch
@@ -209,6 +225,8 @@ public static class MapEventEditorLabels
         "op" => "Comparaison",
         "status" => "Statut",
         "stat" => "Paramètre",
+        "skillId" => "Compétence",
+        "slot" => "Emplacement",
         _ => string.IsNullOrWhiteSpace(key) ? "" : key,
     };
 
@@ -425,6 +443,10 @@ public static class MapEventEditorLabels
                 $"Changer EXP : {Signed(ReadInt(root, "delta"))}",
             MapEventCommandDiscriminators.ChangeParam =>
                 $"Changer paramètre : {CharacterProgressionAdjust.ParamLabel(ReadString(root, "stat"))} {Signed(ReadInt(root, "delta"))}",
+            MapEventCommandDiscriminators.ChangeSkills =>
+                $"Changer compétences : {ChangeSign(ReadString(root, "operation"))} {ShortId(ReadString(root, "skillId"))}",
+            MapEventCommandDiscriminators.ChangeEquipment =>
+                SummarizeGear(root),
             MapEventCommandDiscriminators.Branch => SummarizeBranch(root),
             _ => title,
         };
@@ -642,6 +664,18 @@ public static class MapEventEditorLabels
         }
 
         return Clip(text, 24);
+    }
+
+    private static string SummarizeGear(JsonElement root)
+    {
+        var operation = GearOperation(ReadString(root, "operation"));
+        var slot = GearSlot(ReadString(root, "slot"));
+        if (string.Equals(ReadString(root, "operation"), CharacterGearChange.Unequip, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Changer équipement : {operation} {slot}";
+        }
+
+        return $"Changer équipement : {operation} {slot} {ShortId(ReadString(root, "itemId"))}";
     }
 
     private static string ChangeSign(string? operation) =>

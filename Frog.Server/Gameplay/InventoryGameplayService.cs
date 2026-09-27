@@ -32,6 +32,47 @@ public sealed class InventoryGameplayService(
         session.EquippedArmorItemId = equipped.ArmorItemId;
     }
 
+    /// <summary>
+    /// Aligne le dépôt d'équipement sur l'arme et l'armure déjà écrites sur le personnage.
+    /// Le snapshot inventaire relit ce dépôt avant d'envoyer les guids portés.
+    /// </summary>
+    public async Task AlignEquippedAsync(
+        Guid characterId,
+        Guid? weaponItemId,
+        Guid? armorItemId,
+        CancellationToken ct = default)
+    {
+        await AlignSlotAsync(characterId, EquipmentSlotKind.Weapon, weaponItemId, ct).ConfigureAwait(false);
+        await AlignSlotAsync(characterId, EquipmentSlotKind.Armor, armorItemId, ct).ConfigureAwait(false);
+    }
+
+    private async Task AlignSlotAsync(
+        Guid characterId,
+        EquipmentSlotKind slot,
+        Guid? itemId,
+        CancellationToken ct)
+    {
+        var current = await _equipment.GetAsync(characterId, ct).ConfigureAwait(false);
+        var has = slot == EquipmentSlotKind.Weapon ? current.WeaponItemId : current.ArmorItemId;
+        if (itemId is Guid id)
+        {
+            if (has == id)
+            {
+                return;
+            }
+
+            await _equipment.EquipAsync(characterId, slot, id, ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (has is null)
+        {
+            return;
+        }
+
+        await _equipment.UnequipAsync(characterId, slot, ct).ConfigureAwait(false);
+    }
+
     public Task<InventorySnapshot> GetInventoryAsync(Guid characterId, CancellationToken ct = default)
         => _inventory.GetAsync(characterId, ct);
 

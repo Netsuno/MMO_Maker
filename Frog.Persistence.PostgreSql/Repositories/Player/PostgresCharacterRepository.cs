@@ -146,6 +146,7 @@ public sealed class PostgresCharacterRepository : ICharacterRepository
                 Dex = stats.Dex,
                 Luck = stats.Luck,
                 StartingSpellId = startingSpellId,
+                LearnedSkillIds = "[]",
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now,
             };

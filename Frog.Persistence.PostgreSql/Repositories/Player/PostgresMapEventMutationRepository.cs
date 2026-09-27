@@ -375,6 +375,12 @@ public sealed class PostgresMapEventMutationRepository(
             case MapEventCommandDiscriminators.ChangeParam:
                 return ApplyProgression(character, command, snapshot);
 
+            case MapEventCommandDiscriminators.ChangeSkills:
+                return ApplySkills(character, command, snapshot);
+
+            case MapEventCommandDiscriminators.ChangeEquipment:
+                return ApplyGear(character, command, snapshot);
+
             case MapEventCommandDiscriminators.StartQuest:
             case MapEventCommandDiscriminators.AdvanceQuest:
             case MapEventCommandDiscriminators.TurnInQuest:
@@ -877,6 +883,77 @@ public sealed class PostgresMapEventMutationRepository(
         return null;
     }
 
+    private static string? ApplySkills(
+        CharacterEntity character,
+        MapEventCommandDefinition command,
+        MapEventExecutionSnapshot snapshot)
+    {
+        if (!MapEventParameterSchemas.TryParseChangeSkills(
+                command.ParameterJson,
+                out var operation,
+                out var skillId,
+                out var err))
+        {
+            return err;
+        }
+
+        var current = CharacterSkillSet.Parse(character.LearnedSkillIds);
+        if (!CharacterSkillSet.TryChange(current, operation, skillId, out var next, out var changed, out var changeErr))
+        {
+            return changeErr;
+        }
+
+        if (!changed)
+        {
+            return null;
+        }
+
+        var json = CharacterSkillSet.Format(next);
+        character.LearnedSkillIds = json;
+        snapshot.RecordSkills(json);
+        return null;
+    }
+
+    private static string? ApplyGear(
+        CharacterEntity character,
+        MapEventCommandDefinition command,
+        MapEventExecutionSnapshot snapshot)
+    {
+        if (!MapEventParameterSchemas.TryParseChangeEquipment(
+                command.ParameterJson,
+                out var operation,
+                out var slot,
+                out var itemId,
+                out var err))
+        {
+            return err;
+        }
+
+        if (!CharacterGearChange.TryApply(
+                character.EquippedWeaponItemId,
+                character.EquippedArmorItemId,
+                operation,
+                slot,
+                itemId,
+                out var weapon,
+                out var armor,
+                out var changed,
+                out var gearErr))
+        {
+            return gearErr;
+        }
+
+        if (!changed)
+        {
+            return null;
+        }
+
+        character.EquippedWeaponItemId = weapon;
+        character.EquippedArmorItemId = armor;
+        snapshot.RecordGear(weapon, armor);
+        return null;
+    }
+
     private async Task<string?> ApplyQuestCommandAsync(
         FrogDbContext db,
         CharacterEntity character,
@@ -1317,6 +1394,11 @@ public sealed class PostgresMapEventMutationRepository(
             GoldChanged = snapshot.GoldChanged,
             ProgressionChanged = snapshot.ProgressionChanged,
             StatsChanged = snapshot.StatsChanged,
+            SkillsChanged = snapshot.SkillsChanged,
+            ResultLearnedSkillIds = snapshot.ResultLearnedSkillIds,
+            EquipmentChanged = snapshot.EquipmentChanged,
+            ResultWeaponItemId = snapshot.ResultWeaponItemId,
+            ResultArmorItemId = snapshot.ResultArmorItemId,
             ResultLevel = snapshot.ResultLevel,
             ResultExperience = snapshot.ResultExperience,
             ResultHp = snapshot.ResultHp,
@@ -1371,6 +1453,11 @@ public sealed class PostgresMapEventMutationRepository(
                 GoldChanged = stored.GoldChanged,
                 ProgressionChanged = stored.ProgressionChanged,
                 StatsChanged = stored.StatsChanged,
+                SkillsChanged = stored.SkillsChanged,
+                ResultLearnedSkillIds = stored.ResultLearnedSkillIds,
+                EquipmentChanged = stored.EquipmentChanged,
+                ResultWeaponItemId = stored.ResultWeaponItemId,
+                ResultArmorItemId = stored.ResultArmorItemId,
                 ResultLevel = stored.ResultLevel,
                 ResultExperience = stored.ResultExperience,
                 ResultHp = stored.ResultHp,
@@ -1427,6 +1514,16 @@ public sealed class PostgresMapEventMutationRepository(
         public bool ProgressionChanged { get; set; }
 
         public bool StatsChanged { get; set; }
+
+        public bool SkillsChanged { get; set; }
+
+        public string? ResultLearnedSkillIds { get; set; }
+
+        public bool EquipmentChanged { get; set; }
+
+        public Guid? ResultWeaponItemId { get; set; }
+
+        public Guid? ResultArmorItemId { get; set; }
 
         public int? ResultLevel { get; set; }
 

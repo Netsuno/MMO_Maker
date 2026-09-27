@@ -84,6 +84,8 @@ public static class MapEventCommandDiscriminators
     public const string ChangeLevel = "change_level";
     public const string ChangeExp = "change_exp";
     public const string ChangeParam = "change_param";
+    public const string ChangeSkills = "change_skills";
+    public const string ChangeEquipment = "change_equipment";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -93,7 +95,7 @@ public static class MapEventCommandDiscriminators
         Teleport, Wait, CallCommonEvent, LearnProfession, OpenShop, SetWeather,
         ShowPicture, MovePicture, TintPicture, ErasePicture, FadeOutScreen, FadeInScreen, TintScreen,
         ShakeScreen, FlashScreen, ShowAnimation,
-        ChangeLevel, ChangeExp, ChangeParam,
+        ChangeLevel, ChangeExp, ChangeParam, ChangeSkills, ChangeEquipment,
     };
 
     public static bool IsKnown(string discriminator) => All.Contains(discriminator);

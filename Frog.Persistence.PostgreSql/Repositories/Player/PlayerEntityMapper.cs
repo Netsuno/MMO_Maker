@@ -28,7 +28,8 @@ internal static class PlayerEntityMapper
             entity.EquippedWeaponItemId,
             entity.EquippedArmorItemId,
             entity.CreatedAtUtc,
-            entity.UpdatedAtUtc);
+            entity.UpdatedAtUtc,
+            string.IsNullOrWhiteSpace(entity.LearnedSkillIds) ? "[]" : entity.LearnedSkillIds);
 
     public static void ApplyRecord(CharacterEntity entity, CharacterRecord record)
     {
@@ -56,6 +57,7 @@ internal static class PlayerEntityMapper
         entity.StartingSpellId = record.StartingSpellId;
         entity.EquippedWeaponItemId = record.EquippedWeaponItemId;
         entity.EquippedArmorItemId = record.EquippedArmorItemId;
+        entity.LearnedSkillIds = string.IsNullOrWhiteSpace(record.LearnedSkillIds) ? "[]" : record.LearnedSkillIds;
         entity.UpdatedAtUtc = record.UpdatedAtUtc;
     }
 

@@ -261,6 +261,13 @@ internal sealed class MapEventCommandParameterPanel : UserControl
             case MapEventCommandDiscriminators.ChangeParam:
                 AddParamFields();
                 break;
+            case MapEventCommandDiscriminators.ChangeSkills:
+                AddLabeled("skillId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
+                AddOperationField();
+                break;
+            case MapEventCommandDiscriminators.ChangeEquipment:
+                AddGearFields();
+                break;
             case MapEventCommandDiscriminators.StartDialogue:
                 AddLabeled("dialogueId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
                 break;
@@ -643,6 +650,27 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     }
 
                     break;
+                case MapEventCommandDiscriminators.ChangeSkills:
+                    if (root.TryGetProperty("skillId", out var skillIdEl))
+                    {
+                        SetText("skillId", skillIdEl.GetString() ?? string.Empty);
+                    }
+
+                    ApplyChangeOperation(root);
+                    break;
+                case MapEventCommandDiscriminators.ChangeEquipment:
+                    ApplyGearOperation(root);
+                    if (root.TryGetProperty("slot", out var slotEl))
+                    {
+                        SetChoice("slot", slotEl.GetString() ?? CharacterGearChange.SlotWeapon);
+                    }
+
+                    if (root.TryGetProperty("itemId", out var gearItemEl))
+                    {
+                        SetText("itemId", gearItemEl.GetString() ?? string.Empty);
+                    }
+
+                    break;
                 case MapEventCommandDiscriminators.StartDialogue:
                     if (root.TryGetProperty("dialogueId", out var dlg))
                     {
@@ -906,6 +934,9 @@ internal sealed class MapEventCommandParameterPanel : UserControl
                     JsonSerializer.Serialize(new { delta = GetInt("delta") }),
                 MapEventCommandDiscriminators.ChangeParam =>
                     JsonSerializer.Serialize(new { stat = GetChoice("stat"), delta = GetInt("delta") }),
+                MapEventCommandDiscriminators.ChangeSkills =>
+                    JsonSerializer.Serialize(new { operation = GetChoice("operation"), skillId = GetText("skillId") }),
+                MapEventCommandDiscriminators.ChangeEquipment => BuildChangeEquipmentJson(),
                 MapEventCommandDiscriminators.StartDialogue =>
                     JsonSerializer.Serialize(new { dialogueId = GetText("dialogueId") }),
                 MapEventCommandDiscriminators.StartQuest or MapEventCommandDiscriminators.TurnInQuest =>
@@ -1040,6 +1071,53 @@ internal sealed class MapEventCommandParameterPanel : UserControl
         operation.SelectedIndex = 0;
         EditorListDraw.UseReadableChoices(operation, MapEventEditorLabels.ChangeOperation);
         AddLabeled("operation", operation);
+    }
+
+    private void AddGearFields()
+    {
+        var operation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+        foreach (var kind in CharacterGearChange.Operations)
+        {
+            operation.Items.Add(kind);
+        }
+
+        operation.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(operation, MapEventEditorLabels.GearOperation);
+        AddLabeled("operation", operation);
+
+        var slot = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+        foreach (var kind in CharacterGearChange.Slots)
+        {
+            slot.Items.Add(kind);
+        }
+
+        slot.SelectedIndex = 0;
+        EditorListDraw.UseReadableChoices(slot, MapEventEditorLabels.GearSlot);
+        AddLabeled("slot", slot);
+        AddLabeled("itemId", new TextBox { Width = 280, Text = Guid.Empty.ToString() });
+    }
+
+    private void ApplyGearOperation(JsonElement root)
+    {
+        if (root.TryGetProperty("operation", out var operation)
+            && CharacterGearChange.TryCanonicalOperation(operation.GetString(), out var canonical))
+        {
+            SetChoice("operation", canonical);
+        }
+    }
+
+    private string BuildChangeEquipmentJson()
+    {
+        var operation = GetChoice("operation");
+        var slot = GetChoice("slot");
+        var itemText = GetText("itemId");
+        if (operation == CharacterGearChange.Unequip
+            && (string.IsNullOrWhiteSpace(itemText) || itemText == Guid.Empty.ToString("D")))
+        {
+            return JsonSerializer.Serialize(new { operation, slot });
+        }
+
+        return JsonSerializer.Serialize(new { operation, slot, itemId = itemText });
     }
 
     private void ApplyChangeOperation(JsonElement root)

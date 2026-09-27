@@ -54,6 +54,9 @@ public sealed class CharacterEntity
 
     public Guid? EquippedArmorItemId { get; set; }
 
+    /// <summary>JSON de guids appris par <c>change_skills</c>. Défaut <c>[]</c>.</summary>
+    public string LearnedSkillIds { get; set; } = "[]";
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }

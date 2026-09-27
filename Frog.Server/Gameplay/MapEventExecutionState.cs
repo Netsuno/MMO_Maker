@@ -37,6 +37,8 @@ public sealed class MapEventExecutionState
 
     public bool StatsChanged { get; set; }
 
+    public bool SkillsChanged { get; set; }
+
     public bool QuestsChanged { get; set; }
 
     public bool ProfessionsChanged { get; set; }

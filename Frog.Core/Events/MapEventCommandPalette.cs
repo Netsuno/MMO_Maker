@@ -5,7 +5,7 @@ using Frog.Core.Models;
 namespace Frog.Core.Events;
 
 /// <summary>
-/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres.
+/// Palette : texte, choix, image, déplacement, teinte d'image, fondu, teinte, tremblement, flash, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement.
 /// Les discriminators et le JSON restent ceux du catalogue (Postgres inchangé).
 /// </summary>
 public static class MapEventCommandPalette
@@ -47,6 +47,18 @@ public static class MapEventCommandPalette
     public const string ChangeLevelId = "change_level";
     public const string ChangeExpId = "change_exp";
     public const string ChangeParamId = "change_param";
+    public const string ChangeSkillsId = "change_skills";
+    public const string ChangeEquipmentId = "change_equipment";
+
+    /// <summary>
+    /// Guid vide jusqu'au choix d'une compétence. La validation des paramètres le refuse.
+    /// </summary>
+    public static readonly Guid ChangeSkillsPlaceholderId = Guid.Empty;
+
+    /// <summary>
+    /// Guid vide jusqu'au choix d'un objet à équiper. La validation des paramètres le refuse.
+    /// </summary>
+    public static readonly Guid ChangeEquipmentPlaceholderId = Guid.Empty;
 
     public const string DefaultSwitchId = "interrupteur_1";
     public const string DefaultVariableId = "variable_1";
@@ -80,6 +92,8 @@ public static class MapEventCommandPalette
         new(ChangeLevelId, "Changer niveau"),
         new(ChangeExpId, "Changer EXP"),
         new(ChangeParamId, "Changer paramètre"),
+        new(ChangeSkillsId, "Changer compétences"),
+        new(ChangeEquipmentId, "Changer équipement"),
     };
 
     public readonly record struct Entry(string Id, string Label);
@@ -236,6 +250,17 @@ public static class MapEventCommandPalette
             ChangeParamId => Command(
                 MapEventCommandDiscriminators.ChangeParam,
                 new { stat = CharacterProgressionAdjust.StatStr, delta = 1 }),
+            ChangeSkillsId => Command(
+                MapEventCommandDiscriminators.ChangeSkills,
+                new { operation = MapEventChangeOperation.Increase, skillId = ChangeSkillsPlaceholderId.ToString("D") }),
+            ChangeEquipmentId => Command(
+                MapEventCommandDiscriminators.ChangeEquipment,
+                new
+                {
+                    operation = CharacterGearChange.Equip,
+                    slot = CharacterGearChange.SlotWeapon,
+                    itemId = ChangeEquipmentPlaceholderId.ToString("D"),
+                }),
             _ => null,
         };
 

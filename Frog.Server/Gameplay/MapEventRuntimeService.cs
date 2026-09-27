@@ -350,6 +350,7 @@ public sealed class MapEventRuntimeService
             goldChanged: state.GoldChanged,
             progressionChanged: state.ProgressionChanged,
             statsChanged: state.StatsChanged,
+            skillsChanged: state.SkillsChanged,
             teleportApplied: state.TeleportApplied,
             dialogueSummary: state.DialogueSummary,
             questSummary: state.QuestSummary,
@@ -388,6 +389,7 @@ public sealed class MapEventRuntimeService
         }
 
         ApplyRecordedProgression(session, snap);
+        ApplyRecordedLoadout(session, snap);
 
         var applied = new MapEventExecutionState();
         if (snap is not null)
@@ -506,7 +508,8 @@ public sealed class MapEventRuntimeService
             state.ScreenOps,
             state.VisualOps,
             state.ProgressionChanged,
-            state.StatsChanged);
+            state.StatsChanged,
+            state.SkillsChanged);
     }
 
     private static void ApplyRecordedProgression(Session session, MapEventExecutionSnapshot? snap)
@@ -531,6 +534,34 @@ public sealed class MapEventRuntimeService
         {
             session.Stats = new CharacterStats(str, agi, vit, intel, dex, luck);
         }
+    }
+
+    private static void ApplyRecordedLoadout(Session session, MapEventExecutionSnapshot? snap)
+    {
+        if (snap is null)
+        {
+            return;
+        }
+
+        if (snap.EquipmentChanged)
+        {
+            session.EquippedWeaponItemId = snap.ResultWeaponItemId;
+            session.EquippedArmorItemId = snap.ResultArmorItemId;
+        }
+
+        if (!snap.SkillsChanged || snap.ResultLearnedSkillIds is null)
+        {
+            return;
+        }
+
+        var learned = CharacterSkillSet.Parse(snap.ResultLearnedSkillIds);
+        session.LearnedSkillIds.Clear();
+        foreach (var id in learned)
+        {
+            session.LearnedSkillIds.Add(id);
+        }
+
+        CharacterSkillSet.CopyKnown(session.KnownSpellIds, session.StartingSpellId, learned);
     }
 
     private void RegisterWaitIfNeeded(
