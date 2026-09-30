@@ -7,7 +7,7 @@
         Title="MMO Maker — Éditeur"
         Width="1200"
         Height="780"
-        MinWidth="1100"
+        MinWidth="1280"
         MinHeight="720"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
@@ -216,44 +216,47 @@
         </Menu>
         <ToolBarTray DockPanel.Dock="Top" Background="#FF2A2E36">
             <ToolBar Background="#FF2A2E36" Band="0" BandIndex="0" ToolBarTray.IsLocked="True">
-                <Button Content="Nouvelle" Command="{x:Static local:MainWindow.CmdNewMap}" Padding="10,4" />
-                <Button Content="Ouvrir" Command="{x:Static local:MainWindow.CmdOpenMap}" Padding="10,4" />
-                <Button Content="Enregistrer" Command="{x:Static local:MainWindow.CmdSaveMap}" Padding="10,4" />
-                <Button Content="Publier" Command="{x:Static local:MainWindow.CmdPublishMap}" Padding="10,4" />
+                <ToolBar.Resources>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#FF2A2E36" />
+                        <Setter Property="Foreground" Value="#FFEBEEF5" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+                        <Setter Property="FontSize" Value="16" />
+                        <Setter Property="Width" Value="36" />
+                        <Setter Property="Height" Value="28" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    </Style>
+                </ToolBar.Resources>
+                <Button Content="&#xE710;"
+                        Command="{x:Static local:MainWindow.CmdNewMap}"
+                        ToolTip="Nouvelle carte" />
+                <Button Content="&#xE8E5;"
+                        Command="{x:Static local:MainWindow.CmdOpenMap}"
+                        ToolTip="Ouvrir" />
+                <Button Content="&#xE74E;"
+                        Command="{x:Static local:MainWindow.CmdSaveMap}"
+                        ToolTip="Enregistrer" />
                 <Separator />
-                <Button Content="Tester"
+                <Button Content="&#xE7A7;"
+                        Command="{x:Static local:MainWindow.CmdUndo}"
+                        ToolTip="Annuler" />
+                <Button Content="&#xE7A6;"
+                        Command="{x:Static local:MainWindow.CmdRedo}"
+                        ToolTip="Rétablir" />
+                <Separator />
+                <Button Content="&#xE8A3;"
+                        Command="{x:Static local:MainWindow.CmdZoomIn}"
+                        ToolTip="Zoom avant" />
+                <Button Content="&#xE71F;"
+                        Command="{x:Static local:MainWindow.CmdZoomOut}"
+                        ToolTip="Zoom arrière" />
+                <Separator />
+                <Button Content="&#xE768;"
                         Command="{x:Static local:MainWindow.CmdPlaytest}"
-                        Padding="10,4"
-                        ToolTip="Playtest de la carte courante (Ctrl+F5). Réutilise client-win-x64 et server-win-x64. Arrêtez le test pour recharger tuiles, PNJ et objets." />
-                <Button Content="Arrêter"
-                        Command="{x:Static local:MainWindow.CmdStopPlaytest}"
-                        Padding="10,4"
-                        ToolTip="Arrête le serveur et le client de test." />
-                <Separator />
-                <Button Content="Annuler" Command="{x:Static local:MainWindow.CmdUndo}" Padding="10,4" />
-                <Button Content="Rétablir" Command="{x:Static local:MainWindow.CmdRedo}" Padding="10,4" />
-                <Separator />
-                <Button Content="Zoom +" Command="{x:Static local:MainWindow.CmdZoomIn}" Padding="10,4" />
-                <Button Content="Zoom −" Command="{x:Static local:MainWindow.CmdZoomOut}" Padding="10,4" />
-                <Button Content="Vue 100 %" Command="{x:Static local:MainWindow.CmdResetView}" Padding="10,4" />
-                <Separator />
-                <Button Content="Catalogue" Command="{x:Static local:MainWindow.CmdRefreshCatalog}" Padding="10,4" />
-                <Separator />
-                <Button Content="Gomme" Command="{x:Static local:MainWindow.CmdEraserTool}" Padding="10,4" ToolTip="Outil gomme (E). Efface le tampon sur la couche active visible et déverrouillée." />
-                <Button Content="Remplissage" Command="{x:Static local:MainWindow.CmdFillTool}" Padding="10,4" ToolTip="Outil remplissage (pot, F). Clic : zone connexe en 4 directions. Clic droit ou tuile vide : efface. Ctrl : couches visibles." />
-                <Button Content="Propriétés" Command="{x:Static local:MainWindow.CmdMapProperties}" Padding="10,4" ToolTip="Propriétés de la carte : nom, taille, chevauchement." />
-                <Button Content="Rectangle" Command="{x:Static local:MainWindow.CmdRectangleTool}" Padding="10,4" ToolTip="Outil rectangle (R). Plein par défaut sur la couche active. Maj ou case Contour : bord seulement. Case Ellipse : ellipse inscrite." />
-                <Button Content="Ligne" Command="{x:Static local:MainWindow.CmdLineTool}" Padding="10,4" ToolTip="Outil ligne : trait de tuiles (L). Maj aligne sur l'axe." />
-                <Button Content="Départ" Command="{x:Static local:MainWindow.CmdSpawnTool}" Padding="10,4" ToolTip="Outil point de départ playtest (D)" />
-                <Button Content="Prefab" Command="{x:Static local:MainWindow.CmdPrefabTool}" Padding="10,4" ToolTip="Poser un objet prefab (P)" />
-                <Button Content="Entités" Command="{x:Static local:MainWindow.CmdPlaceTool}" Padding="10,4" ToolTip="Poser une apparition, un PNJ ou un objet (N). Le panneau de droite édite les propriétés." />
-                <Button Content="Région" Command="{x:Static local:MainWindow.CmdRegionTool}" Padding="10,4" ToolTip="Peindre une région 1–63 (G). Le numéro s’affiche sur la carte. Les rencontres se règlent dans le panneau Régions." />
-                <Button Content="Pipette" Command="{x:Static local:MainWindow.CmdTilePipette}" Padding="10,4" ToolTip="Pipette tuile : I ou Alt+clic" />
-                <Separator />
-                <Button Content="PNJ rapide" Command="{x:Static local:MainWindow.CmdQuickTalkingNpc}" Padding="10,4" ToolTip="Créer un PNJ qui parle et le placer sur la carte" />
-                <Button Content="Coffre" Command="{x:Static local:MainWindow.CmdQuickChest}" Padding="10,4" ToolTip="Coffre bloquant : texte, interrupteur, butin +1, puis coffre vide." />
-                <Button Content="Porte" Command="{x:Static local:MainWindow.CmdQuickDoor}" Padding="10,4" ToolTip="Porte bloquante : texte et interrupteur d'ouverture. La case reste solide." />
-                <Button Content="Auberge" Command="{x:Static local:MainWindow.CmdQuickInn}" Padding="10,4" ToolTip="Auberge bloquante : repos, puis branche sur le nombre de nuits." />
+                        ToolTip="Tester (playtest, Ctrl+F5)" />
             </ToolBar>
         </ToolBarTray>
         <StatusBar DockPanel.Dock="Bottom" Background="#FF2E3238">
@@ -268,11 +271,11 @@
         <!-- Coque WPF : colonnes et splitters ; îlots WinForms (canevas GDI+, palettes, PropertyGrid). -->
         <Grid x:Name="ShellGrid" Background="#FF202228">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="ColLeft" Width="1.1*" MinWidth="240" />
+                <ColumnDefinition x:Name="ColLeft" Width="200" MinWidth="180" MaxWidth="280" />
                 <ColumnDefinition Width="6" />
-                <ColumnDefinition Width="2.6*" MinWidth="360" />
+                <ColumnDefinition Width="*" MinWidth="640" />
                 <ColumnDefinition Width="6" />
-                <ColumnDefinition x:Name="ColRight" Width="1.2*" MinWidth="260" />
+                <ColumnDefinition x:Name="ColRight" Width="300" MinWidth="280" MaxWidth="420" />
             </Grid.ColumnDefinitions>
             <wfi:WindowsFormsHost x:Name="HostLeft"
                                   Grid.Column="0"

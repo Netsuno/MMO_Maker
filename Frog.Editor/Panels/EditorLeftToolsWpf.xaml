@@ -112,11 +112,70 @@
             </Setter>
         </Style>
 
+        <Style x:Key="EditorChipButton" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="#FF32353E" />
+            <Setter Property="Foreground" Value="#FFEBEEF5" />
+            <Setter Property="BorderBrush" Value="#FF585C68" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Margin" Value="2" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF3A3F4A" />
+                    <Setter Property="BorderBrush" Value="#FF64BEFF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="EditorModeRadio" TargetType="{x:Type RadioButton}">
+            <Setter Property="Foreground" Value="#FFEBEEF5" />
+            <Setter Property="Background" Value="#FF32353E" />
+            <Setter Property="BorderBrush" Value="#FF585C68" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="4,6" />
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="Chip"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chip" Property="Background" Value="#FF1A3D58" />
+                                <Setter TargetName="Chip" Property="BorderBrush" Value="#FF64BEFF" />
+                                <Setter Property="Foreground" Value="#FF64BEFF" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chip" Property="BorderBrush" Value="#FF64BEFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="EditorPrefabListItem" TargetType="{x:Type ListBoxItem}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="#FFEBEEF5" />
-            <Setter Property="Padding" Value="4,3" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -140,39 +199,53 @@
             </Setter>
         </Style>
     </UserControl.Resources>
-    <StackPanel Margin="12,14,14,10">
-        <TextBlock Text="OUTIL"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="10"
-                   FontWeight="SemiBold"
-                   Margin="2,0,0,8" />
-        <Grid Margin="2,0,2,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="86" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       Text="Outil"
-                       VerticalAlignment="Center"
-                       Foreground="#FF949BAA"
-                       FontFamily="Segoe UI"
-                       FontSize="12"
-                       Margin="6,0,4,0" />
-            <ComboBox x:Name="ComboTool"
-                      Grid.Column="1"
-                      Style="{StaticResource EditorSidebarComboBox}"
-                      MinHeight="28"
-                      SelectionChanged="ComboTool_OnSelectionChanged" />
-        </Grid>
+    <Grid Margin="8,8,8,8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <UniformGrid Grid.Row="0" Columns="4" Margin="0,0,0,8">
+            <RadioButton x:Name="ModeTiles"
+                         Content="Tuiles"
+                         GroupName="PaletteMode"
+                         Style="{StaticResource EditorModeRadio}"
+                         IsChecked="True"
+                         ToolTip="Peinture : pinceau, gomme, remplissage, formes"
+                         Checked="OnPaletteModeChecked" />
+            <RadioButton x:Name="ModeObjects"
+                         Content="Objets"
+                         GroupName="PaletteMode"
+                         Style="{StaticResource EditorModeRadio}"
+                         ToolTip="Prefabs : choisir puis cliquer sur la carte"
+                         Checked="OnPaletteModeChecked" />
+            <RadioButton x:Name="ModeEntities"
+                         Content="Entités"
+                         GroupName="PaletteMode"
+                         Style="{StaticResource EditorModeRadio}"
+                         ToolTip="Départ, PNJ et événements rapides"
+                         Checked="OnPaletteModeChecked" />
+            <RadioButton x:Name="ModeAttributes"
+                         Content="Attributs"
+                         GroupName="PaletteMode"
+                         Style="{StaticResource EditorModeRadio}"
+                         ToolTip="Type de tuile et régions"
+                         Checked="OnPaletteModeChecked" />
+        </UniformGrid>
+        <Grid Grid.Row="1">
+        <StackPanel x:Name="PanelTiles" Visibility="Visible">
+        <ComboBox x:Name="ComboTool"
+                  Visibility="Collapsed"
+                  Style="{StaticResource EditorSidebarComboBox}"
+                  MinHeight="28"
+                  SelectionChanged="ComboTool_OnSelectionChanged" />
         <TextBlock x:Name="DrawToolHint"
                    Text="Pinceau (B) · clic ou glisser pour peindre la tuile"
                    TextWrapping="Wrap"
                    Foreground="#FF64BEFF"
                    FontFamily="Segoe UI"
                    FontSize="11"
-                   Margin="8,0,2,6" />
-        <UniformGrid Columns="2" Margin="2,0,2,8">
+                   Margin="4,0,2,6" />
+        <UniformGrid Columns="2" Margin="0,0,0,6">
             <UniformGrid.Resources>
                 <Style TargetType="Button">
                     <Setter Property="Background" Value="#FF32353E" />
@@ -203,21 +276,21 @@
                     Tag="Eraser"
                     Margin="2"
                     Padding="8,5"
-                    ToolTip="Gomme (E) — efface le tampon sur la couche active visible et déverrouillée. Les autres couches restent."
+                    ToolTip="Gomme (E) — efface le tampon sur la couche active visible et déverrouillée."
                     Click="OnDrawToolClick" />
             <Button x:Name="BtnToolFill"
                     Content="Remplissage"
                     Tag="Fill"
                     Margin="2"
                     Padding="8,5"
-                    ToolTip="Remplissage (F) — pot de peinture, 4 directions. Clic droit ou tuile vide : efface la région."
+                    ToolTip="Remplissage (F) — pot de peinture, 4 directions."
                     Click="OnDrawToolClick" />
             <Button x:Name="BtnToolRectangle"
                     Content="Rectangle"
                     Tag="Rectangle"
                     Margin="2"
                     Padding="8,5"
-                    ToolTip="Rectangle (R) — plein par défaut. Maj ou case Contour : bord seulement. Case Ellipse : ellipse inscrite. Couche active visible et déverrouillée."
+                    ToolTip="Rectangle (R) — plein par défaut. Maj : contour. Ellipse : case dédiée."
                     Click="OnDrawToolClick" />
             <Button x:Name="BtnToolLine"
                     Content="Ligne"
@@ -231,24 +304,10 @@
                     Tag="Selection"
                     Margin="2"
                     Padding="8,5"
-                    ToolTip="Sélection (M) — rectangle. Ctrl+C/X/V copie toutes les couches, Ctrl+Maj = couche active."
-                    Click="OnDrawToolClick" />
-            <Button x:Name="BtnToolPlace"
-                    Content="Entités"
-                    Tag="Place"
-                    Margin="2"
-                    Padding="8,5"
-                    ToolTip="Entités (N) — poser une apparition, un PNJ ou un objet. Propriétés dans la colonne de droite. Clic droit retire."
-                    Click="OnDrawToolClick" />
-            <Button x:Name="BtnToolRegion"
-                    Content="Région"
-                    Tag="Region"
-                    Margin="2"
-                    Padding="8,5"
-                    ToolTip="Région (G) — peint un numéro 1–63. 0 ou clic droit efface. Le numéro s’affiche sur la case. Les rencontres se règlent dans le panneau Régions."
+                    ToolTip="Sélection (M) — rectangle. Ctrl+C/X/V copie toutes les couches."
                     Click="OnDrawToolClick" />
         </UniformGrid>
-        <StackPanel x:Name="FillOptionsPanel" Visibility="Collapsed" Margin="8,0,2,8">
+        <StackPanel x:Name="FillOptionsPanel" Visibility="Collapsed" Margin="4,0,2,6">
             <CheckBox x:Name="ChkFillVisibleLayers"
                       Content="Couches visibles déverrouillées"
                       Foreground="#FFEBEEF5"
@@ -256,7 +315,7 @@
                       FontSize="12"
                       Margin="0,2,0,4"
                       IsChecked="False"
-                      ToolTip="Défaut : couche active seulement. Cochez, ou Ctrl+clic, pour peindre la même région sur les couches visibles et déverrouillées. La couche Attributs n’est peinte que si elle est active. Les couches masquées ou verrouillées sont ignorées."
+                      ToolTip="Défaut : couche active seulement. Cochez, ou Ctrl+clic, pour peindre la même région sur les couches visibles et déverrouillées."
                       Checked="OnFillOptionChanged"
                       Unchecked="OnFillOptionChanged" />
             <CheckBox x:Name="ChkFillRespectAttrs"
@@ -270,7 +329,7 @@
                       Checked="OnFillOptionChanged"
                       Unchecked="OnFillOptionChanged" />
         </StackPanel>
-        <StackPanel x:Name="RectangleOptionsPanel" Visibility="Collapsed" Margin="8,0,2,8">
+        <StackPanel x:Name="RectangleOptionsPanel" Visibility="Collapsed" Margin="4,0,2,6">
             <CheckBox x:Name="ChkRectangleOutline"
                       Content="Contour seulement"
                       Foreground="#FFEBEEF5"
@@ -278,7 +337,7 @@
                       FontSize="12"
                       Margin="0,2,0,4"
                       IsChecked="False"
-                      ToolTip="Défaut : rectangle plein. Cochez, ou maintenez Maj pendant le tracé, pour ne peindre que le bord. La couche active doit être visible et déverrouillée."
+                      ToolTip="Défaut : rectangle plein. Cochez, ou maintenez Maj, pour ne peindre que le bord."
                       Checked="OnRectangleOptionChanged"
                       Unchecked="OnRectangleOptionChanged" />
             <CheckBox x:Name="ChkRectangleEllipse"
@@ -288,271 +347,285 @@
                       FontSize="12"
                       Margin="0,0,0,2"
                       IsChecked="False"
-                      ToolTip="Ellipse inscrite dans le rectangle tracé. Décochez pour un rectangle. Le contour s’applique aussi à l’ellipse."
+                      ToolTip="Ellipse inscrite dans le rectangle tracé."
                       Checked="OnRectangleOptionChanged"
                       Unchecked="OnRectangleOptionChanged" />
         </StackPanel>
-        <TextBlock Text="{x:Static enums:EditorToolHotkeys.PaletteHint}"
-                   TextWrapping="Wrap"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="10"
-                   Margin="8,0,2,4" />
-        <TextBlock Text="{x:Static enums:EditorToolHotkeys.SelectionHint}"
-                   TextWrapping="Wrap"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="10"
-                   Margin="8,0,2,8" />
-        <Button Content="Pipette tuile (I)"
-                Margin="2,0,2,8"
+        <Button Content="Pipette"
+                Margin="2,0,2,4"
                 Padding="8,5"
                 Background="#FF32353E"
                 Foreground="#FFB4D4A8"
                 BorderBrush="#FF585C68"
                 BorderThickness="1"
                 Cursor="Hand"
+                ToolTip="Pipette tuile (I) ou Alt+clic — la tuile devient le tampon."
                 Click="OnPipetteClick" />
-        <Button Content="Placer le départ (D)"
-                Margin="2,0,2,8"
-                Padding="8,5"
-                Background="#FF32353E"
-                Foreground="#FF64BEFF"
-                BorderBrush="#FF585C68"
-                BorderThickness="1"
-                Cursor="Hand"
-                Click="OnPlaceSpawnClick" />
-        <TextBlock x:Name="SpawnStatus"
-                   Text="Départ playtest : non défini"
-                   Foreground="#FF64BEFF"
-                   FontFamily="Segoe UI"
-                   FontSize="11"
-                   Margin="8,0,2,8" />
-        <TextBlock Text="ÉVÉNEMENTS RAPIDES"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="10"
-                   FontWeight="SemiBold"
-                   Margin="2,0,0,6" />
-        <UniformGrid Columns="3" Margin="2,0,2,12">
-            <Button Content="Coffre"
-                    Tag="Chest"
-                    Margin="2"
-                    Padding="6,5"
-                    Background="#FF32353E"
-                    Foreground="#FFE7C27A"
-                    BorderBrush="#FF585C68"
-                    BorderThickness="1"
-                    Cursor="Hand"
-                    ToolTip="Coffre bloquant : texte, interrupteur, butin +1, puis coffre vide."
-                    Click="OnQuickEventPresetClick" />
-            <Button Content="Porte"
-                    Tag="Door"
-                    Margin="2"
-                    Padding="6,5"
-                    Background="#FF32353E"
-                    Foreground="#FFE7C27A"
-                    BorderBrush="#FF585C68"
-                    BorderThickness="1"
-                    Cursor="Hand"
-                    ToolTip="Porte bloquante : texte et interrupteur d'ouverture. La case reste solide."
-                    Click="OnQuickEventPresetClick" />
-            <Button Content="Auberge"
-                    Tag="Inn"
-                    Margin="2"
-                    Padding="6,5"
-                    Background="#FF32353E"
-                    Foreground="#FFE7C27A"
-                    BorderBrush="#FF585C68"
-                    BorderThickness="1"
-                    Cursor="Hand"
-                    ToolTip="Auberge bloquante : repos, puis branche sur le nombre de nuits."
-                    Click="OnQuickEventPresetClick" />
-        </UniformGrid>
-        <TextBlock Text="PREFAB"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="10"
-                   FontWeight="SemiBold"
-                   Margin="2,0,0,8" />
-        <Grid Margin="2,0,2,4">
-            <TextBox x:Name="PrefabFilter"
-                     MinHeight="28"
-                     Padding="8,4"
+        </StackPanel>
+        <Grid x:Name="PanelObjects" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" MinHeight="120" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0" Margin="2,0,2,4">
+                <TextBox x:Name="PrefabFilter"
+                         MinHeight="28"
+                         Padding="8,4"
+                         Background="#FF32353E"
+                         Foreground="#FFEBEEF5"
+                         BorderBrush="#FF585C68"
+                         BorderThickness="1"
+                         CaretBrush="#FFEBEEF5"
+                         SelectionBrush="#FF465058"
+                         FontFamily="Segoe UI"
+                         FontSize="12"
+                         ToolTip="Filtrer par nom affiché ou identifiant"
+                         TextChanged="PrefabFilter_OnTextChanged" />
+                <TextBlock x:Name="PrefabFilterHint"
+                           Text="Rechercher (nom ou id)"
+                           IsHitTestVisible="False"
+                           Margin="10,0,28,0"
+                           VerticalAlignment="Center"
+                           Foreground="#FF6E7584"
+                           FontFamily="Segoe UI"
+                           FontSize="12" />
+            </Grid>
+            <TextBlock x:Name="PrefabMatchCount"
+                       Grid.Row="1"
+                       Text=""
+                       Foreground="#FF949BAA"
+                       FontFamily="Segoe UI"
+                       FontSize="10"
+                       Margin="4,0,2,4" />
+            <ListBox x:Name="ListPrefabs"
+                     Grid.Row="2"
+                     Margin="2,0,2,2"
                      Background="#FF32353E"
                      Foreground="#FFEBEEF5"
                      BorderBrush="#FF585C68"
                      BorderThickness="1"
-                     CaretBrush="#FFEBEEF5"
-                     SelectionBrush="#FF465058"
-                     FontFamily="Segoe UI"
-                     FontSize="12"
-                     ToolTip="Filtrer par nom affiché ou identifiant"
-                     TextChanged="PrefabFilter_OnTextChanged" />
-            <TextBlock x:Name="PrefabFilterHint"
-                       Text="Rechercher (nom ou id)"
-                       IsHitTestVisible="False"
-                       Margin="10,0,28,0"
-                       VerticalAlignment="Center"
-                       Foreground="#FF6E7584"
-                       FontFamily="Segoe UI"
-                       FontSize="12" />
-        </Grid>
-        <TextBlock x:Name="PrefabMatchCount"
-                   Text=""
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="10"
-                   Margin="8,0,2,4" />
-        <ListBox x:Name="ListPrefabs"
-                 Height="88"
-                 Margin="2,0,2,2"
-                 Background="#FF32353E"
-                 Foreground="#FFEBEEF5"
-                 BorderBrush="#FF585C68"
-                 BorderThickness="1"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                 ScrollViewer.VerticalScrollBarVisibility="Auto"
-                 ItemContainerStyle="{StaticResource EditorPrefabListItem}"
-                 SelectionChanged="ListPrefabs_OnSelectionChanged"
-                 PreviewMouseLeftButtonUp="ListPrefabs_OnPreviewMouseLeftButtonUp">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <StackPanel Orientation="Horizontal">
-                        <Image Width="22"
-                               Height="22"
-                               Margin="0,0,8,0"
-                               Stretch="Uniform"
-                               Source="{Binding Thumbnail}"
-                               Visibility="{Binding ThumbnailVisibility}" />
-                        <StackPanel VerticalAlignment="Center">
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VirtualizingPanel.IsVirtualizing="False"
+                     ItemContainerStyle="{StaticResource EditorPrefabListItem}"
+                     SelectionChanged="ListPrefabs_OnSelectionChanged"
+                     PreviewMouseLeftButtonUp="ListPrefabs_OnPreviewMouseLeftButtonUp">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Width="76" Margin="2">
+                            <Border Width="48"
+                                    Height="48"
+                                    Background="#FF2A2E36"
+                                    BorderBrush="#FF585C68"
+                                    BorderThickness="1"
+                                    HorizontalAlignment="Center">
+                                <Image Width="40"
+                                       Height="40"
+                                       Stretch="Uniform"
+                                       Source="{Binding Thumbnail}"
+                                       Visibility="{Binding ThumbnailVisibility}" />
+                            </Border>
                             <TextBlock Text="{Binding Label}"
+                                       Margin="0,4,0,0"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxHeight="32"
                                        Foreground="#FFEBEEF5"
-                                       FontFamily="Segoe UI"
-                                       FontSize="12" />
-                            <TextBlock Text="{Binding Id}"
-                                       Foreground="#FF949BAA"
                                        FontFamily="Segoe UI"
                                        FontSize="10" />
                         </StackPanel>
-                    </StackPanel>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
-        <TextBlock x:Name="PrefabFilterEmpty"
-                   Text="Aucun prefab ne correspond."
-                   Visibility="Collapsed"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="11"
-                   Margin="8,2,2,6" />
-        <Grid Margin="2,6,2,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="86" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       Text="Facing"
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock x:Name="PrefabFilterEmpty"
+                       Grid.Row="2"
+                       Text="Aucun prefab ne correspond."
+                       Visibility="Collapsed"
                        VerticalAlignment="Center"
+                       HorizontalAlignment="Center"
                        Foreground="#FF949BAA"
                        FontFamily="Segoe UI"
-                       FontSize="12"
-                       Margin="6,0,4,0" />
-            <ComboBox x:Name="ComboPrefabFacing"
-                      Grid.Column="1"
-                      Style="{StaticResource EditorSidebarComboBox}"
-                      MinHeight="28"
-                      SelectionChanged="ComboPrefabFacing_OnSelectionChanged" />
-        </Grid>
-        <Grid Margin="2,0,2,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Border x:Name="PrefabPreviewHost"
-                    Width="40"
-                    Height="40"
-                    Margin="6,0,8,0"
-                    Visibility="Collapsed"
-                    Background="#FF32353E"
-                    BorderBrush="#FF585C68"
-                    BorderThickness="1">
-                <Image x:Name="PrefabPreview" Stretch="Uniform" />
-            </Border>
-            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock x:Name="PrefabSelectedName"
-                           Text="—"
-                           TextWrapping="Wrap"
-                           Foreground="#FFE8B86D"
-                           FontFamily="Segoe UI"
-                           FontSize="13"
-                           FontWeight="SemiBold" />
-                <TextBlock x:Name="PrefabSelectedMeta"
-                           Text=""
-                           TextWrapping="Wrap"
-                           Foreground="#FF949BAA"
-                           FontFamily="Segoe UI"
-                           FontSize="10"
-                           Margin="0,2,0,0" />
+                       FontSize="11"
+                       Margin="8,2,2,6" />
+            <Grid x:Name="FacingChip" Grid.Row="3" Visibility="Collapsed" Margin="2,6,2,4">
+                <ComboBox x:Name="ComboPrefabFacing"
+                          Style="{StaticResource EditorSidebarComboBox}"
+                          MinHeight="28"
+                          ToolTip="Orientation, seulement si l’objet a plusieurs variantes"
+                          SelectionChanged="ComboPrefabFacing_OnSelectionChanged" />
+            </Grid>
+            <Grid Grid.Row="4" Margin="2,4,2,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border x:Name="PrefabPreviewHost"
+                        Width="40"
+                        Height="40"
+                        Margin="2,0,8,0"
+                        Visibility="Collapsed"
+                        Background="#FF32353E"
+                        BorderBrush="#FF585C68"
+                        BorderThickness="1">
+                    <Image x:Name="PrefabPreview" Stretch="Uniform" />
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="PrefabSelectedName"
+                               Text="—"
+                               TextWrapping="Wrap"
+                               Foreground="#FFE8B86D"
+                               FontFamily="Segoe UI"
+                               FontSize="13"
+                               FontWeight="SemiBold" />
+                    <TextBlock x:Name="PrefabSelectedMeta"
+                               Text=""
+                               TextWrapping="Wrap"
+                               Foreground="#FF949BAA"
+                               FontFamily="Segoe UI"
+                               FontSize="10"
+                               Margin="0,2,0,0" />
+                </StackPanel>
+            </Grid>
+            <TextBlock x:Name="PrefabStatus"
+                       Grid.Row="5"
+                       Text="P pour placer"
+                       TextWrapping="Wrap"
+                       Foreground="#FFE8B86D"
+                       FontFamily="Segoe UI"
+                       FontSize="11"
+                       Margin="4,0,2,6" />
+            <StackPanel Grid.Row="6">
+                <Button x:Name="BtnDuplicatePrefab"
+                        Content="Dupliquer"
+                        Margin="2,0,2,4"
+                        Padding="8,5"
+                        IsEnabled="False"
+                        Background="#FF32353E"
+                        Foreground="#FFE8B86D"
+                        BorderBrush="#FF585C68"
+                        BorderThickness="1"
+                        Cursor="Hand"
+                        ToolTip="Pose une copie de l’objet sélectionné (ou du dernier posé), décalée de son empreinte. Ctrl+D."
+                        Click="OnDuplicatePrefabClick" />
+                <Button x:Name="BtnPlacePrefab"
+                        Content="Placer un objet (P)"
+                        Visibility="Collapsed"
+                        Margin="2,0,2,4"
+                        Padding="8,5"
+                        Click="OnPlacePrefabClick" />
             </StackPanel>
         </Grid>
-        <TextBlock x:Name="PrefabStatus"
-                   Text="P pour placer"
-                   TextWrapping="Wrap"
-                   Foreground="#FFE8B86D"
-                   FontFamily="Segoe UI"
-                   FontSize="11"
-                   Margin="8,0,2,8" />
-        <Button x:Name="BtnDuplicatePrefab"
-                Content="Dupliquer"
-                Margin="2,0,2,4"
-                Padding="8,5"
-                IsEnabled="False"
-                Background="#FF32353E"
-                Foreground="#FFE8B86D"
-                BorderBrush="#FF585C68"
-                BorderThickness="1"
-                Cursor="Hand"
-                ToolTip="Pose une copie de l’objet sélectionné (ou du dernier posé), décalée de son empreinte. Ctrl+D."
-                Click="OnDuplicatePrefabClick" />
-        <Button x:Name="BtnPlacePrefab"
-                Content="Placer un objet (P)"
-                Margin="2,0,2,4"
-                Padding="8,5"
-                Background="#FF32353E"
-                Foreground="#FFE8B86D"
-                BorderBrush="#FF585C68"
-                BorderThickness="1"
-                Cursor="Hand"
-                Click="OnPlacePrefabClick" />
-        <TextBlock Text="Pipette I / Alt+clic · glisser pour déplacer · Ctrl+D dupliquer"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="10"
-                   Margin="8,0,2,8" />
-        <TextBlock Text="TYPE DE TUILE"
-                   Foreground="#FF949BAA"
-                   FontFamily="Segoe UI"
-                   FontSize="10"
-                   FontWeight="SemiBold"
-                   Margin="2,0,0,8" />
-        <Grid Margin="2,0,2,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="86" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       Text="Type"
-                       VerticalAlignment="Center"
+        <StackPanel x:Name="PanelEntities" Visibility="Collapsed">
+            <Button Content="Départ"
+                    Margin="2,0,2,6"
+                    Padding="8,5"
+                    Background="#FF32353E"
+                    Foreground="#FF64BEFF"
+                    BorderBrush="#FF585C68"
+                    BorderThickness="1"
+                    Cursor="Hand"
+                    ToolTip="Point de départ playtest (D) — clic sur la carte"
+                    Click="OnPlaceSpawnClick" />
+            <TextBlock x:Name="SpawnStatus"
+                       Text="Départ playtest : non défini"
+                       Foreground="#FF64BEFF"
+                       FontFamily="Segoe UI"
+                       FontSize="11"
+                       Margin="4,0,2,8" />
+            <TextBlock Text="ÉVÉNEMENTS"
                        Foreground="#FF949BAA"
                        FontFamily="Segoe UI"
-                       FontSize="12"
-                       Margin="6,0,4,0" />
+                       FontSize="10"
+                       FontWeight="SemiBold"
+                       Margin="2,0,0,6" />
+            <UniformGrid Columns="2" Margin="0,0,0,8">
+                <Button Content="PNJ"
+                        Margin="2"
+                        Padding="6,5"
+                        Background="#FF32353E"
+                        Foreground="#FFE7C27A"
+                        BorderBrush="#FF585C68"
+                        BorderThickness="1"
+                        Cursor="Hand"
+                        ToolTip="PNJ qui parle : la boîte de dialogue s’ouvre, puis un clic pose le PNJ."
+                        Click="OnQuickNpcClick" />
+                <Button Content="Coffre"
+                        Tag="Chest"
+                        Margin="2"
+                        Padding="6,5"
+                        Background="#FF32353E"
+                        Foreground="#FFE7C27A"
+                        BorderBrush="#FF585C68"
+                        BorderThickness="1"
+                        Cursor="Hand"
+                        ToolTip="Coffre bloquant : texte, interrupteur, butin +1, puis coffre vide."
+                        Click="OnQuickEventPresetClick" />
+                <Button Content="Porte"
+                        Tag="Door"
+                        Margin="2"
+                        Padding="6,5"
+                        Background="#FF32353E"
+                        Foreground="#FFE7C27A"
+                        BorderBrush="#FF585C68"
+                        BorderThickness="1"
+                        Cursor="Hand"
+                        ToolTip="Porte bloquante : texte et interrupteur d'ouverture."
+                        Click="OnQuickEventPresetClick" />
+                <Button Content="Auberge"
+                        Tag="Inn"
+                        Margin="2"
+                        Padding="6,5"
+                        Background="#FF32353E"
+                        Foreground="#FFE7C27A"
+                        BorderBrush="#FF585C68"
+                        BorderThickness="1"
+                        Cursor="Hand"
+                        ToolTip="Auberge bloquante : repos, puis branche sur le nombre de nuits."
+                        Click="OnQuickEventPresetClick" />
+                <Button x:Name="BtnToolPlace"
+                        Style="{StaticResource EditorChipButton}"
+                        Content="Entités"
+                        Tag="Place"
+                        ToolTip="Poser une apparition, un PNJ ou un objet (N). Les propriétés s’ouvrent à droite."
+                        Click="OnDrawToolClick" />
+            </UniformGrid>
+            <TextBlock Text="Choisir, puis cliquer sur la carte. Le détail s’ouvre dans une boîte, pas dans une colonne fixe."
+                       TextWrapping="Wrap"
+                       Foreground="#FF949BAA"
+                       FontFamily="Segoe UI"
+                       FontSize="10"
+                       Margin="4,0,2,4" />
+        </StackPanel>
+        <StackPanel x:Name="PanelAttributes" Visibility="Collapsed">
+            <TextBlock Text="TYPE DE TUILE"
+                       Foreground="#FF949BAA"
+                       FontFamily="Segoe UI"
+                       FontSize="10"
+                       FontWeight="SemiBold"
+                       Margin="2,0,0,8" />
             <ComboBox x:Name="ComboTileType"
-                      Grid.Column="1"
                       Style="{StaticResource EditorSidebarComboBox}"
                       MinHeight="28"
+                      Margin="2,0,2,8"
                       SelectionChanged="ComboTileType_OnSelectionChanged" />
+            <Button x:Name="BtnToolRegion"
+                    Style="{StaticResource EditorChipButton}"
+                    Content="Région"
+                    Tag="Region"
+                    HorizontalAlignment="Stretch"
+                    ToolTip="Région (G) — peint un numéro 1–63. Le détail des rencontres est dans l’inspecteur."
+                    Click="OnDrawToolClick" />
+        </StackPanel>
         </Grid>
-    </StackPanel>
+    </Grid>
 </UserControl>
