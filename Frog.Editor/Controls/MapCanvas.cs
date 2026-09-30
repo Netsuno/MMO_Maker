@@ -24,6 +24,8 @@ namespace Frog.Editor.Controls;
 /// Canvas carte : les couches denses ne dessinent que le viewport, et un bitmap
 /// des tuiles statiques amortit le défilement et le fantôme du pinceau.
 /// Ctrl+C/X/V sur toutes les couches (Ctrl+Maj = couche active), undo intégré.
+/// Sélection figée : glisser gauche déplace le groupe, glisser droit le copie (un pas d’annulation).
+/// Double-clic : la pipette existante choisit le tampon, sans changer d’outil.
 /// Le tracé en cours est figé au copier-coller. Les régions de rencontre (sidecar) ne suivent pas la zone.
 /// </summary>
 public sealed class MapCanvas : Control
@@ -481,6 +483,25 @@ public sealed class MapCanvas : Control
     private Point? _selectionMarqueeAnchor;
     private Rectangle? _committedSelectionTiles;
 
+    private enum SelectionDragKind
+    {
+        None = 0,
+        Move,
+        Copy,
+    }
+
+    private SelectionDragKind _selectionDragKind;
+    private Point _selectionDragGrab;
+    private Rectangle _selectionDragOrigin;
+    private bool _selectionDragActiveLayerOnly;
+
+    /// <summary>Le clic en cours a poussé l’annulation : un double-clic l’annule puis pipette.</summary>
+    private bool _revertEditOnDoubleClick;
+
+    /// <summary>Clic qui n’a pas quitté la case : un double-clic restaure la sélection d’avant.</summary>
+    private bool _restoreSelectionOnDoubleClick;
+    private Rectangle? _selectionBeforeClick;
+
     /// <summary>Bloque le gommage au clic droit tant que le bouton n’est pas relâché (Ctrl+clic droit = menu).</summary>
     private bool _suppressRightButtonErase;
 
@@ -593,6 +614,7 @@ public sealed class MapCanvas : Control
     {
         _selectionMarqueeAnchor = null;
         _committedSelectionTiles = null;
+        EndSelectionDrag();
         NotifyPaintGesture();
     }
 
@@ -1048,6 +1070,23 @@ public sealed class MapCanvas : Control
                     sel.Left + sel.Width - 1,
                     sel.Top + sel.Height - 1,
                     Color.LightGreen,
+                    dash: true);
+            }
+
+            if (Map is not null
+                && _selectionDragKind != SelectionDragKind.None
+                && TryResolveSelectionDrop(out var dropX, out var dropY))
+            {
+                var dragColor = _selectionDragKind == SelectionDragKind.Copy
+                    ? Color.FromArgb(255, 255, 176, 64)
+                    : Color.DeepSkyBlue;
+                DrawTileRectPixels(
+                    g,
+                    dropX,
+                    dropY,
+                    dropX + _selectionDragOrigin.Width - 1,
+                    dropY + _selectionDragOrigin.Height - 1,
+                    dragColor,
                     dash: true);
             }
 
@@ -2953,6 +2992,18 @@ public sealed class MapCanvas : Control
             }
         }
 
+        if (e.Button == MouseButtons.Left && e.Clicks >= 2 && inMap)
+        {
+            FinishDoubleClickStamp(tx, ty);
+            return;
+        }
+
+        if (e.Clicks < 2)
+        {
+            _revertEditOnDoubleClick = false;
+            _restoreSelectionOnDoubleClick = false;
+        }
+
         if (e.Button == MouseButtons.Left && inMap && (ModifierKeys & Keys.Alt) == Keys.Alt)
         {
             TryPipetteAt(tx, ty, switchToBrush: false);
@@ -3037,6 +3088,11 @@ public sealed class MapCanvas : Control
 
             if (ActiveTool == EditorTool.Selection)
             {
+                if (TryBeginSelectionDrag(MouseButtons.Right, tx, ty))
+                {
+                    return;
+                }
+
                 ClearSelection();
                 return;
             }
@@ -3173,6 +3229,13 @@ public sealed class MapCanvas : Control
                     break;
 
                 case EditorTool.Selection:
+                    if (TryBeginSelectionDrag(MouseButtons.Left, tx, ty))
+                    {
+                        break;
+                    }
+
+                    _selectionBeforeClick = _committedSelectionTiles;
+                    _restoreSelectionOnDoubleClick = true;
                     _selectionMarqueeAnchor = new Point(tx, ty);
                     _hoverTile = new Point(tx, ty);
                     Capture = true;
@@ -3245,6 +3308,7 @@ public sealed class MapCanvas : Control
         History.PushBeforeChange(Map);
         MapEdited?.Invoke();
         UndoHistoryChanged?.Invoke();
+        _revertEditOnDoubleClick = true;
     }
 
     private void OnMouseMove(object? sender, MouseEventArgs e)
@@ -3274,6 +3338,10 @@ public sealed class MapCanvas : Control
             var hoverMoved = nextHover != _hoverTile;
             HoveredTileChanged?.Invoke(nextHover);
             _hoverTile = nextHover;
+            if (hoverMoved)
+            {
+                NoteHoverChangedWhileButtonDown(e.Button);
+            }
             if (hoverMoved && ActiveTool == EditorTool.Place && (e.Button & MouseButtons.Left) == 0)
             {
                 Invalidate();
@@ -3283,13 +3351,14 @@ public sealed class MapCanvas : Control
                 Invalidate();
             }
         }
-        else if (ActiveTool == EditorTool.Selection && _selectionMarqueeAnchor is not null)
+        else if (ActiveTool == EditorTool.Selection && (_selectionMarqueeAnchor is not null || _selectionDragKind != SelectionDragKind.None))
         {
             var clamped = new Point(Math.Clamp(tx, 0, Map.Width - 1), Math.Clamp(ty, 0, Map.Height - 1));
             if (clamped != _hoverTile)
             {
                 HoveredTileChanged?.Invoke(clamped);
                 _hoverTile = clamped;
+                NoteHoverChangedWhileButtonDown(e.Button);
             }
         }
 
@@ -3302,6 +3371,12 @@ public sealed class MapCanvas : Control
 
         if (QuickNpcPlacementClick is not null)
         {
+            return;
+        }
+
+        if (_selectionDragKind != SelectionDragKind.None)
+        {
+            NotifyPaintGesture();
             return;
         }
 
@@ -3505,7 +3580,34 @@ public sealed class MapCanvas : Control
                 CommitLineAt(ex, ey, LineAxisConstrained());
             }
 
-            if (ActiveTool == EditorTool.Selection && e.Button == MouseButtons.Left && _selectionMarqueeAnchor is { } sa)
+            if (_selectionDragKind != SelectionDragKind.None
+                && (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right))
+            {
+                var world = ScreenToWorld(e.Location);
+                var ex = Math.Clamp((int)Math.Floor(world.X / TileSize), 0, Map.Width - 1);
+                var ey = Math.Clamp((int)Math.Floor(world.Y / TileSize), 0, Map.Height - 1);
+                var release = new Point(ex, ey);
+                if (release != _hoverTile)
+                {
+                    _hoverTile = release;
+                    NoteHoverChangedWhileButtonDown(e.Button);
+                }
+
+                var copy = _selectionDragKind == SelectionDragKind.Copy;
+                var origin = _selectionDragOrigin;
+                var layerOnly = _selectionDragActiveLayerOnly;
+                var dropMoved = TryResolveSelectionDrop(out var destX, out var destY)
+                    && (destX != origin.X || destY != origin.Y);
+                EndSelectionDrag();
+                if (dropMoved)
+                {
+                    TryRelocateSelection(origin, destX, destY, copy, layerOnly);
+                }
+
+                Capture = false;
+                NotifyPaintGesture();
+            }
+            else if (ActiveTool == EditorTool.Selection && e.Button == MouseButtons.Left && _selectionMarqueeAnchor is { } sa)
             {
                 var world = ScreenToWorld(e.Location);
                 var ex = Math.Clamp((int)Math.Floor(world.X / TileSize), 0, Map.Width - 1);
@@ -3561,9 +3663,19 @@ public sealed class MapCanvas : Control
 
         if (ActiveTool is EditorTool.Cursor or EditorTool.Selection or EditorTool.Spawn or EditorTool.Place)
         {
-            Cursor = ActiveTool == EditorTool.Place && _draggingPlacedId is not null
-                ? Cursors.SizeAll
-                : Cursors.Cross;
+            if (ActiveTool == EditorTool.Place && _draggingPlacedId is not null)
+            {
+                Cursor = Cursors.SizeAll;
+                return;
+            }
+
+            if (ActiveTool == EditorTool.Selection && SelectionAcceptsDrag())
+            {
+                Cursor = Cursors.SizeAll;
+                return;
+            }
+
+            Cursor = Cursors.Cross;
             return;
         }
 
@@ -3950,6 +4062,19 @@ public sealed class MapCanvas : Control
         {
             var shape = CurrentShapeOptions(ShapeShiftOutline());
             return EditorToolHotkeys.FormatRectangleGesture(ro.X, ro.Y, _hoverTile.X, _hoverTile.Y, shape.Outline, shape.Ellipse);
+        }
+
+        if (ActiveTool == EditorTool.Selection
+            && _selectionDragKind != SelectionDragKind.None
+            && TryResolveSelectionDrop(out var dragX, out var dragY))
+        {
+            var dragHint = EditorToolHotkeys.FormatSelectionDrag(
+                _selectionDragKind == SelectionDragKind.Copy,
+                _selectionDragOrigin.Width,
+                _selectionDragOrigin.Height,
+                dragX,
+                dragY);
+            return _selectionDragActiveLayerOnly ? dragHint + " · couche active" : dragHint;
         }
 
         if (ActiveTool == EditorTool.Selection && _selectionMarqueeAnchor is { } anchor)
@@ -4648,6 +4773,157 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private void NoteHoverChangedWhileButtonDown(MouseButtons button)
+    {
+        if ((button & (MouseButtons.Left | MouseButtons.Right)) == 0)
+        {
+            return;
+        }
+
+        _revertEditOnDoubleClick = false;
+        _restoreSelectionOnDoubleClick = false;
+    }
+
+    /// <summary>
+    /// Double-clic : annule le coup de pinceau / pot / forme du premier clic, puis
+    /// la pipette existante fixe le tampon sans changer d’outil.
+    /// </summary>
+    private void FinishDoubleClickStamp(int tx, int ty)
+    {
+        if (_revertEditOnDoubleClick)
+        {
+            _revertEditOnDoubleClick = false;
+            PerformUndo();
+        }
+
+        if (_restoreSelectionOnDoubleClick)
+        {
+            _committedSelectionTiles = _selectionBeforeClick;
+            _selectionMarqueeAnchor = null;
+            _restoreSelectionOnDoubleClick = false;
+        }
+
+        EndSelectionDrag();
+        _paintStroke = false;
+        _rectPaintOrigin = null;
+        _linePaintOrigin = null;
+        Capture = false;
+        TryPipetteAt(tx, ty, switchToBrush: false);
+        NotifyPaintGesture();
+    }
+
+    private bool SelectionAcceptsDrag()
+    {
+        if (_selectionDragKind != SelectionDragKind.None)
+        {
+            return true;
+        }
+
+        return TryGetCommittedSelectionNormalized(out var rect) && rect.Contains(_hoverTile);
+    }
+
+    /// <summary>
+    /// Pointeur dans la sélection figée : gauche déplace, droit copie.
+    /// Maj limite à la couche active, comme Ctrl+Maj sur le presse-papiers.
+    /// </summary>
+    private bool TryBeginSelectionDrag(MouseButtons button, int tx, int ty)
+    {
+        if (_selectionMarqueeAnchor is not null || !TryGetCommittedSelectionNormalized(out var rect) || !rect.Contains(tx, ty))
+        {
+            return false;
+        }
+
+        _selectionDragKind = button == MouseButtons.Right ? SelectionDragKind.Copy : SelectionDragKind.Move;
+        _selectionDragGrab = new Point(tx, ty);
+        _selectionDragOrigin = rect;
+        _selectionDragActiveLayerOnly = (ModifierKeys & Keys.Shift) == Keys.Shift;
+        if (button == MouseButtons.Left)
+        {
+            _selectionBeforeClick = rect;
+            _restoreSelectionOnDoubleClick = true;
+        }
+
+        Capture = true;
+        NotifyPaintGesture();
+        return true;
+    }
+
+    private void EndSelectionDrag()
+    {
+        _selectionDragKind = SelectionDragKind.None;
+    }
+
+    private bool TryResolveSelectionDrop(out int destX, out int destY)
+    {
+        destX = 0;
+        destY = 0;
+        if (Map is null || _selectionDragKind == SelectionDragKind.None)
+        {
+            return false;
+        }
+
+        var dx = _hoverTile.X - _selectionDragGrab.X;
+        var dy = _hoverTile.Y - _selectionDragGrab.Y;
+        var maxX = Math.Max(0, Map.Width - _selectionDragOrigin.Width);
+        var maxY = Math.Max(0, Map.Height - _selectionDragOrigin.Height);
+        destX = Math.Clamp(_selectionDragOrigin.X + dx, 0, maxX);
+        destY = Math.Clamp(_selectionDragOrigin.Y + dy, 0, maxY);
+        return true;
+    }
+
+    /// <summary>
+    /// Déplace ou copie le rectangle. Le tampon local n’écrit pas le presse-papiers Ctrl+C.
+    /// Déplacer efface l’origine (trous compris) puis colle : un chevauchement reste cohérent.
+    /// La sélection suit la pose. Les numéros de région restent en place.
+    /// </summary>
+    private bool TryRelocateSelection(Rectangle source, int destX, int destY, bool copy, bool activeLayerOnly)
+    {
+        if (Map is null || (destX == source.X && destY == source.Y))
+        {
+            return false;
+        }
+
+        var only = activeLayerOnly ? ActiveLayerIndex : (int?)null;
+        if (!MapEditOperations.HasEditableTilesInRect(Map, source.X, source.Y, source.Width, source.Height, only))
+        {
+            return false;
+        }
+
+        var buffer = new TileClipboardBuffer();
+        if (activeLayerOnly)
+        {
+            buffer.CopyFromLayer(Map, ActiveLayerIndex, source.X, source.Y, source.Width, source.Height);
+        }
+        else
+        {
+            buffer.CopyAllLayers(Map, source.X, source.Y, source.Width, source.Height);
+        }
+
+        if (!buffer.HasContent)
+        {
+            return false;
+        }
+
+        BeginEditTransaction();
+        if (!copy)
+        {
+            EraseSelection(source, activeLayerOnly);
+        }
+
+        if (activeLayerOnly || buffer.IsSingleLayer)
+        {
+            buffer.PasteToLayer(Map, ActiveLayerIndex, destX, destY, Map.Width, Map.Height);
+        }
+        else
+        {
+            buffer.PasteAllLayers(Map, destX, destY, Map.Width, Map.Height);
+        }
+
+        _committedSelectionTiles = new Rectangle(destX, destY, source.Width, source.Height);
+        Invalidate();
+        return true;
+    }
+
     private bool TryGetCommittedSelectionNormalized(out Rectangle rect)
     {
         rect = default;
@@ -4942,8 +5218,8 @@ public sealed class MapCanvas : Control
     internal void SetHoveredMapEventAtWorldForTest(float worldX, float worldY) =>
         UpdateMapEventMarkerHover(worldX, worldY);
 
-    internal void RaiseMouseDownForTest(MouseButtons button, int x, int y) =>
-        OnMouseDown(this, new MouseEventArgs(button, 1, x, y, 0));
+    internal void RaiseMouseDownForTest(MouseButtons button, int x, int y, int clicks = 1) =>
+        OnMouseDown(this, new MouseEventArgs(button, clicks, x, y, 0));
 
     internal void RaiseMouseMoveForTest(MouseButtons button, int x, int y) =>
         OnMouseMove(this, new MouseEventArgs(button, 1, x, y, 0));

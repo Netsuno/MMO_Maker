@@ -447,4 +447,287 @@ public sealed class MapCanvasSelectionPipetteSmokeTests
             }
         });
     }
+
+    [Fact]
+    public void Selection_LeftDrag_MovesGroup_OverlapUndoRedo_RightClickOutsideClears()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            EditorTileClipboard.Clear();
+            try
+            {
+                var canvas = new MapCanvas { TileSize = 32, ActiveTool = EditorTool.Selection };
+                canvas.Map = DemoMapFactory.CreateStarter();
+                var tilesetId = EditorSmokeTestAccess.RegisterMinimalTileset();
+                canvas.ActiveTilesetId = tilesetId;
+                canvas.SelectedStampInTiles = new System.Drawing.Size(1, 1);
+                canvas.SelectedTileType = TileType.Ground;
+
+                canvas.ActiveLayerIndex = 0;
+                canvas.SelectedSrc = new System.Drawing.Point(0, 0);
+                Assert.True(canvas.TryPaintTileForTest(2, 2));
+                Assert.True(canvas.TryPaintTileForTest(4, 2));
+                Assert.True(canvas.TryPaintTileForTest(6, 6));
+                canvas.SelectedSrc = new System.Drawing.Point(32, 0);
+                Assert.True(canvas.TryPaintTileForTest(3, 2));
+
+                canvas.ActiveLayerIndex = 1;
+                canvas.SelectedSrc = new System.Drawing.Point(32, 0);
+                Assert.True(canvas.TryPaintTileForTest(2, 2));
+
+                canvas.ActiveLayerIndex = 2;
+                canvas.SelectedTileType = TileType.Block;
+                canvas.SelectedSrc = new System.Drawing.Point(0, 0);
+                Assert.True(canvas.TryPaintTileForTest(3, 2));
+                canvas.Map!.Layers[2].Tiles.Single(t => t.X == 3 && t.Y == 2).Attributes.Add(new BlockAttribute());
+                canvas.SelectedTileType = TileType.Ground;
+
+                canvas.ActiveRegionId = 4;
+                canvas.ActiveTool = EditorTool.Region;
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+
+                canvas.ActiveTool = EditorTool.Selection;
+                canvas.ActiveLayerIndex = 0;
+                canvas.CommitSelectionForTest(6, 6, 1, 1);
+                Assert.True(canvas.HandleEditorShortcuts(Keys.Control | Keys.C));
+                Assert.Equal(1, EditorTileClipboard.Width);
+
+                canvas.CommitSelectionForTest(2, 2, 2, 1);
+                var idle = canvas.GetPaintStatusHint();
+                Assert.Contains("glisser gauche déplace", idle, StringComparison.Ordinal);
+                Assert.Contains("glisser droit copie", idle, StringComparison.Ordinal);
+
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 2 && t.Y == 2 && t.SrcX == 0);
+                Assert.Equal(new System.Drawing.Rectangle(2, 2, 2, 1), canvas.GetCommittedSelectionForTest());
+
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+                canvas.RaiseMouseMoveForTest(MouseButtons.Left, TilePx(3), TilePx(2));
+                Assert.Contains("déplacer", canvas.GetPaintStatusHint(), StringComparison.Ordinal);
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(3), TilePx(2));
+
+                var ground = canvas.Map.Layers[0];
+                var fringe = canvas.Map.Layers[1];
+                var attributes = canvas.Map.Layers[2];
+                Assert.DoesNotContain(ground.Tiles, t => t.X == 2 && t.Y == 2);
+                Assert.Contains(ground.Tiles, t => t.X == 3 && t.Y == 2 && t.SrcX == 0);
+                Assert.Contains(ground.Tiles, t => t.X == 4 && t.Y == 2 && t.SrcX == 32);
+                Assert.DoesNotContain(fringe.Tiles, t => t.X == 2 && t.Y == 2);
+                Assert.Contains(fringe.Tiles, t => t.X == 3 && t.Y == 2 && t.SrcX == 32);
+                Assert.DoesNotContain(attributes.Tiles, t => t.X == 3 && t.Y == 2);
+                var movedBlock = Assert.Single(attributes.Tiles, t => t.X == 4 && t.Y == 2);
+                Assert.Equal(TileType.Block, movedBlock.Type);
+                Assert.Contains(movedBlock.Attributes, attribute => attribute is BlockAttribute);
+                Assert.Contains(ground.Tiles, t => t.X == 6 && t.Y == 6 && t.SrcX == 0);
+                Assert.Equal(4, canvas.Map.Regions!.Get(2, 2));
+                Assert.Equal(0, canvas.Map.Regions.Get(3, 2));
+                Assert.Equal(new System.Drawing.Rectangle(3, 2, 2, 1), canvas.GetCommittedSelectionForTest());
+                Assert.Equal(1, EditorTileClipboard.Width);
+
+                canvas.PerformUndo();
+                ground = canvas.Map.Layers[0];
+                Assert.Contains(ground.Tiles, t => t.X == 2 && t.Y == 2 && t.SrcX == 0);
+                Assert.Contains(ground.Tiles, t => t.X == 3 && t.Y == 2 && t.SrcX == 32);
+                Assert.Contains(ground.Tiles, t => t.X == 4 && t.Y == 2 && t.SrcX == 0);
+                Assert.Contains(canvas.Map.Layers[1].Tiles, t => t.X == 2 && t.Y == 2 && t.SrcX == 32);
+                Assert.DoesNotContain(canvas.Map.Layers[1].Tiles, t => t.X == 3 && t.Y == 2);
+                Assert.Contains(canvas.Map.Layers[2].Tiles, t => t.X == 3 && t.Y == 2 && t.Type == TileType.Block);
+                Assert.DoesNotContain(canvas.Map.Layers[2].Tiles, t => t.X == 4 && t.Y == 2);
+
+                canvas.PerformRedo();
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 3 && t.Y == 2 && t.SrcX == 0);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 4 && t.Y == 2 && t.SrcX == 32);
+                Assert.DoesNotContain(canvas.Map.Layers[0].Tiles, t => t.X == 2 && t.Y == 2);
+
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(10), TilePx(10));
+                canvas.RaiseMouseMoveForTest(MouseButtons.Left, TilePx(11), TilePx(11));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(11), TilePx(11));
+                Assert.Equal(new System.Drawing.Rectangle(10, 10, 2, 2), canvas.GetCommittedSelectionForTest());
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 3 && t.Y == 2 && t.SrcX == 0);
+
+                canvas.CommitSelectionForTest(3, 2, 2, 1);
+                canvas.RaiseMouseDownForTest(MouseButtons.Right, TilePx(0), TilePx(0));
+                Assert.Null(canvas.GetCommittedSelectionForTest());
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 3 && t.Y == 2 && t.SrcX == 0);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 4 && t.Y == 2 && t.SrcX == 32);
+            }
+            finally
+            {
+                EditorTileClipboard.Clear();
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    [Fact]
+    public void Selection_RightDrag_CopiesGroup_SourceStays_UndoIsOneStep()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            EditorTileClipboard.Clear();
+            try
+            {
+                var canvas = new MapCanvas { TileSize = 32, ActiveTool = EditorTool.Selection };
+                canvas.Map = DemoMapFactory.CreateStarter();
+                var tilesetId = EditorSmokeTestAccess.RegisterMinimalTileset();
+                canvas.ActiveTilesetId = tilesetId;
+                canvas.SelectedStampInTiles = new System.Drawing.Size(1, 1);
+                canvas.SelectedTileType = TileType.Ground;
+
+                canvas.ActiveLayerIndex = 0;
+                canvas.SelectedSrc = new System.Drawing.Point(0, 0);
+                Assert.True(canvas.TryPaintTileForTest(2, 2));
+                canvas.SelectedSrc = new System.Drawing.Point(32, 0);
+                Assert.True(canvas.TryPaintTileForTest(3, 2));
+                canvas.SelectedSrc = new System.Drawing.Point(0, 0);
+                Assert.True(canvas.TryPaintTileForTest(8, 4));
+
+                canvas.ActiveLayerIndex = 1;
+                canvas.SelectedSrc = new System.Drawing.Point(32, 0);
+                Assert.True(canvas.TryPaintTileForTest(2, 3));
+
+                canvas.ActiveLayerIndex = 2;
+                canvas.SelectedTileType = TileType.Block;
+                canvas.SelectedSrc = new System.Drawing.Point(0, 0);
+                Assert.True(canvas.TryPaintTileForTest(3, 2));
+                canvas.Map!.Layers[2].Tiles.Single(t => t.X == 3 && t.Y == 2).Attributes.Add(new BlockAttribute());
+
+                canvas.ActiveRegionId = 9;
+                canvas.ActiveTool = EditorTool.Region;
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+
+                canvas.ActiveTool = EditorTool.Selection;
+                canvas.ActiveLayerIndex = 0;
+                canvas.CommitSelectionForTest(2, 2, 2, 2);
+                Assert.True(canvas.HandleEditorShortcuts(Keys.Control | Keys.C));
+                var clipboardBefore = EditorTileClipboard.Snapshot().Count;
+
+                canvas.RaiseMouseDownForTest(MouseButtons.Right, TilePx(2), TilePx(2));
+                canvas.RaiseMouseMoveForTest(MouseButtons.Right, TilePx(8), TilePx(4));
+                Assert.Contains("copier", canvas.GetPaintStatusHint(), StringComparison.Ordinal);
+                canvas.RaiseMouseUpForTest(MouseButtons.Right, TilePx(8), TilePx(4));
+
+                var ground = canvas.Map.Layers[0];
+                Assert.Contains(ground.Tiles, t => t.X == 2 && t.Y == 2 && t.SrcX == 0);
+                Assert.Contains(ground.Tiles, t => t.X == 3 && t.Y == 2 && t.SrcX == 32);
+                Assert.Contains(ground.Tiles, t => t.X == 8 && t.Y == 4 && t.SrcX == 0);
+                Assert.Contains(ground.Tiles, t => t.X == 9 && t.Y == 4 && t.SrcX == 32);
+                Assert.DoesNotContain(ground.Tiles, t => t.X == 8 && t.Y == 5);
+                Assert.Contains(canvas.Map.Layers[1].Tiles, t => t.X == 2 && t.Y == 3 && t.SrcX == 32);
+                Assert.Contains(canvas.Map.Layers[1].Tiles, t => t.X == 8 && t.Y == 5 && t.SrcX == 32);
+                Assert.Contains(canvas.Map.Layers[2].Tiles, t => t.X == 3 && t.Y == 2 && t.Type == TileType.Block);
+                var copiedBlock = Assert.Single(canvas.Map.Layers[2].Tiles, t => t.X == 9 && t.Y == 4);
+                Assert.Contains(copiedBlock.Attributes, attribute => attribute is BlockAttribute);
+                Assert.Equal(9, canvas.Map.Regions!.Get(2, 2));
+                Assert.Equal(0, canvas.Map.Regions.Get(8, 4));
+                Assert.Equal(new System.Drawing.Rectangle(8, 4, 2, 2), canvas.GetCommittedSelectionForTest());
+                Assert.Equal(clipboardBefore, EditorTileClipboard.Snapshot().Count);
+                Assert.Equal(2, EditorTileClipboard.Width);
+
+                canvas.PerformUndo();
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 2 && t.Y == 2 && t.SrcX == 0);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 3 && t.Y == 2 && t.SrcX == 32);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 8 && t.Y == 4 && t.SrcX == 0);
+                Assert.DoesNotContain(canvas.Map.Layers[0].Tiles, t => t.X == 9 && t.Y == 4);
+                Assert.Contains(canvas.Map.Layers[1].Tiles, t => t.X == 2 && t.Y == 3);
+                Assert.DoesNotContain(canvas.Map.Layers[1].Tiles, t => t.X == 8 && t.Y == 5);
+                Assert.Contains(canvas.Map.Layers[2].Tiles, t => t.X == 3 && t.Y == 2 && t.Type == TileType.Block);
+                Assert.DoesNotContain(canvas.Map.Layers[2].Tiles, t => t.X == 9 && t.Y == 4);
+
+                canvas.PerformRedo();
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 9 && t.Y == 4 && t.SrcX == 32);
+                Assert.Contains(canvas.Map.Layers[1].Tiles, t => t.X == 8 && t.Y == 5 && t.SrcX == 32);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 2 && t.Y == 2 && t.SrcX == 0);
+            }
+            finally
+            {
+                EditorTileClipboard.Clear();
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    [Fact]
+    public void DoubleClick_PicksStamp_UndoAccidentalPaint_BrushDragStillPaints()
+    {
+        StaTestRunner.Run(() =>
+        {
+            EditorSmokeTestAccess.ResetHooks();
+            try
+            {
+                var canvas = new MapCanvas { TileSize = 32, ActiveTool = EditorTool.Brush };
+                canvas.Map = DemoMapFactory.CreateStarter();
+                var tilesetId = EditorSmokeTestAccess.RegisterMinimalTileset();
+                canvas.ActiveTilesetId = tilesetId;
+                canvas.SelectedStampInTiles = new System.Drawing.Size(1, 1);
+                canvas.SelectedTileType = TileType.Ground;
+                canvas.ActiveLayerIndex = 0;
+
+                canvas.SelectedSrc = new System.Drawing.Point(32, 0);
+                Assert.True(canvas.TryPaintTileForTest(4, 5));
+                canvas.SelectedSrc = new System.Drawing.Point(0, 0);
+
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(1), TilePx(1));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(1), TilePx(1));
+                Assert.Contains(canvas.Map!.Layers[0].Tiles, t => t.X == 1 && t.Y == 1 && t.SrcX == 0);
+
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(1), TilePx(2));
+                canvas.RaiseMouseMoveForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(2), TilePx(2));
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 1 && t.Y == 2 && t.SrcX == 0);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 2 && t.Y == 2 && t.SrcX == 0);
+
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(4), TilePx(5));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(4), TilePx(5));
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(4), TilePx(5), clicks: 2);
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(4), TilePx(5));
+
+                Assert.Equal(EditorTool.Brush, canvas.ActiveTool);
+                Assert.Equal(tilesetId, canvas.ActiveTilesetId);
+                Assert.Equal(new System.Drawing.Point(32, 0), canvas.SelectedSrc);
+                Assert.Equal(new System.Drawing.Size(1, 1), canvas.SelectedStampInTiles);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 4 && t.Y == 5 && t.SrcX == 32);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 1 && t.Y == 1 && t.SrcX == 0);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 2 && t.Y == 2 && t.SrcX == 0);
+
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(7), TilePx(7));
+                canvas.RaiseMouseMoveForTest(MouseButtons.Left, TilePx(8), TilePx(7));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(8), TilePx(7));
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 7 && t.Y == 7 && t.SrcX == 32);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 8 && t.Y == 7 && t.SrcX == 32);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 4 && t.Y == 5 && t.SrcX == 32);
+
+                canvas.ActiveTool = EditorTool.Fill;
+                canvas.SelectedSrc = new System.Drawing.Point(0, 0);
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(4), TilePx(5));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(4), TilePx(5));
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(4), TilePx(5), clicks: 2);
+                Assert.Equal(EditorTool.Fill, canvas.ActiveTool);
+                Assert.Equal(new System.Drawing.Point(32, 0), canvas.SelectedSrc);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 4 && t.Y == 5 && t.SrcX == 32);
+                Assert.DoesNotContain(canvas.Map.Layers[0].Tiles, t => t.X == 4 && t.Y == 4);
+
+                canvas.ActiveTool = EditorTool.Selection;
+                canvas.CommitSelectionForTest(1, 1, 2, 1);
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(4), TilePx(5));
+                canvas.RaiseMouseUpForTest(MouseButtons.Left, TilePx(4), TilePx(5));
+                canvas.RaiseMouseDownForTest(MouseButtons.Left, TilePx(4), TilePx(5), clicks: 2);
+                Assert.Equal(EditorTool.Selection, canvas.ActiveTool);
+                Assert.Equal(new System.Drawing.Rectangle(1, 1, 2, 1), canvas.GetCommittedSelectionForTest());
+                Assert.Equal(new System.Drawing.Point(32, 0), canvas.SelectedSrc);
+                Assert.Contains(canvas.Map.Layers[0].Tiles, t => t.X == 1 && t.Y == 1 && t.SrcX == 0);
+            }
+            finally
+            {
+                EditorSmokeTestAccess.ResetHooks();
+            }
+        });
+    }
+
+    private static int TilePx(int tile) => tile * 32 + 8;
 }
