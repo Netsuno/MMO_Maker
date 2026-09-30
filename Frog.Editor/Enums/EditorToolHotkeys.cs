@@ -144,7 +144,7 @@ public static class EditorToolHotkeys
             EditorTool.Fill => FormatFillStatus(visibleUnlockedLayers: false, respectAttributes: false),
             EditorTool.Rectangle => FormatRectangleStatus(outline: false, ellipse: false),
             EditorTool.Line => "Ligne (L) · cliquez le départ, glissez, relâchez · Maj = axe",
-            EditorTool.Selection => "Sélection (M) · tracez une zone rectangulaire · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition",
+            EditorTool.Selection => "Sélection (M) · tracez une zone rectangulaire · glisser gauche déplace · glisser droit copie · copie toutes les couches · Ctrl+C/X/V · Ctrl+Maj = couche active · Q/H/V · Suppr · double-clic = tampon · modèle : menu Édition",
             EditorTool.Spawn => "Départ (D) · clic pour poser le spawn playtest",
             EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · clic sélectionne · Ctrl+D duplique · Échap quitte",
             EditorTool.Place => "Entités (N) · Apparition, PNJ ou Objet · clic pose · glisser déplace · clic droit retire",
@@ -215,7 +215,15 @@ public static class EditorToolHotkeys
 
     /// <summary>Sélection figée : copier-coller multi-couches, couche active avec Ctrl+Maj.</summary>
     public static string FormatSelectionCommitted(int width, int height)
-        => $"Sélection (M) · zone {width}×{height} · copie toutes les couches · Ctrl+C/X/V (copie, coupe, colle) · Ctrl+Maj = couche active · Q/H/V · Suppr · modèle : menu Édition";
+        => $"Sélection (M) · zone {width}×{height} · glisser gauche déplace · glisser droit copie · copie toutes les couches · Ctrl+C/X/V (copie, coupe, colle) · Ctrl+Maj = couche active · Q/H/V · Suppr · double-clic = tampon · modèle : menu Édition";
+
+    /// <summary>Glisser d’une sélection figée : gauche déplace, droit copie.</summary>
+    public static string FormatSelectionDrag(bool copy, int width, int height, int destX, int destY)
+    {
+        var action = copy ? "copier" : "déplacer";
+        var release = copy ? "poser la copie" : "poser";
+        return $"Sélection (M) · {action} {width}×{height} vers ({destX}, {destY}) · relâchez pour {release}";
+    }
 
     /// <summary>Presse-papiers de zone prêt à être collé sous le curseur.</summary>
     public static string FormatZoneClipboard(int width, int height, bool singleLayer)
@@ -235,5 +243,5 @@ public static class EditorToolHotkeys
     }
 
     public const string SelectionHint =
-        "Copie toutes les couches : Ctrl+C copie la zone, Ctrl+X coupe, Ctrl+V colle · couche active : Ctrl+Maj+C/V · Q rotation · H/V miroir · I pipette (Alt+clic)";
+        "Copie toutes les couches : Ctrl+C copie la zone, Ctrl+X coupe, Ctrl+V colle · couche active : Ctrl+Maj+C/V · glisser gauche déplace · glisser droit copie · Q rotation · H/V miroir · I pipette (Alt+clic) · double-clic = tampon";
 }

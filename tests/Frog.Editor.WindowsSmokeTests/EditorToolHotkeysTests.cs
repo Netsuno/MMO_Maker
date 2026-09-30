@@ -82,6 +82,10 @@ public sealed class EditorToolHotkeysTests
         Assert.Contains("Ctrl+Maj", EditorToolHotkeys.StatusHint(EditorTool.Selection), StringComparison.Ordinal);
         Assert.Contains("2×2", EditorToolHotkeys.FormatSelectionCommitted(2, 2), StringComparison.Ordinal);
         Assert.Contains("zone", EditorToolHotkeys.FormatSelectionCommitted(2, 2), StringComparison.Ordinal);
+        Assert.Contains("glisser gauche déplace", EditorToolHotkeys.FormatSelectionCommitted(2, 2), StringComparison.Ordinal);
+        Assert.Contains("glisser droit copie", EditorToolHotkeys.FormatSelectionCommitted(2, 2), StringComparison.Ordinal);
+        Assert.Contains("déplacer 2×1 vers (4, 3)", EditorToolHotkeys.FormatSelectionDrag(copy: false, 2, 1, 4, 3), StringComparison.Ordinal);
+        Assert.Contains("poser la copie", EditorToolHotkeys.FormatSelectionDrag(copy: true, 2, 1, 4, 3), StringComparison.Ordinal);
         Assert.Contains("toutes les couches", EditorToolHotkeys.FormatSelectionGesture(0, 0, 3, 1), StringComparison.Ordinal);
         Assert.Contains("4×2", EditorToolHotkeys.FormatSelectionGesture(0, 0, 3, 1), StringComparison.Ordinal);
         Assert.Contains("zone copiée 3×2", EditorToolHotkeys.FormatZoneClipboard(3, 2, singleLayer: false), StringComparison.Ordinal);
