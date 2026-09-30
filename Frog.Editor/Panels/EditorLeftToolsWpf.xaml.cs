@@ -11,6 +11,14 @@ using Frog.Editor.Enums;
 
 namespace Frog.Editor.Panels;
 
+public enum EditorPaletteMode
+{
+    Tiles,
+    Objects,
+    Entities,
+    Attributes,
+}
+
 public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
 {
     private static readonly SolidColorBrush PlaceIdleBackground = Freeze(0x32, 0x35, 0x3E);
@@ -19,8 +27,10 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     private static readonly SolidColorBrush PlaceActiveBorder = Freeze(0xE8, 0xB8, 0x6D);
 
     private bool _suspendTool;
+    private bool _suspendMode;
     private bool _suspendTileType;
     private bool _suspendPrefab;
+    private EditorPaletteMode _paletteMode = EditorPaletteMode.Tiles;
     private bool _restoringPrefabSelection;
     private bool _placeMode;
     private string? _selectedId;
@@ -30,7 +40,9 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     private PrefabCatalog _catalog = new();
 
     public event Action<EditorTool>? ToolChanged;
+    public event Action<EditorPaletteMode>? PaletteModeChanged;
     public event Action<QuickEventPresetKind>? QuickEventPresetRequested;
+    public event Action? QuickNpcRequested;
     public event Action<bool>? FillVisibleUnlockedLayersChanged;
     public event Action<bool>? FillRespectAttributesChanged;
     public event Action<bool>? RectangleOutlineChanged;
@@ -147,6 +159,97 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     {
         SetSelectedTool(EditorTool.Spawn);
         ToolChanged?.Invoke(EditorTool.Spawn);
+    }
+
+    private void OnQuickNpcClick(object sender, RoutedEventArgs e) => QuickNpcRequested?.Invoke();
+
+    private void OnPaletteModeChecked(object sender, RoutedEventArgs e)
+    {
+        if (_suspendMode || sender is not System.Windows.Controls.RadioButton { IsChecked: true })
+        {
+            return;
+        }
+
+        var mode = ModeForRadio(sender);
+        if (mode == _paletteMode)
+        {
+            return;
+        }
+
+        ApplyPaletteVisibility(mode);
+        PaletteModeChanged?.Invoke(mode);
+    }
+
+    private EditorPaletteMode ModeForRadio(object sender)
+    {
+        if (ReferenceEquals(sender, ModeObjects))
+        {
+            return EditorPaletteMode.Objects;
+        }
+
+        if (ReferenceEquals(sender, ModeEntities))
+        {
+            return EditorPaletteMode.Entities;
+        }
+
+        if (ReferenceEquals(sender, ModeAttributes))
+        {
+            return EditorPaletteMode.Attributes;
+        }
+
+        return EditorPaletteMode.Tiles;
+    }
+
+    private static EditorPaletteMode ModeForTool(EditorTool tool) => tool switch
+    {
+        EditorTool.Prefab => EditorPaletteMode.Objects,
+        EditorTool.Place or EditorTool.Spawn => EditorPaletteMode.Entities,
+        EditorTool.Region => EditorPaletteMode.Attributes,
+        _ => EditorPaletteMode.Tiles,
+    };
+
+    private void RevealModeForTool(EditorTool tool)
+    {
+        if (ModeTiles is null)
+        {
+            return;
+        }
+
+        var mode = ModeForTool(tool);
+        if (mode == _paletteMode)
+        {
+            return;
+        }
+
+        _suspendMode = true;
+        try
+        {
+            ModeTiles.IsChecked = mode == EditorPaletteMode.Tiles;
+            ModeObjects.IsChecked = mode == EditorPaletteMode.Objects;
+            ModeEntities.IsChecked = mode == EditorPaletteMode.Entities;
+            ModeAttributes.IsChecked = mode == EditorPaletteMode.Attributes;
+        }
+        finally
+        {
+            _suspendMode = false;
+        }
+
+        ApplyPaletteVisibility(mode);
+        PaletteModeChanged?.Invoke(mode);
+    }
+
+    private void ApplyPaletteVisibility(EditorPaletteMode mode)
+    {
+        _paletteMode = mode;
+        if (PanelTiles is null)
+        {
+            return;
+        }
+
+        PanelTiles.Visibility = mode == EditorPaletteMode.Tiles ? Visibility.Visible : Visibility.Collapsed;
+        PanelObjects.Visibility = mode == EditorPaletteMode.Objects ? Visibility.Visible : Visibility.Collapsed;
+        PanelEntities.Visibility = mode == EditorPaletteMode.Entities ? Visibility.Visible : Visibility.Collapsed;
+        PanelAttributes.Visibility = mode == EditorPaletteMode.Attributes ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnQuickEventPresetClick(object sender, RoutedEventArgs e)
@@ -404,6 +507,38 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
 
         PrefabPreview.Source = preview;
         PrefabPreviewHost.Visibility = preview is null ? Visibility.Collapsed : Visibility.Visible;
+        RefreshFacingChip();
+    }
+
+    private void RefreshFacingChip()
+    {
+        if (FacingChip is null)
+        {
+            return;
+        }
+
+        FacingChip.Visibility = CurrentFacingVariantCount() > 1
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private int CurrentFacingVariantCount()
+    {
+        if (!TryCurrentDefinition(out var definition) || definition.Variants is null)
+        {
+            return 0;
+        }
+
+        var seen = new HashSet<PrefabFacing>();
+        foreach (var variant in definition.Variants)
+        {
+            if (variant is not null)
+            {
+                seen.Add(variant.Facing);
+            }
+        }
+
+        return seen.Count;
     }
 
     private void RefreshPrefabStatus()
@@ -701,6 +836,8 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
         }
+
+        RevealModeForTool(tool);
     }
 
     private void OnRectangleOptionChanged(object sender, RoutedEventArgs e)

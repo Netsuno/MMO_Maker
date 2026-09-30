@@ -56,7 +56,8 @@ public sealed class MainForm : Form
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
     private Point _lastHoverTile;
-    private readonly TableLayoutPanel _leftLayout;
+    private readonly TableLayoutPanel _assetsLayout;
+    private readonly Panel _tilesPaletteHost;
     /// <summary>Horizontal : panneau haut = couches, bas = PropertyGrid.</summary>
     private readonly SplitContainer _splitLayersProps;
     private readonly SplitContainer _splitRightTileset;
@@ -108,7 +109,7 @@ public sealed class MainForm : Form
     private readonly Button _btnPaletteAsset;
     private string? _tileAssetMapPath;
 
-    /// <summary>Colonne gauche (outils, cartes) pour hébergement dans un <c>WindowsFormsHost</c> WPF.</summary>
+    /// <summary>Colonne gauche : arbre des cartes seulement.</summary>
     internal Control LeftShellForWpf => _leftColumnPanel;
 
     /// <summary>Zone carte (bandeau + canevas + mini-carte).</summary>
@@ -555,7 +556,7 @@ public sealed class MainForm : Form
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
-                SplitterDistance = 260,
+                SplitterDistance = 200,
                 FixedPanel = FixedPanel.Panel1,
                 SplitterWidth = 6,
                 BackColor = EditorChrome.CanvasInset,
@@ -630,7 +631,9 @@ public sealed class MainForm : Form
 
         _leftToolsWpf = new EditorLeftToolsWpf();
         _leftToolsWpf.ToolChanged += tool => SelectEditorTool(tool);
+        _leftToolsWpf.PaletteModeChanged += ApplyPaletteHostLayout;
         _leftToolsWpf.QuickEventPresetRequested += OpenQuickEventPreset;
+        _leftToolsWpf.QuickNpcRequested += OpenQuickTalkingNpc;
         _leftToolsWpf.FillVisibleUnlockedLayersChanged += enabled =>
         {
             _canvas.FillVisibleUnlockedLayers = enabled;
@@ -665,6 +668,7 @@ public sealed class MainForm : Form
             Margin = Padding.Empty,
             Child = _leftToolsWpf,
         };
+        _leftToolsWpf.SizeChanged += (_, e) => SyncPaletteChromeHeight(e.NewSize.Height);
 
         _mapsProjectPanel = new MapsProjectPanel();
         _mapsProjectPanel.CatalogMapOpenRequested += (_, mapId) => _ = OpenCatalogMapAsync(mapId);
@@ -733,32 +737,32 @@ public sealed class MainForm : Form
         var paletteBody = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
         paletteBody.Controls.Add(_tileAssetWorkbench);
         paletteBody.Controls.Add(_sheetTilesHost);
-        var tilesHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg, Padding = new Padding(0) };
-        tilesHost.Controls.Add(paletteBody);
-        tilesHost.Controls.Add(paletteModeBar);
+        _tilesPaletteHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg, Padding = new Padding(0) };
+        _tilesPaletteHost.Controls.Add(paletteBody);
+        _tilesPaletteHost.Controls.Add(paletteModeBar);
 
-        _leftLayout = new TableLayoutPanel
+        _assetsLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            Padding = new Padding(2, 10, 2, 12),
+            Padding = new Padding(0),
             BackColor = EditorChrome.SidebarBg,
         };
-        _leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        _leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        _assetsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _assetsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        _assetsLayout.Controls.Add(_leftToolsElementHost, 0, 0);
+        _assetsLayout.Controls.Add(_tilesPaletteHost, 0, 1);
+        ApplyPaletteHostLayout(EditorPaletteMode.Tiles);
 
-        var mapsHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 4, 10, 10), BackColor = EditorChrome.SidebarBg };
+        var mapsHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 4, 8, 8), BackColor = EditorChrome.SidebarBg };
         mapsHost.Controls.Add(_mapsElementHost);
 
-        _leftLayout.Controls.Add(_leftToolsElementHost, 0, 0);
-        _leftLayout.Controls.Add(mapsHost, 0, 1);
-
         _leftColumnPanel = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
-        _leftColumnPanel.Controls.Add(_leftLayout);
+        _leftColumnPanel.Controls.Add(mapsHost);
         _splitLeft?.Panel1.Controls.Add(_leftColumnPanel);
 
-        _mapHeader = new Panel { Dock = DockStyle.Top, Height = 33, BackColor = EditorChrome.RibbonBg };
+        _mapHeader = new Panel { Dock = DockStyle.Top, Height = 0, Visible = false, BackColor = EditorChrome.RibbonBg };
         _lblMapWorkspaceTitle = new Label
         {
             Dock = DockStyle.Fill,
@@ -799,7 +803,7 @@ public sealed class MainForm : Form
         };
         _splitRightTileset.Panel1.BackColor = EditorChrome.SidebarBg;
         _splitRightTileset.Panel2.BackColor = EditorChrome.SidebarBg;
-        _splitRightTileset.Panel1.Controls.Add(tilesHost);
+        _splitRightTileset.Panel1.Controls.Add(_assetsLayout);
 
         _splitLayersProps = new SplitContainer
         {
@@ -1013,6 +1017,9 @@ public sealed class MainForm : Form
         propsBody.Controls.Add(_mapPropertiesBar);
         propsBody.Controls.Add(_regionsPanel);
         var propsHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
+        _transferIssuesPanel.MinimumSize = new Size(0, 0);
+        _transferIssuesPanel.Visible = false;
+        _transferIssuesPanel.Height = 0;
         propsHost.Controls.Add(_transferIssuesPanel);
         propsHost.Controls.Add(propsBody);
         _splitLayersProps.Panel2.Controls.Add(propsHost);
@@ -4772,6 +4779,49 @@ public sealed class MainForm : Form
             pad.Top);
     }
 
+    private void SyncPaletteChromeHeight(double height)
+    {
+        if (!_leftToolsElementHost.AutoSize || height < 32 || double.IsNaN(height) || double.IsInfinity(height))
+        {
+            return;
+        }
+
+        var pixels = (int)Math.Ceiling(height);
+        if (Math.Abs(_leftToolsElementHost.Height - pixels) <= 1)
+        {
+            return;
+        }
+
+        _leftToolsElementHost.Height = pixels;
+    }
+
+    /// <summary>
+    /// Tuiles : puces d’outils au-dessus de la grille. Les autres modes occupent toute la zone d’assets.
+    /// </summary>
+    private void ApplyPaletteHostLayout(EditorPaletteMode mode)
+    {
+        var tiles = mode == EditorPaletteMode.Tiles;
+        _tilesPaletteHost.Visible = tiles;
+        if (tiles)
+        {
+            _assetsLayout.RowStyles[0] = new RowStyle(SizeType.AutoSize);
+            _assetsLayout.RowStyles[1] = new RowStyle(SizeType.Percent, 100f);
+            _leftToolsElementHost.AutoSize = true;
+            _leftToolsElementHost.Dock = DockStyle.Top;
+            if (_leftToolsElementHost.Height <= 0 || _leftToolsElementHost.Height > 480)
+            {
+                _leftToolsElementHost.Height = 240;
+            }
+
+            return;
+        }
+
+        _assetsLayout.RowStyles[0] = new RowStyle(SizeType.Percent, 100f);
+        _assetsLayout.RowStyles[1] = new RowStyle(SizeType.Absolute, 0f);
+        _leftToolsElementHost.AutoSize = false;
+        _leftToolsElementHost.Dock = DockStyle.Fill;
+    }
+
     private void ApplyLayoutPercentages()
     {
         if (_embedAsWpfChild || _splitLeft is null || _splitRight is null)
@@ -4788,8 +4838,8 @@ public sealed class MainForm : Form
             return;
         }
 
-        var leftW = (int)(totalW * 0.20f);
-        leftW = Math.Max(328, leftW);
+        var leftMax = Math.Max(_splitLeft.Panel1MinSize, totalW - _splitLeft.Panel2MinSize - _splitLeft.SplitterWidth);
+        var leftW = Math.Clamp(200, _splitLeft.Panel1MinSize, leftMax);
         _splitLeft.SplitterDistance = leftW;
 
         var rightContainerW = _splitRight.Width;
@@ -4798,9 +4848,14 @@ public sealed class MainForm : Form
             rightContainerW = totalW - leftW;
         }
 
-        var propsW = (int)(rightContainerW * 0.25f);
-        propsW = Math.Max(340, propsW);
-        _splitRight.SplitterDistance = Math.Max(200, _splitRight.Width - propsW);
+        var propsMax = rightContainerW - _splitRight.Panel1MinSize - _splitRight.SplitterWidth;
+        if (propsMax > _splitRight.Panel2MinSize)
+        {
+            var propsW = Math.Clamp(300, _splitRight.Panel2MinSize, propsMax);
+            _splitRight.SplitterDistance = Math.Max(
+                _splitRight.Panel1MinSize,
+                rightContainerW - propsW - _splitRight.SplitterWidth);
+        }
 
         ApplyLayersPropertySplitDistance();
         PositionMinimap();
@@ -4839,7 +4894,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        var want = Math.Clamp((int)(h * 0.48f), minD, maxD);
+        var want = Math.Clamp((int)(h * 0.62f), minD, maxD);
         sc.SplitterDistance = want;
     }
 
