@@ -2,20 +2,14 @@
 
 ← [Editor](README.md) · [Référence](../README.md)
 
-Valide les champs du dialogue de publish (chemin héritage Maria / métadonnées).
+*Statut : historique — symbole absent de `Frog.Editor`.*
 
-*Source : `PublishMapDialog.TryValidate`*
+`PublishMapDialog.TryValidate` documentait le dialogue de publication MariaDB (id, clé, nom affiché). Ce dialogue et ce type ne sont plus dans l’éditeur (retrait #83).
 
-**Signature :** `publishmapdialogtryvalidate()`
+L’enregistrement et la publication passent par **Fichier → Enregistrer (PostgreSQL)** et **Fichier → Publier (PostgreSQL)…** :
 
-**Entrées :** —
-*(champs UI : id, key, display)*
+- [savemap](savemap.md) — `MainForm.SaveMap`
+- [publishmap](publishmap.md) — `MainForm.PublishMap`
+- [canexecutesaveorpublish](canexecutesaveorpublish.md) — `AllowsSave`
 
-**Sorties :**
-- (`bool`) — valide
-- `errorMessage` (`string`) — motif si faux
-
-**Propriétés associées :**
-- `PublishedMapId` (`int`)
-- `PublishedMapKey` (`string`)
-- `PublishedDisplayName` (`string`)
+En démo (`InMemoryDemo`), `AllowsSave` est faux : les commandes WPF sont inactives. Leurs libellés restent « Enregistrer (PostgreSQL) » et « Publier (PostgreSQL)… ». Parcours auteur : [quickstart](../../progress/phase-10-beta-release/guides/CREATOR_QUICKSTART.md).

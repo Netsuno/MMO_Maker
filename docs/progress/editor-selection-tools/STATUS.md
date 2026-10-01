@@ -8,7 +8,7 @@
 | **Base** | `main` @ `00050b5` (tuiles animées #52) |
 | **Branche** | `cursor/editor-multilayer-selection-copy-1081` |
 | **PR** | [#53](https://github.com/Netsuno/MMO_Maker/pull/53) vers `main` |
-| **Protocole** | `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** |
+| **Protocole** | Chantier #53 : `FrogWireProtocol.Version` **reste 11** — `MapSerializer.MapFileFormatVersion` **reste 5** (cartes feuille). Au tip d’inventaire `8aec6e64`, Hello **reste 11** ; une carte `TileAsset` s’écrit en `.fmap` **v6** (tuiles **48×48**). Le v5 reste le chemin `SheetSource` |
 
 Parallèle aux chantiers déjà livrés (rotation / miroir / pipette, spawn, prefabs) : **aucun** bump `.fmap`, **aucun** changement protocole, client, ou publication prefab.
 
@@ -22,6 +22,21 @@ Parallèle aux chantiers déjà livrés (rotation / miroir / pipette, spawn, pre
 4. Libellés FR : menu Édition (WPF et WinForms), barre d’état, hint de l’outil Sélection. Raccourcis Ctrl+C/X/V relayés depuis la coque WPF.
 
 La rotation 90° (Q), les miroirs H/V et la pipette (I) restent en place. Suppr efface le rectangle sur toutes les couches éditables ; Maj+Suppr n’efface que la couche active.
+
+---
+
+## Gestes canevas (#136)
+
+À côté du copier-coller clavier ci-dessus. Code : `MapCanvas.TryBeginSelectionDrag`, `TryRelocateSelection`, `FinishDoubleClickStamp`.
+
+1. Clic gauche glissé **dans** le rectangle **déplace**. Clic droit glissé **copie**. Un pas d’annulation chacun.
+2. Tampon privé : Ctrl+C n’est pas touché. L’origine du déplacement est effacée puis recollée (chevauchement sûr). La sélection suit la copie.
+3. Les numéros de région restent en place.
+4. Maj = couche active, comme Ctrl+Maj sur le presse-papiers.
+5. Un glisser **hors** sélection retrace le rectangle. Un clic droit hors sélection efface la sélection.
+6. Double-clic : pipette sans changer d’outil. Le premier demi-clic (pinceau, pot, rectangle, ligne) est annulé, puis la pipette pose le tampon.
+
+Le guide auteur reprend ces gestes : [`../phase-10-beta-release/guides/CREATOR_QUICKSTART.md`](../phase-10-beta-release/guides/CREATOR_QUICKSTART.md). Disposition : [`../../EDITOR_WORKSPACE.md`](../../EDITOR_WORKSPACE.md).
 
 ---
 

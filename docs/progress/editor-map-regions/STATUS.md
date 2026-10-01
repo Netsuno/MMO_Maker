@@ -13,7 +13,7 @@ Les régions et la table de rencontres vivent dans le sidecar `{carte}.regions.j
 ## Livré
 
 1. **Modèle** — cases de région 0–63 (0 = aucune), pas moyens, rencontres (monstre, alias, poids, régions). Liste vide = toute la carte.
-2. **Éditeur** — outil Région (G), numéro affiché sur la carte, panneau français Régions / Rencontres. Le catalogue des monstres publiés remplit la liste ; s’il est vide, un nom ou un identifiant suffit.
+2. **Éditeur** — radio **Régions**, outil Région (G), numéros affichés sur la carte. Le panneau français Régions / Rencontres s’ouvre dans l’inspecteur repliable (~160 px quand il est ouvert). Un déplacement ou une copie de sélection laisse ces numéros en place. Le catalogue des monstres publiés remplit la liste ; s’il est vide, un nom ou un identifiant suffit.
 3. **Fichier** — enregistrement et relecture du sidecar sans changer le `.fmap`. Un redimensionnement ou un décalage recadre les cases. Annuler une peinture de tuile conserve la couche région. Le serveur relit le sidecar au chargement fichier (pas les blobs PostgreSQL).
 
 ## Hors scope
