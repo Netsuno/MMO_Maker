@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Sockets;
 using System.Windows.Threading;
+using Frog.Core.Constants;
 using Frog.Editor;
 using Frog.Editor.Services;
 using Frog.Editor.Ui;
@@ -40,6 +41,20 @@ public sealed class RightRailLayoutMathTests
     }
 
     [Fact]
+    public void WpfEmbed_DefersRightRailOnceTheHostHandleExists()
+    {
+        Assert.Equal((ushort)11, FrogWireProtocol.Version);
+        Assert.Equal(48, TileAssetMetrics.TargetTileSizePixels);
+
+        // Constructeur : pas de HWND, le repli de l’inspecteur reste synchrone.
+        Assert.False(ShellLayoutDeferral.DeferWhileHostHandleExists(embedAsWpfChild: true, splitHandleCreated: false));
+        // Premier show : handle créé dans WindowsFormsHost.BuildWindowCore — poster, ne pas appliquer.
+        Assert.True(ShellLayoutDeferral.DeferWhileHostHandleExists(embedAsWpfChild: true, splitHandleCreated: true));
+        Assert.False(ShellLayoutDeferral.DeferWhileHostHandleExists(embedAsWpfChild: false, splitHandleCreated: true));
+        Assert.False(ShellLayoutDeferral.DeferWhileHostHandleExists(embedAsWpfChild: false, splitHandleCreated: false));
+    }
+
+    [Fact]
     public void UnavailableDatabase_IsConnectionFailure_NotForcedMigrate()
     {
         Assert.True(EditorDatabaseAvailability.IsUnavailable(new SocketException((int)SocketError.ConnectionRefused)));
@@ -59,7 +74,10 @@ public sealed class RightRailLayoutMathTests
     }
 }
 
-/// <summary>La coque WPF reste pompable, et Postgres injoignable ouvre un brouillon local.</summary>
+/// <summary>
+/// La coque WPF reste pompable après le premier affichage, et Postgres injoignable ouvre un brouillon local.
+/// Le layout du rail ne doit pas tourner sur la pile HandleCreated (deadlock ElementHost, CPU plat).
+/// </summary>
 [Collection(UiSmokeCollectionDefinition.Name)]
 public sealed class EditorStartupHangSmokeTests
 {
@@ -82,6 +100,8 @@ public sealed class EditorStartupHangSmokeTests
                     throw form.WorkspaceInitializationTask.Exception!.GetBaseException();
                 }
 
+                Assert.Equal(0, form.RightRailLayoutsInsideHostCallbackForTest);
+                Assert.True(form.RightRailLayoutInvocationsForTest > 0);
                 var before = form.RightRailLayoutInvocationsForTest;
                 var pumped = false;
                 window.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => pumped = true));
@@ -90,6 +110,7 @@ public sealed class EditorStartupHangSmokeTests
                     () => pumped && Environment.TickCount64 - started >= 300,
                     TimeSpan.FromSeconds(4));
                 Assert.True(pumped);
+                Assert.Equal(0, form.RightRailLayoutsInsideHostCallbackForTest);
                 Assert.InRange(form.RightRailLayoutInvocationsForTest - before, 0, 12);
             }
             finally

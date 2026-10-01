@@ -312,8 +312,10 @@ public partial class MainWindow : Window
 
         _editor.TileHoverStatusChanged += OnTileHoverStatusChanged;
         _editor.RepublishStatusLine();
-        _editor.UndoRedoStateChanged += (_, _) => Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
-        _editor.PlaytestStateChanged += () => Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
+        _editor.UndoRedoStateChanged += (_, _) =>
+            Dispatcher.BeginInvoke(new Action(CommandManager.InvalidateRequerySuggested));
+        _editor.PlaytestStateChanged += () =>
+            Dispatcher.BeginInvoke(new Action(CommandManager.InvalidateRequerySuggested));
 
         CommandBindings.Add(new CommandBinding(CmdNewMap, (_, _) => _editor.CreateNewMap()));
         CommandBindings.Add(new CommandBinding(CmdOpenMap, (_, _) => _editor.LoadMap()));
@@ -396,7 +398,9 @@ public partial class MainWindow : Window
         }
 
         _shellLayoutQueued = true;
-        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+        // Background, pas Render : Render repasse avant Loaded, encore dans la première frame.
+        // ApplicationIdle n’est pas atteint par la pompe des smokes (plancher Background).
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
             _shellLayoutQueued = false;
             if (!IsLoaded)
@@ -478,7 +482,7 @@ public partial class MainWindow : Window
     {
         RestoreShellColumnWidths();
         CommandManager.InvalidateRequerySuggested();
-        _editor.NotifyWpfShellLayout();
+        QueueShellLayout();
         if (EditorTestHooks.PackagedSmokeLaunch)
         {
             AllowCloseWithoutPromptForTest();

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using Frog.Application.Assets;
 using Frog.Application.Content;
 using Frog.Application.Maps;
@@ -82,7 +83,12 @@ public sealed class MainForm : Form
     private bool _inspectorReady;
     private bool _applyingRightRail;
     private bool _syncingPaletteChrome;
+    private bool _rightRailQueued;
+    private bool _rightRailAgain;
+    private bool _inspectorDockQueued;
+    private int _shellHostCallbackDepth;
     private int _rightRailLayoutInvocations;
+    private int _rightRailLayoutsInsideHostCallback;
     private InspectorChrome _inspectorChrome = InspectorChrome.Unknown;
     private List<MapTransferIssue> _transferIssues = new();
     private IReadOnlyList<MapTransferLink> _eventTransferLinks = Array.Empty<MapTransferLink>();
@@ -166,6 +172,9 @@ public sealed class MainForm : Form
     internal bool InspectorCollapsedForTest => _splitLayersProps.Panel2Collapsed;
 
     internal int RightRailLayoutInvocationsForTest => _rightRailLayoutInvocations;
+
+    /// <summary>Passages de layout encore sur la pile <c>HandleCreated</c> (doit rester 0).</summary>
+    internal int RightRailLayoutsInsideHostCallbackForTest => _rightRailLayoutsInsideHostCallback;
 
     internal int LayersDockHeightForTest => _splitLayersProps.Panel1.ClientSize.Height;
 
@@ -961,11 +970,7 @@ public sealed class MainForm : Form
         _propGrid = new PropertyGrid { Dock = DockStyle.Fill, HelpVisible = false };
         EditorChrome.StylePropertyGrid(_propGrid);
         _propGrid.Font = EditorChrome.BodyFont;
-        _propGrid.SelectedObjectsChanged += (_, _) =>
-        {
-            _propGridUndoCaptured = false;
-            SyncInspectorDock();
-        };
+        _propGrid.SelectedObjectsChanged += (_, _) => OnPropertyGridSelectionChanged();
         _propGrid.MouseDown += (_, _) =>
         {
             if (_propGridUndoCaptured || _suppressDirtyTracking || _canvas.Map is null)
@@ -1073,13 +1078,16 @@ public sealed class MainForm : Form
         _splitRightTileset.Panel2.Controls.Add(_splitLayersProps);
         _splitRightTileset.HandleCreated += (_, _) =>
         {
-            if (IsHandleCreated)
+            // Le handle du formulaire n’existe pas en coque WPF. BeginInvoke(this) le créerait
+            // ici, et Apply synchrone mesure l’ElementHost dans BuildWindowCore (deadlock).
+            _shellHostCallbackDepth++;
+            try
             {
-                BeginInvoke(new Action(ApplyRightRailLayout));
+                QueueRightRailLayout();
             }
-            else
+            finally
             {
-                ApplyRightRailLayout();
+                _shellHostCallbackDepth--;
             }
         };
         _splitRight?.Panel2.Controls.Add(_splitRightTileset);
@@ -5009,6 +5017,124 @@ public sealed class MainForm : Form
         return this;
     }
 
+    private void OnPropertyGridSelectionChanged()
+    {
+        _propGridUndoCaptured = false;
+        if (ShellLayoutDeferral.DeferWhileHostHandleExists(_embedAsWpfChild, _splitRightTileset.IsHandleCreated))
+        {
+            QueueInspectorDock();
+            return;
+        }
+
+        SyncInspectorDock();
+    }
+
+    /// <summary>
+    /// Pose le layout après le retour de <c>BuildWindowCore</c> / Loaded.
+    /// Priorité Background : la pompe des tests s’arrête là, et Render est encore dans la première frame.
+    /// </summary>
+    private void QueueRightRailLayout()
+    {
+        if (_rightRailQueued || IsDisposed)
+        {
+            return;
+        }
+
+        _rightRailQueued = true;
+        if (!PostShellCallback(ApplyQueuedRightRailLayout))
+        {
+            _rightRailQueued = false;
+        }
+    }
+
+    private void ApplyQueuedRightRailLayout()
+    {
+        _rightRailQueued = false;
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        ApplyRightRailLayout();
+    }
+
+    private void QueueInspectorDock()
+    {
+        if (_inspectorDockQueued || IsDisposed)
+        {
+            return;
+        }
+
+        _inspectorDockQueued = true;
+        if (!PostShellCallback(() =>
+            {
+                _inspectorDockQueued = false;
+                if (!IsDisposed)
+                {
+                    SyncInspectorDock();
+                }
+            }))
+        {
+            _inspectorDockQueued = false;
+        }
+    }
+
+    /// <summary>Retourne false si le rappel n’a pas été posté (aucun HWND, dispatcher pas encore lié).</summary>
+    private bool PostShellCallback(Action action)
+    {
+        var dispatcher = _wpfOwnerWindow?.Dispatcher;
+        if (_embedAsWpfChild && dispatcher is not null && !dispatcher.HasShutdownStarted)
+        {
+            try
+            {
+                _ = dispatcher.BeginInvoke(DispatcherPriority.Background, action);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        // Jamais BeginInvoke sur le formulaire sans handle : ça crée le HWND du MainForm
+        // depuis le handle du split, encore dans BuildWindowCore.
+        if (_splitRightTileset.IsHandleCreated)
+        {
+            try
+            {
+                _splitRightTileset.BeginInvoke(action);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        if (_embedAsWpfChild)
+        {
+            return false;
+        }
+
+        if (IsHandleCreated)
+        {
+            BeginInvoke(action);
+            return true;
+        }
+
+        void OnReady(object? sender, EventArgs e)
+        {
+            HandleCreated -= OnReady;
+            if (!IsDisposed)
+            {
+                BeginInvoke(action);
+            }
+        }
+
+        HandleCreated += OnReady;
+        return true;
+    }
+
     private void SyncInspectorDock()
     {
         if (!_inspectorReady || _applyingRightRail)
@@ -5069,8 +5195,16 @@ public sealed class MainForm : Form
 
     private void ApplyRightRailLayout()
     {
+        if (_shellHostCallbackDepth > 0)
+        {
+            _rightRailLayoutsInsideHostCallback++;
+            QueueRightRailLayout();
+            return;
+        }
+
         if (_applyingRightRail)
         {
+            _rightRailAgain = true;
             return;
         }
 
@@ -5115,6 +5249,11 @@ public sealed class MainForm : Form
         finally
         {
             _applyingRightRail = false;
+            if (_rightRailAgain)
+            {
+                _rightRailAgain = false;
+                QueueRightRailLayout();
+            }
         }
     }
 
