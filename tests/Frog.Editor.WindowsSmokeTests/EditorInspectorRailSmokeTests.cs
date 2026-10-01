@@ -104,9 +104,12 @@ public sealed class EditorInspectorRailSmokeTests
                 Assert.True(form.AssetsDockHeightForTest > form.LayersDockHeightForTest * 2);
                 Assert.Contains("Tuiles ·", form.StatusTextForTest, StringComparison.Ordinal);
                 Assert.Contains("couche ", form.StatusTextForTest, StringComparison.Ordinal);
-                Assert.Contains("tuile (", form.StatusTextForTest, StringComparison.Ordinal);
                 Assert.Contains("zoom ", form.StatusTextForTest, StringComparison.Ordinal);
-                Assert.Contains("(0, 0)", form.StatusTextForTest, StringComparison.Ordinal);
+                // Show() peut déjà placer le curseur sur la carte : la paire est le dernier survol
+                // (défaut (0, 0) avant tout déplacement), pas forcément zéro.
+                Assert.Matches(
+                    @"· \(-?\d+, -?\d+\) · tuile \(-?\d+, -?\d+\) · zoom ",
+                    form.StatusTextForTest);
 
                 form.SelectEditorToolForTest(EditorTool.Prefab);
                 StaTestRunner.PumpUntil(
