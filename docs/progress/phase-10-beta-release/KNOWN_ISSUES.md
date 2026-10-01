@@ -73,7 +73,7 @@ Autres résidus (non bloqueurs gate) :
 
 - `Frog.Server/Models/Guild.cs`, `Frog.Server/Services/GuildService.cs` — stubs. Ne pas les remplir.
 - Client : slash `/party` `/guild` `/friend` `/block` `/trade` + canaux Party/Guild. Pas de panneau Ami/Groupe/Guilde dédié.
-- Menu « Publier vers MariaDB… (héritage) » encore visible.
+- Menu « Publier vers MariaDB… (héritage) » retiré (#83) ; absent au tip `8aec6e64`. Voir [inventaire UI éditeur](../../EDITOR_UI_INVENTORY.md).
 - `Phase8JsonEditorPanel` non branché (fichier mort).
 - Compose `POSTGRES_USER=frog` = superuser **démo locale**. Hébergé : `frog_runtime` ([`POSTGRES_ROLES.md`](POSTGRES_ROLES.md)).
 
