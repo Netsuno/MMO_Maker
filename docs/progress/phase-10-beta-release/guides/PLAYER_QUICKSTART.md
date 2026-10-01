@@ -17,7 +17,9 @@ Tip miroir docs : `d6e59759` · #27 Social · #28 Audio · #30 Weather · #31 Ma
 Ouvre le client et attends l’écran de connexion.
 
 <!-- CAPTURE: assets/joueur-01-connexion.png -->
-*Capture à venir : écran de connexion — saisis l’identifiant et le mot de passe fournis, puis utilise le bouton principal de connexion.*
+![Client — connexion](assets/joueur-01-connexion.png)
+
+*Écran de connexion : identifiant saisi, bouton Connexion.*
 
 Si le serveur est en **maintenance**, le login affiche un message clair (« maintenance » / réessayer) — ce n’est pas un bug d’auth. Voir l’opérateur.
 
@@ -31,14 +33,18 @@ Si le serveur est en **maintenance**, le login affiche un message clair (« main
 Sur l’écran personnages, sélectionne une case libre ou un personnage existant, puis confirme.
 
 <!-- CAPTURE: assets/joueur-02-perso.png -->
-*Capture à venir : liste des personnages — clique une case, confirme avec le bouton principal en bas.*
+![Client — personnages](assets/joueur-02-perso.png)
+
+*Écran de choix du personnage.*
 
 ## 3. Premiers pas en jeu
 
 Une fois en carte, déplace-toi avec les contrôles indiqués à l’écran (ou rappelés par l’opérateur). **F1** = Aide.
 
 <!-- CAPTURE: assets/joueur-03-hud.png -->
-*Capture à venir : vue en jeu — personnage sur la carte ; chat en bas ; barres de statut si visibles.*
+![Client — HUD en jeu](assets/joueur-03-hud.png)
+
+*Vue en jeu : personnage sur la carte, chat en bas.*
 
 ## 4. Options — Son (volume / muet / musique)
 
@@ -58,7 +64,9 @@ Détail contrôles : [UI-CLIENT-Options.md](UI-CLIENT-Options.md).
 En jeu, **F8** fait cycler l’overlay debug : **Auto → Clair → Pluie → Brouillard** (teinte + traits de pluie). Auto suit le profil / kind publié par le serveur (opcode 74, protocole **11**). Aide **F1** le rappelle.
 
 <!-- CAPTURE: assets/weather-01-f8-rain.png -->
-*Capture à venir : carte en jeu sous pluie (teinte + traits) après cycle F8.*
+![Client — pluie F8](assets/weather-01-f8-rain.png)
+
+*Carte en jeu sous pluie après un cycle F8.*
 
 ## 6. Social — Amis / Groupe / Guilde (HUD)
 
@@ -72,7 +80,9 @@ Le social ne passe **plus seulement** par les slash du chat.
 Détail : [UI-CLIENT-SocialHub.md](UI-CLIENT-SocialHub.md).
 
 <!-- CAPTURE: assets/joueur-04-social-hud.png -->
-*Capture à venir : dock chat avec Amis/Groupe/Guilde + overlay Social ouvert.*
+![Client — HUD après Amis](assets/joueur-04-social-hud.png)
+
+*HUD en jeu après Ouvrir Amis : dock chat et overlay Social.*
 
 ### Slash (secondaire)
 

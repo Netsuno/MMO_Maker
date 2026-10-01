@@ -22,7 +22,9 @@ Panneau HUD social branché sur opcodes **80–83** (`SendSocialAsync` → `Soci
 Menu ring : **pas** d’icône Social (figé à 5). Aide **F1** rappelle les boutons dock.
 
 <!-- CAPTURE: assets/social-01-dock-amis-groupe-guilde.png -->
-*Capture à venir : dock chat — canaux Général/Local/Whisper/Groupe/Guilde + boutons contraste Amis / Groupe / Guilde.*
+![Social — après Ouvrir Amis](assets/social-01-dock-amis-groupe-guilde.png)
+
+*Même cadre que le HUD joueur après Ouvrir Amis : dock chat et overlay Social.*
 
 <!-- CAPTURE: assets/social-02-overlay-onglet-social.png -->
 *Capture à venir : overlay chrome — onglet Social sélectionné, sous-onglets Amis / Groupe / Guilde (tabs or).*

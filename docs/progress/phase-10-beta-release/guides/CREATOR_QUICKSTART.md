@@ -41,7 +41,9 @@ Smoke CI (shell puis quit, **pas** une session d’édition) :
 ```
 
 <!-- CAPTURE: assets/auteur-01-accueil.png -->
-*Capture à venir (NET-11) : fenêtre — barre d’icônes, arbre des cartes, canevas, radios du rail droit.*
+![Éditeur — accueil](assets/auteur-01-accueil.png)
+
+*Fenêtre MMO Maker — Éditeur : barre d’icônes, arbre des cartes, canevas et radios du rail droit. PrintWindow tôt : le canevas peut paraître moins peint que les captures suivantes.*
 
 ## 2. Lire la fenêtre
 
@@ -55,7 +57,9 @@ Smoke CI (shell puis quit, **pas** une session d’édition) :
 **Fichier** → **Nouvelle carte…** (ou l’icône Nouvelle). Nom court, taille raisonnable.
 
 <!-- CAPTURE: assets/auteur-02-nouvelle-carte.png -->
-*Capture à venir : dialogue nom + taille.*
+![Éditeur — nouvelle carte](assets/auteur-02-nouvelle-carte.png)
+
+*Dialogue Nouvelle carte : nom, taille, Créer et Annuler.*
 
 ## 4. Peindre (radio Tuiles)
 
@@ -67,7 +71,9 @@ Smoke CI (shell puis quit, **pas** une session d’édition) :
 Le type de tuile (blocage, warp, ressource, script) est sous la radio **Régions**, avec la puce Région (G).
 
 <!-- CAPTURE: assets/auteur-03-peinture.png -->
-*Capture à venir : radio Tuiles, feuille, couche active, canevas.*
+![Éditeur — peinture](assets/auteur-03-peinture.png)
+
+*Radio Tuiles, outil Pinceau, feuille de tuiles et canevas.*
 
 Le monde démo de validation (3 cartes Village / Faubourgs / Arène) est une **fixture**, pas ton contenu final — [`../DEMO_WORLD.md`](../DEMO_WORLD.md).
 
@@ -111,7 +117,9 @@ L’inspecteur reste replié (hauteur 0) pendant un clic pinceau. Il s’ouvre (
 Si la ligne commence par `PostgreSQL injoignable — édition locale (non enregistrée)`, l’enregistrement est refusé : la session est locale et non persistée. Sans chaîne de connexion, même refus, sans cette phrase.
 
 <!-- CAPTURE: assets/auteur-04-save.png -->
-*Capture à venir : ligne de statut après un enregistrement PostgreSQL.*
+![Éditeur — après Enregistrer](assets/auteur-04-save.png)
+
+*Après Enregistrer (PostgreSQL) : ligne de statut.*
 
 ## 9. Publier
 
