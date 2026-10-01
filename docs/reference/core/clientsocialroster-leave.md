@@ -4,7 +4,7 @@
 
 Construit Leave groupe ou guilde.
 
-*Source : `ClientSocialRoster.Leave`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.Leave`* · Tip : `a6edd821`
 
 **Signature :** `leave(kind)`
 
@@ -16,3 +16,10 @@ Construit Leave groupe ou guilde.
 
 **Refus :**
 - `kind` Friend → exception
+
+**Exemple :**
+```csharp
+var req = ClientSocialRoster.Leave(SocialKind.Guild);
+await client.SendSocialAsync(req.Kind, req.Action, Guid.NewGuid(), req.Extra);
+// Construit Leave groupe ou guilde
+```

@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Fonctions Core, A–Z. Style `nom(args)`. Tip miroir : `d6e59759`.
+Fonctions Core, A–Z. Style `nom(args)`. Tip miroir : `a6edd821`.
 
 ## Index
 
@@ -21,7 +21,7 @@ Fonctions Core, A–Z. Style `nom(args)`. Tip miroir : `d6e59759`.
 
 ## AudioMixer (#28)
 
-Mute / volume / musique. Tip : `d6e59759`.
+Mute / volume / musique. Tip : `a6edd821`.
 
 | Fonction | Signature | Une ligne |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ Mute / volume / musique. Tip : `d6e59759`.
 
 ## ClientSocialRoster (HUD social #27)
 
-État client opcodes 80–83. Une fiche / méthode (pattern Server). Tip miroir : `d6e59759`.
+État client opcodes 80–83. Une fiche / méthode (pattern Server). Tip miroir : `a6edd821`.
 
 | Fonction | Signature | Une ligne |
 | --- | --- | --- |
@@ -117,6 +117,13 @@ Calcule les dégâts d’une attaque mêlée.
 **Sorties :**
 - (`int`) — points de dégâts
 
+**Exemple :**
+```csharp
+int dmg = CombatFormulas.MeleeDamage(attackerStr: 12, weaponPower: 8, targetVit: 4);
+// max(1, STR + weaponPower/2 - targetVit/4)
+// Calcule les dégâts d’une attaque mêlée
+```
+
 *Source : `CombatFormulas.MeleeDamage`.*
 
 ---
@@ -133,6 +140,13 @@ XP accordée pour un monstre tué.
 **Sorties :**
 - (`long`) — expérience
 
+**Exemple :**
+```csharp
+long xp = CombatFormulas.MonsterExperienceReward(level: 3);
+// 10 + level * 5 (level plancher 1)
+// XP accordée pour un monstre tué
+```
+
 *Source : `CombatFormulas.MonsterExperienceReward`.*
 
 ---
@@ -148,6 +162,13 @@ PV maximum d’un monstre selon le niveau.
 
 **Sorties :**
 - (`int`) — PV max
+
+**Exemple :**
+```csharp
+int hp = CombatFormulas.MonsterMaxHp(level: 3);
+// 20 + level * 15 (level plancher 1)
+// PV maximum d’un monstre selon le niveau
+```
 
 *Source : `CombatFormulas.MonsterMaxHp`.*
 
@@ -168,6 +189,13 @@ Construit le corps binaire d’une demande sociale (opcode 80).
 **Sorties :**
 - (`byte[]`) — octets du corps de paquet
 
+**Exemple :**
+```csharp
+byte[] body = SocialWire.BuildRequest(
+    SocialKind.Party, action, requestId, extra);
+// Construit le corps binaire d’une demande sociale (opcode 80)
+```
+
 *Source : `SocialWire.BuildRequest`.*
 
 ---
@@ -183,13 +211,20 @@ Parse le corps d’une SocialRequest.
 
 **Sorties :**
 - `ok` (`bool`) — parse réussi
-- `kind` (`SocialKind`) — famille
+- `kind` (`SocialKind`) — famille (octet brut, même si inconnu)
 - `action` (`byte`) — action
 - `requestId` (`Guid`) — id
-- `extra` (`ReadOnlySpan<byte>`) — reste
+- `extra` (`ReadOnlyMemory<byte>`) — reste
 
 **Refus :**
-- payload trop court / kind inconnu
+- payload plus court que l’en-tête (1 + 1 + 16)
+
+**Exemple :**
+```csharp
+if (!SocialWire.TryParseRequest(payload, out var kind, out var action, out var requestId, out var extra))
+    return; // payload trop court
+// Parse le corps d’une SocialRequest
+```
 
 *Source : `SocialWire.TryParseRequest`.*
 
@@ -209,6 +244,13 @@ Calcule les dégâts d’un sort.
 **Sorties :**
 - (`int`) — dégâts
 
+**Exemple :**
+```csharp
+int dmg = CombatFormulas.SpellDamage(attackerInt: 10, spellPower: 6, targetVit: 4);
+// max(1, INT + spellPower - targetVit/5)
+// Calcule les dégâts d’un sort
+```
+
 *Source : `CombatFormulas.SpellDamage`.*
 
 ---
@@ -225,6 +267,13 @@ Dérive une puissance de sort depuis le coût mana.
 **Sorties :**
 - (`int`) — puissance
 
+**Exemple :**
+```csharp
+int power = CombatFormulas.SpellPowerFromManaCost(manaCost: 8);
+// max(1, manaCost)
+// Dérive une puissance de sort depuis le coût mana
+```
+
 *Source : `CombatFormulas.SpellPowerFromManaCost`.*
 
 ---
@@ -240,5 +289,12 @@ Version incompatible du contrat TCP (champ Hello).
 
 **Sorties :**
 - (`ushort`) — `11` sur le tip actuel
+
+**Exemple :**
+```csharp
+ushort version = FrogWireProtocol.Version; // 11 — ne pas bumper
+// Version incompatible du contrat TCP (champ Hello)
+// (ushort) — 11 sur le tip actuel
+```
 
 *Source : `FrogWireProtocol.Version`. Wire v11 ; social 80–83 ; #28 audio ; #30 weather trailer 74 ; #31 maintenance (pas de bump).*

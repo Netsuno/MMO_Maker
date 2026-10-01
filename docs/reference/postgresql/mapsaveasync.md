@@ -13,3 +13,10 @@ Sauve un brouillon ou publie une carte (révision optimiste).
 
 **Sorties :**
 - (`SaveMapResult`) — Success / Conflict / ValidationFailed / PersistenceFailed / NotDurable
+
+**Exemple :**
+```csharp
+var result = await maps.SaveAsync(request, ct); // Intent SaveDraft | Publish
+if (result is not SaveMapResult.Success) return;
+// Sauve un brouillon ou publie une carte (révision optimiste)
+```

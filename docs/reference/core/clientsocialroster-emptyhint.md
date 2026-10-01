@@ -4,7 +4,7 @@
 
 Texte d’état vide pour un onglet social (pas de faux membres).
 
-*Source : `ClientSocialRoster.EmptyHint`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.EmptyHint`* · Tip : `a6edd821`
 
 **Signature :** `emptyhint(kind)`
 
@@ -13,3 +13,10 @@ Texte d’état vide pour un onglet social (pas de faux membres).
 
 **Sorties :**
 - (`string`) — hint FR, ou vide si des lignes existent
+
+**Exemple :**
+```csharp
+string hint = roster.EmptyHint(SocialKind.Guild); // "" si lignes présentes
+// Texte d’état vide pour un onglet social (pas de faux membres)
+// (string) — hint FR, ou vide si des lignes existent
+```

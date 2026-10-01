@@ -1,6 +1,6 @@
 # DungeonCatalog
 
-← [Core](README.md) · Tip : `d6e59759` · #33 scaffolding
+← [Core](README.md) · Tip : `a6edd821` · #33 scaffolding
 
 Catalogue MVP **fixe** (2 templates). Persistence PG = TODO.
 
@@ -16,5 +16,12 @@ Catalogue MVP **fixe** (2 templates). Persistence PG = TODO.
 | find | `find(id)` | Définition ou null |
 | ofkind | `ofkind(kind)` | Filtre Dungeon/Raid |
 | All | propriété | Liste fixe |
+
+**Exemple :**
+```csharp
+var def = DungeonCatalog.Find(id); // Ruines du Marais / Crypte du Roi
+var raids = DungeonCatalog.OfKind(InstanceHubKind.Raid);
+// Catalogue MVP fixe (2 templates). Persistence PG = TODO
+```
 
 **Honnêteté :** pas de cartes instance dédiées publiées ; spawn tiles stub.

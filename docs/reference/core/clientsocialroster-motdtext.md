@@ -4,7 +4,7 @@
 
 Lit le MOTD du snapshot guilde (ou party si présent).
 
-*Source : `ClientSocialRoster.MotdText`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.MotdText`* · Tip : `a6edd821`
 
 **Signature :** `motdtext(kind)`
 
@@ -13,3 +13,10 @@ Lit le MOTD du snapshot guilde (ou party si présent).
 
 **Sorties :**
 - (`string`) — MOTD ou chaîne vide
+
+**Exemple :**
+```csharp
+string motd = roster.MotdText(SocialKind.Guild);
+// Lit le MOTD du snapshot guilde (ou party si présent)
+// (string) — MOTD ou chaîne vide
+```

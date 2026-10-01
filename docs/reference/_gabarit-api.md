@@ -9,7 +9,7 @@ Fiches courtes, scannables, **pas de mur**.
 
 Ancre / titre de section = nom de la fonction (minuscules si c’est le symbole documenté, sinon nom réel du code).
 
-```markdown
+````markdown
 ### getitem
 
 Recevoir un item.
@@ -24,7 +24,13 @@ Recevoir un item.
 - `ok` (`bool`) — `true` si l’ajout a réussi (ou partiel selon règles)
 - `ajoute` (`int`) — quantité réellement placée dans l’inventaire
 - `raison` (`string`, si échec) — motif court (plein, id inconnu…)
+
+**Exemple :**
+```csharp
+var (ok, ajoute, raison) = getitem(id, nombre);
+if (!ok) return;
 ```
+````
 
 ### Règles densité fiche
 
@@ -36,12 +42,13 @@ Recevoir un item.
 | Pas de tableau | Sauf index ; la fiche elle-même = listes |
 | Pas d’essai | Pas de paragraphe « contexte Phase… » dans la fiche |
 | Erreurs | Optionnel : 2–4 puces max sous **Refus :** si utile |
-| Secrets | Aucun exemple de mot de passe / DSN |
+| Exemple | **Exemple** C# court après Refus (sinon après Sorties) ; 3–8 lignes ; pas de mur |
+| Secrets | Aucun exemple de mot de passe / DSN / token |
 | Statut | Si pas « sur main » : une ligne `*Statut : non livré (P10-x)*` sous la description |
 
 ### Variante avec refus
 
-```markdown
+````markdown
 ### getitem
 
 Recevoir un item.
@@ -63,7 +70,13 @@ Recevoir un item.
 - `nombre &lt;= 0`
 - `id` inconnu au catalogue
 - inventaire plein (comportement exact = code)
+
+**Exemple :**
+```csharp
+var (ok, ajoute, raison) = getitem(id, nombre);
+if (!ok) return; // plein, id inconnu, nombre &lt;= 0
 ```
+````
 
 ---
 
@@ -125,8 +138,9 @@ Classement **par sous-projet**, puis **A–Z**.
 ## Comment lire
 
 1. Ouvrir le sous-projet
-2. Lire la **Signature**
-3. Parcourir **Entrées** / **Sorties** (chaque variable est décrite)
+2. Lire la **Signature**  
+3. Parcourir **Entrées** / **Sorties** (chaque variable est décrite)  
+4. Lire **Exemple** (C# court, après Refus s’il y en a)
 
 Exemple : [getitem](core/README.md#getitem) · modèle DA : ce fichier
 ```
@@ -149,8 +163,9 @@ Wiki : mêmes libellés (`Référence-Core`, etc.). Home : lien **Référence (d
 
 - [ ] Index racine = 5 lignes sous-projets, pas de liste plate de 50 fonctions
 - [ ] Chaque sous-projet : tableau index A–Z puis fiches
-- [ ] Chaque fiche : 1 phrase + signature + listes Entrées/Sorties
+- [ ] Chaque fiche : 1 phrase + signature + listes Entrées/Sorties + **Exemple** C# (3–8 lignes)
 - [ ] Chaque variable a type + description courte
+- [ ] Exemple : noms fictifs, aucun password / DSN / token réel
 - [ ] Aucun mur (&gt; ~8 lignes de prose d’affilée)
 - [ ] Fil d’Ariane présent
 - [ ] Statuts honnêtes

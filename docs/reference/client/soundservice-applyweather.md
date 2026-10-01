@@ -4,7 +4,7 @@
 
 Hook météo mute-friendly (pas de nouveau moteur / WAV).
 
-*Source : `SoundService.ApplyWeather`* · Tip : `d6e59759` · #30
+*Source : `SoundService.ApplyWeather`* · Tip : `a6edd821` · #30
 
 **Signature :** `applyweather(plan)`
 
@@ -13,3 +13,10 @@ Hook météo mute-friendly (pas de nouveau moteur / WAV).
 
 **Sorties :**
 - (`bool`) — `WeatherAudio.ShouldPlayAmbience(plan, mixer)`
+
+**Exemple :**
+```csharp
+bool ambienceOk = sound.ApplyWeather(plan);
+// false si mute / gain 0 (WeatherAudio gate)
+// Hook météo mute-friendly (pas de nouveau moteur / WAV)
+```

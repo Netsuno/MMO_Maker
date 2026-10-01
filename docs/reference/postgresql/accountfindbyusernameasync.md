@@ -4,7 +4,7 @@
 
 Cherche un compte par nom d’utilisateur.
 
-*Source : `PostgresAccountRepository.FindByUsernameAsync` (Auth)
+*Source : `PostgresAccountRepository.FindByUsernameAsync` (Auth)*
 
 **Signature :** `accountfindbyusernameasync(username)`
 
@@ -13,3 +13,10 @@ Cherche un compte par nom d’utilisateur.
 
 **Sorties :**
 - (`AccountRecord?`) — compte ou null
+
+**Exemple :**
+```csharp
+var account = await accounts.FindByUsernameAsync("Netsun", ct);
+if (account is null) return;
+// Cherche un compte par nom d’utilisateur
+```

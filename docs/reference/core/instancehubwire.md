@@ -1,6 +1,6 @@
 # InstanceHubWire (opcodes 90–92)
 
-← [Core](README.md) · Tip : `d6e59759` · #33 scaffolding
+← [Core](README.md) · Tip : `a6edd821` · #33 scaffolding
 
 Codec binaire donjon / raid. Version protocole **11**.
 
@@ -14,3 +14,10 @@ Codec binaire donjon / raid. Version protocole **11**.
 | tryreaddefinitionid | parse extra | Guid définition |
 | buildresult / tryparseresult | result | Opcode 91 |
 | buildsnapshot / tryparsesnapshot | snapshot | Opcode 92 |
+
+**Exemple :**
+```csharp
+byte[] extra = InstanceHubWire.BuildDefinitionIdExtra(definitionId);
+byte[] body = InstanceHubWire.BuildRequest(kind, action: 2 /* Enter */, requestId, extra);
+// Codec binaire donjon / raid. Version protocole 11
+```

@@ -4,7 +4,7 @@
 
 Envoie une enveloppe **InstanceHub** (opcodes 90–92) : Query / Enter / Leave.
 
-*Source : `FrogGameClient.SendInstanceHubAsync`* · Tip : `d6e59759` · #33 scaffolding
+*Source : `FrogGameClient.SendInstanceHubAsync`* · Tip : `a6edd821` · #33 scaffolding
 
 **Signature :** `sendinstancehubasync(kind, action, requestId, extra)`
 
@@ -21,5 +21,12 @@ Envoie une enveloppe **InstanceHub** (opcodes 90–92) : Query / Enter / Leave.
 **Refus / limites :**
 - in-memory only ; pas de `map_instance` PG
 - Enter soumis au gate groupe (raid min 2)
+
+**Exemple :**
+```csharp
+var requestId = Guid.NewGuid();
+await client.SendInstanceHubAsync(
+    InstanceHubKind.Dungeon, action: 1 /* Query */, requestId, ReadOnlySpan<byte>.Empty);
+```
 
 **Voir aussi :** [clientinstancehub](../core/clientinstancehub.md) · [instancehubservice-execute](../server/instancehubservice-execute.md)

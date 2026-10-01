@@ -1,6 +1,6 @@
 # ClientInstanceHub
 
-← [Core](README.md) · Tip : `d6e59759` · #33 scaffolding
+← [Core](README.md) · Tip : `a6edd821` · #33 scaffolding
 
 État client Instance — hors WinForms.
 
@@ -13,3 +13,10 @@
 | emptyhint | `emptyhint()` | Hint liste vide |
 | queryextra / enterextra / leaveextra | builders | Extra wire |
 | kindlabel / formatentry | helpers UI | Donjon / Raid |
+
+**Exemple :**
+```csharp
+hub.ApplyResult(result);
+var rows = hub.Entries(InstanceHubKind.Dungeon);
+string hint = hub.EmptyHint();
+```

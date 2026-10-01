@@ -18,3 +18,10 @@ Turn-in quête transactionnel (idempotent via `requestId`).
 
 **Refus :**
 - paramètres invalides, requestId réutilisé avec autre quête, règles métier
+
+**Exemple :**
+```csharp
+var result = await quests.TryTurnInAsync(characterId, questId, requestId, ct);
+if (result.Status is not (QuestTurnInStatus.TurnedIn or QuestTurnInStatus.IdempotentReplay))
+    return; // règles métier
+```

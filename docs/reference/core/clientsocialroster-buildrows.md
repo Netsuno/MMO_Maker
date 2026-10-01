@@ -4,7 +4,7 @@
 
 Construit les lignes UI (invites + membres) pour un kind.
 
-*Source : `ClientSocialRoster.BuildRows`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.BuildRows`* · Tip : `a6edd821`
 
 **Signature :** `buildrows(kind)`
 
@@ -13,3 +13,10 @@ Construit les lignes UI (invites + membres) pour un kind.
 
 **Sorties :**
 - (`IReadOnlyList<SocialListItem>`) — invites puis membres
+
+**Exemple :**
+```csharp
+var rows = roster.BuildRows(SocialKind.Friend); // invites puis membres
+// Construit les lignes UI (invites + membres) pour un kind
+// (IReadOnlyList<SocialListItem>) — invites puis membres
+```

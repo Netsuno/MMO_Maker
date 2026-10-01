@@ -4,7 +4,7 @@
 
 Plan stub pour un kind normalisé (clear / rain / fog).
 
-*Source : `WeatherCatalog.ForKind`* · Tip : `d6e59759` · #30
+*Source : `WeatherCatalog.ForKind`* · Tip : `a6edd821` · #30
 
 **Signature :** `forkind(kind?)`
 
@@ -13,3 +13,10 @@ Plan stub pour un kind normalisé (clear / rain / fog).
 
 **Sorties :**
 - (`WeatherOverlayPlan`) — Clear / Rain / Fog (inconnu → Clear)
+
+**Exemple :**
+```csharp
+var plan = WeatherCatalog.ForKind("pluie"); // → Rain (alias FR/EN)
+// Plan stub pour un kind normalisé (clear / rain / fog)
+// (WeatherOverlayPlan) — Clear / Rain / Fog (inconnu → Clear)
+```

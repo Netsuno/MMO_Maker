@@ -1,6 +1,6 @@
 # MovementFluidity (#29)
 
-← [Core](README.md) · Tip : `d6e59759` · merged #29 · **Référence only** (pas de guide joueur)
+← [Core](README.md) · Tip : `a6edd821` · merged #29 · **Référence only** (pas de guide joueur)
 
 Helpers client-only sur le chemin predict / camera / other-player. Protocole / collision / walk-sheet **inchangés**.
 
@@ -26,3 +26,10 @@ Helpers client-only sur le chemin predict / camera / other-player. Protocole / c
 | predictspeed / othermaxsteppixels | helpers | Vitesse / cap other |
 
 Constantes notables : `MaxVisualDtSeconds=0.048`, `CameraConvergencePerSec=16`, `OtherConvergencePerSec=14`, `SnapDesyncPx=256`.
+
+**Exemple :**
+```csharp
+float dt = MovementFluidity.ClampVisualDt(rawDt);
+var (x, y) = MovementFluidity.StepToward(curX, curY, tgtX, tgtY, alpha, maxStepPx);
+// Helpers client-only sur le chemin predict / camera / other-player. Protocole / collision / walk-sheet inchangés
+```

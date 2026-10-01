@@ -17,3 +17,10 @@ Remplace le monde runtime par les cartes publiées PostgreSQL.
 
 **Refus :**
 - `maps` vide → `InvalidOperationException`
+
+**Exemple :**
+```csharp
+mapService.LoadPublishedWorld(publishedMaps, catalog);
+// maps vide → InvalidOperationException
+// Remplace le monde runtime par les cartes publiées PostgreSQL
+```

@@ -19,3 +19,10 @@ Ajoute une quantité d’item (stacks / slots libres).
 
 **Refus :**
 - quantité invalide, personnage introuvable, inventaire plein
+
+**Exemple :**
+```csharp
+var result = await inventory.TryAddAsync(characterId, itemId, quantity: 3, maxStack: 99, ct);
+if (result.Status != InventoryMutationStatus.Ok) return; // plein / quantité invalide
+// Ajoute une quantité d’item (stacks / slots libres)
+```

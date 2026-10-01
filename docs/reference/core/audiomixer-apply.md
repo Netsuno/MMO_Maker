@@ -4,7 +4,7 @@
 
 Applique volume, mute et toggle musique en une fois.
 
-*Source : `AudioMixer.Apply`* · Tip : `d6e59759` · #28
+*Source : `AudioMixer.Apply`* · Tip : `a6edd821` · #28
 
 **Signature :** `apply(volumePercent, muted, musicEnabled)`
 
@@ -18,3 +18,10 @@ Applique volume, mute et toggle musique en une fois.
 
 **Refus :** —
 *(clamp silencieux sur le volume)*
+
+**Exemple :**
+```csharp
+mixer.Apply(volumePercent: 70, muted: false, musicEnabled: true);
+// Applique volume, mute et toggle musique en une fois
+// état mixer mis à jour (VolumePercent, MuteRequested, MusicEnabled)
+```

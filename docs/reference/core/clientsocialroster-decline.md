@@ -4,7 +4,7 @@
 
 Construit Decline pour une invitation / demande.
 
-*Source : `ClientSocialRoster.Decline`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.Decline`* · Tip : `a6edd821`
 
 **Signature :** `decline(kind, subjectOrOther)`
 
@@ -14,3 +14,10 @@ Construit Decline pour une invitation / demande.
 
 **Sorties :**
 - (`SocialClientRequest`) — action Decline + Guid payload
+
+**Exemple :**
+```csharp
+var req = ClientSocialRoster.Decline(SocialKind.Friend, subjectOrOther);
+await client.SendSocialAsync(req.Kind, req.Action, Guid.NewGuid(), req.Extra);
+// Construit Decline pour une invitation / demande
+```

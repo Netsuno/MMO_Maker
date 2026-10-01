@@ -4,7 +4,7 @@
 
 Joue le SFX clic UI du MVP.
 
-*Source : `SoundService.PlayUiClick`* · Tip : `d6e59759` · #28
+*Source : `SoundService.PlayUiClick`* · Tip : `a6edd821` · #28
 
 **Signature :** `playuiclick()`
 
@@ -15,3 +15,10 @@ Joue le SFX clic UI du MVP.
 
 **Refus :**
 - muet / volume 0 / backend indisponible → `false` (no-op)
+
+**Exemple :**
+```csharp
+if (!sound.PlayUiClick())
+    return; // muet / volume 0 / backend indisponible
+// Joue le SFX clic UI du MVP
+```

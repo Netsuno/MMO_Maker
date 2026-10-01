@@ -4,7 +4,7 @@
 
 Résout un plan d’overlay (kind + teinte) depuis profil / état publié / F8.
 
-*Source : `WeatherResolver.Resolve`* · Tip : `d6e59759` · #30
+*Source : `WeatherResolver.Resolve`* · Tip : `a6edd821` · #30
 
 **Signature :** `resolve(weatherProfileId?, lightingLevel, publishedKind?, debug=Auto)`
 
@@ -16,5 +16,12 @@ Résout un plan d’overlay (kind + teinte) depuis profil / état publié / F8.
 
 **Sorties :**
 - (`WeatherOverlayPlan`) — kind, teinte, particules, flag ambiance
+
+**Exemple :**
+```csharp
+var plan = WeatherResolver.Resolve(
+    weatherProfileId, lightingLevel: 180, publishedKind: "rain",
+    debug: WeatherDebugOverride.Auto);
+```
 
 **Priorité :** debug ≠ Auto → kind F8 ; sinon kind publié ; sinon catalogue profil ; sinon clair.

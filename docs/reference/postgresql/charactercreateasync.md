@@ -25,3 +25,11 @@ Crée un personnage lié à un compte.
 
 **Refus :**
 - nom invalide, classe invalide, compte introuvable, conflit de nom
+
+**Exemple :**
+```csharp
+var created = await characters.CreateAsync(
+    accountId, "Netsun", classId, stats, maxHp: 100, maxMp: 50,
+    startingSpellId, mapId: 1, pixelX: 64, pixelY: 64, ct);
+if (created.Status != CharacterCreateStatus.Created) return;
+```

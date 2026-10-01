@@ -4,7 +4,7 @@
 
 Construit Accept (ami = other id ; groupe/guilde = subject id).
 
-*Source : `ClientSocialRoster.Accept`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.Accept`* · Tip : `a6edd821`
 
 **Signature :** `accept(kind, subjectOrOther)`
 
@@ -14,3 +14,10 @@ Construit Accept (ami = other id ; groupe/guilde = subject id).
 
 **Sorties :**
 - (`SocialClientRequest`) — action Accept + Guid payload
+
+**Exemple :**
+```csharp
+var req = ClientSocialRoster.Accept(SocialKind.Party, subjectOrOther);
+await client.SendSocialAsync(req.Kind, req.Action, Guid.NewGuid(), req.Extra);
+// Construit Accept (ami = other id ; groupe/guilde = subject id)
+```

@@ -4,7 +4,7 @@
 
 Construit Kick d’un membre (groupe / guilde).
 
-*Source : `ClientSocialRoster.Kick`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.Kick`* · Tip : `a6edd821`
 
 **Signature :** `kick(kind, target)`
 
@@ -14,3 +14,10 @@ Construit Kick d’un membre (groupe / guilde).
 
 **Sorties :**
 - (`SocialClientRequest`) — action Kick + Guid payload
+
+**Exemple :**
+```csharp
+var req = ClientSocialRoster.Kick(SocialKind.Party, target);
+await client.SendSocialAsync(req.Kind, req.Action, Guid.NewGuid(), req.Extra);
+// Construit Kick d’un membre (groupe / guilde)
+```

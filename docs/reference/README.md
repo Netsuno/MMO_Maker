@@ -3,7 +3,7 @@
 Fonctions documentées : `nom(args)` · entrées/sorties typées.  
 Classement **par sous-projet**, puis **A–Z**.
 
-> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `d6e59759` (catch-up batch 3 : #32/#33 scaffolding · #29 fluidité Core-only).
+> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `a6edd821` (Hello `FrogWireProtocol.Version` = 11 · tuiles `TileAsset` 48×48 · Exemple C# revus).
 
 ## Sous-projets (assemblies)
 
@@ -19,6 +19,7 @@ Classement **par sous-projet**, puis **A–Z**.
 
 1. Ouvrir le sous-projet  
 2. Lire la **Signature**  
-3. Parcourir **Entrées** / **Sorties**
+3. Parcourir **Entrées** / **Sorties**  
+4. Lire **Exemple** (C# court) — après Refus s’il y en a
 
 Gabarit DA : `_gabarit-api.md`. UI boutons → Guides (`guides/UI-CLIENT-MainShell.md`), pas ici.

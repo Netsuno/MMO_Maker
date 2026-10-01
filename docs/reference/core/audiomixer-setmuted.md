@@ -4,7 +4,7 @@
 
 Active ou coupe le mute explicite (distinct du slider à 0).
 
-*Source : `AudioMixer.SetMuted`* · Tip : `d6e59759` · #28
+*Source : `AudioMixer.SetMuted`* · Tip : `a6edd821` · #28
 
 **Signature :** `setmuted(muted)`
 
@@ -13,3 +13,10 @@ Active ou coupe le mute explicite (distinct du slider à 0).
 
 **Sorties :**
 - `MuteRequested` ; `IsMuted` = mute **ou** volume ≤ 0
+
+**Exemple :**
+```csharp
+mixer.SetMuted(false);
+// Active ou coupe le mute explicite (distinct du slider à 0)
+// MuteRequested ; IsMuted = mute ou volume ≤ 0
+```

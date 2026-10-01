@@ -4,7 +4,7 @@
 
 Parse un fichier VERSION (`key=value`) — **launcher stub** (pas HTTP).
 
-*Source : `ClientVersionManifest.Parse`* · Tip : `d6e59759` · #31
+*Source : `ClientVersionManifest.Parse`* · Tip : `a6edd821` · #31
 
 **Signature :** `parse(text)`
 
@@ -16,3 +16,10 @@ Parse un fichier VERSION (`key=value`) — **launcher stub** (pas HTTP).
 
 **Refus :**
 - `product` ou `protocol` manquant → `FormatException`
+
+**Exemple :**
+```csharp
+var local = ClientVersionManifest.Parse(File.ReadAllText("VERSION"));
+// product= / protocol= manquants → FormatException
+// Parse un fichier VERSION (key=value) — launcher stub (pas HTTP)
+```

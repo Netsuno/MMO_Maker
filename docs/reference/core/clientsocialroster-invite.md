@@ -4,7 +4,7 @@
 
 Construit la requête d’invitation / demande d’ami.
 
-*Source : `ClientSocialRoster.Invite`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.Invite`* · Tip : `a6edd821`
 
 **Signature :** `invite(kind, target)`
 
@@ -17,3 +17,10 @@ Construit la requête d’invitation / demande d’ami.
 
 **Refus :**
 - `kind` Block / inconnu → exception
+
+**Exemple :**
+```csharp
+var req = ClientSocialRoster.Invite(SocialKind.Party, target);
+await client.SendSocialAsync(req.Kind, req.Action, Guid.NewGuid(), req.Extra);
+// Construit la requête d’invitation / demande d’ami
+```

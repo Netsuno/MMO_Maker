@@ -13,3 +13,10 @@ Charge le snapshot inventaire d’un personnage.
 
 **Sorties :**
 - (`InventorySnapshot`) — slots
+
+**Exemple :**
+```csharp
+InventorySnapshot snap = await inventory.GetAsync(characterId, ct);
+// Charge le snapshot inventaire d’un personnage
+// (InventorySnapshot) — slots
+```
