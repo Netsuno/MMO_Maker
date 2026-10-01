@@ -19,4 +19,20 @@ public static class FrogDbContextOptions
             .UseSnakeCaseNamingConvention()
             .Options;
     }
+
+    /// <summary>
+    /// Borne le délai de connexion éditeur (secondes Npgsql <c>Timeout</c>).
+    /// <see cref="Create"/> n’est pas modifié : le serveur et les tests d’intégration gardent leur délai.
+    /// </summary>
+    public static string WithEditorConnectTimeout(string connectionString)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        if (builder.Timeout <= 0 || builder.Timeout > 5)
+        {
+            builder.Timeout = 5;
+        }
+
+        return builder.ConnectionString;
+    }
 }

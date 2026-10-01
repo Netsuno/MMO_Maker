@@ -41,7 +41,7 @@ public static class GameDataInitializationService
         }
 
         progress?.Report("Migration PostgreSQL…");
-        var scope = new EditorPostgreSqlScope(connectionString);
+        var scope = new EditorPostgreSqlScope(EditorMapRepositoryFactory.BudgetConnectionString(connectionString));
         try
         {
             if (EditorTestHooks.OverridePostgreSqlMigrateForTest is { } overrideMigrate)

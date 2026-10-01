@@ -46,7 +46,7 @@ public static class EditorItemRepositoryFactory
             return new EditorItemRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(EditorMapRepositoryFactory.BudgetConnectionString(connectionString))));
         gate.Db.Database.Migrate();
         var postgres = new PostgresItemRepository(gate);
         return new EditorItemRepositoryBundle(postgres, postgres, postgres.Capabilities);

@@ -41,7 +41,7 @@ public static class EditorMapRepositoryFactory
             return new EditorMapRepositoryBundle(demoRepo, demoRepo.Capabilities);
         }
 
-        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(cs)));
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(BudgetConnectionString(cs))));
         gate.Db.Database.Migrate();
         var pgRepo = new PostgresMapRepository(gate);
         return new EditorMapRepositoryBundle(pgRepo, pgRepo.Capabilities);
@@ -67,7 +67,7 @@ public static class EditorMapRepositoryFactory
             return new EditorMapRepositoryBundle(demoRepo, demoRepo.Capabilities);
         }
 
-        var scope = new EditorPostgreSqlScope(cs);
+        var scope = new EditorPostgreSqlScope(BudgetConnectionString(cs));
         try
         {
             if (EditorTestHooks.OverridePostgreSqlMigrateForTest is { } overrideMigrate)
@@ -90,6 +90,10 @@ public static class EditorMapRepositoryFactory
     }
 
     public static string DescribeBackend() => CreateBundle().Capabilities.DisplayLabel;
+
+    /// <summary>Limite l’attente TCP des connexions éditeur sans toucher au serveur.</summary>
+    internal static string BudgetConnectionString(string connectionString) =>
+        FrogDbContextOptions.WithEditorConnectTimeout(connectionString);
 
     internal static string? ResolveConnectionString()
     {
