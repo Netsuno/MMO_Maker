@@ -70,10 +70,10 @@
             </Setter>
         </Style>
         <Style x:Key="LayerChip" TargetType="{x:Type Button}">
-            <Setter Property="Margin" Value="0,0,6,4" />
+            <Setter Property="Margin" Value="0,0,4,2" />
             <Setter Property="Padding" Value="8,3" />
             <Setter Property="MinWidth" Value="84" />
-            <Setter Property="Height" Value="28" />
+            <Setter Property="Height" Value="24" />
             <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="#FFEBEEF5" />
@@ -220,7 +220,7 @@
         </Grid.RowDefinitions>
         <Border Grid.Row="0"
                 Background="#FF202228"
-                Padding="12,6,8,4">
+                Padding="8,4,8,2">
             <StackPanel>
                 <TextBlock x:Name="PanelTitleText"
                            FontFamily="Segoe UI"
@@ -234,9 +234,11 @@
                            FontSize="10"
                            Foreground="#FF949BAA"
                            Text="{x:Static enums:LayerTypeLabels.PanelHint}"
-                           TextWrapping="Wrap" />
+                           ToolTip="{x:Static enums:LayerTypeLabels.PanelHint}"
+                           TextWrapping="NoWrap"
+                           TextTrimming="CharacterEllipsis" />
                 <CheckBox x:Name="DimOthersCheck"
-                          Margin="0,6,0,0"
+                          Margin="0,4,0,0"
                           HorizontalAlignment="Left"
                           Foreground="#FFEBEEF5"
                           FontFamily="Segoe UI"
@@ -245,7 +247,7 @@
                           Content="{x:Static enums:LayerTypeLabels.DimOthersCaption}"
                           ToolTip="{x:Static enums:LayerTypeLabels.DimOthersHint}"
                           Click="DimOthersCheck_Click" />
-                <ItemsControl x:Name="LayerStrip" Margin="0,8,0,2">
+                <ItemsControl x:Name="LayerStrip" Margin="0,4,0,0">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel />

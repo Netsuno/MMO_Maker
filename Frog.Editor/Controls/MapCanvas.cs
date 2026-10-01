@@ -480,6 +480,9 @@ public sealed class MapCanvas : Control
 
     /// <summary>Dernière tuile sous le curseur (coordonnées carte).</summary>
     public Point HoveredTile => _hoverTile;
+
+    /// <summary>Pixels carte sous le curseur. (0, 0) avant le premier déplacement.</summary>
+    public PointF HoverWorldPixels { get; private set; }
     private Point? _selectionMarqueeAnchor;
     private Rectangle? _committedSelectionTiles;
 
@@ -3329,6 +3332,7 @@ public sealed class MapCanvas : Control
         }
 
         var w = ScreenToWorld(e.Location);
+        HoverWorldPixels = w;
         UpdateMapEventMarkerHover(w.X, w.Y);
         var tx = (int)Math.Floor(w.X / TileSize);
         var ty = (int)Math.Floor(w.Y / TileSize);
