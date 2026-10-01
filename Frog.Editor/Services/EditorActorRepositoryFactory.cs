@@ -59,7 +59,7 @@ public static class EditorActorRepositoryFactory
             return new EditorActorRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(EditorMapRepositoryFactory.BudgetConnectionString(connectionString))));
         gate.Db.Database.Migrate();
         var postgres = new PostgresActorRepository(gate);
         return new EditorActorRepositoryBundle(postgres, postgres, postgres.Capabilities);

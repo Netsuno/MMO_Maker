@@ -39,7 +39,7 @@ public static class EditorMapEventRepositoryFactory
             return new EditorMapEventRepositoryBundle(null, ContentRepositoryCapabilities.InMemoryDemo);
         }
 
-        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(EditorMapRepositoryFactory.BudgetConnectionString(connectionString))));
         gate.Db.Database.Migrate();
         var repository = new PostgresMapEventRepository(gate);
         var service = new MapEventsPostgreSqlService(repository, gate, ownsGate: true);
@@ -68,7 +68,7 @@ public static class EditorMapEventRepositoryFactory
             return new EditorMapEventRepositoryBundle(null, ContentRepositoryCapabilities.InMemoryDemo);
         }
 
-        var scope = new EditorPostgreSqlScope(cs);
+        var scope = new EditorPostgreSqlScope(EditorMapRepositoryFactory.BudgetConnectionString(cs));
         try
         {
             if (EditorTestHooks.OverridePostgreSqlMigrateForTest is { } overrideMigrate)

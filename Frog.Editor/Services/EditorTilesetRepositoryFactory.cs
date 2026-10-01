@@ -46,7 +46,7 @@ public static class EditorTilesetRepositoryFactory
             return new EditorTilesetRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(cs)));
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(EditorMapRepositoryFactory.BudgetConnectionString(cs))));
         gate.Db.Database.Migrate();
         var pg = new PostgresTilesetRepository(gate);
         return new EditorTilesetRepositoryBundle(pg, pg, pg.Capabilities);

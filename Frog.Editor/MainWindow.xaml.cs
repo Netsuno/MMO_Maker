@@ -378,7 +378,7 @@ public partial class MainWindow : Window
         PreviewKeyDown += OnPreviewToolHotkey;
         PreviewKeyUp += OnPreviewShapeModifier;
         Loaded += OnMainWindowLoaded;
-        SizeChanged += (_, _) => _editor.NotifyWpfShellLayout();
+        SizeChanged += (_, _) => QueueShellLayout();
         Closing += OnMainWindowClosing;
         Closed += OnMainWindowClosed;
     }
@@ -386,6 +386,27 @@ public partial class MainWindow : Window
     private bool _closingAfterConfirm;
     private bool _allowCloseWithoutPrompt;
     private bool _closePromptInFlight;
+    private bool _shellLayoutQueued;
+
+    private void QueueShellLayout()
+    {
+        if (_shellLayoutQueued)
+        {
+            return;
+        }
+
+        _shellLayoutQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+        {
+            _shellLayoutQueued = false;
+            if (!IsLoaded)
+            {
+                return;
+            }
+
+            _editor.NotifyWpfShellLayout();
+        }));
+    }
 
     private void OpenGameData()
     {

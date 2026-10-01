@@ -46,7 +46,7 @@ public static class EditorSystemFlagRepositoryFactory
             return new EditorSystemFlagRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(EditorMapRepositoryFactory.BudgetConnectionString(connectionString))));
         gate.Db.Database.Migrate();
         var postgres = new PostgresSystemFlagRepository(gate);
         return new EditorSystemFlagRepositoryBundle(postgres, postgres, postgres.Capabilities);

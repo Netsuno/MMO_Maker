@@ -46,7 +46,7 @@ public static class EditorSpellRepositoryFactory
             return new EditorSpellRepositoryBundle(demo, demo, demo.Capabilities);
         }
 
-        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(connectionString)));
+        var gate = new FrogDbContextGate(new FrogDbContext(FrogDbContextOptions.Create(EditorMapRepositoryFactory.BudgetConnectionString(connectionString))));
         gate.Db.Database.Migrate();
         var postgres = new PostgresSpellRepository(gate);
         return new EditorSpellRepositoryBundle(postgres, postgres, postgres.Capabilities);

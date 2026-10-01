@@ -62,11 +62,6 @@ public sealed class MainForm : Form
     /// <summary>Horizontal : haut = couches compactes, bas = inspecteur (0 ou ~160 px).</summary>
     private readonly SplitContainer _splitLayersProps;
 
-    /// <summary>Liste des couches, toujours visible (Tuiles et Objets compris).</summary>
-    private const int LayersDockHeight = 168;
-
-    /// <summary>Inspecteur ouvert : propriétés de la sélection, sans occuper ~40 % du rail.</summary>
-    private const int InspectorExpandedHeight = 160;
     private readonly SplitContainer _splitRightTileset;
     private readonly MapsProjectPanel _mapsProjectPanel;
     private readonly ElementHost _mapsElementHost;
@@ -86,6 +81,8 @@ public sealed class MainForm : Form
     private string _statusText = "";
     private bool _inspectorReady;
     private bool _applyingRightRail;
+    private bool _syncingPaletteChrome;
+    private int _rightRailLayoutInvocations;
     private InspectorChrome _inspectorChrome = InspectorChrome.Unknown;
     private List<MapTransferIssue> _transferIssues = new();
     private IReadOnlyList<MapTransferLink> _eventTransferLinks = Array.Empty<MapTransferLink>();
@@ -167,6 +164,8 @@ public sealed class MainForm : Form
     internal bool MapBannerHiddenForTest => !_mapHeader.Visible && _mapHeader.Height == 0;
 
     internal bool InspectorCollapsedForTest => _splitLayersProps.Panel2Collapsed;
+
+    internal int RightRailLayoutInvocationsForTest => _rightRailLayoutInvocations;
 
     internal int LayersDockHeightForTest => _splitLayersProps.Panel1.ClientSize.Height;
 
@@ -705,7 +704,7 @@ public sealed class MainForm : Form
             Margin = Padding.Empty,
             Child = _leftToolsWpf,
         };
-        _leftToolsWpf.SizeChanged += (_, e) => SyncPaletteChromeHeight(e.NewSize.Height);
+        _leftToolsWpf.SizeChanged += (_, _) => SyncPaletteChromeHeight(_leftToolsWpf.DesiredSize.Height);
 
         _mapsProjectPanel = new MapsProjectPanel();
         _mapsProjectPanel.CatalogMapOpenRequested += (_, mapId) => _ = OpenCatalogMapAsync(mapId);
@@ -1162,7 +1161,7 @@ public sealed class MainForm : Form
             await initBarrier("map", linked.Token).ConfigureAwait(true);
         }
 
-        var bundle = await EditorMapRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
+        var bundle = await OpenMapRepositoryBundleAsync(linked.Token).ConfigureAwait(true);
         linked.Token.ThrowIfCancellationRequested();
         _mapRepository = bundle.Repository;
         _persistenceCapabilities = bundle.Capabilities;
@@ -1173,20 +1172,44 @@ public sealed class MainForm : Form
             await mapEventBarrier("mapEvent", linked.Token).ConfigureAwait(true);
         }
 
-        var eventBundle = await EditorMapEventRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
-        linked.Token.ThrowIfCancellationRequested();
-        _mapEventService = eventBundle.Service;
-        _mapEventDatabaseScope = eventBundle.DatabaseScope;
+        if (bundle.Capabilities.IsDurablePersistence)
+        {
+            try
+            {
+                var eventBundle = await Task.Run(
+                    () => EditorMapEventRepositoryFactory.CreateBundleAsync(linked.Token),
+                    linked.Token).ConfigureAwait(true);
+                linked.Token.ThrowIfCancellationRequested();
+                _mapEventService = eventBundle.Service;
+                _mapEventDatabaseScope = eventBundle.DatabaseScope;
+            }
+            catch (Exception ex) when (IsOfflineDatabase(ex))
+            {
+                NoteOfflineDatabase();
+            }
+        }
 
         if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } phase8Barrier)
         {
             await phase8Barrier("phase8", linked.Token).ConfigureAwait(true);
         }
 
-        var phase8Bundle = await EditorPhase8ContentRepositoryFactory.CreateBundleAsync(linked.Token).ConfigureAwait(true);
-        linked.Token.ThrowIfCancellationRequested();
-        _phase8ContentService = phase8Bundle.Service;
-        _phase8DatabaseScope = phase8Bundle.DatabaseScope;
+        if (bundle.Capabilities.IsDurablePersistence)
+        {
+            try
+            {
+                var phase8Bundle = await Task.Run(
+                    () => EditorPhase8ContentRepositoryFactory.CreateBundleAsync(linked.Token),
+                    linked.Token).ConfigureAwait(true);
+                linked.Token.ThrowIfCancellationRequested();
+                _phase8ContentService = phase8Bundle.Service;
+                _phase8DatabaseScope = phase8Bundle.DatabaseScope;
+            }
+            catch (Exception ex) when (IsOfflineDatabase(ex))
+            {
+                NoteOfflineDatabase();
+            }
+        }
 
         if (EditorTestHooks.MainWorkspaceInitBarrierForTest is { } workspaceBarrier)
         {
@@ -1200,6 +1223,38 @@ public sealed class MainForm : Form
         UpdatePersistenceMenuState();
         RestoreSavedPrefabSelection();
         PushEditorStatusLine();
+    }
+
+    /// <summary>
+    /// La compilation EF et l’ouverture Npgsql restent hors du thread UI.
+    /// Les barrières de test restent sur le contexte appelant.
+    /// </summary>
+    private async Task<EditorMapRepositoryBundle> OpenMapRepositoryBundleAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await Task.Run(
+                () => EditorMapRepositoryFactory.CreateBundleAsync(cancellationToken),
+                cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (IsOfflineDatabase(ex))
+        {
+            NoteOfflineDatabase();
+            return new EditorMapRepositoryBundle(
+                new InMemoryMapRepository(MapRepositoryCapabilities.InMemoryDemo),
+                MapRepositoryCapabilities.InMemoryDemo);
+        }
+    }
+
+    private static bool IsOfflineDatabase(Exception exception) =>
+        exception is not OperationCanceledException && EditorDatabaseAvailability.IsUnavailable(exception);
+
+    private void NoteOfflineDatabase()
+    {
+        if (string.IsNullOrEmpty(_statusNotice))
+        {
+            _statusNotice = EditorDatabaseAvailability.OfflineNotice;
+        }
     }
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
@@ -1357,7 +1412,7 @@ public sealed class MainForm : Form
 
     private async System.Threading.Tasks.Task HydrateTilesetCacheFromPublishedAsync()
     {
-        if (_canvas.Map is not { } map)
+        if (_canvas.Map is not { } map || !_persistenceCapabilities.IsDurablePersistence)
         {
             return;
         }
@@ -1458,6 +1513,7 @@ public sealed class MainForm : Form
 
         _canvas.Invalidate();
         PushEditorStatusLine();
+        SyncInspectorDock();
     }
 
     private int _troopLoadState;
@@ -1745,6 +1801,7 @@ public sealed class MainForm : Form
     {
         SyncPlacedEntityPanel();
         PushEditorStatusLine();
+        SyncInspectorDock();
     }
 
     private void SyncPlacedEntityPanel()
@@ -2161,7 +2218,6 @@ public sealed class MainForm : Form
         }
 
         TileHoverStatusChanged?.Invoke(text);
-        SyncInspectorDock();
     }
 
     private string FormatLayerSegment()
@@ -4843,18 +4899,37 @@ public sealed class MainForm : Form
 
     private void SyncPaletteChromeHeight(double height)
     {
-        if (!_leftToolsElementHost.AutoSize || height < 32 || double.IsNaN(height) || double.IsInfinity(height))
+        if (_syncingPaletteChrome
+            || !_leftToolsElementHost.AutoSize
+            || height < 32
+            || double.IsNaN(height)
+            || double.IsInfinity(height))
         {
             return;
         }
 
         var pixels = (int)Math.Ceiling(height);
-        if (Math.Abs(_leftToolsElementHost.Height - pixels) <= 1)
+        var delta = pixels - _leftToolsElementHost.Height;
+        if (Math.Abs(delta) <= 2)
         {
             return;
         }
 
-        _leftToolsElementHost.Height = pixels;
+        // Une croissance de quelques pixels (DPI) relance SizeChanged et ne converge pas.
+        if (delta is > 0 and <= 4 && _leftToolsElementHost.Height >= 32)
+        {
+            return;
+        }
+
+        _syncingPaletteChrome = true;
+        try
+        {
+            _leftToolsElementHost.Height = pixels;
+        }
+        finally
+        {
+            _syncingPaletteChrome = false;
+        }
     }
 
     /// <summary>
@@ -4985,7 +5060,7 @@ public sealed class MainForm : Form
             InspectorChrome.Entity => _placedEntityPanel.Height,
             _ => 0,
         };
-        var scroll = scrollHeight > InspectorExpandedHeight;
+        var scroll = scrollHeight > RightRailLayoutMath.InspectorExpandedHeight;
         _inspectorHost.AutoScroll = scroll;
         _inspectorHost.AutoScrollMinSize = scroll ? new Size(0, scrollHeight) : Size.Empty;
 
@@ -5000,6 +5075,7 @@ public sealed class MainForm : Form
         }
 
         _applyingRightRail = true;
+        _rightRailLayoutInvocations++;
         try
         {
             if (_inspectorReady && _inspectorChrome != InspectorChrome.Unknown)
@@ -5007,14 +5083,34 @@ public sealed class MainForm : Form
                 TrySetInspectorCollapsed(_inspectorChrome == InspectorChrome.Collapsed);
             }
 
-            ApplyRightTilesetSplitDistance();
-            if (_splitRightTileset.IsHandleCreated)
+            var tileset = _splitRightTileset;
+            var tilesetHeight = tileset.ClientSize.Height > 0 ? tileset.ClientSize.Height : tileset.Height;
+            if (RightRailLayoutMath.TryTilesetDistance(
+                    tilesetHeight,
+                    tileset.SplitterWidth,
+                    inspectorExpanded: !_splitLayersProps.Panel2Collapsed,
+                    layersSplitterWidth: _splitLayersProps.SplitterWidth,
+                    out var tilesetDistance))
             {
-                _splitRightTileset.PerformLayout();
-                _splitLayersProps.PerformLayout();
+                TryAssignSplitDistance(tileset, tilesetDistance);
             }
 
-            ApplyLayersPropertySplitDistance();
+            var layers = _splitLayersProps;
+            if (layers.Panel2Collapsed)
+            {
+                return;
+            }
+
+            var layersHeight = layers.ClientSize.Height > 0 ? layers.ClientSize.Height : layers.Height;
+            if (RightRailLayoutMath.TryLayersDistance(
+                    layersHeight,
+                    layers.SplitterWidth,
+                    panel1Min: 96,
+                    panel2Min: 120,
+                    out var layersDistance))
+            {
+                TryAssignSplitDistance(layers, layersDistance);
+            }
         }
         finally
         {
@@ -5024,14 +5120,16 @@ public sealed class MainForm : Form
 
     private void TrySetInspectorCollapsed(bool collapsed)
     {
+        if (_splitLayersProps.Panel2Collapsed == collapsed)
+        {
+            return;
+        }
+
         try
         {
             _splitLayersProps.Panel1MinSize = 0;
             _splitLayersProps.Panel2MinSize = 0;
-            if (_splitLayersProps.Panel2Collapsed != collapsed)
-            {
-                _splitLayersProps.Panel2Collapsed = collapsed;
-            }
+            _splitLayersProps.Panel2Collapsed = collapsed;
         }
         catch (InvalidOperationException)
         {
@@ -5040,101 +5138,41 @@ public sealed class MainForm : Form
     }
 
     /// <summary>
-    /// Le bas du rail = couches compactes + inspecteur (0 si rien à montrer). La palette garde le reste.
+    /// Assigne la distance sans réécrire Panel1MinSize / Panel2MinSize.
+    /// Les relever sur un split horizontal dont la largeur est 0 relance SplitterDistance.
     /// </summary>
-    private void ApplyRightTilesetSplitDistance()
-    {
-        var sc = _splitRightTileset;
-        var h = sc.ClientSize.Height > 0 ? sc.ClientSize.Height : sc.Height;
-        var sw = sc.SplitterWidth;
-        if (h <= sw + 64)
-        {
-            return;
-        }
-
-        var expanded = !_splitLayersProps.Panel2Collapsed;
-        var bottom = LayersDockHeight;
-        if (expanded)
-        {
-            bottom += InspectorExpandedHeight + _splitLayersProps.SplitterWidth;
-        }
-
-        const int assetsMin = 48;
-        var maxBottom = h - sw - assetsMin;
-        if (maxBottom < 72)
-        {
-            return;
-        }
-
-        if (bottom > maxBottom)
-        {
-            bottom = maxBottom;
-        }
-
-        var distance = h - sw - bottom;
-        var panel2Min = Math.Min(72, bottom);
-        TryAssignSplit(sc, distance, assetsMin, panel2Min);
-    }
-
-    /// <summary>
-    /// Couches en haut (~168 px), inspecteur en bas (~160 px). Replié : le panneau bas est masqué.
-    /// </summary>
-    private void ApplyLayersPropertySplitDistance()
-    {
-        var sc = _splitLayersProps;
-        if (sc.Panel2Collapsed)
-        {
-            return;
-        }
-
-        var h = sc.ClientSize.Height > 0 ? sc.ClientSize.Height : sc.Height;
-        var sw = sc.SplitterWidth;
-        var panel1Min = 96;
-        var panel2Min = 120;
-        if (h <= sw + panel1Min + panel2Min)
-        {
-            panel2Min = Math.Max(80, h - sw - panel1Min);
-            if (h <= sw + panel1Min + panel2Min)
-            {
-                return;
-            }
-        }
-
-        var distance = Math.Clamp(h - sw - InspectorExpandedHeight, panel1Min, h - sw - panel2Min);
-        TryAssignSplit(sc, distance, panel1Min, panel2Min);
-    }
-
-    /// <summary>
-    /// WinForms exige une SplitterDistance déjà valide avant d’élargir Panel1MinSize / Panel2MinSize.
-    /// </summary>
-    private static void TryAssignSplit(SplitContainer sc, int distance, int panel1Min, int panel2Min)
+    private static void TryAssignSplitDistance(SplitContainer sc, int planned)
     {
         if (sc.Panel1Collapsed || sc.Panel2Collapsed)
         {
             return;
         }
 
-        var h = sc.ClientSize.Height > 0 ? sc.ClientSize.Height : sc.Height;
-        var sw = sc.SplitterWidth;
-        if (h <= sw + panel1Min + panel2Min)
+        var extent = sc.Orientation == Orientation.Horizontal
+            ? (sc.ClientSize.Height > 0 ? sc.ClientSize.Height : sc.Height)
+            : (sc.ClientSize.Width > 0 ? sc.ClientSize.Width : sc.Width);
+        var splitterWidth = sc.SplitterWidth;
+        if (extent <= 0)
+        {
+            return;
+        }
+
+        var min = sc.Panel1MinSize;
+        var max = extent - splitterWidth - sc.Panel2MinSize;
+        if (max < min)
+        {
+            return;
+        }
+
+        var target = Math.Clamp(planned, min, max);
+        if (Math.Abs(sc.SplitterDistance - target) <= 1)
         {
             return;
         }
 
         try
         {
-            sc.Panel1MinSize = 0;
-            sc.Panel2MinSize = 0;
-            var max = h - sw;
-            sc.SplitterDistance = Math.Clamp(distance, 0, max);
-            var maxWithMin = h - sw - panel2Min;
-            if (sc.SplitterDistance < panel1Min || sc.SplitterDistance > maxWithMin)
-            {
-                return;
-            }
-
-            sc.Panel1MinSize = panel1Min;
-            sc.Panel2MinSize = panel2Min;
+            sc.SplitterDistance = target;
         }
         catch (InvalidOperationException)
         {

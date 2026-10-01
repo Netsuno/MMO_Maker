@@ -81,7 +81,7 @@ public static class EditorPhase8ContentRepositoryFactory
         }
 
         var connectionString = EditorMapRepositoryFactory.ResolveConnectionString()!;
-        var scope = new EditorPostgreSqlScope(connectionString);
+        var scope = new EditorPostgreSqlScope(EditorMapRepositoryFactory.BudgetConnectionString(connectionString));
         try
         {
             if (EditorTestHooks.OverridePostgreSqlMigrateForTest is { } overrideMigrate)
