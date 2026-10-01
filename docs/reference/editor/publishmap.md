@@ -17,3 +17,10 @@ Publie la carte courante vers PostgreSQL (menu **Publier (PostgreSQL)…**).
 
 **Refus :**
 - persistance non durable / validation / conflit
+
+**Exemple :**
+```csharp
+if (form.CanExecuteSaveOrPublish()) form.PublishMap();
+// Publie la carte courante vers PostgreSQL (menu Publier (PostgreSQL)…)
+// SaveMapResult après publish
+```

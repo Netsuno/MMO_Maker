@@ -4,7 +4,7 @@
 
 Crée un compte (hash mot de passe géré en amont / dans le repo).
 
-*Source : `PostgresAccountRepository.TryCreateAsync` (Auth)
+*Source : `PostgresAccountRepository.TryCreateAsync` (Auth)*
 
 **Signature :** `accounttrycreateasync(username, password)`
 
@@ -14,3 +14,10 @@ Crée un compte (hash mot de passe géré en amont / dans le repo).
 
 **Sorties :**
 - (`AccountCreateResult`) — succès / conflit / invalide
+
+**Exemple :**
+```csharp
+var result = await accounts.TryCreateAsync("Netsun", password: "••••••••", ct);
+if (result.Status != AccountCreateStatus.Created) return; // conflit / invalide
+// Crée un compte (hash mot de passe géré en amont / dans le repo)
+```

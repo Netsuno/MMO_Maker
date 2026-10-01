@@ -17,3 +17,10 @@ Téléporte le personnage sur une tuile (carte/x/y).
 **Sorties :**
 - (`bool`) — succès
 - `errorMessage` (`string`) — si refus
+
+**Exemple :**
+```csharp
+if (!movement.TryTeleportToTile(session, targetMapId: 2, tileX: 10, tileY: 4, out var error))
+    return;
+// Téléporte le personnage sur une tuile (carte/x/y)
+```

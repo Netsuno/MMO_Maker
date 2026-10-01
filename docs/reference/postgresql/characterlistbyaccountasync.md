@@ -12,4 +12,11 @@ Liste les personnages d’un compte.
 - `accountId` (`Guid`) — compte à lister
 
 **Sorties :**
-- (`IReadOnlyList<CharacterSummary>`) — liste (vide si aucun)
+- (`IReadOnlyList<CharacterRecord>`) — liste (vide si aucun)
+
+**Exemple :**
+```csharp
+var list = await characters.ListByAccountAsync(accountId, ct);
+// Liste les personnages d’un compte
+// (IReadOnlyList<CharacterRecord>) — liste (vide si aucun)
+```

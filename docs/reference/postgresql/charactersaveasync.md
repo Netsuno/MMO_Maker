@@ -16,3 +16,10 @@ Persiste l’état d’un personnage.
 
 **Refus :**
 - personnage introuvable (comportement runtime / exception selon implémentation)
+
+**Exemple :**
+```csharp
+await characters.SaveAsync(character, ct);
+// Persiste l’état d’un personnage
+// (Task) — complète si écriture OK
+```

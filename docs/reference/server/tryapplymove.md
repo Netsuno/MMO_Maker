@@ -19,3 +19,10 @@ Applique un déplacement relatif grille après validations.
 
 **Refus :**
 - hors limites / tuile bloquée / rate mouvement
+
+**Exemple :**
+```csharp
+if (!movement.TryApplyMove(session, deltaX: 1, deltaY: 0, out var error))
+    return; // hors limites / bloqué / rate
+// Applique un déplacement relatif grille après validations
+```

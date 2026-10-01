@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Repositories PG, A–Z (1 fichier / fonction). Tip : `ea116afa`.
+Repositories PG, A–Z (1 fichier / fonction). Tip : `a6edd821`.
 
 ## Index
 

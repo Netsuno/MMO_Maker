@@ -4,7 +4,7 @@
 
 Retire un ami (action Friend.Remove).
 
-*Source : `ClientSocialRoster.FriendRemove`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.FriendRemove`* · Tip : `a6edd821`
 
 **Signature :** `friendremove(target)`
 
@@ -13,3 +13,10 @@ Retire un ami (action Friend.Remove).
 
 **Sorties :**
 - (`SocialClientRequest`) — Friend.Remove + Guid payload
+
+**Exemple :**
+```csharp
+var req = ClientSocialRoster.FriendRemove(target);
+await client.SendSocialAsync(req.Kind, req.Action, Guid.NewGuid(), req.Extra);
+// Retire un ami (action Friend.Remove)
+```

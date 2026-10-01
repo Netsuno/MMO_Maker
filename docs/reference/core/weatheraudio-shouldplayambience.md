@@ -4,7 +4,7 @@
 
 Gate mute-friendly : la météo *voudrait* une ambiance, mais refuse si muet / gain 0.
 
-*Source : `WeatherAudio.ShouldPlayAmbience`* · Tip : `d6e59759` · #30 (+ #28)
+*Source : `WeatherAudio.ShouldPlayAmbience`* · Tip : `a6edd821` · #30 (+ #28)
 
 **Signature :** `shouldplayambience(plan, mixer)`
 
@@ -14,3 +14,10 @@ Gate mute-friendly : la météo *voudrait* une ambiance, mais refuse si muet / g
 
 **Sorties :**
 - (`bool`) — ambiance autorisée (pas de WAV météo dans ce MVP)
+
+**Exemple :**
+```csharp
+bool ok = WeatherAudio.ShouldPlayAmbience(plan, mixer);
+// Gate mute-friendly : la météo *voudrait* une ambiance, mais refuse si muet / gain 0
+// (bool) — ambiance autorisée (pas de WAV météo dans ce MVP)
+```

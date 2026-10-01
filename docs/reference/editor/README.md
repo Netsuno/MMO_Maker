@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Fonctions Editor, A–Z (1 fichier / fonction). Tip : `ea116afa`.
+Fonctions Editor, A–Z (1 fichier / fonction). Tip : `a6edd821`.
 
 ## Index
 

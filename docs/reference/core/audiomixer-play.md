@@ -4,7 +4,7 @@
 
 Tente une lecture SFX ou musique via le backend optionnel.
 
-*Source : `AudioMixer.Play`* · Tip : `d6e59759` · #28
+*Source : `AudioMixer.Play`* · Tip : `a6edd821` · #28
 
 **Signature :** `play(cue)`
 
@@ -16,3 +16,10 @@ Tente une lecture SFX ou musique via le backend optionnel.
 
 **Refus :**
 - gain ≤ 0 (mute, volume 0, ou musique off) → stop musique si cue = `MusicLoop`, retourne `false`
+
+**Exemple :**
+```csharp
+if (!mixer.Play(AudioCue.UiClick))
+    return; // gain ≤ 0
+// Tente une lecture SFX ou musique via le backend optionnel
+```

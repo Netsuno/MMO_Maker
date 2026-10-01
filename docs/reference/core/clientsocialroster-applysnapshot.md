@@ -4,7 +4,7 @@
 
 Applique un snapshot social (opcode 82) au roster client.
 
-*Source : `ClientSocialRoster.ApplySnapshot`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.ApplySnapshot`* · Tip : `a6edd821`
 
 **Signature :** `applysnapshot(snapshot)`
 
@@ -15,3 +15,10 @@ Applique un snapshot social (opcode 82) au roster client.
 - met à jour `Party` / `Guild` / `Friends` / `Blocks`
 - `StatusLine` mis à jour
 - invitations résolues élaguées
+
+**Exemple :**
+```csharp
+roster.ApplySnapshot(snapshot); // Party / Guild / Friends
+// Applique un snapshot social (opcode 82) au roster client
+// met à jour Party / Guild / Friends / Blocks
+```

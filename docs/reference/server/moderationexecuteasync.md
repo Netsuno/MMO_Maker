@@ -21,3 +21,10 @@ Exécute mute / unmute / kick / ban / unban si l’acteur est opérateur.
 **Refus :**
 - acteur non opérateur / non auth
 - cible introuvable / username invalide
+
+**Exemple :**
+```csharp
+var outcome = await moderation.ExecuteAsync(
+    actorAccountId, ModerationAction.Mute, targetUsername: "Netsun", reason: "spam");
+if (!outcome.Success) return; // non-opérateur / cible introuvable
+```

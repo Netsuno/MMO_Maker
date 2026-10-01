@@ -1,6 +1,6 @@
 # ClientEconomyHub
 
-← [Core](README.md) · Tip : `d6e59759` · #32 scaffolding
+← [Core](README.md) · Tip : `a6edd821` · #32 scaffolding
 
 État client HdV / courrier / coffre — testable hors WinForms.
 
@@ -14,5 +14,12 @@
 | emptyhint | `emptyhint(kind)` | Texte liste vide |
 | queryextra | `queryextra()` | `[]` pour Query |
 | kindlabel / formatentry | helpers UI | Libellés Courrier / HdV / Coffre |
+
+**Exemple :**
+```csharp
+hub.ApplySnapshot(snapshot);
+var rows = hub.Entries(EconomyHubKind.Auction); // souvent vide (MVP)
+string hint = hub.EmptyHint(EconomyHubKind.Mail);
+```
 
 EmptyHints : HdV « Aucune enchère… » ; Courrier « Boîte… vide » ; Coffre selon présence guilde.

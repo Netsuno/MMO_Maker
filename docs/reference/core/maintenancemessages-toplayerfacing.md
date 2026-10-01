@@ -4,7 +4,7 @@
 
 Mappe un signal « maintenance » vers le libellé joueur.
 
-*Source : `MaintenanceMessages.ToPlayerFacing`* · Tip : `d6e59759` · #31
+*Source : `MaintenanceMessages.ToPlayerFacing`* · Tip : `a6edd821` · #31
 
 **Signature :** `toplayerfacing(raw?)`
 
@@ -13,5 +13,12 @@ Mappe un signal « maintenance » vers le libellé joueur.
 
 **Sorties :**
 - (`string`) — texte joueur si `IsMaintenanceSignal`, sinon `raw`
+
+**Exemple :**
+```csharp
+string msg = MaintenanceMessages.ToPlayerFacing(raw);
+// Mappe un signal « maintenance » vers le libellé joueur
+// (string) — texte joueur si IsMaintenanceSignal, sinon raw
+```
 
 Constante wire : `LoginRejected` = `Serveur en maintenance. Reessayez plus tard.`

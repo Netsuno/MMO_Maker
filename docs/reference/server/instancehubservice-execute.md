@@ -1,6 +1,6 @@
 # instancehubservice-execute
 
-← [Server](README.md) · Tip : `d6e59759` · #33 scaffolding in-memory
+← [Server](README.md) · Tip : `a6edd821` · #33 scaffolding in-memory
 
 Exécute Query / Enter / Leave instance. **Pas de `map_instance` PG.**
 
@@ -19,5 +19,12 @@ Exécute Query / Enter / Leave instance. **Pas de `map_instance` PG.**
 **Refus / gates :**
 - pas de perso / action inconnue
 - groupe requis ; raid **min 2** ; chef crée, membres rejoignent
+
+**Exemple :**
+```csharp
+var (result, snapshot) = instanceHub.Execute(
+    session, InstanceHubKind.Dungeon, action: 1 /* Query */, requestId, extra);
+if (!result.Success) return; // gate groupe / action inconnue
+```
 
 **Honnêteté :** in-memory ; redémarrage serveur perd les runs.

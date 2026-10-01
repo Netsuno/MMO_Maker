@@ -4,7 +4,7 @@
 
 Avance le toggle debug F8 (Auto → Clair → Pluie → Brouillard → …).
 
-*Source : `WeatherResolver.Cycle`* · Tip : `d6e59759` · #30
+*Source : `WeatherResolver.Cycle`* · Tip : `a6edd821` · #30
 
 **Signature :** `cycle(current)`
 
@@ -13,3 +13,10 @@ Avance le toggle debug F8 (Auto → Clair → Pluie → Brouillard → …).
 
 **Sorties :**
 - (`WeatherDebugOverride`) — valeur suivante (mod 4)
+
+**Exemple :**
+```csharp
+debug = WeatherResolver.Cycle(debug); // Auto → Clair → Pluie → Brouillard
+// Avance le toggle debug F8 (Auto → Clair → Pluie → Brouillard → …)
+// (WeatherDebugOverride) — valeur suivante (mod 4)
+```

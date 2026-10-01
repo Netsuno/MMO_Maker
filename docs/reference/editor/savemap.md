@@ -17,3 +17,10 @@ Enregistre la carte courante en **brouillon** PostgreSQL.
 
 **Refus :**
 - `CanExecuteSaveOrPublish()` = false
+
+**Exemple :**
+```csharp
+if (form.CanExecuteSaveOrPublish()) form.SaveMap();
+// Enregistre la carte courante en brouillon PostgreSQL
+// opération async via RunSaveOperationAsync
+```

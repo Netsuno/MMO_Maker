@@ -16,3 +16,10 @@ Valide et applique une position pixel rapportée par le client.
 **Sorties :**
 - (`bool`) — accepté
 - `errorMessage` (`string`) — si refus
+
+**Exemple :**
+```csharp
+if (!movement.TryApplyReportedPixelPosition(session, reportedPixelX: 320, reportedPixelY: 240, out var error))
+    return;
+// Valide et applique une position pixel rapportée par le client
+```

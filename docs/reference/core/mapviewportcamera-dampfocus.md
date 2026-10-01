@@ -1,6 +1,6 @@
 # mapviewportcamera-dampfocus
 
-← [Core](README.md) · Tip : `d6e59759` · #29
+← [Core](README.md) · Tip : `a6edd821` · #29
 
 Suivi caméra exponentiel — évite qu’un gros pas predict yank le bitmap.
 
@@ -15,5 +15,12 @@ Suivi caméra exponentiel — évite qu’un gros pas predict yank le bitmap.
 
 **Sorties :**
 - `(FocusX, FocusY)` interpolé via `MovementFluidity.StepToward` (maxStep ∞)
+
+**Exemple :**
+```csharp
+var (fx, fy) = MapViewportCamera.DampFocus(
+    currentX, currentY, targetX, targetY, dtSeconds);
+// Suivi caméra exponentiel — évite qu’un gros pas predict yank le bitmap
+```
 
 **Notes :** first paint / warp / map load = passer `current = target` pour snap. Voir aussi `ComputeDrawOffset` (offset viewport).

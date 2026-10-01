@@ -4,7 +4,7 @@
 
 Transfère le leadership groupe / guilde.
 
-*Source : `ClientSocialRoster.TransferLeader`* · Tip : `d6e59759`
+*Source : `ClientSocialRoster.TransferLeader`* · Tip : `a6edd821`
 
 **Signature :** `transferleader(kind, target)`
 
@@ -14,3 +14,10 @@ Transfère le leadership groupe / guilde.
 
 **Sorties :**
 - (`SocialClientRequest`) — action TransferLeader + Guid payload
+
+**Exemple :**
+```csharp
+var req = ClientSocialRoster.TransferLeader(SocialKind.Party, target);
+await client.SendSocialAsync(req.Kind, req.Action, Guid.NewGuid(), req.Extra);
+// Transfère le leadership groupe / guilde
+```

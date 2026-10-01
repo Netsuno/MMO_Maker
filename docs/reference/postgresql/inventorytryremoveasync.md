@@ -18,3 +18,10 @@ Retire une quantité depuis un slot inventaire.
 
 **Refus :**
 - slot invalide, quantité insuffisante, personnage introuvable
+
+**Exemple :**
+```csharp
+var result = await inventory.TryRemoveAsync(characterId, slotIndex: 2, quantity: 1, ct);
+if (result.Status != InventoryMutationStatus.Ok) return;
+// Retire une quantité depuis un slot inventaire
+```

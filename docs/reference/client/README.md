@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip miroir : `d6e59759`.
+Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip miroir : `a6edd821`.
 
 ## Index
 
@@ -35,7 +35,6 @@ UI boutons : [MainShell](../../progress/phase-10-beta-release/guides/UI-CLIENT-M
 
 ---
 
-
 ## EconomyHub / InstanceHub (#32 / #33 scaffolding)
 
 | Fonction | Signature | Une ligne |
@@ -67,6 +66,13 @@ Efface l’identifiant d’activation d’interaction en attente.
 **Sorties :** —
 *(état local client)*
 
+**Exemple :**
+```csharp
+client.ClearInteractActivationId();
+// Efface l’identifiant d’activation d’interaction en attente
+// ensuite PeekInteractActivationId → Guid.Empty
+```
+
 ---
 
 ### connectasync
@@ -87,6 +93,13 @@ Ouvre la connexion TCP vers le serveur.
 **Refus :**
 - hôte/port injoignable (exception réseau)
 
+**Exemple :**
+```csharp
+await client.ConnectAsync("play.example.test", 7777);
+// Ouvre la connexion TCP vers le serveur
+// (Task) — complète quand connecté
+```
+
 ---
 
 ### disconnectasync
@@ -100,6 +113,13 @@ Ferme la connexion TCP.
 **Sorties :**
 - (`Task`) — fermeture terminée
 - événement `ConnectionClosed` possible
+
+**Exemple :**
+```csharp
+await client.DisconnectAsync();
+// Ferme la connexion TCP
+// (Task) — fermeture terminée
+```
 
 ---
 
@@ -118,6 +138,13 @@ Dépose de l’or du personnage vers la banque.
 
 *Surcharge avec `requestId` (`Guid`) pour idempotence.*
 
+**Exemple :**
+```csharp
+await client.SendBankDepositGoldAsync(amount: 100);
+// Dépose de l’or du personnage vers la banque
+// paquet BankDepositRequest envoyé
+```
+
 ---
 
 ### sendchatasync
@@ -127,7 +154,7 @@ Envoie un message sur un canal de chat.
 **Signature :** `sendchatasync(channel, whisperTarget, message)`
 
 **Entrées :**
-- `channel` (`ChatChannel`) — Global / Map / Whisper
+- `channel` (`ChatChannel`) — Global / Map / Whisper / Party / Guild
 - `whisperTarget` (`string`) — destinataire si whisper
 - `message` (`string`) — texte
 
@@ -136,7 +163,15 @@ Envoie un message sur un canal de chat.
 - réception via `ChatMessageReceived`
 
 **Refus :**
-- canal hors 0–2 (serveur)
+- canal hors Global, Map, Whisper, Party, Guild
+- chuchotement sans cible
+
+**Exemple :**
+```csharp
+await client.SendChatAsync(ChatChannel.Map, whisperTarget: "", message: "salut");
+// Global, Map, Whisper, Party ou Guild
+// Envoie un message sur un canal de chat
+```
 
 ---
 
@@ -153,6 +188,13 @@ Demande la fabrication d’une recette.
 - paquet `CraftRequest`
 - `CraftResultReceived`
 
+**Exemple :**
+```csharp
+await client.SendCraftAsync(recipeId);
+// Demande la fabrication d’une recette
+// paquet CraftRequest
+```
+
 ---
 
 ### sendinteractrequestasync
@@ -167,6 +209,13 @@ Déclenche l’interaction sur la tuile courante.
 **Sorties :**
 - paquet `InteractRequest`
 - `InteractResultReceived`
+
+**Exemple :**
+```csharp
+await client.SendInteractRequestAsync(activationId);
+// Déclenche l’interaction sur la tuile courante
+// paquet InteractRequest
+```
 
 ---
 
@@ -186,6 +235,13 @@ Authentifie un compte auprès du serveur.
 - paquet `LoginRequest`
 - `LoginResultReceived(ok, message)`
 
+**Exemple :**
+```csharp
+await client.SendLoginAsync("Netsun", "••••••••");
+// Authentifie un compte auprès du serveur
+// paquet LoginRequest
+```
+
 ---
 
 ### sendmaprequestasync
@@ -200,6 +256,13 @@ Demande les données de la carte (ou sync cache).
 **Sorties :**
 - `MapDataReceived` ou `MapAlreadySyncedReceived`
 
+**Exemple :**
+```csharp
+await client.SendMapRequestAsync(hintMapId: null);
+// Demande les données de la carte (ou sync cache)
+// MapDataReceived ou MapAlreadySyncedReceived
+```
+
 ---
 
 ### sendmeleeattackasync
@@ -213,6 +276,13 @@ Envoie une attaque mêlée vers une cible.
 
 **Sorties :**
 - `MeleeAttackResultReceived`
+
+**Exemple :**
+```csharp
+await client.SendMeleeAttackAsync(targetUsername: "Gobelin");
+// Envoie une attaque mêlée vers une cible
+// MeleeAttackResultReceived
+```
 
 ---
 
@@ -232,6 +302,13 @@ Synchronise le centre pixel du personnage.
 - paquet `PositionSyncRequest`
 - `PositionUpdateReceived` si accepté
 
+**Exemple :**
+```csharp
+await client.SendPositionSyncAsync(pixelCenterX: 320, pixelCenterY: 240);
+// Synchronise le centre pixel du personnage
+// paquet PositionSyncRequest
+```
+
 ---
 
 ### sendquestturninasync
@@ -246,6 +323,13 @@ Rend une quête (idempotent côté serveur).
 **Sorties :**
 - `QuestTurnInResultReceived`
 - éventuel `QuestJournalSnapshotReceived`
+
+**Exemple :**
+```csharp
+await client.SendQuestTurnInAsync(questId);
+// Rend une quête (idempotent côté serveur)
+// QuestTurnInResultReceived
+```
 
 ---
 
@@ -267,6 +351,13 @@ Envoie une enveloppe sociale (opcode 80).
 - paquet `SocialRequest` envoyé
 - `SocialResultReceived` / `SocialSnapshotReceived` / `SocialEventReceived`
 
+**Exemple :**
+```csharp
+await client.SendSocialAsync(SocialKind.Party, action, requestId, extra);
+// Envoie une enveloppe sociale (opcode 80)
+// paquet SocialRequest envoyé
+```
+
 ---
 
 ### sendspellcastasync
@@ -281,3 +372,10 @@ Lance un sort sur une cible.
 
 **Sorties :**
 - `SpellCastResultReceived`
+
+**Exemple :**
+```csharp
+await client.SendSpellCastAsync(spellId, targetName: "Gobelin");
+// Lance un sort sur une cible
+// SpellCastResultReceived
+```

@@ -4,7 +4,7 @@
 
 Décide si un login (ou flux auth voisin) doit être refusé pour maintenance.
 
-*Source : `MaintenanceService.ShouldRejectLoginAsync`* · Tip : `d6e59759` · #31
+*Source : `MaintenanceService.ShouldRejectLoginAsync`* · Tip : `a6edd821` · #31
 
 **Signature :** `shouldrejectloginasync(accountId?, cancellationToken?)`
 
@@ -18,3 +18,10 @@ Décide si un login (ou flux auth voisin) doit être refusé pour maintenance.
 **Refus / bypass :**
 - maintenance off → `false`
 - `AllowOperators` + compte dans `IOperatorDirectory` → `false` (laisse passer)
+
+**Exemple :**
+```csharp
+if (await maintenance.ShouldRejectLoginAsync(accountId, ct))
+    return; // message maintenance (sauf opérateur bypass)
+// true seulement si la maintenance est active et que le compte n’est pas opérateur
+```

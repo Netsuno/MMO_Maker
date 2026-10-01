@@ -17,3 +17,10 @@ Crée un compte si les règles d’entrée passent.
 
 **Refus :**
 - username/password hors règles
+
+**Exemple :**
+```csharp
+var created = await auth.RegisterAccountAsync("Netsun", "••••••••");
+if (created.Status != AccountCreateStatus.Created) return;
+// Crée un compte si les règles d’entrée passent
+```

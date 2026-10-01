@@ -4,7 +4,7 @@
 
 Indique si un cue est audible selon mute / volume / musique.
 
-*Source : `AudioMixer.ShouldPlay`* · Tip : `d6e59759` · #28
+*Source : `AudioMixer.ShouldPlay`* · Tip : `a6edd821` · #28
 
 **Signature :** `shouldplay(cue)`
 
@@ -13,3 +13,10 @@ Indique si un cue est audible selon mute / volume / musique.
 
 **Sorties :**
 - (`bool`) — `GainFor(cue) > 0`
+
+**Exemple :**
+```csharp
+if (mixer.ShouldPlay(AudioCue.MusicLoop))
+    mixer.Play(AudioCue.MusicLoop);
+// Indique si un cue est audible selon mute / volume / musique
+```

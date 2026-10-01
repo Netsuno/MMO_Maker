@@ -15,3 +15,10 @@ Indique si une tuile est bloquante pour le déplacement.
 
 **Sorties :**
 - (`bool`) — `true` si bloqué
+
+**Exemple :**
+```csharp
+if (mapService.IsBlocked(mapId: 1, x: 12, y: 8))
+    return; // tuile bloquante
+// Indique si une tuile est bloquante pour le déplacement
+```

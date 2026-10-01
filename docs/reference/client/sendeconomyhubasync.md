@@ -4,7 +4,7 @@
 
 Envoie une enveloppe **EconomyHub** (opcodes 87–89). MVP = **Query seulement**.
 
-*Source : `FrogGameClient.SendEconomyHubAsync`* · Tip : `d6e59759` · #32 scaffolding
+*Source : `FrogGameClient.SendEconomyHubAsync`* · Tip : `a6edd821` · #32 scaffolding
 
 **Signature :** `sendeconomyhubasync(kind, action, requestId, extra)`
 
@@ -21,5 +21,12 @@ Envoie une enveloppe **EconomyHub** (opcodes 87–89). MVP = **Query seulement**
 **Refus / limites :**
 - actions mutantes **non implémentées** (serveur renvoie « Action inconnue »)
 - pas de gameplay économie (listes vides)
+
+**Exemple :**
+```csharp
+var requestId = Guid.NewGuid();
+await client.SendEconomyHubAsync(
+    EconomyHubKind.Auction, action: 1 /* Query */, requestId, extra: ReadOnlySpan<byte>.Empty);
+```
 
 **Voir aussi :** [clienteconomyhub](../core/clienteconomyhub.md) · [economyhubservice-executeasync](../server/economyhubservice-executeasync.md)

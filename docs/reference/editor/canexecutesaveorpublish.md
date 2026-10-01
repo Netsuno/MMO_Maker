@@ -13,3 +13,10 @@ Indique si Enregistrer / Publier sont activables.
 
 **Sorties :**
 - (`bool`) — menus Save/Publish enabled
+
+**Exemple :**
+```csharp
+bool can = form.CanExecuteSaveOrPublish();
+// Indique si Enregistrer / Publier sont activables
+// (bool) — menus Save/Publish enabled
+```
