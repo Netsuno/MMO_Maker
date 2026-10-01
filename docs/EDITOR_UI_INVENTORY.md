@@ -4,6 +4,8 @@ Audit au tip `8aec6e64eda0184abc5214cfa81d5216ec331b0d` (`main`).
 
 Baseline chrome : [#135](https://github.com/Netsuno/MMO_Maker/pull/135) G0–G2, [#136](https://github.com/Netsuno/MMO_Maker/pull/136) G3, [#137](https://github.com/Netsuno/MMO_Maker/pull/137) G4, [#138](https://github.com/Netsuno/MMO_Maker/pull/138) démarrage. Hello / `FrogWireProtocol.Version` = **11**. Tuiles `TileAsset` **48×48**, carte v6. Ce fichier liste ce qui est dans le code et ce que les docs affirment. Il ne réécrit pas les guides (NET-12).
 
+Reprise NET-12 (dépôt, tip `15623c79`) : les écarts 1–5 et la fiche historique de l’écart 9 sont dans les guides (`EDITOR_WORKSPACE.md`, quickstart auteur, `editor-selection-tools/STATUS.md`, `publishmapdialogtryvalidate.md`). Les tableaux « documenté ? » ci-dessous restent l’audit **d’avant** cette reprise. Ouverts : wiki (6), commandes d’événement (7), surfaces #84–#133 (8), captures (10).
+
 Chemin livré : `App.xaml` → `MainWindow` (WPF) héberge `MainForm(embedAsWpfChild: true)`. Le menu et la barre d’état WinForms de `MainForm` ne s’affichent pas dans cette coque. Les libellés ci-dessous sont ceux de `MainWindow.xaml`, sauf mention.
 
 `documenté ?` :
