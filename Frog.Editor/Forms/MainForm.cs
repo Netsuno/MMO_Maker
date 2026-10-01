@@ -83,6 +83,10 @@ public sealed class MainForm : Form
     private bool _inspectorReady;
     private bool _applyingRightRail;
     private bool _syncingPaletteChrome;
+    private bool _paletteChromeQueued;
+    private bool _paletteChromePending;
+    private int _paletteChromeApplies;
+    private int _paletteChromeInsideHostCallback;
     private bool _rightRailQueued;
     private bool _rightRailAgain;
     private bool _inspectorDockQueued;
@@ -175,6 +179,15 @@ public sealed class MainForm : Form
 
     /// <summary>Passages de layout encore sur la pile <c>HandleCreated</c> (doit rester 0).</summary>
     internal int RightRailLayoutsInsideHostCallbackForTest => _rightRailLayoutsInsideHostCallback;
+
+    /// <summary>L’hôte des puces ne doit pas être <c>AutoSize</c> (boucle <c>PerformLayout</c>).</summary>
+    internal bool LeftToolsHostAutoSizeForTest => _leftToolsElementHost.AutoSize;
+
+    /// <summary>Assignations de hauteur de la bande d’outils (plafonnées).</summary>
+    internal int PaletteChromeHeightAppliesForTest => _paletteChromeApplies;
+
+    /// <summary>Hauteurs posées encore sur la pile <c>HandleCreated</c> (doit rester 0).</summary>
+    internal int PaletteChromeInsideHostCallbackForTest => _paletteChromeInsideHostCallback;
 
     internal int LayersDockHeightForTest => _splitLayersProps.Panel1.ClientSize.Height;
 
@@ -312,7 +325,14 @@ public sealed class MainForm : Form
         && _wfMapDockPanel.IsHandleCreated
         && _splitRightTileset.IsHandleCreated;
 
-    internal void SetWpfOwnerWindow(System.Windows.Window window) => _wpfOwnerWindow = window;
+    internal void SetWpfOwnerWindow(System.Windows.Window window)
+    {
+        _wpfOwnerWindow = window;
+        if (_paletteChromePending)
+        {
+            QueuePaletteChromeHeight();
+        }
+    }
 
     /// <summary>Réapplique les splits internes après redimensionnement de la coque WPF.</summary>
     internal void NotifyWpfShellLayout()
@@ -708,12 +728,16 @@ public sealed class MainForm : Form
         _leftToolsElementHost = new ElementHost
         {
             Dock = DockStyle.Top,
-            AutoSize = true,
+            // AutoSize : SizeChanged de l’enfant appelle PerformLayout, qui remesure
+            // la rangée * étirée par ElementHost. La hauteur ne converge pas et le
+            // thread UI ne revient pas à la pompe (après le premier paint).
+            AutoSize = false,
+            Height = 240,
             BackColor = EditorChrome.SidebarBg,
             Margin = Padding.Empty,
             Child = _leftToolsWpf,
         };
-        _leftToolsWpf.SizeChanged += (_, _) => SyncPaletteChromeHeight(_leftToolsWpf.DesiredSize.Height);
+        _leftToolsWpf.SizeChanged += (_, _) => QueuePaletteChromeHeight();
 
         _mapsProjectPanel = new MapsProjectPanel();
         _mapsProjectPanel.CatalogMapOpenRequested += (_, mapId) => _ = OpenCatalogMapAsync(mapId);
@@ -1084,6 +1108,10 @@ public sealed class MainForm : Form
             try
             {
                 QueueRightRailLayout();
+                if (_paletteChromePending)
+                {
+                    QueuePaletteChromeHeight();
+                }
             }
             finally
             {
@@ -4905,31 +4933,97 @@ public sealed class MainForm : Form
             pad.Top);
     }
 
-    private void SyncPaletteChromeHeight(double height)
+    /// <summary>
+    /// Mesure le contenu des puces hors de la pile <c>SizeChanged</c> / <c>HandleCreated</c>.
+    /// <c>ElementHost</c> force <c>VerticalAlignment=Stretch</c> : lire <c>DesiredSize</c> pendant
+    /// l’arrange et l’écrire dans <c>Height</c> (DIP pris pour des pixels) relance le layout.
+    /// </summary>
+    private void QueuePaletteChromeHeight()
     {
-        if (_syncingPaletteChrome
-            || !_leftToolsElementHost.AutoSize
-            || height < 32
-            || double.IsNaN(height)
-            || double.IsInfinity(height))
+        if (IsDisposed || _leftToolsElementHost.Dock != DockStyle.Top)
         {
             return;
         }
 
-        var pixels = (int)Math.Ceiling(height);
-        var delta = pixels - _leftToolsElementHost.Height;
-        if (Math.Abs(delta) <= 2)
+        if (_paletteChromeQueued)
         {
             return;
         }
 
-        // Une croissance de quelques pixels (DPI) relance SizeChanged et ne converge pas.
-        if (delta is > 0 and <= 4 && _leftToolsElementHost.Height >= 32)
+        _paletteChromeQueued = true;
+        if (!PostShellCallback(ApplyQueuedPaletteChromeHeight))
+        {
+            _paletteChromeQueued = false;
+            _paletteChromePending = true;
+        }
+        else
+        {
+            _paletteChromePending = false;
+        }
+    }
+
+    private void ApplyQueuedPaletteChromeHeight()
+    {
+        _paletteChromeQueued = false;
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (_shellHostCallbackDepth > 0)
+        {
+            _paletteChromeInsideHostCallback++;
+            QueuePaletteChromeHeight();
+            return;
+        }
+
+        ApplyPaletteChromeHeight();
+    }
+
+    private void ApplyPaletteChromeHeight()
+    {
+        if (_syncingPaletteChrome || _leftToolsElementHost.Dock != DockStyle.Top)
+        {
+            return;
+        }
+
+        if (_leftToolsElementHost.AutoSize)
+        {
+            _leftToolsElementHost.AutoSize = false;
+        }
+
+        var width = _leftToolsElementHost.ClientSize.Width;
+        if (width < PaletteChromeHeight.MinPixels)
+        {
+            width = _leftToolsElementHost.Width;
+        }
+
+        if (width < PaletteChromeHeight.MinPixels)
+        {
+            return;
+        }
+
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(_leftToolsWpf);
+        var scale = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1d;
+        try
+        {
+            // Largeur en DIP : Control.Width est en pixels. Sinon la mesure enveloppe
+            // le texte pour une colonne trop large et la hauteur ne correspond pas.
+            _leftToolsWpf.Measure(new System.Windows.Size(width / scale, double.PositiveInfinity));
+        }
+        catch (InvalidOperationException)
+        {
+            return;
+        }
+
+        var pixels = PaletteChromeHeight.ToPixels(_leftToolsWpf.DesiredSize.Height, scale);
+        if (!PaletteChromeHeight.ShouldApply(_leftToolsElementHost.Height, pixels, _paletteChromeApplies))
         {
             return;
         }
 
         _syncingPaletteChrome = true;
+        _paletteChromeApplies++;
         try
         {
             _leftToolsElementHost.Height = pixels;
@@ -4947,17 +5041,19 @@ public sealed class MainForm : Form
     {
         var tiles = mode == EditorPaletteMode.Tiles;
         _tilesPaletteHost.Visible = tiles;
+        _paletteChromeApplies = 0;
         if (tiles)
         {
             _assetsLayout.RowStyles[0] = new RowStyle(SizeType.AutoSize);
             _assetsLayout.RowStyles[1] = new RowStyle(SizeType.Percent, 100f);
-            _leftToolsElementHost.AutoSize = true;
+            _leftToolsElementHost.AutoSize = false;
             _leftToolsElementHost.Dock = DockStyle.Top;
-            if (_leftToolsElementHost.Height <= 0 || _leftToolsElementHost.Height > 480)
+            if (_leftToolsElementHost.Height <= 0 || _leftToolsElementHost.Height > PaletteChromeHeight.MaxPixels)
             {
                 _leftToolsElementHost.Height = 240;
             }
 
+            QueuePaletteChromeHeight();
             return;
         }
 
@@ -5056,6 +5152,10 @@ public sealed class MainForm : Form
         }
 
         ApplyRightRailLayout();
+        if (_paletteChromePending || _leftToolsElementHost.Dock == DockStyle.Top)
+        {
+            QueuePaletteChromeHeight();
+        }
     }
 
     private void QueueInspectorDock()
@@ -5094,6 +5194,14 @@ public sealed class MainForm : Form
             {
                 return false;
             }
+        }
+
+        // ApplyPaletteHostLayout et le SizeChanged des puces s’exécutent avant
+        // l’affectation de _splitRightTileset. Sans ce garde, ouvrir la coque
+        // déréférence le split encore nul (le rappel reste pending).
+        if (_splitRightTileset is null)
+        {
+            return false;
         }
 
         // Jamais BeginInvoke sur le formulaire sans handle : ça crée le HWND du MainForm

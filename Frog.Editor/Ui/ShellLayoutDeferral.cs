@@ -7,6 +7,9 @@ namespace Frog.Editor.Ui;
 /// appliquait <c>Panel2Collapsed</c> et <c>SplitterDistance</c> sur cette pile.
 /// L’<c>ElementHost</c> mesure alors le dispatcher WPF, qui attend la fin de
 /// <c>BuildWindowCore</c> : pompe bloquée, CPU plat, <c>IsHungAppWindow</c>.
+/// Poster ce layout ne suffit pas : une fois la fenêtre peinte, le rappel
+/// redimensionne le rail, et un <c>ElementHost.AutoSize</c> rappelle
+/// <c>PerformLayout</c> depuis <c>SizeChanged</c> sans revenir à la pompe.
 /// </summary>
 internal static class ShellLayoutDeferral
 {
