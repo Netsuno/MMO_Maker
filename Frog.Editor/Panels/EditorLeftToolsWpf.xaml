@@ -225,7 +225,7 @@
                          ToolTip="Départ, PNJ et événements rapides"
                          Checked="OnPaletteModeChecked" />
             <RadioButton x:Name="ModeAttributes"
-                         Content="Attributs"
+                         Content="Régions"
                          GroupName="PaletteMode"
                          Style="{StaticResource EditorModeRadio}"
                          ToolTip="Type de tuile et régions"

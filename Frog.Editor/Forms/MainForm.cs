@@ -52,14 +52,21 @@ public sealed class MainForm : Form
     private readonly MapPropertiesBar _mapPropertiesBar;
     private readonly MapRegionsPanel _regionsPanel;
     private readonly MapPlacedEntityPropertiesPanel _placedEntityPanel;
+    private readonly Panel _inspectorHost;
     private readonly TransferIssuesPanel _transferIssuesPanel;
     private readonly MapCanvas _canvas;
     private readonly MapMinimapControl _minimap;
     private Point _lastHoverTile;
     private readonly TableLayoutPanel _assetsLayout;
     private readonly Panel _tilesPaletteHost;
-    /// <summary>Horizontal : panneau haut = couches, bas = PropertyGrid.</summary>
+    /// <summary>Horizontal : haut = couches compactes, bas = inspecteur (0 ou ~160 px).</summary>
     private readonly SplitContainer _splitLayersProps;
+
+    /// <summary>Liste des couches, toujours visible (Tuiles et Objets compris).</summary>
+    private const int LayersDockHeight = 168;
+
+    /// <summary>Inspecteur ouvert : propriétés de la sélection, sans occuper ~40 % du rail.</summary>
+    private const int InspectorExpandedHeight = 160;
     private readonly SplitContainer _splitRightTileset;
     private readonly MapsProjectPanel _mapsProjectPanel;
     private readonly ElementHost _mapsElementHost;
@@ -76,6 +83,10 @@ public sealed class MainForm : Form
     private Phase8ContentPostgreSqlService? _phase8ContentService;
     private PendingQuickPlacement? _pendingQuickPlacement;
     private string? _statusNotice;
+    private string _statusText = "";
+    private bool _inspectorReady;
+    private bool _applyingRightRail;
+    private InspectorChrome _inspectorChrome = InspectorChrome.Unknown;
     private List<MapTransferIssue> _transferIssues = new();
     private IReadOnlyList<MapTransferLink> _eventTransferLinks = Array.Empty<MapTransferLink>();
     private readonly Dictionary<Guid, CachedTransferMap> _transferMapCache = new();
@@ -150,6 +161,33 @@ public sealed class MainForm : Form
     }
 
     internal string PrefabStatusForTest() => _leftToolsWpf.StatusTextForTest;
+
+    internal string StatusTextForTest => _statusText;
+
+    internal bool MapBannerHiddenForTest => !_mapHeader.Visible && _mapHeader.Height == 0;
+
+    internal bool InspectorCollapsedForTest => _splitLayersProps.Panel2Collapsed;
+
+    internal int LayersDockHeightForTest => _splitLayersProps.Panel1.ClientSize.Height;
+
+    internal int InspectorDockHeightForTest =>
+        _splitLayersProps.Panel2Collapsed ? 0 : _splitLayersProps.Panel2.ClientSize.Height;
+
+    internal int AssetsDockHeightForTest => _splitRightTileset.Panel1.ClientSize.Height;
+
+    internal bool LayersDockVisibleForTest =>
+        _splitLayersProps.Visible && !_splitLayersProps.Panel1Collapsed && _layersElementHost.Visible;
+
+    internal bool RegionsInspectorVisibleForTest => _regionsPanel.Visible;
+
+    internal bool EntityInspectorVisibleForTest => _placedEntityPanel.Visible;
+
+    internal bool TileInspectorVisibleForTest => _propGrid.Visible;
+
+    internal void SetInspectedObjectForTest(object? value)
+    {
+        _propGrid.SelectedObject = value ?? _canvas.Map;
+    }
 
     internal string PrefabSelectedNameForTest() => _leftToolsWpf.SelectedNameForTest;
 
@@ -271,8 +309,7 @@ public sealed class MainForm : Form
     /// <summary>Réapplique les splits internes après redimensionnement de la coque WPF.</summary>
     internal void NotifyWpfShellLayout()
     {
-        ApplyLayersPropertySplitDistance();
-        ApplyRightTilesetSplitDistance();
+        ApplyRightRailLayout();
         PositionMinimap();
     }
 
@@ -517,7 +554,7 @@ public sealed class MainForm : Form
             status.BackColor = EditorChrome.RibbonBg;
             status.Font = EditorChrome.BodyFont;
             status.Padding = new Padding(8, 4, 8, 4);
-            var lblPos = new ToolStripStatusLabel("Tuile · x = 0, y = 0")
+            var lblPos = new ToolStripStatusLabel("Tuiles · Pinceau (B) · couche — · (0, 0) · tuile (0, 0) · zoom 100 %")
             {
                 BorderSides = ToolStripStatusLabelBorderSides.None,
                 Spring = true,
@@ -816,7 +853,7 @@ public sealed class MainForm : Form
         var layersHost = new Panel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(8, 14, 10, 12),
+            Padding = new Padding(4, 2, 4, 2),
             BackColor = EditorChrome.SidebarBg,
         };
         _layersProjectPanel = new LayersProjectPanel();
@@ -925,7 +962,11 @@ public sealed class MainForm : Form
         _propGrid = new PropertyGrid { Dock = DockStyle.Fill, HelpVisible = false };
         EditorChrome.StylePropertyGrid(_propGrid);
         _propGrid.Font = EditorChrome.BodyFont;
-        _propGrid.SelectedObjectsChanged += (_, _) => _propGridUndoCaptured = false;
+        _propGrid.SelectedObjectsChanged += (_, _) =>
+        {
+            _propGridUndoCaptured = false;
+            SyncInspectorDock();
+        };
         _propGrid.MouseDown += (_, _) =>
         {
             if (_propGridUndoCaptured || _suppressDirtyTracking || _canvas.Map is null)
@@ -1011,29 +1052,35 @@ public sealed class MainForm : Form
         _canvas.PlaceKind = _placedEntityPanel.KindToPlace;
         _canvas.PlacedEntitiesChanged += OnPlacedEntitiesChanged;
         _canvas.PlacedEntitySelectionChanged += OnPlacedEntitySelectionChanged;
+        _mapPropertiesBar.MinimumSize = new Size(0, 0);
+        _mapPropertiesBar.Visible = false;
+        _placedEntityPanel.MinimumSize = new Size(0, 0);
+        _placedEntityPanel.Visible = false;
+        _propGrid.Visible = false;
         var propsBody = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
         propsBody.Controls.Add(_propGrid);
         propsBody.Controls.Add(_placedEntityPanel);
         propsBody.Controls.Add(_mapPropertiesBar);
         propsBody.Controls.Add(_regionsPanel);
-        var propsHost = new Panel { Dock = DockStyle.Fill, BackColor = EditorChrome.SidebarBg };
+        _inspectorHost = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = EditorChrome.SidebarBg };
         _transferIssuesPanel.MinimumSize = new Size(0, 0);
         _transferIssuesPanel.Visible = false;
         _transferIssuesPanel.Height = 0;
-        propsHost.Controls.Add(_transferIssuesPanel);
-        propsHost.Controls.Add(propsBody);
-        _splitLayersProps.Panel2.Controls.Add(propsHost);
+        _inspectorHost.Controls.Add(_transferIssuesPanel);
+        _inspectorHost.Controls.Add(propsBody);
+        _splitLayersProps.Panel2.Controls.Add(_inspectorHost);
+        _inspectorReady = true;
 
         _splitRightTileset.Panel2.Controls.Add(_splitLayersProps);
         _splitRightTileset.HandleCreated += (_, _) =>
         {
             if (IsHandleCreated)
             {
-                BeginInvoke(new Action(ApplyRightTilesetSplitDistance));
+                BeginInvoke(new Action(ApplyRightRailLayout));
             }
             else
             {
-                ApplyRightTilesetSplitDistance();
+                ApplyRightRailLayout();
             }
         };
         _splitRight?.Panel2.Controls.Add(_splitRightTileset);
@@ -1402,7 +1449,6 @@ public sealed class MainForm : Form
         _leftToolsWpf.SetSelectedTool(tool);
         _leftToolsWpf.SetPrefabPlaceMode(tool == EditorTool.Prefab);
         _canvas.ActiveTool = tool;
-        _regionsPanel.Visible = tool == EditorTool.Region;
         if (tool == EditorTool.Region)
         {
             _regionsPanel.Bind(_canvas.Map);
@@ -2044,6 +2090,14 @@ public sealed class MainForm : Form
         PushEditorStatusLine();
     }
 
+    internal void RepublishStatusLine()
+    {
+        if (!string.IsNullOrEmpty(_statusText))
+        {
+            TileHoverStatusChanged?.Invoke(_statusText);
+        }
+    }
+
     private void PushEditorStatusLine()
     {
         var zoomPct = (int)Math.Round(_canvas.Zoom * 100f);
@@ -2075,10 +2129,7 @@ public sealed class MainForm : Form
                 ? $"    ·    événement {eventCaption}"
                 : $"    ·    événement {eventCaption} · {eventKind}";
         var paintHint = _canvas.GetPaintStatusHint();
-        _leftToolsWpf?.SetLiveToolHint(paintHint);
-        var toolHint = _canvas.ActiveTool == EditorTool.Prefab
-            ? ""
-            : $"    ·    {paintHint}";
+        _leftToolsWpf.SetLiveToolHint(paintHint);
         var animToggle = !TilesetAnimCatalog.PreviewEnabled
                          && paintHint.IndexOf("aperçu", StringComparison.OrdinalIgnoreCase) < 0
             ? "    ·    aperçu des tuiles animées : arrêté"
@@ -2089,9 +2140,19 @@ public sealed class MainForm : Form
             : transferCount == 1
                 ? "    ·    1 transfert à corriger"
                 : $"    ·    {transferCount} transferts à corriger";
-        var notice = string.IsNullOrEmpty(_statusNotice) ? "" : _statusNotice + "    ·    ";
-        var text =
-            $"{notice}Tuile · x = {_lastHoverTile.X}, y = {_lastHoverTile.Y}{FormatActiveLayerStatus()}{toolHint}{animToggle}    ·    Zoom {zoomPct} %{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{placedCount}{eventText}{transferText}    ·    catalogue {backend}";
+        var world = _canvas.HoverWorldPixels;
+        var text = EditorStatusFormatter.Format(
+            _leftToolsWpf.PaletteModeLabel,
+            paintHint,
+            FormatLayerSegment(),
+            (int)Math.Round(world.X),
+            (int)Math.Round(world.Y),
+            _lastHoverTile.X,
+            _lastHoverTile.Y,
+            zoomPct,
+            string.IsNullOrEmpty(_statusNotice) ? null : _statusNotice,
+            $"{animToggle}{rev}{dirty}{busy}{spawn}{prefabCount}{prefabPlace}{placedCount}{eventText}{transferText}    ·    catalogue {backend}");
+        _statusText = text;
         if (_lblPos is not null)
         {
             _lblPos.Text = text;
@@ -2100,13 +2161,14 @@ public sealed class MainForm : Form
         }
 
         TileHoverStatusChanged?.Invoke(text);
+        SyncInspectorDock();
     }
 
-    private string FormatActiveLayerStatus()
+    private string FormatLayerSegment()
     {
         if (_canvas.Map is not { Layers.Count: > 0 } map)
         {
-            return "";
+            return "couche —";
         }
 
         var index = Math.Clamp(_canvas.ActiveLayerIndex, 0, map.Layers.Count - 1);
@@ -2118,7 +2180,7 @@ public sealed class MainForm : Form
         var percent = LayerPreviewOpacity.ToPercent(_canvas.GetLayerPreviewOpacity(index));
         var opacity = percent == 100 ? "" : $" · opacité {percent} %";
         var dim = _canvas.DimOtherLayers ? " · autres atténuées" : "";
-        return $"    ·    peinture {layer.GetDisplayLabel()}{rankText}{hidden}{locked}{opacity}{dim}";
+        return $"couche {layer.GetDisplayLabel()}{rankText}{hidden}{locked}{opacity}{dim}";
     }
 
     internal void ResetMapView() => _canvas.ResetViewTransform();
@@ -4826,9 +4888,8 @@ public sealed class MainForm : Form
     {
         if (_embedAsWpfChild || _splitLeft is null || _splitRight is null)
         {
-            ApplyLayersPropertySplitDistance();
+            ApplyRightRailLayout();
             PositionMinimap();
-            ApplyRightTilesetSplitDistance();
             return;
         }
 
@@ -4857,9 +4918,8 @@ public sealed class MainForm : Form
                 rightContainerW - propsW - _splitRight.SplitterWidth);
         }
 
-        ApplyLayersPropertySplitDistance();
+        ApplyRightRailLayout();
         PositionMinimap();
-        ApplyRightTilesetSplitDistance();
     }
 
     private System.Windows.Forms.IWin32Window GetDialogOwner()
@@ -4874,71 +4934,221 @@ public sealed class MainForm : Form
         return this;
     }
 
+    private void SyncInspectorDock()
+    {
+        if (!_inspectorReady || _applyingRightRail)
+        {
+            return;
+        }
+
+        var next = ResolveInspectorChrome();
+        if (next == _inspectorChrome)
+        {
+            return;
+        }
+
+        _inspectorChrome = next;
+        ApplyInspectorChildren(next);
+        ApplyRightRailLayout();
+    }
+
+    private InspectorChrome ResolveInspectorChrome()
+    {
+        if (_canvas.ActiveTool == EditorTool.Region)
+        {
+            return InspectorChrome.Region;
+        }
+
+        if (_canvas.ActiveTool == EditorTool.Place || _canvas.SelectedPlacedEntity is not null)
+        {
+            return InspectorChrome.Entity;
+        }
+
+        if (_canvas.ActiveTool == EditorTool.Cursor && _propGrid.SelectedObject is Tile)
+        {
+            return InspectorChrome.Tile;
+        }
+
+        return InspectorChrome.Collapsed;
+    }
+
+    private void ApplyInspectorChildren(InspectorChrome chrome)
+    {
+        _regionsPanel.Visible = chrome == InspectorChrome.Region;
+        _placedEntityPanel.Visible = chrome == InspectorChrome.Entity;
+        _propGrid.Visible = chrome == InspectorChrome.Tile;
+        _mapPropertiesBar.Visible = false;
+
+        var scrollHeight = chrome switch
+        {
+            InspectorChrome.Region => _regionsPanel.Height,
+            InspectorChrome.Entity => _placedEntityPanel.Height,
+            _ => 0,
+        };
+        var scroll = scrollHeight > InspectorExpandedHeight;
+        _inspectorHost.AutoScroll = scroll;
+        _inspectorHost.AutoScrollMinSize = scroll ? new Size(0, scrollHeight) : Size.Empty;
+
+        TrySetInspectorCollapsed(chrome == InspectorChrome.Collapsed);
+    }
+
+    private void ApplyRightRailLayout()
+    {
+        if (_applyingRightRail)
+        {
+            return;
+        }
+
+        _applyingRightRail = true;
+        try
+        {
+            if (_inspectorReady && _inspectorChrome != InspectorChrome.Unknown)
+            {
+                TrySetInspectorCollapsed(_inspectorChrome == InspectorChrome.Collapsed);
+            }
+
+            ApplyRightTilesetSplitDistance();
+            if (_splitRightTileset.IsHandleCreated)
+            {
+                _splitRightTileset.PerformLayout();
+                _splitLayersProps.PerformLayout();
+            }
+
+            ApplyLayersPropertySplitDistance();
+        }
+        finally
+        {
+            _applyingRightRail = false;
+        }
+    }
+
+    private void TrySetInspectorCollapsed(bool collapsed)
+    {
+        try
+        {
+            _splitLayersProps.Panel1MinSize = 0;
+            _splitLayersProps.Panel2MinSize = 0;
+            if (_splitLayersProps.Panel2Collapsed != collapsed)
+            {
+                _splitLayersProps.Panel2Collapsed = collapsed;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Hauteur encore nulle : le prochain passage de layout réessaie.
+        }
+    }
+
     /// <summary>
-    /// Règle la barre tuiles / couches uniquement quand la hauteur du split le permet (évite InvalidOperationException au démarrage).
+    /// Le bas du rail = couches compactes + inspecteur (0 si rien à montrer). La palette garde le reste.
     /// </summary>
     private void ApplyRightTilesetSplitDistance()
     {
         var sc = _splitRightTileset;
-        var h = sc.Height;
+        var h = sc.ClientSize.Height > 0 ? sc.ClientSize.Height : sc.Height;
         var sw = sc.SplitterWidth;
-        if (h <= sw + 12)
+        if (h <= sw + 64)
         {
             return;
         }
 
-        var minD = sc.Panel1MinSize;
-        var maxD = h - sc.Panel2MinSize - sw;
-        if (maxD <= minD)
+        var expanded = !_splitLayersProps.Panel2Collapsed;
+        var bottom = LayersDockHeight;
+        if (expanded)
+        {
+            bottom += InspectorExpandedHeight + _splitLayersProps.SplitterWidth;
+        }
+
+        const int assetsMin = 48;
+        var maxBottom = h - sw - assetsMin;
+        if (maxBottom < 72)
         {
             return;
         }
 
-        var want = Math.Clamp((int)(h * 0.62f), minD, maxD);
-        sc.SplitterDistance = want;
+        if (bottom > maxBottom)
+        {
+            bottom = maxBottom;
+        }
+
+        var distance = h - sw - bottom;
+        var panel2Min = Math.Min(72, bottom);
+        TryAssignSplit(sc, distance, assetsMin, panel2Min);
     }
 
     /// <summary>
-    /// WinForms valide SplitterDistance dès l’assignation : au constructeur la hauteur du split est souvent 0,
-    /// d’où l’impossibilité de fixer 280 + Panel2MinSize ici. On applique après layout.
+    /// Couches en haut (~168 px), inspecteur en bas (~160 px). Replié : le panneau bas est masqué.
     /// </summary>
     private void ApplyLayersPropertySplitDistance()
     {
-        var h = _splitLayersProps.ClientSize.Height;
-        var sw = _splitLayersProps.SplitterWidth;
-        if (h <= sw + 8)
+        var sc = _splitLayersProps;
+        if (sc.Panel2Collapsed)
         {
             return;
         }
 
-        var panel1Min = 100;
-        var panel2Min = 280;
-        var maxDist = h - panel2Min - sw;
-        if (maxDist < panel1Min)
+        var h = sc.ClientSize.Height > 0 ? sc.ClientSize.Height : sc.Height;
+        var sw = sc.SplitterWidth;
+        var panel1Min = 96;
+        var panel2Min = 120;
+        if (h <= sw + panel1Min + panel2Min)
         {
-            panel2Min = Math.Max(80, h - panel1Min - sw - 1);
-            maxDist = h - panel2Min - sw;
+            panel2Min = Math.Max(80, h - sw - panel1Min);
+            if (h <= sw + panel1Min + panel2Min)
+            {
+                return;
+            }
         }
 
-        if (maxDist < panel1Min)
+        var distance = Math.Clamp(h - sw - InspectorExpandedHeight, panel1Min, h - sw - panel2Min);
+        TryAssignSplit(sc, distance, panel1Min, panel2Min);
+    }
+
+    /// <summary>
+    /// WinForms exige une SplitterDistance déjà valide avant d’élargir Panel1MinSize / Panel2MinSize.
+    /// </summary>
+    private static void TryAssignSplit(SplitContainer sc, int distance, int panel1Min, int panel2Min)
+    {
+        if (sc.Panel1Collapsed || sc.Panel2Collapsed)
         {
             return;
         }
 
-        // Il faut une SplitterDistance valide *avant* Panel1MinSize / Panel2MinSize, sinon WinForms lève
-        // InvalidOperationException (« doit se situer entre Panel1MinSize et … »).
-        _splitLayersProps.SplitterDistance = Math.Clamp(_splitLayersProps.SplitterDistance, panel1Min, maxDist);
-
-        _splitLayersProps.Panel1MinSize = panel1Min;
-        _splitLayersProps.Panel2MinSize = panel2Min;
-
-        maxDist = h - _splitLayersProps.Panel2MinSize - sw;
-        if (maxDist < panel1Min)
+        var h = sc.ClientSize.Height > 0 ? sc.ClientSize.Height : sc.Height;
+        var sw = sc.SplitterWidth;
+        if (h <= sw + panel1Min + panel2Min)
         {
             return;
         }
 
-        _splitLayersProps.SplitterDistance = Math.Clamp(280, panel1Min, maxDist);
+        try
+        {
+            sc.Panel1MinSize = 0;
+            sc.Panel2MinSize = 0;
+            var max = h - sw;
+            sc.SplitterDistance = Math.Clamp(distance, 0, max);
+            var maxWithMin = h - sw - panel2Min;
+            if (sc.SplitterDistance < panel1Min || sc.SplitterDistance > maxWithMin)
+            {
+                return;
+            }
+
+            sc.Panel1MinSize = panel1Min;
+            sc.Panel2MinSize = panel2Min;
+        }
+        catch (InvalidOperationException)
+        {
+            // Fenêtre encore trop petite : le prochain passage de layout réessaie.
+        }
+    }
+
+    private enum InspectorChrome
+    {
+        Unknown = 0,
+        Collapsed,
+        Region,
+        Entity,
+        Tile,
     }
 
     internal sealed class NewMapDialog : Form

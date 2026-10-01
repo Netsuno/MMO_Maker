@@ -90,6 +90,17 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     public bool IsPrefabSearchFocused =>
         PrefabFilter?.IsKeyboardFocused == true || PrefabFilter?.IsKeyboardFocusWithin == true;
 
+    /// <summary>Libellé fr-CA du mode palette (barre d’état).</summary>
+    public string PaletteModeLabel => _paletteMode switch
+    {
+        EditorPaletteMode.Objects => "Objets",
+        EditorPaletteMode.Entities => "Entités",
+        EditorPaletteMode.Attributes => "Régions",
+        _ => "Tuiles",
+    };
+
+    internal string AttributesModeCaptionForTest => ModeAttributes.Content as string ?? string.Empty;
+
     public string SelectedPrefabSummary
     {
         get

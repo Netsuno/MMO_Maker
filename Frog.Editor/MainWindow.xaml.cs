@@ -311,6 +311,7 @@ public partial class MainWindow : Window
         HostRight.Child = _editor.RightShellForWpf;
 
         _editor.TileHoverStatusChanged += OnTileHoverStatusChanged;
+        _editor.RepublishStatusLine();
         _editor.UndoRedoStateChanged += (_, _) => Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
         _editor.PlaytestStateChanged += () => Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
 
