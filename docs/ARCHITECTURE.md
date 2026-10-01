@@ -31,7 +31,7 @@ Frog.Persistence.IntegrationTests ──► Persistence, Application, Core
 ## UI éditeur
 
 - Coque WPF + îlots WinForms (ADR-0004).
-- Workspace documenté : [`EDITOR_WORKSPACE.md`](EDITOR_WORKSPACE.md).
+- Workspace documenté : [`EDITOR_WORKSPACE.md`](EDITOR_WORKSPACE.md) (wireframe Phase 3). Inventaire UI au tip : [`EDITOR_UI_INVENTORY.md`](EDITOR_UI_INVENTORY.md).
 - Cible produit WinForms ; pas d’extension WPF hors panneaux existants.
 
 ## Hors chemin critique

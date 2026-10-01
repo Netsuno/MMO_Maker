@@ -1,5 +1,7 @@
 # Quickstart auteur
 
+> Disposition actuelle (barre d’icônes, palette Tuiles | Objets | Entités | Régions, démarrage hors ligne) : [inventaire UI](../../../EDITOR_UI_INVENTORY.md). Ce parcours n’est pas encore réécrit.
+
 À la fin de ce guide, tu as une carte enregistrée, publiée, et un joueur peut la voir (même monde que le serveur).
 
 Éditeur = **Windows 11 x64**. Menu Playtest WinForms manuel : **Accepted / skipped by owner agreement — Netsun (2026-09-19); not re-run in this PR.** (`--smoke-launch` Windows CI distinct).

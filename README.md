@@ -126,7 +126,7 @@ Guide pas à pas historique : [`Docs/premier-monde.md`](Docs/premier-monde.md). 
 | **Frog.Tests** | Unitaires (**454** à l’acceptation Phase 9 ; **412** à l’acceptation Phase 8) |
 | **Frog.Persistence.IntegrationTests** | Intégration PostgreSQL isolée (**181** à l’acceptation Phase 9 ; **174** à l’acceptation Phase 8) |
 
-Architecture : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · workspace éditeur : [`docs/EDITOR_WORKSPACE.md`](docs/EDITOR_WORKSPACE.md) · modèle de données : [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)
+Architecture : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · workspace éditeur : [`docs/EDITOR_WORKSPACE.md`](docs/EDITOR_WORKSPACE.md) · inventaire UI éditeur : [`docs/EDITOR_UI_INVENTORY.md`](docs/EDITOR_UI_INVENTORY.md) · modèle de données : [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)
 
 ---
 

@@ -1,5 +1,7 @@
 # Espace de travail éditeur — wireframe et responsabilités
 
+> Chrome au tip `8aec6e64` : [inventaire UI](EDITOR_UI_INVENTORY.md). Le wireframe ci-dessous est le shell Phase 3 (outils à gauche, tuiles et PropertyGrid à droite).
+
 Référence Phase 3 (PRD MMO Maker §17 Phase 3 / §18 tâches 4–5). Coque hybride WPF + WinForms (ADR-0004).
 
 ## Wireframe (desktop)
