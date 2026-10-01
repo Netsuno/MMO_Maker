@@ -5196,6 +5196,14 @@ public sealed class MainForm : Form
             }
         }
 
+        // ApplyPaletteHostLayout et le SizeChanged des puces s’exécutent avant
+        // l’affectation de _splitRightTileset. Sans ce garde, ouvrir la coque
+        // déréférence le split encore nul (le rappel reste pending).
+        if (_splitRightTileset is null)
+        {
+            return false;
+        }
+
         // Jamais BeginInvoke sur le formulaire sans handle : ça crée le HWND du MainForm
         // depuis le handle du split, encore dans BuildWindowCore.
         if (_splitRightTileset.IsHandleCreated)

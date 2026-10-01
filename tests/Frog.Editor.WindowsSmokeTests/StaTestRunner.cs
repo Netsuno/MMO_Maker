@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Windows.Threading;
 
@@ -42,7 +43,8 @@ internal static class StaTestRunner
 
         if (captured is not null)
         {
-            throw captured;
+            // throw ex; depuis le thread appelant efface la pile d’origine (Invoke).
+            ExceptionDispatchInfo.Capture(captured).Throw();
         }
 
         AssertClean();
