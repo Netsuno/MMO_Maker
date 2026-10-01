@@ -55,6 +55,26 @@ public sealed class RightRailLayoutMathTests
     }
 
     [Fact]
+    public void PaletteChrome_ConvertsDips_AndStopsChasingHeight()
+    {
+        // 150 % : 160 DIP = 240 px. L’ancien SizeChanged écrivait Ceiling(DesiredSize)
+        // dans Control.Height, donc 160 px, puis la bande grandissait sans fin.
+        Assert.Equal(240, PaletteChromeHeight.ToPixels(160, 1.5));
+        Assert.Equal(160, PaletteChromeHeight.ToPixels(160, 1));
+        Assert.NotEqual(PaletteChromeHeight.ToPixels(160, 1.5), (int)Math.Ceiling(160d));
+        Assert.Equal(0, PaletteChromeHeight.ToPixels(double.PositiveInfinity, 1.5));
+        Assert.Equal(0, PaletteChromeHeight.ToPixels(double.NaN, 1));
+        Assert.Equal(160, PaletteChromeHeight.ToPixels(160, double.NaN));
+
+        Assert.False(PaletteChromeHeight.ShouldApply(240, 240, appliesSoFar: 0));
+        Assert.False(PaletteChromeHeight.ShouldApply(240, 242, appliesSoFar: 0));
+        Assert.True(PaletteChromeHeight.ShouldApply(240, 248, appliesSoFar: 0));
+        Assert.False(PaletteChromeHeight.ShouldApply(240, 248, PaletteChromeHeight.ApplyBudget));
+        Assert.False(PaletteChromeHeight.ShouldApply(240, 20, appliesSoFar: 0));
+        Assert.False(PaletteChromeHeight.ShouldApply(240, 900, appliesSoFar: 0));
+    }
+
+    [Fact]
     public void UnavailableDatabase_IsConnectionFailure_NotForcedMigrate()
     {
         Assert.True(EditorDatabaseAvailability.IsUnavailable(new SocketException((int)SocketError.ConnectionRefused)));
@@ -76,7 +96,8 @@ public sealed class RightRailLayoutMathTests
 
 /// <summary>
 /// La coque WPF reste pompable après le premier affichage, et Postgres injoignable ouvre un brouillon local.
-/// Le layout du rail ne doit pas tourner sur la pile HandleCreated (deadlock ElementHost, CPU plat).
+/// Le layout du rail ne doit pas tourner sur la pile HandleCreated, et la bande d’outils ne doit pas
+/// être <c>AutoSize</c> (PerformLayout depuis SizeChanged, après le premier paint).
 /// </summary>
 [Collection(UiSmokeCollectionDefinition.Name)]
 public sealed class EditorStartupHangSmokeTests
@@ -101,7 +122,10 @@ public sealed class EditorStartupHangSmokeTests
                 }
 
                 Assert.Equal(0, form.RightRailLayoutsInsideHostCallbackForTest);
+                Assert.Equal(0, form.PaletteChromeInsideHostCallbackForTest);
+                Assert.False(form.LeftToolsHostAutoSizeForTest);
                 Assert.True(form.RightRailLayoutInvocationsForTest > 0);
+                Assert.InRange(form.PaletteChromeHeightAppliesForTest, 0, PaletteChromeHeight.ApplyBudget);
                 var before = form.RightRailLayoutInvocationsForTest;
                 var pumped = false;
                 window.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => pumped = true));
@@ -111,6 +135,9 @@ public sealed class EditorStartupHangSmokeTests
                     TimeSpan.FromSeconds(4));
                 Assert.True(pumped);
                 Assert.Equal(0, form.RightRailLayoutsInsideHostCallbackForTest);
+                Assert.Equal(0, form.PaletteChromeInsideHostCallbackForTest);
+                Assert.False(form.LeftToolsHostAutoSizeForTest);
+                Assert.InRange(form.PaletteChromeHeightAppliesForTest, 0, PaletteChromeHeight.ApplyBudget);
                 Assert.InRange(form.RightRailLayoutInvocationsForTest - before, 0, 12);
             }
             finally
