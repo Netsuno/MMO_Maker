@@ -20,6 +20,7 @@ public sealed class GameDataRepositorySet : IDisposable
         EditorShopRepositoryBundle shop,
         EditorResourceRepositoryBundle resource,
         EditorResourceSpawnRepositoryBundle resourceSpawn,
+        EditorMapObjectRepositoryBundle mapObject,
         EditorPostgreSqlScope? databaseScope)
     {
         Map = map;
@@ -34,6 +35,7 @@ public sealed class GameDataRepositorySet : IDisposable
         Shop = shop;
         Resource = resource;
         ResourceSpawn = resourceSpawn;
+        MapObject = mapObject;
         DatabaseScope = databaseScope;
     }
 
@@ -60,6 +62,8 @@ public sealed class GameDataRepositorySet : IDisposable
     public EditorResourceRepositoryBundle Resource { get; }
 
     public EditorResourceSpawnRepositoryBundle ResourceSpawn { get; }
+
+    public EditorMapObjectRepositoryBundle MapObject { get; }
 
     public EditorPostgreSqlScope? DatabaseScope { get; }
 

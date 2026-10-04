@@ -84,7 +84,8 @@ public static class GameDataInitializationService
            || EditorTestHooks.OverrideSystemSettingsRepository is not null
            || EditorTestHooks.OverrideShopRepository is not null
            || EditorTestHooks.OverrideResourceRepository is not null
-           || EditorTestHooks.OverrideResourceSpawnRepository is not null;
+           || EditorTestHooks.OverrideResourceSpawnRepository is not null
+           || EditorTestHooks.OverrideMapObjectRepository is not null;
 
     private static GameDataRepositorySet CreateFromInjected()
     {
@@ -109,6 +110,7 @@ public static class GameDataInitializationService
             map.Repository,
             resource.PublishedCatalog,
             resource.Capabilities);
+        var mapObject = EditorMapObjectRepositoryFactory.CreateBundle();
         return new GameDataRepositorySet(
             map,
             tileset,
@@ -122,6 +124,7 @@ public static class GameDataInitializationService
             shop,
             resource,
             spawn,
+            mapObject,
             databaseScope: null);
     }
 
@@ -172,6 +175,9 @@ public static class GameDataInitializationService
         var spawnMem = new InMemoryResourceSpawnRepository(mapRepo, resourceMem, capabilities);
         var spawn = new EditorResourceSpawnRepositoryBundle(spawnMem, spawnMem, spawnMem.Capabilities);
 
+        var mapObjectMem = new InMemoryMapObjectRepository(capabilities);
+        var mapObject = new EditorMapObjectRepositoryBundle(mapObjectMem, mapObjectMem, mapObjectMem.Capabilities);
+
         return new GameDataRepositorySet(
             map,
             tileset,
@@ -185,6 +191,7 @@ public static class GameDataInitializationService
             shop,
             resource,
             spawn,
+            mapObject,
             databaseScope: null);
     }
 
@@ -233,6 +240,9 @@ public static class GameDataInitializationService
         var spawnRepo = new PostgresResourceSpawnRepository(gate, mapRepo, resourceRepo);
         var spawn = new EditorResourceSpawnRepositoryBundle(spawnRepo, spawnRepo, spawnRepo.Capabilities);
 
+        var mapObjectRepo = new PostgresMapObjectRepository(gate);
+        var mapObject = new EditorMapObjectRepositoryBundle(mapObjectRepo, mapObjectRepo, mapObjectRepo.Capabilities);
+
         return new GameDataRepositorySet(
             map,
             tileset,
@@ -246,6 +256,7 @@ public static class GameDataInitializationService
             shop,
             resource,
             spawn,
+            mapObject,
             scope);
     }
 }

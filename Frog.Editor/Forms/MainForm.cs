@@ -1257,6 +1257,7 @@ public sealed class MainForm : Form
         ApplyWorkspaceMapToUi();
         await HydrateTilesetCacheFromPublishedAsync().ConfigureAwait(true);
         UpdatePersistenceMenuState();
+        await ReloadPublishedMapObjectsIntoPaletteAsync().ConfigureAwait(true);
         RestoreSavedPrefabSelection();
         PushEditorStatusLine();
     }
@@ -1487,6 +1488,53 @@ public sealed class MainForm : Form
         {
             // hydrate optionnel — ne bloque pas l’ouverture de carte
         }
+    }
+
+    private Task? _publishedMapObjectReload;
+
+    internal Task? PublishedMapObjectReloadTaskForTest => _publishedMapObjectReload;
+
+    internal EditorLeftToolsWpf LeftToolsForTest => _leftToolsWpf;
+
+    /// <summary>
+    /// Recharge la palette « Objets » : props intégrés + objets de carte publiés (PostgreSQL ou dépôt injecté).
+    /// Un brouillon n’apparaît pas tant qu’il n’est pas publié.
+    /// </summary>
+    private async System.Threading.Tasks.Task ReloadPublishedMapObjectsIntoPaletteAsync()
+    {
+        try
+        {
+            var bundle = EditorMapObjectRepositoryFactory.CreateBundle();
+            var published = await bundle.PublishedCatalog
+                .ListPublishedAsync()
+                .ConfigureAwait(true);
+            MapObjectPlacementCatalog.MaterializeSprites(
+                published,
+                PrefabSpriteCache.ResolvePrefabsDirectory());
+            var catalog = MapObjectPlacementCatalog.Merge(PrefabSpriteCache.LoadCatalog(), published);
+            if (_workspace?.CurrentPrefabs?.Catalog is { Prefabs.Count: > 0 } persisted)
+            {
+                catalog = MapPrefabPersistDocument.MergeCatalogs(persisted, catalog);
+            }
+
+            _canvas.PrefabCatalog = catalog;
+            _leftToolsWpf.BindPrefabCatalog(catalog, _canvas.SelectedPrefabId, _canvas.SelectedPrefabFacing);
+        }
+        catch
+        {
+            // catalogue optionnel — les props intégrés restent sélectionnables
+        }
+    }
+
+    internal System.Threading.Tasks.Task ReloadPublishedMapObjectsForTest()
+    {
+        _publishedMapObjectReload = ReloadPublishedMapObjectsIntoPaletteAsync();
+        return _publishedMapObjectReload;
+    }
+
+    private void QueuePublishedMapObjectReload()
+    {
+        _publishedMapObjectReload = ReloadPublishedMapObjectsIntoPaletteAsync();
     }
 
     private async System.Threading.Tasks.Task SyncPublishedTilesetsFromCacheAsync()
@@ -4230,6 +4278,7 @@ public sealed class MainForm : Form
     private void OpenGameData()
     {
         var dlg = new GameData.GameDataForm();
+        dlg.FormClosed += (_, _) => QueuePublishedMapObjectReload();
         if (EditorTestHooks.GameDataNonModalForTest)
         {
             dlg.Shown += (_, _) => EditorTestHooks.OnGameDataFormShown?.Invoke(dlg);

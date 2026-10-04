@@ -735,6 +735,53 @@ public sealed class MapEventPlacementEntity
     public MapEntity Map { get; set; } = null!;
 }
 
+public sealed class MapObjectEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string LogicalPath { get; set; } = string.Empty;
+    public string PlacementId { get; set; } = string.Empty;
+    public int FootprintWidthTiles { get; set; }
+    public int FootprintHeightTiles { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public string Sha256Hex { get; set; } = string.Empty;
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+public sealed class MapObjectPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid MapObjectId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string LogicalPath { get; set; } = string.Empty;
+    public string PlacementId { get; set; } = string.Empty;
+    public int FootprintWidthTiles { get; set; }
+    public int FootprintHeightTiles { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public string Sha256Hex { get; set; } = string.Empty;
+    public byte[]? PngBytes { get; set; }
+    public MapObjectEntity MapObject { get; set; } = null!;
+}
+
+public sealed class MapObjectPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid MapObjectId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public MapObjectEntity MapObject { get; set; } = null!;
+}
+
 public sealed class MapPublishedEventPlacementEntity
 {
     public Guid Id { get; set; }

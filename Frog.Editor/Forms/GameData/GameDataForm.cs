@@ -37,6 +37,7 @@ public sealed class GameDataForm : Form
     private SystemEditorPanel? _system;
     private ShopEditorPanel? _shops;
     private ResourceAndSpawnEditorPanel? _resourcesAndSpawns;
+    private MapObjectEditorPanel? _mapObjects;
     private GameDataRepositorySet? _repositorySet;
     private CancellationTokenSource? _initCts;
     private Task? _initializationTask;
@@ -68,6 +69,9 @@ public sealed class GameDataForm : Form
     /// <summary>Index de la catégorie Armures, après Armes.</summary>
     internal const int ArmorCategoryIndex = 11;
 
+    /// <summary>Index de la catégorie Objets de carte (props placables), après Armures. « Objets » reste l’inventaire.</summary>
+    internal const int MapObjectCategoryIndex = 12;
+
     internal SpellEditorPanel SpellsForTest => _spells ?? throw new InvalidOperationException("Game Data not initialized.");
 
     internal ClassEditorPanel ClassesForTest => _classes ?? throw new InvalidOperationException("Game Data not initialized.");
@@ -82,6 +86,9 @@ public sealed class GameDataForm : Form
 
     internal ResourceAndSpawnEditorPanel ResourcesForTest =>
         _resourcesAndSpawns ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal MapObjectEditorPanel MapObjectsForTest =>
+        _mapObjects ?? throw new InvalidOperationException("Game Data not initialized.");
 
     public GameDataForm()
     {
@@ -108,6 +115,7 @@ public sealed class GameDataForm : Form
             "Ressources / spawns",
             "Armes",
             "Armures",
+            "Objets de carte",
         });
         _categoryList.SelectedIndex = 0;
         _categoryList.Enabled = false;
@@ -204,6 +212,7 @@ public sealed class GameDataForm : Form
         await _system!.InitializeAsync().ConfigureAwait(true);
         await _shops!.InitializeAsync().ConfigureAwait(true);
         await _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(true);
+        await _mapObjects!.InitializeAsync().ConfigureAwait(true);
 
         _initialized = true;
         ShowInitialCategory();
@@ -238,6 +247,7 @@ public sealed class GameDataForm : Form
         _system!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _shops!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _mapObjects!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _initialized = true;
         _initializationTask = Task.CompletedTask;
         ShowInitialCategory();
@@ -314,6 +324,10 @@ public sealed class GameDataForm : Form
             set.Resource.Capabilities,
             set.ResourceSpawn.Capabilities);
         _resourcesAndSpawns.StatusChanged += msg => _status.Text = msg;
+        _mapObjects = new MapObjectEditorPanel(
+            new MapObjectWorkspaceSession(set.MapObject.Repository),
+            set.MapObject.Capabilities);
+        _mapObjects.StatusChanged += msg => _status.Text = msg;
 
         _host.Controls.Remove(_loading);
         _categoryList.Enabled = true;
@@ -343,7 +357,8 @@ public sealed class GameDataForm : Form
                 || _skills!.IsDirty
                 || _system!.IsDirty
                 || _shops!.IsDirty
-                || _resourcesAndSpawns!.IsDirty))
+                || _resourcesAndSpawns!.IsDirty
+                || _mapObjects!.IsDirty))
         {
             var r = GameDataUiMessageBox.Show(
                 this,
@@ -506,7 +521,8 @@ public sealed class GameDataForm : Form
                 || !await DrainOne(t => _skills!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _system!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _shops!.DrainAsync(t)).ConfigureAwait(true)
-                || !await DrainOne(t => _resourcesAndSpawns!.DrainAsync(t)).ConfigureAwait(true))
+                || !await DrainOne(t => _resourcesAndSpawns!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _mapObjects!.DrainAsync(t)).ConfigureAwait(true))
             {
                 return false;
             }
@@ -550,7 +566,8 @@ public sealed class GameDataForm : Form
                 || !(_skills?.LifecycleForTest.IsIdle ?? true)
                 || !(_system?.LifecycleForTest.IsIdle ?? true)
                 || !(_shops?.LifecycleForTest.IsIdle ?? true)
-                || !(_resourcesAndSpawns?.IsIdleForTest ?? true)))
+                || !(_resourcesAndSpawns?.IsIdleForTest ?? true)
+                || !(_mapObjects?.LifecycleForTest.IsIdle ?? true)))
         {
             return false;
         }
@@ -575,6 +592,7 @@ public sealed class GameDataForm : Form
             _system!.Enabled = enabled;
             _shops!.Enabled = enabled;
             _resourcesAndSpawns!.Enabled = enabled;
+            _mapObjects!.Enabled = enabled;
         }
 
         _status.Text = enabled
@@ -596,6 +614,7 @@ public sealed class GameDataForm : Form
         _system?.BeginClosing();
         _shops?.BeginClosing();
         _resourcesAndSpawns?.BeginClosing();
+        _mapObjects?.BeginClosing();
     }
 
     private void DisposePanelLifecycles()
@@ -612,6 +631,7 @@ public sealed class GameDataForm : Form
         _system?.DisposeLifecycle();
         _shops?.DisposeLifecycle();
         _resourcesAndSpawns?.DisposeLifecycle();
+        _mapObjects?.DisposeLifecycle();
     }
 
     private void DisposeRepositorySetSafely()
@@ -724,6 +744,11 @@ public sealed class GameDataForm : Form
             _armors!.Dock = DockStyle.Fill;
             _host.Controls.Add(_armors);
             _armors.QueueRefreshList();
+        }
+        else if (_categoryList.SelectedIndex == MapObjectCategoryIndex)
+        {
+            _mapObjects!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_mapObjects);
         }
     }
 }
