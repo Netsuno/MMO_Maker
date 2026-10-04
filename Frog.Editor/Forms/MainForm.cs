@@ -1532,7 +1532,7 @@ public sealed class MainForm : Form
         return _publishedMapObjectReload;
     }
 
-    private void QueuePublishedMapObjectReload()
+    internal void QueuePublishedMapObjectReload()
     {
         _publishedMapObjectReload = ReloadPublishedMapObjectsIntoPaletteAsync();
     }

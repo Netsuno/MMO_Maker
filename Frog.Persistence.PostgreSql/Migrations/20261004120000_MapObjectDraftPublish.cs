@@ -30,7 +30,7 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     footprint_height_tiles = table.Column<int>(type: "integer", nullable: false),
                     width = table.Column<int>(type: "integer", nullable: false),
                     height = table.Column<int>(type: "integer", nullable: false),
-                    sha256_hex = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    sha256hex = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     status = table.Column<byte>(type: "smallint", nullable: false),
                     revision = table.Column<long>(type: "bigint", nullable: false),
                     published_revision = table.Column<long>(type: "bigint", nullable: true),
@@ -86,7 +86,7 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     footprint_height_tiles = table.Column<int>(type: "integer", nullable: false),
                     width = table.Column<int>(type: "integer", nullable: false),
                     height = table.Column<int>(type: "integer", nullable: false),
-                    sha256_hex = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    sha256hex = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     png_bytes = table.Column<byte[]>(type: "bytea", nullable: true)
                 },
                 constraints: table =>

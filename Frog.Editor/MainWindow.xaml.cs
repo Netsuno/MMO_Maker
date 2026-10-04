@@ -415,6 +415,7 @@ public partial class MainWindow : Window
     private void OpenGameData()
     {
         var dlg = new Forms.GameData.GameDataForm();
+        dlg.FormClosed += (_, _) => _editor.QueuePublishedMapObjectReload();
         if (EditorTestHooks.GameDataNonModalForTest)
         {
             dlg.Shown += (_, _) => EditorTestHooks.OnGameDataFormShown?.Invoke(dlg);
