@@ -390,6 +390,34 @@ public sealed class MapCanvas : Control
     /// <summary>Type posé par le prochain clic de l’outil Entités. Défaut : PNJ.</summary>
     public MapPlacedKind PlaceKind { get; set; } = MapPlacedKind.Npc;
 
+    private readonly MobSpawnZoneDocument _mobZones = MobSpawnZoneDocument.Empty();
+    private Guid? _selectedMobZoneId;
+    private MobZoneGesture _mobZoneGesture;
+    private Point _mobZoneAnchor;
+    private int _mobZoneGrabX;
+    private int _mobZoneGrabY;
+    private int _mobZoneOriginX;
+    private int _mobZoneOriginY;
+
+    private enum MobZoneGesture
+    {
+        None = 0,
+        Marquee = 1,
+        Move = 2,
+        Copy = 3,
+    }
+
+    public MobSpawnZoneDocument MobSpawnZones => _mobZones;
+
+    public Guid? SelectedMobZoneId => _selectedMobZoneId;
+
+    public MobSpawnZone? SelectedMobSpawnZone =>
+        _selectedMobZoneId is Guid id ? _mobZones.Find(id) : null;
+
+    public event Action? MobSpawnZonesChanged;
+
+    public event Action? MobSpawnZoneSelectionChanged;
+
     private readonly List<MapPlacedEntity> _placedEntities = new();
 
     public IReadOnlyList<MapPlacedEntity> PlacedEntities => _placedEntities;
@@ -1034,6 +1062,7 @@ public sealed class MapCanvas : Control
                 DrawTransferIssueOverlay(g, tx0, ty0, tx1, ty1);
                 DrawPlaytestSpawnMarker(g, tx0, ty0, tx1, ty1);
                 DrawPlacedEntities(g, tx0, ty0, tx1, ty1);
+                DrawMobSpawnZones(g);
             }
 
             if (Map is not null && ActiveTool == EditorTool.Region)
@@ -2153,6 +2182,196 @@ public sealed class MapCanvas : Control
         return removed;
     }
 
+    public void ReplaceMobSpawnZones(MobSpawnZoneDocument? document)
+    {
+        _mobZones.ReplaceWith(document);
+
+        if (_selectedMobZoneId is Guid id && _mobZones.Find(id) is null)
+        {
+            _selectedMobZoneId = null;
+        }
+
+        Invalidate();
+    }
+
+    public int ClipMobSpawnZonesToMap()
+    {
+        if (Map is null)
+        {
+            return 0;
+        }
+
+        var removed = MobSpawnZoneEdit.ClipToMap(_mobZones, Map.Width, Map.Height);
+        if (_selectedMobZoneId is Guid id && _mobZones.Find(id) is null)
+        {
+            _selectedMobZoneId = null;
+            MobSpawnZoneSelectionChanged?.Invoke();
+        }
+
+        if (removed > 0)
+        {
+            MobSpawnZonesChanged?.Invoke();
+            Invalidate();
+        }
+
+        return removed;
+    }
+
+    public void SelectMobSpawnZone(Guid id)
+    {
+        if (_mobZones.Find(id) is null)
+        {
+            return;
+        }
+
+        _selectedMobZoneId = id;
+        MobSpawnZoneSelectionChanged?.Invoke();
+        Invalidate();
+    }
+
+    public void ClearMobZoneSelection()
+    {
+        if (_selectedMobZoneId is null)
+        {
+            return;
+        }
+
+        _selectedMobZoneId = null;
+        MobSpawnZoneSelectionChanged?.Invoke();
+        Invalidate();
+    }
+
+    internal bool TryCommitMobZoneMarqueeForTest(int x0, int y0, int x1, int y1)
+        => CommitMobZoneMarquee(x0, y0, x1, y1);
+
+    internal bool TryMoveSelectedMobZoneForTest(int tileX, int tileY)
+    {
+        if (Map is null || SelectedMobSpawnZone is not { } zone)
+        {
+            return false;
+        }
+
+        if (!MobSpawnZoneEdit.TryMove(zone, Map.Width, Map.Height, tileX, tileY))
+        {
+            return false;
+        }
+
+        MobSpawnZonesChanged?.Invoke();
+        Invalidate();
+        return true;
+    }
+
+    internal bool TryCopySelectedMobZoneForTest(int tileX, int tileY)
+    {
+        if (Map is null || _selectedMobZoneId is not Guid id)
+        {
+            return false;
+        }
+
+        if (!MobSpawnZoneEdit.TryCopy(_mobZones, Map.Width, Map.Height, id, tileX, tileY, out var copy, out _))
+        {
+            return false;
+        }
+
+        _selectedMobZoneId = copy.Id;
+        MobSpawnZonesChanged?.Invoke();
+        MobSpawnZoneSelectionChanged?.Invoke();
+        Invalidate();
+        return true;
+    }
+
+    private bool CommitMobZoneMarquee(int x0, int y0, int x1, int y1)
+    {
+        if (Map is null
+            || !MobSpawnZoneEdit.TryNormalizeRect(x0, y0, x1, y1, Map.Width, Map.Height, out var x, out var y, out var w, out var h)
+            || !MobSpawnZoneEdit.TryCreate(_mobZones, Map.Width, Map.Height, x, y, w, h, out var zone, out _))
+        {
+            return false;
+        }
+
+        _selectedMobZoneId = zone.Id;
+        MobSpawnZonesChanged?.Invoke();
+        MobSpawnZoneSelectionChanged?.Invoke();
+        Invalidate();
+        return true;
+    }
+
+    private void BeginMobZoneGesture(MobZoneGesture gesture, int tileX, int tileY, MobSpawnZone? zone)
+    {
+        _mobZoneGesture = gesture;
+        _mobZoneAnchor = new Point(tileX, tileY);
+        _mobZoneGrabX = tileX;
+        _mobZoneGrabY = tileY;
+        if (zone is not null)
+        {
+            _selectedMobZoneId = zone.Id;
+            _mobZoneOriginX = zone.TileX;
+            _mobZoneOriginY = zone.TileY;
+            MobSpawnZoneSelectionChanged?.Invoke();
+        }
+
+        Capture = true;
+        Invalidate();
+    }
+
+    private bool FinishMobZoneGesture(int tileX, int tileY)
+    {
+        var gesture = _mobZoneGesture;
+        _mobZoneGesture = MobZoneGesture.None;
+        Capture = false;
+        if (Map is null || gesture == MobZoneGesture.None)
+        {
+            return false;
+        }
+
+        tileX = Math.Clamp(tileX, 0, Map.Width - 1);
+        tileY = Math.Clamp(tileY, 0, Map.Height - 1);
+        if (gesture == MobZoneGesture.Marquee)
+        {
+            return CommitMobZoneMarquee(_mobZoneAnchor.X, _mobZoneAnchor.Y, tileX, tileY);
+        }
+
+        if (_selectedMobZoneId is not Guid id || _mobZones.Find(id) is not { } zone)
+        {
+            return false;
+        }
+
+        var dx = tileX - _mobZoneGrabX;
+        var dy = tileY - _mobZoneGrabY;
+        if (dx == 0 && dy == 0)
+        {
+            Invalidate();
+            return false;
+        }
+
+        var nextX = _mobZoneOriginX + dx;
+        var nextY = _mobZoneOriginY + dy;
+        if (gesture == MobZoneGesture.Move)
+        {
+            if (!MobSpawnZoneEdit.TryMove(zone, Map.Width, Map.Height, nextX, nextY))
+            {
+                Invalidate();
+                return false;
+            }
+
+            MobSpawnZonesChanged?.Invoke();
+            Invalidate();
+            return true;
+        }
+
+        if (!MobSpawnZoneEdit.TryCopy(_mobZones, Map.Width, Map.Height, id, nextX, nextY, out var copy, out _))
+        {
+            Invalidate();
+            return false;
+        }
+
+        _selectedMobZoneId = copy.Id;
+        MobSpawnZonesChanged?.Invoke();
+        MobSpawnZoneSelectionChanged?.Invoke();
+        Invalidate();
+        return true;
+    }
+
     internal bool TryApplyPlaceToolAtTileForTest(int tileX, int tileY)
     {
         if (Map is null)
@@ -2715,6 +2934,101 @@ public sealed class MapCanvas : Control
         }
     }
 
+    private void DrawMobSpawnZones(Graphics g)
+    {
+        var preview = MobZonePreviewOffset();
+        foreach (var zone in _mobZones.Zones)
+        {
+            var selected = zone.Id == _selectedMobZoneId;
+            var dx = 0;
+            var dy = 0;
+            if (selected && _mobZoneGesture == MobZoneGesture.Move)
+            {
+                dx = preview.X;
+                dy = preview.Y;
+            }
+
+            var color = selected
+                ? Color.FromArgb(255, 214, 122, 48)
+                : Color.FromArgb(255, 168, 96, 48);
+            var x1 = zone.TileX + dx + zone.Width - 1;
+            var y1 = zone.TileY + dy + zone.Height - 1;
+            DrawTileRectPixels(g, zone.TileX + dx, zone.TileY + dy, x1, y1, color, dash: !selected);
+            using var font = CreateZoneFont();
+            using var brush = new SolidBrush(Color.FromArgb(230, 255, 236, 214));
+            g.DrawString(zone.Name, font, brush, (zone.TileX + dx) * TileSize + 4, (zone.TileY + dy) * TileSize + 4);
+        }
+
+        if (_mobZoneGesture == MobZoneGesture.Copy && _mobZones.Find(_selectedMobZoneId ?? Guid.Empty) is { } source)
+        {
+            var dx = preview.X;
+            var dy = preview.Y;
+            if (dx != 0 || dy != 0)
+            {
+                var x1 = source.TileX + dx + source.Width - 1;
+                var y1 = source.TileY + dy + source.Height - 1;
+                DrawTileRectPixels(
+                    g,
+                    source.TileX + dx,
+                    source.TileY + dy,
+                    x1,
+                    y1,
+                    Color.FromArgb(255, 232, 168, 72),
+                    dash: true);
+            }
+        }
+
+        if (_mobZoneGesture == MobZoneGesture.Marquee && Map is not null)
+        {
+            DrawTileRectPixels(
+                g,
+                _mobZoneAnchor.X,
+                _mobZoneAnchor.Y,
+                _hoverTile.X,
+                _hoverTile.Y,
+                Color.FromArgb(255, 214, 122, 48),
+                dash: true);
+        }
+    }
+
+    private Point MobZonePreviewOffset()
+    {
+        if (_mobZoneGesture is not (MobZoneGesture.Move or MobZoneGesture.Copy) || Map is null)
+        {
+            return Point.Empty;
+        }
+
+        var dx = _hoverTile.X - _mobZoneGrabX;
+        var dy = _hoverTile.Y - _mobZoneGrabY;
+        var nextX = _mobZoneOriginX + dx;
+        var nextY = _mobZoneOriginY + dy;
+        if (_mobZones.Find(_selectedMobZoneId ?? Guid.Empty) is not { } zone)
+        {
+            return Point.Empty;
+        }
+
+        if (!MobSpawnZoneEdit.TryMove(zone, Map.Width, Map.Height, nextX, nextY))
+        {
+            return Point.Empty;
+        }
+
+        zone.TileX = _mobZoneOriginX;
+        zone.TileY = _mobZoneOriginY;
+        return new Point(nextX - _mobZoneOriginX, nextY - _mobZoneOriginY);
+    }
+
+    private static Font CreateZoneFont()
+    {
+        try
+        {
+            return new Font("Segoe UI", 8f, FontStyle.Bold, GraphicsUnit.Point);
+        }
+        catch (ArgumentException)
+        {
+            return new Font(FontFamily.GenericSansSerif, 8f, FontStyle.Bold, GraphicsUnit.Point);
+        }
+    }
+
     private void DrawTileRectPixels(Graphics g, int ax, int ay, int bx, int by, Color color, bool dash, bool wash = true)
     {
         var x0 = Math.Min(ax, bx);
@@ -2995,7 +3309,7 @@ public sealed class MapCanvas : Control
             }
         }
 
-        if (e.Button == MouseButtons.Left && e.Clicks >= 2 && inMap)
+        if (e.Button == MouseButtons.Left && e.Clicks >= 2 && inMap && ActiveTool != EditorTool.MobZone)
         {
             FinishDoubleClickStamp(tx, ty);
             return;
@@ -3007,7 +3321,7 @@ public sealed class MapCanvas : Control
             _restoreSelectionOnDoubleClick = false;
         }
 
-        if (e.Button == MouseButtons.Left && inMap && (ModifierKeys & Keys.Alt) == Keys.Alt)
+        if (e.Button == MouseButtons.Left && inMap && (ModifierKeys & Keys.Alt) == Keys.Alt && ActiveTool != EditorTool.MobZone)
         {
             TryPipetteAt(tx, ty, switchToBrush: false);
             return;
@@ -3027,6 +3341,17 @@ public sealed class MapCanvas : Control
 
         if (e.Button == MouseButtons.Right)
         {
+            if (ActiveTool == EditorTool.MobZone)
+            {
+                var hit = MobSpawnZoneEdit.HitTest(_mobZones.Zones, tx, ty, _selectedMobZoneId);
+                if (hit is not null)
+                {
+                    BeginMobZoneGesture(MobZoneGesture.Copy, tx, ty, hit);
+                }
+
+                return;
+            }
+
             if (ActiveTool == EditorTool.Region)
             {
                 PaintRegionAt(tx, ty, erase: true);
@@ -3265,6 +3590,20 @@ public sealed class MapCanvas : Control
                     RaiseTileClicked(tx, ty);
                     break;
 
+                case EditorTool.MobZone:
+                    var zoneHit = MobSpawnZoneEdit.HitTest(_mobZones.Zones, tx, ty, _selectedMobZoneId);
+                    if (zoneHit is not null)
+                    {
+                        BeginMobZoneGesture(MobZoneGesture.Move, tx, ty, zoneHit);
+                    }
+                    else
+                    {
+                        BeginMobZoneGesture(MobZoneGesture.Marquee, tx, ty, null);
+                    }
+
+                    RaiseTileClicked(tx, ty);
+                    break;
+
                 case EditorTool.Prefab:
                     if ((ModifierKeys & Keys.Alt) == Keys.Alt)
                     {
@@ -3347,6 +3686,10 @@ public sealed class MapCanvas : Control
                 NoteHoverChangedWhileButtonDown(e.Button);
             }
             if (hoverMoved && ActiveTool == EditorTool.Place && (e.Button & MouseButtons.Left) == 0)
+            {
+                Invalidate();
+            }
+            else if (hoverMoved && ActiveTool == EditorTool.MobZone)
             {
                 Invalidate();
             }
@@ -3496,6 +3839,7 @@ public sealed class MapCanvas : Control
             ActiveTool != EditorTool.Fill &&
             ActiveTool != EditorTool.Rectangle &&
             ActiveTool != EditorTool.Selection &&
+            ActiveTool != EditorTool.MobZone &&
             ActiveTool != EditorTool.Eraser &&
             (e.Button & MouseButtons.Right) != 0 &&
             tx >= 0 &&
@@ -3561,6 +3905,15 @@ public sealed class MapCanvas : Control
             {
                 _regionStroke = false;
                 Capture = false;
+            }
+
+            if (ActiveTool == EditorTool.MobZone && _mobZoneGesture != MobZoneGesture.None
+                && (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right))
+            {
+                var world = ScreenToWorld(e.Location);
+                var zx = (int)Math.Floor(world.X / TileSize);
+                var zy = (int)Math.Floor(world.Y / TileSize);
+                FinishMobZoneGesture(zx, zy);
             }
 
             if (Map is null)
@@ -4096,6 +4449,7 @@ public sealed class MapCanvas : Control
             EditorTool.Fill => EditorToolHotkeys.FormatFillStatus(FillVisibleUnlockedLayers, FillRespectAttributes),
             EditorTool.Rectangle => EditorToolHotkeys.FormatRectangleStatus(RectangleOutline, RectangleEllipse),
             EditorTool.Place => EditorToolHotkeys.FormatPlaceStatus(PlaceKind, SelectedPlacedEntity?.Name),
+            EditorTool.MobZone => MobSpawnZoneLabels.FormatStatus(SelectedMobSpawnZone?.Name),
             EditorTool.Region => MapRegionLabels.FormatStatus(ActiveRegionId),
             _ => EditorToolHotkeys.StatusHint(ActiveTool),
         };

@@ -632,6 +632,10 @@ namespace Frog.Persistence.PostgreSql.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("layers_catalog_json");
 
+                    b.Property<string>("MobSpawnZonesJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("mob_spawn_zones_json");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1085,6 +1089,10 @@ namespace Frog.Persistence.PostgreSql.Migrations
                     b.Property<Guid>("MapId")
                         .HasColumnType("uuid")
                         .HasColumnName("map_id");
+
+                    b.Property<string>("MobSpawnZonesJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("mob_spawn_zones_json");
 
                     b.Property<string>("Name")
                         .IsRequired()

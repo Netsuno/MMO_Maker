@@ -40,6 +40,7 @@ public static class EditorToolHotkeys
             Key.P => Keys.P,
             Key.N => Keys.N,
             Key.G => Keys.G,
+            Key.Z => Keys.Z,
             _ => Keys.None,
         };
 
@@ -83,6 +84,9 @@ public static class EditorToolHotkeys
             case Keys.G:
                 tool = EditorTool.Region;
                 return true;
+            case Keys.Z:
+                tool = EditorTool.MobZone;
+                return true;
             default:
                 tool = default;
                 return false;
@@ -103,6 +107,7 @@ public static class EditorToolHotkeys
             EditorTool.Prefab => "P",
             EditorTool.Place => "N",
             EditorTool.Region => "G",
+            EditorTool.MobZone => "Z",
             _ => string.Empty,
         };
 
@@ -120,6 +125,7 @@ public static class EditorToolHotkeys
             EditorTool.Prefab => "Prefab (objet)",
             EditorTool.Place => "Entités",
             EditorTool.Region => MapRegionLabels.ToolName,
+            EditorTool.MobZone => MobSpawnZoneLabels.ToolName,
             _ => tool.ToString(),
         };
 
@@ -132,7 +138,7 @@ public static class EditorToolHotkeys
     }
 
     public const string PaletteHint =
-        "B pinceau · E gomme · C curseur · F remplissage · R rectangle (Maj = contour) · L ligne (Maj = axe) · M sélection · D départ · P prefab · N entités · G région · I pipette";
+        "B pinceau · E gomme · C curseur · F remplissage · R rectangle (Maj = contour) · L ligne (Maj = axe) · M sélection · D départ · P prefab · N entités · G région · Z zone · I pipette";
 
     /// <summary>Phrase d'aide affichée dans la barre d'état et le panneau d'outils.</summary>
     public static string StatusHint(EditorTool tool) =>
@@ -149,6 +155,7 @@ public static class EditorToolHotkeys
             EditorTool.Prefab => "Prefab (P) · choisissez un objet, puis cliquez la carte · clic sélectionne · Ctrl+D duplique · Échap quitte",
             EditorTool.Place => "Entités (N) · Apparition, PNJ ou Objet · clic pose · glisser déplace · clic droit retire",
             EditorTool.Region => MapRegionLabels.FormatStatus(1),
+            EditorTool.MobZone => MobSpawnZoneLabels.FormatStatus(null),
             _ => DisplayName(tool),
         };
 

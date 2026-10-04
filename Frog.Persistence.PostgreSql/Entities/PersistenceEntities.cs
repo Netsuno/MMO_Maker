@@ -21,6 +21,8 @@ public sealed class MapEntity
     public string LayersCatalogJson { get; set; } = "[]";
     /// <summary>Paquet prefab additif (catalogue + placements + PNG base64).</summary>
     public string? PrefabsJson { get; set; }
+    /// <summary>Zones de réapparition des monstres (rectangle + quantité + délai).</summary>
+    public string? MobSpawnZonesJson { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public List<MapCellEntity> Cells { get; set; } = new();
@@ -612,6 +614,8 @@ public sealed class MapPublishedSnapshotEntity
     public string LayersCatalogJson { get; set; } = "[]";
     /// <summary>Paquet prefab additif (catalogue + placements + PNG base64).</summary>
     public string? PrefabsJson { get; set; }
+    /// <summary>Zones de réapparition copiées au moment de la publication.</summary>
+    public string? MobSpawnZonesJson { get; set; }
     public MapEntity Map { get; set; } = null!;
     public List<MapPublishedCellEntity> Cells { get; set; } = new();
     public List<MapPublishedWarpEntity> Warps { get; set; } = new();

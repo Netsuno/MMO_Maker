@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Frog.Application.Content;
 using Frog.Application.Maps;
 using Frog.Core.IO;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -127,6 +128,41 @@ public sealed class PostgresPublishedWorldCatalog : IPublishedWorldCatalog
                 }
 
                 list.Add(new PublishedMonsterSpawnEntry(r.Id, runtime, r.NpcId, r.X, r.Y, r.Direction));
+            }
+
+            return list;
+        }, cancellationToken);
+
+    public Task<IReadOnlyList<PublishedMobSpawnZone>> ListMobSpawnZonesAsync(
+        CancellationToken cancellationToken = default)
+        => _gate.ExecuteAsync<IReadOnlyList<PublishedMobSpawnZone>>(async (db, ct) =>
+        {
+            await EnsureBindingsLoadedAsync(db, ct).ConfigureAwait(false);
+            var rows = await (
+                    from m in db.Maps.AsNoTracking()
+                    where m.PublishedSnapshotId != null
+                    join s in db.MapPublishedSnapshots.AsNoTracking() on m.PublishedSnapshotId equals s.Id
+                    select new { m.Id, s.MobSpawnZonesJson })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            var list = new List<PublishedMobSpawnZone>();
+            foreach (var row in rows)
+            {
+                if (!_guidToRuntime.TryGetValue(row.Id, out var runtime))
+                {
+                    continue;
+                }
+
+                if (!MobSpawnZoneDocument.TryFromJson(row.MobSpawnZonesJson, out var document) || document.IsEmpty)
+                {
+                    continue;
+                }
+
+                foreach (var zone in document.Zones)
+                {
+                    list.Add(new PublishedMobSpawnZone(row.Id, runtime, zone));
+                }
             }
 
             return list;

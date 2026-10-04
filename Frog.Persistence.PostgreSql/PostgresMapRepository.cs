@@ -1,4 +1,5 @@
 using Frog.Application.Maps;
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +31,12 @@ public sealed class PostgresMapRepository : IMapRepository
         if (!request.Map.Validate(out var error))
         {
             return new SaveMapResult.ValidationFailed(error ?? "Carte invalide.");
+        }
+
+        if (request.MobSpawnZones is not null
+            && !MobSpawnZoneEdit.TryValidate(request.MobSpawnZones, request.Map.Width, request.Map.Height, out var zoneError))
+        {
+            return new SaveMapResult.ValidationFailed(zoneError ?? "Zone de monstres invalide.");
         }
 
         var targetMaps = await BuildTargetMapIndexAsync(db, request, ct).ConfigureAwait(false);
@@ -76,6 +83,7 @@ public sealed class PostgresMapRepository : IMapRepository
                 var entity = MapPersistenceMapper.ToEntity(request.Map, now);
                 entity.Status = MapPublishStatus.Draft;
                 entity.PrefabsJson = MapPersistenceMapper.SerializePrefabs(request.Prefabs);
+                entity.MobSpawnZonesJson = MapPersistenceMapper.SerializeZones(request.MobSpawnZones);
                 db.Maps.Add(entity);
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 newRevision = entity.Revision;
@@ -184,6 +192,17 @@ public sealed class PostgresMapRepository : IMapRepository
                 db.MapCells.AddRange(children.Cells);
                 db.MapWarps.AddRange(children.Warps);
                 db.MapNpcSpawns.AddRange(npcSpawnsToWrite);
+                if (request.MobSpawnZones is not null)
+                {
+                    var zonesJson = MapPersistenceMapper.SerializeZones(request.MobSpawnZones);
+                    await db.Maps
+                        .Where(m => m.Id == mapId)
+                        .ExecuteUpdateAsync(
+                            s => s.SetProperty(m => m.MobSpawnZonesJson, zonesJson),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
                 db.ChangeTracker.Clear();
@@ -520,5 +539,6 @@ public sealed class PostgresMapRepository : IMapRepository
             Status = entity.PublishedRevision is not null ? MapPublishStatus.Published : MapPublishStatus.Draft,
             PublishedRevision = entity.PublishedRevision,
             Prefabs = MapPersistenceMapper.DeserializePrefabs(entity.PrefabsJson),
+            MobSpawnZones = MapPersistenceMapper.DeserializeZones(entity.MobSpawnZonesJson),
         };
 }

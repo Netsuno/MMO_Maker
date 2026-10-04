@@ -1,3 +1,4 @@
+using Frog.Application.Maps;
 using Frog.Core.Models;
 
 namespace Frog.Application.Content;
@@ -27,6 +28,10 @@ public sealed class NullPublishedWorldCatalog : IPublishedWorldCatalog
     public Task<IReadOnlyList<PublishedMonsterSpawnEntry>> ListMonsterSpawnsAsync(
         CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<PublishedMonsterSpawnEntry>>(Array.Empty<PublishedMonsterSpawnEntry>());
+
+    public Task<IReadOnlyList<PublishedMobSpawnZone>> ListMobSpawnZonesAsync(
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<PublishedMobSpawnZone>>(Array.Empty<PublishedMobSpawnZone>());
 
     public bool TryGetRuntimeMapId(Guid mapId, out int runtimeMapId)
     {

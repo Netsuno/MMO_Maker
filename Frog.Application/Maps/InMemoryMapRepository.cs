@@ -1,3 +1,4 @@
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Application.Prefabs;
 
@@ -26,6 +27,12 @@ public sealed class InMemoryMapRepository : IMapRepository
         if (!request.Map.Validate(out var error))
         {
             return Task.FromResult<SaveMapResult>(new SaveMapResult.ValidationFailed(error ?? "Carte invalide."));
+        }
+
+        if (request.MobSpawnZones is not null
+            && !MobSpawnZoneEdit.TryValidate(request.MobSpawnZones, request.Map.Width, request.Map.Height, out var zoneError))
+        {
+            return Task.FromResult<SaveMapResult>(new SaveMapResult.ValidationFailed(zoneError ?? "Zone de monstres invalide."));
         }
 
         var targetMaps = BuildTargetMapIndex(request);
@@ -58,7 +65,14 @@ public sealed class InMemoryMapRepository : IMapRepository
 
             var mapId = Guid.NewGuid();
             var revision = 1L;
-            var draft = CreateStored(mapId, request.Map, revision, MapPublishStatus.Draft, null, request.Prefabs);
+            var draft = CreateStored(
+                mapId,
+                request.Map,
+                revision,
+                MapPublishStatus.Draft,
+                null,
+                request.Prefabs,
+                request.MobSpawnZones);
             _drafts[mapId] = draft;
 
             if (request.Intent == SaveMapIntent.Publish)
@@ -70,7 +84,8 @@ public sealed class InMemoryMapRepository : IMapRepository
                     revision,
                     MapPublishStatus.Published,
                     revision,
-                    request.Prefabs);
+                    request.Prefabs,
+                    request.MobSpawnZones);
                 _drafts[mapId] = publishedDraft;
                 return Task.FromResult<SaveMapResult>(new SaveMapResult.Success(revision, mapId, revision));
             }
@@ -82,13 +97,15 @@ public sealed class InMemoryMapRepository : IMapRepository
     private SaveMapResult UpdateExistingLocked(Guid mapId, StoredMap existing, SaveMapRequest request)
     {
         var newRevision = existing.Revision + 1;
+        var zones = request.MobSpawnZones ?? existing.MobSpawnZones;
         var updatedDraft = CreateStored(
             mapId,
             request.Map,
             newRevision,
             MapPublishStatus.Draft,
             existing.PublishedRevision,
-            request.Prefabs ?? existing.Prefabs);
+            request.Prefabs ?? existing.Prefabs,
+            zones);
         _drafts[mapId] = updatedDraft;
 
         if (request.Intent == SaveMapIntent.Publish)
@@ -100,7 +117,8 @@ public sealed class InMemoryMapRepository : IMapRepository
                 newRevision,
                 MapPublishStatus.Published,
                 newRevision,
-                request.Prefabs ?? existing.Prefabs);
+                request.Prefabs ?? existing.Prefabs,
+                zones);
             _drafts[mapId] = publishedDraft;
             return new SaveMapResult.Success(newRevision, mapId, newRevision);
         }
@@ -202,7 +220,14 @@ public sealed class InMemoryMapRepository : IMapRepository
 
     private void PublishSnapshotLocked(Guid mapId, StoredMap draft)
     {
-        var snapshot = CreateStored(mapId, draft.Map, draft.Revision, MapPublishStatus.Published, draft.Revision, draft.Prefabs);
+        var snapshot = CreateStored(
+            mapId,
+            draft.Map,
+            draft.Revision,
+            MapPublishStatus.Published,
+            draft.Revision,
+            draft.Prefabs,
+            draft.MobSpawnZones);
         _publishedSnapshots[(mapId, draft.Revision)] = snapshot;
         if (!_history.TryGetValue(mapId, out var records))
         {
@@ -240,7 +265,8 @@ public sealed class InMemoryMapRepository : IMapRepository
         long revision,
         MapPublishStatus status,
         long? publishedRevision,
-        MapPrefabPersistDocument? prefabs = null)
+        MapPrefabPersistDocument? prefabs = null,
+        MobSpawnZoneDocument? mobSpawnZones = null)
         => new()
         {
             MapId = mapId,
@@ -249,6 +275,7 @@ public sealed class InMemoryMapRepository : IMapRepository
             Status = status,
             PublishedRevision = publishedRevision,
             Prefabs = ClonePrefabs(prefabs),
+            MobSpawnZones = CloneZones(mobSpawnZones),
         };
 
     private static StoredMap CloneStored(StoredMap stored)
@@ -260,7 +287,11 @@ public sealed class InMemoryMapRepository : IMapRepository
             Status = stored.Status,
             PublishedRevision = stored.PublishedRevision,
             Prefabs = ClonePrefabs(stored.Prefabs),
+            MobSpawnZones = CloneZones(stored.MobSpawnZones),
         };
+
+    private static MobSpawnZoneDocument? CloneZones(MobSpawnZoneDocument? source)
+        => source is null || source.IsEmpty ? null : source.Clone();
 
     private static MapPrefabPersistDocument? ClonePrefabs(MapPrefabPersistDocument? source)
     {

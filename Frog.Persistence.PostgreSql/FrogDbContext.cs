@@ -162,6 +162,7 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.PublishedSnapshotId);
             e.Property(x => x.LayersCatalogJson).HasColumnType("jsonb").IsRequired();
             e.Property(x => x.PrefabsJson).HasColumnType("jsonb");
+            e.Property(x => x.MobSpawnZonesJson).HasColumnType("jsonb");
             e.Property(x => x.Status).HasConversion<byte>();
             e.ToTable(t =>
             {
@@ -218,6 +219,7 @@ public sealed class FrogDbContext : DbContext
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.LayersCatalogJson).HasColumnType("jsonb").IsRequired();
             e.Property(x => x.PrefabsJson).HasColumnType("jsonb");
+            e.Property(x => x.MobSpawnZonesJson).HasColumnType("jsonb");
             e.HasMany(x => x.Cells).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Warps).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.NpcSpawns).WithOne(x => x.Snapshot).HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);

@@ -21,6 +21,8 @@ namespace Frog.Editor.Enums
         /// <summary>Clic = poser une apparition, un PNJ ou un objet (mémo locale, pas de SQL ni de peinture).</summary>
         Place = 9,
         /// <summary>Clic = peindre un numéro de région 0–63 (sidecar, pas de peinture de tuile).</summary>
-        Region = 10
+        Region = 10,
+        /// <summary>Rectangle = zone de monstres (PostgreSQL avec la carte, pas de peinture de tuile).</summary>
+        MobZone = 11
     }
 }
