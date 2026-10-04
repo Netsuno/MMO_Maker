@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Frog.Application.Maps;
 using Frog.Application.Prefabs;
+using Frog.Core.Maps;
 using Frog.Core.Enums;
 using Frog.Core.Models;
 using Frog.Persistence.PostgreSql.Entities;
@@ -81,6 +82,7 @@ internal static class MapPersistenceMapper
             AllowPlayerOverlap = map.AllowPlayerOverlap,
             LayersCatalogJson = SerializeLayersCatalog(map),
             PrefabsJson = draft.PrefabsJson,
+            MobSpawnZonesJson = draft.MobSpawnZonesJson,
         };
 
         var children = BuildChildren(draft.Id, map);
@@ -140,6 +142,7 @@ internal static class MapPersistenceMapper
             Status = MapPublishStatus.Published,
             PublishedRevision = publishedRevision ?? snapshot.Revision,
             Prefabs = DeserializePrefabs(snapshot.PrefabsJson),
+            MobSpawnZones = DeserializeZones(snapshot.MobSpawnZonesJson),
         };
     }
 
@@ -148,6 +151,26 @@ internal static class MapPersistenceMapper
 
     public static MapPrefabPersistDocument? DeserializePrefabs(string? json)
         => MapPrefabPersistJson.TryDeserializeFromString(json);
+
+    public static string? SerializeZones(MobSpawnZoneDocument? document)
+    {
+        if (document is null || document.IsEmpty)
+        {
+            return null;
+        }
+
+        return document.ToJson();
+    }
+
+    public static MobSpawnZoneDocument? DeserializeZones(string? json)
+    {
+        if (!MobSpawnZoneDocument.TryFromJson(json, out var document) || document.IsEmpty)
+        {
+            return null;
+        }
+
+        return document;
+    }
 
     public static string SerializeLayersCatalog(Map map) =>
         JsonSerializer.Serialize(

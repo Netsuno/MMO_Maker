@@ -52,6 +52,7 @@ public sealed class MainForm : Form
     private readonly PropertyGrid _propGrid;
     private readonly MapPropertiesBar _mapPropertiesBar;
     private readonly MapRegionsPanel _regionsPanel;
+    private readonly MobSpawnZonesPanel _mobZonesPanel;
     private readonly MapPlacedEntityPropertiesPanel _placedEntityPanel;
     private readonly Panel _inspectorHost;
     private readonly TransferIssuesPanel _transferIssuesPanel;
@@ -521,6 +522,7 @@ public sealed class MainForm : Form
             mMap.DropDownItems.Add("Outil prefab / objet (P)", null, (_, _) => SelectEditorTool(EditorTool.Prefab));
             mMap.DropDownItems.Add("Outil entités (N)", null, (_, _) => SelectEditorTool(EditorTool.Place));
             mMap.DropDownItems.Add("Outil région (G)", null, (_, _) => SelectEditorTool(EditorTool.Region));
+            mMap.DropDownItems.Add(MobSpawnZoneLabels.EditMenu + " (Z)", null, (_, _) => SelectEditorTool(EditorTool.MobZone));
             mMap.DropDownItems.Add("Pipette tuile (I)", null, (_, _) => TryPipetteAtHover());
             mMap.DropDownItems.Add("Configurer warp sélectionné…", null, (_, _) => EditSelectedWarpDestination());
             mMap.DropDownItems.Add("PNJ rapide…", null, (_, _) => OpenQuickTalkingNpc());
@@ -1023,6 +1025,7 @@ public sealed class MainForm : Form
                 MapEditOperations.ClipTilesOutsideBounds(map);
                 map.Regions?.AdoptMapSize(map.Width, map.Height);
                 _canvas.ClipPlacedEntitiesToMap();
+                _canvas.ClipMobSpawnZonesToMap();
                 EditorMapPlacedEntityWorkstate.Write(_workspace?.CurrentMapId, map, _canvas.PlacedEntities);
                 UpdateMapChromeLabels();
                 _propGrid.Refresh();
@@ -1060,6 +1063,12 @@ public sealed class MainForm : Form
             OnMapEdited();
         };
         _regionsPanel.TroopsRefreshRequested += (_, _) => _ = RefreshEncounterTroopsAsync(force: true);
+        _mobZonesPanel = new MobSpawnZonesPanel();
+        _mobZonesPanel.ZonePicked += (_, id) => _canvas.SelectMobSpawnZone(id);
+        _mobZonesPanel.Edited += (_, _) => OnMobZonePanelEdited();
+        _mobZonesPanel.TroopsRefreshRequested += (_, _) => _ = RefreshEncounterTroopsAsync(force: true);
+        _canvas.MobSpawnZonesChanged += OnMobSpawnZonesEdited;
+        _canvas.MobSpawnZoneSelectionChanged += OnMobSpawnZoneSelectionChanged;
         _placedEntityPanel = new MapPlacedEntityPropertiesPanel { Dock = DockStyle.Top };
         _placedEntityPanel.PlaceKindChanged += (_, _) =>
         {
@@ -1089,6 +1098,7 @@ public sealed class MainForm : Form
         propsBody.Controls.Add(_propGrid);
         propsBody.Controls.Add(_placedEntityPanel);
         propsBody.Controls.Add(_mapPropertiesBar);
+        propsBody.Controls.Add(_mobZonesPanel);
         propsBody.Controls.Add(_regionsPanel);
         _inspectorHost = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = EditorChrome.SidebarBg };
         _transferIssuesPanel.MinimumSize = new Size(0, 0);
@@ -1437,6 +1447,7 @@ public sealed class MainForm : Form
             RestorePlaytestSpawnFromWorkstate();
             RestorePrefabPlacementsFromWorkstate();
             RestorePlacedEntitiesFromWorkstate();
+            SyncMobSpawnZonesFromWorkspace();
             SyncPaletteModeToMap();
         }
         finally
@@ -1595,6 +1606,12 @@ public sealed class MainForm : Form
             _ = RefreshEncounterTroopsAsync(force: false);
         }
 
+        if (tool == EditorTool.MobZone)
+        {
+            BindMobZonePanel();
+            _ = RefreshEncounterTroopsAsync(force: false);
+        }
+
         _canvas.Invalidate();
         PushEditorStatusLine();
         SyncInspectorDock();
@@ -1617,6 +1634,7 @@ public sealed class MainForm : Form
         }
 
         _regionsPanel.SetTroops(troops);
+        _mobZonesPanel.SetTroops(troops);
         _troopLoadState = 2;
     }
 
@@ -2027,6 +2045,63 @@ public sealed class MainForm : Form
         _leftToolsWpf.SetPrefabSelection(prefabId, facing);
         EditorLocalWorkstate.WriteLastPrefabSelection(prefabId, facing);
         PushEditorStatusLine();
+    }
+
+    private void AttachCurrentMobSpawnZonesToWorkspace()
+    {
+        if (_workspace is null)
+        {
+            return;
+        }
+
+        _workspace.CurrentMobSpawnZones = _canvas.MobSpawnZones.IsEmpty
+            ? MobSpawnZoneDocument.Empty()
+            : _canvas.MobSpawnZones.Clone();
+    }
+
+    private void SyncMobSpawnZonesFromWorkspace()
+    {
+        _canvas.ReplaceMobSpawnZones(_workspace?.CurrentMobSpawnZones);
+        BindMobZonePanel();
+    }
+
+    private void OnMobSpawnZonesEdited()
+    {
+        if (_suppressDirtyTracking)
+        {
+            return;
+        }
+
+        AttachCurrentMobSpawnZonesToWorkspace();
+        _workspace?.MarkDirty();
+        _canvas.Invalidate();
+        PushEditorStatusLine();
+    }
+
+    private void OnMobZonePanelEdited()
+    {
+        if (_canvas.SelectedMobZoneId is Guid id && _canvas.MobSpawnZones.Find(id) is null)
+        {
+            _canvas.ClearMobZoneSelection();
+        }
+
+        OnMobSpawnZonesEdited();
+        if (_canvas.ActiveTool == EditorTool.MobZone)
+        {
+            PushEditorStatusLine();
+        }
+    }
+
+    private void OnMobSpawnZoneSelectionChanged()
+    {
+        BindMobZonePanel();
+        SyncInspectorDock();
+        PushEditorStatusLine();
+    }
+
+    private void BindMobZonePanel()
+    {
+        _mobZonesPanel.Bind(_canvas.MobSpawnZones, _canvas.SelectedMobZoneId);
     }
 
     private void AttachCurrentPrefabsToWorkspace()
@@ -2613,6 +2688,7 @@ public sealed class MainForm : Form
 
         ReconcileSpawnMemoAfterMapMetaChange();
         _canvas.ClipPlacedEntitiesToMap();
+        _canvas.ClipMobSpawnZonesToMap();
         if (_canvas.Map is { } placedMap)
         {
             EditorMapPlacedEntityWorkstate.Write(_workspace?.CurrentMapId, placedMap, _canvas.PlacedEntities);
@@ -3230,6 +3306,7 @@ public sealed class MainForm : Form
         RestorePlaytestSpawnFromWorkstate();
         RestorePrefabPlacementsFromWorkstate();
         RestorePlacedEntitiesFromWorkstate();
+        SyncMobSpawnZonesFromWorkspace();
         SyncPaletteModeToMap();
         PushEditorStatusLine();
     }
@@ -3435,6 +3512,7 @@ public sealed class MainForm : Form
         }
 
         AttachCurrentPrefabsToWorkspace();
+        AttachCurrentMobSpawnZonesToWorkspace();
         var result = await _workspace.SaveCurrentAsync(SaveMapIntent.SaveDraft).ConfigureAwait(true);
         await HandleSaveResultAsync(result, published: false).ConfigureAwait(true);
     }
@@ -3486,6 +3564,7 @@ public sealed class MainForm : Form
 
         await SyncPublishedTilesetsFromCacheAsync().ConfigureAwait(true);
         AttachCurrentPrefabsToWorkspace();
+        AttachCurrentMobSpawnZonesToWorkspace();
         var result = await _workspace.SaveCurrentAsync(SaveMapIntent.Publish).ConfigureAwait(true);
         await HandleSaveResultAsync(result, published: true).ConfigureAwait(true);
     }
@@ -4792,6 +4871,7 @@ public sealed class MainForm : Form
         RestorePlaytestSpawnFromWorkstate();
         TryApplyPrefabSidecarFromMapPath(mapPath);
         RestorePlacedEntitiesFromWorkstate();
+        SyncMobSpawnZonesFromWorkspace();
         SyncPaletteModeToMap();
 
         if (manifestOutcome.HadManifest && manifestOutcome.MissingFiles.Count > 0)
@@ -5317,6 +5397,11 @@ public sealed class MainForm : Form
             return InspectorChrome.Region;
         }
 
+        if (_canvas.ActiveTool == EditorTool.MobZone)
+        {
+            return InspectorChrome.MobZone;
+        }
+
         if (_canvas.ActiveTool == EditorTool.Place || _canvas.SelectedPlacedEntity is not null)
         {
             return InspectorChrome.Entity;
@@ -5333,6 +5418,7 @@ public sealed class MainForm : Form
     private void ApplyInspectorChildren(InspectorChrome chrome)
     {
         _regionsPanel.Visible = chrome == InspectorChrome.Region;
+        _mobZonesPanel.Visible = chrome == InspectorChrome.MobZone;
         _placedEntityPanel.Visible = chrome == InspectorChrome.Entity;
         _propGrid.Visible = chrome == InspectorChrome.Tile;
         _mapPropertiesBar.Visible = false;
@@ -5340,6 +5426,7 @@ public sealed class MainForm : Form
         var scrollHeight = chrome switch
         {
             InspectorChrome.Region => _regionsPanel.Height,
+            InspectorChrome.MobZone => _mobZonesPanel.Height,
             InspectorChrome.Entity => _placedEntityPanel.Height,
             _ => 0,
         };
@@ -5481,6 +5568,7 @@ public sealed class MainForm : Form
         Unknown = 0,
         Collapsed,
         Region,
+        MobZone,
         Entity,
         Tile,
     }

@@ -1,3 +1,4 @@
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Application.Prefabs;
 
@@ -36,6 +37,9 @@ public sealed class MapWorkspaceSession
 
     /// <summary>Paquet prefab de la carte courante (persisté avec le brouillon / la publication).</summary>
     public MapPrefabPersistDocument? CurrentPrefabs { get; set; }
+
+    /// <summary>Zones de monstres de la carte courante. Null tant qu’aucune n’est posée.</summary>
+    public MobSpawnZoneDocument? CurrentMobSpawnZones { get; set; }
 
     /// <summary>Modifications en mémoire non encore persistées.</summary>
     public bool IsDirty { get; private set; }
@@ -128,6 +132,7 @@ public sealed class MapWorkspaceSession
         CurrentStatus = MapPublishStatus.Draft;
         PublishedRevision = null;
         CurrentPrefabs = null;
+        CurrentMobSpawnZones = null;
         IsDirty = markDirty;
     }
 
@@ -173,6 +178,7 @@ public sealed class MapWorkspaceSession
                         ExpectedRevision = CurrentRevision,
                         Intent = intent,
                         Prefabs = CurrentPrefabs,
+                        MobSpawnZones = CurrentMobSpawnZones,
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -221,6 +227,7 @@ public sealed class MapWorkspaceSession
         CurrentStatus = stored.Status;
         PublishedRevision = stored.PublishedRevision;
         CurrentPrefabs = stored.Prefabs;
+        CurrentMobSpawnZones = stored.MobSpawnZones;
         IsDirty = false;
     }
 }

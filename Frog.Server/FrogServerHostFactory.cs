@@ -348,6 +348,7 @@ public static class FrogServerHostFactory
                 {
                     services.AddSingleton<PublishedWorldMapBlobStore>();
                     services.AddHostedService<PublishedWorldBootstrapHostedService>();
+                    services.AddHostedService<MobSpawnZoneHostedService>();
                 }
 
                 services.AddSingleton<CharacterMutationCoordinator>();

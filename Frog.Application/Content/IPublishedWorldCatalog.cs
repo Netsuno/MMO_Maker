@@ -1,3 +1,4 @@
+using Frog.Application.Maps;
 using Frog.Core.Models;
 
 namespace Frog.Application.Content;
@@ -45,6 +46,9 @@ public interface IPublishedWorldCatalog
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<PublishedMonsterSpawnEntry>> ListMonsterSpawnsAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PublishedMobSpawnZone>> ListMobSpawnZonesAsync(
         CancellationToken cancellationToken = default);
 
     bool TryGetRuntimeMapId(Guid mapId, out int runtimeMapId);

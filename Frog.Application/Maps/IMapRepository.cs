@@ -1,3 +1,4 @@
+using Frog.Core.Maps;
 using Frog.Core.Models;
 using Frog.Application.Prefabs;
 
@@ -19,6 +20,9 @@ public sealed class SaveMapRequest
     public SaveMapIntent Intent { get; init; } = SaveMapIntent.SaveDraft;
     /// <summary>Paquet prefab additif (placements + PNG). Null = inchangé / absent.</summary>
     public MapPrefabPersistDocument? Prefabs { get; init; }
+
+    /// <summary>Zones de monstres. Null = inchangé à la mise à jour ; vide = aucune zone.</summary>
+    public MobSpawnZoneDocument? MobSpawnZones { get; init; }
 
     /// <summary>Obsolète — utiliser <see cref="Intent"/>.</summary>
     public MapPublishStatus Status
@@ -46,6 +50,9 @@ public sealed class StoredMap
     public long? PublishedRevision { get; init; }
     /// <summary>Paquet prefab persisté (brouillon ou snapshot publié).</summary>
     public MapPrefabPersistDocument? Prefabs { get; init; }
+
+    /// <summary>Zones de réapparition des monstres (brouillon ou snapshot publié).</summary>
+    public MobSpawnZoneDocument? MobSpawnZones { get; init; }
 }
 
 /// <summary>Entrée légère pour l’arbre « monde » de l’éditeur (pas de cellules).</summary>
