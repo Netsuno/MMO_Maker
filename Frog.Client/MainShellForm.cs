@@ -180,6 +180,7 @@ public sealed class MainShellForm : Form
     private int _uiScalePercent = ClientUiScale.DefaultPercent;
     private int _appliedUiScalePercent = ClientUiScale.DefaultPercent;
     private readonly TilePackClientService _tilePacks;
+    private readonly ComposedTilesetClientLoader _composedTilesets;
     private readonly Dictionary<TileAssetId, Bitmap> _tileAssetBitmaps = new();
     private string? _tileAssetBitmapSha;
     private readonly InputService _input = new();
@@ -447,7 +448,9 @@ public sealed class MainShellForm : Form
         _skillBoard.Load(_settings.SkillHotbarBindings);
         _uiScalePercent = _settings.UiScalePercent;
         ClientUiScale.SetActive(_uiScalePercent);
-        _tilePacks = new TilePackClientService(TilePackClientOptions.Resolve(_settings));
+        var tilePackOptions = TilePackClientOptions.Resolve(_settings);
+        _tilePacks = new TilePackClientService(tilePackOptions);
+        _composedTilesets = new ComposedTilesetClientLoader(tilePackOptions);
         _input.Apply(_settings);
         _sound.Apply(_settings);
         AutoScaleMode = AutoScaleMode.Font;
@@ -875,6 +878,7 @@ public sealed class MainShellForm : Form
         _sound.Dispose();
         DisposeTileAssetBitmaps();
         _tilePacks.Dispose();
+        _composedTilesets.Dispose();
     }
 
     private void SmoothTimer_OnTick(object? sender, EventArgs e)
@@ -5582,6 +5586,15 @@ public sealed class MainShellForm : Form
             }
 
             AppendLog(DescribeTilePack(result));
+            var composed = await _composedTilesets.SyncAsync().ConfigureAwait(true);
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            AppendLog(composed.Kind == ComposedTilesetLoadKind.Loaded
+                ? "Tilesets composés vérifiés : " + composed.Detail
+                : "Tilesets composés : " + composed.Detail);
             RefreshDiagnosticOverlay();
             if (redrawIfReady && _map is not null)
             {

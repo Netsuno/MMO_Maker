@@ -85,7 +85,8 @@ public static class GameDataInitializationService
            || EditorTestHooks.OverrideShopRepository is not null
            || EditorTestHooks.OverrideResourceRepository is not null
            || EditorTestHooks.OverrideResourceSpawnRepository is not null
-           || EditorTestHooks.OverrideMapObjectRepository is not null;
+           || EditorTestHooks.OverrideMapObjectRepository is not null
+           || EditorTestHooks.OverrideComposedTilesetRepository is not null;
 
     private static GameDataRepositorySet CreateFromInjected()
     {
@@ -111,6 +112,7 @@ public static class GameDataInitializationService
             resource.PublishedCatalog,
             resource.Capabilities);
         var mapObject = EditorMapObjectRepositoryFactory.CreateBundle();
+        var composedTileset = EditorComposedTilesetRepositoryFactory.CreateBundle();
         return new GameDataRepositorySet(
             map,
             tileset,
@@ -125,6 +127,7 @@ public static class GameDataInitializationService
             resource,
             spawn,
             mapObject,
+            composedTileset,
             databaseScope: null);
     }
 
@@ -178,6 +181,9 @@ public static class GameDataInitializationService
         var mapObjectMem = new InMemoryMapObjectRepository(capabilities);
         var mapObject = new EditorMapObjectRepositoryBundle(mapObjectMem, mapObjectMem, mapObjectMem.Capabilities);
 
+        var composedMem = new InMemoryComposedTilesetRepository(capabilities);
+        var composedTileset = new EditorComposedTilesetRepositoryBundle(composedMem, composedMem, composedMem.Capabilities);
+
         return new GameDataRepositorySet(
             map,
             tileset,
@@ -192,6 +198,7 @@ public static class GameDataInitializationService
             resource,
             spawn,
             mapObject,
+            composedTileset,
             databaseScope: null);
     }
 
@@ -243,6 +250,12 @@ public static class GameDataInitializationService
         var mapObjectRepo = new PostgresMapObjectRepository(gate);
         var mapObject = new EditorMapObjectRepositoryBundle(mapObjectRepo, mapObjectRepo, mapObjectRepo.Capabilities);
 
+        var composedRepo = new PostgresComposedTilesetRepository(gate);
+        var composedTileset = new EditorComposedTilesetRepositoryBundle(
+            composedRepo,
+            composedRepo,
+            composedRepo.Capabilities);
+
         return new GameDataRepositorySet(
             map,
             tileset,
@@ -257,6 +270,7 @@ public static class GameDataInitializationService
             resource,
             spawn,
             mapObject,
+            composedTileset,
             scope);
     }
 }

@@ -84,6 +84,11 @@ public sealed class FrogDbContext : DbContext
         Set<MapObjectPublishedSnapshotEntity>();
     public DbSet<MapObjectPublicationHistoryEntity> MapObjectPublicationHistory =>
         Set<MapObjectPublicationHistoryEntity>();
+    public DbSet<ComposedTilesetEntity> ComposedTilesets => Set<ComposedTilesetEntity>();
+    public DbSet<ComposedTilesetPublishedSnapshotEntity> ComposedTilesetPublishedSnapshots =>
+        Set<ComposedTilesetPublishedSnapshotEntity>();
+    public DbSet<ComposedTilesetPublicationHistoryEntity> ComposedTilesetPublicationHistory =>
+        Set<ComposedTilesetPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     public DbSet<AccountEntity> AuthAccounts => Set<AccountEntity>();
@@ -1431,6 +1436,42 @@ public sealed class FrogDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.MapObjectId);
             e.HasOne(x => x.MapObject).WithMany().HasForeignKey(x => x.MapObjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ComposedTilesetEntity>(e =>
+        {
+            e.ToTable("composed_tilesets", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.LogicalPath).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(ComposedTilesetDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.LogicalPath).HasMaxLength(ComposedTilesetDefinition.MaxLogicalPathLength).IsRequired();
+            e.Property(x => x.MembersJson).HasColumnType("jsonb").IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_composed_tilesets_non_negative_revision", "revision >= 0");
+                t.HasCheckConstraint("ck_composed_tilesets_members_array", "jsonb_typeof(members_json) = 'array'");
+            });
+        });
+
+        modelBuilder.Entity<ComposedTilesetPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("composed_tileset_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ComposedTilesetId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(ComposedTilesetDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.LogicalPath).HasMaxLength(ComposedTilesetDefinition.MaxLogicalPathLength).IsRequired();
+            e.Property(x => x.MembersJson).HasColumnType("jsonb").IsRequired();
+            e.HasOne(x => x.ComposedTileset).WithMany().HasForeignKey(x => x.ComposedTilesetId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ComposedTilesetPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("composed_tileset_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ComposedTilesetId);
+            e.HasOne(x => x.ComposedTileset).WithMany().HasForeignKey(x => x.ComposedTilesetId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Tables créées par 20260924214100_TileAssetCatalog (migration écrite à la main, hors snapshot).

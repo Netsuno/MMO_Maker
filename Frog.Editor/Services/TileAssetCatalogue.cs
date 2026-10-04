@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Frog.Application.Assets;
 using Frog.Core.Constants;
 using Frog.Core.Distribution;
 using Frog.Core.Maps;
@@ -171,6 +172,44 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
         }
 
         return ImportStraightRgba(rgba, width, height, options);
+    }
+
+    /// <summary>
+    /// Remplace les tilesets venus du serveur par les lignes publiées.
+    /// Les palettes locales (sans identifiant serveur) restent. Un brouillon n’est pas dans <paramref name="published"/>.
+    /// </summary>
+    public void MergePublishedComposedTilesets(IReadOnlyList<ComposedTilesetDefinition>? published)
+    {
+        var merged = ComposedTilesetPlacement.Merge(_working, published);
+        _working.Clear();
+        foreach (var set in merged)
+        {
+            _working.Add(set);
+        }
+
+        if (published is not null)
+        {
+            foreach (var definition in published)
+            {
+                if (definition is null)
+                {
+                    continue;
+                }
+
+                foreach (var tile in definition.Tiles)
+                {
+                    RememberNormalizedTile(tile);
+                }
+            }
+        }
+
+        if (ActiveWorkingTileset is null || !_working.Contains(ActiveWorkingTileset))
+        {
+            ActiveWorkingTileset = _working.FirstOrDefault(set => set.ServerTilesetId != Guid.Empty) ?? _working.FirstOrDefault();
+        }
+
+        PersistQuietly();
+        Changed?.Invoke();
     }
 
     public void EnsureDefaultWorkingTileset()
@@ -423,6 +462,7 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
             Tilesets = _working.Select(set => new WorkingTilesetDto
             {
                 Name = set.Name,
+                ServerTilesetId = set.ServerTilesetId == Guid.Empty ? null : set.ServerTilesetId,
                 Tiles = set.Tiles.Select(id => id.ToHex()).ToList(),
             }).ToList(),
         };
@@ -509,7 +549,11 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
         _working.Clear();
         foreach (var dto in file.Tilesets)
         {
-            var set = new WorkingTileset { Name = dto.Name ?? string.Empty };
+            var set = new WorkingTileset
+            {
+                Name = dto.Name ?? string.Empty,
+                ServerTilesetId = dto.ServerTilesetId ?? Guid.Empty,
+            };
             foreach (var hex in dto.Tiles)
             {
                 if (!TileAssetId.TryParse(hex, out var id) || id.IsNone)
@@ -561,6 +605,32 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
         catch (UnauthorizedAccessException)
         {
         }
+    }
+
+    private void RememberNormalizedTile(ComposedTileRef? tile)
+    {
+        if (tile?.NormalizedRgba is null
+            || tile.NormalizedRgba.Length != TileAssetMetrics.CanonicalPixelByteCount
+            || !TileAssetId.TryParse(tile.TileAssetId, out var id)
+            || id.IsNone
+            || _assets.ContainsKey(id))
+        {
+            return;
+        }
+
+        TileAsset asset;
+        try
+        {
+            asset = TileAsset.FromNormalizedRgba(tile.NormalizedRgba, id);
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+
+        _assets.Add(id, asset);
+        _straight.Add(id, tile.NormalizedRgba.ToArray());
+        _order.Add(id);
     }
 
     private void PersistQuietly()
@@ -617,6 +687,8 @@ public sealed class TileAssetCatalogue : ITileAssetLookup
     private sealed class WorkingTilesetDto
     {
         public string Name { get; set; } = string.Empty;
+
+        public Guid? ServerTilesetId { get; set; }
 
         public List<string> Tiles { get; set; } = new();
     }

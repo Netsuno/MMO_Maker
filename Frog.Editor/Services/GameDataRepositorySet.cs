@@ -21,6 +21,7 @@ public sealed class GameDataRepositorySet : IDisposable
         EditorResourceRepositoryBundle resource,
         EditorResourceSpawnRepositoryBundle resourceSpawn,
         EditorMapObjectRepositoryBundle mapObject,
+        EditorComposedTilesetRepositoryBundle composedTileset,
         EditorPostgreSqlScope? databaseScope)
     {
         Map = map;
@@ -36,6 +37,7 @@ public sealed class GameDataRepositorySet : IDisposable
         Resource = resource;
         ResourceSpawn = resourceSpawn;
         MapObject = mapObject;
+        ComposedTileset = composedTileset;
         DatabaseScope = databaseScope;
     }
 
@@ -64,6 +66,8 @@ public sealed class GameDataRepositorySet : IDisposable
     public EditorResourceSpawnRepositoryBundle ResourceSpawn { get; }
 
     public EditorMapObjectRepositoryBundle MapObject { get; }
+
+    public EditorComposedTilesetRepositoryBundle ComposedTileset { get; }
 
     public EditorPostgreSqlScope? DatabaseScope { get; }
 
