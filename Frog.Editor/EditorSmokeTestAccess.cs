@@ -69,6 +69,7 @@ internal static class EditorSmokeTestAccess
         EditorTestHooks.OverrideShopRepository = null;
         EditorTestHooks.OverrideResourceRepository = null;
         EditorTestHooks.OverrideResourceSpawnRepository = null;
+        EditorTestHooks.OverrideMapObjectRepository = null;
         EditorTestHooks.OverrideMapEventService = null;
         EditorTestHooks.OverridePhase8ContentService = null;
         EditorTestHooks.OverrideDialogService = null;
@@ -150,6 +151,9 @@ internal static class EditorSmokeTestAccess
             new Frog.Application.Content.InMemoryResourceSpawnRepository(
                 mapRepository,
                 resourceRepository,
+                Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
+        EditorTestHooks.OverrideMapObjectRepository =
+            new Frog.Application.Content.InMemoryMapObjectRepository(
                 Frog.Application.Content.ContentRepositoryCapabilities.InMemoryTest);
         EditorTestHooks.OverrideDialogService = new SilentEditorDialogService();
         EditorTestHooks.OverrideMessageBoxResult = DialogResult.OK;

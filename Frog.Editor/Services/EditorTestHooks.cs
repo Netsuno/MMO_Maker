@@ -33,6 +33,8 @@ internal static class EditorTestHooks
 
     public static IResourceSpawnRepository? OverrideResourceSpawnRepository { get; set; }
 
+    public static IMapObjectRepository? OverrideMapObjectRepository { get; set; }
+
     public static MapEventsPostgreSqlService? OverrideMapEventService { get; set; }
 
     public static Phase8ContentPostgreSqlService? OverridePhase8ContentService { get; set; }

@@ -79,6 +79,11 @@ public sealed class FrogDbContext : DbContext
         Set<ResourceSpawnPublishedSnapshotEntity>();
     public DbSet<ResourceSpawnPublicationHistoryEntity> ResourceSpawnPublicationHistory =>
         Set<ResourceSpawnPublicationHistoryEntity>();
+    public DbSet<MapObjectEntity> MapObjects => Set<MapObjectEntity>();
+    public DbSet<MapObjectPublishedSnapshotEntity> MapObjectPublishedSnapshots =>
+        Set<MapObjectPublishedSnapshotEntity>();
+    public DbSet<MapObjectPublicationHistoryEntity> MapObjectPublicationHistory =>
+        Set<MapObjectPublicationHistoryEntity>();
     public DbSet<LegacyImportEntity> LegacyImports => Set<LegacyImportEntity>();
 
     public DbSet<AccountEntity> AuthAccounts => Set<AccountEntity>();
@@ -1382,6 +1387,48 @@ public sealed class FrogDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.PartnerCharacterId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MapObjectEntity>(e =>
+        {
+            e.ToTable("map_objects", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.LogicalPath).IsUnique();
+            e.HasIndex(x => x.PlacementId).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(MapObjectDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.LogicalPath).HasMaxLength(MapObjectDefinition.MaxLogicalPathLength).IsRequired();
+            e.Property(x => x.PlacementId).HasMaxLength(MapObjectDefinition.MaxPlacementIdLength).IsRequired();
+            e.Property(x => x.Sha256Hex).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_map_objects_positive_size",
+                    "width > 0 AND height > 0 AND footprint_width_tiles > 0 AND footprint_height_tiles > 0");
+                t.HasCheckConstraint("ck_map_objects_non_negative_revision", "revision >= 0");
+            });
+        });
+
+        modelBuilder.Entity<MapObjectPublishedSnapshotEntity>(e =>
+        {
+            e.ToTable("map_object_published_snapshots", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.MapObjectId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(MapObjectDefinition.MaxNameLength).IsRequired();
+            e.Property(x => x.LogicalPath).HasMaxLength(MapObjectDefinition.MaxLogicalPathLength).IsRequired();
+            e.Property(x => x.PlacementId).HasMaxLength(MapObjectDefinition.MaxPlacementIdLength).IsRequired();
+            e.Property(x => x.Sha256Hex).HasMaxLength(64).IsRequired();
+            e.Property(x => x.PngBytes).HasColumnType("bytea");
+            e.HasOne(x => x.MapObject).WithMany().HasForeignKey(x => x.MapObjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MapObjectPublicationHistoryEntity>(e =>
+        {
+            e.ToTable("map_object_publication_history", "content");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.MapObjectId);
+            e.HasOne(x => x.MapObject).WithMany().HasForeignKey(x => x.MapObjectId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Tables créées par 20260924214100_TileAssetCatalog (migration écrite à la main, hors snapshot).

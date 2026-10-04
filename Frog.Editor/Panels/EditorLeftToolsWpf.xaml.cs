@@ -37,6 +37,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     private PrefabFacing _selectedFacing = PrefabFacing.South;
     private string? _actionMessage;
     private int _visiblePrefabCount;
+    private IReadOnlyList<string> _visiblePrefabLabels = Array.Empty<string>();
     private PrefabCatalog _catalog = new();
 
     public event Action<EditorTool>? ToolChanged;
@@ -474,6 +475,7 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
         }
 
         _visiblePrefabCount = entries.Count;
+        _visiblePrefabLabels = entries.Select(entry => entry.Label).ToArray();
         if (PrefabFilterEmpty is not null)
         {
             PrefabFilterEmpty.Visibility = entries.Count == 0 && !string.IsNullOrWhiteSpace(filter)
@@ -963,6 +965,8 @@ public partial class EditorLeftToolsWpf : System.Windows.Controls.UserControl
     internal string SelectedNameForTest => PrefabSelectedName.Text;
     internal string SelectedMetaForTest => PrefabSelectedMeta.Text;
     internal int VisiblePrefabCountForTest => _visiblePrefabCount;
+
+    internal IReadOnlyList<string> PrefabLabelsForTest => _visiblePrefabLabels;
     internal bool HasPrefabPreviewForTest =>
         PrefabPreviewHost.Visibility == Visibility.Visible && PrefabPreview.Source is not null;
     internal bool PlaceModeForTest => _placeMode;
