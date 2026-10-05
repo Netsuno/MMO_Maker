@@ -17,13 +17,21 @@ public sealed class TilePackContentHttp
 {
     public const string AdminHeaderName = "X-Frog-TilePack-Admin";
 
+    /// <summary>Charge signée des tilesets composés. Pas le catalogue JSON du Hello.</summary>
+    public const string ComposedTilesetClientPath = Frog.Core.Distribution.ComposedTilesetPackFormat.HttpPath;
+
     private readonly TilePackPublishService _publish;
     private readonly IOptions<TilePackOptions> _options;
+    private readonly ComposedTilesetProtectedLoad? _composed;
 
-    public TilePackContentHttp(TilePackPublishService publish, IOptions<TilePackOptions> options)
+    public TilePackContentHttp(
+        TilePackPublishService publish,
+        IOptions<TilePackOptions> options,
+        ComposedTilesetProtectedLoad? composed = null)
     {
         _publish = publish ?? throw new ArgumentNullException(nameof(publish));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _composed = composed;
     }
 
     public async Task<TilePackHttpResult> HandleAsync(
@@ -63,6 +71,11 @@ public sealed class TilePackContentHttp
             return await DownloadAsync(slug, ifNoneMatch, cancellationToken).ConfigureAwait(false);
         }
 
+        if (verb == "GET" && path.Equals(ComposedTilesetClientPath, StringComparison.Ordinal))
+        {
+            return await ComposedTilesetsAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (verb == "POST" && path.Equals("/content/tile-packs/yank", StringComparison.Ordinal))
         {
             if (!AdminOk(adminToken))
@@ -84,6 +97,31 @@ public sealed class TilePackContentHttp
         }
 
         return Json(HttpStatusCode.NotFound, new { error = "Route contenu inconnue." });
+    }
+
+    private async Task<TilePackHttpResult> ComposedTilesetsAsync(CancellationToken cancellationToken)
+    {
+        if (_composed is null)
+        {
+            return Json(HttpStatusCode.ServiceUnavailable, new { error = "Charge tilesets indisponible." });
+        }
+
+        byte[]? pack;
+        try
+        {
+            pack = await _composed.TryCreateSignedPackAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or ArgumentException)
+        {
+            return Json(HttpStatusCode.InternalServerError, new { error = "Assemblage du tileset refusé." });
+        }
+
+        if (pack is null)
+        {
+            return Json(HttpStatusCode.ServiceUnavailable, new { error = "Graine de signature absente." });
+        }
+
+        return new TilePackHttpResult(HttpStatusCode.OK, "application/octet-stream", pack, ETag: null);
     }
 
     private async Task<TilePackHttpResult> ManifestAsync(string? slug, CancellationToken cancellationToken)

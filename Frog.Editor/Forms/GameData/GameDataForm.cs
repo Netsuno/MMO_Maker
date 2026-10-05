@@ -38,6 +38,7 @@ public sealed class GameDataForm : Form
     private ShopEditorPanel? _shops;
     private ResourceAndSpawnEditorPanel? _resourcesAndSpawns;
     private MapObjectEditorPanel? _mapObjects;
+    private ComposedTilesetEditorPanel? _composedTilesets;
     private GameDataRepositorySet? _repositorySet;
     private CancellationTokenSource? _initCts;
     private Task? _initializationTask;
@@ -72,6 +73,9 @@ public sealed class GameDataForm : Form
     /// <summary>Index de la catégorie Objets de carte (props placables), après Armures. « Objets » reste l’inventaire.</summary>
     internal const int MapObjectCategoryIndex = 12;
 
+    /// <summary>Index de la catégorie Tuiles composées, après Objets de carte.</summary>
+    internal const int ComposedTilesetCategoryIndex = 13;
+
     internal SpellEditorPanel SpellsForTest => _spells ?? throw new InvalidOperationException("Game Data not initialized.");
 
     internal ClassEditorPanel ClassesForTest => _classes ?? throw new InvalidOperationException("Game Data not initialized.");
@@ -89,6 +93,9 @@ public sealed class GameDataForm : Form
 
     internal MapObjectEditorPanel MapObjectsForTest =>
         _mapObjects ?? throw new InvalidOperationException("Game Data not initialized.");
+
+    internal ComposedTilesetEditorPanel ComposedTilesetsForTest =>
+        _composedTilesets ?? throw new InvalidOperationException("Game Data not initialized.");
 
     public GameDataForm()
     {
@@ -116,6 +123,7 @@ public sealed class GameDataForm : Form
             "Armes",
             "Armures",
             "Objets de carte",
+            "Tuiles composées",
         });
         _categoryList.SelectedIndex = 0;
         _categoryList.Enabled = false;
@@ -213,6 +221,7 @@ public sealed class GameDataForm : Form
         await _shops!.InitializeAsync().ConfigureAwait(true);
         await _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(true);
         await _mapObjects!.InitializeAsync().ConfigureAwait(true);
+        await _composedTilesets!.InitializeAsync().ConfigureAwait(true);
 
         _initialized = true;
         ShowInitialCategory();
@@ -248,6 +257,7 @@ public sealed class GameDataForm : Form
         _shops!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _resourcesAndSpawns!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _mapObjects!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _composedTilesets!.InitializeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         _initialized = true;
         _initializationTask = Task.CompletedTask;
         ShowInitialCategory();
@@ -328,6 +338,10 @@ public sealed class GameDataForm : Form
             new MapObjectWorkspaceSession(set.MapObject.Repository),
             set.MapObject.Capabilities);
         _mapObjects.StatusChanged += msg => _status.Text = msg;
+        _composedTilesets = new ComposedTilesetEditorPanel(
+            new ComposedTilesetWorkspaceSession(set.ComposedTileset.Repository),
+            set.ComposedTileset.Capabilities);
+        _composedTilesets.StatusChanged += msg => _status.Text = msg;
 
         _host.Controls.Remove(_loading);
         _categoryList.Enabled = true;
@@ -358,7 +372,8 @@ public sealed class GameDataForm : Form
                 || _system!.IsDirty
                 || _shops!.IsDirty
                 || _resourcesAndSpawns!.IsDirty
-                || _mapObjects!.IsDirty))
+                || _mapObjects!.IsDirty
+                || _composedTilesets!.IsDirty))
         {
             var r = GameDataUiMessageBox.Show(
                 this,
@@ -522,7 +537,8 @@ public sealed class GameDataForm : Form
                 || !await DrainOne(t => _system!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _shops!.DrainAsync(t)).ConfigureAwait(true)
                 || !await DrainOne(t => _resourcesAndSpawns!.DrainAsync(t)).ConfigureAwait(true)
-                || !await DrainOne(t => _mapObjects!.DrainAsync(t)).ConfigureAwait(true))
+                || !await DrainOne(t => _mapObjects!.DrainAsync(t)).ConfigureAwait(true)
+                || !await DrainOne(t => _composedTilesets!.DrainAsync(t)).ConfigureAwait(true))
             {
                 return false;
             }
@@ -567,7 +583,8 @@ public sealed class GameDataForm : Form
                 || !(_system?.LifecycleForTest.IsIdle ?? true)
                 || !(_shops?.LifecycleForTest.IsIdle ?? true)
                 || !(_resourcesAndSpawns?.IsIdleForTest ?? true)
-                || !(_mapObjects?.LifecycleForTest.IsIdle ?? true)))
+                || !(_mapObjects?.LifecycleForTest.IsIdle ?? true)
+                || !(_composedTilesets?.LifecycleForTest.IsIdle ?? true)))
         {
             return false;
         }
@@ -593,6 +610,7 @@ public sealed class GameDataForm : Form
             _shops!.Enabled = enabled;
             _resourcesAndSpawns!.Enabled = enabled;
             _mapObjects!.Enabled = enabled;
+            _composedTilesets!.Enabled = enabled;
         }
 
         _status.Text = enabled
@@ -615,6 +633,7 @@ public sealed class GameDataForm : Form
         _shops?.BeginClosing();
         _resourcesAndSpawns?.BeginClosing();
         _mapObjects?.BeginClosing();
+        _composedTilesets?.BeginClosing();
     }
 
     private void DisposePanelLifecycles()
@@ -632,6 +651,7 @@ public sealed class GameDataForm : Form
         _shops?.DisposeLifecycle();
         _resourcesAndSpawns?.DisposeLifecycle();
         _mapObjects?.DisposeLifecycle();
+        _composedTilesets?.DisposeLifecycle();
     }
 
     private void DisposeRepositorySetSafely()
@@ -749,6 +769,11 @@ public sealed class GameDataForm : Form
         {
             _mapObjects!.Dock = DockStyle.Fill;
             _host.Controls.Add(_mapObjects);
+        }
+        else if (_categoryList.SelectedIndex == ComposedTilesetCategoryIndex)
+        {
+            _composedTilesets!.Dock = DockStyle.Fill;
+            _host.Controls.Add(_composedTilesets);
         }
     }
 }

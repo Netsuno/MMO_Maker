@@ -35,6 +35,8 @@ internal static class EditorTestHooks
 
     public static IMapObjectRepository? OverrideMapObjectRepository { get; set; }
 
+    public static IComposedTilesetRepository? OverrideComposedTilesetRepository { get; set; }
+
     public static MapEventsPostgreSqlService? OverrideMapEventService { get; set; }
 
     public static Phase8ContentPostgreSqlService? OverridePhase8ContentService { get; set; }

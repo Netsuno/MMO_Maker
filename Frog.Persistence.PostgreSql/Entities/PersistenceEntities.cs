@@ -786,6 +786,43 @@ public sealed class MapObjectPublicationHistoryEntity
     public MapObjectEntity MapObject { get; set; } = null!;
 }
 
+/// <summary>Tileset composé de tuiles choisies. Les pixels sont dans <c>content.tiles</c>.</summary>
+public sealed class ComposedTilesetEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string LogicalPath { get; set; } = string.Empty;
+    public string MembersJson { get; set; } = "[]";
+    public ContentPublishStatus Status { get; set; }
+    public long Revision { get; set; }
+    public long? PublishedRevision { get; set; }
+    public Guid? PublishedSnapshotId { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+public sealed class ComposedTilesetPublishedSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid ComposedTilesetId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string LogicalPath { get; set; } = string.Empty;
+    public string MembersJson { get; set; } = "[]";
+    public ComposedTilesetEntity ComposedTileset { get; set; } = null!;
+}
+
+public sealed class ComposedTilesetPublicationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid ComposedTilesetId { get; set; }
+    public Guid SnapshotId { get; set; }
+    public long Revision { get; set; }
+    public DateTimeOffset PublishedAtUtc { get; set; }
+    public ComposedTilesetEntity ComposedTileset { get; set; } = null!;
+}
+
 public sealed class MapPublishedEventPlacementEntity
 {
     public Guid Id { get; set; }

@@ -12,6 +12,12 @@ public sealed class WorkingTileset
 
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Identifiant serveur d’un tileset publié. <see cref="Guid.Empty"/> : palette locale,
+    /// absente du catalogue de placement tant qu’elle n’est pas publiée.
+    /// </summary>
+    public Guid ServerTilesetId { get; set; }
+
     public List<TileAssetId> Tiles { get; } = new();
 
     public bool Validate(out string? error)

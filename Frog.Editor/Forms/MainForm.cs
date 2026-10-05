@@ -1268,6 +1268,7 @@ public sealed class MainForm : Form
         await HydrateTilesetCacheFromPublishedAsync().ConfigureAwait(true);
         UpdatePersistenceMenuState();
         await ReloadPublishedMapObjectsIntoPaletteAsync().ConfigureAwait(true);
+        await ReloadPublishedComposedTilesetsIntoPaletteAsync().ConfigureAwait(true);
         RestoreSavedPrefabSelection();
         PushEditorStatusLine();
     }
@@ -1546,6 +1547,42 @@ public sealed class MainForm : Form
     internal void QueuePublishedMapObjectReload()
     {
         _publishedMapObjectReload = ReloadPublishedMapObjectsIntoPaletteAsync();
+    }
+
+    private Task? _publishedComposedTilesetReload;
+
+    internal Task? PublishedComposedTilesetReloadTaskForTest => _publishedComposedTilesetReload;
+
+    /// <summary>
+    /// Recharge la palette TileAsset : tuiles et tilesets composés publiés.
+    /// Un brouillon n’apparaît pas tant qu’il n’est pas publié.
+    /// </summary>
+    private async System.Threading.Tasks.Task ReloadPublishedComposedTilesetsIntoPaletteAsync()
+    {
+        try
+        {
+            var bundle = EditorComposedTilesetRepositoryFactory.CreateBundle();
+            var published = await bundle.PublishedCatalog
+                .ListPublishedAsync()
+                .ConfigureAwait(true);
+            _tileAssetCatalogue.MergePublishedComposedTilesets(published);
+            _canvas.Invalidate();
+        }
+        catch
+        {
+            // catalogue optionnel — les tuiles déjà en mémoire restent
+        }
+    }
+
+    internal System.Threading.Tasks.Task ReloadPublishedComposedTilesetsForTest()
+    {
+        _publishedComposedTilesetReload = ReloadPublishedComposedTilesetsIntoPaletteAsync();
+        return _publishedComposedTilesetReload;
+    }
+
+    internal void QueuePublishedComposedTilesetReload()
+    {
+        _publishedComposedTilesetReload = ReloadPublishedComposedTilesetsIntoPaletteAsync();
     }
 
     private async System.Threading.Tasks.Task SyncPublishedTilesetsFromCacheAsync()
@@ -4357,7 +4394,11 @@ public sealed class MainForm : Form
     private void OpenGameData()
     {
         var dlg = new GameData.GameDataForm();
-        dlg.FormClosed += (_, _) => QueuePublishedMapObjectReload();
+        dlg.FormClosed += (_, _) =>
+        {
+            QueuePublishedMapObjectReload();
+            QueuePublishedComposedTilesetReload();
+        };
         if (EditorTestHooks.GameDataNonModalForTest)
         {
             dlg.Shown += (_, _) => EditorTestHooks.OnGameDataFormShown?.Invoke(dlg);

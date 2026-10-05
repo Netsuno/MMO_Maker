@@ -332,6 +332,11 @@ public static class FrogServerHostFactory
                         return EmptyPublishedPrefabCatalog.Instance;
                     });
                     services.AddSingleton<ITilePackRepository, InMemoryTilePackRepository>();
+                    services.AddSingleton<InMemoryComposedTilesetRepository>();
+                    services.AddSingleton<IComposedTilesetRepository>(sp =>
+                        sp.GetRequiredService<InMemoryComposedTilesetRepository>());
+                    services.AddSingleton<IPublishedComposedTilesetCatalog>(sp =>
+                        sp.GetRequiredService<InMemoryComposedTilesetRepository>());
                     services.AddSingleton<IPublishedWorldCatalog>(_ => NullPublishedWorldCatalog.Instance);
                     services.AddSingleton<IPublishedContentRevisionStamp>(_ =>
                         NullPublishedContentRevisionStamp.Instance);
@@ -377,6 +382,7 @@ public static class FrogServerHostFactory
                     return new CompositePublishedTilesetImageSource(embedded, filesystem);
                 });
                 services.AddSingleton<TilePackPublishService>();
+                services.AddSingleton<ComposedTilesetProtectedLoad>();
                 services.AddSingleton<TilePackContentHttp>();
                 services.AddHostedService<TilePackContentHostedService>();
                 services.AddSingleton<PublishedCatalogService>();
