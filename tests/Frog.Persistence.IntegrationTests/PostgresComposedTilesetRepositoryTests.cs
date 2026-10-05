@@ -7,7 +7,7 @@ using Frog.Persistence.PostgreSql;
 
 namespace Frog.Persistence.IntegrationTests;
 
-[Collection("PostgresIsolated")]
+[Collection("PostgresIsolatedComposedTilesets")]
 public sealed class PostgresComposedTilesetRepositoryTests
 {
     private readonly IsolatedPostgresFixture _fixture;

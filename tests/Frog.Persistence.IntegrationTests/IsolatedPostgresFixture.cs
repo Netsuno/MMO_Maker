@@ -78,3 +78,13 @@ public sealed class PostgresCollection : ICollectionFixture<IsolatedPostgresFixt
 public sealed class PostgresDemoWorldCollection : ICollectionFixture<IsolatedPostgresFixture>
 {
 }
+
+/// <summary>
+/// Base à part : le test tileset composé écrit dans content.tiles.
+/// La collection PostgresIsolated compte ces lignes comme vides au départ
+/// (PostgresTilePackPublishTests attend exactement les tuiles qu’il publie).
+/// </summary>
+[CollectionDefinition("PostgresIsolatedComposedTilesets")]
+public sealed class PostgresComposedTilesetCollection : ICollectionFixture<IsolatedPostgresFixture>
+{
+}
