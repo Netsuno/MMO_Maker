@@ -100,14 +100,14 @@ Un clic pinceau laisse l’inspecteur replié. Les couches restent visibles dans
 
 La touche Z, sans modificateur, sélectionne `EditorTool.MobZone` dans la coque WPF (`MainWindow.OnPreviewToolHotkey`). Le canevas trace un rectangle ; un glisser gauche déplace la zone, un glisser droit la copie. Le panneau **Zone de monstres** nomme la zone et y pose des monstres (quantité, réapparition en secondes). Le serveur ne les fait réapparaître qu’à l’intérieur de la zone publiée. Hello reste **11**.
 
-Le menu **Carte** de `MainWindow.xaml` n’a pas cette entrée, et le rail droit n’a pas de puce Zone. L’entrée **Outil zone de monstres (Z)** existe seulement sur le `MenuStrip` WinForms, construit quand `MainForm` n’est pas embarqué. `App.xaml` embarque le formulaire : dans l’éditeur livré, on ouvre l’outil avec la touche Z.
+Le menu **Carte** de `MainWindow.xaml` n’a pas cette entrée, et le rail droit n’a pas de puce Zone. L’entrée **Outil zone de monstres (Z)** existe seulement sur le `MenuStrip` WinForms, construit quand `MainForm` n’est pas embarqué. `App.xaml` embarque le formulaire : dans l’éditeur livré, on ouvre l’outil avec la touche Z. Parcours : [Zones de monstres](progress/phase-10-beta-release/guides/MOB_ZONES.md). Lacune : [inventaire](EDITOR_UI_INVENTORY.md#outil-zone-z-lacune-connue).
 
 ## Objets de carte et tuiles composées
 
 **Ressources → Données de jeu…** ajoute deux catégories après Armures.
 
-- **Objets de carte** (`MapObjectEditorPanel`) : props placables, distincts des objets d’inventaire. Brouillon, puis Publier. Seule la publication entre dans la radio **Objets**.
-- **Tuiles composées** (`ComposedTilesetEditorPanel`) : tuiles **48×48** choisies, pas une feuille découpée. Brouillon, puis Publier. Seule la publication rejoint la palette TileAsset. Le client charge ensuite la charge signée CTS1 (`GET /content/composed-tilesets`). Un catalogue JSON brut est refusé.
+- **Objets de carte** (`MapObjectEditorPanel`) : props placables, distincts des objets d’inventaire. Brouillon, puis Publier. Seule la publication entre dans la radio **Objets**, au moment où Données de jeu se ferme (`MainWindow.OpenGameData` → `QueuePublishedMapObjectReload`). Guide : [Objets de carte](progress/phase-10-beta-release/guides/MAP_OBJECTS.md).
+- **Tuiles composées** (`ComposedTilesetEditorPanel`) : tuiles **48×48** choisies, pas une feuille découpée. Brouillon, puis Publier. Seule la publication rejoint la palette TileAsset, au chargement du catalogue (démarrage de l’éditeur). Fermer Données de jeu depuis la coque WPF ne relance pas cette fusion : `QueuePublishedComposedTilesetReload` est sur `MainForm.OpenGameData`, menu que `App.xaml` n’affiche pas. Le client charge ensuite la charge signée CTS1 (`GET /content/composed-tilesets`). Un catalogue JSON brut est refusé. Guide : [Tuiles composées](progress/phase-10-beta-release/guides/COMPOSED_TILESETS.md).
 
 ## Gestes de sélection (#136)
 

@@ -20,6 +20,8 @@ Légende dans le markdown parent, **sans secrets**. Les PNG NET-11 sont les fen�
 
 Captures Windows NET-11 du 2026-10-01, attribution **Netsun**. Tip éditeur `c57cd608` ; tip client `7d8407b`. Les lignes **Done** ont un PNG réel. Les autres restent un commentaire `<!-- CAPTURE: … -->` plus l’italique *Capture à venir*.
 
+Guides auteur #146–#148 (`MAP_OBJECTS.md`, `COMPOSED_TILESETS.md`, `MOB_ZONES.md`), tip docs `494485ee` : marqueurs `<!-- CAPTURE: description -->` seulement. Aucun PNG ajouté (pas de session Windows pour les prendre).
+
 - `options-01-son.png` — **toujours absent** : l’invoke UIA sur Options a bloqué. Aucun PNG inventé. Le placeholder reste dans PLAYER et UI-CLIENT-Options.
 - `login-01-maintenance.png` — **présent** (2026-09-20) : login refus maintenance. Non remplacé.
 - `social-01-dock-amis-groupe-guilde.png` — source `social-01-dock-amis.png`, **même image** que `joueur-04-social-hud.png` (après Ouvrir Amis). Nom aligné sur le commentaire CAPTURE de `UI-CLIENT-SocialHub.md`.

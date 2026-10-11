@@ -12,7 +12,7 @@ Chemin livré : `App.xaml` → `MainWindow` (WPF) héberge `MainForm(embedAsWpfC
 
 | Valeur | Sens |
 | --- | --- |
-| oui | `EDITOR_WORKSPACE.md` ou le quickstart auteur décrit le contrôle tel qu’il est dans le code |
+| oui | `EDITOR_WORKSPACE.md`, le quickstart auteur, ou un guide auteur de `docs/progress/phase-10-beta-release/guides/` décrit le contrôle tel qu’il est dans le code |
 | non | aucun guide ne décrit le contrôle au tip |
 | partiel | une note de chantier, l’inventaire, ou une phrase courte — pas le parcours auteur |
 | faux | un doc affirme encore le contraire |
@@ -38,10 +38,10 @@ Radios dans `Frog.Editor/Panels/EditorLeftToolsWpf.xaml` (le nom de classe n’a
 | Control/Feature | code location | documenté ? | notes |
 | --- | --- | --- | --- |
 | Radio **Tuiles** | `ModeTiles` | oui | Pinceau, Gomme, Remplissage, Rectangle, Ligne, Sélection, options de pot / rectangle, bouton Pipette, puis la feuille. Pas de puce Zone |
-| Radio **Objets** | `ModeObjects` | oui | Grille, filtre, facing seulement s’il y a plusieurs variantes, bouton **Placer un objet** masqué (`BtnPlacePrefab` `Visibility=Collapsed`). Choisir un objet arme la pose. Les objets de carte **publiés** s’y ajoutent (#146) ; un brouillon n’y est pas |
+| Radio **Objets** | `ModeObjects` | oui | Grille, filtre, facing seulement s’il y a plusieurs variantes, bouton **Placer un objet** masqué (`BtnPlacePrefab` `Visibility=Collapsed`). Choisir un objet arme la pose. Les objets de carte **publiés** s’y ajoutent à la fermeture de Données de jeu (#146) ; un brouillon n’y est pas. Guide : [Objets de carte](progress/phase-10-beta-release/guides/MAP_OBJECTS.md) |
 | Radio **Entités** | `ModeEntities` | oui | Départ, PNJ, Coffre, Porte, Auberge, puce Entités |
 | Radio **Régions** (plus « Attributs ») | `ModeAttributes` `Content="Régions"` ; enum `EditorPaletteMode.Attributes` | oui | Type de tuile (`ComboTileType`) + puce Région (G). #137 renomme la radio, pas le nom de type |
-| Feuille / TileAsset sous Tuiles | `MainForm` `_btnPaletteSheet`, `_btnPaletteAsset`, `TilesetPickerPanelWpf`, `TileAssetCatalogue` | oui | Les tuiles composées **publiées** rejoignent cette palette (`MergePublishedComposedTilesets`). Un brouillon n’y est pas (#148) |
+| Feuille / TileAsset sous Tuiles | `MainForm` `_btnPaletteSheet`, `_btnPaletteAsset`, `TilesetPickerPanelWpf`, `TileAssetCatalogue` | oui | Les tuiles composées **publiées** rejoignent cette palette (`MergePublishedComposedTilesets`) au démarrage. Fermer Données de jeu depuis `MainWindow` ne relance pas la fusion (#148). Guide : [Tuiles composées](progress/phase-10-beta-release/guides/COMPOSED_TILESETS.md) |
 | Couches (~168 px) toujours visibles, y compris en Tuiles et Objets | `LayersProjectPanel` ; `RightRailLayoutMath.LayersDockHeight` | oui | Visibilité, verrou, opacité, « atténuer les autres », menu Ajouter / Supprimer / Renommer / type / verrou |
 | Inspecteur replié (hauteur 0) sans sélection contextuelle | `MainForm.ResolveInspectorChrome` ; `InspectorExpandedHeight` = 160 | oui | S’ouvre pour l’outil Région, l’outil Zone, une entité posée ou l’outil Entités, ou une tuile inspectée au curseur (C). Un clic pinceau laisse l’inspecteur replié. `MapPropertiesBar` et `TransferIssuesPanel` restent masqués |
 | PropertyGrid tuile | `MainForm._propGrid` | oui | Visible seulement pour une tuile inspectée avec l’outil curseur (C) |
@@ -70,6 +70,8 @@ Radios dans `Frog.Editor/Panels/EditorLeftToolsWpf.xaml` (le nom de classe n’a
 | Repli `InMemoryDemo` sans bloquer le thread UI | `MainForm.OpenMapRepositoryBundleAsync` (`Task.Run` + `CreateBundleAsync`) | oui | Exception socket, délai, E/S ou Npgsql → `InMemoryMapRepository` démo. Chaîne absente → même dépôt démo, **sans** cet avis. `FROG_EDITOR_FORCE_IN_MEMORY=1` → mémoire test, pas cet avis. Save/Publish : `AllowsSave` est faux en démo, donc les commandes WPF sont désactivées ; les libellés WPF restent « Enregistrer (PostgreSQL) » / « Publier (PostgreSQL)… » |
 | Le layout du rail ne reboucle plus au démarrage | `RightRailLayoutMath` ; `ShellLayoutDeferral` ; `PaletteChromeHeight` ; `MainWindow.QueueShellLayout` ; `MainForm.TryAssignSplitDistance` | partiel | #138 cesse de réécrire les minimums du `SplitContainer` à chaque `SizeChanged`. #142 et #143 diffèrent encore ce layout tant que le handle de l’hôte WPF existe, et plafonnent la hauteur de la bande d’outils (`PaletteChromeHeight`, budget 16) pour que `ElementHost` ne rappelle pas `PerformLayout` sur la même pile. L’init catalogue ne montre une boîte d’erreur que si l’exception n’est pas le repli hors ligne |
 
+<a id="outil-zone-z-lacune-connue"></a>
+
 ## Outil Zone (Z) — lacune connue
 
 `EditorTool.MobZone`. Libellé outil : **Zone**. Panneau : **Zone de monstres** (`MobSpawnZonesPanel`, hauteur 420, défile dans le dock inspecteur de 160 px). Indication : « Tracez le rectangle. Glisser gauche déplace, glisser droit copie. Les monstres n’apparaissent que dans la zone. »
@@ -81,9 +83,9 @@ Radios dans `Frog.Editor/Panels/EditorLeftToolsWpf.xaml` (le nom de classe n’a
 | Puces du rail droit : pas de Zone | `EditorLeftToolsWpf.xaml` | oui | Radios Tuiles, Objets, Entités, Régions seulement |
 | Menu WinForms autonome : **Outil zone de monstres (Z)** | `MainForm` construit le `MenuStrip` seulement si `embedAsWpfChild` est faux | oui | Ce menu n’est pas celui de `App.xaml`. Dans l’éditeur livré, l’outil n’est donc joignable que par la touche Z |
 | Gestes | `MapCanvas` outil `MobZone` | oui | Rectangle nouveau ; glisser gauche déplace ; glisser droit copie. Les numéros de région et la peinture de tuile ne sont pas ce geste |
-| Contenu du panneau | `MobSpawnZonesPanel` ; `MobSpawnZoneLabels` | partiel | Nom, liste des zones, monstre (catalogue publié ou saisie libre), identifiant, quantité, réapparition en secondes, Ajouter, Retirer, Supprimer la zone, Actualiser. Le quickstart ne déroule pas ce formulaire |
-| Persistance | `world.maps.mob_spawn_zones_json` et la même colonne sur `world.map_published_snapshots` | partiel | JSON de la carte, brouillon et snapshot publié. Hors `.fmap`, hors Hello. Voir `DATA_MODEL.md` |
-| Réapparition serveur, à l’intérieur de la zone seulement | `MobSpawnZoneHostedService` ; `MobSpawnZoneKeeper` | partiel | Tic d’une seconde. Le délai part à la mort observée. Chaque apparition passe par `SpawnMonsterAsync` (même monstre que le reste du combat). Une tuile hors zone n’est pas ordonnée. Hello reste **11** |
+| Contenu du panneau | `MobSpawnZonesPanel` ; `MobSpawnZoneLabels` | oui | Nom, listes Zones / Monstres, combo (saisie libre ou fiches `NpcKind.Monster`, brouillon compris : `ListSummariesAsync` sans filtre de statut), identifiant, quantité 1–99, réapparition 0–86400 s, Ajouter, Retirer, Supprimer la zone, Actualiser. Le serveur, lui, ne fait apparaître qu’un monstre publié. Guide : [Zones de monstres](progress/phase-10-beta-release/guides/MOB_ZONES.md) |
+| Persistance | `world.maps.mob_spawn_zones_json` et la même colonne sur `world.map_published_snapshots` | oui | JSON de la carte, brouillon à l’enregistrement, snapshot à la publication de la carte. Hors `.fmap`, hors Hello. Migration `MapMobSpawnZonesJson`. Guide : [Zones de monstres](progress/phase-10-beta-release/guides/MOB_ZONES.md). Voir `DATA_MODEL.md` |
+| Réapparition serveur, à l’intérieur de la zone seulement | `MobSpawnZoneHostedService` ; `MobSpawnZoneKeeper` | oui | Tic d’une seconde. Le délai part à la mort observée. Chaque apparition passe par `SpawnMonsterAsync` (monstre publié seulement). Une tuile hors zone n’est pas ordonnée. Hello reste **11**. Guide : [Zones de monstres](progress/phase-10-beta-release/guides/MOB_ZONES.md) |
 
 `ToolPalette` (non livré) énumère `EditorTool` et listerait donc Zone. Ce n’est pas une surface de l’éditeur lancé.
 
@@ -95,16 +97,16 @@ Le menu WinForms de `MainForm` (fenêtre non embarquée, pas le démarrage `App.
 | --- | --- | --- | --- |
 | Fichier : Nouvelle carte…, Ouvrir fichier…, Enregistrer (PostgreSQL), Publier (PostgreSQL)…, Exporter .fmap…, Lancer le client…, Tester (playtest)…, Arrêter le test, Quitter | `MainWindow.xaml` | partiel | Quickstart auteur cite Nouvelle carte / Enregistrer / publish, pas le reste. Playtest GUI manuel reste « accepted / skipped » dans les guides P10. Pas de menu MariaDB (#83) |
 | Édition : Annuler, Rétablir, copier/couper/coller zone, rotation, miroirs, pipette, Dupliquer l’objet, modèles | `MainWindow.xaml` | partiel | Modèles : `docs/progress/editor-map-templates/STATUS.md`. Dialogue `MapTemplateListDialog` |
-| Ressources : Données de jeu…, Événements communs…, image tuiles, feuille TileAsset, animer / retirer l’animation, Groupe d’autotile de la tuile… | `MainWindow.xaml` | partiel | Données de jeu : chantier Phase 6 + fiches plus récentes, pas un guide |
+| Ressources : Données de jeu…, Événements communs…, image tuiles, feuille TileAsset, animer / retirer l’animation, Groupe d’autotile de la tuile… | `MainWindow.xaml` | partiel | Données de jeu : [Objets de carte](progress/phase-10-beta-release/guides/MAP_OBJECTS.md) et [Tuiles composées](progress/phase-10-beta-release/guides/COMPOSED_TILESETS.md). Le reste des catégories n’a pas de guide auteur |
 | Carte : Valider, Propriétés, Taille et décalage…, passer en TileAsset v6, Vérifier les transferts…, outils (raccourcis, **sans Zone**), warp, Actualiser le catalogue (F5), PNJ rapide, Coffre, Porte, Auberge, Événements carte, Contenu Phase 8, Événements communs, Actualiser marqueurs | `MainWindow.xaml` | partiel | « Vérifier les transferts… » ouvre encore la liste ; le panneau n’est plus ancré sous l’inspecteur. L’absence de l’outil Zone dans ce menu est la lacune ci-dessus |
 
 ## Dialogues et éditeurs (hors chrome carte)
 
 | Control/Feature | code location | documenté ? | notes |
 | --- | --- | --- | --- |
-| Données de jeu : Tilesets, NPCs / monstres, Objets, Sorts / compétences, Classes, Héros, Compétences, Système, Boutiques, Ressources / spawns, Armes, Armures, **Objets de carte**, **Tuiles composées** | `GameDataForm` | partiel | Boutons Nouveau, Dupliquer, Enregistrer brouillon, Publier, Supprimer. Hors ligne : dépôts mémoire démo (`GameDataInitializationService`). « Objets » reste l’inventaire. « Objets de carte » (index 12) et « Tuiles composées » (index 13) sont après Armures |
-| Objets de carte : brouillon / publication, props placables | `MapObjectEditorPanel` | partiel | Nom, chemin logique, identifiant de placement, empreinte en tuiles, taille en pixels, SHA-256, aperçu, Importer…. Publier alimente la radio **Objets** (`ReloadPublishedMapObjectsIntoPaletteAsync`). Un brouillon n’y va pas. Distinct des objets d’inventaire (#146) |
-| Tuiles composées : tuiles 48×48 choisies, pas une feuille découpée | `ComposedTilesetEditorPanel` | partiel | Nom, chemin logique, liste ordonnée (Ajouter une tuile…, Monter, Descendre, Retirer). Publier alimente la palette TileAsset (`ReloadPublishedComposedTilesetsIntoPaletteAsync`). Les palettes locales (sans identifiant serveur) restent. Le client charge la charge signée **CTS1** (`ComposedTilesetClientLoader`, `GET /content/composed-tilesets`) ; un catalogue JSON brut est refusé. Hello reste **11** (#148) |
+| Données de jeu : Tilesets, NPCs / monstres, Objets, Sorts / compétences, Classes, Héros, Compétences, Système, Boutiques, Ressources / spawns, Armes, Armures, **Objets de carte**, **Tuiles composées** | `GameDataForm` | partiel | Boutons Nouveau, Dupliquer, Enregistrer brouillon, Publier, Supprimer (plus Importer… sur les objets de carte). Hors ligne : dépôts mémoire démo (`GameDataInitializationService`). « Objets » reste l’inventaire. « Objets de carte » (index 12) et « Tuiles composées » (index 13) sont après Armures. Ces deux catégories : guides liés ci-dessous. Les autres catégories restent sans parcours |
+| Objets de carte : brouillon / publication, props placables | `MapObjectEditorPanel` | oui | Nom, chemin logique, identifiant de placement, empreinte en tuiles, taille en pixels, SHA-256, aperçu, Importer…. Publier alimente la radio **Objets** à la fermeture WPF (`QueuePublishedMapObjectReload`). Un brouillon n’y va pas. Distinct des objets d’inventaire (#146). Guide : [Objets de carte](progress/phase-10-beta-release/guides/MAP_OBJECTS.md) |
+| Tuiles composées : tuiles 48×48 choisies, pas une feuille découpée | `ComposedTilesetEditorPanel` | oui | Nom, chemin logique, liste ordonnée (Ajouter une tuile…, Monter, Descendre, Retirer). La palette TileAsset est fusionnée au démarrage (`ReloadPublishedComposedTilesetsIntoPaletteAsync`). La fermeture WPF de Données de jeu ne la relance pas. Les palettes locales (sans identifiant serveur) restent. Le client charge la charge signée **CTS1** (`ComposedTilesetClientLoader`, `GET /content/composed-tilesets`) ; un catalogue JSON brut est refusé. Hello reste **11** (#148). Guide : [Tuiles composées](progress/phase-10-beta-release/guides/COMPOSED_TILESETS.md) |
 | Contenu Phase 8 : Dialogue, Quête, Événement commun, Métier, Recette, Région, Profil météo | `Phase8ContentBrowseDialog` | partiel | Nécessite PostgreSQL. Wiki « Référence — Éditeur » renvoie au catalogue Phase 8, pas à cet écran |
 | Événements carte, pages, palette de commandes | `MapEventsBrowseDialog`, `MapEventPageEditorDialog`, `MapEventCommandPaletteBar` | faux | `docs/progress/phase-08-quests-events-advanced-creation/COMMAND_CATALOG.md` s’arrête à `call_common_event`. La palette code (`MapEventCommandPalette`) ajoute choix, images, déplacement/teinte d’image, fondu, teinte, tremblement, flash, défilement, animation, audio, boutique, or, objets, interrupteur, variable, branche, météo, niveau, EXP, paramètres, compétences, équipement, nom, classe, récupération, PV/PM (#86, #103, #108–#112, #115, #123–#126, #128, #130–#133) |
 | PNJ rapide, coffre, porte, auberge | `QuickTalkingNpcDialog`, `QuickEventPresetDialog` | partiel | PostgreSQL requis, puis clic sur la carte |
@@ -125,15 +127,20 @@ Le menu WinForms de `MainForm` (fenêtre non embarquée, pas le démarrage `App.
 
 | Document | Claim vs tip `35a82173` |
 | --- | --- |
-| `docs/EDITOR_WORKSPACE.md` | Chrome réel : barre d’icônes et chevron, cartes à gauche (280 px), troncature des noms, radios à droite, inspecteur, touche Z, lacune du menu WPF. Aligné dans cette reprise |
+| `docs/EDITOR_WORKSPACE.md` | Chrome réel : barre d’icônes et chevron, cartes à gauche (280 px), troncature des noms, radios à droite, inspecteur, touche Z, lacune du menu WPF. La fusion TileAsset des tuiles composées est au démarrage, pas à la fermeture WPF de Données de jeu |
 | `docs/ARCHITECTURE.md` | Coque WPF + îlots WinForms : encore vrai (ADR-0004). Pointe l’espace de travail et cet inventaire |
-| `docs/progress/phase-10-beta-release/guides/CREATOR_QUICKSTART.md` | Parcours peindre → enregistrer → publier, palette, statut, repli hors ligne. Colonne gauche **280 px**, chevron, noms tronqués, touche Z. Pas un tutoriel du panneau Zone ni des formulaires Objets de carte / Tuiles composées |
+| `docs/progress/phase-10-beta-release/guides/CREATOR_QUICKSTART.md` | Parcours peindre → enregistrer → publier, palette, statut, repli hors ligne. Colonne gauche **280 px**, chevron, noms tronqués, touche Z. Les formulaires sont renvoyés aux trois guides ci-dessous |
 | Wiki GitHub `Home`, `Auteur`, `Référence-Éditeur`, `Référence-Editor` | Miroir figé (tip docs cité `bf1677aa` / branche `cursor/phase10-beta-release`). Hors de ce dépôt |
 | `docs/reference/editor/` | Quatre fiches Save/Publish, tip `ea116afa`. L’une décrit un dialogue supprimé |
 | `docs/progress/phase-10-beta-release/KNOWN_ISSUES.md` | Note historique : menu MariaDB retiré en #83, absent déjà au tip `8aec6e64`. Non réécrite ici |
 | `docs/progress/editor-*/STATUS.md` et `COMMAND_CATALOG.md` | Notes de chantier, pas des guides. Elles gardent le texte de leur époque |
+| `docs/progress/phase-10-beta-release/guides/MAP_OBJECTS.md` | Parcours `MapObjectEditorPanel` : brouillon, publication, radio **Objets** après fermeture de Données de jeu |
+| `docs/progress/phase-10-beta-release/guides/COMPOSED_TILESETS.md` | Parcours `ComposedTilesetEditorPanel` : PNG **48×48**, publication, fusion TileAsset au démarrage, charge CTS1. Hello **11** |
+| `docs/progress/phase-10-beta-release/guides/MOB_ZONES.md` | Parcours touche Z, panneau, publication de la carte, réapparition dans le snapshot. Hello **11** |
 | `docs/DATA_MODEL.md` | Tables et colonnes de `MapObjectDraftPublish`, `MapMobSpawnZonesJson`, `ComposedTilesetDraftPublish` ajoutées à ce tip |
 | `Frog.Editor/Docs/analyse_edition_map.md` | Analyse VB6. Pas l’UI C# actuelle |
+
+<a id="ecarts-encore-ouverts"></a>
 
 ## Écarts encore ouverts
 
@@ -141,7 +148,8 @@ Repris de l’audit `8aec6e64` après la reprise NET-12 (écarts 1–5 traités 
 
 1. Aligner le wiki (`Home`, `Auteur`, `Référence*`) sur `docs/` au tip, pas sur `bf1677aa`. Le wiki se déclare miroir ; la source reste le dépôt.
 2. Étendre le texte auteur des commandes d’événement au-delà de `COMMAND_CATALOG.md` (s’arrête à `call_common_event`) pour la palette `MapEventCommandPalette`. Les fiches `docs/progress/*/STATUS.md` ne suffisent pas comme guide.
-3. Couvrir dans les guides, pas seulement en STATUS, les surfaces éditeur encore résumées : Héros, Compétences, Système, Armes, Armures, régions/rencontres, drapeaux de tuile, autotile, taille et décalage, audio carte, événements communs, et le détail des formulaires Objets de carte / Tuiles composées / Zone de monstres.
+3. Couvrir dans les guides, pas seulement en STATUS, les surfaces éditeur encore résumées : Héros, Compétences, Système, Armes, Armures, régions/rencontres, drapeaux de tuile, autotile, taille et décalage, audio carte, événements communs. Objets de carte, tuiles composées et zones de monstres ont un guide auteur.
 4. `docs/reference/editor/publishmapdialogtryvalidate.md` décrit un dialogue absent. Le reste de `docs/reference/editor/` est au tip `ea116afa`.
-5. **Lacune produit, pas un oubli de doc :** dans la coque WPF livrée, l’outil Zone n’a ni entrée de menu Carte ni puce de rail. Il s’ouvre avec la touche Z. Le menu WinForms autonome l’a (`Outil zone de monstres (Z)`) mais `App.xaml` ne lance pas cette fenêtre. Ce lot ne change pas le code.
-6. Captures : ne pas inventer de PNG. Les guides auteur citent des images déjà dans le dépôt ; ce rattrapage n’en ajoute pas.
+5. **Lacune produit, pas un oubli de doc :** dans la coque WPF livrée, l’outil Zone n’a ni entrée de menu Carte ni puce de rail. Il s’ouvre avec la touche Z. Le menu WinForms autonome l’a (`Outil zone de monstres (Z)`) mais `App.xaml` ne lance pas cette fenêtre. Ce lot ne change pas le code. Parcours : [Zones de monstres](progress/phase-10-beta-release/guides/MOB_ZONES.md).
+6. **Lacune produit, pas un oubli de doc :** fermer Données de jeu depuis `MainWindow.OpenGameData` recharge la palette Objets (`QueuePublishedMapObjectReload`) et ne recharge pas les tuiles composées. `QueuePublishedComposedTilesetReload` n’est appelé que par `MainForm.OpenGameData`. La fusion TileAsset a lieu au démarrage. Ce lot ne change pas le code.
+7. Captures : ne pas inventer de PNG. Les guides auteur citent des images déjà dans le dépôt. Les guides Objets de carte, Tuiles composées et Zones de monstres posent des marqueurs `<!-- CAPTURE: … -->` sans PNG.
