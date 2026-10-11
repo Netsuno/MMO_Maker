@@ -5,12 +5,15 @@
 | Guide | Pour qui |
 | --- | --- |
 | [PLAYER_QUICKSTART](PLAYER_QUICKSTART.md) | Joueur testeur (client) |
-| [CREATOR_QUICKSTART](CREATOR_QUICKSTART.md) | Auteur (éditeur) |
+| [CREATOR_QUICKSTART](CREATOR_QUICKSTART.md) | Auteur (éditeur) — peindre, enregistrer, publier |
+| [MAP_OBJECTS](MAP_OBJECTS.md) | Auteur — objets de carte (#146) : brouillon, publication, radio **Objets** |
+| [COMPOSED_TILESETS](COMPOSED_TILESETS.md) | Auteur — tuiles composées (#148), **48×48**, palette TileAsset, charge CTS1 |
+| [MOB_ZONES](MOB_ZONES.md) | Auteur — zones de monstres (#147), touche Z, réapparition dans la zone publiée |
 | [OPERATIONS](OPERATIONS.md) | Opérateur serveur |
 | [BETA_TEST_PLAN](BETA_TEST_PLAN.md) | Recette externe |
 | [BUG_REPORT_TEMPLATE](BUG_REPORT_TEMPLATE.md) | Signalement |
 | [UI-CLIENT-MainShell](UI-CLIENT-MainShell.md) | Inventaire contrôles client |
-| [Inventaire UI éditeur](../../../EDITOR_UI_INVENTORY.md) | Audit chrome au tip `35a82173`. Le quickstart auteur reprend la palette, le statut, la colonne gauche à 280 px et l’enregistrement PostgreSQL |
+| [Inventaire UI éditeur](../../../EDITOR_UI_INVENTORY.md) | Audit chrome au tip `35a82173` (docs `494485ee`). Le quickstart auteur reprend la palette, le statut, la colonne gauche à 280 px et l’enregistrement PostgreSQL. Les trois guides #146–#148 y sont liés |
 | [UI-CLIENT-SocialHub](UI-CLIENT-SocialHub.md) | Amis / Groupe / Guilde + **échafaudage** Courrier / HdV / Coffre / Instance |
 
 Captures : dossier [`assets/`](assets/). NET-11 (2026-10-01, tip `c57cd608`) : auteur, joueur, météo, social-01. Toujours absents : `options-01-son`, et les placeholders batch 3 `economy-01..03`, `instance-01` (pas de PNG inventés).

@@ -70,7 +70,7 @@ Smoke CI (shell puis quit, **pas** une session d’édition) :
 
 Le type de tuile (blocage, warp, ressource, script) est sous la radio **Régions**, avec la puce Région (G).
 
-Une tuile composée publiée (**Ressources → Données de jeu… → Tuiles composées**) rejoint cette palette. Un brouillon n’y est pas. Les tuiles choisies sont en **48×48**.
+Une tuile composée publiée (**Ressources → Données de jeu… → Tuiles composées**) rejoint la palette TileAsset au prochain démarrage de l’éditeur. Un brouillon n’y est pas. Les tuiles choisies sont en **48×48**. Détail : [Tuiles composées](COMPOSED_TILESETS.md).
 
 <!-- CAPTURE: assets/auteur-03-peinture.png -->
 ![Éditeur — peinture](assets/auteur-03-peinture.png)
@@ -81,13 +81,13 @@ Le monde démo de validation (3 cartes Village / Faubourgs / Arène) est une **f
 
 ## 5. Objets, entités, régions
 
-**Objets.** Choisis un objet dans la grille (filtre au-dessus). Le facing n’apparaît que s’il y a plusieurs variantes. Ce choix arme la pose : clic pour placer, clic droit pour effacer, Ctrl+D pour dupliquer, Échap pour quitter. Le bouton **Placer un objet** n’est pas affiché. Un objet de carte publié (**Données de jeu… → Objets de carte**) s’ajoute à cette grille. Ce n’est pas un objet d’inventaire, et un brouillon n’y apparaît pas.
+**Objets.** Choisis un objet dans la grille (filtre au-dessus). Le facing n’apparaît que s’il y a plusieurs variantes. Ce choix arme la pose : clic pour placer, clic droit pour effacer, Ctrl+D pour dupliquer, Échap pour quitter. Le bouton **Placer un objet** n’est pas affiché. Un objet de carte publié (**Données de jeu… → Objets de carte**) s’ajoute à cette grille à la fermeture de Données de jeu. Ce n’est pas un objet d’inventaire, et un brouillon n’y apparaît pas. Détail : [Objets de carte](MAP_OBJECTS.md).
 
 **Entités.** Départ, PNJ, Coffre, Porte, Auberge, puce Entités. Outil Entités (N) : clic pose, glisser déplace, clic droit retire. PNJ rapide, coffre, porte et auberge demandent PostgreSQL, puis un clic sur la carte.
 
 **Régions.** Type de tuile + Région (G) : peint 1–63, 0 efface, les numéros restent dessinés sur la carte. Le panneau Régions / Rencontres s’ouvre dans l’inspecteur.
 
-**Zone de monstres (Z).** La touche Z trace un rectangle sur la carte : glisser gauche déplace, glisser droit copie. Le panneau **Zone de monstres** s’ouvre dans l’inspecteur. Le menu **Carte** de la fenêtre livrée n’a pas cette commande, et le rail droit n’a pas de puce Zone. Le serveur ne fait réapparaître les monstres qu’à l’intérieur de la zone publiée.
+**Zone de monstres (Z).** La touche Z trace un rectangle sur la carte : glisser gauche déplace, glisser droit copie. Le panneau **Zone de monstres** s’ouvre dans l’inspecteur. Le menu **Carte** de la fenêtre livrée n’a pas cette commande, et le rail droit n’a pas de puce Zone ([lacune inventaire](../../../EDITOR_UI_INVENTORY.md#outil-zone-z-lacune-connue)). Le serveur ne fait réapparaître les monstres qu’à l’intérieur de la zone publiée. Détail : [Zones de monstres](MOB_ZONES.md).
 
 Données de jeu plus larges : menu **Ressources → Données de jeu…** (formulaires). Pas de JSON ni de SQL à écrire à la main. Hors ligne, ces dépôts passent en mémoire démo.
 
@@ -153,6 +153,7 @@ Publication fixture (ops / CI, pas ton monde final) :
 
 ## Et après ?
 
+- [Objets de carte](MAP_OBJECTS.md) · [Tuiles composées](COMPOSED_TILESETS.md) · [Zones de monstres](MOB_ZONES.md)
 - [Espace de travail](../../../EDITOR_WORKSPACE.md) — gabarit, statut, inspecteur, démarrage
 - [Périmètre bêta](../BETA_SCOPE.md) — ton contenu final ≠ fixture démo
 - [Plan de recette](BETA_TEST_PLAN.md)
