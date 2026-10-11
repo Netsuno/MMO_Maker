@@ -112,6 +112,7 @@ Touche P sélectionne aussi l’outil prefab. La ligne de statut porte l’outil
 
 ## Et après ?
 
+- [Données de jeu](GAME_DATA.md) — les 14 catégories de la fenêtre
 - [Tuiles composées](COMPOSED_TILESETS.md) — autre catégorie de Données de jeu
 - [Zones de monstres](MOB_ZONES.md)
 - [Quickstart auteur](CREATOR_QUICKSTART.md) § Objets

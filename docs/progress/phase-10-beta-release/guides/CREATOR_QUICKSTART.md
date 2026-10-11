@@ -89,7 +89,7 @@ Le monde démo de validation (3 cartes Village / Faubourgs / Arène) est une **f
 
 **Zone de monstres (Z).** La touche Z trace un rectangle sur la carte : glisser gauche déplace, glisser droit copie. Le panneau **Zone de monstres** s’ouvre dans l’inspecteur. Le menu **Carte** de la fenêtre livrée n’a pas cette commande, et le rail droit n’a pas de puce Zone ([lacune inventaire](../../../EDITOR_UI_INVENTORY.md#outil-zone-z-lacune-connue)). Le serveur ne fait réapparaître les monstres qu’à l’intérieur de la zone publiée. Détail : [Zones de monstres](MOB_ZONES.md).
 
-Données de jeu plus larges : menu **Ressources → Données de jeu…** (formulaires). Pas de JSON ni de SQL à écrire à la main. Hors ligne, ces dépôts passent en mémoire démo.
+Données de jeu plus larges : menu **Ressources → Données de jeu…** (14 catégories). Pas de JSON ni de SQL à écrire à la main. Hors ligne, ces dépôts passent en mémoire démo. Détail : [Données de jeu](GAME_DATA.md). Les commandes d’une page de carte : [Commandes d’événement](EVENT_COMMANDS.md).
 
 ## 6. Sélection
 
@@ -154,6 +154,7 @@ Publication fixture (ops / CI, pas ton monde final) :
 ## Et après ?
 
 - [Objets de carte](MAP_OBJECTS.md) · [Tuiles composées](COMPOSED_TILESETS.md) · [Zones de monstres](MOB_ZONES.md)
+- [Données de jeu](GAME_DATA.md) · [Commandes d’événement](EVENT_COMMANDS.md)
 - [Espace de travail](../../../EDITOR_WORKSPACE.md) — gabarit, statut, inspecteur, démarrage
 - [Périmètre bêta](../BETA_SCOPE.md) — ton contenu final ≠ fixture démo
 - [Plan de recette](BETA_TEST_PLAN.md)
