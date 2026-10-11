@@ -1,8 +1,8 @@
 # Espace de travail éditeur — disposition et responsabilités
 
-Chrome livré au tip d’inventaire `8aec6e64` (reprise NET-12 sur `15623c79`). Détail des contrôles : [inventaire UI](EDITOR_UI_INVENTORY.md).
+Chrome livré au tip `35a8217311eb8cf241b108ffe16a1d0bc1a63019`. Détail des contrôles : [inventaire UI](EDITOR_UI_INVENTORY.md).
 
-Hello / `FrogWireProtocol.Version` = **11**. Tuiles `TileAsset` **48×48** (`TileAssetMetrics.TargetTileSizePixels`). `WorldMetrics.DefaultTileSizePixels` reste 32 (taille source). Carte v6 pour une identité `TileAsset`.
+Hello / `FrogWireProtocol.Version` = **11**. Tuiles de contenu **48×48** (`TileAsset`, carte v6, TilePack, charge CTS1).
 
 Coque hybride : `App.xaml` → `MainWindow` (WPF) héberge `MainForm(embedAsWpfChild: true)`. Le menu et la barre d’état WinForms de `MainForm` ne s’affichent pas dans cette coque. Les libellés ci-dessous sont ceux de `MainWindow.xaml`, sauf mention. ADR-0004.
 
@@ -15,11 +15,12 @@ Fenêtre `MMO Maker — Éditeur`, minimum 1280×720, ouverte maximisée.
 │ Fichier    Édition    Ressources    Carte    Affichage                  │
 ├─ Barre d’icônes (Segoe MDL2) ───────────────────────────────────────────┤
 │ Nouvelle  Ouvrir  Enregistrer  Annuler  Rétablir  Zoom +/−  Tester      │
+│ chevron « Autres commandes » seulement si la barre déborde               │
 ├─────────────────┬───────────────────────────────┬───────────────────────┤
-│ CARTES          │                               │ Tuiles | Objets |     │
-│ ~200 px         │         MapCanvas             │ Entités | Régions     │
-│ (180–280)       │    minimap : coin haut-droit  │                       │
-│ arbre seulement │    bandeau titre : masqué     │ feuille ou liste      │
+│ MONDE — cartes  │                               │ Tuiles | Objets |     │
+│ 280 px          │         MapCanvas             │ Entités | Régions     │
+│ (180–340)       │    minimap : coin haut-droit  │                       │
+│ noms longs : …  │    bandeau titre : masqué     │ feuille ou liste      │
 │                 │                               │ du mode actif         │
 │                 │                               ├───────────────────────┤
 │                 │                               │ COUCHES ~168 px       │
@@ -33,9 +34,11 @@ Fenêtre `MMO Maker — Éditeur`, minimum 1280×720, ouverte maximisée.
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-Colonne droite ~300 px (280–420). Splitters WPF. Largeurs mémorisées dans `editor-workstate.json` (`EditorLocalWorkstate`, `MainWindow.RestoreShellColumnWidths`).
+Colonne droite ~300 px (280–420). Splitters WPF. Largeurs mémorisées dans `editor-workstate.json` (`EditorLocalWorkstate`, `MainWindow.RestoreShellColumnWidths`). La colonne gauche part à **280 px** (`ColLeft`, minimum 180, maximum 340).
 
-La barre d’icônes porte Nouvelle, Ouvrir, Enregistrer, Annuler, Rétablir, Zoom avant, Zoom arrière, Tester. Les puces de dessin (pinceau, gomme, …) sont dans la radio **Tuiles**, sur le rail droit.
+La barre d’icônes porte Nouvelle, Ouvrir, Enregistrer, Annuler, Rétablir, Zoom avant, Zoom arrière, Tester. Les glyphes sont Segoe MDL2 Assets, posés par `ToolBar.ButtonStyleKey`. Si la fenêtre est trop étroite pour tous les boutons, un chevron sombre s’affiche ; son infobulle est **Autres commandes**. Il reste masqué tant que tout tient. Les puces de dessin (pinceau, gomme, …) sont dans la radio **Tuiles**, sur le rail droit.
+
+L’arbre de gauche titre **MONDE — cartes**. Un nom long est coupé au mot, avec `…`, et l’infobulle reprend le libellé entier (id court, nom, révision, publié ou brouillon).
 
 Le bandeau interne « CARTE : Nom (W × H) » est encore mis à jour (`UpdateMapChromeLabels`) et reste masqué (`Height` 0). La minimap (`MapMinimapControl`) est dans le coin haut-droit du canevas.
 
@@ -59,12 +62,12 @@ Le mode actif est le préfixe de la ligne de statut (`PaletteModeLabel`).
 
 | Radio | Contenu |
 | --- | --- |
-| **Tuiles** | Pinceau, Gomme, Remplissage, Rectangle, Ligne, Sélection, options de pot et de rectangle, bouton Pipette, puis la feuille (`TilesetPickerPanelWpf` / `TileAssetWorkbench`). Le curseur (C) n’a pas de puce ici |
-| **Objets** | Grille, filtre, facing seulement s’il y a plusieurs variantes. Choisir un objet arme la pose. Le bouton **Placer un objet** (`BtnPlacePrefab`) est masqué |
+| **Tuiles** | Pinceau, Gomme, Remplissage, Rectangle, Ligne, Sélection, options de pot et de rectangle, bouton Pipette, puis la feuille (`TilesetPickerPanelWpf` / palette TileAsset). Le curseur (C) et la Zone (Z) n’ont pas de puce ici. Une tuile composée **publiée** rejoint cette palette ; un brouillon n’y est pas |
+| **Objets** | Grille, filtre, facing seulement s’il y a plusieurs variantes. Choisir un objet arme la pose. Le bouton **Placer un objet** (`BtnPlacePrefab`) est masqué. Un objet de carte **publié** (Données de jeu) s’ajoute ici ; un brouillon n’y est pas |
 | **Entités** | Départ, PNJ, Coffre, Porte, Auberge, puce Entités |
 | **Régions** | Type de tuile (`ComboTileType`) et puce Région (G). Le libellé radio est **Régions** ; l’énumération reste `EditorPaletteMode.Attributes` |
 
-Raccourcis lettre : B E C F R L M D P N G, I pipette, Alt+clic. Préfab : clic pose, clic droit efface, Ctrl+D duplique, Échap quitte. Entités (N) : clic pose, glisser déplace, clic droit retire. Région (G) : peint 1–63, 0 efface, overlay des numéros. Le détail des menus livrés est dans l’inventaire.
+Raccourcis lettre : B E C F R L M D P N G Z, I pipette, Alt+clic. Préfab : clic pose, clic droit efface, Ctrl+D duplique, Échap quitte. Entités (N) : clic pose, glisser déplace, clic droit retire. Région (G) : peint 1–63, 0 efface, overlay des numéros. Zone (Z) : voir plus bas. Le détail des menus livrés est dans l’inventaire.
 
 ## Ligne de statut (#137)
 
@@ -87,10 +90,24 @@ Le suffixe catalogue devient alors `mémoire (démo — non persistant)`.
 Replié (hauteur 0) sans sélection contextuelle. Il s’ouvre (~160 px) pour :
 
 - l’outil Région ;
+- l’outil Zone (le panneau **Zone de monstres** mesure 420 px et défile dans ce dock) ;
 - une entité posée, ou l’outil Entités ;
 - une tuile inspectée au curseur (C).
 
 Un clic pinceau laisse l’inspecteur replié. Les couches restent visibles dans tous ces cas.
+
+## Outil Zone (Z) — lacune du menu livré
+
+La touche Z, sans modificateur, sélectionne `EditorTool.MobZone` dans la coque WPF (`MainWindow.OnPreviewToolHotkey`). Le canevas trace un rectangle ; un glisser gauche déplace la zone, un glisser droit la copie. Le panneau **Zone de monstres** nomme la zone et y pose des monstres (quantité, réapparition en secondes). Le serveur ne les fait réapparaître qu’à l’intérieur de la zone publiée. Hello reste **11**.
+
+Le menu **Carte** de `MainWindow.xaml` n’a pas cette entrée, et le rail droit n’a pas de puce Zone. L’entrée **Outil zone de monstres (Z)** existe seulement sur le `MenuStrip` WinForms, construit quand `MainForm` n’est pas embarqué. `App.xaml` embarque le formulaire : dans l’éditeur livré, on ouvre l’outil avec la touche Z.
+
+## Objets de carte et tuiles composées
+
+**Ressources → Données de jeu…** ajoute deux catégories après Armures.
+
+- **Objets de carte** (`MapObjectEditorPanel`) : props placables, distincts des objets d’inventaire. Brouillon, puis Publier. Seule la publication entre dans la radio **Objets**.
+- **Tuiles composées** (`ComposedTilesetEditorPanel`) : tuiles **48×48** choisies, pas une feuille découpée. Brouillon, puis Publier. Seule la publication rejoint la palette TileAsset. Le client charge ensuite la charge signée CTS1 (`GET /content/composed-tilesets`). Un catalogue JSON brut est refusé.
 
 ## Gestes de sélection (#136)
 
@@ -119,7 +136,7 @@ Le thread UI reste libre. `MainForm.OpenMapRepositoryBundleAsync` charge le cata
 
 Les libellés WPF restent « Enregistrer (PostgreSQL) » et « Publier (PostgreSQL)… », y compris quand les commandes sont inactives. Une boîte d’erreur au démarrage du catalogue n’apparaît que si l’exception n’est pas ce repli.
 
-Le rail droit ne réécrit plus les minimums du `SplitContainer` à chaque `SizeChanged` (`RightRailLayoutMath`, `MainWindow.QueueShellLayout`, `MainForm.TryAssignSplitDistance`).
+Le rail droit ne réécrit plus les minimums du `SplitContainer` à chaque `SizeChanged` (`RightRailLayoutMath`, `MainWindow.QueueShellLayout`, `MainForm.TryAssignSplitDistance`). #142 et #143 diffèrent encore ce layout tant que le handle de l’hôte WPF existe, et plafonnent la hauteur de la bande d’outils (`PaletteChromeHeight`) pour que le premier affichage ne reboucle pas.
 
 ## Couche application
 
