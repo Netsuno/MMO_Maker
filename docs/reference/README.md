@@ -3,17 +3,19 @@
 Fonctions documentées : `nom(args)` · entrées/sorties typées.  
 Classement **par sous-projet**, puis **A–Z**.
 
-> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `a6edd821` (Hello `FrogWireProtocol.Version` = 11 · tuiles `TileAsset` 48×48 · Exemple C# revus).
+> Au fil de l’eau. Absent / prévu ≠ livré. Tip inventaire : `2af2dd22` (depuis `a6edd821`). Hello `FrogWireProtocol.Version` = **11**. Propriétaire : **Netsun**.
+
+Pipeline tuiles de contenu : [48×48](pipeline-tuiles-48.md) — `TileAsset` → TilePack → carte v6 → tuiles composées → CTS1. `WorldMetrics.DefaultTileSizePixels` = **32** est la grille monde, pas la tuile de contenu.
 
 ## Sous-projets (assemblies)
 
 | Sous-projet | Page | Contenu (1 ligne) |
 | --- | --- | --- |
-| Client | [Client](client/README.md) | `FrogGameClient` Send*/Connect* |
-| Server | [Server](server/README.md) | Auth, map, move, reconnect, moderation |
-| Editor | [Editor](editor/README.md) | Save/Publish carte (UI MainForm) |
-| Core | [Core](core/README.md) | Formules, codecs, Social / Economy / Instance hubs, MovementFluidity |
-| PostgreSQL | [PostgreSQL](postgresql/README.md) | Account, Character, Inventory, Map, Quest |
+| Client | [Client](client/README.md) | `FrogGameClient` Send*/Connect*, charge CTS1 |
+| Server | [Server](server/README.md) | Auth, map, move, zones publiées, GET CTS1 |
+| Editor | [Editor](editor/README.md) | Save/Publish, objets de carte, zones, tuiles composées |
+| Core | [Core](core/README.md) | Formules, codecs, CTS1, zones, objets de carte |
+| PostgreSQL | [PostgreSQL](postgresql/README.md) | Account, Character, Inventory, Map, objets, tuiles composées |
 
 ## Comment lire
 

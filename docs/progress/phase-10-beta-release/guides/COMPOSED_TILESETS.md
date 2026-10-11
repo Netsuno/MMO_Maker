@@ -1,6 +1,6 @@
 # Tuiles composées
 
-← [Guides](README.md) · [Quickstart auteur](CREATOR_QUICKSTART.md) · [Espace de travail](../../../EDITOR_WORKSPACE.md) · [Inventaire UI](../../../EDITOR_UI_INVENTORY.md) · [Modèle de données](../../../DATA_MODEL.md)
+← [Guides](README.md) · [Quickstart auteur](CREATOR_QUICKSTART.md) · [Espace de travail](../../../EDITOR_WORKSPACE.md) · [Inventaire UI](../../../EDITOR_UI_INVENTORY.md) · [Modèle de données](../../../DATA_MODEL.md) · [Pipeline 48×48](../../../reference/pipeline-tuiles-48.md)
 
 > Peinture d’une carte : [quickstart auteur](CREATOR_QUICKSTART.md). Ce guide couvre **Tuiles composées** (#148).
 

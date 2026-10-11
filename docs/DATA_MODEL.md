@@ -103,7 +103,7 @@ Tileset composé de tuiles **48×48** choisies. Les pixels restent dans `content
 - Unique `(composed_tileset_id, revision)`
 - Historique : `id`, `composed_tileset_id` FK cascade, `snapshot_id`, `revision`, `published_at_utc`
 
-La publication alimente la palette TileAsset de l’éditeur et la charge client **CTS1** (`GET /content/composed-tilesets`, signature Ed25519). Un catalogue JSON brut est refusé.
+La publication alimente la palette TileAsset de l’éditeur et la charge client **CTS1** (`GET /content/composed-tilesets`, signature Ed25519). Un catalogue JSON brut est refusé. Parcours des classes, tables et paquets : [pipeline tuiles 48×48](reference/pipeline-tuiles-48.md). `WorldMetrics.DefaultTileSizePixels` = 32 reste la grille monde. Un tileset feuille neuf part encore de 32.
 
 ### `ops.legacy_imports`
 
