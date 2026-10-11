@@ -118,6 +118,7 @@ Le client voit ces monstres comme les autres (paquet de position, kind monstre).
 
 ## Et après ?
 
+- [Données de jeu](GAME_DATA.md) — fiche **NPCs / monstres** (le combo de zone liste aussi les brouillons)
 - [Objets de carte](MAP_OBJECTS.md) · [Tuiles composées](COMPOSED_TILESETS.md)
 - [Quickstart auteur](CREATOR_QUICKSTART.md) § Zone de monstres
 - [Inventaire — lacune Z](../../../EDITOR_UI_INVENTORY.md#outil-zone-z-lacune-connue)

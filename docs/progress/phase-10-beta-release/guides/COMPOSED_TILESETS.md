@@ -129,6 +129,7 @@ Hello TCP ne porte pas cette charge. Il reste **11**.
 
 ## Et après ?
 
+- [Données de jeu](GAME_DATA.md) — les 14 catégories de la fenêtre
 - [Objets de carte](MAP_OBJECTS.md)
 - [Zones de monstres](MOB_ZONES.md)
 - [Quickstart auteur](CREATOR_QUICKSTART.md) § Peindre
