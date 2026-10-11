@@ -47,8 +47,8 @@ Smoke CI (shell puis quit, **pas** une session d’édition) :
 
 ## 2. Lire la fenêtre
 
-- Barre d’icônes : Nouvelle, Ouvrir, Enregistrer, Annuler, Rétablir, Zoom +/−, Tester.
-- Gauche (~200 px) : arbre des cartes seulement.
+- Barre d’icônes : Nouvelle, Ouvrir, Enregistrer, Annuler, Rétablir, Zoom +/−, Tester. Si la barre ne tient pas, un chevron **Autres commandes** reçoit les boutons restants. Il est masqué tant que tout est visible.
+- Gauche (280 px, entre 180 et 340) : arbre **MONDE — cartes** seulement. Un nom long se coupe au mot (`…`) ; l’infobulle donne le libellé entier.
 - Centre : canevas. Minimap dans le coin haut-droit. Le bandeau de titre de carte est masqué.
 - Droite : radios **Tuiles | Objets | Entités | Régions**, puis le contenu du mode. Couches (~168 px) toujours visibles. Inspecteur replié tant qu’il n’y a rien à inspecter (~160 px une fois ouvert).
 
@@ -70,6 +70,8 @@ Smoke CI (shell puis quit, **pas** une session d’édition) :
 
 Le type de tuile (blocage, warp, ressource, script) est sous la radio **Régions**, avec la puce Région (G).
 
+Une tuile composée publiée (**Ressources → Données de jeu… → Tuiles composées**) rejoint cette palette. Un brouillon n’y est pas. Les tuiles choisies sont en **48×48**.
+
 <!-- CAPTURE: assets/auteur-03-peinture.png -->
 ![Éditeur — peinture](assets/auteur-03-peinture.png)
 
@@ -79,11 +81,13 @@ Le monde démo de validation (3 cartes Village / Faubourgs / Arène) est une **f
 
 ## 5. Objets, entités, régions
 
-**Objets.** Choisis un objet dans la grille (filtre au-dessus). Le facing n’apparaît que s’il y a plusieurs variantes. Ce choix arme la pose : clic pour placer, clic droit pour effacer, Ctrl+D pour dupliquer, Échap pour quitter. Le bouton **Placer un objet** n’est pas affiché.
+**Objets.** Choisis un objet dans la grille (filtre au-dessus). Le facing n’apparaît que s’il y a plusieurs variantes. Ce choix arme la pose : clic pour placer, clic droit pour effacer, Ctrl+D pour dupliquer, Échap pour quitter. Le bouton **Placer un objet** n’est pas affiché. Un objet de carte publié (**Données de jeu… → Objets de carte**) s’ajoute à cette grille. Ce n’est pas un objet d’inventaire, et un brouillon n’y apparaît pas.
 
 **Entités.** Départ, PNJ, Coffre, Porte, Auberge, puce Entités. Outil Entités (N) : clic pose, glisser déplace, clic droit retire. PNJ rapide, coffre, porte et auberge demandent PostgreSQL, puis un clic sur la carte.
 
 **Régions.** Type de tuile + Région (G) : peint 1–63, 0 efface, les numéros restent dessinés sur la carte. Le panneau Régions / Rencontres s’ouvre dans l’inspecteur.
+
+**Zone de monstres (Z).** La touche Z trace un rectangle sur la carte : glisser gauche déplace, glisser droit copie. Le panneau **Zone de monstres** s’ouvre dans l’inspecteur. Le menu **Carte** de la fenêtre livrée n’a pas cette commande, et le rail droit n’a pas de puce Zone. Le serveur ne fait réapparaître les monstres qu’à l’intérieur de la zone publiée.
 
 Données de jeu plus larges : menu **Ressources → Données de jeu…** (formulaires). Pas de JSON ni de SQL à écrire à la main. Hors ligne, ces dépôts passent en mémoire démo.
 
@@ -108,7 +112,7 @@ Une seule ligne, dans cet ordre :
 
 Avant le premier survol, la paire monde est `(0, 0)`. La suite de la ligne ajoute révision, modifié, enregistrement, départ, compteurs et catalogue. Il n’y a pas de second bandeau.
 
-L’inspecteur reste replié (hauteur 0) pendant un clic pinceau. Il s’ouvre (~160 px) pour l’outil Région, pour une entité posée ou l’outil Entités, ou pour une tuile inspectée avec le curseur (C). Les couches (~168 px) restent affichées.
+L’inspecteur reste replié (hauteur 0) pendant un clic pinceau. Il s’ouvre (~160 px) pour l’outil Région, pour l’outil Zone, pour une entité posée ou l’outil Entités, ou pour une tuile inspectée avec le curseur (C). Les couches (~168 px) restent affichées.
 
 ## 8. Enregistrer
 

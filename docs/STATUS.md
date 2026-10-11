@@ -1,6 +1,6 @@
 # STATUS
 
-Journal **actif** du dépôt. Les rapports de phase dans `docs/progress/phase-0N-*/` conservent leur texte d’époque ; un bandeau daté indique l’acceptation ultérieure.
+Journal **actif** du dépôt. Tip `main` documenté : `35a8217311eb8cf241b108ffe16a1d0bc1a63019`. Les rapports de phase dans `docs/progress/phase-0N-*/` conservent leur texte d’époque ; un bandeau daté indique l’acceptation ultérieure.
 
 | Phase | Status |
 | --- | --- |
@@ -19,7 +19,7 @@ Journal **actif** du dépôt. Les rapports de phase dans `docs/progress/phase-0N
 - CI `main` post-merge : https://github.com/Netsuno/MMO_Maker/actions/runs/35386572613 **SUCCESS**
 - CI produit Phase 9 : https://github.com/Netsuno/MMO_Maker/actions/runs/35384819869 **SUCCESS** (Frog.Tests **454** / PG **181** / editor **87×3** / gameplay **6×3** / Phase 8 **24×3** + 12 exact-sha)
 
-Détail lots : [`progress/phase-10-beta-release/STATUS.md`](progress/phase-10-beta-release/STATUS.md). CI connu tip `a489379` : [35450339601](https://github.com/Netsuno/MMO_Maker/actions/runs/35450339601) SUCCESS. Harness charge CI = **5 s** (pas un job 60 min). GUI WinForms *not proven on Linux agents* = hors gate.
+Détail lots : [`progress/phase-10-beta-release/STATUS.md`](progress/phase-10-beta-release/STATUS.md). CI connu tip `35a82173` : [37248415017](https://github.com/Netsuno/MMO_Maker/actions/runs/37248415017) SUCCESS. Harness charge CI = **5 s** (pas un job 60 min). GUI WinForms *not proven on Linux agents* = hors gate.
 
 Protocole runtime (cette branche) : **v11**. Ne pas fusionner. Ne pas diffuser. Pas de Phase 11. Pas de phrase de gate dans le lot docs.
 

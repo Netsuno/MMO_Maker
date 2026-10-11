@@ -19,6 +19,8 @@ Dépôt : [Netsuno/MMO_Maker](https://github.com/Netsuno/MMO_Maker)
 
 Phase 9 est **acceptée** et fusionnée sur `main`. La Phase 10 (bêta fermée externe) est **ouverte** sur `cursor/phase10-beta-release` (PR Draft [#8](https://github.com/Netsuno/MMO_Maker/pull/8)) : lots P10-0…P10-8 livrés ou acceptés propriétaire (25×60 dédié + recette 2 PCs, **2026-09-19**). Paquet **docs candidate** P10-9 — pas de phrase de gate dans ce lot.
 
+**Tip `main` documenté :** [`35a82173`](https://github.com/Netsuno/MMO_Maker/commit/35a8217311eb8cf241b108ffe16a1d0bc1a63019). Tuiles de contenu **48×48** (`TileAsset`, carte v6, TilePack). Hello **11**.
+
 | Phase | Statut | Preuve |
 | --- | --- | --- |
 | **7** — Gameplay essentiel | ✅ **ACCEPTED** | [`docs/progress/phase-07-essential-gameplay/`](docs/progress/phase-07-essential-gameplay/) |
@@ -28,7 +30,7 @@ Phase 9 est **acceptée** et fusionnée sur `main`. La Phase 10 (bêta fermée e
 
 **Persistance produit :** **PostgreSQL** (EF Core / Npgsql). MariaDB = héritage optionnel uniquement — [ADR-0002](docs/decisions/ADR-0002-postgresql-source-of-truth.md), [matrice MariaDB](docs/MARIADB_DOMAIN_MATRIX.md).
 
-**Protocole :** `FrogWireProtocol.Version = 11` sur cette branche (Hello, canaux Party/Guild, opcodes 80–86). `main` reste v10 jusqu’à fusion. Gel : [`SOCIAL_PROTOCOL_FREEZE.md`](docs/progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md).
+**Protocole :** `FrogWireProtocol.Version = 11` sur `main` au tip `35a82173` (Hello, canaux Party/Guild, opcodes 80–86). Gel : [`SOCIAL_PROTOCOL_FREEZE.md`](docs/progress/phase-10-beta-release/SOCIAL_PROTOCOL_FREEZE.md).
 
 **Preuves d’acceptation Phase 9** (CI verte, pas un dump) : Frog.Tests **454** · PG integration **181** · Phase 8 smoke **24×3** · Editor smoke **87×3** · Gameplay smoke **6×3** · manifeste 12 captures SHA-256. Les comptes Phase 8 (**412** / **174**) restent l’historique d’acceptation de cette phase.
 
@@ -116,7 +118,7 @@ Guide pas à pas historique : [`Docs/premier-monde.md`](Docs/premier-monde.md). 
 
 | Projet | Rôle |
 | --- | --- |
-| **Frog.Core** | Domaine partagé, `.fmap`, protocole (`FrogWireProtocol` v10, wire Phase 7/8) |
+| **Frog.Core** | Domaine partagé, `.fmap`, protocole (`FrogWireProtocol` v11, wire Phase 7/8) |
 | **Frog.Application** | Cas d’usage et ports (cartes, catalogues, contenu) |
 | **Frog.Persistence.PostgreSql** | EF Core / Npgsql, migrations, repositories produit |
 | **Frog.Client** | Client WinForms joueur (connexion → perso → carte, gameplay, panneaux Phase 8) |
@@ -132,7 +134,7 @@ Architecture : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · workspace édit
 
 ## Décisions produit
 
-Vision : un **seul monde hébergé**, équipe comme auteurs ; plus tard, les joueurs peuvent créer du contenu **toujours rattaché à ce monde**. Windows seulement pour l’instant. Tuiles **32×32**. Mouvement **pixel**, autorité **serveur**.
+Vision : un **seul monde hébergé**, équipe comme auteurs ; plus tard, les joueurs peuvent créer du contenu **toujours rattaché à ce monde**. Windows seulement pour l’instant. Tuiles de contenu **48×48** (`TileAsset`, carte v6, TilePack). Mouvement **pixel**, autorité **serveur**.
 
 | Sujet | Choix actuel |
 | --- | --- |
@@ -176,7 +178,7 @@ Conservé comme mémoire des fondations pré-PRD. Les événements carte **Postg
 
 **Phase 1 — Fondations** (fait) : `FrogWireProtocol.Version` dans Hello ; [`Docs/premier-monde.md`](Docs/premier-monde.md) ; protocole documenté.
 
-**Phase 2 — Fidélité carte / tiles** (fait) : tuiles 32 px (`WorldMetrics`), rendu PNG multi-couches, manifeste `.tilesets.json`.
+**Phase 2 — Fidélité carte / tiles** (fait) : tuiles de contenu **48×48** (`TileAsset`, carte v6, TilePack), rendu PNG multi-couches, manifeste `.tilesets.json`.
 
 **Phase 3 — Éditeur de cartes** (fait, puis étendu Phase 4–8) : chrome RPG Maker, `Map.Validate()`, mini-carte, outils brush/fill/rectangle, undo/redo. Les dialogues événements **MariaDB** (`frog_event_catalog`) sont **héritage** — le chemin produit est PostgreSQL + formulaires Phase 8.
 
@@ -192,7 +194,7 @@ Conservé comme mémoire des fondations pré-PRD. Les événements carte **Postg
 <summary><strong>Roadmap technique par composant (dette / plus tard)</strong></summary>
 
 ### Frog.Core
-- [x] `FrogWireProtocol.Version` dans Hello (aujourd’hui **v11** sur la branche Phase 10)
+- [x] `FrogWireProtocol.Version` dans Hello (aujourd’hui **v11** sur `main`, tip `35a82173`)
 - [ ] MapSerializerV2 si évolution format
 - [ ] Attributs additionnels (Door, NpcSpawn, zones…)
 
@@ -205,7 +207,7 @@ Conservé comme mémoire des fondations pré-PRD. Les événements carte **Postg
 - [ ] Instances (hors périmètre — monde partagé multi-cartes)
 
 ### Frog.Client
-- [x] Réseau Hello versionné, login, map PNG 32 px, warps, chat, mêlée
+- [x] Réseau Hello versionné, login, carte PNG en tuiles **48×48** (`TileAsset` / TilePack), warps, chat, mêlée
 - [x] Multi-slots perso ; gameplay Phase 7 ; panneaux dialogue / quêtes / craft / environnement
 - [x] Options, volume, aide F1, rebind AZERTY/QWERTY — **P10-3a**
 - [x] TLS client + validation certificat — **P10-5** (pas AcceptAll)
