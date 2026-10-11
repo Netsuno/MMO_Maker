@@ -12,7 +12,7 @@ Charge la révision **publiée** d’une carte (jamais le brouillon seul).
 - `mapId` (`Guid`) — carte publiée
 
 **Sorties :**
-- (`StoredMap?`) — null si pas de publication
+- (`StoredMap?`) — null si pas de publication. `MobSpawnZones` vient du snapshot publié, pas du brouillon
 
 **Exemple :**
 ```csharp

@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip miroir : `a6edd821`.
+Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip miroir : `2af2dd22`.
 
 ## Index
 
@@ -32,6 +32,19 @@ Fonctions `FrogGameClient`, A–Z. Style `nom(args)`. Tip miroir : `a6edd821`.
 UI boutons : [MainShell](../../progress/phase-10-beta-release/guides/UI-CLIENT-MainShell.md) · [SocialHub](../../progress/phase-10-beta-release/guides/UI-CLIENT-SocialHub.md) (incl. échafaudage Courrier/HdV/Coffre/Instance) · [Options](../../progress/phase-10-beta-release/guides/UI-CLIENT-Options.md).
 
 `WeatherOverlayRenderer` est **internal** (teinte + traits) — pas de fiche publique.
+
+
+## CTS1 — tuiles composées (#148)
+
+Charge CTS1 (#148), A–Z. Le chargeur est public ; `SyncTilePackAsync` sur `MainShellForm` reste privé. Pipeline : [tuiles 48×48](../pipeline-tuiles-48.md).
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [composedtilesetclientloader](composedtilesetclientloader.md) | `composedtilesetclientloader(options, transport?) → ComposedTilesetClientLoader` | Chargeur HTTP des tilesets composés publiés |
+| [composedtilesetloadresult](composedtilesetloadresult.md) | `composedtilesetloadresult(kind, detail) → ComposedTilesetLoadResult` | Résultat d’un chargement CTS1 côté client |
+| [dispose](dispose.md) | `dispose() → void` | Libère le transport HTTP si le chargeur le possède |
+| [load](load.md) | `load(payload, trustedPublicKey) → IReadOnlyList<ComposedTilesetDefinition>` | Lit une charge CTS1 déjà téléchargée et refuse un catalogue JSON brut |
+| [syncasync](syncasync.md) | `syncasync(cancellationToken?) → ComposedTilesetLoadResult` | Télécharge GET /content/composed-tilesets et vérifie la signature |
 
 ---
 

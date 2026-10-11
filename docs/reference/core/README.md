@@ -2,7 +2,7 @@
 
 ← [Référence](../README.md)
 
-Fonctions Core, A–Z. Style `nom(args)`. Tip miroir : `a6edd821`.
+Fonctions Core, A–Z. Style `nom(args)`. Tip miroir : `2af2dd22`.
 
 ## Index
 
@@ -102,6 +102,53 @@ Guide UI : [UI-CLIENT-SocialHub.md](../../progress/phase-10-beta-release/guides/
 Pas de page guide joueur pour #29.
 
 
+
+## Contenu 48×48 et zones (#146–#148)
+
+Tuiles composées, objets de carte, zones de monstres, A–Z. CTS1 n’est pas un opcode. Pipeline : [tuiles 48×48](../pipeline-tuiles-48.md).
+
+| Fonction | Signature | Une ligne |
+| --- | --- | --- |
+| [composedtileref](composedtileref.md) | `composedtileref → ComposedTileRef` | Une tuile choisie : identifiant de contenu et pixels 48×48 |
+| [composedtilesetdefinition](composedtilesetdefinition.md) | `composedtilesetdefinition → ComposedTilesetDefinition` | Tileset fait de tuiles 48×48 choisies, dans l’ordre de la palette |
+| [composedtilesetdefinition-normalize](composedtilesetdefinition-normalize.md) | `normalize() → void` | Trim le nom, le chemin et les identifiants de tuile |
+| [composedtilesetdefinition-validate](composedtilesetdefinition-validate.md) | `validate(out error) → bool` | Vérifie le nom, le chemin et des tuiles 48×48 dont l’id colle aux pixels |
+| [composedtilesetpackformat](composedtilesetpackformat.md) | `composedtilesetpackformat → constantes` | En-tête de la charge signée CTS1. Ce n’est pas un opcode Hello |
+| [composedtilesetpackreader-read](composedtilesetpackreader-read.md) | `read(data, trustedPublicKey) → IReadOnlyList<ComposedTilesetDefinition>` | Lit une charge CTS1 et vérifie la clé publique épinglée |
+| [composedtilesetpackwriter-write](composedtilesetpackwriter-write.md) | `write(tilesets, privateSeed) → byte[]` | Écrit la charge CTS1 signée Ed25519, tuile annoncée 48 |
+| [computesha256hex](computesha256hex.md) | `computesha256hex(bytes) → string` | Empreinte SHA-256 hex des octets, même calcul que le tileset feuille |
+| [createplacementid](createplacementid.md) | `createplacementid(id) → string` | Fabrique l’identifiant de pose `obj-` plus le Guid compact |
+| [formatentry](formatentry.md) | `formatentry(entry) → string` | Formate une ligne de monstre pour la liste |
+| [formatstatus](formatstatus.md) | `formatstatus(zoneName) → string` | Phrase de barre d’état pour l’outil Zone |
+| [isunprotectedcatalog](isunprotectedcatalog.md) | `isunprotectedcatalog(payload) → bool` | Détecte un catalogue JSON brut, que CTS1 refuse |
+| [mapobjectdefinition](mapobjectdefinition.md) | `mapobjectdefinition → MapObjectDefinition` | Prop plaçable, distinct d’un objet d’inventaire |
+| [mapobjectdefinition-validate](mapobjectdefinition-validate.md) | `validate(out error) → bool` | Vérifie le nom, le chemin, l’empreinte et le SHA-256 |
+| [mobspawnentry](mobspawnentry.md) | `mobspawnentry → MobSpawnEntry` | Ligne de zone : un monstre, une quantité vivante, un délai |
+| [mobspawnzone](mobspawnzone.md) | `mobspawnzone → MobSpawnZone` | Rectangle de tuiles. Les monstres n’apparaissent qu’à l’intérieur |
+| [mobspawnzonedocument](mobspawnzonedocument.md) | `mobspawnzonedocument → MobSpawnZoneDocument` | Zones d’une carte, hors blob .fmap et hors Hello |
+| [mobspawnzonedocument-clone](mobspawnzonedocument-clone.md) | `clone() → MobSpawnZoneDocument` | Copie le document et ses lignes |
+| [mobspawnzonedocument-empty](mobspawnzonedocument-empty.md) | `empty() → MobSpawnZoneDocument` | Crée un document sans zone |
+| [mobspawnzonedocument-find](mobspawnzonedocument-find.md) | `find(id) → MobSpawnZone?` | Cherche une zone par identifiant |
+| [mobspawnzonedocument-fromjson](mobspawnzonedocument-fromjson.md) | `fromjson(json) → MobSpawnZoneDocument` | Relit le JSON des zones. Une version autre que 1 est refusée |
+| [mobspawnzonedocument-replacewith](mobspawnzonedocument-replacewith.md) | `replacewith(source) → void` | Remplace les zones par une copie de la source |
+| [mobspawnzonedocument-tojson](mobspawnzonedocument-tojson.md) | `tojson() → string` | Sérialise en JSON camelCase (formatVersion, zones, entries) |
+| [mobspawnzonedocument-tryfromjson](mobspawnzonedocument-tryfromjson.md) | `tryfromjson(json, out document) → bool` | Relit le JSON. Une chaîne vide donne un document vide |
+| [mobspawnzoneedit-cliptomap](mobspawnzoneedit-cliptomap.md) | `cliptomap(document, mapWidth, mapHeight) → int` | Retire les zones qui ne tiennent plus sur la carte |
+| [mobspawnzoneedit-contains](mobspawnzoneedit-contains.md) | `contains(zone, tileX, tileY) → bool` | Dit si la case est dans le rectangle |
+| [mobspawnzoneedit-hittest](mobspawnzoneedit-hittest.md) | `hittest(zones, tileX, tileY, preferredId?) → MobSpawnZone?` | Trouve la zone sous une case. Une zone préférée gagne |
+| [mobspawnzoneedit-picktile](mobspawnzoneedit-picktile.md) | `picktile(zone, random) → (int X, int Y)` | Choisit une case uniforme dans le rectangle |
+| [mobspawnzoneedit-tryaddentry](mobspawnzoneedit-tryaddentry.md) | `tryaddentry(zone, monsterId, label, quantity, respawnSeconds, out entry, out error) → bool` | Ajoute un monstre dans la zone |
+| [mobspawnzoneedit-trycopy](mobspawnzoneedit-trycopy.md) | `trycopy(document, mapWidth, mapHeight, sourceId, tileX, tileY, out copy, out error) → bool` | Copie une zone vers un autre coin |
+| [mobspawnzoneedit-trycreate](mobspawnzoneedit-trycreate.md) | `trycreate(document, mapWidth, mapHeight, tileX, tileY, width, height, out zone, out error) → bool` | Ajoute un rectangle au document |
+| [mobspawnzoneedit-trymove](mobspawnzoneedit-trymove.md) | `trymove(zone, mapWidth, mapHeight, tileX, tileY) → bool` | Déplace le rectangle sans changer sa taille |
+| [mobspawnzoneedit-trynormalizerect](mobspawnzoneedit-trynormalizerect.md) | `trynormalizerect(x0, y0, x1, y1, mapWidth, mapHeight, out tileX, out tileY, out width, out height) → bool` | Ramène un rectangle de tracé dans les bords de la carte |
+| [mobspawnzoneedit-tryremove](mobspawnzoneedit-tryremove.md) | `tryremove(document, id) → bool` | Retire une zone du document |
+| [mobspawnzoneedit-tryremoveentry](mobspawnzoneedit-tryremoveentry.md) | `tryremoveentry(zone, entryId) → bool` | Retire une ligne de la zone |
+| [mobspawnzoneedit-tryrename](mobspawnzoneedit-tryrename.md) | `tryrename(zone, name, out error) → bool` | Renomme une zone (1–80 caractères) |
+| [mobspawnzoneedit-tryreplaceentry](mobspawnzoneedit-tryreplaceentry.md) | `tryreplaceentry(zone, entryId, monsterId, label, quantity, respawnSeconds, out error) → bool` | Remplace une ligne existante |
+| [mobspawnzoneedit-tryvalidate](mobspawnzoneedit-tryvalidate.md) | `tryvalidate(document, mapWidth, mapHeight, out error) → bool` | Vérifie toutes les zones avant écriture PostgreSQL |
+| [mobspawnzonelabels](mobspawnzonelabels.md) | `mobspawnzonelabels → constantes` | Libellés français de l’outil Zone |
+| [workingtileset-servertileetid](workingtileset-servertileetid.md) | `servertileetid → Guid` | Identifiant serveur d’une palette publiée. Vide : palette locale |
 
 ### meleedamage
 
@@ -297,4 +344,4 @@ ushort version = FrogWireProtocol.Version; // 11 — ne pas bumper
 // (ushort) — 11 sur le tip actuel
 ```
 
-*Source : `FrogWireProtocol.Version`. Wire v11 ; social 80–83 ; #28 audio ; #30 weather trailer 74 ; #31 maintenance (pas de bump).*
+*Source : `FrogWireProtocol.Version`. Wire v11 ; social 80–83 ; #28 audio ; #30 weather trailer 74 ; #31 maintenance. Tip `2af2dd22` (#145–#148) : pas de bump. CTS1 est un GET HTTP, pas un opcode.*

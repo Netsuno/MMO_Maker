@@ -7,7 +7,7 @@
 | [PLAYER_QUICKSTART](PLAYER_QUICKSTART.md) | Joueur testeur (client) |
 | [CREATOR_QUICKSTART](CREATOR_QUICKSTART.md) | Auteur (éditeur) — peindre, enregistrer, publier |
 | [MAP_OBJECTS](MAP_OBJECTS.md) | Auteur — objets de carte (#146) : brouillon, publication, radio **Objets** |
-| [COMPOSED_TILESETS](COMPOSED_TILESETS.md) | Auteur — tuiles composées (#148), **48×48**, palette TileAsset, charge CTS1 |
+| [COMPOSED_TILESETS](COMPOSED_TILESETS.md) | Auteur — tuiles composées (#148), **48×48**, palette TileAsset, charge CTS1. Référence : [pipeline 48×48](../../../reference/pipeline-tuiles-48.md) |
 | [MOB_ZONES](MOB_ZONES.md) | Auteur — zones de monstres (#147), touche Z, réapparition dans la zone publiée |
 | [GAME_DATA](GAME_DATA.md) | Auteur — fenêtre Données de jeu : 14 catégories, brouillon / publication |
 | [EVENT_COMMANDS](EVENT_COMMANDS.md) | Auteur — 45 commandes d’événement de carte (palette + combo) |

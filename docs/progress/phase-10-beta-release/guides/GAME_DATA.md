@@ -94,7 +94,7 @@ Feuille d’images pour la palette entière de l’éditeur (`TilesetCache`, ali
 
 **Importer…** ouvre **Importer un asset projet**. Le serveur charge les tilesets **publiés** (`PublishedTilesetConsumer`). L’éditeur les reprend dans le cache au démarrage (`HydrateTilesetCacheFromPublishedAsync`).
 
-À **Nouveau**, **Taille tuile**, **Largeur px** et **Hauteur px** partent de la métrique monde (`WorldMetrics.DefaultTileSizePixels`, 32, même défaut que `TilesetDefinition.TileSizePixels`). Ce n’est pas la tuile de contenu. Pour peindre en **48×48**, voir [Tuiles composées](COMPOSED_TILESETS.md).
+À **Nouveau**, **Taille tuile**, **Largeur px** et **Hauteur px** partent de la métrique monde (`WorldMetrics.DefaultTileSizePixels`, 32, même défaut que `TilesetDefinition.TileSizePixels`). Le formulaire écrit le littéral 32, pas la constante. Ce n’est pas la tuile de contenu. Détail des classes : [pipeline 48×48](../../../reference/pipeline-tuiles-48.md). Pour peindre en **48×48**, voir [Tuiles composées](COMPOSED_TILESETS.md).
 
 <!-- CAPTURE: Panneau Tilesets après Nouveau : Taille tuile, Largeur px et Hauteur px sur la métrique monde, distincte d’une tuile de contenu 48×48, boutons Nouveau Dupliquer Importer Enregistrer brouillon Publier Supprimer -->
 *Capture à venir.*

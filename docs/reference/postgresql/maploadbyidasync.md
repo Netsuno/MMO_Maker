@@ -12,7 +12,7 @@ Charge une carte stockée (brouillon ou état courant selon le repo).
 - `mapId` (`Guid`) — carte stockée
 
 **Sorties :**
-- (`StoredMap?`) — null si absente
+- (`StoredMap?`) — null si absente. `MobSpawnZones` relit `mob_spawn_zones_json` du brouillon
 
 **Exemple :**
 ```csharp

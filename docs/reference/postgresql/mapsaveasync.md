@@ -9,10 +9,11 @@ Sauve un brouillon ou publie une carte (révision optimiste).
 **Signature :** `mapsaveasync(request)`
 
 **Entrées :**
-- `request` (`SaveMapRequest`) — MapId?, Map, ExpectedRevision, Intent (SaveDraft | Publish)
+- `request` (`SaveMapRequest`) — MapId?, Map, ExpectedRevision, Intent (SaveDraft | Publish), `MobSpawnZones?`
 
 **Sorties :**
 - (`SaveMapResult`) — Success / Conflict / ValidationFailed / PersistenceFailed / NotDurable
+- `MobSpawnZones` (`MobSpawnZoneDocument?`) — null laisse la colonne inchangée à la mise à jour ; document vide efface les zones. Écrit `mob_spawn_zones_json` (brouillon et snapshot si Publish). `TryValidate` refuse un rectangle hors carte
 
 **Exemple :**
 ```csharp
